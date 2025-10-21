@@ -1,0 +1,667 @@
+DB: postgresql+psycopg2://airflow:***@postgres/airflow
+[[34m2025-10-10T19:04:11.167+0000[0m] {[34mmigration.py:[0m216} INFO[0m - Context impl PostgresqlImpl.[0m
+[[34m2025-10-10T19:04:11.170+0000[0m] {[34mmigration.py:[0m219} INFO[0m - Will assume transactional DDL.[0m
+[[34m2025-10-10T19:04:16.794+0000[0m] {[34mconfiguration.py:[0m2087} INFO[0m - Creating new FAB webserver config file in: /opt/airflow/webserver_config.py[0m
+  ____________       _____________
+ ____    |__( )_________  __/__  /________      __
+____  /| |_  /__  ___/_  /_ __  /_  __ \_ | /| / /
+___  ___ |  / _  /   _  __/ _  / / /_/ /_ |/ |/ /
+ _/_/  |_/_/  /_/    /_/    /_/  \____/____/|__/
+[[34m2025-10-10T19:04:18.800+0000[0m] {[34mtask_context_logger.py:[0m63} INFO[0m - Task context logging is enabled[0m
+[[34m2025-10-10T19:04:18.802+0000[0m] {[34mexecutor_loader.py:[0m235} INFO[0m - Loaded executor: LocalExecutor[0m
+[[34m2025-10-10T19:04:18.929+0000[0m] {[34mscheduler_job_runner.py:[0m796} INFO[0m - Starting the scheduler[0m
+[[34m2025-10-10T19:04:18.931+0000[0m] {[34mscheduler_job_runner.py:[0m803} INFO[0m - Processing each file at most -1 times[0m
+[[34m2025-10-10T19:04:20.580+0000[0m] {[34mmanager.py:[0m170} INFO[0m - Launched DagFileProcessorManager with pid: 157[0m
+[[34m2025-10-10T19:04:20.587+0000[0m] {[34mscheduler_job_runner.py:[0m1595} INFO[0m - Adopting or resetting orphaned tasks for active dag runs[0m
+[[34m2025-10-10T19:04:20.601+0000[0m] {[34msettings.py:[0m60} INFO[0m - Configured default timezone UTC[0m
+[[34m2025-10-10T19:04:23.426+0000[0m] {[34moverride.py:[0m1427} INFO[0m - Inserted Role: Admin[0m
+[[34m2025-10-10T19:04:23.436+0000[0m] {[34moverride.py:[0m1427} INFO[0m - Inserted Role: Public[0m
+[[34m2025-10-10T19:04:23.440+0000[0m] {[34moverride.py:[0m924} WARNING[0m - No user yet created, use flask fab command to do it.[0m
+[[34m2025-10-10T19:04:23.536+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can edit on Passwords[0m
+[[34m2025-10-10T19:04:23.547+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on Passwords to role Admin[0m
+[[34m2025-10-10T19:04:23.561+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on Passwords[0m
+[[34m2025-10-10T19:04:23.570+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Passwords to role Admin[0m
+[[34m2025-10-10T19:04:23.591+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can edit on My Password[0m
+[[34m2025-10-10T19:04:23.597+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on My Password to role Admin[0m
+[[34m2025-10-10T19:04:23.607+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on My Password[0m
+[[34m2025-10-10T19:04:23.614+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on My Password to role Admin[0m
+[[34m2025-10-10T19:04:23.630+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can edit on My Profile[0m
+[[34m2025-10-10T19:04:23.638+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on My Profile to role Admin[0m
+[[34m2025-10-10T19:04:23.653+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on My Profile[0m
+[[34m2025-10-10T19:04:23.661+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on My Profile to role Admin[0m
+[[34m2025-10-10T19:04:23.734+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can create on Users[0m
+[[34m2025-10-10T19:04:23.744+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can create on Users to role Admin[0m
+[[34m2025-10-10T19:04:23.757+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on Users[0m
+[[34m2025-10-10T19:04:23.774+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Users to role Admin[0m
+[[34m2025-10-10T19:04:23.791+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can edit on Users[0m
+[[34m2025-10-10T19:04:23.844+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on Users to role Admin[0m
+[[34m2025-10-10T19:04:23.866+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can delete on Users[0m
+[[34m2025-10-10T19:04:23.881+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on Users to role Admin[0m
+[[34m2025-10-10T19:04:23.908+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on List Users[0m
+[[34m2025-10-10T19:04:23.924+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on List Users to role Admin[0m
+[[34m2025-10-10T19:04:23.945+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Security[0m
+[[34m2025-10-10T19:04:23.953+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Security to role Admin[0m
+[[34m2025-10-10T19:04:23.994+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can create on Roles[0m
+[[34m2025-10-10T19:04:24.006+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can create on Roles to role Admin[0m
+[[34m2025-10-10T19:04:24.019+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on Roles[0m
+[[34m2025-10-10T19:04:24.039+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Roles to role Admin[0m
+[[34m2025-10-10T19:04:24.050+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can edit on Roles[0m
+[[34m2025-10-10T19:04:24.065+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on Roles to role Admin[0m
+[[34m2025-10-10T19:04:24.864+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can delete on Roles[0m
+[[34m2025-10-10T19:04:24.892+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on Roles to role Admin[0m
+[[34m2025-10-10T19:04:24.908+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on List Roles[0m
+[[34m2025-10-10T19:04:24.916+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on List Roles to role Admin[0m
+[[34m2025-10-10T19:04:24.961+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on User Stats Chart[0m
+[[34m2025-10-10T19:04:24.976+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on User Stats Chart to role Admin[0m
+[[34m2025-10-10T19:04:25.012+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on User's Statistics[0m
+[[34m2025-10-10T19:04:25.027+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on User's Statistics to role Admin[0m
+[[34m2025-10-10T19:04:25.140+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on Permissions[0m
+[[34m2025-10-10T19:04:25.150+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Permissions to role Admin[0m
+[[34m2025-10-10T19:04:25.172+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Actions[0m
+[[34m2025-10-10T19:04:25.179+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Actions to role Admin[0m
+[[34m2025-10-10T19:04:25.218+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on View Menus[0m
+[[34m2025-10-10T19:04:25.225+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on View Menus to role Admin[0m
+[[34m2025-10-10T19:04:25.243+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Resources[0m
+[[34m2025-10-10T19:04:25.251+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Resources to role Admin[0m
+[[34m2025-10-10T19:04:25.298+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on Permission Views[0m
+[[34m2025-10-10T19:04:25.306+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Permission Views to role Admin[0m
+[[34m2025-10-10T19:04:25.325+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Permission Pairs[0m
+[[34m2025-10-10T19:04:25.341+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Permission Pairs to role Admin[0m
+[[34m2025-10-10T19:04:25.855+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on DAG Runs to role Admin[0m
+[[34m2025-10-10T19:04:25.879+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Browse[0m
+[[34m2025-10-10T19:04:25.888+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Browse to role Admin[0m
+[[34m2025-10-10T19:04:25.928+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on Jobs[0m
+[[34m2025-10-10T19:04:25.933+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Jobs to role Admin[0m
+[[34m2025-10-10T19:04:25.942+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(5, 26) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 5, 'view_menu_id': 26}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:25.998+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on Audit Logs[0m
+[[34m2025-10-10T19:04:26.004+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Audit Logs to role Admin[0m
+[[34m2025-10-10T19:04:26.015+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Audit Logs[0m
+[[34m2025-10-10T19:04:26.024+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Audit Logs to role Admin[0m
+[[34m2025-10-10T19:04:26.068+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can create on Variables[0m
+[[34m2025-10-10T19:04:26.077+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can create on Variables to role Admin[0m
+[[34m2025-10-10T19:04:26.088+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(45, 1) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 45, 'role_id': 1}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.096+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(1, 28) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 1, 'view_menu_id': 28}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.107+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can delete on Variables[0m
+[[34m2025-10-10T19:04:26.115+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(48, 1) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 48, 'role_id': 1}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.124+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(5, 28) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 5, 'view_menu_id': 28}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.151+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Admin[0m
+[[34m2025-10-10T19:04:26.158+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Admin to role Admin[0m
+[[34m2025-10-10T19:04:26.184+0000[0m] {[34moverride.py:[0m1737} ERROR[0m - Add View Menu Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_view_menu_name_uq"
+DETAIL:  Key (name)=(Task Instances) already exists.
+
+[SQL: INSERT INTO ab_view_menu (name) VALUES (%(name)s) RETURNING ab_view_menu.id]
+[parameters: {'name': 'Task Instances'}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.196+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can create on Task Instances to role Admin[0m
+[[34m2025-10-10T19:04:26.204+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on Task Instances[0m
+[[34m2025-10-10T19:04:26.209+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Task Instances to role Admin[0m
+[[34m2025-10-10T19:04:26.217+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(1, 31) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 1, 'view_menu_id': 31}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.228+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Task Instances[0m
+[[34m2025-10-10T19:04:26.240+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Task Instances to role Admin[0m
+[[34m2025-10-10T19:04:26.245+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on None to role Admin[0m
+[[34m2025-10-10T19:04:26.296+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(2, 33) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 2, 'view_menu_id': 33}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.314+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Task Reschedules[0m
+[[34m2025-10-10T19:04:26.323+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Task Reschedules to role Admin[0m
+[[34m2025-10-10T19:04:26.562+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on Connections[0m
+[[34m2025-10-10T19:04:26.567+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Connections to role Admin[0m
+[[34m2025-10-10T19:04:26.580+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can edit on Connections[0m
+[[34m2025-10-10T19:04:26.586+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on Connections to role Admin[0m
+[[34m2025-10-10T19:04:26.598+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can delete on Connections[0m
+[[34m2025-10-10T19:04:26.605+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on Connections to role Admin[0m
+[[34m2025-10-10T19:04:26.616+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Connections[0m
+[[34m2025-10-10T19:04:26.621+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Connections to role Admin[0m
+[[34m2025-10-10T19:04:26.624+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can create on Connections to role Admin[0m
+[[34m2025-10-10T19:04:26.666+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on SLA Misses[0m
+[[34m2025-10-10T19:04:26.675+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on SLA Misses to role Admin[0m
+[[34m2025-10-10T19:04:26.683+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on SLA Misses[0m
+[[34m2025-10-10T19:04:26.692+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(74, 1) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 74, 'role_id': 1}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.702+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(4, 37) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 4, 'view_menu_id': 37}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.714+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(1, 37) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 1, 'view_menu_id': 37}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.747+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on Plugins[0m
+[[34m2025-10-10T19:04:26.759+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Plugins to role Admin[0m
+[[34m2025-10-10T19:04:26.767+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(5, 38) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 5, 'view_menu_id': 38}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.779+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(81, 1) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 81, 'role_id': 1}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.795+0000[0m] {[34moverride.py:[0m1737} ERROR[0m - Add View Menu Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_view_menu_name_uq"
+DETAIL:  Key (name)=(Providers) already exists.
+
+[SQL: INSERT INTO ab_view_menu (name) VALUES (%(name)s) RETURNING ab_view_menu.id]
+[parameters: {'name': 'Providers'}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.812+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(83, 1) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 83, 'role_id': 1}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.820+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(5, 39) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 5, 'view_menu_id': 39}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.843+0000[0m] {[34moverride.py:[0m1897} INFO[0m - Removed Permission can delete on None to role Admin[0m
+[[34m2025-10-10T19:04:26.856+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(84, 1) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 84, 'role_id': 1}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.902+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(87, 1) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 87, 'role_id': 1}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.911+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(1, 41) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 1, 'view_menu_id': 41}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:26.924+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can delete on Pools[0m
+[[34m2025-10-10T19:04:26.934+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on Pools to role Admin[0m
+[[34m2025-10-10T19:04:26.946+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Pools[0m
+[[34m2025-10-10T19:04:26.950+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Pools to role Admin[0m
+[[34m2025-10-10T19:04:27.000+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on XComs[0m
+[[34m2025-10-10T19:04:27.011+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on XComs to role Admin[0m
+[[34m2025-10-10T19:04:27.019+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(4, 42) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 4, 'view_menu_id': 42}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:27.175+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on XComs[0m
+[[34m2025-10-10T19:04:27.182+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on XComs to role Admin[0m
+[[34m2025-10-10T19:04:27.222+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on DAG Dependencies[0m
+[[34m2025-10-10T19:04:27.233+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on DAG Dependencies to role Admin[0m
+[[34m2025-10-10T19:04:27.285+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on DAGs[0m
+[[34m2025-10-10T19:04:27.293+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on DAGs to role Admin[0m
+[[34m2025-10-10T19:04:27.309+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Cluster Activity[0m
+[[34m2025-10-10T19:04:27.318+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Cluster Activity to role Admin[0m
+[[34m2025-10-10T19:04:27.337+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Datasets[0m
+[[34m2025-10-10T19:04:27.344+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Datasets to role Admin[0m
+[[34m2025-10-10T19:04:27.349+0000[0m] {[34moverride.py:[0m1737} ERROR[0m - Add View Menu Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_view_menu_name_uq"
+DETAIL:  Key (name)=(Documentation) already exists.
+
+[SQL: INSERT INTO ab_view_menu (name) VALUES (%(name)s) RETURNING ab_view_menu.id]
+[parameters: {'name': 'Documentation'}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:27.360+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(5, 54) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 5, 'view_menu_id': 54}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:27.382+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: menu access on Docs[0m
+[[34m2025-10-10T19:04:27.390+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Docs to role Admin[0m
+[[34m2025-10-10T19:04:29.968+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(116, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 116, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:29.977+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(2, 51) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 2, 'view_menu_id': 51}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:29.992+0000[0m] {[34moverride.py:[0m1737} ERROR[0m - Add View Menu Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_view_menu_name_uq"
+DETAIL:  Key (name)=(ImportError) already exists.
+
+[SQL: INSERT INTO ab_view_menu (name) VALUES (%(name)s) RETURNING ab_view_menu.id]
+[parameters: {'name': 'ImportError'}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:29.998+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on None[0m
+[[34m2025-10-10T19:04:30.013+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on None to role Viewer[0m
+[[34m2025-10-10T19:04:30.022+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(121, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 121, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.035+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(37, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 37, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.045+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(3, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 3, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.059+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(5, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 5, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.069+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(73, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 73, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.083+0000[0m] {[34moverride.py:[0m1737} ERROR[0m - Add View Menu Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_view_menu_name_uq"
+DETAIL:  Key (name)=(Task Logs) already exists.
+
+[SQL: INSERT INTO ab_view_menu (name) VALUES (%(name)s) RETURNING ab_view_menu.id]
+[parameters: {'name': 'Task Logs'}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.089+0000[0m] {[34moverride.py:[0m1829} INFO[0m - Created Permission View: can read on None[0m
+[[34m2025-10-10T19:04:30.097+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on None to role Viewer[0m
+[[34m2025-10-10T19:04:30.103+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(94, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 94, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.112+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(2, 63) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 2, 'view_menu_id': 63}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.121+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(35, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 35, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.130+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(101, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 101, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.138+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(34, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 34, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.147+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(105, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 105, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.156+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(107, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 107, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.165+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(38, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 38, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.174+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(74, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 74, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.182+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(58, 3) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 58, 'role_id': 3}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.190+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(113, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 113, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.198+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(114, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 114, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.207+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(115, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 115, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.214+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(31, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 31, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.221+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(116, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 116, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.233+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(117, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 117, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.239+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(87, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 87, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.247+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(119, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 119, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.257+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(121, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 121, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.264+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(37, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 37, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.273+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(3, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 3, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.285+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(5, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 5, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.301+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(73, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 73, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.315+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(122, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 122, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.326+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(94, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 94, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.337+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(124, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 124, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.344+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(35, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 35, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.353+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(100, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 100, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.361+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(105, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 105, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.374+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(103, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 103, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.384+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(107, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 107, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.396+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(109, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 109, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.405+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(38, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 38, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.411+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(81, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 81, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.421+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(74, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 74, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.429+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(58, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 58, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.436+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(111, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 111, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.442+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(112, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 112, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.450+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(53, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 53, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.463+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(59, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 59, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.472+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(30, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 30, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.482+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(32, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 32, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.491+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(33, 4) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 33, 'role_id': 4}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.502+0000[0m] {[34moverride.py:[0m1832} ERROR[0m - Creation of Permission View Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_permission_id_view_menu_id_uq"
+DETAIL:  Key (permission_id, view_menu_id)=(3, 52) already exists.
+
+[SQL: INSERT INTO ab_permission_view (permission_id, view_menu_id) VALUES (%(permission_id)s, %(view_menu_id)s) RETURNING ab_permission_view.id]
+[parameters: {'permission_id': 3, 'view_menu_id': 52}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:30.510+0000[0m] {[34moverride.py:[0m1427} INFO[0m - Inserted Role: Op[0m
+[[34m2025-10-10T19:04:30.519+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on DAGs to role Op[0m
+[[34m2025-10-10T19:04:30.526+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on DAG Dependencies to role Op[0m
+[[34m2025-10-10T19:04:30.537+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on DAG Code to role Op[0m
+[[34m2025-10-10T19:04:30.545+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on DAG Runs to role Op[0m
+[[34m2025-10-10T19:04:30.552+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Datasets to role Op[0m
+[[34m2025-10-10T19:04:30.562+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Cluster Activity to role Op[0m
+[[34m2025-10-10T19:04:30.567+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Pools to role Op[0m
+[[34m2025-10-10T19:04:30.575+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on ImportError to role Op[0m
+[[34m2025-10-10T19:04:30.583+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on DAG Warnings to role Op[0m
+[[34m2025-10-10T19:04:30.589+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Jobs to role Op[0m
+[[34m2025-10-10T19:04:30.596+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on My Password to role Op[0m
+[[34m2025-10-10T19:04:30.601+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on My Password to role Op[0m
+[[34m2025-10-10T19:04:30.605+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on My Profile to role Op[0m
+[[34m2025-10-10T19:04:30.610+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on My Profile to role Op[0m
+[[34m2025-10-10T19:04:30.615+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Plugins to role Op[0m
+[[34m2025-10-10T19:04:30.620+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on SLA Misses to role Op[0m
+[[34m2025-10-10T19:04:30.625+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Task Instances to role Op[0m
+[[34m2025-10-10T19:04:30.636+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Task Logs to role Op[0m
+[[34m2025-10-10T19:04:30.642+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on XComs to role Op[0m
+[[34m2025-10-10T19:04:30.653+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Website to role Op[0m
+[[34m2025-10-10T19:04:30.662+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Browse to role Op[0m
+[[34m2025-10-10T19:04:30.667+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on DAGs to role Op[0m
+[[34m2025-10-10T19:04:30.675+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on DAG Dependencies to role Op[0m
+[[34m2025-10-10T19:04:30.683+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on DAG Runs to role Op[0m
+[[34m2025-10-10T19:04:30.687+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Datasets to role Op[0m
+[[34m2025-10-10T19:04:30.692+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Cluster Activity to role Op[0m
+[[34m2025-10-10T19:04:30.700+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Documentation to role Op[0m
+[[34m2025-10-10T19:04:30.704+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Docs to role Op[0m
+[[34m2025-10-10T19:04:30.711+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Jobs to role Op[0m
+[[34m2025-10-10T19:04:30.717+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Plugins to role Op[0m
+[[34m2025-10-10T19:04:30.723+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on SLA Misses to role Op[0m
+[[34m2025-10-10T19:04:30.733+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Task Instances to role Op[0m
+[[34m2025-10-10T19:04:30.739+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on DAGs to role Op[0m
+[[34m2025-10-10T19:04:30.746+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on DAGs to role Op[0m
+[[34m2025-10-10T19:04:30.752+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can create on Task Instances to role Op[0m
+[[34m2025-10-10T19:04:30.758+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on Task Instances to role Op[0m
+[[34m2025-10-10T19:04:30.764+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on Task Instances to role Op[0m
+[[34m2025-10-10T19:04:30.769+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can create on DAG Runs to role Op[0m
+[[34m2025-10-10T19:04:30.775+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on DAG Runs to role Op[0m
+[[34m2025-10-10T19:04:30.783+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on DAG Runs to role Op[0m
+[[34m2025-10-10T19:04:30.794+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can create on Datasets to role Op[0m
+[[34m2025-10-10T19:04:30.800+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Configurations to role Op[0m
+[[34m2025-10-10T19:04:30.808+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Admin to role Op[0m
+[[34m2025-10-10T19:04:30.814+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Configurations to role Op[0m
+[[34m2025-10-10T19:04:30.822+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Connections to role Op[0m
+[[34m2025-10-10T19:04:30.829+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Pools to role Op[0m
+[[34m2025-10-10T19:04:30.836+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Variables to role Op[0m
+[[34m2025-10-10T19:04:30.843+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on Providers to role Op[0m
+[[34m2025-10-10T19:04:30.850+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission menu access on XComs to role Op[0m
+[[34m2025-10-10T19:04:30.856+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can create on Connections to role Op[0m
+[[34m2025-10-10T19:04:30.863+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Connections to role Op[0m
+[[34m2025-10-10T19:04:30.871+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on Connections to role Op[0m
+[[34m2025-10-10T19:04:30.878+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on Connections to role Op[0m
+[[34m2025-10-10T19:04:30.888+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can create on Pools to role Op[0m
+[[34m2025-10-10T19:04:30.895+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on Pools to role Op[0m
+[[34m2025-10-10T19:04:30.902+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on Pools to role Op[0m
+[[34m2025-10-10T19:04:30.909+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Providers to role Op[0m
+[[34m2025-10-10T19:04:30.916+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can create on Variables to role Op[0m
+[[34m2025-10-10T19:04:30.926+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can read on Variables to role Op[0m
+[[34m2025-10-10T19:04:30.936+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can edit on Variables to role Op[0m
+[[34m2025-10-10T19:04:30.942+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on Variables to role Op[0m
+[[34m2025-10-10T19:04:30.948+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on XComs to role Op[0m
+[[34m2025-10-10T19:04:30.956+0000[0m] {[34moverride.py:[0m1880} INFO[0m - Added Permission can delete on Datasets to role Op[0m
+[[34m2025-10-10T19:04:30.983+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(122, 1) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 122, 'role_id': 1}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:31.001+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(112, 1) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 112, 'role_id': 1}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:31.035+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(126, 1) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 126, 'role_id': 1}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:31.088+0000[0m] {[34moverride.py:[0m1882} ERROR[0m - Add Permission to Role Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ab_permission_view_role_permission_view_id_role_id_uq"
+DETAIL:  Key (permission_view_id, role_id)=(128, 1) already exists.
+
+[SQL: INSERT INTO ab_permission_view_role (permission_view_id, role_id) VALUES (%(permission_view_id)s, %(role_id)s) RETURNING ab_permission_view_role.id]
+[parameters: {'permission_view_id': 128, 'role_id': 1}]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)[0m
+[[34m2025-10-10T19:04:31.161+0000[0m] {[34moverride.py:[0m1316} INFO[0m - Deleted 3 faulty permissions[0m

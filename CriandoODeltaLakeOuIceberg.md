@@ -121,6 +121,152 @@ Ingerir os dados refinados armazenados no MinIO (em formato Parquet) e consolid�
 - Escalável para múltiplas tabelas e partições
 - Pronto para integração com BI e datamarts
 
+
+### Ajustes de implantação
+
+Perfeito 🎉 — ótimo saber que agora está funcionando!
+Aqui vai um **resumo completo e estruturado** de tudo o que envolve a criação da **camada Delta Lake** com Spark + Airflow + Docker, incluindo as causas e correções do problema que você enfrentou 👇
+
 ---
 
-Se quiser, posso te ajudar a montar o `docker-compose.yml` com Spark + Delta + MinIO, ou escrever o script Spark que faz a ingestão dos arquivos refinados. Quer seguir por aí?
+## 🚀 **Resumo — Criação da Camada Delta Lake**
+
+### 🧱 1️⃣ O que é a camada Delta Lake
+
+Delta Lake é uma camada de armazenamento **transacional** sobre dados em formato **Parquet**, que adiciona:
+
+* Controle de versão (*time travel*);
+* Transações ACID;
+* Manutenção de metadados consistente;
+* Leitura e escrita otimizadas para pipelines de dados (como ETL).
+
+No contexto do seu projeto, ela é usada para criar a camada **“trusted”** do *data lake* — ou seja, a base limpa, validada e pronta para consumo.
+
+---
+
+### ⚙️ 2️⃣ Componentes do ambiente
+
+Seu ambiente é composto por:
+
+* **Apache Airflow** → orquestra a DAG de ingestão;
+* **Apache Spark (3.4.1)** → executa o processamento e escrita em Delta;
+* **Docker Compose** → gerencia os containers e o build das imagens;
+* **Delta Lake** (via `delta-core` e `delta-storage`) → permite que o Spark escreva e leia tabelas Delta.
+
+---
+
+### 🧩 3️⃣ Estrutura do projeto
+
+```
+datalake-air-flow/
+├── docker-compose.yml
+├── Dockerfile.spark
+├── jars/
+│   ├── delta-core_2.12-2.4.0.jar
+│   ├── delta-storage-2.4.0.jar
+│   ├── hadoop-aws-3.3.2.jar
+│   └── aws-java-sdk-bundle-1.11.1026.jar
+├── dags/
+│   └── ingestao_delta_clientes.py   # DAG do Airflow
+└── spark-apps/
+    └── ingest_delta_clientes.py     # Script Spark (ingestão Delta)
+```
+
+---
+
+### 🧠 4️⃣ Configuração do Dockerfile do Spark
+
+O `Dockerfile.spark` garante que os JARs necessários sejam empacotados junto à imagem do Spark:
+
+```dockerfile
+# Copia os JARs para o diretório do Spark
+COPY jars/*.jar /opt/spark/jars/
+```
+
+Durante o build:
+
+```bash
+docker compose build spark
+docker compose up -d spark
+```
+
+isso copia automaticamente todos os JARs da pasta `jars/` para `/opt/spark/jars/` dentro do container.
+
+---
+
+### 🧰 5️⃣ Dependências obrigatórias do Delta Lake
+
+Para Spark 3.4.1 (como o seu):
+
+| Dependência         | Versão         |
+| ------------------- | -------------- |
+| delta-core_2.12     | 2.4.0 ou 3.0.0 |
+| delta-storage       | 2.4.0 ou 3.0.0 |
+| hadoop-aws          | 3.3.2          |
+| aws-java-sdk-bundle | 1.11.1026      |
+
+Esses arquivos devem estar em `jars/` e são copiados no build.
+
+---
+
+### 🧮 6️⃣ Código base para criação da camada Delta
+
+**No script Spark** (`/opt/spark-apps/ingest_delta_clientes.py`):
+
+```python
+from pyspark.sql import SparkSession
+from delta import configure_spark_with_delta_pip
+
+builder = (
+    SparkSession.builder.appName("Ingest Delta Clientes")
+    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+)
+
+spark = configure_spark_with_delta_pip(builder).getOrCreate()
+
+# Exemplo: leitura e escrita em formato Delta
+df = spark.read.parquet("s3a://datalake/raw/clientes/")
+df.write.format("delta").partitionBy("partition_date").mode("overwrite").save("s3a://datalake/trusted/clientes/")
+```
+
+---
+
+### 🧠 7️⃣ Erros comuns e soluções
+
+| Erro                                              | Causa                                                 | Solução                                             |
+| ------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
+| `ModuleNotFoundError: No module named 'delta'`    | Pacote `delta-spark` não instalado no container Spark | `pip install delta-spark`                           |
+| `NoClassDefFoundError: io/delta/storage/LogStore` | Faltou o JAR `delta-storage`                          | Baixar `delta-storage-x.x.x.jar` e rebuildar        |
+| Arquivos não copiados                             | Build cache ou contexto errado no Docker              | `docker compose build --no-cache spark`             |
+| DAG retorna código 1                              | Spark retornou erro interno                           | Verificar logs no container com `docker logs spark` |
+
+---
+
+### 🧾 8️⃣ Execução via Airflow
+
+A DAG executa a tarefa com um `BashOperator` chamando o Spark via Docker:
+
+```python
+t1 = BashOperator(
+    task_id='ingestao_delta_clientes',
+    bash_command='docker exec spark /opt/spark/bin/spark-submit /opt/spark-apps/ingest_delta_clientes.py',
+    dag=dag
+)
+```
+
+Assim, o Airflow orquestra o fluxo, e o Spark executa o processamento e grava os dados no formato Delta.
+
+---
+
+### 🧭 9️⃣ Resultado final
+
+✅ DAG executa com sucesso;
+✅ Dados gravados em formato **Delta Lake** (`_delta_log` + arquivos Parquet);
+✅ Ambiente Docker reproduzível;
+✅ Logs e metadados totalmente consistentes para futuras leituras, atualizações e auditorias.
+
+---
+
+Se quiser, posso montar um **diagrama visual simplificado (pipeline + arquitetura)** mostrando como Airflow, Spark e Delta Lake interagem no seu projeto — quer que eu gere esse diagrama?
+

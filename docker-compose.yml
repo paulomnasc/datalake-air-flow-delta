@@ -122,6 +122,21 @@ services:
     networks:
       - airflow_net
 
+
+  # 👷 AIRFLOW WORKER (Onde a DAG é executada)
+  airflow-worker:
+    image: apache/airflow:2.7.1
+    depends_on:
+      - airflow-webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+    volumes:
+      - ./dags:/opt/airflow/dags
+    command: worker
+
 networks:
   airflow_net:
     driver: bridge

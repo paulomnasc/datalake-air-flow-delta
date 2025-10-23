@@ -13,7 +13,7 @@ default_args = {
 }
 
 with DAG(
-    dag_id="ingest_raw_mysql_to_minio",
+    dag_id="ingestao_sgbd_mysql_para_raw",
     default_args=default_args,
     schedule_interval="@daily",
     catchup=False,

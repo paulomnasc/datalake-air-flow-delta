@@ -71,7 +71,7 @@ default_args = {
 }
 
 with DAG(
-    dag_id='transform_raw_to_trusted_parquet',
+    dag_id='confiar_tabelas',
     schedule_interval='@daily',
     default_args=default_args,
     description='Transforma arquivos CSV da zona raw e salva como Parquet na zona trusted',

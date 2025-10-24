@@ -109,7 +109,27 @@ docker exec -it airflow-webserver airflow users create \
   --password admin
 ```
 
-Ou via DAG já incluída no projeto.
+## Instalação de dependências
+
+Este projeto utiliza o Airflow com integração ao MinIO via S3Hook. Para garantir que todos os operadores e hooks estejam disponíveis, instale os seguintes pacotes:
+
+```bash
+pip install apache-airflow-providers-amazon
+```
+⚠️ Atenção: o pacote `oci` requer `cryptography < 46.0.0`. Se houver conflito, recomenda-se usar:
+
+```bash
+pip install cryptography==45.0.0
+```
+
+Ou instalar o provedor Amazon sem dependências:
+
+``` bash
+pip install apache-airflow-providers-amazon --no-deps
+```
+
+
+
 
 ---
 

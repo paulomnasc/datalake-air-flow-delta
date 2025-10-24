@@ -2,7 +2,8 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime
 from utils.io_s3 import ler_parquet_s3, salvar_parquet_s3
-from utils.transformations.refined import customers  # + orders, products...
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+from utils.transformations.refined import customers, orders, products  # + orders, products...
 
 BUCKET = 'lab01'
 TABELAS = {
@@ -10,6 +11,16 @@ TABELAS = {
         "prefix_trusted": "processed/trusted/customers_",
         "prefix_refined": "processed/refined/customers_",
         "transformador": customers.refinar
+    },
+    "orders": {
+        "prefix_trusted": "processed/trusted/orders_",
+        "prefix_refined": "processed/refined/orders_",
+        "transformador": orders.refinar
+    },
+    "products": {
+        "prefix_trusted": "processed/trusted/products_",
+        "prefix_refined": "processed/refined/products_",
+        "transformador": products.refinar
     }
     # Adicione orders e products aqui
 }

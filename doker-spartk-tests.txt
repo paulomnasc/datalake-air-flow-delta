@@ -1,1 +1,5 @@
 docker exec -it spark /opt/spark/bin/spark-submit /opt/spark-apps/ingest_delta_clientes.py
+
+docker exec -it spark /opt/spark/bin/spark-submit /opt/spark-apps/ingest_delta.py customers
+
+docker exec -it spark /opt/spark/bin/spark-submit /opt/spark-apps/ingest_delta.py orders

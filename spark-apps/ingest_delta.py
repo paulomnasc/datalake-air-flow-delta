@@ -4,13 +4,20 @@ import boto3
 from pyspark.sql import SparkSession
 from delta.tables import DeltaTable
 from pyspark.sql.functions import lit
+from datetime import datetime
 
 # Permite importar boto3 instalado em /tmp/libs
 sys.path.insert(0, "/tmp/libs")
 
+# Nome da tabela como argumento
+if len(sys.argv) < 2:
+    raise ValueError("Informe o nome da tabela como argumento: customers, products ou orders")
+
+tabela = sys.argv[1]
+
 # Inicializa SparkSession com Delta Lake e suporte a S3
 spark = SparkSession.builder \
-    .appName("Ingest Delta Clientes") \
+    .appName(f"Ingest Delta {tabela.capitalize()}") \
     .config("spark.jars", ",".join([
         "/opt/spark/jars/delta-core_2.12-2.4.0.jar",
         "/opt/spark/jars/hadoop-aws-3.3.2.jar",
@@ -36,35 +43,36 @@ s3 = boto3.client(
     aws_secret_access_key='admin123'
 )
 
-response = s3.list_objects_v2(Bucket='lab01', Prefix='processed/refined/')
+prefixo = f'processed/refined/{tabela}_'
+regex = rf'processed/refined/{tabela}_\d{{8}}_\d{{6}}\.parquet'
+
+response = s3.list_objects_v2(Bucket='lab01', Prefix=prefixo)
 arquivos = [
     obj['Key'] for obj in response.get('Contents', [])
-    if re.match(r'processed/refined/customers_\d{8}_\d{6}\.parquet', obj['Key'])
+    if re.match(regex, obj['Key'])
 ]
 
 if not arquivos:
-    raise FileNotFoundError("Nenhum arquivo Parquet encontrado em processed/refined/.")
+    raise FileNotFoundError(f"Nenhum arquivo Parquet encontrado para {tabela}.")
 
 arquivo_mais_recente = sorted(arquivos)[-1]
 input_path = f"s3a://lab01/{arquivo_mais_recente}"
 
 # Extrai data para partição
-match = re.search(r'customers_(\d{8})_\d{6}\.parquet', arquivo_mais_recente)
-data_ref = match.group(1) if match else "00000000"
+match = re.search(rf'{tabela}_(\d{{8}})_\d{{6}}\.parquet', arquivo_mais_recente)
+data_ref = match.group(1) if match else datetime.today().strftime("%Y%m%d")
 
 # Lê os dados e adiciona partição
-# df = spark.read.parquet(input_path).withColumn("partition_date", lit(data_ref))
-df = spark.read.parquet(input_path).limit(1000).withColumn("partition_date", lit(data_ref))
-
+df = spark.read.parquet(input_path).limit(1000).repartition(1).withColumn("partition_date", lit(data_ref))
 
 # Caminho Delta
-delta_path = "s3a://lab01/delta/clientes"
+delta_path = f"s3a://lab01/delta/{tabela}"
 
 # Aplica merge ou cria tabela Delta
 if DeltaTable.isDeltaTable(spark, delta_path):
     DeltaTable.forPath(spark, delta_path).alias("tgt").merge(
         df.alias("src"),
-        "tgt.customernumber = src.customernumber AND tgt.partition_date = src.partition_date"
+        "tgt.partition_date = src.partition_date"
     ).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
 else:
     df.write.format("delta").partitionBy("partition_date").mode("overwrite").save(delta_path)

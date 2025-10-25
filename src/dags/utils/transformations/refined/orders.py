@@ -4,8 +4,8 @@ def refinar(df: pd.DataFrame) -> pd.DataFrame:
     # Preenchimento de dados ausentes
     df["comments"] = df["comments"].fillna("Sem observações")
     df["shippeddate"] = pd.to_datetime(df["shippeddate"], errors="coerce")
-    df["orderdate"] = pd.to_datetime(df["orderdate"])
-    df["requireddate"] = pd.to_datetime(df["requireddate"])
+    df["orderdate"] = pd.to_datetime(df["orderdate"], errors="coerce")
+    df["requireddate"] = pd.to_datetime(df["requireddate"], errors="coerce")
 
     # Tempo de entrega
     df["tempo_entrega_dias"] = (df["shippeddate"] - df["orderdate"]).dt.days

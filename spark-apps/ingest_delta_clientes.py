@@ -53,7 +53,9 @@ match = re.search(r'customers_(\d{8})_\d{6}\.parquet', arquivo_mais_recente)
 data_ref = match.group(1) if match else "00000000"
 
 # Lê os dados e adiciona partição
-df = spark.read.parquet(input_path).withColumn("partition_date", lit(data_ref))
+# df = spark.read.parquet(input_path).withColumn("partition_date", lit(data_ref))
+df = spark.read.parquet(input_path).limit(1000).withColumn("partition_date", lit(data_ref))
+
 
 # Caminho Delta
 delta_path = "s3a://lab01/delta/clientes"

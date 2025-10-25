@@ -17,8 +17,8 @@ services:
     ports:
       - "7077:7077"
       - "8080:8080"
-    # volumes:
-    #   - ./spark-apps:/opt/spark-apps
+    volumes:
+      - ./spark-apps:/opt/spark-apps
     #   - ./jars:/opt/spark/jars
     #   - ./data:/data
     networks:
@@ -118,7 +118,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - ./data:/data
+      - /var/oled/minio_data:/data
     networks:
       - airflow_net
 

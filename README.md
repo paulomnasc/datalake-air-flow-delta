@@ -141,7 +141,13 @@ pip install apache-airflow-providers-amazon --no-deps
 | **MinIO Console**   | [http://localhost:9001](http://localhost:9001) | 9001  | `admin` / `admin123`| —                  | Interface web de armazenamento S3   |
 | **MinIO API S3**    | `http://localhost:9000`                | 9000  | `admin` / `admin123`| —                  | Usado por boto3, S3Hook, etc.        |
 | **PostgreSQL**      | via cliente externo ou terminal        | 5432  | `airflow` / `airflow`      | `airflow`          | Banco de metadados do Airflow        |
+—
+| **Spark SQL (Thrift)**      | via Conector JDBC/ODBC	10000        | 10000  | `nenum` / `nenhum`      | `nenhum`          | Ponto de Acesso para Power BI/Tableau (Camada Semântica sobre Delta Lake)        |
 
+---
+
+## Detalhes Importantes para o Spark SQL (Thrift)## 
+Usuário/Senha: O Spark Thrift Server (a menos que configurado com Kerberos ou autenticação complexa, o que é raro em desenvolvimento local) geralmente não requer autenticação. Basta deixar em branco ou usar valores dummy na ferramenta de BI.Banco de Dados: Ele expõe o catálogo de tabelas do Spark/Hive. Você acessa as tabelas Delta diretamente com comandos SQL, como SELECT * FROM nome_da_tabela_delta.Conexão BI: Use o driver Spark Thrift JDBC/ODBC (ou driver Hive) para conectar ferramentas de BI. O host será localhost e a porta será 10000.
 ---
 
 ## 🧪 Testes de Acesso

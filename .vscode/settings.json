@@ -1,6 +1,57 @@
 {
-  "python.analysis.diagnosticSeverityOverrides": {
-    "reportMissingImports": "none"
-  },
-  "python.defaultInterpreterPath": "python3"
+    // Configurações do Python
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingImports": "none"
+    },
+    "python.defaultInterpreterPath": "python3",
+
+    // =========================================================================
+    // CONFIGURAÇÃO CORRETA DO DEPLOY RELOADED
+    // A chave principal deve ser 'deploy.reloaded'
+    // =========================================================================
+    "deploy.reloaded": {
+        
+        // Seus targets de deploy vão aqui, sob a chave 'targets'
+        "targets": [
+            {
+                "name": "OracleLinux-Airflow-Sync",
+                "type": "sftp",
+                
+                // Configurações de Conexão
+                "host": "137.131.212.68",
+                "port": 22,
+                "user": "opc",
+                "privateKey": "C:/ssh-keys/id_rsa_pem.key",
+                "remoteRoot": "/datalake-air-flow/",
+
+                // Arquivos e Pastas a serem Sincronizados
+                // Usando a sintaxe simplificada do seu exemplo de projeto
+                "include": [
+                    "dags", 
+                    "src",
+                    "spark-conf",
+                    "docker-compose.yml",
+                    "Dockerfile",
+                    "requirements.txt",
+                    "entrypoint.sh",
+                    "airflow.cfg"
+                ],
+                
+                // Exceções
+                "exclude": [
+                    ".git/**",
+                    ".vscode/**",
+                    "**/__pycache__/**",
+                    "**/data/**", 
+                    "node_modules/**"
+                ],
+                
+                "uploadOnSave": true
+            }
+        ]
+        // Se você não usa "packages", pode omitir a chave.
+    },
+
+    // Configuração de Log (opcional, no nível raiz)
+    "deploy.logLevel": "info"
 }

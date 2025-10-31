@@ -2,6 +2,7 @@ celery
 kombu
 tornado
 werkzeug
-pyspark==3.2.1
+pyspark==3.5.1
 SQLAlchemy
 wtforms
+dag-factory

@@ -18,7 +18,7 @@ O comando `command` deve ser substituído pelo uso direto do `spark-submit`. Est
 # Trecho do docker-compose.yml
 services:
   spark-sql:
-    image: apache/spark:3.4.1 # (ou a imagem que você está usando)
+    image: apache/spark:3.5.1 # (ou a imagem que você está usando)
     container_name: spark-sql
     ports:
       - "10000:10000" # Porta para conexões ODBC/JDBC

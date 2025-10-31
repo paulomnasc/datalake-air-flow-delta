@@ -39,21 +39,78 @@ spark-master-snap       v1        def456...      5 seconds ago    2.3GB
 ```
 
 ---
+Claro, Cristiane! Aqui está a versão adaptada do seu script, agora chamado `backup_docker.sh`, que:
 
-## 💾 3️⃣ (Opcional) Exportar as imagens para arquivos `.tar`
+- Cria **snapshots dos containers**
+- Salva os arquivos `.tar` diretamente em `/var/oled/docker-backups`
+- Compacta os backups com `gzip`
+- Organiza por data
+- Remove backups antigos com mais de 7 dias
 
-Para criar arquivos de backup que podem ser movidos ou restaurados depois:
+---
+
+## 🛠️ Script completo: `backup_docker.sh`
 
 ```bash
-docker save -o airflow-webserver-snap-v1.tar airflow-webserver-snap:v1
-docker save -o airflow-scheduler-snap-v1.tar airflow-scheduler-snap:v1
-docker save -o spark-master-snap-v1.tar spark-master-snap:v1
-docker save -o spark-worker-snap-v1.tar spark-worker-snap:v1
-docker save -o postgres-snap-v1.tar postgres-snap:v1
-docker save -o mysql-snap-v1.tar mysql-snap:v1
-docker save -o datalake-air-flow-minio-1-snap-v1.tar minio-snap:v1
+#!/bin/bash
+
+# Diretório de destino
+BACKUP_DIR="/var/oled/docker-backups"
+mkdir -p "$BACKUP_DIR"
+
+# Data atual
+DATE=$(date +"%Y-%m-%d")
+
+# Lista de containers da stack
+containers=(
+  airflow-webserver
+  airflow-scheduler
+  spark
+  spark-worker
+  postgres
+  mysql
+  datalake-air-flow-minio-1
+)
+
+# Criar snapshots e salvar como .tar.gz
+for c in "${containers[@]}"; do
+  name="${c}-snap"
+  image="${name}:v1"
+  file="${BACKUP_DIR}/${name}-${DATE}.tar"
+
+  echo "📸 Criando snapshot de $c..."
+  docker commit "$c" "$image"
+  docker save -o "$file" "$image"
+  gzip "$file"
+done
+
+# Limpeza de backups antigos (mais de 7 dias)
+echo "🧹 Removendo backups com mais de 7 dias..."
+find "$BACKUP_DIR" -type f -name "*.tar.gz" -mtime +7 -exec rm {} \;
+
+echo "✅ Snapshots criados, compactados e salvos em $BACKUP_DIR"
 ```
 
+---
+
+## ✅ Como usar
+
+1. Salve como `backup_docker.sh`
+2. Torne executável:
+
+```bash
+chmod +x backup_docker.sh
+```
+
+3. Execute:
+
+```bash
+./backup_docker.sh
+```
+
+---
+
+Se quiser agendar esse script com `cron` para rodar automaticamente toda semana ou após deploys, posso te ajudar com isso também. Quer automatizar?
 ---
 
 ## 💾 4️⃣ Restaurar imagem a partir do snapshot

@@ -149,7 +149,7 @@ No contexto do seu projeto, ela é usada para criar a camada **“trusted”** d
 Seu ambiente é composto por:
 
 * **Apache Airflow** → orquestra a DAG de ingestão;
-* **Apache Spark (3.4.1)** → executa o processamento e escrita em Delta;
+* **Apache Spark (3.5.1)** → executa o processamento e escrita em Delta;
 * **Docker Compose** → gerencia os containers e o build das imagens;
 * **Delta Lake** (via `delta-core` e `delta-storage`) → permite que o Spark escreva e leia tabelas Delta.
 
@@ -196,7 +196,7 @@ isso copia automaticamente todos os JARs da pasta `jars/` para `/opt/spark/jars/
 
 ### 🧰 5️⃣ Dependências obrigatórias do Delta Lake
 
-Para Spark 3.4.1 (como o seu):
+Para Spark 3.5.1 (como o seu):
 
 | Dependência         | Versão         |
 | ------------------- | -------------- |

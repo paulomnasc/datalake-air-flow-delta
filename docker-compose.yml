@@ -2,7 +2,7 @@
 services:
 
   spark:
-    image: apache/spark:3.4.1
+    image: apache/spark:3.5.1
     container_name: spark
     #build:
     #  context: .
@@ -25,7 +25,7 @@ services:
       - airflow_net
 
   spark-worker:
-    image: apache/spark:3.4.1
+    image: apache/spark:3.5.1
     container_name: spark-worker
     depends_on:
       - spark

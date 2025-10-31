@@ -1,4 +1,4 @@
-FROM apache/spark:3.4.1
+FROM apache/spark:3.5.1
 
 # Copia os JARs para o diretório do Spark
 COPY jars/*.jar /opt/spark/jars/

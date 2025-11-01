@@ -1,0 +1,42 @@
+# -----------------------------------------------------
+# Dockerfile.webapp (ou Dockerfile.codeigniter)
+# -----------------------------------------------------
+
+# 1. IMAGEM BASE: PHP com Apache para servir o CodeIgniter
+FROM php:8.2-apache
+
+# 2. INSTALAÇÃO DE EXTENSÕES
+# O CodeIgniter (e a maioria das apps PHP) precisam de extensões.
+# O MySQL/MariaDB é crucial para se conectar ao serviço 'mysql'.
+RUN apt-get update && apt-get install -y \
+    git \
+    unzip \
+    libzip-dev \
+    libonig-dev \
+    libpng-dev \
+    libxml2-dev \
+    libicu-dev \
+    default-mysql-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-install pdo_mysql gd intl opcache
+
+# 3. CONFIGURAÇÃO DO COMPOSER
+# Instala o Composer para gerenciar dependências PHP
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# 4. CONFIGURAÇÃO DO VIRTUAL HOST DO APACHE
+# O CI4 exige que o DocumentRoot do servidor aponte para a pasta 'public'.
+# Cria um arquivo de configuração Apache customizado:
+COPY ./.docker/000-default.conf /etc/apache2/sites-available/000-default.conf
+RUN a2enmod rewrite
+
+# 5. DIRETÓRIO DE TRABALHO
+WORKDIR /var/www/html
+
+# 6. PERMISSÕES E USUÁRIO (Opcional, mas boa prática)
+# Garante que o usuário apache (www-data) possa escrever logs/cache.
+RUN chown -R www-data:www-data /var/www/html
+USER www-data
+
+# A porta padrão do Apache é 80
+EXPOSE 80

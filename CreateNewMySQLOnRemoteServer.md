@@ -69,7 +69,7 @@ Dentro do container:
 mysql -u root -p
 ```
 
-Digite a senha definida em `MYSQL_ROOT_PASSWORD`.
+Digite a senha definida em `MYSQL_ROOT_PASSWORD`, no caso root
 
 ---
 

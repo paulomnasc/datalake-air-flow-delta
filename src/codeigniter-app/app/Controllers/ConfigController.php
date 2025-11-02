@@ -4,11 +4,11 @@ namespace App\Controllers;
 
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
-use App\Models\QuadroModel;
+use App\Models\ConfigModel;
 use App\Models\PastaModel;
 use CodeIgniter\CLI\Console;
 
-class QuadroController extends BaseController
+class ConfigController extends BaseController
 {
     public function index()
     {
@@ -18,12 +18,12 @@ class QuadroController extends BaseController
         $pastas = $pastaModel->listToCombo($_SESSION['id_usuario_logado']); 
         //var_dump($pastas); die();
         // Combine os dados em um único array
-        //Esse set para nulo só deve acontecer se a rota anterior for listQuadro
+        //Esse set para nulo só deve acontecer se a rota anterior for listConfig
         $rotaAnterior = $this->previousRoute();
-        if($rotaAnterior && $rotaAnterior == "listQuadro")
+        if($rotaAnterior && $rotaAnterior == "listConfig")
             $_SESSION['id_pasta_selecionada'] = null;
         
-        return view('listQuadro',['pastas'=>$pastas]);
+        return view('listConfig',['pastas'=>$pastas]);
     }
 
     private function previousRoute()
@@ -39,7 +39,7 @@ class QuadroController extends BaseController
     }
 
     // Função para verificar e aumentar o limite de quadros
-    function podeCriarQuadro()
+    function podeCriarConfig()
     {
         $usuario_logado = ($_SESSION['usuario_logado'] == 1);
 
@@ -50,38 +50,38 @@ class QuadroController extends BaseController
 
             if($perfilUsuario == 'Admin' || $perfilUsuario == 'Assinante') return true;
 
-            $quantidadeQuadros = $this->contarQuadrosPorUsuario($idUsuario);
+            $quantidadeConfigs = $this->contarConfigsPorUsuario($idUsuario);
 
-            return ($quantidadeQuadros < 4);
+            return ($quantidadeConfigs < 4);
         } 
         
     }
 
     // Função fictícia que simula a contagem de quadros no banco de dados
-    function contarQuadrosPorUsuario($idUsuario)
+    function contarConfigsPorUsuario($idUsuario)
     {
         // Esta função deve contar os quadros criados pelo usuário no banco de dados
         //return 2; // Exemplo: 2 quadros criados
 
-        $model = new QuadroModel();
+        $model = new ConfigModel();
 
-        return $model->ObterTotalQuadros($idUsuario);
+        return $model->ObterTotalConfigs($idUsuario);
 
     }
 
 
-    public function listQuadroPasta()
+    public function listConfigPasta()
     {
-        $model = new QuadroModel();
+        $model = new ConfigModel();
         $model->select('quadro.*, pasta.descricao as pasta_descricao');
         $model->join('pasta', 'quadro.id_pasta = quadro.id');
         $list = $model->findAll();
         return $list;
     }
 
-    public function listQuadroPastaPorId($id_pasta)
+    public function listConfigPastaPorId($id_pasta)
     {
-        $model = new QuadroModel();
+        $model = new ConfigModel();
         $model->select('quadro.*, pasta.descricao as pasta_descricao');
         $model->join('pasta', 'quadro.id_pasta = quadro.id');
         $model->where('quadro.id_pasta', $id_pasta);
@@ -89,7 +89,7 @@ class QuadroController extends BaseController
         return $list;
     }
 
-    public function listarQuadro()
+    public function listarConfig()
     {
 
 
@@ -104,7 +104,7 @@ class QuadroController extends BaseController
         } */
 
         
-        $model = new QuadroModel();
+        $model = new ConfigModel();
         $model->select('quadro.*, pasta.descricao as pasta_descricao');
         $model->join('pasta', 'pasta.id = quadro.id_pasta');
         $model->where('quadro.id_pasta', $id_pasta);
@@ -122,13 +122,13 @@ class QuadroController extends BaseController
     {
 
 
-        /* if (!$this->podeCriarQuadro()) {
+        /* if (!$this->podeCriarConfig()) {
         
             session()->setFlashdata('limit-message', 'Você atingiu o limite de quadros gratuitos. 
             Por favor, ajude a manter esse site fazendo pix para a chave CPF: 024.253.747-28.');
         
             // Redireciona para a view desejada
-            //return redirect()->to('listQuadro');
+            //return redirect()->to('listConfig');
                            
         } */
 
@@ -137,7 +137,7 @@ class QuadroController extends BaseController
         $data['pastas'] = $pastaModel->listToCombo($_SESSION['id_usuario_logado']);
         $data['conteudo_csv_json'] = null;
         $_SESSION['conteudo_arquivo'] = null;
-        return view('addQuadro',$data);
+        return view('addConfig',$data);
 
 
     }
@@ -146,19 +146,19 @@ class QuadroController extends BaseController
     {
 
         $id = $this->request->getPost('id');
-        $model = new QuadroModel();
-        $Quadro = $model->find($id);
+        $model = new ConfigModel();
+        $Config = $model->find($id);
 
         $pastaModel = new PastaModel();
         $data['pastas'] = $pastaModel->listToCombo($_SESSION['id_usuario_logado']);
-        $data['id_pasta_selecionado'] = $Quadro->id_pasta;
-        $data['id'] = $Quadro->id;
-        $data['descricao'] = $Quadro->descricao;
-        $data['arquivo'] = $Quadro->arquivo;
-        $data['nome_arquivo'] = $Quadro->nome_arquivo;
+        $data['id_pasta_selecionado'] = $Config->id_pasta;
+        $data['id'] = $Config->id;
+        $data['descricao'] = $Config->descricao;
+        $data['arquivo'] = $Config->arquivo;
+        $data['nome_arquivo'] = $Config->nome_arquivo;
         
-        //$conteudo_csv = str_replace(["\r\n", "\r", "\n"], "\\n", base64_decode($Quadro->conteudo_arquivo));
-        $conteudo_csv = base64_decode($Quadro->conteudo_arquivo);
+        //$conteudo_csv = str_replace(["\r\n", "\r", "\n"], "\\n", base64_decode($Config->conteudo_arquivo));
+        $conteudo_csv = base64_decode($Config->conteudo_arquivo);
 
         $_SESSION['conteudo_arquivo'] = $conteudo_csv;
         
@@ -169,7 +169,7 @@ class QuadroController extends BaseController
 
         $data['conteudo_csv_json'] =  json_encode($conteudo_csv, JSON_UNESCAPED_UNICODE);
 
-        return view('updQuadro', $data);
+        return view('updConfig', $data);
 
     }
 
@@ -182,18 +182,18 @@ class QuadroController extends BaseController
     }
 
 
-    public $Quadros = array(); function list()  {
+    public $Configs = array(); function list()  {
         
-        $model = new QuadroModel();
+        $model = new ConfigModel();
         $list = $model->findAll();
         return $list;
     }
 
     public function findById(int $id )  {
         
-        $model = new QuadroModel();
-        $Quadro = $model->find($id);
-        return $Quadro;
+        $model = new ConfigModel();
+        $Config = $model->find($id);
+        return $Config;
     }
 
     
@@ -254,7 +254,7 @@ class QuadroController extends BaseController
                 'conteudo_arquivo' => base64_encode($_SESSION['conteudo_arquivo'])
             ];
 
-            $model = new QuadroModel();
+            $model = new ConfigModel();
         
             $model->insert($data);
             $_SESSION['conteudo_arquivo'] = null;
@@ -297,7 +297,7 @@ class QuadroController extends BaseController
                     
                 
             
-            $model = new QuadroModel();
+            $model = new ConfigModel();
         
             $model->update($id, $data);
             $_SESSION['conteudo_arquivo'] = null;
@@ -411,7 +411,7 @@ class QuadroController extends BaseController
     
     public function delete($id)  {
         
-        $model = new QuadroModel();
+        $model = new ConfigModel();
         $deleted = $model->delete($id);
         
 
@@ -425,19 +425,19 @@ class QuadroController extends BaseController
         }
     }
 
-    public function playPorId($idQuadro)
+    public function playPorId($idConfig)
     {
 
         try{
 
-            $model = new QuadroModel();
-            $quadro = $model->find($idQuadro);
+            $model = new ConfigModel();
+            $quadro = $model->find($idConfig);
             
             // Converter o array em JSON
             $quadroJSON = json_encode($quadro);
 
             // Passar o JSON para a view
-            return view('playQuadro', 
+            return view('playConfig', 
                 ['quadro' => $quadroJSON, 
                 'nome_arquivo' => $quadro->nome_arquivo, 
                 'conteudo_arquivo' => $quadro->conteudo_arquivo,
@@ -459,15 +459,15 @@ class QuadroController extends BaseController
 
         try{
 
-            $idQuadro = $this->request->getPost('id');
-            $model = new QuadroModel();
-            $quadro = $model->find($idQuadro);
+            $idConfig = $this->request->getPost('id');
+            $model = new ConfigModel();
+            $quadro = $model->find($idConfig);
             
             // Converter o array em JSON
             $quadroJSON = json_encode($quadro);
 
             // Passar o JSON para a view
-            return view('playQuadro', 
+            return view('playConfig', 
                 ['quadro' => $quadroJSON, 
                 'nome_arquivo' => $quadro->nome_arquivo, 
                 'conteudo_arquivo' => $quadro->conteudo_arquivo,

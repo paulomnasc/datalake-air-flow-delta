@@ -21,6 +21,7 @@ rm -rf /var/www/html/writable/cache/*
 rm -rf /var/www/html/writable/logs/*
 
 # 2. Garante as permissões de escrita recursivamente.
+chmod -R 777 /var/www/html/vendor # 🛑 NOVO: Permissão para a pasta vendor
 chmod -R 777 /var/www/html/writable
 
 # 3. Executa o comando principal do contêiner (inicia o Apache)

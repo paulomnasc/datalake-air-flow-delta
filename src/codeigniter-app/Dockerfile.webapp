@@ -28,7 +28,14 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # O CI4 exige que o DocumentRoot do servidor aponte para a pasta 'public'.
 # Cria um arquivo de configuração Apache customizado:
 COPY ./.docker/000-default.conf /etc/apache2/sites-available/000-default.conf
-RUN a2enmod rewrite
+RUN a2enmod rewrite headers
+
+# COPIA o .htaccess sem SSL para um local seguro (não montado por volume)
+COPY ./.docker/htaccess-no-ssl /tmp/htaccess-no-ssl 
+
+# COPIA o novo entrypoint para a aplicação web
+COPY ./.docker/entrypoint-webapp.sh /entrypoint-webapp.sh
+RUN chmod +x /entrypoint-webapp.sh
 
 # 5. DIRETÓRIO DE TRABALHO
 WORKDIR /var/www/html
@@ -40,3 +47,6 @@ USER www-data
 
 # A porta padrão do Apache é 80
 EXPOSE 80
+
+ENTRYPOINT ["/entrypoint-webapp.sh"]
+CMD apache2-foreground

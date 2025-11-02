@@ -170,7 +170,7 @@ services:
   # Novo Bloco do Serviço no docker-compose.yml
   codeigniter-app:
     build:
-      context: .
+      context: ./src/codeigniter-app
       dockerfile: Dockerfile.webapp # Agora usará o Dockerfile que criamos
     container_name: codeigniter-app
     restart: always

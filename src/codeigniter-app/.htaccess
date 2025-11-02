@@ -3,8 +3,8 @@
     RewriteBase /
 
     # Redirecionar HTTP para HTTPS
-    RewriteCond %{HTTPS} !=on
-    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    # RewriteCond %{HTTPS} !=on
+    # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
     # Remove index.php da URL
     RewriteCond %{REQUEST_FILENAME} !-f

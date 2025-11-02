@@ -1,0 +1,110 @@
+#--------------------------------------------------------------------
+# Example Environment Configuration file
+#
+# This file can be used as a starting point for your own
+# custom .env files, and contains most of the possible settings
+# available in a default install.
+#
+# By default, all of the settings are commented out. If you want
+# to override the setting, you must un-comment it by removing the '#'
+# at the beginning of the line.
+#--------------------------------------------------------------------
+
+#--------------------------------------------------------------------
+# ENVIRONMENT
+#--------------------------------------------------------------------
+
+CI_ENVIRONMENT = DEVELOPMENT
+
+#--------------------------------------------------------------------
+# APP
+#--------------------------------------------------------------------
+
+# app.baseURL = ''
+# If you have trouble with `.`, you could also use `_`.
+#SE COLOCAR NO .ENV NÃO PRECISA COLOCAR NO CONFIG\APP.PHP
+
+# LEMBRE-SE: Na rede interna o IP MUDA !!!
+#app.baseURL = 'http://192.168.0.75:8080/'
+
+#URL PRA DESENVOLVIMENTO NO VSCODE
+app_baseURL = 'http://localhost:8080/'
+
+#URL DE PRODUÇÃO
+# app_baseURL = 'http://smarttables.x10.mx/'
+
+#MEU DOMÍNIO = resumomaster.com
+ 
+# app.forceGlobalSecureRequests = false
+# app.CSPEnabled = false
+
+    #--------------------------------------------------------------------
+# DATABASE
+#--------------------------------------------------------------------
+
+#database.default.hostname = localhost
+#database.default.username = elvzlhrs_smarttables
+#database.default.password = kJ#212394
+#database.default.database = elvzlhrs_smarttables
+  
+# LOCALHOST
+database.default.hostname = localhost
+database.default.username = root
+database.default.password = root
+database.default.database = smart_tables
+
+#database.default.DBDriver = MySQLi
+# database.default.DBPrefix =
+# database.default.port = 3306
+
+# database.default.database = ci4
+
+# If you use MySQLi as tests, first update the values of Config\Database::$tests.
+# database.tests.hostname = localhost
+# database.tests.database = ci4_test
+# database.tests.username = root
+# database.tests.password = root
+# database.tests.DBDriver = MySQLi
+# database.tests.DBPrefix =
+# database.tests.charset = utf8mb4
+# database.tests.DBCollat = utf8mb4_general_ci
+# database.tests.port = 3306
+
+
+#--------------------------------------------------------------------
+# SMTP PRODUCTION Credentials
+#--------------------------------------------------------------------
+#smtp_host = mail.smarttables.x10.mx 
+#pop_imap_host = mail.smarttables.x10.mx
+#smtp_port  = 587
+#smtp_username = admin@smarttables.x10.mx
+#smtp_password = kJ#212394
+#smtp_nome_remetente = Smart_Tables
+#smtp_secure = tls
+
+
+#--------------------------------------------------------------------
+# SMTP DEVELOPMENT Credentials
+#--------------------------------------------------------------------
+smtp_host = smtp.gmail.com
+smtp_username = kauan.duardo@gmail.com
+smtp_port  = 587
+smtp_password = qiqtwpmebptnbiua
+smtp_nome_remetente = Smart_Tables
+#--------------------------------------------------------------------
+# ENCRYPTION
+#--------------------------------------------------------------------
+
+encryption.key = hex2bin:3682f0d41371c328b887285ed623b8c65d49d1f9174d6d6a512cc9f2c4afd05b
+#--------------------------------------------------------------------
+# SESSION
+#--------------------------------------------------------------------
+
+# session.driver = 'CodeIgniter\Session\Handlers\FileHandler'
+# session.savePath = null
+
+#--------------------------------------------------------------------
+# LOGGER
+#--------------------------------------------------------------------
+
+# logger.threshold = 4

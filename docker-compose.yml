@@ -57,9 +57,9 @@ services:
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: labdb
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: admin
+      MYSQL_DATABASE: lista_revisao
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
     ports:
       - "3306:3306"
     volumes:
@@ -165,6 +165,31 @@ services:
       - ./spark-conf:/opt/spark/conf
     networks:
       - airflow_net
+
+  # Adicione este bloco no seu docker-compose.yml
+  # Novo Bloco do Serviço no docker-compose.yml
+  codeigniter-app:
+    build:
+      context: ./src/codeigniter-app
+      dockerfile: Dockerfile.webapp # Agora usará o Dockerfile que criamos
+    container_name: codeigniter-app
+    restart: always
+    depends_on:
+      - mysql
+    volumes:
+      # Mapeamento do código (para desenvolvimento local)
+      - ./src/codeigniter-app:/var/www/html
+      # Mapeamento para escrita dos YAMLs do Airflow
+      - ./src/dags/configs:/var/www/html/writable/configs
+    ports:
+      - "8088:80"
+    environment:
+      - CI_ENVIRONMENT=development
+      # ... (demais variáveis de ambiente)
+    networks:
+      - airflow_net
+    # Não precisa de 'command' se estiver usando imagem base PHP-Apache
+  
 
 networks:
   airflow_net:

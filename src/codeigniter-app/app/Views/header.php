@@ -307,9 +307,9 @@
                             if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"): 
                         ?>
                             <?php echo anchor("listPasta", "Pastas", ['class' => 'nav-link px-4 px-lg-5']) ?>
-                            <?php echo anchor("listQuadro", "Quadros", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                            <?php echo anchor("listConfig", "Configs", ['class' => 'nav-link px-4 px-lg-5']) ?>
                         <?php elseif (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === "Anonimo"): ?>
-                            <?php echo anchor("listQuadro", "Quadros", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                            <?php echo anchor("listConfig", "Configs", ['class' => 'nav-link px-4 px-lg-5']) ?>
                         <?php endif; ?>
                     </div>
                 </li>

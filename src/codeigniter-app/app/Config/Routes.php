@@ -59,25 +59,24 @@ $routes->post('/insertPasta', 'PastaController::insert', ['as'=>'Pasta.insert'])
 $routes->post('/updatePasta', 'PastaController::update', ['as'=>'Pasta.update']);//Executa o método update da PastaController
 $routes->delete('/deletePasta/(:num)', 'PastaController::delete/$1', ['as' => 'Pasta.delete']);
 
-//Quadros
-$routes->get('/listQuadro', 'QuadroController::index', ['as'=>'listQuadro']);//Exibe a tela listQuadro
-$routes->post('/addQuadro', 'QuadroController::add', ['as'=>'addQuadro']); //Exibe a tela de add
-$routes->post('/updQuadro', 'QuadroController::upd', ['as'=>'updQuadro']); //Exibe a tela de upd
-$routes->post('/insertQuadro', 'QuadroController::insert', ['as'=>'Quadro.insert']);//Executa o método insert da QuadroController
-$routes->post('/updateQuadro', 'QuadroController::update', ['as'=>'Quadro.update']);//Executa o método update da QuadroController
-$routes->delete('/deleteQuadro/(:num)', 'QuadroController::delete/$1', ['as' => 'Quadro.delete']);
-$routes->get('/listarQuadro', 'QuadroController::listarQuadro', ['as'=>'listarQuadro']);//Preenche o datatable após a pasta ser selecionada na tela
-$routes->post('/playQuadro', 'QuadroController::play', ['as'=>'playQuadro']);//Preenche o datatable após a pasta ser selecionada na tela
-$routes->post('/fileUpload', 'QuadroController::upload', ['as'=>'Quadro.fileUpload']);//Executa o método insert da UsuarioController
-$routes->post('/salvarTabela', 'QuadroController::salvarTabela', ['as'=>'Quadro.salvarTabela']);//Salvar Tabela Handsontable
+//Configs
+$routes->get('/listConfig', 'ConfigController::index', ['as'=>'listConfig']);//Exibe a tela listConfig
+$routes->post('/addConfig', 'ConfigController::add', ['as'=>'addConfig']); //Exibe a tela de add
+$routes->post('/updConfig', 'ConfigController::upd', ['as'=>'updConfig']); //Exibe a tela de upd
+$routes->post('/insertConfig', 'ConfigController::insert', ['as'=>'Config.insert']);//Executa o método insert da ConfigController
+$routes->post('/updateConfig', 'ConfigController::update', ['as'=>'Config.update']);//Executa o método update da ConfigController
+$routes->delete('/deleteConfig/(:num)', 'ConfigController::delete/$1', ['as' => 'Config.delete']);
+$routes->get('/listarConfig', 'ConfigController::listarConfig', ['as'=>'listarConfig']);//Preenche o datatable após a pasta ser selecionada na tela
+$routes->post('/fileUpload', 'ConfigController::upload', ['as'=>'Config.fileUpload']);//Executa o método insert da UsuarioController
+//$routes->post('/salvarTabela', 'ConfigController::salvarTabela', ['as'=>'Config.salvarTabela']);//Salvar Tabela Handsontable
 
 
-$routes->get('/playPorId/(:num)', 'QuadroController::playPorId/$1', ['as' => 'Quadro.playPorId']);
+$routes->get('/playPorId/(:num)', 'ConfigController::playPorId/$1', ['as' => 'Config.playPorId']);
 
 
 
 /* $routes->get('upload', 'UploadController::index');
-$routes->post('/fileUpload', 'UploadController::upload',['as'=>'Quadro.upload']); */
+$routes->post('/fileUpload', 'UploadController::upload',['as'=>'Config.upload']); */
 
 // Rotas do e-commerce ou marketing interface
 $routes->get('/contactUs', 'MarketPlaceController::contactUs', ['as'=>'contactUs']);//Exibe a entre em contato conosco

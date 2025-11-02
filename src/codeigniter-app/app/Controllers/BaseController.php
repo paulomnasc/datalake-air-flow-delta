@@ -65,7 +65,7 @@ abstract class BaseController extends Controller
         log_message('info', "View carregada: " . $viewName);
 
         $seo = new SeoHelper();
-        $seo->setTitle("Aprenda Fácil: Concursos, Enem, Provas, Exames com Tabelas Resumo, Jogos de Memória e Técnicas de Estudo");
+        $seo->setTitle("SET-TITLE TESTE!!!");
         $seo->setDescription("Descubra jogos interativos online e eficaz, para estudo, incluindo jogos de memória e técnicas para memorização de conteúdos. Aprenda com tabelas resumo que tornam o estudo mais fácil e divertido!");
 
         $seo->setKeywords("jogo da memória, jogo educativo, jogo interativo, ensino médio, preparação ENEM, estudo online, quadro sinóptico, mapa mental, aprendizado divertido, concurso público, materiais didáticos");

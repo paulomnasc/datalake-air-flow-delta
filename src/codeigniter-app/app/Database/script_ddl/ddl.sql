@@ -34,17 +34,6 @@ CREATE TABLE IF NOT EXISTS `pasta` (
   CONSTRAINT `pasta_usuario_FK` FOREIGN KEY (`id_usuario`) REFERENCES `usuario` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE=InnoDB AUTO_INCREMENT=60 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='';
 
--- Criação da tabela quadro
-CREATE TABLE IF NOT EXISTS `quadro` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `descricao` varchar(100) NOT NULL,
-  `id_pasta` int unsigned NOT NULL,
-  `arquivo` blob,
-  `nome_arquivo` varchar(100) NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `quadro_pasta_FK` (`id_pasta`),
-  CONSTRAINT `quadro_pasta_FK` FOREIGN KEY (`id_pasta`) REFERENCES `pasta` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Definição da tabela email_tokens
 CREATE TABLE IF NOT EXISTS `email_tokens` (
@@ -55,5 +44,33 @@ CREATE TABLE IF NOT EXISTS `email_tokens` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-ALTER TABLE 'quadro' MODIFY COLUMN 'arquivo' varchar(255) NULL;
-ALTER TABLE 'quadro' ADD 'conteudo_arquivo' BLOB NULL;
+-- DDL (Data Definition Language) para a tabela de configurações de DAGs
+-- No MySQL: CREATE DATABASE IF NOT EXISTS dag_factory_db; USE dag_factory_db;
+
+CREATE TABLE dag_configurations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    
+    -- 1. Metadata da DAG
+    dag_id VARCHAR(128) NOT NULL UNIQUE COMMENT 'O nome único da DAG no Airflow (ex: ingestao_clientes_vendas)',
+    is_active BOOLEAN DEFAULT TRUE COMMENT 'Indica se a DAG deve ser gerada (True) ou ignorada (False)',
+    owner VARCHAR(64) DEFAULT 'webapp_user' COMMENT 'Proprietário da DAG no Airflow',
+    schedule_interval VARCHAR(64) DEFAULT '0 0 * * *' COMMENT 'Agendamento no formato cron (ex: 0 4 * * *)',
+    description TEXT COMMENT 'Descrição da DAG para a UI do Airflow',
+    
+    -- 2. Parâmetros da Tarefa (Exemplo de Ingestão e Transformação)
+    source_type VARCHAR(50) NOT NULL COMMENT 'Tipo de fonte de dados (ex: csv, json, database)',
+    source_filename VARCHAR(255) NOT NULL COMMENT 'Nome do arquivo de origem no MinIO (ex: raw/data.csv)',
+    target_table_name VARCHAR(128) NOT NULL COMMENT 'Nome da tabela/destino final na camada Trusted/Refined',
+    
+    -- 3. Parâmetros de Processamento
+    python_module_path VARCHAR(255) COMMENT 'Caminho do módulo Python a ser chamado (ex: lib.minio_tasks.transform_data)',
+    transform_args JSON COMMENT 'Parâmetros extras para a função Python (JSON: ex: {"columns_to_drop": ["col1", "col2"]})',
+
+    -- 4. Controle e Auditoria
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_dag_active (is_active),
+    INDEX idx_owner (owner)
+) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+

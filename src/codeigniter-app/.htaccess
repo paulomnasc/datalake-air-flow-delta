@@ -1,16 +1,10 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
-
-    # Redirecionar HTTP para HTTPS
-    # RewriteCond %{HTTPS} !=on
-    # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-
-    # Remove index.php da URL
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ index.php/$1 [L]
-
-    Header set Access-Control-Allow-Origin "https://www.estudotabela.com.br"
-
 </IfModule>
+
+# Opcional: Adicionar a regra CORS se necessário para integração
+Header set Access-Control-Allow-Origin "*"

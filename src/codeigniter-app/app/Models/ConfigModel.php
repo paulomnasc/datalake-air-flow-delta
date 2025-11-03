@@ -6,7 +6,7 @@ use CodeIgniter\Model;
 
 class ConfigModel extends Model
 {
-    protected $table            = 'config';
+    protected $table            = 'dag_configurations';
     protected $primaryKey       = 'id';
     protected $useAutoIncrement = true;
     //protected $returnType       = 'array';

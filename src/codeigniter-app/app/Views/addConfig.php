@@ -236,11 +236,13 @@ require VIEWPATH . '/header.php';
                     // Verifique se o arquivo foi carregado com sucesso e leia o conteúdo do CSV
                     if (result.uploadedFile) {
                         $(document).ready(function() {
-                            fetchCSVAndInitializeHandsontable(result.uploadedFile);
+                            //fetchCSVAndInitializeHandsontable(result.uploadedFile);
+                            console.log("Arquivo enviado com sucesso: ", result.uploadedFile);
                         });
 
                     }
                 } else {
+                    console.log("Erro ao enviar o arquivo: ", result.mensagem);
                     messageDiv.innerHTML = result.mensagem;
                     messageDiv.style.color = 'red';
                 }
@@ -266,7 +268,8 @@ require VIEWPATH . '/header.php';
     $('#meuFormulario').submit(function(event) {
         event.preventDefault();
 
-        salvarTabelaNaSessao();
+        //Código legado do handsontable desabilitado
+        //salvarTabelaNaSessao();
 
         var formData = new FormData(this);
         $.ajax({

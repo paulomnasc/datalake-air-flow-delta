@@ -234,7 +234,7 @@ function confirmDelete(id, descricao, deleteUrl, formId) {
 
                         table.row.add([
                             item.id,
-                            item.descricao,
+                            item.description,
                             actionButtons // Terceira coluna com os botões
                         ]);
                     });

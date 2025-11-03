@@ -105,9 +105,9 @@ class ConfigController extends BaseController
 
         
         $model = new ConfigModel();
-        $model->select('quadro.*, pasta.descricao as pasta_descricao');
-        $model->join('pasta', 'pasta.id = quadro.id_pasta');
-        $model->where('quadro.id_pasta', $id_pasta);
+        $model->select('dag_configurations.*, pasta.descricao as pasta_descricao');
+        $model->join('pasta', 'pasta.id = dag_configurations.pasta_id');
+        $model->where('dag_configurations.pasta_id', $id_pasta);
         $list = $model->findAll();
     
         
@@ -241,31 +241,90 @@ class ConfigController extends BaseController
     }
     
     // O insert agora será chamado após o processo de upload no novo subform
-    public function insert() {
-
+    public function insert()
+    {
+        // Instancia o Model (e o Service MinIO se for o caso)
+        $model = new ConfigModel();
+        // $minioService = new App\Services\MinIOService(); // Exemplo: seu serviço MinIO
+        
+        $postData = $this->request->getPost();
+        $sourceType = $postData['source_type'] ?? null;
         
         try {
+            // Variável que irá conter a string a ser salva em dag_configurations.source_filename
+            $sourceLocation = null;
+            
+            // 1. Lógica Condicional de Upload/Caminho
+            if ($sourceType === 'csv' || $sourceType === 'json') {
+                
+                // O campo 'name' no input de arquivo é 'source_filename' (devido à lógica JS)
+                $uploadedFile = $this->request->getFile('source_filename');
+                
+                if (!$uploadedFile || !$uploadedFile->isValid() || $uploadedFile->hasMoved()) {
+                     throw new \Exception('O arquivo para ' . strtoupper($sourceType) . ' é obrigatório ou inválido.');
+                }
+                
+                // --- INÍCIO DA LÓGICA DE UPLOAD PARA MINIO (SUBSTITUA ESTE BLOCO) ---
+                
+                $dagId = $postData['dag_id'] ?? 'default_dag';
+                $bucket = 'raw';
+                
+                // Exemplo: Salvar com um nome único dentro de uma subpasta específica da DAG
+                $newName = $uploadedFile->getRandomName(); // CI gera um nome único
+                $targetMinioPath = "{$bucket}/{$dagId}/{$newName}";
+                
+                // SIMULAÇÃO: No ambiente de produção, você faria o upload aqui:
+                // $minioService->upload($uploadedFile->getTempName(), $targetMinioPath);
 
-            $data = [
-                'descricao' => $this->request->getPost('descricao'),
-                'id_pasta' => $this->request->getPost('id_pasta'),
-                'arquivo' => $_SESSION['caminho_formatado'],
-                'nome_arquivo' => $this->request->getPost('nome_arquivo'),
-                'conteudo_arquivo' => base64_encode($_SESSION['conteudo_arquivo'])
+                // O valor salvo no banco de dados é o caminho MinIO (chave S3)
+                $sourceLocation = $targetMinioPath; 
+                
+                // --- FIM DA LÓGICA DE UPLOAD PARA MINIO ---
+                
+            } else if ($sourceType === 'parquet' || $sourceType === 'database') {
+                
+                // Se não é upload, o valor de texto (URI/Caminho) já está no $_POST['source_filename']
+                $sourceLocation = $postData['source_filename'] ?? null;
+                if (empty($sourceLocation)) {
+                    throw new \Exception('O Caminho/URI de conexão é obrigatório para o tipo ' . strtoupper($sourceType));
+                }
+                
+            } else {
+                throw new \Exception('Tipo de fonte de dados não selecionado.');
+            }
+
+            // 2. Preparação dos Dados para Inserção (Mapeamento total)
+            $dataToInsert = [
+                'pasta_id'             => $postData['pasta_id'], // Novo campo FK
+                'dag_id'               => $postData['dag_id'],   // Campo DAG ID
+                'is_active'            => $postData['is_active'] ?? 1,
+                'owner'                => $postData['owner'] ?? 'webapp_user',
+                'schedule_interval'    => $postData['schedule_interval'] ?? '0 0 * * *',
+                'description'          => $postData['description'] ?? null,
+                'source_type'          => $sourceType,
+                'source_filename'      => $sourceLocation, // Caminho MinIO ou URI final
+                'target_table_name'    => $postData['target_table_name'],
+                'python_module_path'   => $postData['python_module_path'],
+                // Garantir que transform_args seja JSON válido (ou string vazia/null)
+                'transform_args'       => $postData['transform_args'] ?? '{}', 
             ];
 
-            $model = new ConfigModel();
-        
-            $model->insert($data);
-            $_SESSION['conteudo_arquivo'] = null;
+            // 3. Inserção no Banco de Dados
+            $model->insert($dataToInsert);
+            
+            // 4. Resposta
             return $this->response->setJSON([
                 'status' => 'success',
-                'mensagem' => 'Registro inserido com sucesso!'
+                'mensagem' => 'Configuração da DAG e fonte de dados salvas com sucesso! (ID: ' . $model->getInsertID() . ')'
             ]);
+            
         } catch (\Exception $e) {
+            // Logs são essenciais para debugar falhas de upload/conexão
+            log_message('error', 'Erro ao salvar configuração de DAG: ' . $e->getMessage());
+            
             return $this->response->setJSON([
                 'status' => 'error',
-                'mensagem' => 'Falha ao inserir o registro: ' . $e->getMessage()
+                'mensagem' => 'Falha ao salvar a configuração. Detalhes: ' . $e->getMessage()
             ]);
         }
     }

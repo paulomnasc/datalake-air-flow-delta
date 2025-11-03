@@ -13,7 +13,19 @@ class ConfigModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['id','descricao','id_pasta','arquivo','nome_arquivo','conteudo_arquivo'];
+    protected $allowedFields = ['id', 
+                                'pasta_id', 
+                                'dag_id', 
+                                'is_active', 
+                                'owner', 
+                                'schedule_interval', 
+                                'description', 
+                                'source_type', 
+                                'source_filename', 
+                                'target_table_name', 
+                                'python_module_path', 
+                                'transform_args'
+                            ];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;
@@ -46,6 +58,7 @@ class ConfigModel extends Model
     protected $afterDelete    = [];
 
 
+    /*
     public function ObterTotalQuadros($idUsuario)
     {
         // Usa a função count com alias para contagem de quadros diretamente
@@ -61,6 +74,7 @@ class ConfigModel extends Model
 
         return $result->total_quadros ?? 0;
     }
+    */
 
 
 

@@ -54,7 +54,7 @@ require VIEWPATH.'/header.php';
             // COMENTAR ESSE IF PARA CADASTRAR UM QUADRO PARA O USUARIO ANONIMO QUANDO FOR IMPLANTAR SOLUÇÃO 
             /* if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"): 
             ?--> 
-                <form action="<?php echo site_url('addQuadro'); ?>" method="post">
+                <form action="<?php echo site_url('addConfig'); ?>" method="post">
                     <button type="submit" class="add-button">Incluir</button>
                 </form>
             <!--?php
@@ -66,7 +66,7 @@ require VIEWPATH.'/header.php';
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Descrição</th>
+                            <th>description</th>
                             <th>Ações</th>
                         </tr>
                         
@@ -149,14 +149,14 @@ require VIEWPATH.'/header.php';
         var pastaId = $(this).val();
         console.log('ID da Pasta Selecionada:', pastaId); // Depuração: Verificar se o evento change está funcionando
         
-        carregarQuadros(pastaId,table); // Chama a função para carregar os quadros
+        carregarConfigs(pastaId,table); // Chama a função para carregar os quadros
     });
 
         
 });
 
 function confirmDelete(id, descricao, deleteUrl, formId) {
-        if (confirm("Você tem certeza que deseja deletar este Quadro: " + id + " - " + descricao + "?")) {
+        if (confirm("Você tem certeza que deseja deletar este Config: " + id + " - " + descricao + "?")) {
             $.ajax({
                 url: deleteUrl,
                 type: 'POST',
@@ -168,7 +168,7 @@ function confirmDelete(id, descricao, deleteUrl, formId) {
                         // Recarrega a tabela com a pasta selecionada atualmente
                         var pastaId = $('#id_pasta').val(); // Obtém o ID da pasta selecionada
                         
-                        carregarQuadros(pastaId,table);
+                        carregarConfigs(pastaId,table);
                         
                         // Mostra a mensagem de sucesso
                         $('#success-message').html('Registro excluído com sucesso.').show().delay(6000).fadeOut();
@@ -184,10 +184,10 @@ function confirmDelete(id, descricao, deleteUrl, formId) {
         }
     }
     
-    function carregarQuadros(pastaId, table) {
+    function carregarConfigs(pastaId, table) {
         if (pastaId) {
             $.ajax({
-                url: '<?= base_url('listarQuadro') ?>',
+                url: '<?= base_url('listarConfig') ?>',
                 type: 'GET',
                 data: { id_pasta: pastaId },
                 success: function(response) {
@@ -207,7 +207,7 @@ function confirmDelete(id, descricao, deleteUrl, formId) {
                         // HTML da terceira coluna com botões de editar e excluir
                         var actionButtons = `
                             <div class="sidebyside-container">
-                                <form action="<?= site_url('updQuadro'); ?>" method="post">
+                                <form action="<?= site_url('updConfig'); ?>" method="post">
                                     <input type="hidden" name="id" value="${item.id}">
                                     <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"){
                                         ?>
@@ -216,14 +216,14 @@ function confirmDelete(id, descricao, deleteUrl, formId) {
                                         }
                                     ?>
                                 </form>
-                                <form action="<?= site_url('playQuadro'); ?>" method="post">
+                                <form action="<?= site_url('playConfig'); ?>" method="post">
                                     <input type="hidden" name="id" value="${item.id}">
                                     <button class="edit-button" type="submit">▶️</button>
                                 </form>
                                 <form id="deleteForm-${item.id}">
                                     <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"){
                                             ?>
-                                        <button class="delete-button" type="button" onclick="confirmDelete('${item.id}', '${item.descricao}', '<?= site_url('deleteQuadro/'); ?>${item.id}', 'deleteForm-${item.id}')">🗑️</button>
+                                        <button class="delete-button" type="button" onclick="confirmDelete('${item.id}', '${item.descricao}', '<?= site_url('deleteConfig/'); ?>${item.id}', 'deleteForm-${item.id}')">🗑️</button>
                                     <?php
                                         }
                                     ?>

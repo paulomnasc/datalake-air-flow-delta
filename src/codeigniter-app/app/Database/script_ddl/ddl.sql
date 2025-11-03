@@ -50,27 +50,40 @@ CREATE TABLE IF NOT EXISTS `email_tokens` (
 CREATE TABLE dag_configurations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     
-    -- 1. Metadata da DAG
+    -- 1. Chave Estrangeira (FK) para a tabela PASTA
+    pasta_id INT UNSIGNED NOT NULL COMMENT 'ID da pasta associada, FK para a tabela pasta(id)',
+    
+    -- 2. Metadata da DAG
     dag_id VARCHAR(128) NOT NULL UNIQUE COMMENT 'O nome único da DAG no Airflow (ex: ingestao_clientes_vendas)',
     is_active BOOLEAN DEFAULT TRUE COMMENT 'Indica se a DAG deve ser gerada (True) ou ignorada (False)',
     owner VARCHAR(64) DEFAULT 'webapp_user' COMMENT 'Proprietário da DAG no Airflow',
     schedule_interval VARCHAR(64) DEFAULT '0 0 * * *' COMMENT 'Agendamento no formato cron (ex: 0 4 * * *)',
     description TEXT COMMENT 'Descrição da DAG para a UI do Airflow',
     
-    -- 2. Parâmetros da Tarefa (Exemplo de Ingestão e Transformação)
+    -- 3. Parâmetros da Tarefa
     source_type VARCHAR(50) NOT NULL COMMENT 'Tipo de fonte de dados (ex: csv, json, database)',
-    source_filename VARCHAR(255) NOT NULL COMMENT 'Nome do arquivo de origem no MinIO (ex: raw/data.csv)',
+    source_filename VARCHAR(512) COMMENT 'Caminho do arquivo (MinIO) ou URI de conexão (DB)',
     target_table_name VARCHAR(128) NOT NULL COMMENT 'Nome da tabela/destino final na camada Trusted/Refined',
     
-    -- 3. Parâmetros de Processamento
+    -- 4. Parâmetros de Processamento
     python_module_path VARCHAR(255) COMMENT 'Caminho do módulo Python a ser chamado (ex: lib.minio_tasks.transform_data)',
     transform_args JSON COMMENT 'Parâmetros extras para a função Python (JSON: ex: {"columns_to_drop": ["col1", "col2"]})',
 
-    -- 4. Controle e Auditoria
+    -- 5. Controle e Auditoria
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     INDEX idx_dag_active (is_active),
-    INDEX idx_owner (owner)
+    INDEX idx_owner (owner),
+    
+    -- Declaração da Chave Estrangeira com CONSTRAINT explícita
+    CONSTRAINT fk_dagconfig_pasta
+        FOREIGN KEY (pasta_id) 
+        REFERENCES pasta(id)
+        -- Regras de Integridade Referencial:
+        -- ON DELETE RESTRICT: Impede a exclusão de uma pasta se ela ainda tiver DAGs associadas.
+        -- ON UPDATE CASCADE: Atualiza o pasta_id nesta tabela se o id for alterado na tabela pasta.
+        ON DELETE RESTRICT 
+        ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

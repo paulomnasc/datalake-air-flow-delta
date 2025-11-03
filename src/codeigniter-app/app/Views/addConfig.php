@@ -9,23 +9,26 @@ require VIEWPATH . '/header.php';
 <div id="content">
 
     <div class="container">
-        <h1>Criar Novo Quadro</h1>
+        <h1>Criar Novo Config</h1>
 
-        <form method="post" id="meuFormularioUpload" action="<?php echo route_to('Quadro.fileUpload'); ?>" enctype="multipart/form-data">
+        <!-- form method="post" id="meuFormularioUpload" action="<?php echo route_to('Config.fileUpload'); ?>" enctype="multipart/form-data">
+            
             <div class="form-group">
                 <label for="arquivo">Arquivo Csv:</label>
                 <input type="file" id="arquivo" name="arquivo" required>
                 <label style="color: red;" > Atenção !!! O arquivo deve ter as colunas separadas pelo caractere vírgula.</label>
             </div>
-            <button type="submit" class="save-button" onclick="submitMeuFormularioUpload()" value="Atualizar">Enviar</button>
+            <button type="submit" class="save-button" onclick="submitMeuFormularioUpload()" value="Atualizar">Enviar</button -->
             <!-- Div para exibir mensagens de sucesso ou erro -->
-            <div id="upload-message" style="display: none; margin-top: 10px;"></div>
-        </form>
+            <!-- div id="upload-message" style="display: none; margin-top: 10px;"></div>
+
+
+        </form -->
 
 
         <div id="spreadSheet" class="hot" style="overflow: auto"></div>
         <!-- button id="download" onclick="downloadCSV(hotInstance)"  >Download CSV</button-->
-        <!-- Botão para salvar as edições da tabela na sessão -->
+        <!-- Botão para salvar as edições da tabela na sessão >
         <div> 
             <button class="edit-button" id="save" name="save" style="display: none;">💾
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -34,7 +37,7 @@ require VIEWPATH . '/header.php';
             </button>
 
             <div id="save-sheet-message" style="display: none; margin-top: 10px;"></div>
-        </div>
+        </div-->
 
         <script>
 
@@ -106,38 +109,105 @@ require VIEWPATH . '/header.php';
 
         
 
-        <form method="post" id="meuFormulario" action="<?php echo route_to('Quadro.insert'); ?>" >
+        <form method="post" id="meuFormulario" action="<?php echo route_to('Config.insert'); ?>" enctype="multipart/form-data">
+            <fieldset>
+                <legend>Metadados da DAG</legend>
+                <div class="form-group">
+                    <label for="pasta_id">Pasta Associada:</label>
+                    <select id="pasta_id" name="pasta_id" required> 
+                        <option value="">Selecione</option>
+                        <?php foreach($pastas as $pasta): ?>
+                            <option value="<?php echo $pasta->id; ?>"><?php echo $pasta->descricao; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="dag_id">ID da DAG (Único):</label>
+                    <input type="text" name="dag_id" id="dag_id" placeholder="Ex: ingestao_clientes_vendas" maxlength="128" required>
+                </div>
+                <div class="form-group">
+                    <label for="owner">Proprietário (Airflow Owner):</label>
+                    <input type="text" name="owner" id="owner" placeholder="Ex: equipe_dados" maxlength="64" required value="webapp_user">
+                </div>
+                <div class="form-group">
+                    <label for="schedule_interval">Agendamento (CRON):</label>
+                    <input type="text" name="schedule_interval" id="schedule_interval" placeholder="Ex: 0 4 * * * (Todo dia às 4h)" maxlength="64" required value="0 0 * * *">
+                </div>
+                <div class="form-group">
+                    <label for="description">Descrição da DAG:</label>
+                    <textarea name="description" id="description" placeholder="Breve descrição para a UI do Airflow"></textarea>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Configuração de Pipeline</legend>
+
+                <div class="form-group">
+                    <label for="source_type">Tipo de Fonte:</label>
+                    <select id="source_type" name="source_type" required onchange="toggleSourceInput()">
+                        <option value="">Selecione o Tipo</option>
+                        <option value="csv">CSV (Upload)</option>
+                        <option value="json">JSON (Upload)</option>
+                        <option value="parquet">Parquet (Caminho S3)</option>
+                        <option value="database">Database (SQL/URI)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="source_upload_group" style="display:none;">
+                    <label for="source_upload_file">Arquivo de Origem (CSV/JSON):</label>
+                    <input type="file" name="source_file_upload" id="source_upload_file" accept=".csv,.json">
+                </div>
+                
+                <div class="form-group" id="source_path_group" style="display:none;">
+                    <label for="source_path">Caminho do Arquivo (MinIO Raw):</label>
+                    <input type="text" name="source_file_path" id="source_path" placeholder="Ex: raw/dados_pre_existentes.parquet" maxlength="255">
+                </div>
+
+                <div class="form-group" id="source_uri_group" style="display:none;">
+                    <label for="source_uri">URL de Conexão de Banco de Dados (SQLAlchemy URI):</label>
+                    <input type="text" name="source_db_uri" id="source_uri" placeholder="Ex: mysql+mysqlconnector://user:pass@host:port/database" maxlength="512">
+                </div>
+                
+                <div class="form-group">
+                    <label for="target_table_name">Tabela/Destino Final (MinIO Trusted):</label>
+                    <input type="text" name="target_table_name" id="target_table_name" placeholder="Ex: clientes_trusted" maxlength="128" required>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Lógica de Transformação</legend>
+                <div class="form-group">
+                    <label for="python_module_path">Função Python de Transformação:</label>
+                    <input type="text" name="python_module_path" id="python_module_path" 
+                        placeholder="Ex: lib.minio_tasks.transform_data_with_pandas" maxlength="255" required 
+                        value="lib.minio_tasks.transform_data_with_pandas">
+                    <small>Caminho completo do módulo e função a ser executada pelo PythonOperator.</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="transform_args">Argumentos Extras da Função (JSON):</label>
+                    <input type="text" name="transform_args" id="transform_args" 
+                        placeholder="Ex: {'columns_to_drop': ['col1', 'col2']}" 
+                        value="{}">
+                    <small>Deve ser um JSON válido (será armazenado no campo JSON da tabela).</small>
+                </div>
+            </fieldset>
 
             <div class="form-group">
-                <label for="id_pasta">Pasta:</label>
-                <select id="id_pasta" name="id_pasta" required>
-                    <option value="">Selecione</option>
-                    <?php foreach($pastas as $pasta): ?>
-                        <option value="<?php echo $pasta->id; ?>"><?php echo $pasta->descricao; ?></option>
-                    <?php endforeach; ?>
+                <label for="is_active">Status da DAG:</label>
+                <select id="is_active" name="is_active" required>
+                    <option value="1" selected>Ativa (Gerar DAG)</option>
+                    <option value="0">Inativa (Não Gerar DAG)</option>
                 </select>
             </div>
 
-
-            <div class="form-group">
-                <label for="descricao">descricao:</label>
-                <input type="text" name="descricao" placeholder="descrição" required>
-            </div>
-
-            <div class="form-group">
-                <input type="hidden" name="nome_arquivo" id="nome_arquivo" required>
-            </div>
-
-            
             <div class="form-actions">
-                <button type="submit" class="save-button" value="Atualizar">Atualizar</button>
+                <button type="submit" class="save-button" value="Salvar Configuração">Salvar Configuração</button>
                 <button type="button" class="back-button" value="Voltar" onclick="Voltar()">Voltar</button>
             </div>
 
         </form>
-        
 
-        
 
     </div>
 </div>
@@ -208,7 +278,7 @@ require VIEWPATH . '/header.php';
             success: function(result) {
                 if (result.status === 'success') {
                     $('#success-message').html(result.mensagem).show().delay(6000).fadeOut(function() {
-                        window.location.href = "<?php echo route_to('listQuadro'); ?>";
+                        window.location.href = "<?php echo route_to('listConfig'); ?>";
                     });
                 } else {
                     $('#error-message').html(result.mensagem).show().delay(6000).fadeOut();
@@ -222,23 +292,75 @@ require VIEWPATH . '/header.php';
     });
     
     function Voltar() {
-    $.ajax({
-        url: '<?= base_url('listQuadro'); ?>', // Defina a rota corretamente
-        type: 'GET',
-        success: function (result) {
-            window.location.href = "<?= route_to('listQuadro'); ?>";
-        },
-        error: function (xhr, status, error) {
-            console.error('Erro na requisição:', error);
-        }
-    });
-}
+        $.ajax({
+            url: '<?= base_url('listConfig'); ?>', // Defina a rota corretamente
+            type: 'GET',
+            success: function (result) {
+                window.location.href = "<?= route_to('listConfig'); ?>";
+            },
+            error: function (xhr, status, error) {
+                console.error('Erro na requisição:', error);
+            }
+        });
+    }
 
 
     // Adicionar evento ao botão para imprimir os tipos das colunas 
     /* document.getElementById('printColumnTypes').addEventListener('click', function () { 
         printColumnTypes(hot); 
     }); */
+
+
+    function toggleSourceInput() {
+        const sourceType = document.getElementById('source_type').value;
+        
+        // Grupos de Inputs
+        const uploadGroup = document.getElementById('source_upload_group');
+        const pathGroup = document.getElementById('source_path_group');
+        const uriGroup = document.getElementById('source_uri_group');
+        
+        // Inputs
+        const uploadInput = document.getElementById('source_upload_file');
+        const pathInput = document.getElementById('source_path');
+        const uriInput = document.getElementById('source_uri');
+        
+        // Limpar e esconder todos por padrão
+        [uploadGroup, pathGroup, uriGroup].forEach(g => g.style.display = 'none');
+        [uploadInput, pathInput, uriInput].forEach(i => {
+            i.removeAttribute('required');
+            i.value = ''; // Limpa o valor de todos os campos escondidos
+            i.name = 'temp_field'; // Renomeia temporariamente para não submeter
+        });
+        
+        // Variável que será submetida ao DB (source_filename)
+        let activeInput;
+
+        if (sourceType === 'csv' || sourceType === 'json') {
+            // Mostrar UPLOAD
+            uploadGroup.style.display = 'block';
+            uploadInput.setAttribute('required', 'required');
+            activeInput = uploadInput;
+            
+        } else if (sourceType === 'parquet') {
+            // Mostrar CAMINHO/PATH
+            pathGroup.style.display = 'block';
+            pathInput.setAttribute('required', 'required');
+            activeInput = pathInput;
+            
+        } else if (sourceType === 'database') {
+            // Mostrar URI
+            uriGroup.style.display = 'block';
+            uriInput.setAttribute('required', 'required');
+            activeInput = uriInput;
+        }
+        
+        // Mapeamento Crucial: O input ATIVO recebe o nome 'source_filename'
+        if (activeInput) {
+            activeInput.name = 'source_filename'; 
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', toggleSourceInput);
 
 </script>
 

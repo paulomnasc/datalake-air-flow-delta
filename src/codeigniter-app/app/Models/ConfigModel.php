@@ -24,7 +24,13 @@ class ConfigModel extends Model
                                 'source_filename', 
                                 'target_table_name', 
                                 'python_module_path', 
-                                'transform_args'
+                                'transform_args',
+                                // NOVOS CAMPOS PARA SSH TUNNELING
+                                'ssh_host',
+                                'ssh_port',
+                                'ssh_user',
+                                'ssh_key_path',
+                                'ssh_local_port',
                             ];
 
     protected bool $allowEmptyInserts = false;

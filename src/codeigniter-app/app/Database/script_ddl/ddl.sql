@@ -87,3 +87,13 @@ CREATE TABLE dag_configurations (
         ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- Supondo que sua tabela de configurações se chame 'config_data'
+-- Altere o nome da tabela conforme o seu projeto
+
+ALTER TABLE config_data
+ADD COLUMN ssh_host VARCHAR(255) NULL COMMENT 'FQDN ou IP do Jump Server',
+ADD COLUMN ssh_port INT DEFAULT 22 NULL COMMENT 'Porta SSH para conexão, padrão 22',
+ADD COLUMN ssh_user VARCHAR(100) NULL COMMENT 'Usuário SSH para autenticação',
+ADD COLUMN ssh_key_path VARCHAR(255) NULL COMMENT 'Caminho local da chave privada SSH (ex: /path/to/id_rsa)',
+ADD COLUMN ssh_local_port INT DEFAULT 13306 NULL COMMENT 'Porta local que será usada para o túnel (ex: 13306)';
+

@@ -166,6 +166,42 @@ require VIEWPATH . '/header.php';
                 <div class="form-group" id="source_uri_group" style="display:none;">
                     <label for="source_uri">URL de Conexão de Banco de Dados (SQLAlchemy URI):</label>
                     <input type="text" name="source_db_uri" id="source_uri" placeholder="Ex: mysql+mysqlconnector://user:pass@host:port/database" maxlength="512">
+                    <fieldset>
+                        <legend>Conexão SSH (Bases On-Premises)</legend>
+                        
+                        <p>Preencha apenas se a base de dados SQL for acessada via Jump Server/Túnel SSH.</p>
+
+                        <div class="form-group">
+                            <label for="ssh_host">Host SSH (Jump Server):</label>
+                            <input type="text" class="form-control" id="ssh_host" name="ssh_host" placeholder="Ex: 192.168.1.100">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ssh_user">Usuário SSH:</label>
+                            <input type="text" class="form-control" id="ssh_user" name="ssh_user" placeholder="Ex: ssh_user">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="col">
+                                <label for="ssh_port">Porta SSH:</label>
+                                <input type="number" class="form-control" id="ssh_port" name="ssh_port" value="22">
+                            </div>
+                            
+                            <div class="col">
+                                <label for="ssh_local_port">Porta Local do Túnel:</label>
+                                <input type="number" class="form-control" id="ssh_local_port" name="ssh_local_port" value="13306">
+                                <small class="form-text text-muted">Esta porta será usada para o túnel local.</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="ssh_key_path">Caminho da Chave Privada SSH:</label>
+                            <input type="text" class="form-control" id="ssh_key_path" name="ssh_key_path" placeholder="/home/airflow/.ssh/id_rsa">
+                            <small class="form-text text-muted">Caminho da chave no servidor que executará a DAG.</small>
+                        </div>
+                        
+                    </fieldset>
+                
                 </div>
                 
                 <div class="form-group">
@@ -192,6 +228,7 @@ require VIEWPATH . '/header.php';
                     <small>Deve ser um JSON válido (será armazenado no campo JSON da tabela).</small>
                 </div>
             </fieldset>
+            
 
             <div class="form-group">
                 <label for="is_active">Status da DAG:</label>

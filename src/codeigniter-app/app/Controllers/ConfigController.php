@@ -307,7 +307,18 @@ class ConfigController extends BaseController
                 'python_module_path'   => $postData['python_module_path'],
                 // Garantir que transform_args seja JSON válido (ou string vazia/null)
                 'transform_args'       => $postData['transform_args'] ?? '{}', 
+                
+                // CAMPOS PARA SSH TUNNELING
+                'ssh_host'             => $postData['ssh_host'] ?? null,
+                'ssh_port'             => $postData['ssh_port'] ?? 22, // Usa 22 como padrão se não for fornecido
+                'ssh_user'             => $postData['ssh_user'] ?? null,
+                
+                // O campo da View é 'ssh_key_path_value' (o campo hidden que guarda o path)
+                'ssh_key_path'         => $postData['ssh_key_path'] ?? null, 
+                
+                'ssh_local_port'       => $postData['ssh_local_port'] ?? 13306, // Usa 13306 como padrão
             ];
+
 
             // 3. Inserção no Banco de Dados
             $model->insert($dataToInsert);

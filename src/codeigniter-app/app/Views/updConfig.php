@@ -9,112 +9,15 @@ require VIEWPATH . '/header.php';
 <div id="content">
 
     <div class="container">
-        <h1>Editar Quadro</h1>
+        <h1>Editar Configuração de DAG</h1>
         <!-- updQuadro.php -->
             
             
-            <form method="post" id="meuFormularioUpload" action="<?php echo route_to('Quadro.fileUpload'); ?>" enctype="multipart/form-data">
-                
             
-                <div class="form-group">
-                    <label for="arquivo">Arquivo Csv:</label>
-                    <input type="file" id="arquivo" name="arquivo" required>
-                    <label style="color: red;" > Atenção !!! O arquivo deve ter as colunas separadas pelo caractere vírgula.</label>
-                </div>
-                <button type="submit" class="save-button" onclick="submitMeuFormularioUpload()" value="Atualizar">Enviar</button>
-                <!-- Div para exibir mensagens de sucesso ou erro -->
-                <div id="upload-message" style="display: none; margin-top: 10px;"></div>
-            </form>
-
-            <div id="spreadSheet" class="hot" style="overflow: auto"></div>
-            <!-- button id="download" onclick="downloadCSV(hotInstance)"  >Download CSV</button-->
-            <!-- Botão para salvar as edições da tabela na sessão -->
-            <div> 
-                <button class="edit-button" id="save" name="save" style="display: none;">💾
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M17 3h-10c-1.104 0-2 .896-2 2v14c0 1.104.896 2 2 2h10c1.104 0 2-.896 2-2v-13l-4-4zm-3 2v4h-4v-4h4zm2 14h-8v-2h8v2zm1-10h-10v-6h4v4h6v2z" fill="white"/>
-                </svg>
-                </button>
-
-                <div id="save-sheet-message" style="display: none; margin-top: 10px;"></div>
-            </div>
-            <script>
-
-
-                document.addEventListener('DOMContentLoaded', function() {
-                    // Apenas pegue o valor direto e atribua, o que evita o uso de JSON.parse na string completa
-                    let csv = <?php echo $conteudo_csv_json; ?>;
-                    
-                    // Verifique se o conteúdo está correto antes de prosseguir com a função de conversão
-                    console.log("CSV :", csv);
-
-                    // Desescapar os caracteres unicode 
-                    csv = desescaparCaracteresUnicode(csv); 
-                    console.log("CSV sem unicode:", csv); 
-                    // Verifique se o CSV está correto antes de processá-lo
-                    
-                    // Agora chame csvToJsonString(csv) e prossiga normalmente
-                    var jsonData = csvToJsonString(csv);
-                    console.log("Dados formatados em Json:", jsonData);
-                    
-                    // Verifique se jsonData não está vazio e inicialize o Handsontable
-                    var jsArray = CSVToArray(csv);
-                    console.log("Dados convertidos para javascript array: ", jsArray);
-                    initializeHandsontable(jsArray);
-                                        
-                });
-
-                const save = document.getElementById('save');
-                const messageDivSheetMessage = document.getElementById('save-sheet-message');
-
-                save.addEventListener('click', () => {
-                // Save all cell's data
-                const data = handsontableInstance.getData();
-
-                console.log('handsontableInstance.getData()', data);
-                console.log('JSON - ', JSON.stringify({ data }));
-
-                fetch('<?= base_url('/salvarTabela') ?>', {
-                    method: 'POST',
-                    mode: 'cors',
-                    headers: {
-                    'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ data }),
-                })
-                    .then((response) => {
-                    return response.json(); // Parse the response as JSON
-                    //console.log('R: ', response.json())
-                })
-                    .then((result) => {
-                        // Display success message 
-                        messageDivSheetMessage.style.color = 'green'; 
-                        messageDivSheetMessage.textContent = 'Planilha salva com sucesso'; 
-                        messageDivSheetMessage.style.display = 'block'; 
-                        // Hide message after 6 seconds 
-                        setTimeout(() => { messageDivSheetMessage.style.display = 'none'; }, 6000); 
-                        console.log('Planilha salva com sucesso'); }) 
-                    .catch((error) => { 
-                        // Display error message 
-                        
-                        messageDivSheetMessage.style.color = 'red'; 
-                        messageDivSheetMessage.textContent = 'Erro: ' + error.message; 
-                        messageDivSheetMessage.style.display = 'block'; 
-                        // Hide message after 6 seconds 
-                        setTimeout(() => { messageDivSheetMessage.style.display = 'none'; }, 6000); 
-                        
-                        console.error('Error:', error); 
-                        
-                    });
-                    messageDivSheetMessage.style.display = 'block'; 
-                });
-            </script>
-
-            <!-- FIM Carrega o conteúdo do arquivo da coluna da tabela do sgbd -->    
-            
+        <div id="form-container">
             
 
-            <form method="post" id="meuFormulario" action="<?php echo route_to('Quadro.update'); ?>">
+            <form method="post" id="meuFormulario" action="<?php echo route_to('Config.update'); ?>">
 
                 <div class="form-group">
                         <input type="hidden" name="id" placeholder="ID" value="<?php echo $id ?>" required readonly>
@@ -134,18 +37,86 @@ require VIEWPATH . '/header.php';
                 </div>
 
                 <div class="form-group">
-                    <label for="descricao">descricao:</label>
-                    <input type="text" name="descricao" placeholder="descrição" value='<?php echo $descricao; ?>' required>
+                <label for="owner">Owner:</label>
+                <input type="text" class="form-control" id="owner" name="owner" 
+                       value="<?= esc($configData['owner'] ?? 'webapp_user') ?>">
                 </div>
 
                 <div class="form-group">
-                    <input type="hidden" id="nome_arquivo" name="nome_arquivo" value="<?php echo $nome_arquivo ?>" readonly required>
+                    <label for="schedule_interval">Schedule Interval (Cron):</label>
+                    <input type="text" class="form-control" id="schedule_interval" name="schedule_interval" 
+                        value="<?= esc($configData['schedule_interval'] ?? '0 0 * * *') ?>">
                 </div>
 
-                <div class="form-actions">
-                    <button type="submit" class="save-button" value="Atualizar">Atualizar</button>
-                    <button type="button" class="back-button" onclick="Voltar()">Voltar</button>
+                <div class="form-group form-check">
+                    <input type="checkbox" class="form-check-input" id="is_active" name="is_active" 
+                        value="1" <?= (isset($configData['is_active']) && $configData['is_active']) ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="is_active">DAG Ativa</label>
                 </div>
+                
+                <div class="form-group">
+                    <label for="description">Descrição:</label>
+                    <textarea class="form-control" id="description" name="description" rows="3"><?= esc($configData['description'] ?? '') ?></textarea>
+                </div>
+            </fieldset>
+
+            <fieldset class="mb-4">
+                <legend>Conexão SSH (Bases On-Premises)</legend>
+                
+                <p>Preencha apenas se a base de dados SQL for acessada via Jump Server/Túnel SSH.</p>
+
+                <div class="form-group">
+                    <label for="ssh_host">Host SSH (Jump Server):</label>
+                    <input type="text" class="form-control" id="ssh_host" name="ssh_host" 
+                        value="<?= esc($configData['ssh_host'] ?? '') ?>" placeholder="Ex: 192.168.1.100">
+                </div>
+
+                <div class="form-group">
+                    <label for="ssh_user">Usuário SSH:</label>
+                    <input type="text" class="form-control" id="ssh_user" name="ssh_user" 
+                        value="<?= esc($configData['ssh_user'] ?? '') ?>" placeholder="Ex: ssh_user">
+                </div>
+
+                <div class="form-row">
+                    <div class="col">
+                        <label for="ssh_port">Porta SSH:</label>
+                        <input type="number" class="form-control" id="ssh_port" name="ssh_port" 
+                            value="<?= esc($configData['ssh_port'] ?? 22) ?>">
+                    </div>
+                    
+                    <div class="col">
+                        <label for="ssh_local_port">Porta Local do Túnel:</label>
+                        <input type="number" class="form-control" id="ssh_local_port" name="ssh_local_port" 
+                            value="<?= esc($configData['ssh_local_port'] ?? 13306) ?>">
+                        <small class="form-text text-muted">Esta porta será usada para o túnel local.</small>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="ssh_key_path">Caminho da Chave Privada SSH:</label>
+                    <input type="text" class="form-control" id="ssh_key_path" name="ssh_key_path" 
+                        value="<?= esc($configData['ssh_key_path'] ?? '') ?>" 
+                        placeholder="/home/airflow/.ssh/id_rsa">
+                    <small class="form-text text-muted">Insira o caminho *absoluto* da chave no servidor que executa a DAG.</small>
+                </div>
+            </fieldset>
+
+            <fieldset class="mb-4">
+                <legend>Configuração da Fonte de Dados</legend>
+                <div class="form-group">
+                    <label for="db_host">Host do Banco de Dados:</label>
+                    <input type="text" class="form-control" id="db_host" name="db_host" 
+                        value="<?= esc($configData['db_host'] ?? '') ?>">
+                </div>
+            
+            </fieldset>
+
+                <div class="form-actions">
+                    <button type="submit" class="save-button" value="Salvar Configuração">Salvar Configuração</button>
+                    <button type="button" class="back-button" value="Voltar" onclick="Voltar()">Voltar</button>
+                </div>
+
+                
             </form>
 
 

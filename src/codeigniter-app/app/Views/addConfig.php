@@ -43,7 +43,7 @@ require VIEWPATH . '/header.php';
 
                 document.addEventListener('DOMContentLoaded', function() {
                     /* // Apenas pegue o valor direto e atribua, o que evita o uso de JSON.parse na string completa
-                    let csv = <?php echo $conteudo_csv_json; ?>;
+                    let csv = <!-- ?php echo $conteudo_csv_json; ?>;
                     
                     // Verifique se o conteúdo está correto antes de prosseguir com a função de conversão
                     console.log("CSV :", csv);
@@ -113,8 +113,8 @@ require VIEWPATH . '/header.php';
             <fieldset>
                 <legend>Metadados da DAG</legend>
                 <div class="form-group">
-                    <label for="pasta_id">Pasta Associada:</label>
-                    <select id="pasta_id" name="pasta_id" required> 
+                    <label for="id_pasta">Pasta Associada:</label>
+                    <select id="id_pasta" name="id_pasta" required> 
                         <option value="">Selecione</option>
                         <?php foreach($pastas as $pasta): ?>
                             <option value="<?php echo $pasta->id; ?>"><?php echo $pasta->descricao; ?></option>
@@ -143,13 +143,16 @@ require VIEWPATH . '/header.php';
                 <legend>Configuração de Pipeline</legend>
 
                 <div class="form-group">
-                    <label for="source_type">Tipo de Fonte:</label>
-                    <select id="source_type" name="source_type" required onchange="toggleSourceInput()">
-                        <option value="">Selecione o Tipo</option>
-                        <option value="csv">CSV (Upload)</option>
-                        <option value="json">JSON (Upload)</option>
-                        <option value="parquet">Parquet (Caminho S3)</option>
-                        <option value="database">Database (SQL/URI)</option>
+                    <label for="id_source_type">Tipo da Fonte de Dados:</label>
+                    <select class="form-control" id="id_source_type" name="id_source_type" required onchange="toggleSourceInput(this.value)">
+                        <option value="">Selecione o Tipo de Fonte</option>
+                        <?php foreach ($source_types as $source_type): ?>
+                            <option value="<?= esc($source_type['id']) ?>" 
+                                    data-description="<?= esc($source_type['description']) ?>"
+                                    <?= (isset($source_type_selecionado) && $source_type_selecionado == $source_type['id']) ? 'selected' : '' ?>>
+                                <?= esc($source_type['description']) ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 
@@ -350,10 +353,27 @@ require VIEWPATH . '/header.php';
         printColumnTypes(hot); 
     }); */
 
-
+ // 🛑 A FUNÇÃO NÃO RECEBE MAIS ARGUMENTOS 🛑
     function toggleSourceInput() {
-        const sourceType = document.getElementById('source_type').value;
+        // Pega o elemento SELECT pelo seu novo ID (id_source_type)
+        const selectElement = document.getElementById('id_source_type');
+
+        // Se o elemento não for encontrado (apenas um fallback de segurança)
+        if (!selectElement) {
+            console.error('Elemento SELECT com ID "id_source_type" não encontrado.');
+            return;
+        }
+
+        const selectedId = selectElement.value; // ID numérico: 1, 2, 3...
         
+        // --- 1. Determinar o Tipo de Fonte (por String) ---
+        let sourceDescription = '';
+        if (selectedId) {
+            // Pega a opção selecionada e extrai o texto (a descrição)
+            const selectedOption = selectElement.options[selectElement.selectedIndex];
+            sourceDescription = selectedOption.textContent.trim().toLowerCase(); 
+        }
+
         // Grupos de Inputs
         const uploadGroup = document.getElementById('source_upload_group');
         const pathGroup = document.getElementById('source_path_group');
@@ -363,44 +383,53 @@ require VIEWPATH . '/header.php';
         const uploadInput = document.getElementById('source_upload_file');
         const pathInput = document.getElementById('source_path');
         const uriInput = document.getElementById('source_uri');
-        
-        // Limpar e esconder todos por padrão
+
+        // 2. Limpar e esconder todos por padrão
+        // Se nada estiver selecionado, a função apenas limpa
         [uploadGroup, pathGroup, uriGroup].forEach(g => g.style.display = 'none');
         [uploadInput, pathInput, uriInput].forEach(i => {
             i.removeAttribute('required');
-            i.value = ''; // Limpa o valor de todos os campos escondidos
-            i.name = 'temp_field'; // Renomeia temporariamente para não submeter
+            i.value = ''; 
+            i.name = 'temp_field'; // Renomeia para não submeter
         });
         
-        // Variável que será submetida ao DB (source_filename)
-        let activeInput;
+        let activeInput = null;
 
-        if (sourceType === 'csv' || sourceType === 'json') {
-            // Mostrar UPLOAD
+        // 3. Lógica Condicional (Baseada na string da descrição)
+        if (sourceDescription.includes('csv') || sourceDescription.includes('json')) {
+            // Mostrar UPLOAD (para CSV/JSON, assumindo que são uploads/MinIO)
             uploadGroup.style.display = 'block';
             uploadInput.setAttribute('required', 'required');
             activeInput = uploadInput;
             
-        } else if (sourceType === 'parquet') {
+        } else if (sourceDescription.includes('parquet')) {
             // Mostrar CAMINHO/PATH
             pathGroup.style.display = 'block';
             pathInput.setAttribute('required', 'required');
             activeInput = pathInput;
             
-        } else if (sourceType === 'database') {
-            // Mostrar URI
+        } else if (sourceDescription.includes('mysql') || sourceDescription.includes('postgresql') || sourceDescription.includes('database')) {
+            // Mostrar URI ou Campos de Conexão DB
             uriGroup.style.display = 'block';
             uriInput.setAttribute('required', 'required');
             activeInput = uriInput;
         }
         
-        // Mapeamento Crucial: O input ATIVO recebe o nome 'source_filename'
+        // 4. Mapeamento Crucial: O input ATIVO recebe o nome 'source_filename'
         if (activeInput) {
             activeInput.name = 'source_filename'; 
         }
     }
 
-    document.addEventListener('DOMContentLoaded', toggleSourceInput);
+    // 5. Configura Listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        toggleSourceInput(); // Executa na carga da página (para formulários de UPDATE)
+        
+        const selectElement = document.getElementById('id_source_type');
+        if (selectElement) {
+            selectElement.addEventListener('change', toggleSourceInput); // Executa na mudança
+        }
+    });
 
 </script>
 

@@ -14,13 +14,13 @@ class ConfigModel extends Model
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
     protected $allowedFields = ['id', 
-                                'pasta_id', 
+                                'id_pasta', 
                                 'dag_id', 
                                 'is_active', 
                                 'owner', 
                                 'schedule_interval', 
                                 'description', 
-                                'source_type', 
+                                'id_source_type', 
                                 'source_filename', 
                                 'target_table_name', 
                                 'python_module_path', 

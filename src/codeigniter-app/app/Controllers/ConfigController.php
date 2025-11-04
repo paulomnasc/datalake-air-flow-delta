@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\ConfigModel;
 use App\Models\PastaModel;
+use App\Models\SourceTypeModel;
 use CodeIgniter\CLI\Console;
 
 class ConfigController extends BaseController
@@ -106,8 +107,8 @@ class ConfigController extends BaseController
         
         $model = new ConfigModel();
         $model->select('dag_configurations.*, pasta.descricao as pasta_descricao');
-        $model->join('pasta', 'pasta.id = dag_configurations.pasta_id');
-        $model->where('dag_configurations.pasta_id', $id_pasta);
+        $model->join('pasta', 'pasta.id = dag_configurations.id_pasta');
+        $model->where('dag_configurations.id_pasta', $id_pasta);
         $list = $model->findAll();
     
         
@@ -134,9 +135,11 @@ class ConfigController extends BaseController
 
 
         $pastaModel = new PastaModel();
+        $sourceTypeModel = new SourceTypeModel();
         $data['pastas'] = $pastaModel->listToCombo($_SESSION['id_usuario_logado']);
-        $data['conteudo_csv_json'] = null;
-        $_SESSION['conteudo_arquivo'] = null;
+        $data['source_types'] = $sourceTypeModel->listToCombo();
+        # $data['conteudo_csv_json'] = null;
+        #$_SESSION['conteudo_arquivo'] = null;
         return view('addConfig',$data);
 
 
@@ -144,33 +147,64 @@ class ConfigController extends BaseController
 
     public function upd()
     {
-
+        // 1. Coleta e Carrega o Registro Existente
         $id = $this->request->getPost('id');
         $model = new ConfigModel();
-        $Config = $model->find($id);
+        $Config = $model->find($id); // Objeto/Array com os dados da dag_configurations
 
+        // Se o registro não for encontrado (boa prática)
+        if (!$Config) {
+            return redirect()->back()->with('error', 'Configuração não encontrada.');
+        }
+
+        // 2. Prepara os Dados da Pasta
         $pastaModel = new PastaModel();
         $data['pastas'] = $pastaModel->listToCombo($_SESSION['id_usuario_logado']);
         $data['id_pasta_selecionado'] = $Config->id_pasta;
+        
+        // 3. Carrega Atributos Essenciais
         $data['id'] = $Config->id;
-        $data['descricao'] = $Config->descricao;
-        $data['arquivo'] = $Config->arquivo;
-        $data['nome_arquivo'] = $Config->nome_arquivo;
+        $data['description'] = $Config->description;
+
+        //$data['source_type'] = $Config->source_type; // Assumido que existe
+            // ... Carrega Atributos Essenciais ...
+        $data['source_type'] = $Config->source_type; // ⬅️ Este é o ID da Fonte
+        // ...
+
+        // 🛑 NOVO: Carregar Tipos de Fonte 🛑
+        $sourceTypeModel = new \App\Models\SourceTypeModel();
+        $data['source_types'] = $sourceTypeModel->listToCombo();
+        $data['source_type_selecionado'] = $Config->source_type; // Passa o ID selecionado
+
+        // Campos para DAG
+        $data['dag_id'] = $Config->dag_id;
+        $data['owner'] = $Config->owner;
+        $data['schedule_interval'] = $Config->schedule_interval;
+        $data['is_active'] = $Config->is_active;
+
+        // 🛑 CAMPOS DB ORIGINAIS - REMOVIDOS POIS CAUSARAM O ERRO 🛑
+        // Se precisar deles, adicione-os à tabela dag_configurations primeiro:
+        // $data['db_host'] = $Config->db_host; 
+        // $data['db_user'] = $Config->db_user; 
         
-        //$conteudo_csv = str_replace(["\r\n", "\r", "\n"], "\\n", base64_decode($Config->conteudo_arquivo));
+        // 🛑 NOVOS CAMPOS SSH TUNNELING (Confirmados no DDL)
+        $data['ssh_host'] = $Config->ssh_host;
+        $data['ssh_port'] = $Config->ssh_port;
+        $data['ssh_user'] = $Config->ssh_user;
+        $data['ssh_key_path'] = $Config->ssh_key_path;
+        $data['ssh_local_port'] = $Config->ssh_local_port; // ⬅️ Adicionado para alinhamento total
+
+        // 4. Tratamento de Arquivo (Conteúdo)
+        // Se o formulário de edição precisar do conteúdo do arquivo, descomente.
+        /*
         $conteudo_csv = base64_decode($Config->conteudo_arquivo);
-
         $_SESSION['conteudo_arquivo'] = $conteudo_csv;
-        
         $data['conteudo_arquivo'] = $conteudo_csv;
+        $data['conteudo_csv_json'] = json_encode($conteudo_csv, JSON_UNESCAPED_UNICODE);
+        */
 
-
-        //$data['conteudo_csv_json'] = json_encode($conteudo_csv);
-
-        $data['conteudo_csv_json'] =  json_encode($conteudo_csv, JSON_UNESCAPED_UNICODE);
-
+        // 5. Retorna a View
         return view('updConfig', $data);
-
     }
 
     public function del($id)
@@ -243,25 +277,43 @@ class ConfigController extends BaseController
     // O insert agora será chamado após o processo de upload no novo subform
     public function insert()
     {
-        // Instancia o Model (e o Service MinIO se for o caso)
+        // Instancia os Models
         $model = new ConfigModel();
+        $sourceTypeModel = new SourceTypeModel();
         // $minioService = new App\Services\MinIOService(); // Exemplo: seu serviço MinIO
         
         $postData = $this->request->getPost();
-        $sourceType = $postData['source_type'] ?? null;
         
+        // 🛑 COLETA CORRIGIDA: Coleta o ID numérico da FK 🛑
+        $sourceTypeID = (int)($postData['id_source_type'] ?? 0); 
+        $pastaID = (int)($postData['id_pasta'] ?? 0); 
+
         try {
+            if (!$sourceTypeID) {
+                throw new \Exception('O tipo de fonte de dados é obrigatório.');
+            }
+
+            // 1. BUSCAR A DESCRIÇÃO NO BANCO PARA A LÓGICA CONDICIONAL
+            $sourceTypeConfig = $sourceTypeModel->find($sourceTypeID);
+
+            if (!$sourceTypeConfig) {
+                 throw new \Exception('Tipo de fonte de dados não encontrado.');
+            }
+            
+            // Pega a descrição em minúsculas para a lógica
+            $sourceTypeDescription = strtolower($sourceTypeConfig['description']);
+
             // Variável que irá conter a string a ser salva em dag_configurations.source_filename
             $sourceLocation = null;
             
-            // 1. Lógica Condicional de Upload/Caminho
-            if ($sourceType === 'csv' || $sourceType === 'json') {
+            // 2. Lógica Condicional de Upload/Caminho (usando a descrição textual)
+            if (str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json')) {
                 
                 // O campo 'name' no input de arquivo é 'source_filename' (devido à lógica JS)
                 $uploadedFile = $this->request->getFile('source_filename');
                 
                 if (!$uploadedFile || !$uploadedFile->isValid() || $uploadedFile->hasMoved()) {
-                     throw new \Exception('O arquivo para ' . strtoupper($sourceType) . ' é obrigatório ou inválido.');
+                    throw new \Exception('O arquivo de upload é obrigatório ou inválido.');
                 }
                 
                 // --- INÍCIO DA LÓGICA DE UPLOAD PARA MINIO (SUBSTITUA ESTE BLOCO) ---
@@ -281,56 +333,57 @@ class ConfigController extends BaseController
                 
                 // --- FIM DA LÓGICA DE UPLOAD PARA MINIO ---
                 
-            } else if ($sourceType === 'parquet' || $sourceType === 'database') {
+            } else if (str_contains($sourceTypeDescription, 'parquet') || 
+                       str_contains($sourceTypeDescription, 'database') || 
+                       str_contains($sourceTypeDescription, 'postgresql') || 
+                       str_contains($sourceTypeDescription, 'api')) {
                 
                 // Se não é upload, o valor de texto (URI/Caminho) já está no $_POST['source_filename']
                 $sourceLocation = $postData['source_filename'] ?? null;
                 if (empty($sourceLocation)) {
-                    throw new \Exception('O Caminho/URI de conexão é obrigatório para o tipo ' . strtoupper($sourceType));
+                    throw new \Exception('O Caminho/URI de conexão é obrigatório para o tipo ' . strtoupper($sourceTypeDescription));
                 }
                 
             } else {
-                throw new \Exception('Tipo de fonte de dados não selecionado.');
+                 throw new \Exception('Lógica de processamento de dados não implementada para o tipo: ' . $sourceTypeDescription);
             }
 
-            // 2. Preparação dos Dados para Inserção (Mapeamento total)
+            // 3. Preparação dos Dados para Inserção (Mapeamento total)
             $dataToInsert = [
-                'pasta_id'             => $postData['pasta_id'], // Novo campo FK
-                'dag_id'               => $postData['dag_id'],   // Campo DAG ID
-                'is_active'            => $postData['is_active'] ?? 1,
-                'owner'                => $postData['owner'] ?? 'webapp_user',
-                'schedule_interval'    => $postData['schedule_interval'] ?? '0 0 * * *',
-                'description'          => $postData['description'] ?? null,
-                'source_type'          => $sourceType,
-                'source_filename'      => $sourceLocation, // Caminho MinIO ou URI final
-                'target_table_name'    => $postData['target_table_name'],
-                'python_module_path'   => $postData['python_module_path'],
-                // Garantir que transform_args seja JSON válido (ou string vazia/null)
-                'transform_args'       => $postData['transform_args'] ?? '{}', 
+                'id_pasta'        => (int)($postData['id_pasta'] ?? 0), // Garante INT
+                'id_source_type'  => (int)($postData['id_source_type'] ?? 0), // Garante INT
+                'dag_id'                => $postData['dag_id'],   
+                'is_active'             => $postData['is_active'] ?? 1,
+                'owner'                 => $postData['owner'] ?? 'webapp_user',
+                'schedule_interval'     => $postData['schedule_interval'] ?? '0 0 * * *',
+                'description'           => $postData['description'] ?? null,
+                
+                // 🛑 CORREÇÃO CRUCIAL: Salvar a FK (ID) no novo campo 'id_source_type'
+                 
+                
+                'source_filename'       => $sourceLocation, // Caminho MinIO ou URI final
+                'target_table_name'     => $postData['target_table_name'],
+                'python_module_path'    => $postData['python_module_path'],
+                'transform_args'        => $postData['transform_args'] ?? '{}', 
                 
                 // CAMPOS PARA SSH TUNNELING
-                'ssh_host'             => $postData['ssh_host'] ?? null,
-                'ssh_port'             => $postData['ssh_port'] ?? 22, // Usa 22 como padrão se não for fornecido
-                'ssh_user'             => $postData['ssh_user'] ?? null,
-                
-                // O campo da View é 'ssh_key_path_value' (o campo hidden que guarda o path)
-                'ssh_key_path'         => $postData['ssh_key_path'] ?? null, 
-                
-                'ssh_local_port'       => $postData['ssh_local_port'] ?? 13306, // Usa 13306 como padrão
+                'ssh_host'              => $postData['ssh_host'] ?? null,
+                'ssh_port'              => $postData['ssh_port'] ?? 22, 
+                'ssh_user'              => $postData['ssh_user'] ?? null,
+                'ssh_key_path'          => $postData['ssh_key_path'] ?? null, 
+                'ssh_local_port'        => $postData['ssh_local_port'] ?? 13306,
             ];
 
-
-            // 3. Inserção no Banco de Dados
+            // 4. Inserção no Banco de Dados
             $model->insert($dataToInsert);
             
-            // 4. Resposta
+            // 5. Resposta
             return $this->response->setJSON([
                 'status' => 'success',
                 'mensagem' => 'Configuração da DAG e fonte de dados salvas com sucesso! (ID: ' . $model->getInsertID() . ')'
             ]);
             
         } catch (\Exception $e) {
-            // Logs são essenciais para debugar falhas de upload/conexão
             log_message('error', 'Erro ao salvar configuração de DAG: ' . $e->getMessage());
             
             return $this->response->setJSON([

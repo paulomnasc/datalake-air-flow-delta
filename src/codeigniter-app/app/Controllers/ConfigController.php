@@ -387,43 +387,113 @@ class ConfigController extends BaseController
     
     public function update() {
 
-        try {
-
             
-            $id = $this->request->getPost('id');
+        // Instancia os Models
+        $model = new ConfigModel();
+        $sourceTypeModel = new SourceTypeModel();
+        // $minioService = new App\Services\MinIOService(); // Exemplo: seu serviço MinIO
+        $id = $this->request->getPost('id');
+        $postData = $this->request->getPost();
+        
+        // 🛑 COLETA CORRIGIDA: Coleta o ID numérico da FK 🛑
+        $sourceTypeID = (int)($postData['id_source_type'] ?? 0); 
+        $pastaID = (int)($postData['id_pasta'] ?? 0); 
 
+        try {
+            if (!$sourceTypeID) {
+                throw new \Exception('O tipo de fonte de dados é obrigatório.');
+            }
 
+            // 1. BUSCAR A DESCRIÇÃO NO BANCO PARA A LÓGICA CONDICIONAL
+            $sourceTypeConfig = $sourceTypeModel->find($sourceTypeID);
 
-            $data = [
-                'id' => $id,
-                'descricao' => $this->request->getPost('descricao'),
-                'id_pasta' => $this->request->getPost('id_pasta'),
-                'nome_arquivo' => $this->request->getPost('nome_arquivo'),
-                'conteudo_arquivo' => base64_encode($_SESSION['conteudo_arquivo'])
+            if (!$sourceTypeConfig) {
+                 throw new \Exception('Tipo de fonte de dados não encontrado.');
+            }
+            
+            // Pega a descrição em minúsculas para a lógica
+            $sourceTypeDescription = strtolower($sourceTypeConfig['description']);
+
+            // Variável que irá conter a string a ser salva em dag_configurations.source_filename
+            $sourceLocation = null;
+            
+            // 2. Lógica Condicional de Upload/Caminho (usando a descrição textual)
+            // 3. Lógica de Upload (Ajustada para Edição)
+        $sourceLocation = null;
+        $fileRequired = str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json');
+        
+        $uploadedFile = $this->request->getFile('source_file_upload');
+
+        if ($fileRequired) {
+            if ($uploadedFile && $uploadedFile->isValid() && !$uploadedFile->hasMoved()) {
+                // Cenário A: Novo arquivo enviado e válido (Fazendo upload)
+                $dagId = $existingConfig->dag_id; // Mantém o DAG ID original para o caminho
+                $bucket = 'raw';
+
+                $newName = $uploadedFile->getRandomName();
+                $targetMinioPath = "{$bucket}/{$dagId}/{$newName}";
+
+                // Faz o upload real do arquivo
+                if ($uploadedFile->move(WRITEPATH . 'uploads/minio_temp', $newName)) {
+                    // Simulação: Na produção, aqui você moveria o arquivo para o MinIO/S3
+                    // O caminho salvo é o caminho MinIO
+                    $sourceLocation = $targetMinioPath;
+                } else {
+                    return redirect()->back()->with('error', 'Erro ao mover o arquivo de upload.');
+                }
+            } else {
+                // Cenário B: Não há novo upload, usa o caminho original.
+                // Usamos o valor do campo oculto (que é o caminho original)
+                $sourceLocation = $postData['source_filename_original'] ?? $existingConfig->source_filename;
+            
+                // Se o arquivo for requerido, mas não houver upload NEM caminho original, é um erro.
+                if (empty($sourceLocation)) {
+                    return redirect()->back()->with('error', 'O arquivo de origem é obrigatório para este tipo de fonte.');
+                }
+            }
+        }
+
+            // 3. Preparação dos Dados para Inserção (Mapeamento total)
+            $dataToUpdate = [
+                'id'              => $id,
+                'id_pasta'        => (int)($postData['id_pasta'] ?? 0), // Garante INT
+                'id_source_type'  => (int)($postData['id_source_type'] ?? 0), // Garante INT
+                'dag_id'                => $postData['dag_id'],   
+                'is_active'             => $postData['is_active'] ?? 1,
+                'owner'                 => $postData['owner'] ?? 'webapp_user',
+                'schedule_interval'     => $postData['schedule_interval'] ?? '0 0 * * *',
+                'description'           => $postData['description'] ?? null,
+                
+                // 🛑 CORREÇÃO CRUCIAL: Salvar a FK (ID) no novo campo 'id_source_type'
+                 
+                
+                'source_filename'       => $sourceLocation, // Caminho MinIO ou URI final
+                'target_table_name'     => $postData['target_table_name'],
+                'python_module_path'    => $postData['python_module_path'],
+                'transform_args'        => $postData['transform_args'] ?? '{}', 
+                
+                // CAMPOS PARA SSH TUNNELING
+                'ssh_host'              => $postData['ssh_host'] ?? null,
+                'ssh_port'              => $postData['ssh_port'] ?? 22, 
+                'ssh_user'              => $postData['ssh_user'] ?? null,
+                'ssh_key_path'          => $postData['ssh_key_path'] ?? null, 
+                'ssh_local_port'        => $postData['ssh_local_port'] ?? 13306,
             ];
 
+            // 4. Inserção no Banco de Dados
+            $updated = $model->save($dataToUpdate);
             
-            if(isset($_SESSION['caminho_formatado']))
-            {
-                $data = array_merge($data, [
-                    'arquivo' => $_SESSION['caminho_formatado']
-                ]);
-            }
-                    
-                
-            
-            $model = new ConfigModel();
-        
-            $model->update($id, $data);
-            $_SESSION['conteudo_arquivo'] = null;
-            return $this->response->setJSON([
-                'status' => 'success',
-                'mensagem' => 'Registro inserido com sucesso!'
+             return $this->response->setJSON([
+                'status' => $updated ? 'success' : 'warning',
+                'mensagem' => $updated ? 'Registro atualizado com sucesso!' : 'Falha ao atualizar o registro. Tente novamente.'
             ]);
+            
         } catch (\Exception $e) {
+            log_message('error', 'Erro ao salvar configuração de DAG: ' . $e->getMessage());
+            
             return $this->response->setJSON([
                 'status' => 'error',
-                'mensagem' => 'Falha ao inserir o registro: ' . $e->getMessage()
+                'mensagem' => 'Falha ao salvar a configuração. Detalhes: ' . $e->getMessage()
             ]);
         }
     }

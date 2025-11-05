@@ -36,7 +36,13 @@ require VIEWPATH . '/header.php';
                     </select>
                 </div>
 
+        <div class="form-group">
+            <label for="dag_id">ID da DAG (Único):</label>
+            <input type="text" name="dag_id" id="dag_id" placeholder="Ex: ingestao_clientes_vendas" maxlength="128" required
+            value="<?php echo $dag_id ?>">
+        </div>
                 
+
         <div class="form-group">
             <label for="owner">Proprietário (Airflow Owner):</label>
             <input type="text" name="owner" id="owner" placeholder="Ex: equipe_dados" maxlength="64" required 
@@ -284,7 +290,7 @@ function submitMeuFormularioUpload() {
             success: function(result) {
                 if (result.status === 'success') {
                     $('#success-message').html(result.mensagem).show().delay(6000).fadeOut(function() {
-                        window.location.href = "<?php echo route_to('listQuadro'); ?>"; // Redireciona para listQuadro após exibir a mensagem
+                       window.location.href = "<?php echo route_to('listConfig'); ?>";
                     });
                 } else {
                     $('#error-message').html(result.mensagem).show().delay(6000).fadeOut(); // Mostra a mensagem de erro

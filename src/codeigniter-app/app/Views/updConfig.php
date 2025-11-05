@@ -202,128 +202,137 @@ require VIEWPATH . '/header.php';
 </div>
 
 
-<script>
-
-
-function Voltar() {
-    $.ajax({
-        url: '<?= base_url('listQuadro'); ?>', // Defina a rota corretamente
-        type: 'GET',
-        success: function (result) {
-            window.location.href = "<?= route_to('listQuadro'); ?>";
-        },
-        error: function (xhr, status, error) {
-            console.error('Erro na requisição:', error);
-        }
-    });
-}
-
-function submitMeuFormularioUpload() {
-
-    const formMeuFormularioUpload = document.getElementById('meuFormularioUpload');
-    const formData = new FormData(formMeuFormularioUpload);
-
-    // Prevent default submission behavior
-    event.preventDefault();
-    
-    //Limpa o conteúdo ta tabela que veio no load do edit
-    // Chama a função para limpar os dados do Handsontable
-    container = document.getElementById('spreadSheet');
-    //A linha está dando erro em     const colHeaders = Object.keys(data[0]); no handsontable.js
-    clearHandsontable(container); 
-
-    $.ajax({
-        url: formMeuFormularioUpload.action,
-        type: 'POST',
-        data: formData,
-        processData: false,
-        contentType: false,
-        success: function(result) {
-            // Exibe a mensagem na div de feedback
-            const messageDiv = document.getElementById('upload-message');
-            if (result.status === 'success') {
-                messageDiv.innerHTML = result.mensagem;
-                messageDiv.style.color = 'green';
-                // Verifique se o arquivo foi carregado com sucesso e leia o conteúdo do CSV
-                if (result.uploadedFile) {
-                    $(document).ready(function() {
-                        fetchCSVAndInitializeHandsontable(result.uploadedFile);
-                    });
-
-                }
-            } else {
-                messageDiv.innerHTML = result.mensagem;
-                messageDiv.style.color = 'red';
-            }
-            messageDiv.style.display = 'block';
-        },
-        error: function(err) {
-            const messageDiv = document.getElementById('upload-message');
-            messageDiv.innerHTML = 'Erro ao enviar o arquivo.' + err;
-            messageDiv.style.color = 'red';
-            messageDiv.style.display = 'block';
-            console.log(err.responseText);
-        }
-    });
+    <script>
+    // Função para retornar à lista de configurações
+    function Voltar() {
+        window.location.href = "<?= route_to('listConfig'); ?>"; 
     }
 
+    // -----------------------------------------------------------
+    // 🛑 LÓGICA DE EXIBIÇÃO/OCULTAÇÃO DE CAMPOS (toggleSourceInput)
+    // -----------------------------------------------------------
+    function toggleSourceInput() {
+        console.log("Função toggleSourceInput executada."); 
+        
+        const selectElement = document.getElementById('id_source_type');
+        if (!selectElement) return;
 
+        // 1. OBTÉM A DESCRIÇÃO DO OPTION ATUALMENTE SELECIONADO
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        
+        // Se não houver opção selecionada (ex: a primeira é 'Selecione'), a descrição é vazia
+        const sourceDescription = selectedOption ? 
+                                (selectedOption.getAttribute('data-description') || '').toLowerCase() : 
+                                '';
+        
+        console.log("Descrição da Fonte Capturada:", sourceDescription); 
 
-    $('#arquivo').on('change', function() {
-    var fileName = $(this).val().split('\\').pop();
-    $('#nome_arquivo').val(fileName);
-    });
+        // Referências aos grupos de campos
+        const currentFileGroup = document.getElementById('current_source_file_group');
+        const uploadGroup = document.getElementById('source_upload_group');
+        const pathGroup = document.getElementById('source_path_group');
+        const uriGroup = document.getElementById('source_uri_group');
 
-    $('#meuFormulario').submit(function(event) {
-        event.preventDefault();
+        // Referências aos inputs
+        const uploadInput = document.getElementById('source_file_upload');
+        const pathInput = document.getElementById('source_file_path');
+        const uriInput = document.getElementById('source_db_uri');
 
-        //salvarTabelaNaSessao();
-        // Cria um FormData a partir do formulário
-        var formData = new FormData(this); 
-
-        $.ajax({
-            url: $(this).attr('action'),
-            type: 'POST',
-            data: formData,
-            processData: false, // Impede o jQuery de transformar o FormData em uma string
-            contentType: false, // Desabilita o cabeçalho padrão de content-type
-            success: function(result) {
-                if (result.status === 'success') {
-                    $('#success-message').html(result.mensagem).show().delay(6000).fadeOut(function() {
-                       window.location.href = "<?php echo route_to('listConfig'); ?>";
-                    });
-                } else {
-                    $('#error-message').html(result.mensagem).show().delay(6000).fadeOut(); // Mostra a mensagem de erro
-                }
-            },
-            error: function(err) {
-                $('#error-message').html('Erro ao salvar o quadro.').show().delay(6000).fadeOut(); // Mostra a mensagem de erro
-                console.log(err); // Trate o erro aqui
-            }
-            });
+        // 2. Resetar todos os displays e desativar 'required' e 'name'
+        
+        // 🛑 CORREÇÃO APLICADA AQUI: Filtra elementos nulos antes de iterar
+        [currentFileGroup, uploadGroup, pathGroup, uriGroup].filter(g => g !== null).forEach(g => {
+            g.style.display = 'none';
         });
-        /*
-        function setarSessao(sessionVar, sessionValue) {
-            const xhr = new XMLHttpRequest();
-            xhr.open("POST", "SessaoController.php", true);
-            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        
+        // 🛑 CORREÇÃO APLICADA AQUI: Filtra elementos nulos antes de iterar
+        [uploadInput, pathInput, uriInput].filter(i => i !== null).forEach(i => {
+            i.removeAttribute('required');
+            // Remove o 'name' de todos, apenas o ativo deve ter 'source_filename'
+            i.name = i.id; 
+        });
+        
+        let activeInput = null;
 
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4 && xhr.status === 200) {
-                    console.log(xhr.responseText); // Exibe a resposta do servidor
-                }
-            };
+        // 3. Lógica de exibição baseada na descrição (agora minúscula)
+        if (sourceDescription.includes('upload') || sourceDescription.includes('csv') || sourceDescription.includes('json')) {
+            // Arquivo de Upload (CSV/JSON)
+            if (currentFileGroup) currentFileGroup.style.display = 'block'; 
+            if (uploadGroup) uploadGroup.style.display = 'block'; // Adiciona check null
+            
+            if (uploadInput) {
+                uploadInput.removeAttribute('required'); // Opcional na edição, mantendo o original
+                activeInput = uploadInput;
+            }
+            
+        } else if (sourceDescription.includes('parquet') || sourceDescription.includes('path')) {
+            // Caminho no MinIO
+            if (pathGroup) pathGroup.style.display = 'block'; // Adiciona check null
+            
+            if (pathInput) {
+                pathInput.setAttribute('required', 'required');
+                activeInput = pathInput;
+            }
+            
+        } else if (sourceDescription.includes('mysql') || sourceDescription.includes('postgresql') || sourceDescription.includes('database') || sourceDescription.includes('uri')) {
+            // URI de Conexão de Banco de Dados
+            if (uriGroup) uriGroup.style.display = 'block'; // Adiciona check null
+            
+            if (uriInput) {
+                uriInput.setAttribute('required', 'required');
+                activeInput = uriInput;
+            }
+        }
+        
+        // 4. Mapeamento Crucial: O input ATIVO recebe o nome 'source_filename'
+        if (activeInput) {
+            activeInput.name = 'source_filename'; 
+        }
+    }
 
-            const data = `session_var=${encodeURIComponent(sessionVar)}&session_value=${encodeURIComponent(sessionValue)}`;
-            xhr.send(data);
+    // -----------------------------------------------------------
+    // CONFIGURAÇÃO DOS LISTENERS
+    // -----------------------------------------------------------
+    document.addEventListener('DOMContentLoaded', function() {
+        const selectElement = document.getElementById('id_source_type');
+        
+        if (selectElement) {
+            // 1. Execução IMEDIATA no carregamento (Modo Edição)
+            toggleSourceInput(); 
+
+            // 2. Execução na mudança de seleção
+            selectElement.addEventListener('change', toggleSourceInput); 
         }
 
-        // Exemplo de uso: Define a variável de sessão 'user' com o valor 'JohnDoe'
-        setSessionVariable('user', 'JohnDoe');
-        */
+        // Lógica AJAX de submissão do formulário...
+        $('#meuFormulario').submit(function(event) {
+            event.preventDefault();
 
-        
-</script>
+            var formData = new FormData(this); 
+
+            $.ajax({
+                url: $(this).attr('action'),
+                type: 'POST',
+                data: formData,
+                processData: false, 
+                contentType: false, 
+                success: function(result) {
+                    if (result.status === 'success') {
+                        $('#success-message').html(result.mensagem).show().delay(6000).fadeOut(function() {
+                            window.location.href = "<?php echo route_to('listConfig'); ?>"; 
+                        });
+                    } else {
+                        $('#error-message').html(result.mensagem).show().delay(6000).fadeOut();
+                    }
+                },
+                error: function(err) {
+                    $('#error-message').html('Erro ao salvar o quadro.').show().delay(6000).fadeOut();
+                    console.log(err);
+                }
+            });
+        });
+    });
+    </script>
 
 <?php
 require VIEWPATH . '/footer.php';

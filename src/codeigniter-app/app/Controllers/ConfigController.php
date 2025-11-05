@@ -387,13 +387,23 @@ class ConfigController extends BaseController
     
     public function update() {
 
-            
         // Instancia os Models
         $model = new ConfigModel();
         $sourceTypeModel = new SourceTypeModel();
-        // $minioService = new App\Services\MinIOService(); // Exemplo: seu serviço MinIO
+        
+        // Pega o ID para a atualização e os dados completos
         $id = $this->request->getPost('id');
         $postData = $this->request->getPost();
+        
+        // Busca o registro existente para ter o nome da DAG e o caminho original
+        $existingConfig = $model->find($id);
+
+        if (!$existingConfig) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Configuração de DAG não encontrada.'
+            ]);
+        }
         
         // 🛑 COLETA CORRIGIDA: Coleta o ID numérico da FK 🛑
         $sourceTypeID = (int)($postData['id_source_type'] ?? 0); 
@@ -415,78 +425,86 @@ class ConfigController extends BaseController
             $sourceTypeDescription = strtolower($sourceTypeConfig['description']);
 
             // Variável que irá conter a string a ser salva em dag_configurations.source_filename
-            $sourceLocation = null;
+            $sourceLocation = $existingConfig->source_filename; // Inicializa com o valor atual do banco
             
             // 2. Lógica Condicional de Upload/Caminho (usando a descrição textual)
-            // 3. Lógica de Upload (Ajustada para Edição)
-        $sourceLocation = null;
-        $fileRequired = str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json');
-        
-        $uploadedFile = $this->request->getFile('source_file_upload');
+            $fileRequired = str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json');
+            
+            $uploadedFile = $this->request->getFile('source_file_upload');
 
-        if ($fileRequired) {
-            if ($uploadedFile && $uploadedFile->isValid() && !$uploadedFile->hasMoved()) {
-                // Cenário A: Novo arquivo enviado e válido (Fazendo upload)
-                $dagId = $existingConfig->dag_id; // Mantém o DAG ID original para o caminho
-                $bucket = 'raw';
+            if ($fileRequired) {
+                if ($uploadedFile && $uploadedFile->isValid() && !$uploadedFile->hasMoved()) {
+                    // Cenário A: Novo arquivo enviado e válido (Fazendo upload)
+                    $dagId = $existingConfig->dag_id; // Mantém o DAG ID original para o caminho
+                    $bucket = 'raw';
 
-                $newName = $uploadedFile->getRandomName();
-                $targetMinioPath = "{$bucket}/{$dagId}/{$newName}";
+                    $newName = $uploadedFile->getRandomName();
+                    $targetMinioPath = "{$bucket}/{$dagId}/{$newName}";
 
-                // Faz o upload real do arquivo
-                if ($uploadedFile->move(WRITEPATH . 'uploads/minio_temp', $newName)) {
-                    // Simulação: Na produção, aqui você moveria o arquivo para o MinIO/S3
-                    // O caminho salvo é o caminho MinIO
-                    $sourceLocation = $targetMinioPath;
+                    // Faz o upload real do arquivo
+                    if ($uploadedFile->move(WRITEPATH . 'uploads/minio_temp', $newName)) {
+                        // O caminho salvo é o caminho MinIO
+                        $sourceLocation = $targetMinioPath;
+                    } else {
+                        throw new \Exception('Erro ao mover o arquivo de upload.');
+                    }
                 } else {
-                    return redirect()->back()->with('error', 'Erro ao mover o arquivo de upload.');
+                    // Cenário B: Não há novo upload, usa o caminho original.
+                    // Prioriza o caminho original que veio via campo oculto, senão usa o valor do banco
+                    $sourceLocation = $postData['source_filename_original'] ?? $existingConfig->source_filename;
+                
+                    // Se o arquivo for requerido, mas não houver upload NEM caminho original, é um erro.
+                    if (empty($sourceLocation)) {
+                        throw new \Exception('O arquivo de origem é obrigatório para este tipo de fonte, e nenhum caminho anterior foi encontrado.');
+                    }
                 }
             } else {
-                // Cenário B: Não há novo upload, usa o caminho original.
-                // Usamos o valor do campo oculto (que é o caminho original)
-                $sourceLocation = $postData['source_filename_original'] ?? $existingConfig->source_filename;
-            
-                // Se o arquivo for requerido, mas não houver upload NEM caminho original, é um erro.
-                if (empty($sourceLocation)) {
-                    return redirect()->back()->with('error', 'O arquivo de origem é obrigatório para este tipo de fonte.');
-                }
+                // 🛑 CORREÇÃO CRUCIAL APLICADA AQUI:
+                // Se o tipo de fonte NÃO requer arquivo (Ex: SQL, Parquet), o campo ativo na view 
+                // (URI ou Path) foi renomeado pelo JS para 'source_filename'.
+                // Usamos este valor do POST como a nova localização/URI.
+                $sourceLocation = $postData['source_filename'] ?? $existingConfig->source_filename;
             }
-        }
 
             // 3. Preparação dos Dados para Inserção (Mapeamento total)
             $dataToUpdate = [
-                'id'              => $id,
-                'id_pasta'        => (int)($postData['id_pasta'] ?? 0), // Garante INT
-                'id_source_type'  => (int)($postData['id_source_type'] ?? 0), // Garante INT
-                'dag_id'                => $postData['dag_id'],   
-                'is_active'             => $postData['is_active'] ?? 1,
-                'owner'                 => $postData['owner'] ?? 'webapp_user',
-                'schedule_interval'     => $postData['schedule_interval'] ?? '0 0 * * *',
-                'description'           => $postData['description'] ?? null,
+                'id'                  => $id,
+                'id_pasta'            => $pastaID, // Já é INT
+                'id_source_type'      => $sourceTypeID, // Já é INT
+                'dag_id'              => $existingConfig->dag_id, // Mantém o ID original
+                'is_active'           => $postData['is_active'] ?? 1,
+                'owner'               => $postData['owner'] ?? 'webapp_user',
+                'schedule_interval'   => $postData['schedule_interval'] ?? '0 0 * * *',
+                'description'         => $postData['description'] ?? null,
                 
-                // 🛑 CORREÇÃO CRUCIAL: Salvar a FK (ID) no novo campo 'id_source_type'
-                 
-                
-                'source_filename'       => $sourceLocation, // Caminho MinIO ou URI final
-                'target_table_name'     => $postData['target_table_name'],
-                'python_module_path'    => $postData['python_module_path'],
-                'transform_args'        => $postData['transform_args'] ?? '{}', 
+                // 🛑 VALOR CORRIGIDO: Agora $sourceLocation contém a URI ou o Path 🛑
+                'source_filename'     => $sourceLocation, 
+                'target_table_name'   => $postData['target_table_name'],
+                'python_module_path'  => $postData['python_module_path'],
+                'transform_args'      => $postData['transform_args'] ?? '{}', 
                 
                 // CAMPOS PARA SSH TUNNELING
-                'ssh_host'              => $postData['ssh_host'] ?? null,
-                'ssh_port'              => $postData['ssh_port'] ?? 22, 
-                'ssh_user'              => $postData['ssh_user'] ?? null,
-                'ssh_key_path'          => $postData['ssh_key_path'] ?? null, 
-                'ssh_local_port'        => $postData['ssh_local_port'] ?? 13306,
+                'ssh_host'            => $postData['ssh_host'] ?? null,
+                'ssh_port'            => $postData['ssh_port'] ?? 22, 
+                'ssh_user'            => $postData['ssh_user'] ?? null,
+                'ssh_key_path'        => $postData['ssh_key_path'] ?? null, 
+                'ssh_local_port'      => $postData['ssh_local_port'] ?? 13306,
             ];
 
             // 4. Inserção no Banco de Dados
             $updated = $model->save($dataToUpdate);
             
+            if (!$updated) {
+                 // Captura erros da Model/Validação, se existirem
+                 $errors = $model->errors();
+                 $errorMessage = !empty($errors) ? implode(', ', $errors) : 'Falha ao atualizar o registro. Tente novamente.';
+                 throw new \Exception($errorMessage);
+            }
+
              return $this->response->setJSON([
-                'status' => $updated ? 'success' : 'warning',
-                'mensagem' => $updated ? 'Registro atualizado com sucesso!' : 'Falha ao atualizar o registro. Tente novamente.'
-            ]);
+                'status' => 'success',
+                'mensagem' => 'Registro atualizado com sucesso!'
+             ]);
             
         } catch (\Exception $e) {
             log_message('error', 'Erro ao salvar configuração de DAG: ' . $e->getMessage());

@@ -36,88 +36,157 @@ require VIEWPATH . '/header.php';
                     </select>
                 </div>
 
-                <div class="form-group">
-                <label for="owner">Owner:</label>
-                <input type="text" class="form-control" id="owner" name="owner" 
-                       value="<?= esc($configData['owner'] ?? 'webapp_user') ?>">
-                </div>
-
-                <div class="form-group">
-                    <label for="schedule_interval">Schedule Interval (Cron):</label>
-                    <input type="text" class="form-control" id="schedule_interval" name="schedule_interval" 
-                        value="<?= esc($configData['schedule_interval'] ?? '0 0 * * *') ?>">
-                </div>
-
-                <div class="form-group form-check">
-                    <input type="checkbox" class="form-check-input" id="is_active" name="is_active" 
-                        value="1" <?= (isset($configData['is_active']) && $configData['is_active']) ? 'checked' : '' ?>>
-                    <label class="form-check-label" for="is_active">DAG Ativa</label>
-                </div>
                 
-                <div class="form-group">
-                    <label for="description">Descrição:</label>
-                    <textarea class="form-control" id="description" name="description" rows="3"><?= esc($configData['description'] ?? '') ?></textarea>
-                </div>
-            </fieldset>
+        <div class="form-group">
+            <label for="owner">Proprietário (Airflow Owner):</label>
+            <input type="text" name="owner" id="owner" placeholder="Ex: equipe_dados" maxlength="64" required 
+                   value="<?php echo $owner ?>">
+        </div>
+        <div class="form-group">
+            <label for="schedule_interval">Agendamento (CRON):</label>
+            <input type="text" name="schedule_interval" id="schedule_interval" placeholder="Ex: 0 4 * * * (Todo dia às 4h)" maxlength="64" required 
+                   value="<?php echo $schedule_interval ?>">
+        </div>
+        <div class="form-group">
+            <label for="description">Descrição da DAG:</label>
+            <!-- 3. Preenchimento de valor na textarea -->
+            <textarea name="description" id="description" placeholder="Breve descrição para a UI do Airflow"><?php echo $description ?? '' ?></textarea>
+        </div>
+        </fieldset>
 
-            <fieldset class="mb-4">
-                <legend>Conexão SSH (Bases On-Premises)</legend>
-                
-                <p>Preencha apenas se a base de dados SQL for acessada via Jump Server/Túnel SSH.</p>
+        <fieldset>
+            <legend>Configuração de Pipeline</legend>
 
                 <div class="form-group">
-                    <label for="ssh_host">Host SSH (Jump Server):</label>
-                    <input type="text" class="form-control" id="ssh_host" name="ssh_host" 
-                        value="<?= esc($configData['ssh_host'] ?? '') ?>" placeholder="Ex: 192.168.1.100">
-                </div>
-
-                <div class="form-group">
-                    <label for="ssh_user">Usuário SSH:</label>
-                    <input type="text" class="form-control" id="ssh_user" name="ssh_user" 
-                        value="<?= esc($configData['ssh_user'] ?? '') ?>" placeholder="Ex: ssh_user">
-                </div>
-
-                <div class="form-row">
-                    <div class="col">
-                        <label for="ssh_port">Porta SSH:</label>
-                        <input type="number" class="form-control" id="ssh_port" name="ssh_port" 
-                            value="<?= esc($configData['ssh_port'] ?? 22) ?>">
-                    </div>
-                    
-                    <div class="col">
-                        <label for="ssh_local_port">Porta Local do Túnel:</label>
-                        <input type="number" class="form-control" id="ssh_local_port" name="ssh_local_port" 
-                            value="<?= esc($configData['ssh_local_port'] ?? 13306) ?>">
-                        <small class="form-text text-muted">Esta porta será usada para o túnel local.</small>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="ssh_key_path">Caminho da Chave Privada SSH:</label>
-                    <input type="text" class="form-control" id="ssh_key_path" name="ssh_key_path" 
-                        value="<?= esc($configData['ssh_key_path'] ?? '') ?>" 
-                        placeholder="/home/airflow/.ssh/id_rsa">
-                    <small class="form-text text-muted">Insira o caminho *absoluto* da chave no servidor que executa a DAG.</small>
-                </div>
-            </fieldset>
-
-            <fieldset class="mb-4">
-                <legend>Configuração da Fonte de Dados</legend>
-                <div class="form-group">
-                    <label for="db_host">Host do Banco de Dados:</label>
-                    <input type="text" class="form-control" id="db_host" name="db_host" 
-                        value="<?= esc($configData['db_host'] ?? '') ?>">
+                    <label for="id_source_type">Tipo da Fonte de Dados:</label>
+                    <select class="form-control" id="id_source_type" name="id_source_type" required onchange="toggleSourceInput(this.value)">
+                        <option value="">Selecione o Tipo de Fonte</option>
+                        <?php foreach ($source_types as $source_type): ?>
+                            <option value="<?php echo $source_type['id'] ?>" 
+                                    data-description="<?php echo $source_type['description'] ?>"
+                                    <?= ($id_source_type_selecionado == $source_type['id']) ? 'selected' : '' ?>>
+                                <?php echo $source_type['description'] ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted">A mudança do tipo de fonte pode exigir re-upload ou novo caminho.</small>
                 </div>
             
-            </fieldset>
+            <!--
+                Em um formulário de edição:
+                - Se for um tipo de upload (CSV/JSON), você deve mostrar o NOME do arquivo ATUALMENTE salvo.
+                - O campo 'file' só deve ser preenchido se o usuário quiser SUBSTITUIR o arquivo existente.
+            -->
+            
+            <!-- Campo Oculto para Manter o Caminho Original se Nenhum Novo Arquivo for Enviado -->
+                <input type="hidden" name="source_filename_original" value="<?php echo $source_filename ?? '' ?>">
 
-                <div class="form-actions">
-                    <button type="submit" class="save-button" value="Salvar Configuração">Salvar Configuração</button>
-                    <button type="button" class="back-button" value="Voltar" onclick="Voltar()">Voltar</button>
+                <div class="form-group" id="current_source_file_group" style="display:none;">
+                    <p>Arquivo Atual: <span id="current_source_filename"><?php echo $source_filename ?? 'N/A' ?></span></p>
                 </div>
 
+                <!-- O campo de upload (source_file_upload) agora é OPCIONAL na edição -->
+                <div class="form-group" id="source_upload_group" style="display:none;">
+                    <label for="source_file_upload">Arquivo de Origem (CSV/JSON):</label>
+                    <input type="file" name="source_file_upload" id="source_file_upload" accept=".csv,.json">
+                    <small class="text-muted">Envie um arquivo **apenas** se quiser substituí-lo.</small>
+                </div>
                 
-            </form>
+                <div class="form-group" id="source_path_group" style="display:none;">
+                    <label for="source_file_path">Caminho do Arquivo (MinIO Raw):</label>
+                    <input type="text" name="source_file_path" id="source_file_path" placeholder="Ex: raw/dados_pre_existentes.parquet" maxlength="255"
+                        value="<?php echo $source_filename ?? '' ?>">
+                </div>
+
+                <div class="form-group" id="source_uri_group" style="display:none;">
+                    <label for="source_db_uri">URL de Conexão de Banco de Dados (SQLAlchemy URI):</label>
+                    <input type="text" name="source_db_uri" id="source_db_uri" placeholder="Ex: mysql+mysqlconnector://user:pass@host:port/database" maxlength="512"
+                        value="<?php echo $source_filename ?? '' ?>">
+                    
+                    <fieldset>
+                        <legend>Conexão SSH (Bases On-Premises)</legend>
+                        
+                        <p>Preencha apenas se a base de dados SQL for acessada via Jump Server/Túnel SSH.</p>
+
+                        <div class="form-group">
+                            <label for="ssh_host">Host SSH (Jump Server):</label>
+                            <input type="text" class="form-control" id="ssh_host" name="ssh_host" placeholder="Ex: 192.168.1.100"
+                                value="<?php echo $ssh_host ?? '' ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ssh_user">Usuário SSH:</label>
+                            <input type="text" class="form-control" id="ssh_user" name="ssh_user" placeholder="Ex: ssh_user"
+                                value="<?php echo $ssh_user ?? '' ?>">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="col">
+                                <label for="ssh_port">Porta SSH:</label>
+                                <input type="number" class="form-control" id="ssh_port" name="ssh_port" 
+                                    value="<?php echo $ssh_port ?? 22 ?>">
+                            </div>
+                            
+                            <div class="col">
+                                <label for="ssh_local_port">Porta Local do Túnel:</label>
+                                <input type="number" class="form-control" id="ssh_local_port" name="ssh_local_port" 
+                                    value="<?php echo $ssh_local_port ?? 13306 ?>">
+                                <small class="form-text text-muted">Esta porta será usada para o túnel local.</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="ssh_key_path">Caminho da Chave Privada SSH:</label>
+                            <input type="text" class="form-control" id="ssh_key_path" name="ssh_key_path" placeholder="/home/airflow/.ssh/id_rsa"
+                                value="<?php echo $ssh_key_path ?? '' ?>">
+                            <small class="form-text text-muted">Caminho da chave no servidor que executará a DAG.</small>
+                        </div>
+                        
+                    </fieldset>
+                
+                </div>
+                
+                <div class="form-group">
+                    <label for="target_table_name">Tabela/Destino Final (MinIO Trusted):</label>
+                    <input type="text" name="target_table_name" id="target_table_name" placeholder="Ex: clientes_trusted" maxlength="128" required
+                        value="<?php echo $target_table_name ?>">
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Lógica de Transformação</legend>
+                <div class="form-group">
+                    <label for="python_module_path">Função Python de Transformação:</label>
+                    <input type="text" name="python_module_path" id="python_module_path" 
+                        placeholder="Ex: lib.minio_tasks.transform_data_with_pandas" maxlength="255" required 
+                        value="<?php echo $python_module_path ?>">
+                    <small>Caminho completo do módulo e função a ser executada pelo PythonOperator.</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="transform_args">Argumentos Extras da Função (JSON):</label>
+                    <input type="text" name="transform_args" id="transform_args" 
+                        placeholder="Ex: {'columns_to_drop': ['col1', 'col2']}" 
+                        value="<?php echo $transform_args ?>">
+                    <small>Deve ser um JSON válido (será armazenado no campo JSON da tabela).</small>
+                </div>
+            </fieldset>
+            
+            <div class="form-group">
+                <label for="is_active">Status da DAG:</label>
+                <select id="is_active" name="is_active" required>
+                    <!-- 3. Preenchimento de valor na select -->
+                    <option value="1" <?= ($is_active == 1) ? 'selected' : '' ?>>Ativa (Gerar DAG)</option>
+                    <option value="0" <?= ($is_active == 0) ? 'selected' : '' ?>>Inativa (Não Gerar DAG)</option>
+                </select>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="save-button">Salvar Edições</button>
+                <button type="button" class="back-button" onclick="window.history.back()">Voltar</button>
+            </div>
+
+</form>
 
 
         </div>
@@ -202,7 +271,7 @@ function submitMeuFormularioUpload() {
     $('#meuFormulario').submit(function(event) {
         event.preventDefault();
 
-        salvarTabelaNaSessao();
+        //salvarTabelaNaSessao();
         // Cria um FormData a partir do formulário
         var formData = new FormData(this); 
 

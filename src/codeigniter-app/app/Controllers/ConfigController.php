@@ -145,66 +145,58 @@ class ConfigController extends BaseController
 
     }
 
-    public function upd()
+    public function upd() // 🛑 Renomeado para 'upd' 🛑
     {
-        // 1. Coleta e Carrega o Registro Existente
-        $id = $this->request->getPost('id');
-        $model = new ConfigModel();
-        $Config = $model->find($id); // Objeto/Array com os dados da dag_configurations
+        $id = $this->request->getPost('id'); // 🛑 ID obtido via POST 🛑
+        
+        $configModel = new ConfigModel();
+        $sourceTypeModel = new SourceTypeModel();
+        $pastaModel = new PastaModel(); 
 
-        // Se o registro não for encontrado (boa prática)
+        // 🛑 1. Busca a tupla de dados
+        $Config = $configModel->find($id); // Objeto/Array com os dados da dag_configurations
+
         if (!$Config) {
-            return redirect()->back()->with('error', 'Configuração não encontrada.');
+            return redirect()->to(route_to('Config.index'))->with('error', 'Configuração não encontrada.');
         }
 
-        // 2. Prepara os Dados da Pasta
-        $pastaModel = new PastaModel();
-        $data['pastas'] = $pastaModel->listToCombo($_SESSION['id_usuario_logado']);
-        $data['id_pasta_selecionado'] = $Config->id_pasta;
+        // 2. Prepara Listas de Suporte
+        $data['pastas'] = $pastaModel->findAll(); // Traz todas as pastas
+        $data['source_types'] = $sourceTypeModel->listToCombo(); // Traz todos os tipos de fonte
+
+        // 🛑 3. CARREGA DADOS INDIVIDUAIS (Alinhado com a view) 🛑
         
-        // 3. Carrega Atributos Essenciais
-        $data['id'] = $Config->id;
-        $data['description'] = $Config->description;
-
-        //$data['source_type'] = $Config->source_type; // Assumido que existe
-            // ... Carrega Atributos Essenciais ...
-        $data['source_type'] = $Config->source_type; // ⬅️ Este é o ID da Fonte
-        // ...
-
-        // 🛑 NOVO: Carregar Tipos de Fonte 🛑
-        $sourceTypeModel = new \App\Models\SourceTypeModel();
-        $data['source_types'] = $sourceTypeModel->listToCombo();
-        $data['source_type_selecionado'] = $Config->source_type; // Passa o ID selecionado
-
-        // Campos para DAG
+        // Metadados da DAG
+        $data['id'] = $id;
+        $data['id_pasta_selecionado'] = $Config->id_pasta; // ID da Pasta selecionada
         $data['dag_id'] = $Config->dag_id;
         $data['owner'] = $Config->owner;
         $data['schedule_interval'] = $Config->schedule_interval;
+        $data['description'] = $Config->description;
         $data['is_active'] = $Config->is_active;
 
-        // 🛑 CAMPOS DB ORIGINAIS - REMOVIDOS POIS CAUSARAM O ERRO 🛑
-        // Se precisar deles, adicione-os à tabela dag_configurations primeiro:
-        // $data['db_host'] = $Config->db_host; 
-        // $data['db_user'] = $Config->db_user; 
+        // Configuração de Pipeline/Source
+        $data['id_source_type_selecionado'] = $Config->id_source_type; // ID do Tipo de Fonte selecionado
         
-        // 🛑 NOVOS CAMPOS SSH TUNNELING (Confirmados no DDL)
+        // Caminho da Fonte (usado para MinIO Path, Upload Original ou URI de DB)
+        $data['source_filename'] = $Config->source_filename; 
+        $data['target_table_name'] = $Config->target_table_name;
+        
+        // Lógica de Transformação
+        $data['python_module_path'] = $Config->python_module_path;
+        $data['transform_args'] = $Config->transform_args;
+
+        // Campos SSH TUNNELING
         $data['ssh_host'] = $Config->ssh_host;
         $data['ssh_port'] = $Config->ssh_port;
         $data['ssh_user'] = $Config->ssh_user;
         $data['ssh_key_path'] = $Config->ssh_key_path;
-        $data['ssh_local_port'] = $Config->ssh_local_port; // ⬅️ Adicionado para alinhamento total
+        $data['ssh_local_port'] = $Config->ssh_local_port;
 
-        // 4. Tratamento de Arquivo (Conteúdo)
-        // Se o formulário de edição precisar do conteúdo do arquivo, descomente.
-        /*
-        $conteudo_csv = base64_decode($Config->conteudo_arquivo);
-        $_SESSION['conteudo_arquivo'] = $conteudo_csv;
-        $data['conteudo_arquivo'] = $conteudo_csv;
-        $data['conteudo_csv_json'] = json_encode($conteudo_csv, JSON_UNESCAPED_UNICODE);
-        */
-
+        // 4. Retorna a View
         // 5. Retorna a View
         return view('updConfig', $data);
+        
     }
 
     public function del($id)

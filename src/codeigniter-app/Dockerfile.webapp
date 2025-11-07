@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
     default-mysql-client \
     dos2unix \
     && rm -rf /var/lib/apt/lists/* \
-    && docker-php-ext-install pdo_mysql gd intl opcache
+    && docker-php-ext-install pdo_mysql gd intl opcache mysqli
 
 # 3. CONFIGURAÇÃO DO COMPOSER
 # Instala o Composer para gerenciar dependências PHP

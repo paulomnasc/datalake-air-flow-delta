@@ -229,6 +229,18 @@ Ver logs:
 docker compose logs -f airflow
 ```
 
+Outra forma :
+```bash
+ docker logs -f airflow-scheduler
+```
+
+OU 
+```bash
+docker logs airflow-scheduler 2>&1 | grep -E 'factory_master.py|DEBUG|ERROR|Traceback|dag_configurations'
+```
+[2025-11-07 13:32:15 +0000] [16] [ERROR] Worker (pid:241) was sent SIGTERM!
+[2025-11-07 15:12:16 +0000] [16] [ERROR] Worker (pid:242) was sent SIGTERM!
+
 ---
 
 ## 🧾 10. Dicas de Segurança e Persistência

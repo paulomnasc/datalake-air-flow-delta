@@ -1,17 +1,39 @@
 import os
-import yaml
+import importlib
+import json
+from datetime import datetime, date
+from typing import Dict, Any, List
+
+# Airflow Core
 from airflow.models.dag import DAG
-from datetime import datetime
-from airflow.operators.bash import BashOperator
 from airflow.utils.dates import days_ago
+from airflow.operators.python import PythonOperator
+from airflow.exceptions import AirflowException
+
+# factory_master.py (No topo, logo após os imports)
+
+# Define o caminho absoluto do arquivo factory_master.py.
+# Isso garante que o Airflow registre a DAG com o fileloc correto:
+DAG_FILE_PATH = os.path.abspath(__file__)
+
+# Airflow Provider para MySQL
+# Certifique-se de que o pacote 'apache-airflow-providers-mysql' esteja instalado.
+try:
+    from airflow.providers.mysql.hooks.mysql import MySqlHook
+except ImportError as e:
+    print(f"FATAL AIRFLOW PARSING ERROR (MYSQL HOOK): Falha crítica: {e}")
+    # Em ambientes Airflow mais antigos, pode ser necessário 'airflow.hooks.mysql_hook.MySqlHook'
+    raise AirflowException("O pacote 'apache-airflow-providers-mysql' não está instalado. Por favor, instale-o.")
+
 
 # ----------------------------------------------------------------------
-# 1. CONFIGURAÇÃO DE CAMINHOS
+# 1. CONFIGURAÇÃO E CONSTANTES
 # ----------------------------------------------------------------------
 
-# O Airflow vê o volume mapeado como /opt/airflow/dags
-# A pasta de configs está dentro de dags: /opt/airflow/dags/configs
-CONFIGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "configs")
+# ID da conexão MySQL configurada no Airflow UI/Secrets Backend
+MYSQL_CONN_ID = 'mysql_dag_metadata' # 💡 ATENÇÃO: Configure esta conexão no Airflow!
+
+# Argumentos padrão para todas as DAGs, a menos que sobrepostos pelos metadados
 DEFAULT_ARGS = {
     'owner': 'airflow',
     'start_date': days_ago(1),
@@ -19,79 +41,190 @@ DEFAULT_ARGS = {
 }
 
 # ----------------------------------------------------------------------
-# 2. FUNÇÃO PRINCIPAL DE CRIAÇÃO DA DAG
+# 2. FUNÇÕES DE UTILIDADE E HOOKS
 # ----------------------------------------------------------------------
 
-def create_dynamic_dag(config_name: str, config_data: dict):
+def import_callable_from_path(module_path: str):
+    """
+    Importa e retorna uma função Python a partir de um caminho de módulo.
+    Ex: 'utils.transformations.raw.my_etl_function'
+    """
+    if '.' not in module_path:
+        raise ValueError(f"O caminho do módulo é inválido: {module_path}")
+
+    # Divide o caminho em módulo e nome da função
+    module_name, func_name = module_path.rsplit('.', 1)
+    
+    # Importa o módulo (ex: 'utils.transformations.raw')
+    module = importlib.import_module(module_name)
+    
+    # Retorna a função (ex: 'my_etl_function')
+    return getattr(module, func_name)
+
+def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
+    """
+    Conecta ao MySQL e busca as configurações ativas da DAG.
+    """
+    sql_query = f"""
+    SELECT
+        id,
+        dag_id,  /* CORRIGIDO: Usa o nome da coluna real da sua tabela */
+        schedule_interval,
+        owner,
+        description,
+        source_filename,
+        target_table_name,
+        python_module_path,
+        transform_args
+    FROM dag_configurations
+    WHERE is_active = 1
+    ORDER BY id;
+    """
+    
+    # Adicionando o print de debug
+    print("DEBUG: Executando query corrigida no MySQL...")
+    
+    hook = MySqlHook(mysql_conn_id=mysql_conn_id)
+    # get_records retorna uma lista de tuplas [(col1_val, col2_val, ...), ...]
+    # Alternativamente, hook.get_pandas_df(sql_query) poderia ser usado para um DataFrame
+    records = hook.get_records(sql=sql_query)
+    
+    return records
+
+
+# ----------------------------------------------------------------------
+# 3. FUNÇÃO PRINCIPAL DE CRIAÇÃO DA DAG
+# ----------------------------------------------------------------------
+
+def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     """
     Cria e retorna um objeto Airflow DAG com base nos dados de configuração.
     """
-    # Define o ID da DAG usando o nome do arquivo (sem extensão)
-    dag_id = f"dynamic_{config_name}"
     
-    # Extrai metadados da DAG (assumindo que o YAML tem uma seção 'dag_metadata')
-    dag_metadata = config_data.get('dag_metadata', {})
-    schedule_interval = dag_metadata.get('schedule_interval', None)
+    dag_id = dag_config['dag_id']
+    dag_metadata = dag_config['dag_metadata']
+    task_config = dag_config['task_config']
     
-    # Cria o objeto DAG
+    # 1. Preparar Argumentos da DAG
+    
+    # Cria uma cópia dos args padrão e sobrepõe com os metadados do DB
+    dag_args = DEFAULT_ARGS.copy()
+    
+    # Conversão da data de início: garante que seja um datetime.datetime
+    start_date_db = dag_metadata.get('start_date')
+    if isinstance(start_date_db, date):
+        # Converte datetime.date para datetime.datetime (hora 00:00:00)
+        dag_args['start_date'] = datetime.combine(start_date_db, datetime.min.time())
+    else:
+        # Usa start_date padrão (days_ago(1)) se não houver no DB
+        dag_args['start_date'] = DEFAULT_ARGS['start_date']
+        
+    dag_args['owner'] = dag_metadata.get('owner') or DEFAULT_ARGS['owner']
+    
+    # 2. Criar Objeto DAG
     dag = DAG(
         dag_id=dag_id,
-        default_args=DEFAULT_ARGS,
-        schedule_interval=schedule_interval,
+        schedule_interval=dag_metadata.get('schedule_interval'),
         catchup=False,
-        tags=[config_data.get('type', 'dynamic'), dag_metadata.get('area', 'default')]
+        default_args=dag_args,
+        tags=dag_metadata.get('tags'),
+        max_active_runs=dag_metadata.get('max_active_runs'),
+        doc_md=dag_metadata.get('description', f"DAG gerada dinamicamente a partir dos metadados da tabela dag_configurations (ID: {dag_id})")
     )
-    
-    with dag:
-        # A lógica de tarefas irá aqui. Por exemplo, uma tarefa Spark para processamento.
-        
-        # Exemplo de Tarefa 1: Processamento Spark (aqui você usaria o SparkSubmitOperator)
-        spark_task = BashOperator(
-            task_id='run_spark_processing',
-            # Simula um comando de execução que utiliza o parâmetro do YAML
-            bash_command=f"spark-submit --master spark://spark:7077 \
-                /opt/spark-apps/process_data.py \
-                --pipeline-name {config_data.get('pipeline_name', 'default_pipe')} \
-                --source {config_data.get('source_system', 'S3')} \
-                --table {config_data.get('target_table', 'unknown_table')}"
+
+    # 3. Criar a Tarefa Principal (ETL/ELT)
+
+    python_module_path = task_config.get('python_module_path')
+    transform_args = task_config.get('transform_args', {})
+
+    if not python_module_path:
+        # Se não houver módulo Python, cria uma tarefa dummy/log para a DAG
+        from airflow.operators.bash import BashOperator
+        task = BashOperator(
+            task_id='no_module_configured',
+            bash_command=f"echo '⚠️ Alerta: Nenhuma função Python configurada para a DAG {dag_id}'",
+            dag=dag
+        )
+    else:
+        try:
+            # 💡 Chama a função utilitária para importar a função Python real
+            callable_function = import_callable_from_path(python_module_path)
+        except (ImportError, AttributeError, ValueError) as e:
+            print(f"FATAL AIRFLOW PARSING ERROR (MYSQL HOOK): Falha crítica: {e}")
+            raise AirflowException(f"❌ Erro ao importar callable '{python_module_path}' para a DAG {dag_id}: {e}")
+
+        # O PythonOperator executa a função Python real (a lógica de ETL)
+        task = PythonOperator(
+            task_id=f"etl_process_for_{task_config.get('target_table_name', 'data')}",
+            python_callable=callable_function,
+            op_kwargs={
+                # Passa todos os parâmetros da task como argumentos de palavra-chave para a função
+                'source_type': task_config.get('source_type'),
+                'source_filename': task_config.get('source_filename'),
+                'target_table_name': task_config.get('target_table_name'),
+                **transform_args # Desempacota os argumentos JSON extras
+            },
+            dag=dag,
         )
 
-        # Você pode adicionar mais tarefas aqui (sensor MinIO, etc.)
-        
-        # Define a ordem das tarefas se necessário (ex: T1 >> T2)
-        # Por simplicidade, temos apenas uma task
-        pass 
-        
+    # Nota: Em um projeto real, você poderia ter várias tasks e definir dependências aqui.
+    # Ex: [Task_Extrai >> Task_Transforma >> Task_Carrega]
+    
     return dag
 
 # ----------------------------------------------------------------------
-# 3. GERAÇÃO DINÂMICA DE DAGS
+# 4. GERAÇÃO DINÂMICA DE DAGS
 # ----------------------------------------------------------------------
 
-# Itera sobre todos os arquivos YAML na pasta de configurações
-for filename in os.listdir(CONFIGS_DIR):
-    if filename.endswith((".yml", ".yaml")):
-        config_name = os.path.splitext(filename)[0] # Nome do arquivo sem a extensão
-        file_path = os.path.join(CONFIGS_DIR, filename)
-        
-        try:
-            with open(file_path, 'r') as f:
-                config_data = yaml.safe_load(f)
+try:
+  print(f"Buscando configurações ativas na tabela 'dag_configurations' via conexão '{MYSQL_CONN_ID}'...")
+  dag_records = fetch_dag_configurations(MYSQL_CONN_ID)
+  print(f"✅ {len(dag_records)} configurações ativas encontradas.")
+  
+  for record in dag_records:
+    
+    # 📢 AQUI ESTÁ A CORREÇÃO CRÍTICA:
+    # Deve desempacotar exatamente 9 valores e usar o nome correto (dag_id)
+    id, dag_id, schedule_interval, owner, description, source_filename, \
+    target_table_name, python_module_path, transform_args = record
+    
+    # 1. Constrói o nome da DAG
+    # Agora, 'dag_id' contém o valor 'ingestao_customers_raw'
+    config_name = f"{dag_id.strip()}{id}"
+    
+    # 2. Converte e prepara a configuração
+    try:
+      parsed_transform_args = json.loads(transform_args) if transform_args else {}
+    except Exception as e:
+      print(f"❌ Erro ao parsear JSON 'transform_args' para DAG ID {id}: {e}")
+      continue # Pula para o próximo registro
+      
+    dag_config = {
+      'dag_id': config_name,
+      'dag_metadata': {
+        'schedule_interval': schedule_interval,
+        'owner': owner,
+        'description': description,
+        # Os campos start_date, tags, max_active_runs, etc. estão ausentes,
+        # então a DAG usará os valores do DEFAULT_ARGS (days_ago(1) e 'airflow').
+      },
+      'task_config': {
+        'source_filename': source_filename,
+        'target_table_name': target_table_name,
+        'python_module_path': python_module_path,
+        'transform_args': parsed_transform_args,
+      }
+    }
+    
+    # 3. Cria e registra a DAG no escopo global
+    dag_object = create_dynamic_dag(dag_config)
+    globals()[f"dag_{config_name}"] = dag_object
+    print(f"✅ DAG '{config_name}' carregada com sucesso.")
 
-            # Verifica se o YAML foi carregado corretamente
-            if config_data and isinstance(config_data, dict):
-                
-                # 📢 ATENÇÃO: É assim que o Airflow reconhece e registra a DAG!
-                # A variável global precisa ter o nome 'dag' e ser definida no escopo global.
-                # Aqui, estamos definindo uma variável global com um nome único (o ID da DAG)
-                globals()[f"dag_{config_name}"] = create_dynamic_dag(config_name, config_data)
-                print(f"✅ DAG '{config_name}' carregada com sucesso.")
-                
-            else:
-                print(f"⚠️ Aviso: O arquivo YAML '{filename}' está vazio ou mal formatado.")
 
-        except Exception as e:
-            print(f"❌ Erro ao processar o arquivo '{filename}': {e}")
+    
 
-
-# Este arquivo não define DAGs explicitamente, apenas as gera dinamicamente!
+except Exception as e:
+    # Este print agora deve capturar o erro, se ele não for o de desempacotamento
+  print(f"❌ Erro fatal ao buscar configurações da DAG no MySQL: {e}")
+    # ... (restante do bloco)

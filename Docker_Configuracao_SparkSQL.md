@@ -30,4 +30,4 @@ services:
         "-c",
         "spark-submit --master spark://spark:7077 --deploy-mode client --name SparkThriftServer --conf spark.driver.host=spark-sql --packages io.delta:delta-core_2.12:2.4.0 --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2"
       ]
-    # ... (restante da configuração)
+    # ... (restante da configuração)  

@@ -22,9 +22,23 @@ As seguintes modificações garantem que a imagem seja construída corretamente,
 
 | Ação | Localização | Código (Adicionar/Modificar) |
 | :--- | :--- | :--- |
-| **Correção de Codificação** | Seção de `RUN apt-get install` | Adicionar `dos2unix` à lista de pacotes a serem instalados: `RUN apt-get install -y git ... dos2unix \` |
+| **Correção de Codificação** | Seção de `RUN apt-get install` | Adicionar `dos2` à lista de pacotes a serem instalados: `RUN apt-get install -y git ... dos2unix \` |
 | **Conversão de Script** | Após o `COPY entrypoint` | Adicionar a linha para corrigir o formato ANSI/CRLF do script: `RUN dos2unix /entrypoint-webapp.sh` |
 | **Ordem de Usuário** | Fim do arquivo | Mover a linha `USER www-data` para o **FINAL** do `Dockerfile` (após o `CMD`). Isso permite que o `ENTRYPOINT` execute comandos como `root` (necessário para o `chmod`). |
+
+
+## Exemplo para outros problemas de erro de formato de arquivo:
+'''bash
+# 1. Entre no container do Scheduler
+docker exec -it airflow-scheduler bash
+
+# 2. Dentro do container, execute o 'dos2unix' no arquivo
+# (Assumindo que o caminho é /opt/airflow/dags/factory_master.py)
+dos2unix /opt/airflow/dags/factory_master.py
+
+# 3. Saia do container
+exit
+'''
 
 ## 3\. Ajustes no `entrypoint-webapp.sh`
 

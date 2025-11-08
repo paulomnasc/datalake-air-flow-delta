@@ -2,6 +2,7 @@ import os
 import importlib
 import json
 import logging
+import pendulum
 from datetime import datetime, date
 from typing import Dict, Any, List
 
@@ -9,16 +10,17 @@ from typing import Dict, Any, List
 from airflow.models.dag import DAG
 from airflow.utils.dates import days_ago
 from airflow.operators.python import PythonOperator
+from airflow.operators.bash import BashOperator 
 from airflow.exceptions import AirflowException
 
 # ----------------------------------------------------------------------
 # 0. CONFIGURAÇÃO DE CAMINHO E LOGGER
 # ----------------------------------------------------------------------
 
-# Define o caminho absoluto do arquivo factory_master.py (para registro do fileloc no DB de metadados)
+# Define o caminho absoluto do arquivo factory_master.py
 DAG_FILE_PATH = os.path.abspath(__file__)
 
-# Inicializa o logger para melhor rastreamento (além dos prints)
+# Inicializa o logger
 log = logging.getLogger(__name__)
 
 # Airflow Provider para MySQL
@@ -33,10 +35,8 @@ except ImportError as e:
 # 1. CONFIGURAÇÃO E CONSTANTES
 # ----------------------------------------------------------------------
 
-# ID da conexão MySQL configurada no Airflow UI/Secrets Backend
-MYSQL_CONN_ID = 'mysql_dag_metadata' # 💡 ATENÇÃO: Configure esta conexão no Airflow!
+MYSQL_CONN_ID = 'mysql_dag_metadata'
 
-# Argumentos padrão para todas as DAGs, a menos que sobrepostos pelos metadados
 DEFAULT_ARGS = {
     'owner': 'airflow',
     'start_date': days_ago(1),
@@ -48,26 +48,18 @@ DEFAULT_ARGS = {
 # ----------------------------------------------------------------------
 
 def import_callable_from_path(module_path: str):
-    """
-    Importa e retorna uma função Python a partir de um caminho de módulo.
-    Ex: 'lib.minio_tasks.transform_data_with_pandas'
-    """
+    """Importa e retorna uma função Python a partir de um caminho de módulo."""
     if '.' not in module_path:
         raise ValueError(f"O caminho do módulo é inválido: {module_path}")
 
-    # Divide o caminho em módulo e nome da função
     module_name, func_name = module_path.rsplit('.', 1)
-    
-    # Importa o módulo
     module = importlib.import_module(module_name)
-    
-    # Retorna a função
     return getattr(module, func_name)
 
 def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
     """
     Conecta ao MySQL e busca as configurações ativas da DAG.
-    Retorna 9 colunas na ordem da query.
+    Retorna 10 colunas: as 9 existentes + start_date.
     """
     sql_query = f"""
     SELECT
@@ -79,9 +71,10 @@ def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
         source_filename,
         target_table_name,
         python_module_path,
-        transform_args
+        transform_args,
+        start_date  /* 10ª Coluna */
     FROM dag_configurations
-    WHERE is_active = 1
+    WHERE is_active = 1 
     ORDER BY id;
     """
     
@@ -94,66 +87,73 @@ def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
 
 
 # ----------------------------------------------------------------------
-# 3. FUNÇÃO PRINCIPAL DE CRIAÇÃO DA DAG
+# 3. FUNÇÃO PRINCIPAL DE CRIAÇÃO DA DAG (COM CORREÇÃO DE MAX_ACTIVE_RUNS)
 # ----------------------------------------------------------------------
 
 def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     """
-    Cria e retorna um objeto Airflow DAG com base nos dados de configuração.
+    Cria e retorna um objeto Airflow DAG com base nos dados de configuração e define a sequência de tarefas.
     """
     
     dag_id = dag_config['dag_id']
     dag_metadata = dag_config['dag_metadata']
     task_config = dag_config['task_config']
     
-    # 1. Preparar Argumentos da DAG
+    # 1. Preparar Argumentos da DAG e Start Date
     dag_args = DEFAULT_ARGS.copy()
     
     start_date_db = dag_metadata.get('start_date')
+    
+    # Define a data de início (effective_start_date)
     if isinstance(start_date_db, date):
-        dag_args['start_date'] = datetime.combine(start_date_db, datetime.min.time())
+        # Converte datetime.date para datetime.datetime (hora 00:00:00)
+        # Nota: Airflow prefere datetime com timezone (tz), mas datetime.combine funciona para o propósito.
+        effective_start_date = datetime.combine(start_date_db, datetime.min.time())
     else:
-        dag_args['start_date'] = DEFAULT_ARGS['start_date']
+        # Usa o start_date padrão (days_ago(1)) se o DB retornar None
+        effective_start_date = DEFAULT_ARGS['start_date']
         
     dag_args['owner'] = dag_metadata.get('owner') or DEFAULT_ARGS['owner']
     
     # 2. Criar Objeto DAG
+    
+    # 📢 CORREÇÃO CRÍTICA: Força max_active_runs a ser um inteiro >= 1
+    max_runs_from_metadata = dag_metadata.get('max_active_runs')
+    # Se for None, não for um inteiro, ou for < 1, assume 1.
+    effective_max_runs = int(max_runs_from_metadata) if isinstance(max_runs_from_metadata, int) and max_runs_from_metadata >= 1 else 1 
+    
     dag = DAG(
         dag_id=dag_id,
         schedule_interval=dag_metadata.get('schedule_interval'),
+        start_date=effective_start_date, # Passa a data calculada
         catchup=False,
         default_args=dag_args,
         tags=dag_metadata.get('tags'),
-        max_active_runs=dag_metadata.get('max_active_runs'),
+        max_active_runs=effective_max_runs, # Aplica a correção
         doc_md=dag_metadata.get('description', f"DAG gerada dinamicamente a partir dos metadados da tabela dag_configurations (ID: {dag_id})")
     )
 
-    # 3. Criar a Tarefa Principal (ETL/ELT)
+    # 3. Criar a Tarefa Principal (ETL/ELT - PythonOperator)
     python_module_path = task_config.get('python_module_path')
     transform_args = task_config.get('transform_args', {})
 
     if not python_module_path:
         # Se não houver módulo Python, cria uma tarefa dummy/log
-        from airflow.operators.bash import BashOperator
-        task = BashOperator(
+        task_etl = BashOperator(
             task_id='no_module_configured',
             bash_command=f"echo '⚠️ Alerta: Nenhuma função Python configurada para a DAG {dag_id}'",
             dag=dag
         )
     else:
         try:
-            # Chama a função utilitária para importar a função Python real
             callable_function = import_callable_from_path(python_module_path)
         except (ImportError, AttributeError, ValueError) as e:
-            # Lança uma exceção Airflow para ser capturada pelo bloco try/except externo
             raise AirflowException(f"❌ Erro ao importar callable '{python_module_path}' para a DAG {dag_id}: {e}")
 
-        # O PythonOperator executa a função Python real
-        task = PythonOperator(
+        task_etl = PythonOperator(
             task_id=f"etl_process_for_{task_config.get('target_table_name', 'data')}",
             python_callable=callable_function,
             op_kwargs={
-                'source_type': task_config.get('source_type'),
                 'source_filename': task_config.get('source_filename'),
                 'target_table_name': task_config.get('target_table_name'),
                 **transform_args
@@ -161,10 +161,38 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
             dag=dag,
         )
     
+    # 4. Criar Tarefas Operacionais Posteriores (BashOperator) - REINSTAURADAS
+    
+    # TAREFA DE VALIDAÇÃO: Verifica se o processo ETL/ELT produziu dados (ex: conta linhas)
+    task_validation = BashOperator(
+        task_id='validate_data_integrity',
+        bash_command=f"""
+            echo 'Iniciando checagem de integridade para {task_config.get('target_table_name', 'data')}...'
+            # Simula a execução de um script de validação. O '|| exit 1' garante que a DAG falhe se o script falhar.
+            /usr/local/bin/scripts/run_validator.sh --table {task_config.get('target_table_name', 'data')} || exit 1
+        """,
+        dag=dag,
+    )
+
+    # TAREFA DE FINALIZAÇÃO: Limpa recursos, atualiza metadados ou notifica
+    task_cleanup_notify = BashOperator(
+        task_id='cleanup_and_notify',
+        bash_command=f"""
+            echo 'Processo ETL para DAG {dag_id} concluído com sucesso. Limpeza e Notificação.'
+            # Simula envio de notificação
+            /usr/local/bin/scripts/send_notification.sh --status success --dag {dag_id}
+        """,
+        dag=dag,
+    )
+    
+    # 5. Definir a Sequência de Tarefas
+    # ETL/ELT >> Validação >> Limpeza/Notificação
+    task_etl >> task_validation >> task_cleanup_notify
+    
     return dag
 
 # ----------------------------------------------------------------------
-# 4. GERAÇÃO DINÂMICA DE DAGS (REFATORADO PARA ROBUSTEZ)
+# 4. GERAÇÃO DINÂMICA DE DAGS
 # ----------------------------------------------------------------------
 
 try:
@@ -174,18 +202,17 @@ try:
     
     for record in dag_records:
         
-        config_name = None # Inicializa para o escopo do log de erro
+        config_name = None 
         
-        # 📢 TRY/EXCEPT ISOLADO para capturar falhas específicas de cada registro
         try:
-            # Desempacotamento (9 variáveis - Crucial: deve corresponder à query)
+            # Desempacotamento de 10 variáveis (corrigido)
             id, dag_id_value, schedule_interval, owner, description, source_filename, \
-            target_table_name, python_module_path, transform_args = record
+            target_table_name, python_module_path, transform_args, start_date_db = record
             
-            # 1. Constrói o nome da DAG (Correção Lógica: Usa 'dag_id_value')
+            # 1. Constrói o nome da DAG
             config_name = f"{dag_id_value.strip()}{id}"
             
-            # 2. Converte e prepara a configuração (Ponto de falha: JSON)
+            # 2. Converte e prepara a configuração
             parsed_transform_args = json.loads(transform_args) if transform_args else {}
             
             dag_config = {
@@ -194,6 +221,8 @@ try:
                     'schedule_interval': schedule_interval,
                     'owner': owner,
                     'description': description,
+                    'start_date': start_date_db, 
+                    'max_active_runs': None # Não lido do DB, será defaultado em create_dynamic_dag.
                 },
                 'task_config': {
                     'source_filename': source_filename,
@@ -205,25 +234,18 @@ try:
             
             # 3. Cria e registra a DAG no escopo global
             dag_object = create_dynamic_dag(dag_config)
-            
-            # 4. Força o fileloc para garantir o registro correto no DB de metadados
             dag_object.fileloc = DAG_FILE_PATH 
-            
             globals()[f"dag_{config_name}"] = dag_object
             
-            # Log de sucesso SÓ é emitido após a criação bem-sucedida do objeto
             log.info(f"✅ DAG '{config_name}' carregada com sucesso.")
 
         except (ValueError, TypeError, json.JSONDecodeError) as e:
-            # Captura erro de desempacotamento de tupla ou JSON inválido
-            log.warning(f"❌ Erro de Parsing LÓGICO no registro do DB (ID: {record[0] if len(record) > 0 else 'N/A'}, DAG: {config_name}): {e}")
+            log.warning(f"❌ Erro no registro do DB (ID: {record[0] if len(record) > 0 else 'N/A'}, DAG: {config_name}). Tipo de erro: {e.__class__.__name__}. Motivo: {e}")
             continue
         
         except AirflowException as e:
-            # Captura erro de importação de módulo (lançado em create_dynamic_dag)
             log.error(f"❌ Erro de Módulo (DAG: {config_name}): {e}")
             continue
 
 except Exception as e:
-    # Captura erro de conexão MySQL ou falha na query
     log.critical(f"❌ Erro fatal ao buscar configurações da DAG no MySQL: {e}")

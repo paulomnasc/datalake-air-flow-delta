@@ -117,3 +117,8 @@ CREATE TABLE dag_configurations (
         ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- Adicione a coluna start_date como DATE, permitindo NULL
+ALTER TABLE dag_configurations
+ADD COLUMN start_date DATE NULL AFTER transform_args; 
+
+

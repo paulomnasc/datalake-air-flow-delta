@@ -14,7 +14,7 @@
 # ENVIRONMENT
 #--------------------------------------------------------------------
 
-CI_ENVIRONMENT = development
+CI_ENVIRONMENT = DEVELOPMENT
 
 #--------------------------------------------------------------------
 # APP
@@ -25,15 +25,13 @@ CI_ENVIRONMENT = development
 #SE COLOCAR NO .ENV NÃO PRECISA COLOCAR NO CONFIG\APP.PHP
 
 # LEMBRE-SE: Na rede interna o IP MUDA !!!
-# app.baseURL = 'http://192.168.0.75:8000/'
+#app.baseURL = 'http://192.168.0.75:8080/'
 
 #URL PRA DESENVOLVIMENTO NO VSCODE
 app_baseURL = 'http://137.131.212.68:8088/'
 
 #URL DE PRODUÇÃO
-# app_baseURL = 'https://estudotabela.com.br/'
-
-#app_baseURL = 'https://smarttables.x10.mx/'
+# app_baseURL = 'http://smarttables.x10.mx/'
 
 #MEU DOMÍNIO = resumomaster.com
  
@@ -44,18 +42,19 @@ app_baseURL = 'http://137.131.212.68:8088/'
 # DATABASE
 #--------------------------------------------------------------------
 
-#atabase.default.hostname = localhost
+#database.default.hostname = localhost
 #database.default.username = elvzlhrs_smarttables
 #database.default.password = kJ#212394
 #database.default.database = elvzlhrs_smarttables
   
 # LOCALHOST
-database.default.hostname = localhost
+# Para o site no docker o host do banco de dados é 'mysql'
+database.default.hostname = mysql
 database.default.username = root
 database.default.password = root
-database.default.database = lista_revisao
+database.default.database = lista_revisao2
+database.default.DBDriver = MySQLi
 
-#database.default.DBDriver = MySQLi
 # database.default.DBPrefix =
 # database.default.port = 3306
 
@@ -76,24 +75,24 @@ database.default.database = lista_revisao
 #--------------------------------------------------------------------
 # SMTP PRODUCTION Credentials
 #--------------------------------------------------------------------
-smtp_host = mail.smarttables.x10.mx 
-pop_imap_host = mail.smarttables.x10.mx
-smtp_port  = 587
-smtp_username = admin@smarttables.x10.mx
-smtp_password = kJ#212394
-smtp_nome_remetente = Smart_Tables
-smtp_secure = tls
+#smtp_host = mail.smarttables.x10.mx 
+#pop_imap_host = mail.smarttables.x10.mx
+#smtp_port  = 587
+#smtp_username = admin@smarttables.x10.mx
+#smtp_password = kJ#212394
+#smtp_nome_remetente = Smart_Tables
+#smtp_secure = tls
 
 
 #--------------------------------------------------------------------
 # SMTP DEVELOPMENT Credentials
 #--------------------------------------------------------------------
-# smtp_host = smtp.gmail.com
-# smtp_username = paulomnasc@gmail.com
-# smtp_port  = 587
-# smtp_password = qiqtwpmebptnbiua
-# smtp_nome_remetente = Smart_Tables
-  #--------------------------------------------------------------------
+smtp_host = smtp.gmail.com
+smtp_username = kauan.duardo@gmail.com
+smtp_port  = 587
+smtp_password = qiqtwpmebptnbiua
+smtp_nome_remetente = Smart_Tables
+#--------------------------------------------------------------------
 # ENCRYPTION
 #--------------------------------------------------------------------
 

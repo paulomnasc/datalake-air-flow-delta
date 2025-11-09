@@ -171,13 +171,15 @@ require VIEWPATH . '/header.php';
                 
                 <div class="form-group">
                     <label for="transform_args">Argumentos Extras da Função (JSON):</label>
-                    <input type="text" name="transform_args" id="transform_args" 
-                        placeholder="Ex: {'columns_to_drop': ['col1', 'col2']}" 
-                        value="<?php echo $transform_args ?>">
-                    <small>Deve ser um JSON válido (será armazenado no campo JSON da tabela).</small>
+                    <textarea style="width: 80%; height: 400px;" name="transform_args" id="transform_args" 
+                    placeholder="Deve ser um JSON válido (será armazenado no campo JSON da tabela)." value=<?php echo $transform_args ?> ></textarea>
+                    
                 </div>
+
             </fieldset>
             
+            
+
             <div class="form-group">
                 <label for="is_active">Status da DAG:</label>
                 <select id="is_active" name="is_active" required>

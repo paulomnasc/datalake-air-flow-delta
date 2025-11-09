@@ -169,12 +169,12 @@ require VIEWPATH . '/header.php';
                     <small>Caminho completo do módulo e função a ser executada pelo PythonOperator.</small>
                 </div>
                 
-                <div class="form-group">
-                    <label for="transform_args">Argumentos Extras da Função (JSON):</label>
-                    <textarea style="width: 80%; height: 400px;" name="transform_args" id="transform_args" 
-                    placeholder="Deve ser um JSON válido (será armazenado no campo JSON da tabela)." value=<?php echo $transform_args ?> ></textarea>
-                    
-                </div>
+                    <div class="form-group">
+                        <label for="transform_args">Argumentos Extras da Função (JSON):</label>
+                        <textarea style="width: 80%; height: 400px;" name="transform_args" id="transform_args" 
+                        placeholder="Deve ser um JSON válido (será armazenado no campo JSON da tabela)."><?php echo $transform_args ?? '' ?></textarea>
+
+                    </div>
 
             </fieldset>
             

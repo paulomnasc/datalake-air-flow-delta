@@ -155,7 +155,7 @@ services:
       - SPARK_MASTER_HOST=spark
       # O Spark precisa de acesso ao MinIO para ler os dados Delta
       - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=admin123
+      - AWS_SECRET_ACCESS_KEY=admin12/var/www/html/vendor3
       - SPARK_CONF_DIR=/opt/spark/conf
     ports:
       - "10000:10000" # Porta padrão do Thrift Server para ODBC/JDBC
@@ -181,6 +181,7 @@ services:
       - ./src/codeigniter-app:/var/www/html
       # Mapeamento para escrita dos YAMLs do Airflow
       - ./src/dags/configs:/var/www/html/writable/configs
+      - /var/www/html/vendor
     ports:
       - "8088:80"
     environment:

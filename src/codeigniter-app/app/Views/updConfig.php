@@ -17,7 +17,7 @@ require VIEWPATH . '/header.php';
         <div id="form-container">
             
 
-            <form method="post" id="meuFormulario" action="<?php echo route_to('Config.update'); ?>">
+            <form method="post" id="meuFormulario" action="<?php echo route_to('Config.update'); ?>" enctype="multipart/form-data">
 
                 <div class="form-group">
                         <input type="hidden" name="id" placeholder="ID" value="<?php echo $id ?>" required readonly>

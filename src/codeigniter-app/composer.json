@@ -15,7 +15,8 @@
         "ext-mbstring": "*",
         "laminas/laminas-escaper": "^2.13",
         "psr/log": "^3.0",
-        "google/apiclient": "^2.0"
+        "google/apiclient": "^2.0",
+        "aws/aws-sdk-php": "^3.0"
 
     },
     "require-dev": {

@@ -21,8 +21,10 @@ rm -rf /var/www/html/writable/cache/*
 rm -rf /var/www/html/writable/logs/*
 
 # 2. Garante as permissões de escrita recursivamente.
-chmod -R 777 /var/www/html/vendor # 🛑 NOVO: Permissão para a pasta vendor
-chmod -R 777 /var/www/html/writable
+# Garante que as pastas de cache e logs sejam de propriedade do usuário www-data
+chown -R www-data:www-data /var/www/html/writable
+chown -R www-data:www-data /var/www/html/vendor # Já deveria ser feito no Dockerfile, mas é um bom failsafe.
+
 
 # 3. Executa o comando principal do contêiner (inicia o Apache)
 exec "$@"

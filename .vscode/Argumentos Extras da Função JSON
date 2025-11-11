@@ -1,0 +1,5 @@
+{
+  "host": "http://minio:9000",
+  "endpoint_url": "http://minio:9000",
+  "s3_path_style": true
+}

@@ -9,6 +9,9 @@
         "source": "https://github.com/codeigniter4/CodeIgniter4",
         "slack": "https://codeigniterchat.slack.com"
     },
+    "replace": {
+        "google/apiclient": "*"
+    },
     "require": {
         "php": "^8.1",
         "ext-intl": "*",

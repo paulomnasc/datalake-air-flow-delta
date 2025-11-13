@@ -501,7 +501,8 @@ class ConfigController extends BaseController
         $sourceFilenameDB = $this->request->getPost('source_filename'); 
         
         // 1. LÓGICA DE UPLOAD (Aplica-se APENAS se o tipo de source for 'upload' - CSV/JSON)
-        if ($idSourceType == 'upload') {
+        if ($idSourceType == 'upload') 
+        {
             
             // Pega o arquivo do request. O nome do input é 'source_filename'
             $file = $this->request->getFile('source_filename'); 

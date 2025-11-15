@@ -32,6 +32,8 @@ services:
     command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark:7077"]
     environment:
       - SPARK_MODE=worker
+      # Use as coordenadas Maven dos seus jars
+      - SPARK_OPTS=--packages io.delta:delta-core_2.12:2.4.0,org.apache.hadoop:hadoop-aws:3.3.2
     ports:
       - "8081:8081"
     networks:

@@ -1,7 +1,7 @@
 FROM apache/spark:3.5.1
 
 # Copia os JARs para o diretório do Spark
-COPY jars/*.jar /opt/spark/jars/
+#COPY jars/*.jar /opt/spark/jars/
 
 # Copia os scripts para dentro do container
 COPY spark-apps /opt/spark-apps/

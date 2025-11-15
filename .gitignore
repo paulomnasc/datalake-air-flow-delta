@@ -3,6 +3,7 @@
 *.tmp
 *.bkp
 *.meta
+*.pyc
 temp/
 build/
 writable/

@@ -26,5 +26,14 @@ RUN export CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/cons
         minio \
         --constraint "${CONSTRAINT_URL}"
 
+# Altera o usuário para root
+USER root        
+# Executa o comando de atualização e instalação
+# O código de erro 13: Permission denied será resolvido aqui
+RUN apt-get update && apt-get install -y dos2unix && dos2unix /entrypoint.sh
+
+# Altera o usuário de volta para 'airflow' (usuário não-root recomendado)
+USER airflow
+# Define o ponto de entrada do contêiner
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["airflow", "webserver"]

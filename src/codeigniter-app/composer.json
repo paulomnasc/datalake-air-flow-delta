@@ -9,13 +9,17 @@
         "source": "https://github.com/codeigniter4/CodeIgniter4",
         "slack": "https://codeigniterchat.slack.com"
     },
+    "replace": {
+        "google/apiclient": "*"
+    },
     "require": {
         "php": "^8.1",
         "ext-intl": "*",
         "ext-mbstring": "*",
         "laminas/laminas-escaper": "^2.13",
         "psr/log": "^3.0",
-        "google/apiclient": "^2.0"
+        "google/apiclient": "^2.0",
+        "aws/aws-sdk-php": "^3.0"
 
     },
     "require-dev": {

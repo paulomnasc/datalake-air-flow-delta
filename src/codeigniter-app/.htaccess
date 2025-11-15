@@ -1,10 +1,15 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
+
+    # 🛑 REGRA DE REDIRECIONAMENTO HTTPS REMOVIDA AQUI
+
+    # Remove index.php da URL (Regra CRÍTICA do CodeIgniter)
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ index.php/$1 [L]
-</IfModule>
 
-# Opcional: Adicionar a regra CORS se necessário para integração
-Header set Access-Control-Allow-Origin "*"
+    # Mantendo a regra de cabeçalho, se ela for necessária no Docker
+    Header set Access-Control-Allow-Origin "*"
+
+</IfModule>

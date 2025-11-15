@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
     default-mysql-client \
     dos2unix \
     && rm -rf /var/lib/apt/lists/* \
-    && docker-php-ext-install pdo_mysql gd intl opcache
+    && docker-php-ext-install pdo_mysql gd intl opcache mysqli
 
 # 3. CONFIGURAÇÃO DO COMPOSER
 # Instala o Composer para gerenciar dependências PHP
@@ -43,11 +43,14 @@ RUN chmod +x /entrypoint-webapp.sh
 
 # 5. DIRETÓRIO DE TRABALHO
 WORKDIR /var/www/html
-
+# 5. Copiar código fonte (INCLUINDO o composer.json) para o diretório de trabalho
+COPY . /var/www/html
 # 6. PERMISSÕES E USUÁRIO (Opcional, mas boa prática)
 # Garante que o usuário apache (www-data) possa escrever logs/cache.
 RUN chown -R www-data:www-data /var/www/html
 # USER www-data
+
+RUN composer install --no-dev --optimize-autoloader
 
 # A porta padrão do Apache é 80
 EXPOSE 80

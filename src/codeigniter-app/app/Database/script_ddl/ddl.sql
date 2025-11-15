@@ -1,6 +1,6 @@
-CREATE DATABASE IF NOT EXISTS `smart_tables` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
+CREATE DATABASE IF NOT EXISTS `lista_revisao2` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
 
-USE `smart_tables`;
+USE `lista_revisao2`;
 
 -- Criação da tabela perfil
 CREATE TABLE IF NOT EXISTS `perfil` (
@@ -47,30 +47,78 @@ CREATE TABLE IF NOT EXISTS `email_tokens` (
 -- DDL (Data Definition Language) para a tabela de configurações de DAGs
 -- No MySQL: CREATE DATABASE IF NOT EXISTS dag_factory_db; USE dag_factory_db;
 
+CREATE TABLE source_types (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    description VARCHAR(100) NOT NULL UNIQUE COMMENT 'Descrição do tipo de fonte (Ex: MySQL, CSV, API REST)'
+);
+
+-- Dados de Exemplo (para começar a testar)
+INSERT INTO source_types (description) VALUES
+('CSV (MinIO/S3)'),
+('JSON (MinIO/S3)'),
+('MySQL'),
+('PostgreSQL'),
+('API REST');
+
+-- DROP TABLE IF EXISTS dag_configurations; -- Use esta linha se precisar recriar do zero
+
 CREATE TABLE dag_configurations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     
-    -- 1. Metadata da DAG
-    dag_id VARCHAR(128) NOT NULL UNIQUE COMMENT 'O nome único da DAG no Airflow (ex: ingestao_clientes_vendas)',
-    is_active BOOLEAN DEFAULT TRUE COMMENT 'Indica se a DAG deve ser gerada (True) ou ignorada (False)',
+    -- 1. Chave Estrangeira (FK) para a tabela PASTA
+    id_pasta INT UNSIGNED NOT NULL COMMENT 'ID da pasta associada, FK para a tabela pasta(id)',
+    
+    -- 2. Metadata da DAG
+    dag_id VARCHAR(128) NOT NULL UNIQUE COMMENT 'O nome único da DAG no Airflow',
+    is_active BOOLEAN DEFAULT TRUE COMMENT 'Indica se a DAG deve ser gerada',
     owner VARCHAR(64) DEFAULT 'webapp_user' COMMENT 'Proprietário da DAG no Airflow',
-    schedule_interval VARCHAR(64) DEFAULT '0 0 * * *' COMMENT 'Agendamento no formato cron (ex: 0 4 * * *)',
-    description TEXT COMMENT 'Descrição da DAG para a UI do Airflow',
+    schedule_interval VARCHAR(64) DEFAULT '0 0 * * *' COMMENT 'Agendamento no formato cron',
+    description TEXT COMMENT 'Descrição da DAG',
     
-    -- 2. Parâmetros da Tarefa (Exemplo de Ingestão e Transformação)
-    source_type VARCHAR(50) NOT NULL COMMENT 'Tipo de fonte de dados (ex: csv, json, database)',
-    source_filename VARCHAR(255) NOT NULL COMMENT 'Nome do arquivo de origem no MinIO (ex: raw/data.csv)',
-    target_table_name VARCHAR(128) NOT NULL COMMENT 'Nome da tabela/destino final na camada Trusted/Refined',
+    -- 3. Parâmetros da Tarefa
+    -- 🛑 NOVO CAMPO FK para source_types 🛑
+    id_source_type INT UNSIGNED NOT NULL COMMENT 'ID do tipo de fonte de dados (FK para source_types)',
+    source_filename VARCHAR(512) COMMENT 'Caminho do arquivo ou URI de conexão',
+    target_table_name VARCHAR(128) NOT NULL COMMENT 'Nome da tabela/destino final',
     
-    -- 3. Parâmetros de Processamento
-    python_module_path VARCHAR(255) COMMENT 'Caminho do módulo Python a ser chamado (ex: lib.minio_tasks.transform_data)',
-    transform_args JSON COMMENT 'Parâmetros extras para a função Python (JSON: ex: {"columns_to_drop": ["col1", "col2"]})',
+    -- 4. Parâmetros de Processamento
+    python_module_path VARCHAR(255) COMMENT 'Caminho do módulo Python a ser chamado',
+    transform_args JSON COMMENT 'Parâmetros extras para a função Python (JSON)',
 
-    -- 4. Controle e Auditoria
+    -- 🛑 CAMPOS SSH TUNNELING 🛑
+    ssh_host VARCHAR(255) NULL COMMENT 'FQDN ou IP do Jump Server',
+    ssh_port INT DEFAULT 22 NULL COMMENT 'Porta SSH para conexão, padrão 22',
+    ssh_user VARCHAR(100) NULL COMMENT 'Usuário SSH para autenticação',
+    ssh_key_path VARCHAR(255) NULL COMMENT 'Caminho da chave privada SSH no servidor Airflow',
+    ssh_local_port INT DEFAULT 13306 NULL COMMENT 'Porta local que será usada para o túnel',
+
+    -- 5. Controle e Auditoria
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
+    -- Índices para performance
     INDEX idx_dag_active (is_active),
-    INDEX idx_owner (owner)
-) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+    INDEX idx_owner (owner),
+    
+    -- 6. Declaração das Chaves Estrangeiras
+
+    -- FK para PASTA
+    CONSTRAINT fk_dagconfig_pasta
+        FOREIGN KEY (id_pasta) 
+        REFERENCES pasta(id)
+        ON DELETE RESTRICT 
+        ON UPDATE CASCADE,
+        
+    -- 🛑 FK para SOURCE_TYPES 🛑
+    CONSTRAINT fk_source_type
+        FOREIGN KEY (id_source_type) 
+        REFERENCES source_types(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Adicione a coluna start_date como DATE, permitindo NULL
+ALTER TABLE dag_configurations
+ADD COLUMN start_date DATE NULL AFTER transform_args; 
+
 

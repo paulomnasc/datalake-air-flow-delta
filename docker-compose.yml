@@ -60,11 +60,12 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: lista_revisao
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
     ports:
       - "3306:3306"
     volumes:
+    # 🚨 CRÍTICO: Mapeia sua pasta local de scripts para o diretório de inicialização do Docker
+      - ./mysql-init:/docker-entrypoint-initdb.d 
+      # Volume de dados para persistir o DB (crucial para o initdb.d rodar apenas na primeira vez)
       - mysql_data:/var/lib/mysql
     networks:
       - airflow_net

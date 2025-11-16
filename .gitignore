@@ -13,6 +13,7 @@ lixo/
 tests/
 copia/
 data/.minio.sys/
+__pycache__/
 
 # Ignorar dependências de projetos Node.js
 node_modules/

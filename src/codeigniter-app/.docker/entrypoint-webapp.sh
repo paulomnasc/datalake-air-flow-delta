@@ -25,6 +25,9 @@ rm -rf /var/www/html/writable/logs/*
 chown -R www-data:www-data /var/www/html/writable
 chown -R www-data:www-data /var/www/html/vendor # Já deveria ser feito no Dockerfile, mas é um bom failsafe.
 
+# Garante que a permissão de escrita (rwx) esteja definida para o usuário e grupo.
+echo "Ajustando permissões de escrita (para garantir)..."
+chmod -R 775 /var/www/html/writable
 
 # 3. Executa o comando principal do contêiner (inicia o Apache)
 exec "$@"

@@ -22,7 +22,7 @@ with DAG(
 
     def extract_and_upload_s3():
         # ✅ Conexão com MySQL ajustada
-        engine = create_engine("mysql+mysqlconnector://root:root@mysql:3306/lista_revisao")
+        engine = create_engine("mysql+mysqlconnector://root:root@mysql:3306/northwind")
 
         # ✅ Conexão com MinIO via S3Hook
         s3_hook = S3Hook(aws_conn_id="minio_conn")

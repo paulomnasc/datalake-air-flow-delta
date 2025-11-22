@@ -16,13 +16,51 @@ def transform_data_with_pandas(
     log.info(f"O resultado será carregado em: {target_table_name}")
     log.info("Os argumentos extras (transform_args) são: %s", kwargs)
 
-    # ⚠️ COLOQUE AQUI SUA LÓGICA REAL (Ex: ler o CSV do MinIO, processar com Pandas, e salvar)
+    # Implementação mínima prática: copia o objeto de entrada para
+    # `processed/raw/{target_table_name}/{basename}` no bucket MinIO.
+    # Isso é um 'pass-through' que garante que algo será gravado no bucket
+    # para as etapas seguintes (validação etc.).
+    try:
+        from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+    except Exception as e:
+        log.error("S3Hook não disponível: %s", e)
+        raise
+
+    import os
+    import tempfile
+
+    bucket = os.environ.get("MINIO_BUCKET", "lab01")
+
+    hook = S3Hook(aws_conn_id='minio_conn')
+
+    # Normalize source key and destination key
+    src_key = source_filename.lstrip('/')
+    basename = os.path.basename(src_key)
+    dest_key = f"processed/raw/{target_table_name}/{basename}"
+
+    log.info("Copying from s3://%s/%s to s3://%s/%s", bucket, src_key, bucket, dest_key)
+
+    # Use temp file to download + re-upload (avoids keeping objects in memory)
+    tmp = None
+    try:
+        tmp = tempfile.NamedTemporaryFile(delete=False)
+        tmp.close()
+
+        # Download source object to temp file
+        hook.download_file(key=src_key, bucket_name=bucket, filename=tmp.name)
+
+        # (Aqui poderia entrar processamento com pandas)
+
+        # Upload result to destination key (replace if exists)
+        hook.load_file(filename=tmp.name, key=dest_key, bucket_name=bucket, replace=True)
+
+        log.info("Uploaded result to s3://%s/%s", bucket, dest_key)
+    finally:
+        if tmp is not None and os.path.exists(tmp.name):
+            try:
+                os.unlink(tmp.name)
+            except Exception:
+                pass
 
     log.info("Processo de transformação concluído com sucesso!")
-
-    # Em um cenário real, você faria aqui:
-    # 1. Leitura do arquivo (usando o MinIO/S3 Hook, por exemplo)
-    # 2. Processamento com Pandas
-    # 3. Escrita no destino final (DB ou outro bucket MinIO)
-
-    return True # A tarefa foi bem-sucedida
+    return True

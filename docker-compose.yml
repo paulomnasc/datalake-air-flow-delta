@@ -152,6 +152,7 @@ services:
     image: apache/airflow:2.7.1
     depends_on:
       - airflow-webserver
+      - postgres
     environment:
       AIRFLOW__CORE__EXECUTOR: CeleryExecutor
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
@@ -160,6 +161,8 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
     command: worker
+    networks:
+      - airflow_net
 
   spark-sql:
     build:

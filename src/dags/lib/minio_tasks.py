@@ -47,12 +47,13 @@ def transform_data_with_pandas(
         tmp.close()
 
         # Download source object to temp file
-        hook.download_file(key=src_key, bucket_name=bucket, filename=tmp.name)
+        # Use positional args to match S3Hook signature across provider versions
+        hook.download_file(src_key, bucket, tmp.name)
 
         # (Aqui poderia entrar processamento com pandas)
 
         # Upload result to destination key (replace if exists)
-        hook.load_file(filename=tmp.name, key=dest_key, bucket_name=bucket, replace=True)
+        hook.load_file(tmp.name, dest_key, bucket, replace=True)
 
         log.info("Uploaded result to s3://%s/%s", bucket, dest_key)
     finally:

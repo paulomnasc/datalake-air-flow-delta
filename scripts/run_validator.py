@@ -94,6 +94,71 @@ def validate_with_pymysql(table: str, database: str | None) -> int:
         conn.close()
 
 
+def check_minio_object(key: str, bucket: str | None = None) -> int:
+    """Verifica se o objeto/key existe no MinIO/S3.
+    Tenta primeiro usar S3Hook (Airflow), senão usa o cliente `minio`.
+    Retorna 0 se encontrado, 2 se não encontrado, 4 se falta dependência, 3 se erro de conexão.
+    """
+    bucket = bucket or os.environ.get("MINIO_BUCKET", "lab01")
+
+    # 1) Try Airflow S3Hook
+    try:
+        from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+        try:
+            hook = S3Hook(aws_conn_id='minio_conn')
+            exists = hook.check_for_key(key, bucket_name=bucket)
+            if exists:
+                print(f"Found object '{key}' in bucket '{bucket}' via S3Hook")
+                return 0
+            else:
+                print(f"Object '{key}' not found in bucket '{bucket}' via S3Hook", file=sys.stderr)
+                return 2
+        except Exception as e:
+            print(f"Error when checking S3 via S3Hook: {e}", file=sys.stderr)
+            # fall through to minio client
+    except Exception:
+        # S3Hook not available; continue to minio client
+        pass
+
+    # 2) Try python 'minio' client
+    try:
+        from minio import Minio
+        from minio.error import S3Error
+    except Exception:
+        print("Missing dependency 'minio' or S3Hook. Install 'apache-airflow-providers-amazon' or 'minio' package.", file=sys.stderr)
+        return 4
+
+    endpoint = os.environ.get("MINIO_ENDPOINT", os.environ.get("MINIO_HOST", "http://minio:9000"))
+    # Normalize endpoint to host:port without schema for Minio client
+    if endpoint.startswith("http://"):
+        endpoint_host = endpoint.replace("http://", "")
+    elif endpoint.startswith("https://"):
+        endpoint_host = endpoint.replace("https://", "")
+    else:
+        endpoint_host = endpoint
+
+    access_key = os.environ.get("MINIO_ACCESS_KEY", os.environ.get("MINIO_ROOT_USER", "admin"))
+    secret_key = os.environ.get("MINIO_SECRET_KEY", os.environ.get("MINIO_ROOT_PASSWORD", "admin123"))
+    secure = os.environ.get("MINIO_SECURE", "false").lower() in ("1", "true", "yes")
+
+    try:
+        client = Minio(endpoint_host, access_key=access_key, secret_key=secret_key, secure=secure)
+        try:
+            client.stat_object(bucket, key)
+            print(f"Found object '{key}' in bucket '{bucket}' via Minio client")
+            return 0
+        except S3Error as e:
+            if getattr(e, 'code', None) in ('NoSuchKey', 'NoSuchBucket') or 'not found' in str(e).lower():
+                print(f"Object '{key}' not found in bucket '{bucket}' via Minio client", file=sys.stderr)
+                return 2
+            else:
+                print(f"Error when checking object via Minio client: {e}", file=sys.stderr)
+                return 3
+    except Exception as e:
+        print(f"Error connecting to MinIO endpoint '{endpoint_host}': {e}", file=sys.stderr)
+        return 3
+
+
 def main():
     args = get_args()
     table = args.table
@@ -104,6 +169,20 @@ def main():
     rc = validate_with_mysql_hook(table, conn_id, database_override)
     if rc != 5:
         # rc != 5 means MySqlHook was available and returned a meaningful result
+        if rc == 0:
+            sys.exit(0)
+        # If not found in MySQL (rc == 2) then try MinIO checks (the target may be a file)
+        if rc == 2:
+            # try to find object in MinIO with the given key
+            # common keys to try: exact name, trusted/{name}, trusted/{name}.parquet
+            candidates = [table, f"trusted/{table}", f"trusted/{table}.parquet", f"{table}.parquet"]
+            for key in candidates:
+                rc_minio = check_minio_object(key)
+                if rc_minio == 0:
+                    sys.exit(0)
+            # none found, exit with original rc (2)
+            sys.exit(2)
+        # other error codes: propagate
         sys.exit(rc)
 
     # 2) Fallback: try PyMySQL using environment variables

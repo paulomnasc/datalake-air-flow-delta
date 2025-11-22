@@ -236,6 +236,14 @@ services:
       - "9003:9003" # <--- Porta do XDebug
     environment:
       - CI_ENVIRONMENT=development
+      # MinIO configuration used by the webapp (read by ConfigController::_initMinioClient())
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_REGION=us-east-1
+      - MINIO_VERSION=latest
+      - MINIO_USE_PATH_STYLE_ENDPOINT=true
+      - MINIO_ACCESS_KEY_ID=admin
+      - MINIO_SECRET_ACCESS_KEY=admin123
+      - MINIO_BUCKET_RAW=lab01
       # ... (demais variáveis de ambiente)
     extra_hosts:
       - "host.docker.internal:host-gateway"

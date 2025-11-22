@@ -334,56 +334,6 @@ class ConfigController extends BaseController
 
         // O valor inicial (URI, PATH ou o valor que viria do file input)
         $sourceFilenameDB = $this->request->getPost('source_filename'); 
-        
-        // 1. LÓGICA DE UPLOAD (Aplica-se APENAS se o tipo de source for 'upload' - CSV/JSON)
-        if ($idSourceType == 'upload') {
-            
-            // Pega o arquivo do request. O nome do input é 'source_filename'
-            $file = $this->request->getFile('source_filename'); 
-
-            if ($file && $file->isValid() && ! $file->hasMoved() && $this->minioClient) {
-                try {
-                    // Define o Caminho Destino (Key/Chave do Objeto)
-                    $fileExtension = $file->getClientExtension();
-                    
-                    // Gera nome único para o arquivo no MinIO (timestamp_uniqueID.ext)
-                    $uniqueFilename = time() . '_' . bin2hex(random_bytes(8)) . '.' . $fileExtension;
-                    
-                    // Exemplo: raw/ingestao_clientes/1762518482_idunico.csv
-                    $folderPath = 'raw/' . str_replace(' ', '_', $dagId); 
-                    $objectKey = $folderPath . '/' . $uniqueFilename; 
-
-                    // Executa o Upload no MinIO
-                    $this->minioClient->putObject([
-                        'Bucket' => $this->bucketName,
-                        'Key' => $objectKey,
-                        'SourceFile' => $file->getTempName(), // Caminho temporário do arquivo recebido
-                        'ContentType' => $file->getClientMimeType(),
-                    ]);
-
-                    // Salva a CHAVE DO OBJETO no banco de dados
-                    $sourceFilenameDB = $objectKey; 
-
-                } catch (AwsException $e) {
-                    return $this->response->setJSON([
-                        'status' => 'error', 
-                        'mensagem' => 'Erro MinIO: Falha no upload. ' . $e->getAwsErrorMessage()
-                    ]);
-                } catch (\Exception $e) {
-                    return $this->response->setJSON([
-                        'status' => 'error', 
-                        'mensagem' => 'Erro interno de upload.'
-                    ]);
-                }
-            } elseif ($idSourceType == 'upload' && !$this->minioClient) {
-                // Erro se o cliente MinIO não foi inicializado (credenciais ausentes/inválidas)
-                return $this->response->setJSON([
-                    'status' => 'error', 
-                    'mensagem' => 'Erro de Configuração: Cliente MinIO não inicializado.'
-                ]);
-            }
-        } 
-        // Fim da Lógica de Upload
 
         try {
             if (!$sourceTypeID) {
@@ -413,21 +363,42 @@ class ConfigController extends BaseController
                     throw new \Exception('O arquivo de upload é obrigatório ou inválido.');
                 }
                 
-                // --- INÍCIO DA LÓGICA DE UPLOAD PARA MINIO (SUBSTITUA ESTE BLOCO) ---
-                
-                $dagId = $postData['dag_id'] ?? 'default_dag';
-                $bucket = 'raw';
-                
-                // Exemplo: Salvar com um nome único dentro de uma subpasta específica da DAG
-                $newName = $uploadedFile->getRandomName(); // CI gera um nome único
-                $targetMinioPath = "{$bucket}/{$dagId}/{$newName}";
-                
-                // SIMULAÇÃO: No ambiente de produção, você faria o upload aqui:
-                // $minioService->upload($uploadedFile->getTempName(), $targetMinioPath);
+                // --- INÍCIO DA LÓGICA DE UPLOAD PARA MINIO (implementação real) ---
 
-                // O valor salvo no banco de dados é o caminho MinIO (chave S3)
-                $sourceLocation = $targetMinioPath; 
-                
+                $dagId = $postData['dag_id'] ?? 'default_dag';
+                $bucket = $this->bucketName ?: 'lab01';
+
+                // Gera nome único para o arquivo no MinIO
+                $newName = $uploadedFile->getRandomName(); // CI gera um nome único
+                $targetMinioPath = "raw/{$dagId}/{$newName}";
+
+                // Realiza o upload usando o S3Client inicializado em __construct
+                if (!$this->minioClient) {
+                    throw new \Exception('Cliente MinIO não inicializado. Verifique configurações.');
+                }
+
+                try {
+                    $this->minioClient->putObject([
+                        'Bucket' => $bucket,
+                        'Key' => $targetMinioPath,
+                        'SourceFile' => $uploadedFile->getTempName(),
+                        'ContentType' => $uploadedFile->getClientMimeType(),
+                    ]);
+
+                    // Se o upload ocorreu, salve a chave no BD
+                    $sourceLocation = $targetMinioPath;
+                } catch (AwsException $e) {
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => 'Erro MinIO: Falha no upload. ' . $e->getAwsErrorMessage()
+                    ]);
+                } catch (\Exception $e) {
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => 'Erro interno de upload: ' . $e->getMessage()
+                    ]);
+                }
+
                 // --- FIM DA LÓGICA DE UPLOAD PARA MINIO ---
                 
             } else if (str_contains($sourceTypeDescription, 'parquet') || 
@@ -503,56 +474,7 @@ class ConfigController extends BaseController
         // O valor inicial (URI, PATH ou o valor que viria do file input)
         $sourceFilenameDB = $this->request->getPost('source_filename'); 
         
-        // 1. LÓGICA DE UPLOAD (Aplica-se APENAS se o tipo de source for 'upload' - CSV/JSON)
-        if ($idSourceType == 'upload') 
-        {
-            
-            // Pega o arquivo do request. O nome do input é 'source_filename'
-            $file = $this->request->getFile('source_filename'); 
-
-            if ($file && $file->isValid() && ! $file->hasMoved() && $this->minioClient) {
-                try {
-                    // Define o Caminho Destino (Key/Chave do Objeto)
-                    $fileExtension = $file->getClientExtension();
-                    
-                    // Gera nome único para o arquivo no MinIO (timestamp_uniqueID.ext)
-                    $uniqueFilename = time() . '_' . bin2hex(random_bytes(8)) . '.' . $fileExtension;
-                    
-                    // Exemplo: raw/ingestao_clientes/1762518482_idunico.csv
-                    $folderPath = 'raw/' . str_replace(' ', '_', $dagId); 
-                    $objectKey = $folderPath . '/' . $uniqueFilename; 
-
-                    // Executa o Upload no MinIO
-                    $this->minioClient->putObject([
-                        'Bucket' => $this->bucketName,
-                        'Key' => $objectKey,
-                        'SourceFile' => $file->getTempName(), // Caminho temporário do arquivo recebido
-                        'ContentType' => $file->getClientMimeType(),
-                    ]);
-
-                    // Salva a CHAVE DO OBJETO no banco de dados
-                    $sourceFilenameDB = $objectKey; 
-
-                } catch (AwsException $e) {
-                    return $this->response->setJSON([
-                        'status' => 'error', 
-                        'mensagem' => 'Erro MinIO: Falha no upload. ' . $e->getAwsErrorMessage()
-                    ]);
-                } catch (\Exception $e) {
-                    return $this->response->setJSON([
-                        'status' => 'error', 
-                        'mensagem' => 'Erro interno de upload.'
-                    ]);
-                }
-            } elseif ($idSourceType == 'upload' && !$this->minioClient) {
-                // Erro se o cliente MinIO não foi inicializado (credenciais ausentes/inválidas)
-                return $this->response->setJSON([
-                    'status' => 'error', 
-                    'mensagem' => 'Erro de Configuração: Cliente MinIO não inicializado.'
-                ]);
-            }
-        } 
-        // Fim da Lógica de Upload
+        // NOTE: upload handling is performed below after validation of source type
         
         // Busca o registro existente para ter o nome da DAG e o caminho original
         $existingConfig = $model->find($id);
@@ -600,12 +522,22 @@ class ConfigController extends BaseController
                     $newName = $uploadedFile->getRandomName();
                     $targetMinioPath = "{$bucket}/{$dagId}/{$newName}";
 
-                    // Faz o upload real do arquivo
-                    if ($uploadedFile->move(WRITEPATH . 'uploads/minio_temp', $newName)) {
-                        // O caminho salvo é o caminho MinIO
+                    // Faz o upload real do arquivo para MinIO
+                    if (!$this->minioClient) {
+                        throw new \Exception('Cliente MinIO não inicializado.');
+                    }
+
+                    try {
+                        $this->minioClient->putObject([
+                            'Bucket' => $this->bucketName ?: 'lab01',
+                            'Key' => $targetMinioPath,
+                            'SourceFile' => $uploadedFile->getTempName(),
+                            'ContentType' => $uploadedFile->getClientMimeType(),
+                        ]);
+
                         $sourceLocation = $targetMinioPath;
-                    } else {
-                        throw new \Exception('Erro ao mover o arquivo de upload.');
+                    } catch (AwsException $e) {
+                        throw new \Exception('Erro MinIO: ' . $e->getAwsErrorMessage());
                     }
                 } else {
                     // Cenário B: Não há novo upload, usa o caminho original.

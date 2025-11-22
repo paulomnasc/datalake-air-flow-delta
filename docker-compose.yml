@@ -110,6 +110,7 @@ services:
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts:/usr/local/bin/scripts:ro
     ports:
       - "8085:8080"
     command: airflow webserver
@@ -134,6 +135,7 @@ services:
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts:/usr/local/bin/scripts:ro
     command: airflow scheduler
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -172,6 +174,7 @@ services:
       AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
     volumes:
       - ./dags:/opt/airflow/dags
+      - ./scripts:/usr/local/bin/scripts:ro
     command: ["airflow", "celery", "worker"]
     networks:
       - airflow_net

@@ -164,12 +164,20 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     # 4. Criar Tarefas Operacionais Posteriores (BashOperator) - REINSTAURADAS
     
     # TAREFA DE VALIDAÇÃO: Verifica se o processo ETL/ELT produziu dados (ex: conta linhas)
+    # Build explicit key/bucket for MinIO validation when source is MinIO/CSV/JSON
+    target_name = task_config.get('target_table_name', 'data')
+    # Prefer source_filename if present (user can provide MinIO path); else use trusted/<target>.parquet
+    source_filename = task_config.get('source_filename')
+    if source_filename:
+        key_arg = source_filename
+    else:
+        key_arg = f"trusted/{target_name}.parquet"
+
     task_validation = BashOperator(
         task_id='validate_data_integrity',
         bash_command=f"""
-            echo 'Iniciando checagem de integridade para {task_config.get('target_table_name', 'data')}...'
-            # Simula a execução de um script de validação. O '|| exit 1' garante que a DAG falhe se o script falhar.
-            /usr/local/bin/scripts/run_validator.sh --table {task_config.get('target_table_name', 'data')} || exit 1
+            echo 'Iniciando checagem de integridade para {target_name}...'
+            /usr/local/bin/scripts/run_validator.sh --key "{key_arg}" --bucket lab01 || exit 1
         """,
         dag=dag,
     )

@@ -23,6 +23,8 @@ def get_args():
     p.add_argument("--table", required=True, help="Nome da tabela a validar")
     p.add_argument("--conn-id", default="mysql_dag_metadata", help="Airflow connection id to use (default: mysql_dag_metadata)")
     p.add_argument("--database", help="Optional: override database/schema name (if not provided, uses connection's default)")
+    p.add_argument("--key", help="Optional: MinIO/S3 key (object path) to check instead of MySQL table")
+    p.add_argument("--bucket", help="Optional: MinIO bucket name (defaults to env MINIO_BUCKET or 'lab01')")
     return p.parse_args()
 
 
@@ -164,6 +166,13 @@ def main():
     table = args.table
     conn_id = args.conn_id
     database_override = args.database
+    key = args.key
+    bucket = args.bucket
+
+    # If a MinIO key is provided, check MinIO first and exit accordingly
+    if key:
+        rc_key = check_minio_object(key, bucket)
+        sys.exit(rc_key)
 
     # 1) Try to use Airflow's MySqlHook (preferred; reuses Airflow connections)
     rc = validate_with_mysql_hook(table, conn_id, database_override)

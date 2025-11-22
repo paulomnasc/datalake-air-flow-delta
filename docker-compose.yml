@@ -191,6 +191,7 @@ services:
       - /var/www/html/vendor
     ports:
       - "8088:80"
+      - "9003:9003" # <--- Porta do XDebug
     environment:
       - CI_ENVIRONMENT=development
       # ... (demais variáveis de ambiente)

@@ -1,6 +1,6 @@
 # -----------------------------------------------------
 # Dockerfile.webapp (ou Dockerfile.codeigniter)
-# -----------------------------------------------------
+# -------------------------------------------------------
 
 # 1. IMAGEM BASE: PHP com Apache para servir o CodeIgniter
 FROM php:8.2-apache
@@ -22,55 +22,36 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install pdo_mysql gd intl opcache mysqli
 
 # 3. CONFIGURAÇÃO DO COMPOSER
-# Instala o Composer para gerenciar dependências PHP
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # 4. CONFIGURAÇÃO DO VIRTUAL HOST DO APACHE
-# O CI4 exige que o DocumentRoot do servidor aponte para a pasta 'public'.
-# Cria um arquivo de configuração Apache customizado:
 COPY ./.docker/000-default.conf /etc/apache2/sites-available/000-default.conf
 RUN a2enmod rewrite headers
 
-# COPIA o .htaccess sem SSL para um local seguro (não montado por volume)
 COPY ./.docker/htaccess-no-ssl /tmp/htaccess-no-ssl 
-
-# COPIA o novo entrypoint para a aplicação web
 COPY ./.docker/entrypoint-webapp.sh /entrypoint-webapp.sh
 
-# 🛑 2. ADIÇÃO: Executar dos2unix NO BUILD para corrigir a quebra de linha
 RUN dos2unix /entrypoint-webapp.sh
 RUN chmod +x /entrypoint-webapp.sh
 
 # 5. DIRETÓRIO DE TRABALHO
 WORKDIR /var/www/html
-# 5. Copiar código fonte (INCLUINDO o composer.json) para o diretório de trabalho
 COPY . /var/www/html
-# 6. PERMISSÕES E USUÁRIO (Opcional, mas boa prática)
 
-# ... (após todas as instalações, antes de ENTRYPOINT/CMD)
-
-# Substitua 1000 pelo UID e GID que você obteve (id -u / id -g)
+# 6. PERMISSÕES E USUÁRIO
 ARG HOST_UID=1000 
 ARG HOST_GID=1000
 
-# 1. Altera o GID (Group ID) do grupo www-data para o GID do seu host
 RUN groupmod -g ${HOST_GID} www-data
-
-# 2. Altera o UID (User ID) do usuário www-data para o UID do seu host
 RUN usermod -u ${HOST_UID} -g ${HOST_GID} www-data
-
-# 3. Garante que qualquer coisa que o sistema ainda pense que pertence ao UID antigo seja corrigida
 RUN chown -R www-data:www-data /var/www/html
 
-# ... (Linhas anteriores de COPY e WORKDIR)
-
-# 4. Ajustes finais de permissão
 RUN mkdir -p /var/www/html/writable && \
     chown -R www-data:www-data /var/www/html/writable
 
 RUN composer install --no-dev --optimize-autoloader
 
-# 1. Atualiza e instala ferramentas de build e o XDebug via extensão Docker PHP
+# 7. Instalar XDebug
 RUN apt-get update && \
     apt-get install -y \
     git \
@@ -81,11 +62,14 @@ RUN apt-get update && \
     && pecl install xdebug \
     && docker-php-ext-enable xdebug
 
-# 2. Configuração do XDebug
+# 8. Configuração do XDebug
 RUN echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
     echo "xdebug.start_with_request=yes" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
     echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
-    echo "xdebug.client_port=9003" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+    echo "xdebug.client_port=9004" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.log=/tmp/xdebug.log" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.log_level=7" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.idekey=vscode" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
 
 # A porta padrão do Apache é 80
 EXPOSE 80
@@ -93,6 +77,5 @@ EXPOSE 80
 ENTRYPOINT ["/entrypoint-webapp.sh"]
 CMD ["apache2-foreground"]
 
-
-# 🛑 3. ADIÇÃO: Coloque USER www-data aqui, DEPOIS do ENTRYPOINT e CMD
+# 9. Usuário www-data
 USER www-data

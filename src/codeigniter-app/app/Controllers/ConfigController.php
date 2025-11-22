@@ -328,6 +328,9 @@ class ConfigController extends BaseController
         $sourceTypeID = (int)($postData['id_source_type'] ?? 0); 
         $pastaID = (int)($postData['id_pasta'] ?? 0); 
 
+        // Valor original do formulário (usado para comparações com strings, ex: 'upload')
+        $idSourceType = $postData['id_source_type'] ?? null;
+
 
         // O valor inicial (URI, PATH ou o valor que viria do file input)
         $sourceFilenameDB = $this->request->getPost('source_filename'); 

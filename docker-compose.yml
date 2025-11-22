@@ -21,6 +21,9 @@ services:
       - ./spark-apps:/opt/spark-apps
     #   - ./jars:/opt/spark/jars
     #   - ./data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
     networks:
       - airflow_net
 
@@ -36,6 +39,9 @@ services:
       - SPARK_OPTS=--packages io.delta:delta-core_2.12:2.4.0,org.apache.hadoop:hadoop-aws:3.3.2
     ports:
       - "8081:8081"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
     networks:
       - airflow_net
 
@@ -50,6 +56,9 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
     networks:
       - airflow_net
 
@@ -67,6 +76,9 @@ services:
       - ./mysql-init:/docker-entrypoint-initdb.d 
       # Volume de dados para persistir o DB (crucial para o initdb.d rodar apenas na primeira vez)
       - mysql_data:/var/lib/mysql
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
     networks:
       - airflow_net
 
@@ -90,6 +102,9 @@ services:
       - "8085:8080"
     command: airflow webserver
     user: root
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
     networks:
       - airflow_net
 
@@ -108,6 +123,9 @@ services:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
     command: airflow scheduler
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
     networks:
       - airflow_net
 
@@ -122,6 +140,9 @@ services:
       - "9001:9001"
     volumes:
       - /var/oled/minio_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
     networks:
       - airflow_net
 
@@ -166,6 +187,9 @@ services:
     volumes:
       # Monta o conf para o Spark
       - ./spark-conf:/opt/spark/conf
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
     networks:
       - airflow_net
 
@@ -195,6 +219,9 @@ services:
     environment:
       - CI_ENVIRONMENT=development
       # ... (demais variáveis de ambiente)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
     networks:
       - airflow_net
     # Não precisa de 'command' se estiver usando imagem base PHP-Apache

@@ -53,5 +53,8 @@
     },
 
     // Configuração de Log (opcional, no nível raiz)
-    "deploy.logLevel": "info"
+    "deploy.logLevel": "info",
+
+    "php.debug.debugServerPort": 9004,
+    "php.debug.ideKey": "vscode"
 }

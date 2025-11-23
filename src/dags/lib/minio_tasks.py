@@ -48,12 +48,36 @@ def transform_data_with_pandas(
         # Download source object to temp directory
         local_file = hook.download_file(key=src_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
 
-        # (Aqui poderia entrar processamento com pandas)
+        # TRANSFORMAÇÃO PARA CAMADA SILVER: Processamento com Pandas
+        import pandas as pd
+        
+        log.info("Lendo arquivo CSV: %s", local_file)
+        df = pd.read_csv(local_file)
+        
+        log.info("Dados originais: %d linhas, %d colunas", len(df), len(df.columns))
+        
+        # Limpeza básica de dados
+        df = df.dropna(how='all')  # Remove linhas totalmente vazias
+        df = df.drop_duplicates()  # Remove duplicatas
+        
+        log.info("Após limpeza: %d linhas", len(df))
+        
+        # Salvar como Parquet na camada Silver
+        basename_no_ext = os.path.splitext(basename)[0]
+        silver_key = f"silver/{target_table_name}/{basename_no_ext}.parquet"
+        silver_local = os.path.join(tmpdir, f"{basename_no_ext}.parquet")
+        
+        df.to_parquet(silver_local, index=False, compression='snappy')
+        log.info("Arquivo Parquet criado localmente: %s", silver_local)
 
-        # Upload result to destination key (replace if exists)
+        # Upload result to Silver layer (replace if exists)
+        hook.load_file(filename=silver_local, key=silver_key, bucket_name=bucket, replace=True)
+
+        log.info("Uploaded result to s3://%s/%s", bucket, silver_key)
+        
+        # Também mantém cópia em processed/raw (Bronze) para auditoria
         hook.load_file(filename=local_file, key=dest_key, bucket_name=bucket, replace=True)
-
-        log.info("Uploaded result to s3://%s/%s", bucket, dest_key)
+        log.info("Bronze copy saved to s3://%s/%s", bucket, dest_key)
     finally:
         if tmpdir is not None and os.path.exists(tmpdir):
             import shutil

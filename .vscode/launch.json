@@ -10,6 +10,28 @@
             "pathMappings": {
                 "/var/www/html": "${workspaceRoot}/src/codeigniter-app"
             }
+        },
+        {
+            "name": "Python: Remote Attach (Airflow Scheduler)",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}/src/dags",
+                    "remoteRoot": "/opt/airflow/dags"
+                },
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "/opt/airflow"
+                }
+            ],
+            "justMyCode": false,
+            "showReturnValue": true,
+            "redirectOutput": true
         }
     ]
 }

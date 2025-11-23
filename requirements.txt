@@ -8,3 +8,4 @@ wtforms
 dag-factory
 pyyaml
 PyMySQL
+debugpy

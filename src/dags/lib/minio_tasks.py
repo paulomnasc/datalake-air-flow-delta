@@ -41,25 +41,24 @@ def transform_data_with_pandas(
     log.info("Copying from s3://%s/%s to s3://%s/%s", bucket, src_key, bucket, dest_key)
 
     # Use temp file to download + re-upload (avoids keeping objects in memory)
-    tmp = None
+    tmpdir = None
     try:
-        tmp = tempfile.NamedTemporaryFile(delete=False)
-        tmp.close()
-
-        # Download source object to temp file
-        # Use positional args to match S3Hook signature across provider versions
-        hook.download_file(src_key, bucket, tmp.name)
+        tmpdir = tempfile.mkdtemp()
+        
+        # Download source object to temp directory
+        local_file = hook.download_file(key=src_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
 
         # (Aqui poderia entrar processamento com pandas)
 
         # Upload result to destination key (replace if exists)
-        hook.load_file(tmp.name, dest_key, bucket, replace=True)
+        hook.load_file(filename=local_file, key=dest_key, bucket_name=bucket, replace=True)
 
         log.info("Uploaded result to s3://%s/%s", bucket, dest_key)
     finally:
-        if tmp is not None and os.path.exists(tmp.name):
+        if tmpdir is not None and os.path.exists(tmpdir):
+            import shutil
             try:
-                os.unlink(tmp.name)
+                shutil.rmtree(tmpdir)
             except Exception:
                 pass
 

@@ -1,9 +1,14 @@
 {
     // Configurações do Python
     "python.analysis.diagnosticSeverityOverrides": {
-        "reportMissingImports": "none"
+        "reportMissingImports": "none",
+        "reportMissingModuleSource": "none"
     },
     "python.defaultInterpreterPath": "python3",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/src/dags",
+        "${workspaceFolder}/scripts"
+    ],
 
     // =========================================================================
     // CONFIGURAÇÃO CORRETA DO DEPLOY RELOADED

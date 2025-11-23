@@ -79,10 +79,15 @@ def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
     ORDER BY id;
     """
     
-    log.info("DEBUG: Executando query corrigida no MySQL...")
+    log.info("DEBUG: Executando query no MySQL para buscar configurações ativas...")
+    log.debug(f"DEBUG: Query SQL:\n{sql_query}")
     
     hook = MySqlHook(mysql_conn_id=mysql_conn_id)
     records = hook.get_records(sql=sql_query)
+    
+    log.info(f"DEBUG: Retornadas {len(records)} configurações do MySQL")
+    for idx, rec in enumerate(records):
+        log.debug(f"DEBUG: Registro {idx}: {rec}")
     
     return records
 
@@ -100,6 +105,10 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     dag_metadata = dag_config['dag_metadata']
     task_config = dag_config['task_config']
     
+    log.info(f"DEBUG: Criando DAG '{dag_id}'")
+    log.debug(f"DEBUG: dag_metadata = {dag_metadata}")
+    log.debug(f"DEBUG: task_config = {task_config}")
+    
     # 1. Preparar Argumentos da DAG e Start Date
     dag_args = DEFAULT_ARGS.copy()
     
@@ -110,9 +119,11 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         # Converte datetime.date para datetime.datetime (hora 00:00:00)
         # Nota: Airflow prefere datetime com timezone (tz), mas datetime.combine funciona para o propósito.
         effective_start_date = datetime.combine(start_date_db, datetime.min.time())
+        log.debug(f"DEBUG: start_date do DB convertido: {effective_start_date}")
     else:
         # Usa o start_date padrão (days_ago(1)) se o DB retornar None
         effective_start_date = DEFAULT_ARGS['start_date']
+        log.debug(f"DEBUG: start_date do DB é None, usando padrão: {effective_start_date}")
         
     dag_args['owner'] = dag_metadata.get('owner') or DEFAULT_ARGS['owner']
     
@@ -151,109 +162,115 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         except (ImportError, AttributeError, ValueError) as e:
             raise AirflowException(f"❌ Erro ao importar callable '{python_module_path}' para a DAG {dag_id}: {e}")
 
+        op_kwargs_dict = {
+            'source_filename': task_config.get('source_filename'),
+            'target_table_name': task_config.get('target_table_name'),
+            **transform_args
+        }
+        
+        task_id_name = f"etl_process_for_{task_config.get('target_table_name', 'data')}"
+        log.debug(f"DEBUG: Criando PythonOperator '{task_id_name}' com op_kwargs: {op_kwargs_dict}")
+        
         task_etl = PythonOperator(
-            task_id=f"etl_process_for_{task_config.get('target_table_name', 'data')}",
+            task_id=task_id_name,
             python_callable=callable_function,
-            op_kwargs={
-                'source_filename': task_config.get('source_filename'),
-                'target_table_name': task_config.get('target_table_name'),
-                **transform_args
-            },
+            op_kwargs=op_kwargs_dict,
             dag=dag,
         )
     
     # 4. Criar Tarefas Operacionais Posteriores (BashOperator) - REINSTAURADAS
     
     # TAREFA DE VALIDAÇÃO: Branching de acordo com existência do artefato (MinIO) ou tabela (MySQL)
-    target_name = task_config.get('target_table_name', 'data')
-    source_filename = task_config.get('source_filename')
+    # target_name = task_config.get('target_table_name', 'data')
+    # source_filename = task_config.get('source_filename')
 
-    def validate_and_branch(**context):
-        """Tenta múltiplos candidatos em MinIO e, em fallback, verifica tabela no MySQL.
-        Retorna o task_id de destino: 'cleanup_and_notify' em sucesso ou 'handle_validation_failed' em falha.
-        """
-        import os
-        try:
-            from airflow.providers.amazon.aws.hooks.s3 import S3Hook
-        except Exception:
-            S3Hook = None
+    # def validate_and_branch(**context):
+    #     """Tenta múltiplos candidatos em MinIO e, em fallback, verifica tabela no MySQL.
+    #     Retorna o task_id de destino: 'cleanup_and_notify' em sucesso ou 'handle_validation_failed' em falha.
+    #     """
+    #     import os
+    #     try:
+    #         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+    #     except Exception:
+    #         S3Hook = None
 
-        bucket = os.environ.get('MINIO_BUCKET', 'lab01')
+    # bucket = os.environ.get('MINIO_BUCKET', 'lab01')
 
-        candidates = []
-        if source_filename:
-            candidates.append(source_filename.lstrip('/'))
-            candidates.append(os.path.basename(source_filename))
+    #     candidates = []
+    #     if source_filename:
+    #         candidates.append(source_filename.lstrip('/'))
+    #         candidates.append(os.path.basename(source_filename))
 
-        candidates += [
-            f"processed/raw/{target_name}/{os.path.basename(source_filename) if source_filename else target_name}",
-            f"processed/raw/{target_name}/{target_name}.parquet",
-            f"trusted/{target_name}.parquet",
-            f"{target_name}",
-            f"{target_name}.csv",
-            f"{target_name}.parquet",
-        ]
+    #     candidates += [
+    #         f"processed/raw/{target_name}/{os.path.basename(source_filename) if source_filename else target_name}",
+    #         f"processed/raw/{target_name}/{target_name}.parquet",
+    #         f"trusted/{target_name}.parquet",
+    #         f"{target_name}",
+    #         f"{target_name}.csv",
+    #         f"{target_name}.parquet",
+    #     ]
 
         # Deduplicate preserving order
-        seen = set()
-        candidates = [c for c in candidates if c and not (c in seen or seen.add(c))]
+    #     seen = set()
+    #     candidates = [c for c in candidates if c and not (c in seen or seen.add(c))]
 
         # Try S3/MinIO
-        if S3Hook:
-            hook = S3Hook(aws_conn_id='minio_conn')
-            for key in candidates:
-                try:
-                    if hook.check_for_key(key, bucket_name=bucket):
-                        return 'cleanup_and_notify'
-                except Exception:
-                    continue
+    #     if S3Hook:
+    #         hook = S3Hook(aws_conn_id='minio_conn')
+    #         for key in candidates:
+    #             try:
+    #                 if hook.check_for_key(key, bucket_name=bucket):
+    #                     return 'cleanup_and_notify'
+    #             except Exception:
+    #                 continue
 
         # Fallback: check MySQL table existence
-        try:
-            from airflow.providers.mysql.hooks.mysql import MySqlHook
-            sql = "SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=%s LIMIT 1"
-            hook = MySqlHook(mysql_conn_id=MYSQL_CONN_ID)
-            try:
-                records = hook.get_records(sql=sql, parameters=(target_name,))
-                if records and len(records) > 0:
-                    return 'cleanup_and_notify'
-            except Exception:
-                pass
-        except Exception:
-            pass
+    #     try:
+    #         from airflow.providers.mysql.hooks.mysql import MySqlHook
+    #         sql = "SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=%s LIMIT 1"
+    #         hook = MySqlHook(mysql_conn_id=MYSQL_CONN_ID)
+    #         try:
+    #             records = hook.get_records(sql=sql, parameters=(target_name,))
+    #             if records and len(records) > 0:
+    #                 return 'cleanup_and_notify'
+    #         except Exception:
+    #             pass
+    #     except Exception:
+    #         pass
 
-        return 'handle_validation_failed'
+    #     return 'handle_validation_failed'
 
-    task_validation = BranchPythonOperator(
-        task_id='validate_data_integrity',
-        python_callable=validate_and_branch,
-        provide_context=True,
-        dag=dag,
-    )
+    # TAREFA DE VALIDAÇÃO: BranchPythonOperator #
+    # task_validation = BranchPythonOperator(
+    #     task_id='validate_data_integrity',
+    #     python_callable=validate_and_branch,
+    #     provide_context=True,
+    #     dag=dag,
+    # )
 
     # TAREFAS DE FINALIZAÇÃO: caminhos separados para sucesso e falha (permite tratamento distinto)
-    task_cleanup_notify = BashOperator(
-        task_id='cleanup_and_notify',
-        bash_command=f"""
-            echo 'Processo ETL para DAG {dag_id} concluído com sucesso. Limpeza e Notificação.'
-            /usr/local/bin/scripts/send_notification.sh --status success --dag {dag_id}
-        """,
-        dag=dag,
-    )
+    # task_cleanup_notify = BashOperator(
+    #     task_id='cleanup_and_notify',
+    #     bash_command=f"""
+    #         echo 'Processo ETL para DAG {dag_id} concluído com sucesso. Limpeza e Notificação.'
+    #         /usr/local/bin/scripts/send_notification.sh --status success --dag {dag_id}
+    #     """,
+    #     dag=dag,
+    # )
 
-    task_handle_validation_failed = BashOperator(
-        task_id='handle_validation_failed',
-        bash_command=f"""
-            echo 'Validação falhou para DAG {dag_id}. Executando rotina de falha.'
-            /usr/local/bin/scripts/send_notification.sh --status failed --dag {dag_id}
-        """,
-        dag=dag,
-    )
+    # task_handle_validation_failed = BashOperator(
+    #    task_id='handle_validation_failed',
+    #     bash_command=f"""
+    #         echo 'Validação falhou para DAG {dag_id}. Executando rotina de falha.'
+    #         /usr/local/bin/scripts/send_notification.sh --status failed --dag {dag_id}
+    #     """,
+    #     dag=dag,
+    # )
 
     # 5. Definir a Sequência de Tarefas (ETL >> Validação >> (success|failure))
-    task_etl >> task_validation
-    task_validation >> task_cleanup_notify
-    task_validation >> task_handle_validation_failed
+    # task_etl >> task_validation
+    # task_validation >> task_cleanup_notify
+    # task_validation >> task_handle_validation_failed
     
     return dag
 
@@ -274,6 +291,9 @@ try:
             # Desempacotamento de 10 variáveis (corrigido)
             id, dag_id_value, schedule_interval, owner, description, source_filename, \
             target_table_name, python_module_path, transform_args, start_date_db = record
+            
+            log.debug(f"DEBUG: Processando registro ID={id}, dag_id={dag_id_value}")
+            log.debug(f"DEBUG: source_filename='{source_filename}', target_table='{target_table_name}', python_module='{python_module_path}'")
             
             # 1. Constrói o nome da DAG
             config_name = f"{dag_id_value.strip()}{id}"

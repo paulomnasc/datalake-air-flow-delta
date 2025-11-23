@@ -59,12 +59,16 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         original_count = len(df)
         log.info("[SILVER] Dados originais: %d linhas, %d colunas", original_count, len(df.columns))
         
-        # Limpeza
+        # Limpeza básica
         df = df.dropna(how='all')
         df = df.drop_duplicates()
         cleaned_count = len(df)
-        log.info("[SILVER] Limpeza: %d linhas removidas (%d → %d)", 
+        log.info("[SILVER] Limpeza básica: %d linhas removidas (%d → %d)", 
                  original_count - cleaned_count, original_count, cleaned_count)
+        
+        # Aplicar inteligência automática de dados
+        from lib.silver_layer import _apply_smart_transformations
+        df = _apply_smart_transformations(df)
         
         # Salvar Parquet Silver
         silver_local = os.path.join(tmpdir, f"{basename_no_ext}_silver.parquet")
@@ -78,9 +82,11 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         # ==================== CAMADA GOLD ====================
         log.info("[GOLD] Processando: s3://%s/%s → s3://%s/%s", bucket, silver_key, bucket, gold_key)
         
-        # Aqui você pode adicionar agregações específicas
-        # Por enquanto, apenas otimiza o Parquet
-        log.info("[GOLD] Aplicando otimizações...")
+        # Aplicar inteligência analítica automática
+        from lib.gold_layer import _apply_analytical_intelligence
+        df = _apply_analytical_intelligence(df)
+        
+        log.info("[GOLD] Aplicando otimizações finais...")
         
         gold_local = os.path.join(tmpdir, f"{basename_no_ext}_gold.parquet")
         df.to_parquet(gold_local, index=False, compression='snappy', engine='pyarrow')

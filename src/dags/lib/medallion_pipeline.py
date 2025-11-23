@@ -79,21 +79,40 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         results['silver'] = silver_key
         results['rows'] = cleaned_count
         
-        # ==================== CAMADA GOLD ====================
-        log.info("[GOLD] Processando: s3://%s/%s → s3://%s/%s", bucket, silver_key, bucket, gold_key)
+        # ==================== CAMADA GOLD (DELTA LAKE) ====================
+        log.info("[GOLD] Processando: s3://%s/%s → Delta Lake", bucket, silver_key)
         
-        # Aplicar inteligência analítica automática
-        from lib.gold_layer import _apply_analytical_intelligence
-        df = _apply_analytical_intelligence(df)
-        
-        log.info("[GOLD] Aplicando otimizações finais...")
-        
-        gold_local = os.path.join(tmpdir, f"{basename_no_ext}_gold.parquet")
-        df.to_parquet(gold_local, index=False, compression='snappy', engine='pyarrow')
-        
-        hook.load_file(filename=gold_local, key=gold_key, bucket_name=bucket, replace=True)
-        log.info("[GOLD] ✅ Salvo em: s3://%s/%s", bucket, gold_key)
-        results['gold'] = gold_key
+        # Usar Delta Lake ao invés de Parquet simples
+        try:
+            from lib.gold_delta_layer import silver_to_gold_delta
+            
+            gold_result = silver_to_gold_delta(
+                source_filename=silver_key,
+                target_table_name=target_table_name
+            )
+            
+            results['gold_delta'] = gold_result.get('gold_delta')
+            results['gold_format'] = 'delta'
+            results['gold_version'] = gold_result.get('version', 0)
+            log.info("[GOLD] ✅ Delta Lake salvo em: %s (versão %s)", 
+                    gold_result.get('gold_delta'), gold_result.get('version', 0))
+            
+        except ImportError as e:
+            # Fallback para Parquet se Delta Lake não disponível
+            log.warning("[GOLD] Delta Lake não disponível, usando Parquet: %s", e)
+            
+            from lib.gold_layer import _apply_analytical_intelligence
+            df = _apply_analytical_intelligence(df, target_table_name)
+            
+            log.info("[GOLD] Aplicando otimizações finais...")
+            
+            gold_local = os.path.join(tmpdir, f"{basename_no_ext}_gold.parquet")
+            df.to_parquet(gold_local, index=False, compression='snappy', engine='pyarrow')
+            
+            hook.load_file(filename=gold_local, key=gold_key, bucket_name=bucket, replace=True)
+            log.info("[GOLD] ✅ Salvo em: s3://%s/%s", bucket, gold_key)
+            results['gold'] = gold_key
+            results['gold_format'] = 'parquet'
         
     finally:
         if tmpdir is not None and os.path.exists(tmpdir):

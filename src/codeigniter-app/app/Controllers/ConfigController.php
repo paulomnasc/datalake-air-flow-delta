@@ -511,16 +511,16 @@ class ConfigController extends BaseController
             // 2. Lógica Condicional de Upload/Caminho (usando a descrição textual)
             $fileRequired = str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json');
             
-            $uploadedFile = $this->request->getFile('source_file_upload');
+            $uploadedFile = $this->request->getFile('source_filename');
 
             if ($fileRequired) {
                 if ($uploadedFile && $uploadedFile->isValid() && !$uploadedFile->hasMoved()) {
                     // Cenário A: Novo arquivo enviado e válido (Fazendo upload)
                     $dagId = $existingConfig->dag_id; // Mantém o DAG ID original para o caminho
-                    $bucket = 'raw';
+                    $bucket = $this->bucketName ?: 'lab01';
 
                     $newName = $uploadedFile->getRandomName();
-                    $targetMinioPath = "{$bucket}/{$dagId}/{$newName}";
+                    $targetMinioPath = "raw/{$dagId}/{$newName}";
 
                     // Faz o upload real do arquivo para MinIO
                     if (!$this->minioClient) {
@@ -529,7 +529,7 @@ class ConfigController extends BaseController
 
                     try {
                         $this->minioClient->putObject([
-                            'Bucket' => $this->bucketName ?: 'lab01',
+                            'Bucket' => $bucket,
                             'Key' => $targetMinioPath,
                             'SourceFile' => $uploadedFile->getTempName(),
                             'ContentType' => $uploadedFile->getClientMimeType(),

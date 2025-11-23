@@ -163,10 +163,36 @@ require VIEWPATH . '/header.php';
                 <legend>Lógica de Transformação</legend>
                 <div class="form-group">
                     <label for="python_module_path">Função Python de Transformação:</label>
-                    <input type="text" name="python_module_path" id="python_module_path" 
-                        placeholder="Ex: lib.minio_tasks.transform_data_with_pandas" maxlength="255" required 
-                        value="<?php echo $python_module_path ?>">
-                    <small>Caminho completo do módulo e função a ser executada pelo PythonOperator.</small>
+                    <select name="python_module_path" id="python_module_path" required>
+                        <option value="">-- Selecione o tipo de pipeline --</option>
+                        <optgroup label="⭐ Recomendado">
+                            <option value="lib.medallion_pipeline.raw_to_medallion" 
+                                <?php echo ($python_module_path === 'lib.medallion_pipeline.raw_to_medallion') ? 'selected' : ''; ?>>
+                                Pipeline Completo (Bronze + Silver + Gold)
+                            </option>
+                        </optgroup>
+                        <optgroup label="Camadas Individuais">
+                            <option value="lib.bronze_layer.raw_to_bronze"
+                                <?php echo ($python_module_path === 'lib.bronze_layer.raw_to_bronze') ? 'selected' : ''; ?>>
+                                Bronze (Raw → Bronze CSV)
+                            </option>
+                            <option value="lib.silver_layer.bronze_to_silver"
+                                <?php echo ($python_module_path === 'lib.silver_layer.bronze_to_silver') ? 'selected' : ''; ?>>
+                                Silver (Bronze → Silver Parquet)
+                            </option>
+                            <option value="lib.gold_layer.silver_to_gold"
+                                <?php echo ($python_module_path === 'lib.gold_layer.silver_to_gold') ? 'selected' : ''; ?>>
+                                Gold (Silver → Gold Parquet Otimizado)
+                            </option>
+                        </optgroup>
+                        <optgroup label="Legado">
+                            <option value="lib.minio_tasks.transform_data_with_pandas"
+                                <?php echo ($python_module_path === 'lib.minio_tasks.transform_data_with_pandas') ? 'selected' : ''; ?>>
+                                ⚠️ Função Legada (não recomendado)
+                            </option>
+                        </optgroup>
+                    </select>
+                    <small>Escolha o tipo de processamento: Pipeline Completo (recomendado) ou camadas individuais para máximo controle.</small>
                 </div>
                 
                     <div class="form-group">

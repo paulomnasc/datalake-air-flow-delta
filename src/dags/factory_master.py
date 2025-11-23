@@ -178,75 +178,43 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
             dag=dag,
         )
     
-    # 4. Criar Tarefas Operacionais Posteriores (BashOperator) - REINSTAURADAS
+    # 4. Criar Tarefa de Validação
     
-    # TAREFA DE VALIDAÇÃO: Branching de acordo com existência do artefato (MinIO) ou tabela (MySQL)
-    # target_name = task_config.get('target_table_name', 'data')
-    # source_filename = task_config.get('source_filename')
+    target_name = task_config.get('target_table_name', 'data')
+    source_filename = task_config.get('source_filename')
 
-    # def validate_and_branch(**context):
-    #     """Tenta múltiplos candidatos em MinIO e, em fallback, verifica tabela no MySQL.
-    #     Retorna o task_id de destino: 'cleanup_and_notify' em sucesso ou 'handle_validation_failed' em falha.
-    #     """
-    #     import os
-    #     try:
-    #         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
-    #     except Exception:
-    #         S3Hook = None
+    def validate_processed_file(**context):
+        """Valida se o arquivo Silver (Parquet) existe no MinIO."""
+        import os
+        from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+        
+        bucket = os.environ.get('MINIO_BUCKET', 'lab01')
+        hook = S3Hook(aws_conn_id='minio_conn')
+        
+        # Chave esperada do arquivo Silver (Parquet)
+        basename = os.path.basename(source_filename) if source_filename else f"{target_name}.csv"
+        basename_no_ext = os.path.splitext(basename)[0]
+        silver_key = f"silver/{target_name}/{basename_no_ext}.parquet"
+        
+        log.info(f"Validando existência de: s3://{bucket}/{silver_key}")
+        
+        try:
+            if hook.check_for_key(silver_key, bucket_name=bucket):
+                log.info(f"✅ Arquivo Silver encontrado: {silver_key}")
+                return True
+            else:
+                log.warning(f"❌ Arquivo Silver não encontrado: {silver_key}")
+                return False
+        except Exception as e:
+            log.error(f"❌ Erro ao validar arquivo: {e}")
+            raise
 
-    # bucket = os.environ.get('MINIO_BUCKET', 'lab01')
-
-    #     candidates = []
-    #     if source_filename:
-    #         candidates.append(source_filename.lstrip('/'))
-    #         candidates.append(os.path.basename(source_filename))
-
-    #     candidates += [
-    #         f"processed/raw/{target_name}/{os.path.basename(source_filename) if source_filename else target_name}",
-    #         f"processed/raw/{target_name}/{target_name}.parquet",
-    #         f"trusted/{target_name}.parquet",
-    #         f"{target_name}",
-    #         f"{target_name}.csv",
-    #         f"{target_name}.parquet",
-    #     ]
-
-        # Deduplicate preserving order
-    #     seen = set()
-    #     candidates = [c for c in candidates if c and not (c in seen or seen.add(c))]
-
-        # Try S3/MinIO
-    #     if S3Hook:
-    #         hook = S3Hook(aws_conn_id='minio_conn')
-    #         for key in candidates:
-    #             try:
-    #                 if hook.check_for_key(key, bucket_name=bucket):
-    #                     return 'cleanup_and_notify'
-    #             except Exception:
-    #                 continue
-
-        # Fallback: check MySQL table existence
-    #     try:
-    #         from airflow.providers.mysql.hooks.mysql import MySqlHook
-    #         sql = "SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=%s LIMIT 1"
-    #         hook = MySqlHook(mysql_conn_id=MYSQL_CONN_ID)
-    #         try:
-    #             records = hook.get_records(sql=sql, parameters=(target_name,))
-    #             if records and len(records) > 0:
-    #                 return 'cleanup_and_notify'
-    #         except Exception:
-    #             pass
-    #     except Exception:
-    #         pass
-
-    #     return 'handle_validation_failed'
-
-    # TAREFA DE VALIDAÇÃO: BranchPythonOperator #
-    # task_validation = BranchPythonOperator(
-    #     task_id='validate_data_integrity',
-    #     python_callable=validate_and_branch,
-    #     provide_context=True,
-    #     dag=dag,
-    # )
+    task_validation = PythonOperator(
+        task_id='validate_data_integrity',
+        python_callable=validate_processed_file,
+        provide_context=True,
+        dag=dag,
+    )
 
     # TAREFAS DE FINALIZAÇÃO: caminhos separados para sucesso e falha (permite tratamento distinto)
     # task_cleanup_notify = BashOperator(
@@ -268,7 +236,7 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     # )
 
     # 5. Definir a Sequência de Tarefas (ETL >> Validação >> (success|failure))
-    # task_etl >> task_validation
+    task_etl >> task_validation
     # task_validation >> task_cleanup_notify
     # task_validation >> task_handle_validation_failed
     

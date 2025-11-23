@@ -224,6 +224,14 @@ require VIEWPATH . '/header.php';
                                 Pipeline Completo (Bronze + Silver + Gold)
                             </option>
                         </optgroup>
+                        <optgroup label="Ingestão de Fontes">
+                            <option value="lib.mysql_ingestion.mysql_to_medallion">
+                                MySQL → Medallion (Ingestão + Bronze + Silver + Gold)
+                            </option>
+                            <option value="lib.mysql_ingestion.ingest_mysql_to_raw">
+                                MySQL → Raw (Apenas ingestão para CSV)
+                            </option>
+                        </optgroup>
                         <optgroup label="Camadas Individuais">
                             <option value="lib.bronze_layer.raw_to_bronze">
                                 Bronze (Raw → Bronze CSV)
@@ -241,7 +249,7 @@ require VIEWPATH . '/header.php';
                             </option>
                         </optgroup>
                     </select>
-                    <small>Escolha o tipo de processamento: Pipeline Completo (recomendado) ou camadas individuais para máximo controle.</small>
+                    <small>Escolha o tipo de processamento: Pipeline Completo (recomendado), Ingestão de fontes (MySQL, etc) ou camadas individuais.</small>
                 </div>
                 
                 <div class="form-group">

@@ -404,6 +404,7 @@ class ConfigController extends BaseController
             } else if (str_contains($sourceTypeDescription, 'parquet') || 
                        str_contains($sourceTypeDescription, 'database') || 
                        str_contains($sourceTypeDescription, 'postgresql') || 
+                       str_contains($sourceTypeDescription, 'mysql') || 
                        str_contains($sourceTypeDescription, 'api')) {
                 
                 // Se não é upload, o valor de texto (URI/Caminho) já está no $_POST['source_filename']

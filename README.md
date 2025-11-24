@@ -1,12 +1,30 @@
-# 🚀 Solução Híbrida: Apache Airflow + PostgreSQL + MinIO
+# 🚀 Solução Híbrida: Apache Airflow + PostgreSQL + MinIO + Delta Lake
 
 Este projeto integra três componentes principais para orquestração de dados e armazenamento:
 
 - **Apache Airflow**: Orquestração de workflows
 - **PostgreSQL**: Banco de dados relacional para metadados do Airflow
 - **MinIO**: Armazenamento de objetos compatível com S3
+- **Delta Lake**: Camada ACID sobre Data Lake com versionamento e time travel
 
 A base foi clonada do repositório do Adriano e adaptada para incluir os três serviços integrados. Os artefatos de código (DAGs, scripts, configurações) estão versionados neste repositório.
+
+## 📚 Documentação Completa
+
+Para entender a arquitetura Medallion (Bronze → Silver → Gold) e todas as transformações aplicadas, consulte o **[Índice de Documentação](DOCS_INDEX.md)**.
+
+### Documentação por Camada
+
+- **[Transformações Silver](TRANSFORMACOES_SILVER.md)**: Data Quality, validações, dicionário de dados
+- **[Delta Lake & Gold](DELTA_LAKE_IMPLEMENTATION.md)**: Feature Engineering, Delta Lake, ML/BI integration
+
+### Navegação Rápida por Caso de Uso
+
+- **Machine Learning**: [Feature Engineering Guide](DELTA_LAKE_IMPLEMENTATION.md#-dicionário-de-dados---camada-gold-delta-lake)
+- **Análise Temporal**: [Temporal Features](DELTA_LAKE_IMPLEMENTATION.md#5-features-temporais-date-columns)
+- **Qualidade de Dados**: [Data Quality Dictionary](TRANSFORMACOES_SILVER.md#-dicionário-de-dados---camadas-silver)
+- **Segmentação**: [Categorical Features](DELTA_LAKE_IMPLEMENTATION.md#4-features-categóricas-categorical-columns)
+- **Detecção de Outliers**: [Statistical Features](DELTA_LAKE_IMPLEMENTATION.md#3-features-numéricas-numeric-columns)
 
 ---
 

@@ -85,6 +85,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         # Usar Delta Lake ao invés de Parquet simples
         try:
             from lib.gold_delta_layer import silver_to_gold_delta
+            log.info("[GOLD] Importação gold_delta_layer OK, chamando silver_to_gold_delta...")
             
             gold_result = silver_to_gold_delta(
                 source_filename=silver_key,
@@ -97,22 +98,28 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             log.info("[GOLD] ✅ Delta Lake salvo em: %s (versão %s)", 
                     gold_result.get('gold_delta'), gold_result.get('version', 0))
             
-        except ImportError as e:
-            # Fallback para Parquet se Delta Lake não disponível
-            log.warning("[GOLD] Delta Lake não disponível, usando Parquet: %s", e)
+        except Exception as e:
+            # Fallback para Parquet se Delta Lake falhou
+            log.warning("[GOLD] ⚠️  Delta Lake falhou (%s: %s), usando fallback Parquet", 
+                       type(e).__name__, str(e))
+            
+            # Recarregar DataFrame do Silver para fallback
+            log.info("[GOLD] Recarregando Silver para fallback Parquet...")
+            silver_local_fallback = hook.download_file(key=silver_key, bucket_name=bucket)
+            df_fallback = pd.read_parquet(silver_local_fallback)
             
             from lib.gold_layer import _apply_analytical_intelligence
-            df = _apply_analytical_intelligence(df, target_table_name)
+            df_fallback = _apply_analytical_intelligence(df_fallback, target_table_name)
             
             log.info("[GOLD] Aplicando otimizações finais...")
             
             gold_local = os.path.join(tmpdir, f"{basename_no_ext}_gold.parquet")
-            df.to_parquet(gold_local, index=False, compression='snappy', engine='pyarrow')
+            df_fallback.to_parquet(gold_local, index=False, compression='snappy', engine='pyarrow')
             
             hook.load_file(filename=gold_local, key=gold_key, bucket_name=bucket, replace=True)
-            log.info("[GOLD] ✅ Salvo em: s3://%s/%s", bucket, gold_key)
+            log.info("[GOLD] ✅ Fallback Parquet salvo em: s3://%s/%s", bucket, gold_key)
             results['gold'] = gold_key
-            results['gold_format'] = 'parquet'
+            results['gold_format'] = 'parquet_fallback'
         
     finally:
         if tmpdir is not None and os.path.exists(tmpdir):
@@ -125,6 +132,10 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     log.info("[MEDALLION] ✅ Pipeline completo concluído com sucesso!")
     log.info("[MEDALLION] Bronze: %s", results.get('bronze'))
     log.info("[MEDALLION] Silver: %s", results.get('silver'))
-    log.info("[MEDALLION] Gold: %s", results.get('gold'))
+    if results.get('gold_format') == 'delta':
+        log.info("[MEDALLION] Gold (Delta Lake): %s (versão %s)", 
+                results.get('gold_delta'), results.get('gold_version', 0))
+    else:
+        log.info("[MEDALLION] Gold (Parquet): %s", results.get('gold'))
     
     return results

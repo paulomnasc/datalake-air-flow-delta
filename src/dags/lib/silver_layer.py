@@ -65,6 +65,17 @@ def bronze_to_silver(source_filename: str, target_table_name: str, **kwargs):
         # Aplicar inteligência automática de dados
         df = _apply_smart_transformations(df)
         
+        # ========== VALIDAÇÃO DE QUALIDADE DE DADOS ==========
+        log.info("[SILVER] Aplicando validação de qualidade de dados...")
+        from lib.data_quality import validate_dataframe
+        
+        df, quality_metrics = validate_dataframe(df, target_table_name)
+        
+        log.info("[SILVER] ✓ Validação de qualidade concluída:")
+        log.info("[SILVER]   - Taxa de aprovação: %.1f%%", quality_metrics['pass_rate'])
+        log.info("[SILVER]   - Linhas aprovadas: %d", quality_metrics['rows_passed'])
+        log.info("[SILVER]   - Linhas reprovadas: %d", quality_metrics['rows_failed'])
+        
         # Salvar como Parquet
         silver_local = os.path.join(tmpdir, f"{basename_no_ext}.parquet")
         df.to_parquet(silver_local, index=False, compression='snappy')

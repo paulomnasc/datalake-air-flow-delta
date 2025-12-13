@@ -1,0 +1,67 @@
+services:
+  atlas:
+    image: sburn/apache-atlas:latest
+    container_name: apache-atlas
+    ports:
+      - "21000:21000"
+    environment:
+      - JAVA_OPTS=-Xmx1024m -Xms512m
+      - ATLAS_SERVER_OPTS=-server -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+CMSClassUnloadingEnabled -XX:+UseConcMarkSweepGC -XX:+CMSPermGenSweepingEnabled
+    volumes:
+      - atlas_data:/opt/atlas/data
+      - atlas_logs:/opt/atlas/logs
+    restart: unless-stopped
+    mem_limit: 2g
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    networks:
+      - plataform-network
+
+  # Removido: postgres_erp
+  # Motivo: utilizar o MySQL já existente no projeto datalake-air-flow
+  # Caso precise um banco local para testes, considere adicionar um serviço MySQL com profile opcional
+  pyspark-aula:
+    build:
+      context: .
+      dockerfile: Dockerfile_Spark
+    
+    container_name: pyspark_aula_container
+    # Opcional: iniciar apenas com perfil 'spark'
+    profiles:
+      - spark
+    
+    # Mapeia as portas
+    ports:
+      - "8888:8888" # Porta do Jupyter Notebook
+      - "4040:4040" # Porta da UI do Spark (importante para monitorar os jobs!)
+      
+    # Mapeia o diretório local para o contêiner (Persistência dos arquivos)
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./data:/home/jovyan/data
+
+    # Variáveis de ambiente
+    environment:
+      # Token de acesso ao Jupyter (opcional, mas recomendado para segurança)
+      - JUPYTER_TOKEN=tavares1234
+      # Configurações do Spark (opcional, mas bom para aumentar a memória para testes)
+      - SPARK_DRIVER_MEMORY=4g
+      - SPARK_EXECUTOR_MEMORY=4g
+      
+    # Reinicia o contêiner em caso de falha
+    restart: always
+    networks:
+      - plataform-network
+
+volumes:
+  atlas_data:
+  atlas_logs:
+
+networks:
+  plataform-network:
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.16.240.0/24"

@@ -1,0 +1,28 @@
+FROM jupyter/pyspark-notebook:latest
+
+USER root
+
+# Install additional packages
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages for Atlas integration
+RUN pip install --no-cache-dir \
+    requests \
+    psycopg2-binary \
+    pandas \
+    matplotlib \
+    seaborn
+
+# Fix permissions for jovyan user
+RUN mkdir -p /home/jovyan/work /home/jovyan/data && \
+    chown -R jovyan:users /home/jovyan && \
+    chmod -R 755 /home/jovyan
+
+USER jovyan
+
+WORKDIR /home/jovyan/work
+
+CMD ["start-notebook.sh", "--NotebookApp.token='tavares1234'", "--NotebookApp.password=''"]

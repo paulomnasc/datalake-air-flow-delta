@@ -176,6 +176,9 @@ def mysql_to_medallion(
     log.info(f"[MYSQL→MEDALLION] MySQL → Raw: {result['raw_key']}")
     log.info(f"[MYSQL→MEDALLION] Bronze: {result.get('bronze')}")
     log.info(f"[MYSQL→MEDALLION] Silver: {result.get('silver')}")
-    log.info(f"[MYSQL→MEDALLION] Gold: {result.get('gold')}")
+    if result.get('gold_format') == 'delta':
+        log.info(f"[MYSQL→MEDALLION] Gold (Delta Lake): {result.get('gold_delta')} (versão {result.get('gold_version', 0)})")
+    else:
+        log.info(f"[MYSQL→MEDALLION] Gold (Parquet): {result.get('gold')}")
     
     return result

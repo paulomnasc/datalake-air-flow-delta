@@ -2,11 +2,170 @@
 
 ## Visão Geral
 
-A camada **Silver** aplica **inteligência automática de dados** usando bibliotecas Python (pandas) para detectar padrões e aplicar transformações sem necessidade de configuração manual.
+A camada **Silver** aplica **inteligência automática de dados** usando bibliotecas Python (pandas) para detectar padrões e aplicar transformações sem necessidade de configuração manual. Além disso, adiciona **validação de qualidade de dados** e colunas de auditoria.
 
 ## Princípio: Zero Configuração
 
 **Nenhum código customizado é necessário** - o sistema analisa os dados automaticamente e aplica as melhores práticas de engenharia de dados.
+
+---
+
+## 📊 Dicionário de Dados - Camadas Silver
+
+### Colunas Originais
+Todas as colunas da camada Bronze são preservadas, mas com transformações automáticas:
+- Nomes normalizados (lowercase, sem espaços)
+- Tipos inferidos automaticamente (datas, números, categorias)
+- Valores nulos tratados inteligentemente
+
+### Colunas de Qualidade de Dados (Adicionadas Automaticamente)
+
+| Coluna | Tipo | Descrição | Valores | Uso |
+|--------|------|-----------|---------|-----|
+| **DataQualityRulesPass** | `int64` | Quantidade de regras de qualidade que a linha passou | 0 a 5+ | Identificar linhas com boa qualidade. Valores altos (4-5) = dados confiáveis |
+| **DataQualityRulesFail** | `int64` | Quantidade de regras de qualidade que a linha falhou | 0 a 5+ | Identificar linhas problemáticas. Valores > 0 = dados precisam revisão |
+| **DataQualityRulesSkip** | `int64` | Quantidade de regras que não se aplicaram à linha | 0 a 5+ | Regras não executadas (ex: validação de email em linha sem email) |
+| **DataQualityEvaluationResult** | `string` | Resultado final da avaliação de qualidade | "Passed" ou "Failed" | Filtrar rapidamente linhas confiáveis. Filtro: `== "Passed"` |
+
+### Regras de Qualidade Aplicadas
+
+#### Regra 1: Verificação de Valores Nulos
+- **O que verifica**: Campos críticos (id, key, code, number) não podem ser nulos
+- **Pass**: Campo obrigatório está preenchido
+- **Fail**: Campo obrigatório está vazio (NULL/NaN)
+- **Skip**: Coluna não é crítica
+
+**Exemplo**:
+```python
+# customerNumber não pode ser nulo
+customerNumber  DataQualityRulesPass  DataQualityRulesFail
+103            ✅ +1                  0
+NULL           0                      ❌ +1
+```
+
+#### Regra 2: Validação de Tipos de Dados
+- **O que verifica**: Valores numéricos devem ser finitos (não infinito, não NaN)
+- **Pass**: Número é finito e válido
+- **Fail**: Número é infinito (inf/-inf) ou inválido
+- **Skip**: Coluna não é numérica
+
+**Exemplo**:
+```python
+# creditLimit deve ser número válido
+creditLimit    DataQualityRulesPass  DataQualityRulesFail
+50000.00      ✅ +1                  0
+inf           0                      ❌ +1
+```
+
+#### Regra 3: Detecção de Duplicatas
+- **O que verifica**: Linhas duplicadas exatas (todos os campos iguais)
+- **Pass**: Linha é única
+- **Fail**: Linha é duplicata de outra
+- **Skip**: Nunca pula
+
+**Exemplo**:
+```python
+# Duas linhas idênticas
+customerNumber  name        DataQualityRulesFail
+103            "John Doe"   0 (primeira ocorrência)
+103            "John Doe"   ❌ +1 (duplicata)
+```
+
+#### Regra 4: Validação de Ranges Numéricos
+- **O que verifica**: Valores numéricos dentro de 3 desvios padrão da média (outliers)
+- **Pass**: Valor está dentro do range esperado
+- **Fail**: Valor é outlier extremo (> 3 desvios padrão)
+- **Skip**: Coluna não é numérica
+
+**Exemplo**:
+```python
+# creditLimit outliers
+creditLimit    Média    Desvio   Z-Score  DataQualityRulesFail
+50000         100000   30000    -1.67    0 (dentro do range)
+300000        100000   30000    6.67     ❌ +1 (outlier extremo)
+```
+
+#### Regra 5: Validação de Padrões de String
+- **O que verifica**: Emails e telefones têm formato válido (regex)
+- **Pass**: String segue padrão esperado
+- **Fail**: String não segue padrão (email inválido, telefone malformado)
+- **Skip**: Coluna não contém emails/telefones
+
+**Padrões validados**:
+- **Email**: `usuario@dominio.com`
+- **Telefone**: Formatos com 10-15 dígitos
+
+**Exemplo**:
+```python
+# Validação de email
+email                  DataQualityRulesPass  DataQualityRulesFail
+"john@example.com"    ✅ +1                  0
+"invalid-email"       0                      ❌ +1
+```
+
+### Interpretação dos Resultados
+
+| DataQualityRulesPass | DataQualityRulesFail | DataQualityEvaluationResult | Interpretação |
+|---------------------|---------------------|---------------------------|---------------|
+| 5 | 0 | Passed | ✅ Excelente - Todos os testes passaram |
+| 4 | 1 | Failed | ⚠️  Atenção - 1 problema encontrado |
+| 3 | 2 | Failed | ⚠️  Qualidade duvidosa - 2 problemas |
+| 0-2 | 3+ | Failed | ❌ Qualidade crítica - Requer revisão |
+
+### Exemplo Prático Completo
+
+**Entrada (Bronze)**:
+```csv
+customerNumber,contactFirstName,creditLimit,email
+103,John,50000,john@example.com
+,Jane,999999999,invalid-email
+105,Bob,75000,bob@company.com
+105,Bob,75000,bob@company.com
+```
+
+**Saída (Silver)**:
+```csv
+customernumber,contactfirstname,creditlimit,email,DataQualityRulesPass,DataQualityRulesFail,DataQualityRulesSkip,DataQualityEvaluationResult
+103,John,50000,john@example.com,5,0,0,Passed
+,Jane,999999999,invalid-email,2,3,0,Failed
+105,Bob,75000,bob@company.com,5,0,0,Passed
+105,Bob,75000,bob@company.com,4,1,0,Failed
+```
+
+**Análise**:
+- **Linha 1**: ✅ Perfeita (5 passes, 0 fails)
+- **Linha 2**: ❌ Problemas (customernumber nulo, creditLimit outlier, email inválido)
+- **Linha 3**: ✅ Perfeita (5 passes, 0 fails)
+- **Linha 4**: ❌ Duplicata (4 passes, 1 fail - duplicata detectada)
+
+### Queries Úteis para Análise
+
+```python
+import pandas as pd
+
+df = pd.read_parquet('silver/customers/file.parquet')
+
+# 1. Taxa de aprovação geral
+pass_rate = (df['DataQualityEvaluationResult'] == 'Passed').sum() / len(df) * 100
+print(f"Taxa de aprovação: {pass_rate:.1f}%")
+
+# 2. Filtrar apenas linhas confiáveis
+clean_data = df[df['DataQualityEvaluationResult'] == 'Passed']
+
+# 3. Encontrar linhas com múltiplos problemas
+critical_issues = df[df['DataQualityRulesFail'] >= 3]
+print(f"Linhas críticas: {len(critical_issues)}")
+
+# 4. Distribuição de qualidade
+quality_dist = df['DataQualityRulesPass'].value_counts().sort_index()
+print(quality_dist)
+
+# 5. Identificar problemas específicos
+null_issues = df[df['customernumber'].isna()]
+outliers = df[df['creditlimit'] > df['creditlimit'].mean() + 3*df['creditlimit'].std()]
+```
+
+---
 
 ---
 
@@ -235,6 +394,18 @@ Os thresholds podem ser ajustados em `_apply_smart_transformations()`:
 ---
 
 ## Validação de Qualidade
+
+### Como `DataQualityRulesPass` é calculada
+
+- Implementação: `src/dags/lib/data_quality.py` (`DataQualityValidator.add_quality_columns`).
+- Inicializa as 4 colunas de qualidade em zero e avalia cada linha.
+- Incrementa `DataQualityRulesPass` quando a linha passa em cada regra:
+    - **Nulos críticos**: campos-chave (`id`, `key`, `code`, `number` ou 1ª coluna) não podem ser nulos.
+    - **Tipos numéricos válidos**: valores não podem ser `NaN`/`±inf`.
+    - **Duplicatas**: linha não é marcada como duplicada (considerando todas as colunas de negócio).
+    - **Ranges numéricos**: valor dentro de média ± 3 desvios padrão.
+    - **Padrões de string**: e-mail e telefone aderem aos regex básicos definidos.
+
 
 ### Verificar Tipos Inferidos
 
@@ -1072,8 +1243,123 @@ Amostra:
 ## Referências
 
 - **Código Fonte**: `src/dags/lib/silver_layer.py`
+- **Validação de Qualidade**: `src/dags/lib/data_quality.py`
 - **Pipeline Completo**: `src/dags/lib/medallion_pipeline.py`
 - **Código Legado (referência)**: `src/dags/utils/transformations/refined/customers.py`
+
+---
+
+## 📋 Resumo Visual - Colunas Silver
+
+### Estrutura Final
+
+```
+Silver = Bronze (limpo) + Transformações Inteligentes + Qualidade de Dados
+```
+
+### Inventário de Colunas
+
+| Origem | Quantidade | Exemplos |
+|--------|-----------|----------|
+| **Bronze (originais)** | N colunas | customerNumber, name, creditLimit, orderDate, ... |
+| **Transformações automáticas** | 0 colunas | Dados transformados in-place (tipos, nulls, categorias) |
+| **Qualidade de dados** | **4 colunas** | DataQualityRulesPass, DataQualityRulesFail, DataQualityRulesSkip, DataQualityEvaluationResult |
+
+### Total
+
+```
+Total Silver = N (originais transformadas) + 4 (qualidade) colunas
+```
+
+**Exemplo**: Tabela com 13 colunas originais → Silver com **17 colunas** (13 transformadas + 4 qualidade)
+
+---
+
+## 🎯 Quick Reference - Validação de Qualidade
+
+### Comandos Rápidos
+
+```python
+import pandas as pd
+
+# Carregar Silver
+df = pd.read_parquet('silver/customers/file.parquet')
+
+# Taxa de aprovação
+(df['DataQualityEvaluationResult'] == 'Passed').sum() / len(df) * 100
+
+# Filtrar dados confiáveis
+clean = df[df['DataQualityEvaluationResult'] == 'Passed']
+
+# Linhas problemáticas
+issues = df[df['DataQualityRulesFail'] > 0]
+
+# Distribuição de qualidade
+df['DataQualityRulesPass'].value_counts().sort_index()
+```
+
+### Troubleshooting
+
+| Problema | Causa Provável | Solução |
+|----------|---------------|---------|
+| **Alta taxa de falha (>20%)** | Dados de origem com qualidade ruim | Revisar processo de coleta de dados |
+| **Muitos nulls (Regra 1)** | Campos obrigatórios não preenchidos | Validar formulários de entrada |
+| **Outliers extremos (Regra 4)** | Valores fora do esperado | Verificar se são erros ou casos reais |
+| **Emails inválidos (Regra 5)** | Formato incorreto | Implementar validação no front-end |
+| **Duplicatas (Regra 3)** | Múltiplas cargas do mesmo dado | Verificar processo de ingestão |
+
+---
+
+## 🔄 Fluxo Completo Bronze → Silver
+
+```
+┌─────────────────────────┐
+│   Bronze CSV            │
+│   (dados brutos)        │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│ 1. Limpeza Básica       │
+│   • dropna(how='all')   │
+│   • drop_duplicates()   │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│ 2. Transformações       │
+│    Inteligentes         │
+│   • Normalizar colunas  │
+│   • Detectar datas      │
+│   • Inferir tipos       │
+│   • Criar categorias    │
+│   • Preencher nulos     │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│ 3. Validação Qualidade  │
+│   • 5 regras aplicadas  │
+│   • 4 colunas adicionadas│
+│   • Métricas calculadas │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│ 4. Salvar Parquet       │
+│   • compression=snappy  │
+│   • index=False         │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│   Silver Parquet        │
+│   (dados confiáveis)    │
+│   + 4 colunas qualidade │
+└─────────────────────────┘
+```
+
+---
 
 ## Histórico de Mudanças
 
@@ -1082,3 +1368,5 @@ Amostra:
 | 2024-11-23 | Implementação inicial do sistema de transformações plugáveis |
 | 2024-11-23 | Adicionadas transformações: customers, orders, products |
 | 2024-11-23 | Integração com `medallion_pipeline.py` |
+| 2024-11-24 | Adicionado sistema de validação de qualidade de dados (5 regras, 4 colunas) |
+| 2024-11-24 | Documentação completa com dicionário de dados e exemplos práticos |

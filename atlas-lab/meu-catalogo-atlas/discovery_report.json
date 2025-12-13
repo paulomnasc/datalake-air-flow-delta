@@ -1,0 +1,84 @@
+{
+  "timestamp": "2025-11-17T20:39:06.672366",
+  "databases": 1,
+  "tables": 14,
+  "columns": 89,
+  "relationships": 0,
+  "tables_detail": [
+    {
+      "name": "categories",
+      "guid": "7c598794-386f-4ed0-9647-d840f842ecad",
+      "type": "hive_table"
+    },
+    {
+      "name": "customer_customer_demo",
+      "guid": "dd446d82-a96a-49bd-bc63-cec043f8d7f7",
+      "type": "hive_table"
+    },
+    {
+      "name": "customer_demographics",
+      "guid": "358c1656-9b9e-4cc5-b96a-6c343c6c9e39",
+      "type": "hive_table"
+    },
+    {
+      "name": "customers",
+      "guid": "a60fbd7b-2018-472b-ae1d-3b1a6c43a322",
+      "type": "hive_table"
+    },
+    {
+      "name": "employee_territories",
+      "guid": "75d16b16-763d-454b-a1a1-a5fcddf6de83",
+      "type": "hive_table"
+    },
+    {
+      "name": "employees",
+      "guid": "da9ea405-1560-46b6-9099-cf894aa8c361",
+      "type": "hive_table"
+    },
+    {
+      "name": "order_details",
+      "guid": "62114948-c465-47ff-b6ca-f99ae35c4097",
+      "type": "hive_table"
+    },
+    {
+      "name": "orders",
+      "guid": "1d7096c3-77b4-47c0-a8fa-841f1eb1fdad",
+      "type": "hive_table"
+    },
+    {
+      "name": "products",
+      "guid": "3a323c36-eb1b-4bb7-994f-7c66604ff6d3",
+      "type": "hive_table"
+    },
+    {
+      "name": "region",
+      "guid": "56daf213-e273-46a4-a54e-4486e4d3f653",
+      "type": "hive_table"
+    },
+    {
+      "name": "shippers",
+      "guid": "c3f53f00-92e5-4e7d-aaff-d4de2e99f337",
+      "type": "hive_table"
+    },
+    {
+      "name": "suppliers",
+      "guid": "e65209b6-cb17-40f8-8027-7ea95e740c03",
+      "type": "hive_table"
+    },
+    {
+      "name": "territories",
+      "guid": "c20134b1-14bb-41b8-837d-1bcdd262b274",
+      "type": "hive_table"
+    },
+    {
+      "name": "us_states",
+      "guid": "5878fa4b-540b-4359-8e17-ab95e2307ce8",
+      "type": "hive_table"
+    }
+  ],
+  "summary": {
+    "total_entities": 104,
+    "avg_columns_per_table": 6.36,
+    "catalog_coverage": "100%"
+  }
+}

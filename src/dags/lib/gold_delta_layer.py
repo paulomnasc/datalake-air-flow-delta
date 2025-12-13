@@ -50,18 +50,18 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
     basename = os.path.basename(src_key)
     basename_no_ext = os.path.splitext(basename)[0]
     
-    silver_key = f"silver/{target_table_name}/{basename_no_ext}.parquet"
     # Delta Lake usa diretório ao invés de arquivo único
     gold_delta_path = f"s3://{bucket}/gold/{target_table_name}_delta/"
 
-    log.info("[GOLD-DELTA] Processando: s3://%s/%s → %s", bucket, silver_key, gold_delta_path)
+    log.info("[GOLD-DELTA] Processando: s3://%s/%s → %s", bucket, src_key, gold_delta_path)
 
     tmpdir = None
     try:
         tmpdir = tempfile.mkdtemp()
         
         # Download do arquivo Silver
-        local_file = hook.download_file(key=silver_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
+        log.info("[GOLD-DELTA] Baixando Silver de: s3://%s/%s", bucket, src_key)
+        local_file = hook.download_file(key=src_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
         log.info("[GOLD-DELTA] Arquivo Silver baixado: %s", local_file)
 
         # Leitura do Parquet Silver
@@ -147,13 +147,14 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
         log.info(f"[GOLD-DELTA] ✅ Tabela Delta salva em: {gold_delta_path}")
         
         return {
-            "silver": silver_key,
+            "silver": src_key,
             "gold_delta": gold_delta_path,
             "rows": len(df_enriched),
             "columns": len(df_enriched.columns),
             "new_features": new_columns,
             "format": "delta",
-            "version": dt.version() if 'dt' in locals() else 0
+            "version": dt.version() if 'dt' in locals() else 0,
+            "status": "success"
         }
         
     except Exception as e:

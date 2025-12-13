@@ -53,31 +53,15 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         results['bronze'] = bronze_key
         
         # ==================== CAMADA SILVER ====================
-        log.info("[SILVER] Processando: s3://%s/%s → s3://%s/%s", bucket, bronze_key, bucket, silver_key)
-        
-        df = pd.read_csv(local_file)
-        original_count = len(df)
-        log.info("[SILVER] Dados originais: %d linhas, %d colunas", original_count, len(df.columns))
-        
-        # Limpeza básica
-        df = df.dropna(how='all')
-        df = df.drop_duplicates()
-        cleaned_count = len(df)
-        log.info("[SILVER] Limpeza básica: %d linhas removidas (%d → %d)", 
-                 original_count - cleaned_count, original_count, cleaned_count)
-        
-        # Aplicar inteligência automática de dados
-        from lib.silver_layer import _apply_smart_transformations
-        df = _apply_smart_transformations(df)
-        
-        # Salvar Parquet Silver
-        silver_local = os.path.join(tmpdir, f"{basename_no_ext}_silver.parquet")
-        df.to_parquet(silver_local, index=False, compression='snappy')
-        
-        hook.load_file(filename=silver_local, key=silver_key, bucket_name=bucket, replace=True)
-        log.info("[SILVER] ✅ Salvo em: s3://%s/%s", bucket, silver_key)
-        results['silver'] = silver_key
-        results['rows'] = cleaned_count
+        # Usa a implementação oficial da camada Silver para garantir colunas de qualidade
+        log.info("[SILVER] Chamando bronze_to_silver para aplicar transformações e validação de qualidade...")
+        from lib.silver_layer import bronze_to_silver
+        silver_result = bronze_to_silver(bronze_key, target_table_name, **kwargs)
+        results['silver'] = silver_result.get('key')
+        results['rows'] = silver_result.get('rows')
+        # Atualiza a variável silver_key para a chave efetiva retornada
+        silver_key = silver_result.get('key')
+        log.info("[SILVER] ✅ Silver gerado com qualidade de dados: s3://%s/%s", bucket, silver_key)
         
         # ==================== CAMADA GOLD (DELTA LAKE) ====================
         log.info("[GOLD] Processando: s3://%s/%s → Delta Lake", bucket, silver_key)
@@ -85,6 +69,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         # Usar Delta Lake ao invés de Parquet simples
         try:
             from lib.gold_delta_layer import silver_to_gold_delta
+            log.info("[GOLD] Importação gold_delta_layer OK, chamando silver_to_gold_delta...")
             
             gold_result = silver_to_gold_delta(
                 source_filename=silver_key,
@@ -97,22 +82,28 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             log.info("[GOLD] ✅ Delta Lake salvo em: %s (versão %s)", 
                     gold_result.get('gold_delta'), gold_result.get('version', 0))
             
-        except ImportError as e:
-            # Fallback para Parquet se Delta Lake não disponível
-            log.warning("[GOLD] Delta Lake não disponível, usando Parquet: %s", e)
+        except Exception as e:
+            # Fallback para Parquet se Delta Lake falhou
+            log.warning("[GOLD] ⚠️  Delta Lake falhou (%s: %s), usando fallback Parquet", 
+                       type(e).__name__, str(e))
+            
+            # Recarregar DataFrame do Silver para fallback
+            log.info("[GOLD] Recarregando Silver para fallback Parquet...")
+            silver_local_fallback = hook.download_file(key=silver_key, bucket_name=bucket)
+            df_fallback = pd.read_parquet(silver_local_fallback)
             
             from lib.gold_layer import _apply_analytical_intelligence
-            df = _apply_analytical_intelligence(df, target_table_name)
+            df_fallback = _apply_analytical_intelligence(df_fallback, target_table_name)
             
             log.info("[GOLD] Aplicando otimizações finais...")
             
             gold_local = os.path.join(tmpdir, f"{basename_no_ext}_gold.parquet")
-            df.to_parquet(gold_local, index=False, compression='snappy', engine='pyarrow')
+            df_fallback.to_parquet(gold_local, index=False, compression='snappy', engine='pyarrow')
             
             hook.load_file(filename=gold_local, key=gold_key, bucket_name=bucket, replace=True)
-            log.info("[GOLD] ✅ Salvo em: s3://%s/%s", bucket, gold_key)
+            log.info("[GOLD] ✅ Fallback Parquet salvo em: s3://%s/%s", bucket, gold_key)
             results['gold'] = gold_key
-            results['gold_format'] = 'parquet'
+            results['gold_format'] = 'parquet_fallback'
         
     finally:
         if tmpdir is not None and os.path.exists(tmpdir):
@@ -125,6 +116,10 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     log.info("[MEDALLION] ✅ Pipeline completo concluído com sucesso!")
     log.info("[MEDALLION] Bronze: %s", results.get('bronze'))
     log.info("[MEDALLION] Silver: %s", results.get('silver'))
-    log.info("[MEDALLION] Gold: %s", results.get('gold'))
+    if results.get('gold_format') == 'delta':
+        log.info("[MEDALLION] Gold (Delta Lake): %s (versão %s)", 
+                results.get('gold_delta'), results.get('gold_version', 0))
+    else:
+        log.info("[MEDALLION] Gold (Parquet): %s", results.get('gold'))
     
     return results

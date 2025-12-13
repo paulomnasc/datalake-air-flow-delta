@@ -53,31 +53,15 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         results['bronze'] = bronze_key
         
         # ==================== CAMADA SILVER ====================
-        log.info("[SILVER] Processando: s3://%s/%s → s3://%s/%s", bucket, bronze_key, bucket, silver_key)
-        
-        df = pd.read_csv(local_file)
-        original_count = len(df)
-        log.info("[SILVER] Dados originais: %d linhas, %d colunas", original_count, len(df.columns))
-        
-        # Limpeza básica
-        df = df.dropna(how='all')
-        df = df.drop_duplicates()
-        cleaned_count = len(df)
-        log.info("[SILVER] Limpeza básica: %d linhas removidas (%d → %d)", 
-                 original_count - cleaned_count, original_count, cleaned_count)
-        
-        # Aplicar inteligência automática de dados
-        from lib.silver_layer import _apply_smart_transformations
-        df = _apply_smart_transformations(df)
-        
-        # Salvar Parquet Silver
-        silver_local = os.path.join(tmpdir, f"{basename_no_ext}_silver.parquet")
-        df.to_parquet(silver_local, index=False, compression='snappy')
-        
-        hook.load_file(filename=silver_local, key=silver_key, bucket_name=bucket, replace=True)
-        log.info("[SILVER] ✅ Salvo em: s3://%s/%s", bucket, silver_key)
-        results['silver'] = silver_key
-        results['rows'] = cleaned_count
+        # Usa a implementação oficial da camada Silver para garantir colunas de qualidade
+        log.info("[SILVER] Chamando bronze_to_silver para aplicar transformações e validação de qualidade...")
+        from lib.silver_layer import bronze_to_silver
+        silver_result = bronze_to_silver(bronze_key, target_table_name, **kwargs)
+        results['silver'] = silver_result.get('key')
+        results['rows'] = silver_result.get('rows')
+        # Atualiza a variável silver_key para a chave efetiva retornada
+        silver_key = silver_result.get('key')
+        log.info("[SILVER] ✅ Silver gerado com qualidade de dados: s3://%s/%s", bucket, silver_key)
         
         # ==================== CAMADA GOLD (DELTA LAKE) ====================
         log.info("[GOLD] Processando: s3://%s/%s → Delta Lake", bucket, silver_key)

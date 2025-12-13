@@ -395,6 +395,18 @@ Os thresholds podem ser ajustados em `_apply_smart_transformations()`:
 
 ## Validação de Qualidade
 
+### Como `DataQualityRulesPass` é calculada
+
+- Implementação: `src/dags/lib/data_quality.py` (`DataQualityValidator.add_quality_columns`).
+- Inicializa as 4 colunas de qualidade em zero e avalia cada linha.
+- Incrementa `DataQualityRulesPass` quando a linha passa em cada regra:
+    - **Nulos críticos**: campos-chave (`id`, `key`, `code`, `number` ou 1ª coluna) não podem ser nulos.
+    - **Tipos numéricos válidos**: valores não podem ser `NaN`/`±inf`.
+    - **Duplicatas**: linha não é marcada como duplicada (considerando todas as colunas de negócio).
+    - **Ranges numéricos**: valor dentro de média ± 3 desvios padrão.
+    - **Padrões de string**: e-mail e telefone aderem aos regex básicos definidos.
+
+
 ### Verificar Tipos Inferidos
 
 ```python

@@ -254,6 +254,49 @@ services:
     networks:
       - airflow_net
     # Não precisa de 'command' se estiver usando imagem base PHP-Apache
+
+  atlas:
+    image: sburn/apache-atlas:latest
+    container_name: apache-atlas
+    ports:
+      - "21000:21000"
+    environment:
+      - JAVA_OPTS=-Xmx1024m -Xms512m
+      - ATLAS_SERVER_OPTS=-server -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+CMSClassUnloadingEnabled -XX:+UseConcMarkSweepGC -XX:+CMSPermGenSweepingEnabled
+    volumes:
+      - atlas_data:/opt/atlas/data
+      - atlas_logs:/opt/atlas/logs
+    restart: unless-stopped
+    mem_limit: 2g
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    networks:
+      - airflow_net
+
+  pyspark-aula:
+    build:
+      context: ./atlas-lab
+      dockerfile: Dockerfile_Spark
+    container_name: pyspark_aula_container
+    profiles:
+      - atlas
+    ports:
+      - "8888:8888" # Jupyter Notebook
+      - "4040:4040" # Spark UI
+    volumes:
+      - ./atlas-lab/notebooks:/home/jovyan/work
+      - ./atlas-lab/data:/home/jovyan/data
+      - ./atlas-lab/lab:/home/jovyan/lab
+      - ./atlas-lab/meu-catalogo-atlas:/home/jovyan/meu-catalogo-atlas
+    environment:
+      - JUPYTER_TOKEN=tavares1234
+      - SPARK_DRIVER_MEMORY=4g
+      - SPARK_EXECUTOR_MEMORY=4g
+    restart: always
+    networks:
+      - airflow_net
   
 
 networks:
@@ -263,3 +306,5 @@ networks:
 volumes:
   pg_data:
   mysql_data:
+  atlas_data:
+  atlas_logs:

@@ -1,0 +1,23 @@
+Métrica,Valor
+Timestamp,2025-11-17T20:39:06.672366
+Total Databases,1
+Total Tabelas,14
+Total Colunas,89
+Média Colunas/Tabela,6.36
+Cobertura do Catálogo,100%
+
+Nome da Tabela,GUID,Tipo
+categories,7c598794-386f-4ed0-9647-d840f842ecad,hive_table
+customer_customer_demo,dd446d82-a96a-49bd-bc63-cec043f8d7f7,hive_table
+customer_demographics,358c1656-9b9e-4cc5-b96a-6c343c6c9e39,hive_table
+customers,a60fbd7b-2018-472b-ae1d-3b1a6c43a322,hive_table
+employee_territories,75d16b16-763d-454b-a1a1-a5fcddf6de83,hive_table
+employees,da9ea405-1560-46b6-9099-cf894aa8c361,hive_table
+order_details,62114948-c465-47ff-b6ca-f99ae35c4097,hive_table
+orders,1d7096c3-77b4-47c0-a8fa-841f1eb1fdad,hive_table
+products,3a323c36-eb1b-4bb7-994f-7c66604ff6d3,hive_table
+region,56daf213-e273-46a4-a54e-4486e4d3f653,hive_table
+shippers,c3f53f00-92e5-4e7d-aaff-d4de2e99f337,hive_table
+suppliers,e65209b6-cb17-40f8-8027-7ea95e740c03,hive_table
+territories,c20134b1-14bb-41b8-837d-1bcdd262b274,hive_table
+us_states,5878fa4b-540b-4359-8e17-ab95e2307ce8,hive_table

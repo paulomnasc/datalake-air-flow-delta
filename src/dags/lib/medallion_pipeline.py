@@ -41,6 +41,26 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     
     try:
         tmpdir = tempfile.mkdtemp()
+        # Atlas client para registrar metadados e processos
+        from .atlas_client import AtlasClient
+        from .atlas_lineage import register_table, register_process
+        atlas = AtlasClient()
+        db_name = os.getenv("ATLAS_HIVE_DB", "medallion")
+        # Aguarda o Atlas ficar pronto para evitar 5xx durante inicialização
+        try:
+            atlas.wait_until_ready(timeout_seconds=90)
+        except Exception as e:
+            log.warning("[ATLAS] Atlas não respondeu no tempo esperado (%s), prosseguindo assim mesmo", e)
+        atlas.ensure_hive_db(db_name)
+        # Registrar entidade RAW (referência) para permitir lineage completo
+        raw_table = f"{target_table_name}_raw"
+        atlas.create_hive_table(
+            qualified_name=f"{db_name}.{raw_table}@cluster",
+            name=raw_table,
+            db=db_name,
+            columns=None,
+            description=f"Raw source for {target_table_name}"
+        )
         
         # ==================== CAMADA BRONZE ====================
         log.info("[BRONZE] Copiando: s3://%s/%s → s3://%s/%s", bucket, src_key, bucket, bronze_key)
@@ -51,6 +71,30 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         hook.load_file(filename=local_file, key=bronze_key, bucket_name=bucket, replace=True)
         log.info("[BRONZE] ✅ Salvo em: s3://%s/%s", bucket, bronze_key)
         results['bronze'] = bronze_key
+
+        # Registrar tabela Bronze
+        bronze_table = f"{target_table_name}_bronze"
+        try:
+            register_table(
+                atlas,
+                layer="bronze",
+                table=bronze_table,
+                db=db_name,
+                columns=[{"qualifiedName": f"{db_name}.{bronze_table}.data@cluster", "name": "data", "type": "string"}]
+            )
+            
+            # Registrar processo Raw → Bronze
+            register_process(
+                atlas,
+                step_name=f"raw_to_bronze_{target_table_name}",
+                layer_from="raw",
+                layer_to="bronze",
+                inputs_qn=[f"{db_name}.{raw_table}@cluster"],
+                outputs_qn=[f"{db_name}.{bronze_table}@cluster"]
+            )
+            log.info("[ATLAS] ✅ Processo Raw→Bronze registrado")
+        except Exception as e:
+            log.warning("[ATLAS] Falha ao registrar bronze: %s", e)
         
         # ==================== CAMADA SILVER ====================
         # Usa a implementação oficial da camada Silver para garantir colunas de qualidade
@@ -62,6 +106,30 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         # Atualiza a variável silver_key para a chave efetiva retornada
         silver_key = silver_result.get('key')
         log.info("[SILVER] ✅ Silver gerado com qualidade de dados: s3://%s/%s", bucket, silver_key)
+
+        # Registrar tabela Silver
+        silver_table = f"{target_table_name}_silver"
+        try:
+            register_table(
+                atlas,
+                layer="silver",
+                table=silver_table,
+                db=db_name,
+                columns=[{"qualifiedName": f"{db_name}.{silver_table}.data@cluster", "name": "data", "type": "string"}]
+            )
+            
+            # Registrar processo Bronze → Silver
+            register_process(
+                atlas,
+                step_name=f"bronze_to_silver_{target_table_name}",
+                layer_from="bronze",
+                layer_to="silver",
+                inputs_qn=[f"{db_name}.{bronze_table}@cluster"],
+                outputs_qn=[f"{db_name}.{silver_table}@cluster"]
+            )
+            log.info("[ATLAS] ✅ Processo Bronze→Silver registrado")
+        except Exception as e:
+            log.warning("[ATLAS] Falha ao registrar silver: %s", e)
         
         # ==================== CAMADA GOLD (DELTA LAKE) ====================
         log.info("[GOLD] Processando: s3://%s/%s → Delta Lake", bucket, silver_key)
@@ -81,6 +149,30 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             results['gold_version'] = gold_result.get('version', 0)
             log.info("[GOLD] ✅ Delta Lake salvo em: %s (versão %s)", 
                     gold_result.get('gold_delta'), gold_result.get('version', 0))
+
+            # Registrar tabela Gold (Delta)
+            gold_table = f"{target_table_name}_gold"
+            try:
+                register_table(
+                    atlas,
+                    layer="gold",
+                    table=gold_table,
+                    db=db_name,
+                    columns=[{"qualifiedName": f"{db_name}.{gold_table}.data@cluster", "name": "data", "type": "string"}]
+                )
+                
+                # Registrar processo Silver → Gold
+                register_process(
+                    atlas,
+                    step_name=f"silver_to_gold_{target_table_name}",
+                    layer_from="silver",
+                    layer_to="gold",
+                    inputs_qn=[f"{db_name}.{silver_table}@cluster"],
+                    outputs_qn=[f"{db_name}.{gold_table}@cluster"]
+                )
+                log.info("[ATLAS] ✅ Processo Silver→Gold (Delta) registrado")
+            except Exception as e:
+                log.warning("[ATLAS] Falha ao registrar gold: %s", e)
             
         except Exception as e:
             # Fallback para Parquet se Delta Lake falhou
@@ -104,6 +196,30 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             log.info("[GOLD] ✅ Fallback Parquet salvo em: s3://%s/%s", bucket, gold_key)
             results['gold'] = gold_key
             results['gold_format'] = 'parquet_fallback'
+
+            # Registrar gold parquet fallback
+            gold_table = f"{target_table_name}_gold"
+            try:
+                register_table(
+                    atlas,
+                    layer="gold",
+                    table=gold_table,
+                    db=db_name,
+                    columns=[{"qualifiedName": f"{db_name}.{gold_table}.data@cluster", "name": "data", "type": "string"}]
+                )
+                
+                # Registrar processo Silver → Gold (fallback)
+                register_process(
+                    atlas,
+                    step_name=f"silver_to_gold_{target_table_name}",
+                    layer_from="silver",
+                    layer_to="gold",
+                    inputs_qn=[f"{db_name}.{silver_table}@cluster"],
+                    outputs_qn=[f"{db_name}.{gold_table}@cluster"]
+                )
+                log.info("[ATLAS] ✅ Processo Silver→Gold (Parquet fallback) registrado")
+            except Exception as e:
+                log.warning("[ATLAS] Falha ao registrar gold (fallback): %s", e)
         
     finally:
         if tmpdir is not None and os.path.exists(tmpdir):

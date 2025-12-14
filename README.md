@@ -6,6 +6,8 @@ Este projeto integra três componentes principais para orquestração de dados e
 - **PostgreSQL**: Banco de dados relacional para metadados do Airflow
 - **MinIO**: Armazenamento de objetos compatível com S3
 - **Delta Lake**: Camada ACID sobre Data Lake com versionamento e time travel
+- **Apache Atlas**: Catálogo de dados e governança (standalone)
+- **Jupyter + PySpark (Lab Atlas)**: Ambiente interativo para análise e integração com Atlas
 
 A base foi clonada do repositório do Adriano e adaptada para incluir os três serviços integrados. Os artefatos de código (DAGs, scripts, configurações) estão versionados neste repositório.
 
@@ -81,6 +83,8 @@ chmod +x entrypoint.sh
 docker-compose down --remove-orphans
 docker-compose build
 docker-compose up -d
+# Subir serviços de catálogo e Jupyter (perfil atlas)
+docker-compose --profile atlas up -d atlas pyspark-aula
 ```
 
 ## 2.1 Verifique os containers ativos
@@ -159,6 +163,8 @@ pip install apache-airflow-providers-amazon --no-deps
 | **MinIO Console**   | [http://localhost:9001](http://localhost:9001) | 9001  | `admin` / `admin123`| —                  | Interface web de armazenamento S3   |
 | **MinIO API S3**    | `http://localhost:9000`                | 9000  | `admin` / `admin123`| —                  | Usado por boto3, S3Hook, etc.        |
 | **PostgreSQL**      | via cliente externo ou terminal        | 5432  | `airflow` / `airflow`      | `airflow`          | Banco de metadados do Airflow        |
+| **Apache Atlas**    | [http://localhost:21000](http://localhost:21000) | 21000 | `admin` / `admin`          | —                  | Catálogo de dados standalone (HBase/Solr embarcados) |
+| **Jupyter Notebook**| [http://localhost:8888](http://localhost:8888) | 8888  | Token: `tavares1234`       | —                  | Lab de integração Atlas (pyspark-notebook) |
 —
 | **Spark SQL (Thrift)**      | via Conector JDBC/ODBC	10000        | 10000  | `nenum` / `nenhum`      | `nenhum`          | Ponto de Acesso para Power BI/Tableau (Camada Semântica sobre Delta Lake)        |
 
@@ -191,7 +197,9 @@ docker exec -it postgres psql -U airflow -d airflow
 ### Caso precise reiniciar os serviços:
 
 ```bash
-docker-compose restart airflow-webserver airflow-scheduler minio mysql spark
+docker-compose restart airflow-webserver airflow-scheduler minio mysql spark atlas
+# Jupyter/PySpark (perfil atlas)
+docker-compose --profile atlas restart pyspark-aula
 ```
 
 ## Verificar os processo que estão rodando

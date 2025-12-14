@@ -44,10 +44,16 @@ echo "5. 🚀 Subindo a stack completa (Airflow, Spark, CodeIgniter)..."
 # Inicia todos os serviços restantes, incluindo CodeIgniter, Spark e Airflow
 docker-compose -f $COMPOSE_FILE up -d
 
+echo "6. 📚 Subindo serviços de Catalogação (Apache Atlas) e Jupyter (profile atlas)..."
+# Sobe Atlas e o Jupyter/PySpark do laboratório (perfil opcional 'atlas')
+docker-compose -f $COMPOSE_FILE --profile atlas up -d atlas pyspark-aula
+
 echo "--------------------------------------------------------"
 echo "✅ Stack Iniciada com Sucesso!"
 echo "   - Airflow Webserver (DAGs): http://localhost:8085"
 echo "   - CodeIgniter App (Front-end): http://localhost:8088"
 echo "   - MinIO Console: http://localhost:9001"
 echo "   - Spark Master UI: http://localhost:8080"
+echo "   - Apache Atlas (Catálogo): http://localhost:21000 (admin/admin)"
+echo "   - Jupyter Notebook (Lab Atlas): http://localhost:8888 (token: tavares1234)"
 echo "--------------------------------------------------------"

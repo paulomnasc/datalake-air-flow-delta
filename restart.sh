@@ -17,8 +17,14 @@ echo "3. 🚀 Subindo a stack novamente..."
 # Reinicia todos os contêineres.
 docker-compose -f $COMPOSE_FILE up -d
 
+echo "4. 📚 Subindo serviços de Catalogação (Apache Atlas) e Jupyter (profile atlas)..."
+# Subir Atlas e Jupyter/PySpark do laboratório
+docker-compose -f $COMPOSE_FILE --profile atlas up -d atlas pyspark-aula
+
 echo "--------------------------------------------------------"
 echo "✅ Stack Reiniciada com Sucesso!"
 echo "   - Airflow Webserver (DAGs): http://localhost:8085"
 echo "   - CodeIgniter App (Front-end): http://localhost:8088"
+echo "   - Apache Atlas (Catálogo): http://localhost:21000 (admin/admin)"
+echo "   - Jupyter Notebook (Lab Atlas): http://localhost:8888 (token: tavares1234)"
 echo "--------------------------------------------------------"

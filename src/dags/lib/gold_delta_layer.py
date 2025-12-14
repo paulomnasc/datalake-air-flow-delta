@@ -78,6 +78,12 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
                 "status": "empty"
             }
 
+        # Remover colunas de qualidade de dados (não fazem parte do schema Gold)
+        quality_cols = [col for col in df.columns if col.startswith('DataQuality')]
+        if quality_cols:
+            log.info(f"[GOLD-DELTA] Removendo {len(quality_cols)} colunas de qualidade: {quality_cols}")
+            df = df.drop(columns=quality_cols)
+        
         # Aplicar inteligência analítica (mesma lógica do gold_layer.py)
         log.info("[GOLD-DELTA] Aplicando inteligência analítica...")
         df_enriched = _apply_analytical_intelligence(df, target_table_name)
@@ -89,9 +95,9 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
         log.info(f"[GOLD-DELTA] Shape: {original_shape} → {final_shape}")
         log.info(f"[GOLD-DELTA] Inteligência analítica concluída: {new_columns} novas colunas criadas")
 
-        # Adicionar metadados Delta Lake
+        # Adicionar metadados Delta Lake com timezone-aware timestamps
         df_enriched['_delta_version'] = datetime.now().strftime('%Y%m%d_%H%M%S')
-        df_enriched['_ingestion_timestamp'] = datetime.now()
+        df_enriched['_ingestion_timestamp'] = pd.Timestamp.now(tz='UTC')
         
         # Converter categorical para string (Delta Lake não suporta Dictionary type)
         for col in df_enriched.select_dtypes(include=['category']).columns:
@@ -146,6 +152,23 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
 
         log.info(f"[GOLD-DELTA] ✅ Tabela Delta salva em: {gold_delta_path}")
         
+        # Preparar lista de colunas e tipos simplificados para Atlas
+        def _map_dtype(dtype):
+            try:
+                import numpy as np
+                import pandas as pd
+                if pd.api.types.is_integer_dtype(dtype):
+                    return "int"
+                if pd.api.types.is_float_dtype(dtype):
+                    return "double"
+                if pd.api.types.is_datetime64_any_dtype(dtype):
+                    return "timestamp"
+                return "string"
+            except Exception:
+                return "string"
+
+        columns_schema = [{"name": c, "type": _map_dtype(df_enriched.dtypes[c])} for c in df_enriched.columns]
+
         return {
             "silver": src_key,
             "gold_delta": gold_delta_path,
@@ -154,7 +177,8 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
             "new_features": new_columns,
             "format": "delta",
             "version": dt.version() if 'dt' in locals() else 0,
-            "status": "success"
+            "status": "success",
+            "columns_schema": columns_schema
         }
         
     except Exception as e:
@@ -203,6 +227,10 @@ def _apply_analytical_intelligence(df, table_name):
     if date_cols:
         log.info(f"[GOLD-DELTA] Criando features temporais para {len(date_cols)} colunas de data")
         for col in date_cols:
+            # Converter para timezone-aware UTC se necessário
+            if df_result[col].dt.tz is None:
+                df_result[col] = pd.to_datetime(df_result[col], utc=True)
+            
             df_result[f'{col}_year'] = df_result[col].dt.year
             df_result[f'{col}_month'] = df_result[col].dt.month
             df_result[f'{col}_day'] = df_result[col].dt.day

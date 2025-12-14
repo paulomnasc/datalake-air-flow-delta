@@ -184,17 +184,28 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     source_filename = task_config.get('source_filename')
 
     def validate_processed_file(**context):
-        """Valida se o arquivo Silver (Parquet) existe no MinIO."""
+        """Valida se o arquivo Silver (Parquet) existe no MinIO usando o resultado da pipeline."""
         import os
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
         
         bucket = os.environ.get('MINIO_BUCKET', 'lab01')
         hook = S3Hook(aws_conn_id='minio_conn')
         
-        # Chave esperada do arquivo Silver (Parquet)
-        basename = os.path.basename(source_filename) if source_filename else f"{target_name}.csv"
-        basename_no_ext = os.path.splitext(basename)[0]
-        silver_key = f"silver/{target_name}/{basename_no_ext}.parquet"
+        # Buscar o resultado retornado pela task anterior via XCom
+        ti = context['ti']
+        task_id_name = f"etl_process_for_{target_name}"
+        pipeline_result = ti.xcom_pull(task_ids=task_id_name)
+        
+        # Se a pipeline retornou o caminho do silver, usar isso
+        if pipeline_result and isinstance(pipeline_result, dict):
+            silver_key = pipeline_result.get('silver')
+            log.info(f"📦 Usando caminho Silver retornado pela pipeline: {silver_key}")
+        else:
+            # Fallback: tentar adivinhar o caminho (comportamento antigo)
+            basename = os.path.basename(source_filename) if source_filename else f"{target_name}.csv"
+            basename_no_ext = os.path.splitext(basename)[0]
+            silver_key = f"silver/{target_name}/{basename_no_ext}.parquet"
+            log.warning(f"⚠️ Pipeline não retornou resultado, usando fallback: {silver_key}")
         
         log.info(f"Validando existência de: s3://{bucket}/{silver_key}")
         

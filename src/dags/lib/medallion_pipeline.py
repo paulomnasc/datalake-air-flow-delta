@@ -94,7 +94,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             )
             log.info("[ATLAS] ✅ Processo Raw→Bronze registrado")
         except Exception as e:
-            log.warning("[ATLAS] Falha ao registrar bronze: %s", e)
+            err_fmt = getattr(atlas, "format_http_error", lambda x: str(x))(e)
+            log.warning("[ATLAS] Falha ao registrar bronze: %s", err_fmt)
         
         # ==================== CAMADA SILVER ====================
         # Usa a implementação oficial da camada Silver para garantir colunas de qualidade
@@ -117,6 +118,11 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 db=db_name,
                 columns=[{"qualifiedName": f"{db_name}.{silver_table}.data@cluster", "name": "data", "type": "string"}]
             )
+            try:
+                atlas.get_entity_by_qualified_name("hive_table", f"{db_name}.{silver_table}@cluster")
+                log.info("[ATLAS] Silver entity indexed: %s", f"{db_name}.{silver_table}@cluster")
+            except Exception as e:
+                log.warning("[ATLAS] Silver entity fetch failed (may be eventual consistency): %s", e)
             
             # Registrar processo Bronze → Silver
             register_process(
@@ -129,7 +135,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             )
             log.info("[ATLAS] ✅ Processo Bronze→Silver registrado")
         except Exception as e:
-            log.warning("[ATLAS] Falha ao registrar silver: %s", e)
+            err_fmt = getattr(atlas, "format_http_error", lambda x: str(x))(e)
+            log.warning("[ATLAS] Falha ao registrar silver: %s", err_fmt)
         
         # ==================== CAMADA GOLD (DELTA LAKE) ====================
         log.info("[GOLD] Processando: s3://%s/%s → Delta Lake", bucket, silver_key)
@@ -160,6 +167,11 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                     db=db_name,
                     columns=[{"qualifiedName": f"{db_name}.{gold_table}.data@cluster", "name": "data", "type": "string"}]
                 )
+                try:
+                    atlas.get_entity_by_qualified_name("hive_table", f"{db_name}.{gold_table}@cluster")
+                    log.info("[ATLAS] Gold entity indexed: %s", f"{db_name}.{gold_table}@cluster")
+                except Exception as e:
+                    log.warning("[ATLAS] Gold entity fetch failed (may be eventual consistency): %s", e)
                 
                 # Registrar processo Silver → Gold
                 register_process(
@@ -172,7 +184,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 )
                 log.info("[ATLAS] ✅ Processo Silver→Gold (Delta) registrado")
             except Exception as e:
-                log.warning("[ATLAS] Falha ao registrar gold: %s", e)
+                err_fmt = getattr(atlas, "format_http_error", lambda x: str(x))(e)
+                log.warning("[ATLAS] Falha ao registrar gold: %s", err_fmt)
             
         except Exception as e:
             # Fallback para Parquet se Delta Lake falhou
@@ -219,7 +232,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 )
                 log.info("[ATLAS] ✅ Processo Silver→Gold (Parquet fallback) registrado")
             except Exception as e:
-                log.warning("[ATLAS] Falha ao registrar gold (fallback): %s", e)
+                err_fmt = getattr(atlas, "format_http_error", lambda x: str(x))(e)
+                log.warning("[ATLAS] Falha ao registrar gold (fallback): %s", err_fmt)
         
     finally:
         if tmpdir is not None and os.path.exists(tmpdir):

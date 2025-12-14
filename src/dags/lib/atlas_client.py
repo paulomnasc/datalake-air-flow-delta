@@ -96,7 +96,21 @@ class AtlasClient:
         # For simplicity and robustness, skip column creation here.
         return self._post("/entity/bulk", entity)
 
-    def create_process(self, name: str, qualified_name: str, inputs: List[Dict], outputs: List[Dict], description: str = "") -> Dict:
+    def create_process(
+        self,
+        name: str,
+        qualified_name: str,
+        inputs: List[Dict],
+        outputs: List[Dict],
+        description: str = "",
+        start_time_ms: Optional[int] = None,
+        end_time_ms: Optional[int] = None,
+    ) -> Dict:
+        # hive_process exige startTime; usamos timestamp atual em ms se não for informado
+        now_ms = int(time.time() * 1000)
+        start_ms = start_time_ms or now_ms
+        end_ms = end_time_ms or now_ms
+
         process = {
             "entities": [
                 {
@@ -104,7 +118,13 @@ class AtlasClient:
                     "attributes": {
                         "name": name,
                         "qualifiedName": qualified_name,
-                        "description": description
+                        "description": description,
+                        "startTime": start_ms,
+                        "endTime": end_ms,
+                        "userName": self.user,
+                        "queryText": description or name,
+                        "queryPlan": description or name,
+                        "operationType": "ETL",
                     },
                     "relationshipAttributes": {
                         "inputs": inputs,
@@ -157,4 +177,39 @@ class AtlasClient:
                 time.sleep(self.backoff_seconds * (2 ** attempt))
                 attempt += 1
         raise TimeoutError("Atlas is not ready within timeout")
+
+    def get_entity_by_qualified_name(self, type_name: str, qualified_name: str) -> Dict:
+        """Fetch an entity by its qualifiedName to verify existence/indexing."""
+        params = {"attr:qualifiedName": qualified_name}
+        return self._get(f"/entity/uniqueAttribute/type/{type_name}", params=params)
+
+    @staticmethod
+    def format_http_error(err: Exception) -> str:
+        """Return a concise, hint-rich error string for Atlas HTTP errors."""
+        import requests
+
+        if isinstance(err, requests.HTTPError) and err.response is not None:
+            status = err.response.status_code
+            text = err.response.text or ""
+            hints = []
+
+            lowered = text.lower()
+            if "starttime" in lowered:
+                hints.append("add startTime (ms) in hive_process")
+            if "username" in lowered:
+                hints.append("add userName in hive_process")
+            if "querytext" in lowered:
+                hints.append("add queryText in hive_process")
+            if "queryplan" in lowered:
+                hints.append("add queryPlan in hive_process")
+            if "hive_process" in lowered and "mandatory" in lowered:
+                hints.append("check mandatory hive_process attrs")
+            if "solr" in lowered or "no live solr" in lowered:
+                hints.append("Solr indisponivel/fora do ar")
+
+            body_excerpt = text[:300].replace("\n", " ")
+            hint_str = f" | hints: {', '.join(hints)}" if hints else ""
+            return f"HTTP {status}: {body_excerpt}{hint_str}"
+
+        return str(err)
 

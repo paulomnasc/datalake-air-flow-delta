@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import logging
 import requests
 from typing import Dict, List, Optional
 
@@ -9,6 +10,8 @@ ATLAS_USER = os.getenv("ATLAS_USER", "admin")
 ATLAS_PASS = os.getenv("ATLAS_PASS", "admin")
 
 BASE_URL = f"{ATLAS_HOST}/api/atlas/v2"
+
+log = logging.getLogger(__name__)
 
 class AtlasClient:
     def __init__(self, host: Optional[str] = None, user: Optional[str] = None, password: Optional[str] = None):
@@ -21,8 +24,8 @@ class AtlasClient:
         self.session.auth = (self.user, self.password)
         self.session.headers.update({"Content-Type": "application/json"})
         self.max_retries = int(os.getenv("ATLAS_MAX_RETRIES", "5"))
-        self.backoff_seconds = float(os.getenv("ATLAS_BACKOFF_SECONDS", "1.0"))
-        self.http_timeout = float(os.getenv("ATLAS_HTTP_TIMEOUT", "10.0"))
+        self.backoff_seconds = float(os.getenv("ATLAS_BACKOFF_SECONDS", "2.0"))
+        self.http_timeout = float(os.getenv("ATLAS_HTTP_TIMEOUT", "60.0"))
 
     def _request_with_retry(self, method: str, path: str, payload: Optional[Dict] = None, params: Optional[Dict] = None) -> requests.Response:
         last_exc = None
@@ -41,11 +44,16 @@ class AtlasClient:
                         r = self.session.get(url_v1, params=params, timeout=self.http_timeout)
 
                 last_resp = r
-                # Retry on 5xx
+                # Retry on 5xx or timeout
                 if r.status_code >= 500:
                     time.sleep(self.backoff_seconds * (2 ** attempt))
                     continue
                 return r
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+                last_exc = e
+                wait_time = self.backoff_seconds * (2 ** attempt)
+                print(f"[ATLAS] Timeout/connection error (attempt {attempt+1}/{self.max_retries}), waiting {wait_time}s: {e}")
+                time.sleep(wait_time)
             except requests.RequestException as e:
                 last_exc = e
                 time.sleep(self.backoff_seconds * (2 ** attempt))
@@ -62,6 +70,7 @@ class AtlasClient:
             r.raise_for_status()
         except requests.HTTPError:
             # Include response body for easier debugging
+            log.error("[ATLAS] POST %s failed: %s | body: %s", path, r.status_code, (r.text or "<empty>"))
             raise requests.HTTPError(f"Atlas POST {path} failed: {r.status_code} {r.text}", response=r)
         return r.json() if r.text else {}
 
@@ -74,27 +83,74 @@ class AtlasClient:
         return r.json() if r.text else {}
 
     def create_hive_table(self, qualified_name: str, name: str, db: str, columns: Optional[List[Dict]] = None, description: str = "") -> Dict:
-        entity = {
+        table_entity = {
+            "typeName": "hive_table",
+            "attributes": {
+                "qualifiedName": qualified_name,
+                "name": name,
+                "description": description
+            },
+            "relationshipAttributes": {
+                "db": {
+                    "typeName": "hive_db",
+                    "uniqueAttributes": {"qualifiedName": f"{db}@cluster"}
+                }
+            }
+        }
+
+        # Build column entities when provided to populate Schema tab in Atlas
+        column_entities: List[Dict] = []
+        column_refs: List[Dict] = []
+        if columns:
+            for col in columns:
+                col_qn = col.get("qualifiedName")
+                col_name = col.get("name")
+                col_type = col.get("type", "string")
+                if not col_qn or not col_name:
+                    continue
+                column_entities.append({
+                    "typeName": "hive_column",
+                    "attributes": {
+                        "qualifiedName": col_qn,
+                        "name": col_name,
+                        "type": col_type
+                    },
+                    "relationshipAttributes": {
+                        "table": {
+                            "typeName": "hive_table",
+                            "uniqueAttributes": {"qualifiedName": qualified_name}
+                        }
+                    }
+                })
+                column_refs.append({"typeName": "hive_column", "uniqueAttributes": {"qualifiedName": col_qn}})
+
+        # Não definir 'columns' no lado da tabela para evitar referências
+        # a entidades ainda não criadas; as colunas apontam para a tabela.
+        payload = {"entities": [table_entity] + column_entities}
+        return self._post("/entity/bulk", payload)
+
+    def link_table_columns(self, table_qualified_name: str, column_qualified_names: List[str]) -> Dict:
+        """Ensure table has 'columns' relationship set to existing column entities.
+        Columns must already exist (we create them in bulk above). This sets the table→columns relationship
+        so Atlas UI Schema tab can list them.
+        """
+        if not column_qualified_names:
+            return {}
+        table_update = {
             "entities": [
                 {
                     "typeName": "hive_table",
-                    "attributes": {
-                        "qualifiedName": qualified_name,
-                        "name": name,
-                        "description": description
-                    },
+                    "uniqueAttributes": {"qualifiedName": table_qualified_name},
                     "relationshipAttributes": {
-                        "db": {
-                            "typeName": "hive_db",
-                            "uniqueAttributes": {"qualifiedName": f"{db}@cluster"}
-                        }
+                        "columns": [
+                            {"typeName": "hive_column", "uniqueAttributes": {"qualifiedName": qn}}
+                            for qn in column_qualified_names
+                        ]
                     }
                 }
             ]
         }
-        # Columns are relationships; to add them correctly we'd need to create column entities and reference them by GUID.
-        # For simplicity and robustness, skip column creation here.
-        return self._post("/entity/bulk", entity)
+        return self._post("/entity/bulk", table_update)
 
     def create_process(
         self,
@@ -119,6 +175,7 @@ class AtlasClient:
                         "name": name,
                         "qualifiedName": qualified_name,
                         "description": description,
+                        "queryId": qualified_name,
                         "startTime": start_ms,
                         "endTime": end_ms,
                         "userName": self.user,

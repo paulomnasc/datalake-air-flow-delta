@@ -135,6 +135,71 @@ python atlas_client.py
 - **Memória**: 1GB heap, 512MB inicial
 - **Persistência**: Volume Docker `atlas_data`
 
+#### Variáveis de Ambiente para Integração com Airflow
+
+Ao integrar o Atlas com pipelines do Airflow (DAGs de ETL), é possível controlar o comportamento do registro de metadados através de variáveis de ambiente:
+
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
+| `ATLAS_REGISTER_PROCESSES` | `false` | Habilita/desabilita registro de processos (`hive_process`) durante execução de DAGs |
+| `ATLAS_HTTP_TIMEOUT` | `60.0` | Timeout HTTP em segundos para requisições ao Atlas |
+| `ATLAS_MAX_RETRIES` | `5` | Número máximo de tentativas em caso de falha |
+| `ATLAS_BACKOFF_SECONDS` | `2.0` | Tempo base (em segundos) para backoff exponencial entre retries |
+
+##### Exemplo de Configuração no docker-compose.yml
+
+```yaml
+services:
+  airflow-scheduler:
+    environment:
+      # Atlas integration
+      ATLAS_HOST: "http://apache-atlas:21000"
+      ATLAS_USER: "admin"
+      ATLAS_PASS: "admin"
+      ATLAS_HIVE_DB: "medallion"
+      
+      # Performance tuning
+      ATLAS_REGISTER_PROCESSES: "false"    # true para habilitar lineage completa
+      ATLAS_HTTP_TIMEOUT: "60.0"
+      ATLAS_MAX_RETRIES: "5"
+      ATLAS_BACKOFF_SECONDS: "2.0"
+```
+
+##### Quando Usar `ATLAS_REGISTER_PROCESSES=true`
+
+**Recomendado quando:**
+- Atlas está rodando com recursos suficientes (>= 2GB RAM)
+- Você precisa de lineage completa (visualização de processos Raw→Bronze→Silver→Gold)
+- Execuções de DAGs são espaçadas (poucos jobs simultâneos)
+
+**Desabilite (`false`) quando:**
+- Atlas está com pouca memória ou timeout frequente
+- Você precisa apenas de registro de tabelas (lineage básica)
+- Há muitas DAGs executando simultaneamente
+- Prioridade é velocidade de execução vs. lineage detalhada
+
+##### Performance e Troubleshooting
+
+**Sintomas de Timeout:**
+```
+ReadTimeoutError: HTTPConnectionPool(host='apache-atlas', port=21000): Read timed out
+```
+
+**Soluções:**
+1. Aumentar `ATLAS_HTTP_TIMEOUT` para 90 ou 120 segundos
+2. Desabilitar `ATLAS_REGISTER_PROCESSES` temporariamente
+3. Aumentar memória do container Atlas (editar `docker-compose.yml`)
+4. Verificar saúde do Solr: `docker logs apache-atlas | grep -i solr`
+
+**Verificação de Entidades Registradas:**
+```bash
+# Via API
+curl -u admin:admin "http://localhost:21000/api/atlas/v2/search/basic?typeName=hive_table"
+
+# Via UI
+# Acesse http://localhost:21000 → Search → Type: hive_table
+```
+
 ### PostgreSQL Northwind
 - **Database**: northwind (carregado automaticamente)
 - **Tabelas**: 14 tabelas relacionais completas

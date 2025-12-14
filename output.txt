@@ -1,0 +1,9 @@
+18794-	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+18795-	at java.lang.Thread.run(Thread.java:750)
+18796-2025-12-14 15:34:33,476 INFO  - [index-health-monitor:] ~ indexBackEnd=solr; isHealthy=true (AtlasJanusGraphIndexClient:98)
+18797-2025-12-14 15:34:44,093 ERROR - [etp1047460013-233 - 50b901bb-112b-451a-81ad-ed5d23714c64:] ~ graph rollback due to exception AtlasBaseException:Referenced entity AtlasObjectId{guid='null', typeName='hive_column', uniqueAttributes={qualifiedName:medallion.orders_gold.data@cluster}} is not found (GraphTransactionInterceptor:202)
+18798:2025-12-14 15:34:44,097 ERROR - [etp1047460013-196 - e02fbe06-942e-41ad-98ed-dc9367672080:] ~ Error handling a request: 7e92606748799aba (ExceptionMapperUtil:32)
+18799-com.sun.jersey.api.NotFoundException: null for uri: http://apache-atlas:21000/api/atlas/entity/bulk
+18800-	at com.sun.jersey.server.impl.application.WebApplicationImpl._handleRequest(WebApplicationImpl.java:1543)
+18801-	at com.sun.jersey.server.impl.application.WebApplicationImpl._handleRequest(WebApplicationImpl.java:1473)
+18802-	at com.sun.jersey.server.impl.application.WebApplicationImpl.handleRequest(WebApplicationImpl.java:1419)

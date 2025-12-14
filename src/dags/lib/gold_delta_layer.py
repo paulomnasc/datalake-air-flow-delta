@@ -152,6 +152,23 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
 
         log.info(f"[GOLD-DELTA] ✅ Tabela Delta salva em: {gold_delta_path}")
         
+        # Preparar lista de colunas e tipos simplificados para Atlas
+        def _map_dtype(dtype):
+            try:
+                import numpy as np
+                import pandas as pd
+                if pd.api.types.is_integer_dtype(dtype):
+                    return "int"
+                if pd.api.types.is_float_dtype(dtype):
+                    return "double"
+                if pd.api.types.is_datetime64_any_dtype(dtype):
+                    return "timestamp"
+                return "string"
+            except Exception:
+                return "string"
+
+        columns_schema = [{"name": c, "type": _map_dtype(df_enriched.dtypes[c])} for c in df_enriched.columns]
+
         return {
             "silver": src_key,
             "gold_delta": gold_delta_path,
@@ -160,7 +177,8 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
             "new_features": new_columns,
             "format": "delta",
             "version": dt.version() if 'dt' in locals() else 0,
-            "status": "success"
+            "status": "success",
+            "columns_schema": columns_schema
         }
         
     except Exception as e:

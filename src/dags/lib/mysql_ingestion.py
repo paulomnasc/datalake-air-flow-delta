@@ -141,7 +141,33 @@ def mysql_to_medallion(
     
     Combina ingestão do MySQL com pipeline Medallion.
     """
+    import os
     log.info(f"[MYSQL→MEDALLION] Iniciando pipeline completo para: {table_name}")
+    
+    # 0. Registrar tabela MySQL no Atlas (origem da linhagem)
+    mysql_qualified_name = None
+    register_processes = os.getenv("ATLAS_REGISTER_PROCESSES", "false").lower() == "true"
+    
+    if register_processes:
+        try:
+            from lib.atlas_client import AtlasClient
+            atlas = AtlasClient()
+            db_name = os.getenv("ATLAS_HIVE_DB", "medallion")
+            
+            # Criar entidade MySQL
+            mysql_table_name = f"mysql_{table_name}"
+            mysql_qualified_name = f"mysql.lista_revisao2.{table_name}@{mysql_conn_id}"
+            
+            log.info(f"[MYSQL→ATLAS] Registrando tabela MySQL de origem: {mysql_qualified_name}")
+            atlas.create_mysql_table(
+                qualified_name=mysql_qualified_name,
+                name=table_name,
+                database="lista_revisao2",
+                server=mysql_conn_id
+            )
+            log.info(f"[MYSQL→ATLAS] ✅ Tabela MySQL registrada")
+        except Exception as e:
+            log.warning(f"[MYSQL→ATLAS] Falha ao registrar MySQL: {e}")
     
     # 1. Ingestão MySQL → Raw
     ingest_result = ingest_mysql_to_raw(
@@ -158,6 +184,10 @@ def mysql_to_medallion(
     
     # Remove source_filename de kwargs para evitar duplicação
     medallion_kwargs = {k: v for k, v in kwargs.items() if k != 'source_filename'}
+    
+    # Passar mysql_qualified_name para criar processo MySQL→Raw
+    if mysql_qualified_name:
+        medallion_kwargs['mysql_qualified_name'] = mysql_qualified_name
     
     medallion_result = raw_to_medallion(
         source_filename=ingest_result['raw_key'],

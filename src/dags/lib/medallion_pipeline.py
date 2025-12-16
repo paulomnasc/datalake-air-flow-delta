@@ -50,6 +50,9 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         # Flag para controlar registro de processos (pode ser lento)
         register_processes = os.getenv("ATLAS_REGISTER_PROCESSES", "false").lower() == "true"
         
+        # Verificar se há origem MySQL para criar processo MySQL→Raw
+        mysql_qualified_name = kwargs.get('mysql_qualified_name')
+        
         # Aguarda o Atlas ficar pronto para evitar 5xx durante inicialização
         try:
             atlas.wait_until_ready(timeout_seconds=90)
@@ -66,6 +69,22 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             columns=None,
             description=f"Raw source for {target_table_name}"
         )
+        
+        # Se temos origem MySQL, criar processo MySQL → Raw
+        if mysql_qualified_name and register_processes:
+            try:
+                log.info("[ATLAS] Criando processo MySQL→Raw...")
+                register_process(
+                    atlas,
+                    step_name=f"mysql_to_raw_{target_table_name}",
+                    layer_from="mysql",
+                    layer_to="raw",
+                    inputs_qn=[mysql_qualified_name],
+                    outputs_qn=[f"{db_name}.{raw_table}@cluster"]
+                )
+                log.info("[ATLAS] ✅ Processo MySQL→Raw criado")
+            except Exception as e:
+                log.warning("[ATLAS] Falha ao criar processo MySQL→Raw: %s", e)
         
         # ==================== CAMADA BRONZE ====================
         log.info("[BRONZE] Copiando: s3://%s/%s → s3://%s/%s", bucket, src_key, bucket, bronze_key)

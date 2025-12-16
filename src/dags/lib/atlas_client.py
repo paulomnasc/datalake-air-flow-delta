@@ -116,7 +116,8 @@ class AtlasClient:
                 "qualifiedName": qualified_name,
                 "name": name,
                 "description": description,
-                "owner": owner
+                "owner": owner,
+                "tableType": "EXTERNAL_TABLE"
             },
             "relationshipAttributes": {
                 "db": {

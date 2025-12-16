@@ -96,16 +96,19 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 layer="bronze",
                 table=bronze_table,
                 db=db_name,
-                columns=bronze_columns
+                columns=None  # Criar tabela sem colunas primeiro
             )
+            log.info("[ATLAS] ✓ Tabela Bronze registrada: %s", f"{db_name}.{bronze_table}@cluster")
+            
+            # Adicionar colunas à tabela Bronze
             try:
-                atlas.link_table_columns(
+                atlas.add_columns_to_table(
                     table_qualified_name=f"{db_name}.{bronze_table}@cluster",
-                    column_qualified_names=[c["qualifiedName"] for c in bronze_columns]
+                    columns=bronze_columns
                 )
-                log.info("[ATLAS] ✓ Relacionamento tabela→colunas (Bronze) aplicado")
+                log.info("[ATLAS] ✓ %d colunas adicionadas à Bronze", len(bronze_columns))
             except Exception as e:
-                log.warning("[ATLAS] Falha ao vincular colunas (Bronze): %s", getattr(atlas, "format_http_error", lambda x: str(x))(e))
+                log.warning("[ATLAS] Falha ao adicionar colunas (Bronze): %s", getattr(atlas, "format_http_error", lambda x: str(x))(e))
             
             # Registrar processo Raw → Bronze (opcional)
             if register_processes:
@@ -166,21 +169,19 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 layer="silver",
                 table=silver_table,
                 db=db_name,
-                columns=silver_columns
+                columns=None  # Criar tabela sem colunas primeiro
             )
+            log.info("[ATLAS] ✓ Tabela Silver registrada: %s", f"{db_name}.{silver_table}@cluster")
+            
+            # Adicionar colunas à tabela Silver
             try:
-                atlas.link_table_columns(
+                atlas.add_columns_to_table(
                     table_qualified_name=f"{db_name}.{silver_table}@cluster",
-                    column_qualified_names=[c["qualifiedName"] for c in silver_columns]
+                    columns=silver_columns
                 )
-                log.info("[ATLAS] ✓ Relacionamento tabela→colunas (Silver) aplicado")
+                log.info("[ATLAS] ✓ %d colunas adicionadas à Silver", len(silver_columns))
             except Exception as e:
-                log.warning("[ATLAS] Falha ao vincular colunas (Silver): %s", getattr(atlas, "format_http_error", lambda x: str(x))(e))
-            try:
-                atlas.get_entity_by_qualified_name("hive_table", f"{db_name}.{silver_table}@cluster")
-                log.info("[ATLAS] Silver entity indexed: %s", f"{db_name}.{silver_table}@cluster")
-            except Exception as e:
-                log.warning("[ATLAS] Silver entity fetch failed (may be eventual consistency): %s", e)
+                log.warning("[ATLAS] Falha ao adicionar colunas (Silver): %s", getattr(atlas, "format_http_error", lambda x: str(x))(e))
             
             # Registrar processo Bronze → Silver (opcional)
             if register_processes:
@@ -236,21 +237,25 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                     layer="gold",
                     table=gold_table,
                     db=db_name,
-                    columns=gold_columns or [{"qualifiedName": f"{db_name}.{gold_table}.data@cluster", "name": "data", "type": "string"}]
+                    columns=None  # Criar tabela sem colunas primeiro
                 )
-                try:
-                    atlas.link_table_columns(
-                        table_qualified_name=f"{db_name}.{gold_table}@cluster",
-                        column_qualified_names=[c["qualifiedName"] for c in (gold_columns or [])]
-                    )
-                    log.info("[ATLAS] ✓ Relacionamento tabela→colunas (Gold) aplicado")
-                except Exception as e:
-                    log.warning("[ATLAS] Falha ao vincular colunas (Gold): %s", getattr(atlas, "format_http_error", lambda x: str(x))(e))
-                try:
-                    atlas.get_entity_by_qualified_name("hive_table", f"{db_name}.{gold_table}@cluster")
-                    log.info("[ATLAS] Gold entity indexed: %s", f"{db_name}.{gold_table}@cluster")
-                except Exception as e:
-                    log.warning("[ATLAS] Gold entity fetch failed (may be eventual consistency): %s", e)
+                log.info("[ATLAS] ✓ Tabela Gold registrada: %s", f"{db_name}.{gold_table}@cluster")
+                
+                # Adicionar colunas à tabela Gold
+                if gold_columns_schema:
+                    gold_columns = [{
+                        "qualifiedName": f"{db_name}.{gold_table}.{c['name']}@cluster",
+                        "name": c['name'],
+                        "type": c.get('type', 'string')
+                    } for c in gold_columns_schema]
+                    try:
+                        atlas.add_columns_to_table(
+                            table_qualified_name=f"{db_name}.{gold_table}@cluster",
+                            columns=gold_columns
+                        )
+                        log.info("[ATLAS] ✓ %d colunas adicionadas à Gold", len(gold_columns))
+                    except Exception as e:
+                        log.warning("[ATLAS] Falha ao adicionar colunas (Gold): %s", getattr(atlas, "format_http_error", lambda x: str(x))(e))
                 
                 # Registrar processo Silver → Gold (opcional)
                 if register_processes:
@@ -282,7 +287,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             df_fallback = pd.read_parquet(silver_local_fallback)
             
             from lib.gold_layer import _apply_analytical_intelligence
-            df_fallback = _apply_analytical_intelligence(df_fallback, target_table_name)
+            df_fallback = _apply_analytical_intelligence(df_fallback)
             
             log.info("[GOLD] Aplicando otimizações finais...")
             

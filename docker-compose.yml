@@ -127,12 +127,21 @@ services:
     restart: always
     depends_on:
       - postgres
+      - atlas
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
-      - ENABLE_DEBUGPY=true
+      - ENABLE_DEBUGPY=false
+      - ATLAS_HOST=http://apache-atlas:21000
+      - ATLAS_USER=admin
+      - ATLAS_PASS=admin
+      - ATLAS_HIVE_DB=medallion
+      - ATLAS_REGISTER_PROCESSES=true
+      - ATLAS_HTTP_TIMEOUT=120
+      - ATLAS_MAX_RETRIES=5
+      - ATLAS_BACKOFF_SECONDS=3
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock

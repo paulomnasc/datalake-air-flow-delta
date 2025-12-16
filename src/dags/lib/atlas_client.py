@@ -152,6 +152,41 @@ class AtlasClient:
         }
         return self._post("/entity/bulk", table_update)
 
+    def add_columns_to_table(self, table_qualified_name: str, columns: List[Dict]) -> Dict:
+        """Add columns to an existing table. Table must already exist.
+        This creates column entities and links them to the table.
+        """
+        if not columns:
+            return {}
+        
+        column_entities = []
+        for col in columns:
+            col_qn = col.get("qualifiedName")
+            col_name = col.get("name")
+            col_type = col.get("type", "string")
+            if not col_qn or not col_name:
+                continue
+            column_entities.append({
+                "typeName": "hive_column",
+                "attributes": {
+                    "qualifiedName": col_qn,
+                    "name": col_name,
+                    "type": col_type
+                },
+                "relationshipAttributes": {
+                    "table": {
+                        "typeName": "hive_table",
+                        "uniqueAttributes": {"qualifiedName": table_qualified_name}
+                    }
+                }
+            })
+        
+        if not column_entities:
+            return {}
+        
+        payload = {"entities": column_entities}
+        return self._post("/entity/bulk", payload)
+
     def create_process(
         self,
         name: str,

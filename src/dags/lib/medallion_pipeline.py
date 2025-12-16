@@ -50,6 +50,9 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         # Flag para controlar registro de processos (pode ser lento)
         register_processes = os.getenv("ATLAS_REGISTER_PROCESSES", "false").lower() == "true"
         
+        # Pegar owner dos kwargs (vem da webapp via factory_master)
+        owner = kwargs.get('owner', 'airflow')
+        
         # Verificar se há origem MySQL para criar processo MySQL→Raw
         mysql_qualified_name = kwargs.get('mysql_qualified_name')
         
@@ -67,7 +70,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             name=raw_table,
             db=db_name,
             columns=None,
-            description=f"Raw source for {target_table_name}"
+            description=f"Raw source for {target_table_name}",
+            owner=owner
         )
         
         # Se temos origem MySQL, criar processo MySQL → Raw
@@ -115,7 +119,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 layer="bronze",
                 table=bronze_table,
                 db=db_name,
-                columns=None  # Criar tabela sem colunas primeiro
+                columns=None,  # Criar tabela sem colunas primeiro
+                owner=owner
             )
             log.info("[ATLAS] ✓ Tabela Bronze registrada: %s", f"{db_name}.{bronze_table}@cluster")
             
@@ -188,7 +193,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 layer="silver",
                 table=silver_table,
                 db=db_name,
-                columns=None  # Criar tabela sem colunas primeiro
+                columns=None,  # Criar tabela sem colunas primeiro
+                owner=owner
             )
             log.info("[ATLAS] ✓ Tabela Silver registrada: %s", f"{db_name}.{silver_table}@cluster")
             
@@ -256,7 +262,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                     layer="gold",
                     table=gold_table,
                     db=db_name,
-                    columns=None  # Criar tabela sem colunas primeiro
+                    columns=None,  # Criar tabela sem colunas primeiro
+                    owner=owner
                 )
                 log.info("[ATLAS] ✓ Tabela Gold registrada: %s", f"{db_name}.{gold_table}@cluster")
                 
@@ -326,7 +333,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                     layer="gold",
                     table=gold_table,
                     db=db_name,
-                    columns=[{"qualifiedName": f"{db_name}.{gold_table}.data@cluster", "name": "data", "type": "string"}]
+                    columns=[{"qualifiedName": f"{db_name}.{gold_table}.data@cluster", "name": "data", "type": "string"}],
+                    owner=owner
                 )
                 
                 # Registrar processo Silver → Gold (fallback, opcional)

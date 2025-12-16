@@ -1,9 +1,9 @@
 from typing import Dict, List
 from .atlas_client import AtlasClient
 
-def register_table(client: AtlasClient, layer: str, table: str, db: str, columns: List[Dict]):
+def register_table(client: AtlasClient, layer: str, table: str, db: str, columns: List[Dict], owner: str = "airflow"):
     qualified_name = f"{db}.{table}@cluster"
-    return client.create_hive_table(qualified_name=qualified_name, name=table, db=db, columns=columns, description=f"Medallion {layer} table")
+    return client.create_hive_table(qualified_name=qualified_name, name=table, db=db, columns=columns, description=f"Medallion {layer} table", owner=owner)
 
 def register_process(client: AtlasClient, step_name: str, layer_from: str, layer_to: str, inputs_qn: List[str], outputs_qn: List[str]):
     inputs = [{"typeName": "hive_table", "uniqueAttributes": {"qualifiedName": qn}} for qn in inputs_qn]

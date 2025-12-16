@@ -165,6 +165,7 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         op_kwargs_dict = {
             'source_filename': task_config.get('source_filename'),
             'target_table_name': task_config.get('target_table_name'),
+            'owner': dag_metadata.get('owner', 'airflow'),
             **transform_args
         }
         

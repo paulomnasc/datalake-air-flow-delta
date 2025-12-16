@@ -134,6 +134,7 @@ def mysql_to_medallion(
     query: str = None,
     target_table_name: str = None,
     dag_id: str = None,
+    owner: str = "airflow",
     **kwargs
 ):
     """
@@ -163,7 +164,8 @@ def mysql_to_medallion(
                 qualified_name=mysql_qualified_name,
                 name=table_name,
                 database="lista_revisao2",
-                server=mysql_conn_id
+                server=mysql_conn_id,
+                owner=owner
             )
             log.info(f"[MYSQL→ATLAS] ✅ Tabela MySQL registrada")
         except Exception as e:
@@ -185,9 +187,10 @@ def mysql_to_medallion(
     # Remove source_filename de kwargs para evitar duplicação
     medallion_kwargs = {k: v for k, v in kwargs.items() if k != 'source_filename'}
     
-    # Passar mysql_qualified_name para criar processo MySQL→Raw
+    # Passar mysql_qualified_name e owner para criar processo MySQL→Raw
     if mysql_qualified_name:
         medallion_kwargs['mysql_qualified_name'] = mysql_qualified_name
+    medallion_kwargs['owner'] = owner
     
     medallion_result = raw_to_medallion(
         source_filename=ingest_result['raw_key'],

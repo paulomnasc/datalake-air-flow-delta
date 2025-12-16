@@ -82,7 +82,7 @@ class AtlasClient:
             raise requests.HTTPError(f"Atlas GET {path} failed: {r.status_code} {r.text}", response=r)
         return r.json() if r.text else {}
 
-    def create_mysql_table(self, qualified_name: str, name: str, database: str, server: str) -> Dict:
+    def create_mysql_table(self, qualified_name: str, name: str, database: str, server: str, owner: str = "mysql") -> Dict:
         """Create a MySQL table entity in Atlas to represent the data source.
         Uses hive_table type with special database 'mysql' to identify it as external source."""
         
@@ -96,7 +96,7 @@ class AtlasClient:
                 "name": name,
                 "description": f"MySQL table {name} from database {database} on server {server}",
                 "tableType": "EXTERNAL_TABLE",
-                "owner": "mysql"
+                "owner": owner
             },
             "relationshipAttributes": {
                 "db": {
@@ -109,13 +109,14 @@ class AtlasClient:
         payload = {"entities": [mysql_entity]}
         return self._post("/entity/bulk", payload)
 
-    def create_hive_table(self, qualified_name: str, name: str, db: str, columns: Optional[List[Dict]] = None, description: str = "") -> Dict:
+    def create_hive_table(self, qualified_name: str, name: str, db: str, columns: Optional[List[Dict]] = None, description: str = "", owner: str = "airflow") -> Dict:
         table_entity = {
             "typeName": "hive_table",
             "attributes": {
                 "qualifiedName": qualified_name,
                 "name": name,
-                "description": description
+                "description": description,
+                "owner": owner
             },
             "relationshipAttributes": {
                 "db": {

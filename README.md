@@ -15,6 +15,10 @@ A base foi clonada do repositório do Adriano e adaptada para incluir os três s
 
 Para entender a arquitetura Medallion (Bronze → Silver → Gold) e todas as transformações aplicadas, consulte o **[Índice de Documentação](DOCS_INDEX.md)**.
 
+### 🎯 Guias de Uso
+
+- **[📋 Guia da Interface Web](GUIDE_WEBAPP_CONFIG.md)**: Como preencher formulário de configuração de DAGs, multi-tabela, conexões SQL, validações
+
 ### Documentação por Camada
 
 - **[Transformações Silver](TRANSFORMACOES_SILVER.md)**: Data Quality, validações, dicionário de dados

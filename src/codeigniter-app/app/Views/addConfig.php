@@ -6,6 +6,45 @@ if (! defined('VIEWPATH')) {
 require VIEWPATH . '/header.php';
 ?>
 
+<link rel="stylesheet" href="<?= base_url('css/multi-table-selection.css') ?>">
+<style>
+/* Estilos para abas de conexão */
+.connection-tabs {
+    display: flex;
+    border-bottom: 2px solid #ddd;
+    margin-bottom: 20px;
+    gap: 5px;
+}
+.connection-tab {
+    padding: 12px 24px;
+    cursor: pointer;
+    background: #f5f5f5;
+    border: none;
+    border-bottom: 3px solid transparent;
+    font-weight: 500;
+    transition: all 0.3s;
+    border-radius: 5px 5px 0 0;
+}
+.connection-tab:hover {
+    background: #e8e8e8;
+}
+.connection-tab.active {
+    background: white;
+    border-bottom-color: #007bff;
+    color: #007bff;
+}
+.tab-content {
+    display: none;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 0 5px 5px 5px;
+    background: white;
+}
+.tab-content.active {
+    display: block;
+}
+</style>
+
 <div id="content">
 
     <div class="container">
@@ -166,50 +205,182 @@ require VIEWPATH . '/header.php';
                     <input type="text" name="source_file_path" id="source_path" placeholder="Ex: raw/dados_pre_existentes.parquet" maxlength="255">
                 </div>
 
-                <div class="form-group" id="source_uri_group" style="display:none;">
-                    <label for="source_uri">URL de Conexão de Banco de Dados (SQLAlchemy URI):</label>
-                    <input type="text" name="source_db_uri" id="source_uri" placeholder="Ex: mysql+mysqlconnector://user:pass@host:port/database" maxlength="512">
-                    <fieldset>
-                        <legend>Conexão SSH (Bases On-Premises)</legend>
+                <div class="form-group" id="source_sql_group" style="display:none;">
+                    <h4>Configuração da Conexão SQL</h4>
+                    <!-- Abas de Tipo de Conexão -->
+                    <div class="connection-tabs">
+                        <button type="button" class="connection-tab active" onclick="switchConnectionTab('direct')">
+                            🔌 Conexão Direta
+                        </button>
+                        <button type="button" class="connection-tab" onclick="switchConnectionTab('ssh')">
+                            🔐 Conexão via SSH Tunnel
+                        </button>
+                    </div>
+                    
+                    <!-- Conteúdo: Conexão Direta -->
+                    <div id="tab-direct" class="tab-content active">
+                        <p class="help-text">Configure a conexão direta ao banco de dados (sem túnel SSH)</p>
                         
-                        <p>Preencha apenas se a base de dados SQL for acessada via Jump Server/Túnel SSH.</p>
-
                         <div class="form-group">
-                            <label for="ssh_host">Host SSH (Jump Server):</label>
-                            <input type="text" class="form-control" id="ssh_host" name="ssh_host" placeholder="Ex: 192.168.1.100">
+                            <label for="sql_connection_id">ID da Conexão Airflow:</label>
+                            <input type="text" id="sql_connection_id" name="sql_connection_id" placeholder="Ex: mysql_northwind" value="mysql_northwind">
+                            <small class="form-text text-muted">ID da conexão configurada no Airflow (usado para autenticação)</small>
                         </div>
-
+                        
                         <div class="form-group">
-                            <label for="ssh_user">Usuário SSH:</label>
-                            <input type="text" class="form-control" id="ssh_user" name="ssh_user" placeholder="Ex: ssh_user">
+                            <label for="sql_host">Host do Banco de Dados:</label>
+                            <input type="text" id="sql_host" name="sql_host" placeholder="Ex: mysql, localhost, 192.168.1.10">
+                            <small class="form-text text-muted">Hostname ou IP do servidor de banco de dados</small>
                         </div>
+                        
+                        <div class="form-group">
+                            <label for="sql_port">Porta do Banco de Dados:</label>
+                            <input type="number" id="sql_port" name="sql_port" placeholder="Ex: 3306 (MySQL), 5432 (PostgreSQL)" value="3306">
+                            <small class="form-text text-muted">Porta do servidor de banco de dados</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="sql_database_name">Nome do Banco de Dados:</label>
+                            <input type="text" id="sql_database_name" name="sql_database_name" placeholder="Ex: northwind, lista_revisao2">
+                            <small class="form-text text-muted">Nome do schema/database a conectar</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="sql_user">Usuário do Banco de Dados:</label>
+                            <input type="text" id="sql_user" name="sql_user" placeholder="Ex: root, admin, user_readonly">
+                            <small class="form-text text-muted">Nome de usuário para autenticação no banco</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="sql_password">Senha do Banco de Dados:</label>
+                            <input type="password" id="sql_password" name="sql_password" placeholder="Digite a senha">
+                            <small class="form-text text-muted">Senha do usuário (será armazenada de forma segura)</small>
+                        </div>
+                        
+                        <!-- Botão Conectar (apenas visível em modo multi-table) -->
+                        <div id="sql_connect_section" style="display:none;">
+                            <button type="button" id="btn_connect_tables" class="btn btn-primary" onclick="connectAndListTables()" style="margin-top: 10px;">
+                                🔌 Conectar e Listar Tabelas
+                            </button>
+                            <div id="connection_status" style="margin-top: 10px; display: none;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Conteúdo: Conexão SSH -->
+                    <div id="tab-ssh" class="tab-content">
+                        <p class="help-text">Configure o túnel SSH para acessar bancos de dados on-premises ou protegidos</p>
+                        
+                        <fieldset>
+                            <legend>🔐 Configuração do Túnel SSH</legend>
+                            
+                            <div class="form-group">
+                                <label for="ssh_host">Host SSH (Jump Server):</label>
+                                <input type="text" class="form-control" id="ssh_host" name="ssh_host" placeholder="Ex: 192.168.1.100, ssh.company.com">
+                                <small class="form-text text-muted">Servidor SSH que dará acesso ao banco de dados</small>
+                            </div>
 
-                        <div class="form-row">
-                            <div class="col">
-                                <label for="ssh_port">Porta SSH:</label>
-                                <input type="number" class="form-control" id="ssh_port" name="ssh_port" value="22">
+                            <div class="form-group">
+                                <label for="ssh_user">Usuário SSH:</label>
+                                <input type="text" class="form-control" id="ssh_user" name="ssh_user" placeholder="Ex: ssh_user, admin">
+                                <small class="form-text text-muted">Usuário para autenticação no servidor SSH</small>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="ssh_port">Porta SSH:</label>
+                                        <input type="number" class="form-control" id="ssh_port" name="ssh_port" value="22">
+                                        <small class="form-text text-muted">Porta do serviço SSH (padrão: 22)</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="ssh_local_port">Porta Local do Túnel:</label>
+                                        <input type="number" class="form-control" id="ssh_local_port" name="ssh_local_port" value="13306">
+                                        <small class="form-text text-muted">Porta local para o tunnel (ex: 13306)</small>
+                                    </div>
+                                </div>
                             </div>
                             
-                            <div class="col">
-                                <label for="ssh_local_port">Porta Local do Túnel:</label>
-                                <input type="number" class="form-control" id="ssh_local_port" name="ssh_local_port" value="13306">
-                                <small class="form-text text-muted">Esta porta será usada para o túnel local.</small>
+                            <div class="form-group">
+                                <label for="ssh_key_path">Caminho da Chave Privada SSH:</label>
+                                <input type="text" class="form-control" id="ssh_key_path" name="ssh_key_path" placeholder="/home/airflow/.ssh/id_rsa">
+                                <small class="form-text text-muted">Caminho da chave privada no servidor Airflow</small>
                             </div>
-                        </div>
+                            
+                            <div class="form-group">
+                                <label for="ssh_password">Senha SSH (opcional):</label>
+                                <input type="password" class="form-control" id="ssh_password" name="ssh_password" placeholder="Deixe vazio se usar chave">
+                                <small class="form-text text-muted">Use senha apenas se não tiver chave privada configurada</small>
+                            </div>
+                        </fieldset>
                         
-                        <div class="form-group">
-                            <label for="ssh_key_path">Caminho da Chave Privada SSH:</label>
-                            <input type="text" class="form-control" id="ssh_key_path" name="ssh_key_path" placeholder="/home/airflow/.ssh/id_rsa">
-                            <small class="form-text text-muted">Caminho da chave no servidor que executará a DAG.</small>
-                        </div>
-                        
-                    </fieldset>
+                        <fieldset style="margin-top: 20px;">
+                            <legend>💾 Configuração do Banco de Dados (via túnel)</legend>
+                            
+                            <div class="form-group">
+                                <label for="sql_host_ssh">Host do Banco de Dados (destino do túnel):</label>
+                                <input type="text" class="form-control" id="sql_host_ssh" name="sql_host_ssh" placeholder="Ex: localhost, 127.0.0.1, mysql-server">
+                                <small class="form-text text-muted">Host do BD acessível via SSH (geralmente localhost no servidor SSH)</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="sql_port_ssh">Porta do Banco de Dados:</label>
+                                <input type="number" class="form-control" id="sql_port_ssh" name="sql_port_ssh" value="3306">
+                                <small class="form-text text-muted">Porta do BD no servidor remoto</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="sql_database_name_ssh">Nome do Banco de Dados:</label>
+                                <input type="text" class="form-control" id="sql_database_name_ssh" name="sql_database_name_ssh" placeholder="Ex: northwind">
+                                <small class="form-text text-muted">Nome do schema/database</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="sql_user_ssh">Usuário do Banco de Dados:</label>
+                                <input type="text" class="form-control" id="sql_user_ssh" name="sql_user_ssh" placeholder="Ex: root, dbuser">
+                                <small class="form-text text-muted">Usuário do banco de dados</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="sql_password_ssh">Senha do Banco de Dados:</label>
+                                <input type="password" class="form-control" id="sql_password_ssh" name="sql_password_ssh">
+                                <small class="form-text text-muted">Senha do banco de dados</small>
+                            </div>
+                        </fieldset>
+                    </div>
                 
                 </div>
                 
-                <div class="form-group">
+                <!-- Seção Multi-Table Selection -->
+                <div class="multi-table-checkbox">
+                    <input type="checkbox" id="is_multi_table" name="is_multi_table" value="1" onchange="toggleMultiTableMode(this.checked)">
+                    <label for="is_multi_table">📊 Modo Multi-Tabela (processar múltiplas tabelas em paralelo)</label>
+                </div>
+                
+                <div id="multi-table-section" style="display: none;">
+                    <h4>Selecione as Tabelas para Processar</h4>
+                    <p class="help-text">As tabelas selecionadas serão processadas em paralelo pela mesma DAG</p>
+                    
+                    <div id="tables-loading" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Carregando tabelas disponíveis...</p>
+                    </div>
+                    
+                    <div id="tables-container"></div>
+                    
+                    <div id="max_parallel_tasks_group" class="form-group">
+                        <label for="max_parallel_tasks">Máximo de Tasks Paralelas:</label>
+                        <input type="number" id="max_parallel_tasks" name="max_parallel_tasks" value="16" min="1" max="64">
+                        <small class="help-text">Número máximo de tabelas processadas simultaneamente (recomendado: 16)</small>
+                    </div>
+                </div>
+                
+                <div class="form-group" id="single-table-field">
                     <label for="target_table_name">Tabela/Destino Final (MinIO Trusted):</label>
                     <input type="text" name="target_table_name" id="target_table_name" placeholder="Ex: clientes_trusted" maxlength="128" required>
+                    <small class="form-text text-muted">Apenas para modo single-table</small>
                 </div>
             </fieldset>
 
@@ -217,16 +388,16 @@ require VIEWPATH . '/header.php';
                 <legend>Lógica de Transformação</legend>
                 <div class="form-group">
                     <label for="python_module_path">Função Python de Transformação:</label>
-                    <select name="python_module_path" id="python_module_path" required>
+                    <select name="python_module_path" id="python_module_path" required onchange="validatePipelineSelection()">
                         <option value="">-- Selecione o tipo de pipeline --</option>
-                        <optgroup label="⭐ Recomendado">
-                            <option value="lib.medallion_pipeline.raw_to_medallion" selected>
-                                Pipeline Completo (Bronze + Silver + Gold)
+                        <optgroup label="⭐ Recomendado para CSV/Parquet">
+                            <option value="lib.medallion_pipeline.raw_to_medallion">
+                                Pipeline Completo (Bronze + Silver + Gold) - RAW já existe
                             </option>
                         </optgroup>
-                        <optgroup label="Ingestão de Fontes">
+                        <optgroup label="🔥 Ingestão de Fontes SQL (MySQL, PostgreSQL)">
                             <option value="lib.mysql_ingestion.mysql_to_medallion">
-                                MySQL → Medallion (Ingestão + Bronze + Silver + Gold)
+                                ✅ MySQL → Medallion (Ingestão + Bronze + Silver + Gold)
                             </option>
                             <option value="lib.mysql_ingestion.ingest_mysql_to_raw">
                                 MySQL → Raw (Apenas ingestão para CSV)
@@ -249,7 +420,8 @@ require VIEWPATH . '/header.php';
                             </option>
                         </optgroup>
                     </select>
-                    <small>Escolha o tipo de processamento: Pipeline Completo (recomendado), Ingestão de fontes (MySQL, etc) ou camadas individuais.</small>
+                    <small id="pipeline_help_text">Escolha o tipo de processamento: Pipeline Completo (recomendado), Ingestão de fontes (MySQL, etc) ou camadas individuais.</small>
+                    <div id="pipeline_warning" style="display: none; color: #d9534f; font-weight: bold; margin-top: 5px;"></div>
                 </div>
                 
                 <div class="form-group">
@@ -380,6 +552,17 @@ require VIEWPATH . '/header.php';
         printColumnTypes(hot); 
     }); */
 
+ // Função para alternar entre abas de conexão
+    function switchConnectionTab(tabName) {
+        // Remover active de todas as abas e conteúdos
+        document.querySelectorAll('.connection-tab').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        // Ativar aba e conteúdo selecionados
+        event.target.classList.add('active');
+        document.getElementById('tab-' + tabName).classList.add('active');
+    }
+
  // 🛑 A FUNÇÃO NÃO RECEBE MAIS ARGUMENTOS 🛑
     function toggleSourceInput() {
         // Pega o elemento SELECT pelo seu novo ID (id_source_type)
@@ -404,51 +587,321 @@ require VIEWPATH . '/header.php';
         // Grupos de Inputs
         const uploadGroup = document.getElementById('source_upload_group');
         const pathGroup = document.getElementById('source_path_group');
-        const uriGroup = document.getElementById('source_uri_group');
+        const sqlGroup = document.getElementById('source_sql_group');
         
         // Inputs
         const uploadInput = document.getElementById('source_upload_file');
         const pathInput = document.getElementById('source_path');
-        const uriInput = document.getElementById('source_uri');
+        const sqlHostInput = document.getElementById('sql_host');
+        const sqlConnInput = document.getElementById('sql_connection_id');
+        const sqlDbInput = document.getElementById('sql_database_name');
 
         // 2. Limpar e esconder todos por padrão
-        // Se nada estiver selecionado, a função apenas limpa
-        [uploadGroup, pathGroup, uriGroup].forEach(g => g.style.display = 'none');
-        [uploadInput, pathInput, uriInput].forEach(i => {
-            i.removeAttribute('required');
-            i.value = ''; 
-            i.name = 'temp_field'; // Renomeia para não submeter
+        [uploadGroup, pathGroup, sqlGroup].forEach(g => g ? g.style.display = 'none' : null);
+        [uploadInput, pathInput, sqlHostInput].forEach(i => {
+            if (i) {
+                i.removeAttribute('required');
+                i.value = ''; 
+                i.name = 'temp_field';
+            }
         });
         
         let activeInput = null;
 
         // 3. Lógica Condicional (Baseada na string da descrição)
         if (sourceDescription.includes('csv') || sourceDescription.includes('json')) {
-            // Mostrar UPLOAD (para CSV/JSON, assumindo que são uploads/MinIO)
             uploadGroup.style.display = 'block';
             uploadInput.setAttribute('required', 'required');
             activeInput = uploadInput;
             
         } else if (sourceDescription.includes('parquet')) {
-            // Mostrar CAMINHO/PATH
             pathGroup.style.display = 'block';
             pathInput.setAttribute('required', 'required');
             activeInput = pathInput;
             
-        } else if (sourceDescription.includes('mysql') || sourceDescription.includes('postgresql') || sourceDescription.includes('database')) {
-            // Mostrar URI ou Campos de Conexão DB
-            uriGroup.style.display = 'block';
-            uriInput.setAttribute('required', 'required');
-            activeInput = uriInput;
+        } else if (sourceDescription.includes('mysql') || sourceDescription.includes('postgresql') || sourceDescription.includes('sql')) {
+            // Mostrar campos estruturados SQL
+            sqlGroup.style.display = 'block';
+            sqlHostInput.setAttribute('required', 'required');
+            sqlConnInput.setAttribute('required', 'required');
+            sqlDbInput.setAttribute('required', 'required');
+            
+            // O source_filename será montado como "TipoSQL.Host" no backend
+            // Mas precisamos enviar os campos individuais
+            sqlHostInput.name = 'sql_host';
+            activeInput = sqlHostInput;
         }
         
-        // 4. Mapeamento Crucial: O input ATIVO recebe o nome 'source_filename'
-        if (activeInput) {
+        // 4. Mapeamento para source_filename será feito no backend
+        if (activeInput && activeInput.id !== 'sql_host') {
             activeInput.name = 'source_filename'; 
         }
     }
+    
+    // Função para alternar modo multi-tabela
+    function toggleMultiTableMode(isMultiTable) {
+        const multiTableSection = document.getElementById('multi-table-section');
+        const singleTableField = document.getElementById('single-table-field');
+        const targetTableInput = document.getElementById('target_table_name');
+        const sqlConnectSection = document.getElementById('sql_connect_section');
+        const connectBtn = document.getElementById('btn_connect_tables');
+        
+        if (isMultiTable) {
+            multiTableSection.style.display = 'block';
+            singleTableField.style.display = 'none';
+            targetTableInput.removeAttribute('required');
+            
+            // Se for SQL, mostrar botão conectar E auto-selecionar função correta
+            const sourceType = document.getElementById('id_source_type');
+            if (sourceType && sourceType.selectedIndex >= 0) {
+                const selectedOption = sourceType.options[sourceType.selectedIndex];
+                const sourceDescription = selectedOption.textContent.trim().toLowerCase();
+                
+                if (sourceDescription.includes('mysql') || sourceDescription.includes('postgresql') || sourceDescription.includes('sql')) {
+                    if (sqlConnectSection) sqlConnectSection.style.display = 'block';
+                    
+                    // Auto-selecionar a função correta para ingestão SQL
+                    autoSelectCorrectPipelineFunction();
+                }
+            }
+        } else {
+            multiTableSection.style.display = 'none';
+            singleTableField.style.display = 'block';
+            targetTableInput.setAttribute('required', 'required');
+            
+            if (sqlConnectSection) sqlConnectSection.style.display = 'none';
+        }
+    }
+    
+    // Auto-selecionar função Python correta baseado no tipo de fonte
+    function autoSelectCorrectPipelineFunction() {
+        const sourceType = document.getElementById('id_source_type');
+        const pythonModulePath = document.getElementById('python_module_path');
+        const isMultiTable = document.getElementById('is_multi_table').checked;
+        
+        if (!sourceType || !pythonModulePath) return;
+        
+        const selectedOption = sourceType.options[sourceType.selectedIndex];
+        const sourceDescription = selectedOption.textContent.trim().toLowerCase();
+        
+        // Se for fonte SQL (MySQL, PostgreSQL, etc)
+        if (sourceDescription.includes('mysql') || sourceDescription.includes('postgresql') || sourceDescription.includes('sql')) {
+            if (isMultiTable) {
+                // Para multi-table SQL: DEVE usar mysql_to_medallion (faz ingestão + todas camadas)
+                pythonModulePath.value = 'lib.mysql_ingestion.mysql_to_medallion';
+                
+                // Destacar a opção selecionada
+                highlightSelectedPipelineOption();
+                
+                console.log('✅ Auto-selecionado: lib.mysql_ingestion.mysql_to_medallion (fonte SQL + multi-table)');
+            } else {
+                // Para single-table SQL: pode ser mysql_to_medallion ou só ingest_mysql_to_raw
+                // Deixar usuário escolher, mas sugerir mysql_to_medallion
+                if (!pythonModulePath.value || pythonModulePath.value === 'lib.medallion_pipeline.raw_to_medallion') {
+                    pythonModulePath.value = 'lib.mysql_ingestion.mysql_to_medallion';
+                    console.log('💡 Sugerido: lib.mysql_ingestion.mysql_to_medallion (fonte SQL)');
+                }
+            }
+        }
+    }
+    
+    // Destacar visualmente a opção selecionada
+    function highlightSelectedPipelineOption() {
+        const pythonModulePath = document.getElementById('python_module_path');
+        if (pythonModulePath) {
+            pythonModulePath.style.backgroundColor = '#e7f3ff';
+            pythonModulePath.style.border = '2px solid #007bff';
+            
+            setTimeout(() => {
+                pythonModulePath.style.backgroundColor = '';
+                pythonModulePath.style.border = '';
+            }, 2000);
+        }
+    }
+    
+    // Validar se a função selecionada é compatível com o tipo de fonte
+    function validatePipelineSelection() {
+        const sourceType = document.getElementById('id_source_type');
+        const pythonModulePath = document.getElementById('python_module_path');
+        const warningDiv = document.getElementById('pipeline_warning');
+        const isMultiTable = document.getElementById('is_multi_table').checked;
+        
+        if (!sourceType || !pythonModulePath || !warningDiv) return;
+        
+        const selectedOption = sourceType.options[sourceType.selectedIndex];
+        const sourceDescription = selectedOption ? selectedOption.textContent.trim().toLowerCase() : '';
+        const selectedFunction = pythonModulePath.value;
+        
+        // Limpar warnings anteriores
+        warningDiv.style.display = 'none';
+        warningDiv.innerHTML = '';
+        
+        // Validação: Se fonte é SQL
+        if (sourceDescription.includes('mysql') || sourceDescription.includes('postgresql') || sourceDescription.includes('sql')) {
+            
+            // ERRO: Selecionou raw_to_medallion para fonte SQL
+            if (selectedFunction === 'lib.medallion_pipeline.raw_to_medallion') {
+                warningDiv.innerHTML = '⚠️ ATENÇÃO: Esta função espera que dados JÁ EXISTAM na camada RAW. Para fontes SQL, use "MySQL → Medallion" que faz a ingestão primeiro!';
+                warningDiv.style.display = 'block';
+                return;
+            }
+            
+            // OBRIGATÓRIO: Multi-table SQL DEVE usar mysql_to_medallion
+            if (isMultiTable && selectedFunction !== 'lib.mysql_ingestion.mysql_to_medallion') {
+                warningDiv.innerHTML = '❌ ERRO: Para processar múltiplas tabelas SQL, você DEVE usar "MySQL → Medallion" (faz ingestão + pipeline completo)';
+                warningDiv.style.display = 'block';
+                warningDiv.style.backgroundColor = '#fff3cd';
+                warningDiv.style.borderColor = '#ffc107';
+                pythonModulePath.value = 'lib.mysql_ingestion.mysql_to_medallion';
+                highlightSelectedPipelineOption();
+                return;
+            }
+            
+            // SUCESSO: Fonte SQL com função correta
+            if (selectedFunction === 'lib.mysql_ingestion.mysql_to_medallion' || selectedFunction === 'lib.mysql_ingestion.ingest_mysql_to_raw') {
+                warningDiv.innerHTML = '✅ Configuração válida: Função compatível com fonte SQL';
+                warningDiv.style.display = 'block';
+                warningDiv.style.backgroundColor = '#d4edda';
+                warningDiv.style.borderColor = '#28a745';
+                
+                // Limpar mensagem de sucesso após 3 segundos
+                setTimeout(() => {
+                    warningDiv.style.display = 'none';
+                    warningDiv.innerHTML = '';
+                }, 3000);
+                return;
+            }
+        }
+        
+        // Para CSV/Parquet: validar se usa raw_to_medallion
+        if ((sourceDescription.includes('csv') || sourceDescription.includes('parquet')) && 
+            selectedFunction === 'lib.medallion_pipeline.raw_to_medallion') {
+            warningDiv.innerHTML = '✅ Configuração válida: Função compatível com arquivos CSV/Parquet';
+            warningDiv.style.display = 'block';
+            warningDiv.style.backgroundColor = '#d4edda';
+            warningDiv.style.borderColor = '#28a745';
+            
+            // Limpar mensagem de sucesso após 3 segundos
+            setTimeout(() => {
+                warningDiv.style.display = 'none';
+                warningDiv.innerHTML = '';
+            }, 3000);
+            return;
+        }
+        
+        // Tudo OK - limpar qualquer mensagem anterior
+        warningDiv.style.display = 'none';
+        warningDiv.innerHTML = '';
+        console.log('✅ Função selecionada é compatível com o tipo de fonte');
+    }
+    
+    // Função para conectar e listar tabelas
+    async function connectAndListTables() {
+        const connectionId = document.getElementById('sql_connection_id').value;
+        const host = document.getElementById('sql_host').value;
+        const port = document.getElementById('sql_port').value || 3306;
+        const databaseName = document.getElementById('sql_database_name').value;
+        const user = document.getElementById('sql_user').value;
+        const password = document.getElementById('sql_password').value;
+        
+        const statusDiv = document.getElementById('connection_status');
+        const loadingDiv = document.getElementById('tables-loading');
+        const containerDiv = document.getElementById('tables-container');
+        
+        // Validação
+        if (!connectionId || !host || !databaseName || !user) {
+            statusDiv.innerHTML = '<span style="color: red;">❌ Preencha todos os campos obrigatórios (Connection ID, Host, Database, User)</span>';
+            statusDiv.style.display = 'block';
+            return;
+        }
+        
+        // Mostrar loading
+        loadingDiv.style.display = 'block';
+        containerDiv.innerHTML = '';
+        statusDiv.style.display = 'none';
+        
+        try {
+            const formData = new URLSearchParams();
+            formData.append('connection_id', connectionId);
+            formData.append('host', host);
+            formData.append('port', port);
+            formData.append('database_name', databaseName);
+            formData.append('user', user);
+            formData.append('password', password);
+            
+            const response = await fetch('<?= base_url('config/getAvailableTables') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData.toString()
+            });
+            
+            const result = await response.json();
+            
+            loadingDiv.style.display = 'none';
+            
+            console.log('Resposta do servidor:', result); // Debug
+            
+            if (result.status === 'success' && result.tables) {
+                if (result.tables.length === 0) {
+                    containerDiv.innerHTML = '<p style="color: orange;">⚠️ Nenhuma tabela encontrada</p>';
+                } else {
+                    renderTableCheckboxes(result.tables);
+                    statusDiv.innerHTML = `<span style="color: green;">✅ ${result.tables.length} tabelas encontradas</span>`;
+                    statusDiv.style.display = 'block';
+                }
+            } else {
+                // Exibe a mensagem de erro completa
+                const errorMsg = result.mensagem || result.message || 'Erro desconhecido';
+                statusDiv.innerHTML = `<span style="color: red;">❌ ${errorMsg}</span>`;
+                statusDiv.style.display = 'block';
+                console.error('Erro retornado:', result);
+            }
+        } catch (error) {
+            loadingDiv.style.display = 'none';
+            statusDiv.innerHTML = `<span style="color: red;">❌ Erro de requisição: ${error.message}</span>`;
+            statusDiv.style.display = 'block';
+            console.error('Erro na requisição:', error);
+        }
+    }
+    
+    // Renderizar checkboxes de tabelas
+    function renderTableCheckboxes(tables) {
+        const container = document.getElementById('tables-container');
+        
+        let html = '<div class="tables-selection">';
+        html += '<div style="margin-bottom: 10px;"><button type="button" onclick="selectAllTables(true)" class="btn btn-sm">✓ Selecionar Todas</button> ';
+        html += '<button type="button" onclick="selectAllTables(false)" class="btn btn-sm">✗ Desmarcar Todas</button></div>';
+        html += '<div class="tables-grid">';
+        
+        tables.forEach(table => {
+            const tableName = table.table_name;
+            const rowCount = table.row_count ? `(${table.row_count.toLocaleString()} rows)` : '';
+            const tableSize = table.table_size_mb ? `${table.table_size_mb} MB` : '';
+            
+            html += `
+                <div class="table-checkbox-item">
+                    <input type="checkbox" id="table_${tableName}" name="selected_tables[]" value="${tableName}" class="table-checkbox">
+                    <label for="table_${tableName}">
+                        <strong>${tableName}</strong>
+                        <small>${rowCount} ${tableSize}</small>
+                    </label>
+                </div>
+            `;
+        });
+        
+        html += '</div></div>';
+        container.innerHTML = html;
+    }
+    
+    // Selecionar/Desmarcar todas
+    function selectAllTables(select) {
+        const checkboxes = document.querySelectorAll('.table-checkbox');
+        checkboxes.forEach(cb => cb.checked = select);
+    }
 
-    // 5. Configura Listeners
+    // Configura Listeners
     document.addEventListener('DOMContentLoaded', function() {
         toggleSourceInput(); // Executa na carga da página (para formulários de UPDATE)
         
@@ -459,6 +912,8 @@ require VIEWPATH . '/header.php';
     });
 
 </script>
+
+<script src="<?= base_url('js/multi-table-selection.js') ?>"></script>
 
 <?php
 require VIEWPATH . '/footer.php';

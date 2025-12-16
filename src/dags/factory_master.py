@@ -10,6 +10,7 @@ from typing import Dict, Any, List
 from airflow.models.dag import DAG
 from airflow.utils.dates import days_ago
 from airflow.operators.python import PythonOperator
+from airflow.decorators import task, dag as dag_decorator
 from airflow.operators.bash import BashOperator 
 from airflow.operators.python import BranchPythonOperator
 from airflow.exceptions import AirflowException
@@ -60,7 +61,7 @@ def import_callable_from_path(module_path: str):
 def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
     """
     Conecta ao MySQL e busca as configurações ativas da DAG.
-    Retorna 10 colunas: as 9 existentes + start_date.
+    Retorna colunas incluindo is_multi_table, max_parallel_tasks e campos SQL dedicados.
     """
     sql_query = f"""
     SELECT
@@ -73,7 +74,15 @@ def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
         target_table_name,
         python_module_path,
         transform_args,
-        start_date  /* 10ª Coluna */
+        start_date,
+        is_multi_table,
+        max_parallel_tasks,
+        sql_connection_id,
+        sql_host,
+        sql_port,
+        sql_database_name,
+        sql_user,
+        sql_password
     FROM dag_configurations
     WHERE is_active = 1 
     ORDER BY id;
@@ -90,6 +99,23 @@ def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
         log.debug(f"DEBUG: Registro {idx}: {rec}")
     
     return records
+
+def fetch_selected_tables(mysql_conn_id: str, dag_config_id: int) -> List[str]:
+    """
+    Busca tabelas selecionadas para uma DAG multi-table.
+    """
+    sql_query = f"""
+    SELECT table_name
+    FROM dag_table_selections
+    WHERE id_dag_config = {dag_config_id}
+    AND is_selected = 1
+    ORDER BY table_name;
+    """
+    
+    hook = MySqlHook(mysql_conn_id=mysql_conn_id)
+    records = hook.get_records(sql=sql_query)
+    
+    return [rec[0] for rec in records] if records else []
 
 
 # ----------------------------------------------------------------------
@@ -254,6 +280,99 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     
     return dag
 
+
+# ----------------------------------------------------------------------
+# 3B. FUNÇÃO PARA CRIAR DAG MULTI-TABLE COM DYNAMIC TASK MAPPING
+# ----------------------------------------------------------------------
+
+def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
+    """
+    Cria uma DAG que processa múltiplas tabelas em paralelo usando Dynamic Task Mapping.
+    Disponível a partir do Airflow 2.3+.
+    """
+    dag_id = dag_config['dag_id']
+    dag_metadata = dag_config['dag_metadata']
+    task_config = dag_config['task_config']
+    config_id = dag_config.get('id')
+    
+    log.info(f"[MULTI-TABLE] Criando DAG multi-table: {dag_id}")
+    
+    # Preparar argumentos
+    dag_args = DEFAULT_ARGS.copy()
+    start_date_db = dag_metadata.get('start_date')
+    
+    if isinstance(start_date_db, date):
+        effective_start_date = datetime.combine(start_date_db, datetime.min.time())
+    else:
+        effective_start_date = DEFAULT_ARGS['start_date']
+    
+    dag_args['owner'] = dag_metadata.get('owner') or DEFAULT_ARGS['owner']
+    
+    # Criar DAG
+    max_parallel = task_config.get('max_parallel_tasks', 16)
+    
+    dag = DAG(
+        dag_id=dag_id,
+        schedule_interval=dag_metadata.get('schedule_interval'),
+        start_date=effective_start_date,
+        catchup=False,
+        default_args=dag_args,
+        tags=dag_metadata.get('tags', []) + ['multi-table'],
+        max_active_runs=1,  # Evita overlap de execuções
+        max_active_tasks=max_parallel,  # Controla paralelismo
+        doc_md=f"DAG Multi-Table: {dag_metadata.get('description', '')}. Processa múltiplas tabelas em paralelo."
+    )
+    
+    # Task para buscar lista de tabelas selecionadas
+    @task(task_id='get_selected_tables', dag=dag)
+    def get_tables_to_process(**context):
+        """Busca tabelas selecionadas do banco de dados."""
+        tables = fetch_selected_tables(MYSQL_CONN_ID, config_id)
+        log.info(f"[MULTI-TABLE] Encontradas {len(tables)} tabelas para processar: {tables}")
+        return tables
+    
+    # Task para processar uma tabela individual
+    @task(task_id='process_table', dag=dag)
+    def process_single_table(table_name: str, **context):
+        """Processa uma única tabela através do pipeline Medallion."""
+        log.info(f"[MULTI-TABLE] Processando tabela: {table_name}")
+        
+        python_module_path = task_config.get('python_module_path')
+        transform_args = task_config.get('transform_args', {})
+        
+        if not python_module_path:
+            log.warning(f"Nenhuma função Python configurada para {table_name}")
+            return {'status': 'skipped', 'table': table_name}
+        
+        try:
+            callable_function = import_callable_from_path(python_module_path)
+            
+            # Preparar kwargs com table_name específica
+            op_kwargs = {
+                'source_filename': task_config.get('source_filename'),
+                'target_table_name': table_name,
+                'table_name': table_name,  # Importante para mysql_to_medallion
+                'owner': dag_metadata.get('owner', 'airflow'),
+                **transform_args
+            }
+            
+            # Executar pipeline para esta tabela
+            result = callable_function(**op_kwargs, **context)
+            
+            log.info(f"[MULTI-TABLE] ✅ Tabela {table_name} processada com sucesso")
+            return {'status': 'success', 'table': table_name, 'result': result}
+            
+        except Exception as e:
+            log.error(f"[MULTI-TABLE] ❌ Erro ao processar {table_name}: {e}")
+            raise
+    
+    # Dynamic Task Mapping: cria 1 task por tabela
+    tables_list = get_tables_to_process()
+    process_single_table.expand(table_name=tables_list)
+    
+    return dag
+
+
 # ----------------------------------------------------------------------
 # 4. GERAÇÃO DINÂMICA DE DAGS
 # ----------------------------------------------------------------------
@@ -268,12 +387,13 @@ try:
         config_name = None 
         
         try:
-            # Desempacotamento de 10 variáveis (corrigido)
+            # Desempacotamento incluindo is_multi_table, max_parallel_tasks e campos SQL
             id, dag_id_value, schedule_interval, owner, description, source_filename, \
-            target_table_name, python_module_path, transform_args, start_date_db = record
+            target_table_name, python_module_path, transform_args, start_date_db, \
+            is_multi_table, max_parallel_tasks, sql_connection_id, sql_host, sql_port, \
+            sql_database_name, sql_user, sql_password = record
             
-            log.debug(f"DEBUG: Processando registro ID={id}, dag_id={dag_id_value}")
-            log.debug(f"DEBUG: source_filename='{source_filename}', target_table='{target_table_name}', python_module='{python_module_path}'")
+            log.debug(f"DEBUG: Processando registro ID={id}, dag_id={dag_id_value}, multi_table={is_multi_table}")
             
             # 1. Constrói o nome da DAG
             config_name = f"{dag_id_value.strip()}{id}"
@@ -281,29 +401,50 @@ try:
             # 2. Converte e prepara a configuração
             parsed_transform_args = json.loads(transform_args) if transform_args else {}
             
+            # 3. Adiciona campos SQL dedicados ao transform_args (para retrocompatibilidade)
+            if sql_connection_id:
+                parsed_transform_args['mysql_conn_id'] = sql_connection_id
+            if sql_host:
+                parsed_transform_args['sql_host'] = sql_host
+            if sql_port:
+                parsed_transform_args['sql_port'] = sql_port
+            if sql_database_name:
+                parsed_transform_args['database_name'] = sql_database_name
+            if sql_user:
+                parsed_transform_args['sql_user'] = sql_user
+            if sql_password:
+                parsed_transform_args['sql_password'] = sql_password
+            
             dag_config = {
+                'id': id,
                 'dag_id': config_name,
                 'dag_metadata': {
                     'schedule_interval': schedule_interval,
                     'owner': owner,
                     'description': description,
                     'start_date': start_date_db, 
-                    'max_active_runs': None # Não lido do DB, será defaultado em create_dynamic_dag.
+                    'max_active_runs': None
                 },
                 'task_config': {
                     'source_filename': source_filename,
                     'target_table_name': target_table_name,
                     'python_module_path': python_module_path,
                     'transform_args': parsed_transform_args,
+                    'max_parallel_tasks': max_parallel_tasks or 16
                 }
             }
             
-            # 3. Cria e registra a DAG no escopo global
-            dag_object = create_dynamic_dag(dag_config)
+            # 3. Escolhe a função de criação baseado em is_multi_table
+            if is_multi_table:
+                log.info(f"[MULTI-TABLE] Criando DAG multi-table: {config_name}")
+                dag_object = create_multi_table_dag(dag_config)
+            else:
+                dag_object = create_dynamic_dag(dag_config)
+            
             dag_object.fileloc = DAG_FILE_PATH 
             globals()[f"dag_{config_name}"] = dag_object
             
-            log.info(f"✅ DAG '{config_name}' carregada com sucesso.")
+            log.info(f"✅ DAG '{config_name}' carregada com sucesso (multi_table={is_multi_table}).")
 
         except (ValueError, TypeError, json.JSONDecodeError) as e:
             log.warning(f"❌ Erro no registro do DB (ID: {record[0] if len(record) > 0 else 'N/A'}, DAG: {config_name}). Tipo de erro: {e.__class__.__name__}. Motivo: {e}")

@@ -1,0 +1,260 @@
+/* Multi-Table Selection Styles */
+
+#multi-table-section {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+}
+
+#sql_connection_fields {
+    background-color: #e7f3ff;
+    padding: 15px;
+    border-radius: 5px;
+    margin-top: 15px;
+    border-left: 4px solid #0066cc;
+}
+
+#sql_connection_fields h5 {
+    margin-top: 0;
+    color: #0066cc;
+}
+
+#btn_connect_tables {
+    background-color: #0066cc;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.3s;
+}
+
+#btn_connect_tables:hover {
+    background-color: #0052a3;
+}
+
+#connection_status {
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.tables-selection {
+    margin-top: 15px;
+}
+
+.table-checkbox-item {
+    padding: 10px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.table-checkbox-item:hover {
+    background-color: #f0f0f0;
+}
+
+.table-checkbox-item input[type="checkbox"] {
+    margin-right: 12px;
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+}
+
+.table-checkbox-item label {
+    cursor: pointer;
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.table-checkbox-item label strong {
+    display: block;
+    color: #333;
+}
+
+.table-checkbox-item label small {
+    display: block;
+    color: #666;
+    margin-top: 3px;
+}
+
+.btn-sm {
+    padding: 5px 10px;
+    font-size: 0.875rem;
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    margin-right: 5px;
+}
+
+.btn-sm:hover {
+    background-color: #5a6268;
+}
+
+.multi-table-checkbox {
+    margin: 15px 0;
+    padding: 10px;
+    background-color: #e7f3ff;
+    border-left: 4px solid #007bff;
+}
+
+.multi-table-checkbox label {
+    font-weight: bold;
+    cursor: pointer;
+    margin-left: 8px;
+}
+
+#tables-loading {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+}
+
+.tables-grid {
+    margin-top: 15px;
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    background-color: white;
+}
+
+.table-selection-header {
+    padding: 10px;
+    background-color: #f1f3f5;
+    border-bottom: 2px solid #dee2e6;
+    margin-bottom: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.table-selection-header input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.table-count {
+    float: right;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.table-item {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s;
+}
+
+.table-item:hover {
+    background-color: #f8f9fa;
+}
+
+.table-item input[type="checkbox"] {
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+.table-item label {
+    cursor: pointer;
+    display: inline-block;
+    width: calc(100% - 30px);
+}
+
+.table-name {
+    font-weight: 500;
+    color: #333;
+}
+
+.table-info {
+    color: #666;
+    font-size: 0.85em;
+    margin-left: 8px;
+}
+
+.selection-summary {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #e7f3ff;
+    border-radius: 4px;
+    text-align: center;
+}
+
+#selected-count {
+    font-size: 1.1em;
+}
+
+.no-tables {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+    font-style: italic;
+}
+
+.error-message {
+    padding: 15px;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    color: #721c24;
+    margin: 10px 0;
+}
+
+#max_parallel_tasks_group {
+    margin-top: 15px;
+}
+
+#max_parallel_tasks_group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+#max_parallel_tasks_group input[type="number"] {
+    width: 100px;
+    padding: 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+}
+
+#max_parallel_tasks_group .help-text {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.85em;
+    color: #666;
+}
+
+/* Loading spinner */
+.spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #007bff;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+    .tables-grid {
+        max-height: 300px;
+    }
+    
+    .table-count {
+        float: none;
+        display: block;
+        margin-top: 5px;
+    }
+}

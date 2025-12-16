@@ -104,52 +104,51 @@ require VIEWPATH . '/header.php';
                         value="<?php echo $source_filename ?? '' ?>">
                 </div>
 
-                <div class="form-group" id="source_uri_group" style="display:none;">
-                    <label for="source_db_uri">URL de Conexão de Banco de Dados (SQLAlchemy URI):</label>
-                    <input type="text" name="source_db_uri" id="source_db_uri" placeholder="Ex: mysql+mysqlconnector://user:pass@host:port/database" maxlength="512"
-                        value="<?php echo $source_filename ?? '' ?>">
+                <div class="form-group" id="source_sql_group" style="display:none;">
+                    <h4>Configuração da Conexão SQL</h4>
+                    <p class="help-text">Configure a conexão com o banco de dados</p>
                     
-                    <fieldset>
-                        <legend>Conexão SSH (Bases On-Premises)</legend>
-                        
-                        <p>Preencha apenas se a base de dados SQL for acessada via Jump Server/Túnel SSH.</p>
-
-                        <div class="form-group">
-                            <label for="ssh_host">Host SSH (Jump Server):</label>
-                            <input type="text" class="form-control" id="ssh_host" name="ssh_host" placeholder="Ex: 192.168.1.100"
-                                value="<?php echo $ssh_host ?? '' ?>">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="ssh_user">Usuário SSH:</label>
-                            <input type="text" class="form-control" id="ssh_user" name="ssh_user" placeholder="Ex: ssh_user"
-                                value="<?php echo $ssh_user ?? '' ?>">
-                        </div>
-
-                        <div class="form-row">
-                            <div class="col">
-                                <label for="ssh_port">Porta SSH:</label>
-                                <input type="number" class="form-control" id="ssh_port" name="ssh_port" 
-                                    value="<?php echo $ssh_port ?? 22 ?>">
-                            </div>
-                            
-                            <div class="col">
-                                <label for="ssh_local_port">Porta Local do Túnel:</label>
-                                <input type="number" class="form-control" id="ssh_local_port" name="ssh_local_port" 
-                                    value="<?php echo $ssh_local_port ?? 13306 ?>">
-                                <small class="form-text text-muted">Esta porta será usada para o túnel local.</small>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="ssh_key_path">Caminho da Chave Privada SSH:</label>
-                            <input type="text" class="form-control" id="ssh_key_path" name="ssh_key_path" placeholder="/home/airflow/.ssh/id_rsa"
-                                value="<?php echo $ssh_key_path ?? '' ?>">
-                            <small class="form-text text-muted">Caminho da chave no servidor que executará a DAG.</small>
-                        </div>
-                        
-                    </fieldset>
-                
+                    <div class="form-group">
+                        <label for="sql_connection_id">ID da Conexão Airflow:</label>
+                        <input type="text" id="sql_connection_id" name="sql_connection_id" placeholder="Ex: mysql_northwind" 
+                            value="<?php echo $sql_connection_id ?? 'mysql_northwind' ?>">
+                        <small class="form-text text-muted">ID da conexão configurada no Airflow (usado para autenticação)</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sql_host">Host do Banco de Dados:</label>
+                        <input type="text" id="sql_host" name="sql_host" placeholder="Ex: mysql, localhost, 192.168.1.10"
+                            value="<?php echo $sql_host ?? '' ?>">
+                        <small class="form-text text-muted">Hostname ou IP do servidor de banco de dados</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sql_port">Porta do Banco de Dados:</label>
+                        <input type="number" id="sql_port" name="sql_port" placeholder="Ex: 3306 (MySQL), 5432 (PostgreSQL)"
+                            value="<?php echo $sql_port ?? 3306 ?>">
+                        <small class="form-text text-muted">Porta do servidor de banco de dados</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sql_database_name">Nome do Banco de Dados:</label>
+                        <input type="text" id="sql_database_name" name="sql_database_name" placeholder="Ex: northwind, lista_revisao2"
+                            value="<?php echo $sql_database_name ?? '' ?>">
+                        <small class="form-text text-muted">Nome do schema/database a conectar</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sql_user">Usuário do Banco de Dados:</label>
+                        <input type="text" id="sql_user" name="sql_user" placeholder="Ex: root, admin, user_readonly"
+                            value="<?php echo $sql_user ?? '' ?>">
+                        <small class="form-text text-muted">Nome de usuário para autenticação no banco</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sql_password">Senha do Banco de Dados:</label>
+                        <input type="password" id="sql_password" name="sql_password" placeholder="Digite a senha"
+                            value="<?php echo $sql_password ?? '' ?>">
+                        <small class="form-text text-muted">Senha do usuário (será armazenada de forma segura)</small>
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -269,61 +268,56 @@ require VIEWPATH . '/header.php';
         const currentFileGroup = document.getElementById('current_source_file_group');
         const uploadGroup = document.getElementById('source_upload_group');
         const pathGroup = document.getElementById('source_path_group');
-        const uriGroup = document.getElementById('source_uri_group');
+        const sqlGroup = document.getElementById('source_sql_group');
 
         // Referências aos inputs
         const uploadInput = document.getElementById('source_file_upload');
         const pathInput = document.getElementById('source_file_path');
-        const uriInput = document.getElementById('source_db_uri');
+        const sqlHostInput = document.getElementById('sql_host');
+        const sqlConnInput = document.getElementById('sql_connection_id');
+        const sqlDbInput = document.getElementById('sql_database_name');
 
         // 2. Resetar todos os displays e desativar 'required' e 'name'
-        
-        // 🛑 CORREÇÃO APLICADA AQUI: Filtra elementos nulos antes de iterar
-        [currentFileGroup, uploadGroup, pathGroup, uriGroup].filter(g => g !== null).forEach(g => {
-            g.style.display = 'none';
-        });
-        
-        // 🛑 CORREÇÃO APLICADA AQUI: Filtra elementos nulos antes de iterar
-        [uploadInput, pathInput, uriInput].filter(i => i !== null).forEach(i => {
-            i.removeAttribute('required');
-            // Remove o 'name' de todos, apenas o ativo deve ter 'source_filename'
-            i.name = i.id; 
+        [currentFileGroup, uploadGroup, pathGroup, sqlGroup].forEach(g => g ? g.style.display = 'none' : null);
+        [uploadInput, pathInput, sqlHostInput].forEach(i => {
+            if (i) {
+                i.removeAttribute('required');
+                i.value = i.value || ''; // Mantém valor existente
+                i.name = 'temp_field';
+            }
         });
         
         let activeInput = null;
 
-        // 3. Lógica de exibição baseada na descrição (agora minúscula)
+        // 3. Lógica de exibição baseada na descrição
         if (sourceDescription.includes('upload') || sourceDescription.includes('csv') || sourceDescription.includes('json')) {
             // Arquivo de Upload (CSV/JSON)
             if (currentFileGroup) currentFileGroup.style.display = 'block'; 
-            if (uploadGroup) uploadGroup.style.display = 'block'; // Adiciona check null
-            
+            if (uploadGroup) uploadGroup.style.display = 'block';
             if (uploadInput) {
-                uploadInput.removeAttribute('required'); // Opcional na edição, mantendo o original
+                uploadInput.removeAttribute('required'); // Opcional na edição
                 activeInput = uploadInput;
             }
             
         } else if (sourceDescription.includes('parquet') || sourceDescription.includes('path')) {
             // Caminho no MinIO
-            if (pathGroup) pathGroup.style.display = 'block'; // Adiciona check null
+            pathGroup.style.display = 'block';
+            pathInput.setAttribute('required', 'required');
+            activeInput = pathInput;
             
-            if (pathInput) {
-                pathInput.setAttribute('required', 'required');
-                activeInput = pathInput;
-            }
+        } else if (sourceDescription.includes('mysql') || sourceDescription.includes('postgresql') || sourceDescription.includes('sql')) {
+            // Campos estruturados SQL
+            sqlGroup.style.display = 'block';
+            sqlHostInput.setAttribute('required', 'required');
+            sqlConnInput.setAttribute('required', 'required');
+            sqlDbInput.setAttribute('required', 'required');
             
-        } else if (sourceDescription.includes('mysql') || sourceDescription.includes('postgresql') || sourceDescription.includes('database') || sourceDescription.includes('uri')) {
-            // URI de Conexão de Banco de Dados
-            if (uriGroup) uriGroup.style.display = 'block'; // Adiciona check null
-            
-            if (uriInput) {
-                uriInput.setAttribute('required', 'required');
-                activeInput = uriInput;
-            }
+            sqlHostInput.name = 'sql_host';
+            activeInput = sqlHostInput;
         }
         
-        // 4. Mapeamento Crucial: O input ATIVO recebe o nome 'source_filename'
-        if (activeInput) {
+        // 4. Mapeamento: O input ATIVO recebe o nome 'source_filename' (exceto SQL)
+        if (activeInput && activeInput.id !== 'sql_host') {
             activeInput.name = 'source_filename'; 
         }
     }

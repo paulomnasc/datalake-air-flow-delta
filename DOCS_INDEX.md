@@ -14,6 +14,24 @@
 
 ---
 
+## 🎯 Guias de Uso e Configuração
+
+### 📋 Guia da Interface Web de Configuração
+
+**Arquivo**: [`GUIDE_WEBAPP_CONFIG.md`](./GUIDE_WEBAPP_CONFIG.md)
+
+**Conteúdo**:
+- ✅ Como preencher formulário de configuração de DAGs
+- ✅ Modo Single-Tabela vs Multi-Tabela
+- ✅ Configuração de conexões SQL (Direta e SSH Tunnel)
+- ✅ Seleção correta de funções de pipeline
+- ✅ Validações automáticas e troubleshooting
+- ✅ Exemplos práticos para cada tipo de fonte
+
+**Quando ler**: Antes de criar sua primeira DAG na interface web, ou quando precisar entender as opções de configuração.
+
+---
+
 ## 📖 Documentação por Camada
 
 ### 1️⃣ Camada Silver (Qualidade e Transformações)

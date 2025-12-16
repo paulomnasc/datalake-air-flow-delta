@@ -234,6 +234,14 @@ class ConfigController extends BaseController
         $data['python_module_path'] = $Config->python_module_path;
         $data['transform_args'] = $Config->transform_args;
 
+        // Campos SQL estruturados
+        $data['sql_connection_id'] = $Config->sql_connection_id ?? null;
+        $data['sql_host'] = $Config->sql_host ?? null;
+        $data['sql_port'] = $Config->sql_port ?? 3306;
+        $data['sql_database_name'] = $Config->sql_database_name ?? null;
+        $data['sql_user'] = $Config->sql_user ?? null;
+        $data['sql_password'] = $Config->sql_password ?? null;
+
         // Campos SSH TUNNELING
         $data['ssh_host'] = $Config->ssh_host;
         $data['ssh_port'] = $Config->ssh_port;
@@ -401,42 +409,40 @@ class ConfigController extends BaseController
 
                 // --- FIM DA LÓGICA DE UPLOAD PARA MINIO ---
                 
-            } else if (str_contains($sourceTypeDescription, 'parquet') || 
-                       str_contains($sourceTypeDescription, 'database') || 
-                       str_contains($sourceTypeDescription, 'postgresql') || 
-                       str_contains($sourceTypeDescription, 'mysql') || 
-                       str_contains($sourceTypeDescription, 'api')) {
-                
-                // Se não é upload, o valor de texto (URI/Caminho) já está no $_POST['source_filename']
+            } else if (str_contains($sourceTypeDescription, 'parquet')) {
+                // Parquet: usa caminho direto
                 $sourceLocation = $postData['source_filename'] ?? null;
                 if (empty($sourceLocation)) {
-                    throw new \Exception('O Caminho/URI de conexão é obrigatório para o tipo ' . strtoupper($sourceTypeDescription));
+                    throw new \Exception('O Caminho do arquivo Parquet é obrigatório');
                 }
                 
-                // 🔹 NOVA LÓGICA: Para tipos SQL, formatar como "tipo_datasource.host"
-                if (str_contains($sourceTypeDescription, 'sql')) {
-                    // Extrai o tipo de datasource da descrição (ex: "MySQL", "PostgreSQL")
-                    $datasourceType = ucfirst(trim(explode('-', $sourceTypeConfig['description'])[0]));
-                    
-                    // Extrai o host da conexão (assumindo que source_filename contém host ou connection string)
-                    // Se source_filename for uma connection string completa, extrai apenas o host
-                    $host = $sourceLocation;
-                    
-                    // Tenta extrair host de connection strings comuns
-                    if (preg_match('/@([^:\/\s]+)/', $sourceLocation, $matches)) {
-                        // Formato: user@host ou user:pass@host
-                        $host = $matches[1];
-                    } elseif (preg_match('/host=([^;\s]+)/', $sourceLocation, $matches)) {
-                        // Formato: host=hostname
-                        $host = $matches[1];
-                    } elseif (preg_match('/\/\/([^:\/\s]+)/', $sourceLocation, $matches)) {
-                        // Formato: protocol://hostname
-                        $host = $matches[1];
-                    }
-                    
-                    // Formata como "tipo_datasource.host"
-                    $sourceLocation = "{$datasourceType}.{$host}";
+            } else if (str_contains($sourceTypeDescription, 'sql') || 
+                       str_contains($sourceTypeDescription, 'mysql') || 
+                       str_contains($sourceTypeDescription, 'postgresql')) {
+                
+                // SQL: usa campos estruturados (sql_host, sql_connection_id, sql_database_name)
+                $sqlHost = $postData['sql_host'] ?? null;
+                $sqlConnectionId = $postData['sql_connection_id'] ?? null;
+                $sqlDatabaseName = $postData['sql_database_name'] ?? null;
+                
+                if (empty($sqlHost)) {
+                    throw new \Exception('O Host do banco de dados é obrigatório para fontes SQL');
                 }
+                
+                // Extrai o tipo de datasource da descrição (ex: "MySQL", "PostgreSQL")
+                $datasourceType = ucfirst(trim(explode('-', $sourceTypeConfig['description'])[0]));
+                $datasourceType = str_replace(' ', '', $datasourceType); // Remove espaços
+                
+                // Formata como "tipo_datasource.host" para source_filename
+                $sourceLocation = "{$datasourceType}.{$sqlHost}";
+                
+                // Armazena os campos SQL separadamente (não em transform_args)
+                $postData['sql_connection_id'] = $sqlConnectionId;
+                $postData['sql_host'] = $sqlHost;
+                $postData['sql_port'] = $postData['sql_port'] ?? 3306;
+                $postData['sql_database_name'] = $sqlDatabaseName;
+                $postData['sql_user'] = $postData['sql_user'] ?? null;
+                $postData['sql_password'] = $postData['sql_password'] ?? null;
                 
             } else {
                  throw new \Exception('Lógica de processamento de dados não implementada para o tipo: ' . $sourceTypeDescription);
@@ -452,13 +458,22 @@ class ConfigController extends BaseController
                 'schedule_interval'     => $postData['schedule_interval'] ?? '0 0 * * *',
                 'description'           => $postData['description'] ?? null,
                 
-                // 🛑 CORREÇÃO CRUCIAL: Salvar a FK (ID) no novo campo 'id_source_type'
-                 
+                // Novos campos para multi-table
+                'is_multi_table'        => isset($postData['is_multi_table']) ? (bool)$postData['is_multi_table'] : false,
+                'max_parallel_tasks'    => (int)($postData['max_parallel_tasks'] ?? 16),
                 
                 'source_filename'       => $sourceLocation, // Caminho MinIO ou URI final
-                'target_table_name'     => $postData['target_table_name'],
+                'target_table_name'     => $postData['target_table_name'] ?? null, // NULL para multi-table
                 'python_module_path'    => $postData['python_module_path'],
                 'transform_args'        => $postData['transform_args'] ?? '{}', 
+                
+                // Campos SQL estruturados
+                'sql_connection_id'     => $postData['sql_connection_id'] ?? null,
+                'sql_host'              => $postData['sql_host'] ?? null,
+                'sql_port'              => $postData['sql_port'] ?? 3306,
+                'sql_database_name'     => $postData['sql_database_name'] ?? null,
+                'sql_user'              => $postData['sql_user'] ?? null,
+                'sql_password'          => $postData['sql_password'] ?? null,
                 
                 // CAMPOS PARA SSH TUNNELING
                 'ssh_host'              => $postData['ssh_host'] ?? null,
@@ -469,12 +484,28 @@ class ConfigController extends BaseController
             ];
 
             // 4. Inserção no Banco de Dados
-            $model->insert($dataToInsert);
+            $insertedId = $model->insert($dataToInsert);
             
-            // 5. Resposta
+            // 5. Se for multi-table, salvar seleções de tabelas
+            if ($dataToInsert['is_multi_table'] && isset($postData['selected_tables'])) {
+                $tableSelectionModel = new \App\Models\TableSelectionModel();
+                $selections = [];
+                
+                foreach ($postData['selected_tables'] as $tableName) {
+                    $selections[] = [
+                        'table_name' => $tableName,
+                        'is_selected' => true
+                    ];
+                }
+                
+                $tableSelectionModel->saveTableSelections($model->getInsertID(), $selections);
+            }
+            
+            // 6. Resposta
             return $this->response->setJSON([
                 'status' => 'success',
-                'mensagem' => 'Configuração da DAG e fonte de dados salvas com sucesso! (ID: ' . $model->getInsertID() . ')'
+                'mensagem' => 'Configuração da DAG e fonte de dados salvas com sucesso! (ID: ' . $model->getInsertID() . ')',
+                'id' => $model->getInsertID()
             ]);
             
         } catch (\Exception $e) {
@@ -576,56 +607,63 @@ class ConfigController extends BaseController
                     }
                 }
             } else {
-                // 🛑 CORREÇÃO CRUCIAL APLICADA AQUI:
-                // Se o tipo de fonte NÃO requer arquivo (Ex: SQL, Parquet), o campo ativo na view 
-                // (URI ou Path) foi renomeado pelo JS para 'source_filename'.
-                // Usamos este valor do POST como a nova localização/URI.
+                // Se o tipo de fonte NÃO requer arquivo
                 $sourceLocation = $postData['source_filename'] ?? $existingConfig->source_filename;
                 
-                // 🔹 NOVA LÓGICA: Para tipos SQL, formatar como "tipo_datasource.host"
-                if (str_contains($sourceTypeDescription, 'sql')) {
-                    // Extrai o tipo de datasource da descrição (ex: "MySQL", "PostgreSQL")
-                    $datasourceType = ucfirst(trim(explode('-', $sourceTypeConfig['description'])[0]));
+                // Para tipos SQL, usar campos estruturados
+                if (str_contains($sourceTypeDescription, 'sql') || 
+                    str_contains($sourceTypeDescription, 'mysql') || 
+                    str_contains($sourceTypeDescription, 'postgresql')) {
                     
-                    // Extrai o host da conexão (assumindo que source_filename contém host ou connection string)
-                    // Se source_filename for uma connection string completa, extrai apenas o host
-                    $host = $sourceLocation;
+                    $sqlHost = $postData['sql_host'] ?? $existingConfig->sql_host ?? null;
+                    $sqlConnectionId = $postData['sql_connection_id'] ?? $existingConfig->sql_connection_id ?? null;
+                    $sqlDatabaseName = $postData['sql_database_name'] ?? $existingConfig->sql_database_name ?? null;
                     
-                    // Tenta extrair host de connection strings comuns
-                    if (preg_match('/@([^:\/\s]+)/', $sourceLocation, $matches)) {
-                        // Formato: user@host ou user:pass@host
-                        $host = $matches[1];
-                    } elseif (preg_match('/host=([^;\s]+)/', $sourceLocation, $matches)) {
-                        // Formato: host=hostname
-                        $host = $matches[1];
-                    } elseif (preg_match('/\/\/([^:\/\s]+)/', $sourceLocation, $matches)) {
-                        // Formato: protocol://hostname
-                        $host = $matches[1];
+                    if (empty($sqlHost)) {
+                        throw new \Exception('O Host do banco de dados é obrigatório para fontes SQL');
                     }
                     
+                    // Extrai o tipo de datasource da descrição
+                    $datasourceType = ucfirst(trim(explode('-', $sourceTypeConfig['description'])[0]));
+                    $datasourceType = str_replace(' ', '', $datasourceType);
+                    
                     // Formata como "tipo_datasource.host"
-                    $sourceLocation = "{$datasourceType}.{$host}";
+                    $sourceLocation = "{$datasourceType}.{$sqlHost}";
+                    
+                    // Armazena os campos SQL separadamente
+                    $postData['sql_connection_id'] = $sqlConnectionId;
+                    $postData['sql_host'] = $sqlHost;
+                    $postData['sql_port'] = $postData['sql_port'] ?? $existingConfig->sql_port ?? 3306;
+                    $postData['sql_database_name'] = $sqlDatabaseName;
+                    $postData['sql_user'] = $postData['sql_user'] ?? $existingConfig->sql_user ?? null;
+                    $postData['sql_password'] = $postData['sql_password'] ?? $existingConfig->sql_password ?? null;
                 }
             }
 
-            // 3. Preparação dos Dados para Inserção (Mapeamento total)
+            // 3. Preparação dos Dados para Atualização
             $dataToUpdate = [
                 'id'                  => $id,
-                'id_pasta'            => $pastaID, // Já é INT
-                'id_source_type'      => $sourceTypeID, // Já é INT
-                'dag_id'              => $existingConfig->dag_id, // Mantém o ID original
+                'id_pasta'            => $pastaID,
+                'id_source_type'      => $sourceTypeID,
+                'dag_id'              => $existingConfig->dag_id,
                 'is_active'           => $postData['is_active'] ?? 1,
                 'owner'               => $postData['owner'] ?? 'webapp_user',
                 'schedule_interval'   => $postData['schedule_interval'] ?? '0 0 * * *',
                 'description'         => $postData['description'] ?? null,
-                
-                // 🛑 VALOR CORRIGIDO: Agora $sourceLocation contém a URI ou o Path 🛑
                 'source_filename'     => $sourceLocation, 
                 'target_table_name'   => $postData['target_table_name'],
                 'python_module_path'  => $postData['python_module_path'],
                 'transform_args'      => $postData['transform_args'] ?? '{}', 
                 
-                // CAMPOS PARA SSH TUNNELING
+                // Campos SQL estruturados (se aplicável)
+                'sql_connection_id'   => $postData['sql_connection_id'] ?? null,
+                'sql_host'            => $postData['sql_host'] ?? null,
+                'sql_port'            => $postData['sql_port'] ?? 3306,
+                'sql_database_name'   => $postData['sql_database_name'] ?? null,
+                'sql_user'            => $postData['sql_user'] ?? null,
+                'sql_password'        => $postData['sql_password'] ?? null,
+                
+                // CAMPOS PARA SSH TUNNELING (se aplicável)
                 'ssh_host'            => $postData['ssh_host'] ?? null,
                 'ssh_port'            => $postData['ssh_port'] ?? 22, 
                 'ssh_user'            => $postData['ssh_user'] ?? null,
@@ -797,6 +835,195 @@ class ConfigController extends BaseController
             ]);
         }
     
+    }
+
+    /**
+     * Lista tabelas disponíveis de uma fonte MySQL via AJAX
+     */
+    public function getAvailableTables()
+    {
+        try {
+            log_message('info', 'getAvailableTables chamado - POST data: ' . json_encode($this->request->getPost()));
+            
+            $connectionId = $this->request->getPost('connection_id');
+            $databaseName = $this->request->getPost('database_name');
+            $host = $this->request->getPost('host');
+            $port = $this->request->getPost('port') ?? 3306;
+            $user = $this->request->getPost('user');
+            $password = $this->request->getPost('password') ?? '';
+            
+            // Validação
+            if (!$connectionId || !$databaseName || !$host || !$user) {
+                $msg = 'Parâmetros obrigatórios faltando: ';
+                $missing = [];
+                if (!$connectionId) $missing[] = 'connection_id';
+                if (!$databaseName) $missing[] = 'database_name';
+                if (!$host) $missing[] = 'host';
+                if (!$user) $missing[] = 'user';
+                
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => $msg . implode(', ', $missing)
+                ]);
+            }
+            
+            log_message('info', "Tentando conectar em $host:$port/$databaseName com usuário $user");
+            
+            // Conecta ao MySQL usando as credenciais fornecidas
+            $mysqli = new \mysqli($host, $user, $password, $databaseName, $port);
+            
+            if ($mysqli->connect_error) {
+                log_message('error', "Erro de conexão MySQL: " . $mysqli->connect_error);
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => "Falha ao conectar ao MySQL: " . $mysqli->connect_error
+                ]);
+            }
+            
+            log_message('info', 'Conexão MySQL estabelecida com sucesso');
+            
+            // Busca tabelas do information_schema
+            $query = "SELECT 
+                        TABLE_NAME as table_name,
+                        TABLE_ROWS as row_count,
+                        ROUND(((DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024), 2) as table_size_mb
+                      FROM information_schema.TABLES
+                      WHERE TABLE_SCHEMA = ?
+                      AND TABLE_TYPE = 'BASE TABLE'
+                      ORDER BY TABLE_NAME";
+            
+            $stmt = $mysqli->prepare($query);
+            if (!$stmt) {
+                $mysqli->close();
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => 'Erro ao preparar query: ' . $mysqli->error
+                ]);
+            }
+            
+            $stmt->bind_param('s', $databaseName);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            $tables = [];
+            while ($row = $result->fetch_assoc()) {
+                $tables[] = $row;
+            }
+            
+            $stmt->close();
+            $mysqli->close();
+            
+            log_message('info', count($tables) . ' tabelas encontradas');
+            
+            // Opcionalmente salva no cache (apenas se modelo existir)
+            if (count($tables) > 0 && class_exists('\App\Models\AvailableSourceTableModel')) {
+                try {
+                    $db = \Config\Database::connect();
+                    foreach ($tables as $table) {
+                        // Usar REPLACE INTO ou INSERT ... ON DUPLICATE KEY UPDATE
+                        $sql = "INSERT INTO available_source_tables 
+                                (connection_id, database_name, table_name, row_count, table_size_mb, last_updated)
+                                VALUES (?, ?, ?, ?, ?, NOW())
+                                ON DUPLICATE KEY UPDATE 
+                                    row_count = VALUES(row_count),
+                                    table_size_mb = VALUES(table_size_mb),
+                                    last_updated = NOW()";
+                        
+                        $db->query($sql, [
+                            $connectionId,
+                            $databaseName,
+                            $table['table_name'],
+                            $table['row_count'],
+                            $table['table_size_mb']
+                        ]);
+                    }
+                    log_message('info', 'Cache de tabelas atualizado com sucesso');
+                } catch (\Exception $e) {
+                    log_message('warning', 'Erro ao salvar cache de tabelas: ' . $e->getMessage());
+                }
+            }
+            
+            return $this->response->setJSON([
+                'status' => 'success',
+                'tables' => $tables,
+                'count' => count($tables)
+            ]);
+            
+        } catch (\Throwable $e) {
+            log_message('error', 'Erro fatal em getAvailableTables: ' . $e->getMessage() . ' | Trace: ' . $e->getTraceAsString());
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Erro: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Salva seleções de múltiplas tabelas para uma DAG
+     */
+    public function saveTableSelections()
+    {
+        $dagConfigId = $this->request->getPost('id_dag_config');
+        $selectedTables = $this->request->getPost('selected_tables'); // Array de nomes de tabelas
+        
+        if (!$dagConfigId || !is_array($selectedTables)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Dados inválidos'
+            ]);
+        }
+        
+        try {
+            $tableSelectionModel = new \App\Models\TableSelectionModel();
+            
+            // Prepara array de seleções
+            $selections = [];
+            foreach ($selectedTables as $tableName) {
+                $selections[] = [
+                    'table_name' => $tableName,
+                    'is_selected' => true
+                ];
+            }
+            
+            $success = $tableSelectionModel->saveTableSelections($dagConfigId, $selections);
+            
+            if ($success) {
+                return $this->response->setJSON([
+                    'status' => 'success',
+                    'mensagem' => count($selections) . ' tabelas selecionadas salvas'
+                ]);
+            } else {
+                throw new \Exception('Falha ao salvar seleções');
+            }
+            
+        } catch (\Exception $e) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Erro ao salvar seleções: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Retorna tabelas já selecionadas para uma DAG
+     */
+    public function getSelectedTables($dagConfigId)
+    {
+        try {
+            $tableSelectionModel = new \App\Models\TableSelectionModel();
+            $selected = $tableSelectionModel->getSelectedTables($dagConfigId);
+            
+            return $this->response->setJSON([
+                'status' => 'success',
+                'tables' => $selected
+            ]);
+            
+        } catch (\Exception $e) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => $e->getMessage()
+            ]);
+        }
     }
 
     public function play()

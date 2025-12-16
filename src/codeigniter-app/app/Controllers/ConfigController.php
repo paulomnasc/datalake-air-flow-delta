@@ -413,6 +413,31 @@ class ConfigController extends BaseController
                     throw new \Exception('O Caminho/URI de conexão é obrigatório para o tipo ' . strtoupper($sourceTypeDescription));
                 }
                 
+                // 🔹 NOVA LÓGICA: Para tipos SQL, formatar como "tipo_datasource.host"
+                if (str_contains($sourceTypeDescription, 'sql')) {
+                    // Extrai o tipo de datasource da descrição (ex: "MySQL", "PostgreSQL")
+                    $datasourceType = ucfirst(trim(explode('-', $sourceTypeConfig['description'])[0]));
+                    
+                    // Extrai o host da conexão (assumindo que source_filename contém host ou connection string)
+                    // Se source_filename for uma connection string completa, extrai apenas o host
+                    $host = $sourceLocation;
+                    
+                    // Tenta extrair host de connection strings comuns
+                    if (preg_match('/@([^:\/\s]+)/', $sourceLocation, $matches)) {
+                        // Formato: user@host ou user:pass@host
+                        $host = $matches[1];
+                    } elseif (preg_match('/host=([^;\s]+)/', $sourceLocation, $matches)) {
+                        // Formato: host=hostname
+                        $host = $matches[1];
+                    } elseif (preg_match('/\/\/([^:\/\s]+)/', $sourceLocation, $matches)) {
+                        // Formato: protocol://hostname
+                        $host = $matches[1];
+                    }
+                    
+                    // Formata como "tipo_datasource.host"
+                    $sourceLocation = "{$datasourceType}.{$host}";
+                }
+                
             } else {
                  throw new \Exception('Lógica de processamento de dados não implementada para o tipo: ' . $sourceTypeDescription);
             }
@@ -556,6 +581,31 @@ class ConfigController extends BaseController
                 // (URI ou Path) foi renomeado pelo JS para 'source_filename'.
                 // Usamos este valor do POST como a nova localização/URI.
                 $sourceLocation = $postData['source_filename'] ?? $existingConfig->source_filename;
+                
+                // 🔹 NOVA LÓGICA: Para tipos SQL, formatar como "tipo_datasource.host"
+                if (str_contains($sourceTypeDescription, 'sql')) {
+                    // Extrai o tipo de datasource da descrição (ex: "MySQL", "PostgreSQL")
+                    $datasourceType = ucfirst(trim(explode('-', $sourceTypeConfig['description'])[0]));
+                    
+                    // Extrai o host da conexão (assumindo que source_filename contém host ou connection string)
+                    // Se source_filename for uma connection string completa, extrai apenas o host
+                    $host = $sourceLocation;
+                    
+                    // Tenta extrair host de connection strings comuns
+                    if (preg_match('/@([^:\/\s]+)/', $sourceLocation, $matches)) {
+                        // Formato: user@host ou user:pass@host
+                        $host = $matches[1];
+                    } elseif (preg_match('/host=([^;\s]+)/', $sourceLocation, $matches)) {
+                        // Formato: host=hostname
+                        $host = $matches[1];
+                    } elseif (preg_match('/\/\/([^:\/\s]+)/', $sourceLocation, $matches)) {
+                        // Formato: protocol://hostname
+                        $host = $matches[1];
+                    }
+                    
+                    // Formata como "tipo_datasource.host"
+                    $sourceLocation = "{$datasourceType}.{$host}";
+                }
             }
 
             // 3. Preparação dos Dados para Inserção (Mapeamento total)

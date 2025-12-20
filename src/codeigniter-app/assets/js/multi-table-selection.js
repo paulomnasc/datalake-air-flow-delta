@@ -17,7 +17,7 @@ function loadAvailableTables(connectionId, databaseName) {
     if (loadingDiv) loadingDiv.style.display = 'block';
     if (tablesContainer) tablesContainer.innerHTML = '';
     
-    fetch('<?= base_url('/config/getAvailableTables') ?>', {
+    fetch('/config/getAvailableTables', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',

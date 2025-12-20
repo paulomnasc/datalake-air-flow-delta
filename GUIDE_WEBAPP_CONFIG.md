@@ -5,21 +5,62 @@ Este documento explica como preencher corretamente a interface web para criar co
 ## 📑 Índice
 
 1. [Visão Geral](#-visão-geral)
-2. [Campos Básicos da DAG](#-campos-básicos-da-dag)
-3. [Configuração de Origem de Dados](#-configuração-de-origem-de-dados)
-4. [Modo Multi-Tabela vs Single-Tabela](#-modo-multi-tabela-vs-single-tabela)
-5. [Seleção de Função de Pipeline](#-seleção-de-função-de-pipeline)
-6. [Conexão SQL (Direct vs SSH Tunnel)](#-conexão-sql-direct-vs-ssh-tunnel)
-7. [Exemplos Práticos](#-exemplos-práticos)
+2. [Interface do Usuário](#-interface-do-usuário)
+3. [Campos Básicos da DAG](#-campos-básicos-da-dag)
+4. [Configuração de Origem de Dados](#-configuração-de-origem-de-dados)
+5. [Upload Múltiplo de Arquivos](#-upload-múltiplo-de-arquivos)
+6. [Modo Multi-Tabela vs Single-Tabela](#-modo-multi-tabela-vs-single-tabela)
+7. [Seleção de Função de Pipeline](#-seleção-de-função-de-pipeline)
+8. [Conexão SQL (Direct vs SSH Tunnel)](#-conexão-sql-direct-vs-ssh-tunnel)
+9. [Exemplos Práticos](#-exemplos-práticos)
 
 ---
 
 ## 🎯 Visão Geral
 
 A interface permite configurar DAGs (Directed Acyclic Graphs) do Apache Airflow para:
-- Ingestar dados de diferentes fontes (CSV, Parquet, MySQL, PostgreSQL)
+- Ingestar dados de diferentes fontes (CSV, JSON, Parquet, MySQL, PostgreSQL)
 - Processar uma ou múltiplas tabelas simultaneamente
+- Fazer upload múltiplo de arquivos em lote
 - Aplicar transformações através da arquitetura Medallion (RAW → Bronze → Silver → Gold)
+
+---
+
+## 🖥️ Interface do Usuário
+
+### Mensagens de Feedback
+
+As mensagens de sucesso e erro aparecem **centralizadas no topo da tela**, com as seguintes características:
+
+#### ✅ Mensagem de Sucesso
+- **Cor**: Verde (alert-success)
+- **Posição**: Centralizada, 20px do topo
+- **Estilo**: Fundo verde com sombra
+- **Exemplo**: "✅ DAG criada com sucesso! 3 arquivo(s) serão processados em modo paralelo"
+
+#### ⚠️ Mensagem de Erro/Aviso
+- **Cor**: Amarelo (alert-warning)
+- **Posição**: Centralizada, 20px do topo
+- **Estilo**: Fundo amarelo com sombra
+- **Exemplo**: "❌ Erro: Preencha todos os campos obrigatórios"
+
+**Observação**: As mensagens ficam fixas no topo mesmo ao rolar a página, garantindo visibilidade total.
+
+### Campos Dinâmicos
+
+A interface adapta os campos visíveis baseado na seleção do usuário:
+
+#### Para Fontes de Arquivo (CSV/JSON/Parquet)
+- ✅ Upload de arquivo único **OU** Upload múltiplo
+- ✅ Checkbox "Modo Multi-Upload" 
+- ❌ Checkbox "Multi-Tabela" (oculto)
+- ❌ Campos de conexão SQL (ocultos)
+
+#### Para Fontes SQL (MySQL/PostgreSQL)
+- ✅ Checkbox "Multi-Tabela"
+- ✅ Campos de conexão SQL (abas Direct/SSH)
+- ✅ Botão "🔌 Conectar e Listar Tabelas" (sempre visível)
+- ❌ Upload de arquivo (oculto)
 
 ---
 
@@ -51,8 +92,13 @@ A interface permite configurar DAGs (Directed Acyclic Graphs) do Apache Airflow 
 ### Para CSV/JSON
 1. Selecione **CSV Genérico** ou **JSON**
 2. Aparecerá o campo **Upload de Arquivo**
-3. Clique em "Escolher arquivo" e selecione o arquivo local
-4. O arquivo será armazenado em MinIO/RAW
+3. **Opção 1: Upload Único**
+   - Clique em "Escolher arquivo" e selecione o arquivo local
+   - O arquivo será armazenado em MinIO/RAW
+4. **Opção 2: Upload Múltiplo** (veja seção dedicada abaixo)
+   - Marque o checkbox ☑️ **Modo Multi-Upload**
+   - Arraste múltiplos arquivos ou selecione vários de uma vez
+   - Todos os arquivos serão processados por uma única DAG
 
 ### Para Parquet
 1. Selecione **Parquet**
@@ -63,6 +109,153 @@ A interface permite configurar DAGs (Directed Acyclic Graphs) do Apache Airflow 
 1. Selecione **MySQL Northwind** ou **PostgreSQL**
 2. Aparecerão os **campos de conexão SQL** (veja seção específica abaixo)
 3. Você pode configurar conexão **Direta** ou via **SSH Tunnel**
+
+---
+
+## 📤 Upload Múltiplo de Arquivos
+
+### 🎯 Quando Usar
+
+Use o **Modo Multi-Upload** quando você precisa:
+- Processar múltiplos arquivos JSON/CSV de uma mesma fonte
+- Fazer upload em lote de arquivos relacionados
+- Criar uma única DAG que processa vários arquivos em paralelo ou sequencial
+
+### 🔧 Como Ativar
+
+1. Selecione fonte de dados **CSV Genérico** ou **JSON**
+2. Marque o checkbox ☑️ **Modo Multi-Upload de Arquivos (Batch Processing)**
+3. A interface mudará para o modo de upload múltiplo
+
+### 📋 Interface de Upload Múltiplo
+
+#### Área de Drag & Drop
+```
+┌─────────────────────────────────────────┐
+│   📤 Arraste arquivos aqui              │
+│      ou clique para selecionar          │
+│                                         │
+│   Aceita: .csv, .json                   │
+└─────────────────────────────────────────┘
+```
+
+#### Opções de Processamento
+
+**1. Modo de Processamento em Lote**
+- 🔄 **Paralelo** (Padrão)
+  - Processa múltiplos arquivos simultaneamente
+  - Mais rápido para grandes volumes
+  - Recomendado quando os arquivos são independentes
+  
+- 📝 **Sequencial**
+  - Processa um arquivo por vez
+  - Recomendado quando há dependências ou limitações de recursos
+
+**2. Máximo de Arquivos Paralelos**
+- Valor entre 1 e 16 (padrão: 4)
+- Controla quantos arquivos são processados ao mesmo tempo
+- Ajuste baseado nos recursos disponíveis
+
+**3. Selecionar Pasta Completa**
+- ☑️ Marque para fazer upload de uma pasta inteira
+- Todos os arquivos da pasta serão enviados
+- Útil para conjuntos de dados relacionados
+
+### 📁 Estrutura no MinIO
+
+Os arquivos são salvos com seus **nomes originais** (sem timestamp) no MinIO:
+
+```
+MinIO Bucket: data-lake-raw
+├── raw/
+│   └── pipe-albuns/          ← DAG ID como pasta
+│       ├── Track.json        ← Nome original do arquivo
+│       ├── Album.json        ← Nome original do arquivo
+│       └── Artist.json       ← Nome original do arquivo
+```
+
+### 🗄️ Configuração no Banco de Dados
+
+Uma **única configuração** é criada para processar todos os arquivos:
+
+```sql
+dag_id: pipe-albuns
+source_filename: raw/pipe-albuns/  ← Apenas o caminho da pasta
+description: Batch processing - pasta com 3 arquivo(s)
+max_parallel_tasks: 4
+is_active: 1
+
+-- Campos SQL/SSH são NULL para fontes de arquivo
+sql_connection_id: NULL
+sql_host: NULL
+sql_port: NULL
+ssh_host: NULL
+```
+
+### ⚙️ Como o Airflow Processa
+
+1. **Detecção de Pasta**: O Airflow verifica se `source_filename` termina com `/`
+2. **Listagem Dinâmica**: Lista todos os arquivos em `raw/pipe-albuns/` no MinIO
+3. **Criação de Tasks**: Cria uma task para cada arquivo encontrado
+4. **Execução**: Processa em paralelo ou sequencial conforme configurado
+
+### 💡 Exemplo Completo de Upload Múltiplo
+
+```yaml
+=== Configuração ===
+Tipo de Origem: JSON
+DAG ID: pipe-albuns
+Descrição: Ingestão de dados musicais
+Modo Multi-Upload: ✅ Marcado
+
+=== Upload ===
+Arquivos Selecionados:
+  📄 Track.json (45 KB)
+  📄 Album.json (12 KB)
+  📄 Artist.json (8 KB)
+
+Modo de Processamento: 🔄 Paralelo
+Máximo Paralelo: 4
+
+=== Resultado ===
+✅ 3 arquivos salvos em: raw/pipe-albuns/
+✅ DAG criada: pipe-albuns
+✅ 3 tasks serão executadas em paralelo
+
+=== MinIO ===
+raw/pipe-albuns/Track.json   ← Arquivo 1
+raw/pipe-albuns/Album.json   ← Arquivo 2
+raw/pipe-albuns/Artist.json  ← Arquivo 3
+
+=== Airflow ===
+DAG: pipe-albuns
+├── Task 1: process_Track.json
+├── Task 2: process_Album.json
+└── Task 3: process_Artist.json
+```
+
+### ⚠️ Validações e Restrições
+
+#### ✅ Validações Automáticas
+- Apenas arquivos `.csv` e `.json` são aceitos
+- Nome do arquivo é validado (extensão real, não MIME type)
+- Todos os arquivos devem passar na validação
+
+#### ❌ Campos Incompatíveis
+Quando **Multi-Upload** está ativado:
+- ❌ Campos SQL são definidos como `NULL`
+- ❌ Campos SSH são definidos como `NULL`
+- ❌ `is_multi_table` é sempre `0`
+- ✅ `max_parallel_tasks` contém o valor configurado
+
+### 🔄 Atualização de DAG Multi-Upload
+
+Ao editar uma DAG com multi-upload:
+1. O sistema **deleta** a configuração antiga
+2. Faz **novo upload** dos arquivos selecionados
+3. Cria **nova configuração** com o mesmo `dag_id`
+
+⚠️ **Atenção**: Os arquivos antigos no MinIO são substituídos se tiverem o mesmo nome.
 
 ---
 
@@ -170,9 +363,12 @@ Use quando o banco de dados é **acessível diretamente** pela rede do Airflow.
    - Nome único para identificar esta conexão
    - Será usado no código das DAGs
 
-2. **Host** (ex: `mysql`, `192.168.1.100`)
+2. **Host** (ex: `mysql`, `192.168.1.10`, `db.empresa.com`)
    - Endereço do servidor de banco de dados
-   - Pode ser IP, hostname ou nome do container Docker
+   - **💡 Dica Importante**:
+     - Use `localhost` para o MySQL local do Docker (será traduzido automaticamente para `mysql`)
+     - Use IP ou hostname para bancos **externos** (ex: `203.0.113.45`, `rds.amazonaws.com`)
+     - Qualquer valor diferente de `localhost`/`127.0.0.1` será usado **exatamente como digitado**
 
 3. **Porta** (ex: `3306` para MySQL, `5432` para PostgreSQL)
    - Porta de conexão do banco de dados
@@ -189,11 +385,40 @@ Use quando o banco de dados é **acessível diretamente** pela rede do Airflow.
 #### Exemplo de Conexão Direta:
 ```
 ID da Conexão: mysql_northwind
-Host: mysql
+Host: localhost          ← Será automaticamente traduzido para "mysql" (container Docker)
 Porta: 3306
 Banco: northwind
 Usuário: root
 Senha: root
+```
+
+#### Exemplo de Conexão Externa:
+```
+ID da Conexão: mysql_aws_rds
+Host: mydb.abc123.us-east-1.rds.amazonaws.com  ← Usado exatamente como digitado
+Porta: 3306
+Banco: production
+Usuário: etl_user
+Senha: ********
+```
+
+### 🔘 Botão "Conectar e Listar Tabelas"
+
+O botão **🔌 Conectar e Listar Tabelas** aparece automaticamente quando:
+- ✅ Você seleciona uma fonte SQL (MySQL, PostgreSQL, etc.)
+- ✅ Está disponível tanto em modo **Single-Tabela** quanto **Multi-Tabela**
+
+#### Funcionalidades:
+1. **Testa a Conexão**: Valida as credenciais antes de salvar
+2. **Lista Tabelas**: Mostra todas as tabelas disponíveis no banco
+3. **Metadados**: Exibe número de linhas e tamanho de cada tabela
+4. **Seleção Múltipla**: Permite selecionar várias tabelas (modo multi-tabela)
+
+#### Mensagens de Feedback:
+```
+✅ Sucesso: "✅ 12 tabelas encontradas"
+❌ Erro: "❌ Falha ao conectar ao MySQL: Access denied for user 'root'@'mysql'"
+⚠️ Aviso: "⚠️ Nenhuma tabela encontrada"
 ```
 
 ### 🔒 Aba "SSH Tunnel"
@@ -307,7 +532,35 @@ Tabelas Selecionadas:
 Função Pipeline: lib.mysql_ingestion.mysql_to_medallion (auto-selecionado)
 ```
 
-### Exemplo 4: SSH Tunnel para MySQL AWS
+### Exemplo 4: Upload Múltiplo de Arquivos JSON
+```yaml
+Tipo de Origem: JSON
+DAG ID: pipe-albuns
+Modo Multi-Upload: ✅ Marcado
+
+=== Upload ===
+Arquivos:
+  - Track.json
+  - Album.json
+  - Artist.json
+
+Modo de Processamento: 🔄 Paralelo
+Máximo Paralelo: 4
+
+=== Resultado ===
+MinIO: raw/pipe-albuns/Track.json
+       raw/pipe-albuns/Album.json
+       raw/pipe-albuns/Artist.json
+
+Banco: source_filename = "raw/pipe-albuns/"
+       max_parallel_tasks = 4
+       sql_* = NULL (todos os campos SQL)
+       ssh_* = NULL (todos os campos SSH)
+
+Airflow: 3 tasks paralelas processando cada arquivo
+```
+
+### Exemplo 5: SSH Tunnel para MySQL AWS
 ```yaml
 Tipo de Origem: MySQL Northwind
 Modo Multi-Tabela: ❌ Desmarcado
@@ -336,9 +589,12 @@ Função Pipeline: lib.mysql_ingestion.mysql_to_medallion
 
 ### ✅ DO's (Faça)
 - ✅ Use nomes descritivos para DAG ID (`pipe_customers_daily`)
-- ✅ Teste a conexão SQL antes de salvar (botão "Conectar" em multi-tabela)
+- ✅ Digite `localhost` no campo Host para conexões MySQL locais do Docker
+- ✅ Use IP/hostname real para bancos de dados externos
+- ✅ Teste a conexão SQL antes de salvar (botão "🔌 Conectar")
 - ✅ Para SQL, sempre use funções de ingestão (`mysql_to_medallion`)
 - ✅ Configure max_parallel_tasks de acordo com recursos disponíveis
+- ✅ Use Upload Múltiplo para processar lotes de arquivos relacionados
 - ✅ Use SSH Tunnel para bancos em redes privadas/produção
 - ✅ Documente a finalidade na descrição da DAG
 
@@ -346,21 +602,42 @@ Função Pipeline: lib.mysql_ingestion.mysql_to_medallion
 - ❌ Não use espaços ou caracteres especiais no DAG ID
 - ❌ Não use `raw_to_medallion` para fontes SQL (causará erro 404)
 - ❌ Não selecione muitas tabelas sem ajustar `max_parallel_tasks`
+- ❌ Não misture campos SQL com fontes de arquivo (sistema limpa automaticamente)
 - ❌ Não compartilhe senhas em texto plano (use secrets managers)
-- ❌ Não crie múltiplas DAGs single-table quando pode usar multi-tabela
+- ❌ Não crie múltiplas DAGs single-table quando pode usar multi-tabela ou multi-upload
 - ❌ Não esqueça de validar credenciais de SSH/Database antes de salvar
 
 ---
 
 ## 🔍 Troubleshooting
 
+### Mensagens não aparecem ou estão mal posicionadas
+**Causa**: CSS pode estar sendo sobrescrito  
+**Solução**: Mensagens estão com `position:fixed` e `z-index:9999`, sempre centralizadas no topo
+
+### Erro "No such file or directory" ao conectar MySQL
+**Causa**: Tentando conectar via `localhost` dentro do container Docker  
+**Solução**: 
+- ✅ Digite `localhost` no campo Host (sistema traduz automaticamente para `mysql`)
+- ✅ Para bancos externos, use o IP/hostname real
+
+### Botão "Conectar" não aparece
+**Verificar**:
+1. Tipo de fonte selecionado é SQL? (MySQL, PostgreSQL)
+2. O botão aparece tanto em single-tabela quanto multi-tabela
+3. Recarregue a página se mudou de fonte não-SQL para SQL
+
 ### Erro 404 "Not Found" em DAG SQL
 **Causa**: Selecionou `raw_to_medallion` para fonte SQL  
 **Solução**: Mudar para `mysql_to_medallion`
 
+### Upload múltiplo salva campos SQL incorretamente
+**Causa**: Bug corrigido - campos SQL não estavam sendo limpos  
+**Solução**: Sistema agora define automaticamente todos os campos SQL/SSH como `NULL` para fontes de arquivo
+
 ### Conexão SQL falha
 **Verificar**:
-1. Host/Porta corretos
+1. Host/Porta corretos (use `localhost` para MySQL do Docker)
 2. Credenciais válidas
 3. Firewall permite conexão
 4. Para SSH: chave privada tem permissões 600 (`chmod 600 key.pem`)
@@ -370,13 +647,20 @@ Função Pipeline: lib.mysql_ingestion.mysql_to_medallion
 1. Credenciais corretas
 2. Banco de dados existe
 3. Usuário tem permissão `SELECT` nas tabelas
-4. Verificar logs do CodeIgniter para detalhes do erro
+4. Verificar logs: `docker exec codeigniter-app tail -f /var/www/html/writable/logs/log-$(date +%Y-%m-%d).log`
+
+### Arquivos de upload múltiplo não processam no Airflow
+**Verificar**:
+1. `source_filename` termina com `/` (ex: `raw/pipe-albuns/`)
+2. Arquivos existem no MinIO bucket `data-lake-raw`
+3. `factory_master.py` tem lógica para detectar pastas e listar arquivos
 
 ### DAG não aparece no Airflow
 **Verificar**:
 1. DAG ID válido (sem espaços/caracteres especiais)
-2. Arquivo Python gerado em `/src/dags/`
-3. Reiniciar scheduler: `docker-compose restart airflow-scheduler`
+2. Registro existe no banco: `SELECT * FROM dag_configurations WHERE dag_id = 'seu-dag-id'`
+3. `is_active = 1`
+4. Reiniciar scheduler: `docker-compose restart airflow-scheduler`
 
 ---
 
@@ -390,4 +674,21 @@ Função Pipeline: lib.mysql_ingestion.mysql_to_medallion
 
 ---
 
-**Última atualização**: 16 de dezembro de 2025
+**Última atualização**: 20 de dezembro de 2025
+
+---
+
+## 📝 Histórico de Alterações
+
+### v2.1 - 20/12/2025
+- ✅ Adicionada funcionalidade de **Upload Múltiplo de Arquivos**
+- ✅ Mensagens de sucesso/erro agora **centralizadas e fixas no topo**
+- ✅ Botão "Conectar" agora aparece para **todas as fontes SQL** (não só multi-tabela)
+- ✅ Correção automática de `localhost` → `mysql` para conexões Docker
+- ✅ Campos SQL/SSH automaticamente limpos (`NULL`) para fontes de arquivo
+- ✅ Adicionadas dicas visuais no campo Host sobre localhost vs IPs externos
+- ✅ Documentação completa de upload múltiplo, validações e estrutura MinIO
+
+### v2.0 - 16/12/2025
+- Versão inicial da documentação consolidada
+

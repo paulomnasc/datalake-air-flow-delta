@@ -6,7 +6,6 @@ if (! defined('VIEWPATH')) {
 require VIEWPATH . '/header.php';
 ?>
 
-<link rel="stylesheet" href="<?= base_url('css/multi-table-selection.css') ?>">
 <style>
 /* Estilos para abas de conexão */
 .connection-tabs {
@@ -106,9 +105,10 @@ require VIEWPATH . '/header.php';
                 const save = document.getElementById('save');
                 const messageDivSheetMessage = document.getElementById('save-sheet-message');
 
-                save.addEventListener('click', () => {
-                // Save all cell's data
-                const data = handsontableInstance.getData();
+                if (save) {
+                    save.addEventListener('click', () => {
+                    // Save all cell's data
+                    const data = handsontableInstance.getData();
 
                 fetch('<?= base_url('/salvarTabela') ?>', {
                     method: 'POST',
@@ -140,6 +140,7 @@ require VIEWPATH . '/header.php';
                     });
                     messageDivSheetMessage.style.display = 'block'; 
                 });
+                } // Fecha o if (save)
             </script>
 
             </script>
@@ -196,8 +197,84 @@ require VIEWPATH . '/header.php';
                 </div>
                 
                 <div class="form-group" id="source_upload_group" style="display:none;">
-                    <label for="source_upload_file">Arquivo de Origem (CSV/JSON):</label>
-                    <input type="file" name="source_file_upload" id="source_upload_file" accept=".csv,.json">
+                    <!-- Checkbox para ativar upload múltiplo -->
+                    <div class="mb-3">
+                        <input type="checkbox" id="enable_multi_upload" name="enable_multi_upload" value="1" onchange="toggleMultiUploadMode(this.checked)">
+                        <label for="enable_multi_upload">📦 Upload Múltiplo de Arquivos (Batch Processing)</label>
+                        <br>
+                        <small class="text-muted" style="margin-left: 20px;">
+                            <strong>Dica:</strong> Use para processar múltiplos arquivos CSV/JSON simultaneamente ou sequencialmente
+                        </small>
+                    </div>
+                    
+                    <!-- Upload Único (padrão) -->
+                    <div id="single_upload_section">
+                        <label for="source_upload_file">Pasta Selecionada:</label>
+                        <input type="file" name="source_file_upload" id="source_upload_file" accept=".csv,.json">
+                    </div>
+                    
+                    <!-- Upload Múltiplo (oculto inicialmente) -->
+                    <div id="multi_upload_section" style="display:none;">
+                        <label>Arquivos de Origem (CSV/JSON):</label>
+                        
+                        <!-- Instruções de Uso -->
+                        <div class="alert alert-info" style="margin: 10px 0; padding: 10px; background: #e7f3ff; border-left: 3px solid #2196F3;">
+                            <strong>📌 Como usar:</strong>
+                            <ul style="margin: 5px 0 0 20px; padding: 0;">
+                                <li><strong>Arquivos Individuais:</strong> Deixe a opção abaixo desmarcada e selecione múltiplos arquivos (Ctrl+Click ou Shift+Click)</li>
+                                <li><strong>Pasta Completa:</strong> Marque a opção abaixo e clique para selecionar uma pasta - todos os arquivos CSV/JSON dentro serão enviados</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Opção de seleção de pasta -->
+                        <div class="mb-3">
+                            <input type="checkbox" id="select_folder" name="select_folder" value="1" onchange="toggleFolderSelection(this.checked)">
+                            <label for="select_folder">📂 Selecionar Pasta Inteira (todos os arquivos dentro da pasta)</label>
+                        </div>
+                        
+                        <!-- Área de Drag & Drop -->
+                        <div id="drop-zone" class="upload-area">
+                            <div class="upload-icon">📁</div>
+                            <p class="upload-text" id="drop-zone-text">
+                                Arraste e solte os arquivos aqui<br>
+                                <small>ou clique para selecionar múltiplos arquivos CSV/JSON</small>
+                            </p>
+                            <input 
+                                type="file" 
+                                id="multiple_files" 
+                                name="multiple_files[]" 
+                                multiple 
+                                accept=".csv,.json" 
+                                style="display: none;"
+                            >
+                        </div>
+                        
+                        <!-- Lista de Arquivos Selecionados -->
+                        <div id="file-list" class="mt-3"></div>
+                        
+                        <!-- Configurações de Batch -->
+                        <div class="mt-3">
+                            <h5>Configurações de Processamento em Batch</h5>
+                            
+                            <div class="form-group">
+                                <label>Modo de Processamento:</label>
+                                <div>
+                                    <input type="radio" id="batch_mode_parallel" name="batch_mode" value="parallel" checked>
+                                    <label for="batch_mode_parallel">Paralelo (processa múltiplos arquivos simultaneamente)</label>
+                                </div>
+                                <div>
+                                    <input type="radio" id="batch_mode_sequential" name="batch_mode" value="sequential">
+                                    <label for="batch_mode_sequential">Sequencial (processa um arquivo por vez)</label>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group" id="max_parallel_files_group">
+                                <label for="max_parallel_files">Máximo de Arquivos Paralelos:</label>
+                                <input type="number" id="max_parallel_files" name="max_parallel_files" value="4" min="1" max="16">
+                                <small class="form-text text-muted">Entre 1 e 16 (padrão: 4)</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="form-group" id="source_path_group" style="display:none;">
@@ -229,8 +306,10 @@ require VIEWPATH . '/header.php';
                         
                         <div class="form-group">
                             <label for="sql_host">Host do Banco de Dados:</label>
-                            <input type="text" id="sql_host" name="sql_host" placeholder="Ex: mysql, localhost, 192.168.1.10">
-                            <small class="form-text text-muted">Hostname ou IP do servidor de banco de dados</small>
+                            <input type="text" id="sql_host" name="sql_host" placeholder="Ex: mysql, 192.168.1.10, db.empresa.com">
+                            <small class="form-text text-muted">
+                                <strong>💡 Dica:</strong> Use "localhost" para o MySQL local do Docker, ou informe IP/hostname externo (ex: 203.0.113.45, rds.amazonaws.com)
+                            </small>
                         </div>
                         
                         <div class="form-group">
@@ -353,8 +432,8 @@ require VIEWPATH . '/header.php';
                 
                 </div>
                 
-                <!-- Seção Multi-Table Selection -->
-                <div class="multi-table-checkbox">
+                <!-- Seção Multi-Table Selection (só para fontes SQL) -->
+                <div class="multi-table-checkbox" id="multi_table_checkbox_container" style="display: none;">
                     <input type="checkbox" id="is_multi_table" name="is_multi_table" value="1" onchange="toggleMultiTableMode(this.checked)">
                     <label for="is_multi_table">📊 Modo Multi-Tabela (processar múltiplas tabelas em paralelo)</label>
                 </div>
@@ -518,12 +597,17 @@ require VIEWPATH . '/header.php';
             processData: false,
             contentType: false,
             success: function(result) {
-                if (result.status === 'success') {
-                    $('#success-message').html(result.mensagem).show().delay(6000).fadeOut(function() {
+                console.log('Resposta do servidor:', result);
+                
+                // Suporta tanto 'message' quanto 'mensagem'
+                const mensagem = result.mensagem || result.message || 'Operação realizada com sucesso';
+                
+                if (result.status === 'success' || result.status === 'partial') {
+                    $('#success-message').html(mensagem).show().delay(6000).fadeOut(function() {
                         window.location.href = "<?php echo route_to('listConfig'); ?>";
                     });
                 } else {
-                    $('#error-message').html(result.mensagem).show().delay(6000).fadeOut();
+                    $('#error-message').html(mensagem).show().delay(6000).fadeOut();
                 }
             },
             error: function(err) {
@@ -598,7 +682,7 @@ require VIEWPATH . '/header.php';
 
         // 2. Limpar e esconder todos por padrão
         [uploadGroup, pathGroup, sqlGroup].forEach(g => g ? g.style.display = 'none' : null);
-        [uploadInput, pathInput, sqlHostInput].forEach(i => {
+        [uploadInput, pathInput, sqlHostInput, sqlConnInput, sqlDbInput].forEach(i => {
             if (i) {
                 i.removeAttribute('required');
                 i.value = ''; 
@@ -669,7 +753,20 @@ require VIEWPATH . '/header.php';
             singleTableField.style.display = 'block';
             targetTableInput.setAttribute('required', 'required');
             
-            if (sqlConnectSection) sqlConnectSection.style.display = 'none';
+            // Ainda mostrar botão conectar se for SQL (para teste de conexão)
+            const sourceType = document.getElementById('id_source_type');
+            if (sourceType && sourceType.selectedIndex >= 0) {
+                const selectedOption = sourceType.options[sourceType.selectedIndex];
+                const sourceDescription = selectedOption.textContent.trim().toLowerCase();
+                
+                if (sourceDescription.includes('mysql') || sourceDescription.includes('postgresql') || sourceDescription.includes('sql')) {
+                    if (sqlConnectSection) sqlConnectSection.style.display = 'block';
+                } else {
+                    if (sqlConnectSection) sqlConnectSection.style.display = 'none';
+                }
+            } else {
+                if (sqlConnectSection) sqlConnectSection.style.display = 'none';
+            }
         }
     }
     
@@ -904,16 +1001,111 @@ require VIEWPATH . '/header.php';
     // Configura Listeners
     document.addEventListener('DOMContentLoaded', function() {
         toggleSourceInput(); // Executa na carga da página (para formulários de UPDATE)
+        checkMultiTableVisibility(); // Verifica se deve mostrar checkbox multi-tabela
         
         const selectElement = document.getElementById('id_source_type');
         if (selectElement) {
-            selectElement.addEventListener('change', toggleSourceInput); // Executa na mudança
+            selectElement.addEventListener('change', function() {
+                toggleSourceInput(); // Executa na mudança
+                checkMultiTableVisibility(); // Atualiza visibilidade do multi-tabela
+            });
         }
     });
+    
+    // Controla visibilidade do checkbox Multi-Tabela (só para fontes SQL)
+    function checkMultiTableVisibility() {
+        const selectElement = document.getElementById('id_source_type');
+        const multiTableContainer = document.getElementById('multi_table_checkbox_container');
+        const sqlConnectSection = document.getElementById('sql_connect_section');
+        
+        if (!selectElement || !multiTableContainer) return;
+        
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        const sourceTypeText = selectedOption.text.toUpperCase();
+        
+        // Mostra apenas se contém "SQL" no nome (MySQL, PostgreSQL, etc.)
+        if (sourceTypeText.includes('SQL')) {
+            multiTableContainer.style.display = 'block';
+            // Mostrar botão conectar para fontes SQL
+            if (sqlConnectSection) sqlConnectSection.style.display = 'block';
+        } else {
+            multiTableContainer.style.display = 'none';
+            // Esconder botão conectar para fontes não-SQL
+            if (sqlConnectSection) sqlConnectSection.style.display = 'none';
+            // Desmarca o checkbox se estava marcado
+            const checkbox = document.getElementById('is_multi_table');
+            if (checkbox && checkbox.checked) {
+                checkbox.checked = false;
+                toggleMultiTableMode(false);
+            }
+        }
+    }
 
 </script>
 
-<script src="<?= base_url('js/multi-table-selection.js') ?>"></script>
+<script>
+// Controlar alternância entre upload único e múltiplo
+function toggleMultiUploadMode(isMulti) {
+    const singleSection = document.getElementById('single_upload_section');
+    const multiSection = document.getElementById('multi_upload_section');
+    const maxParallelGroup = document.getElementById('max_parallel_files_group');
+    
+    if (isMulti) {
+        singleSection.style.display = 'none';
+        multiSection.style.display = 'block';
+        // Desabilitar input de arquivo único
+        document.getElementById('source_upload_file').disabled = true;
+    } else {
+        singleSection.style.display = 'block';
+        multiSection.style.display = 'none';
+        // Habilitar input de arquivo único
+        document.getElementById('source_upload_file').disabled = false;
+    }
+}
+
+// Controlar visibilidade do campo max_parallel baseado no modo
+document.querySelectorAll('input[name="batch_mode"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        const container = document.getElementById('max_parallel_files_group');
+        if (this.value === 'parallel') {
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
+    });
+});
+
+// Alternar entre seleção de arquivos múltiplos e pasta inteira
+function toggleFolderSelection(selectFolder) {
+    const fileInput = document.getElementById('multiple_files');
+    const dropZoneText = document.getElementById('drop-zone-text');
+    
+    if (selectFolder) {
+        // Habilitar seleção de pasta
+        fileInput.setAttribute('webkitdirectory', '');
+        fileInput.setAttribute('directory', '');
+        fileInput.removeAttribute('accept'); // Pastas não usam accept
+        dropZoneText.innerHTML = 'Arraste e solte uma pasta aqui<br><small>ou clique para selecionar uma pasta com arquivos CSV/JSON</small>';
+    } else {
+        // Habilitar seleção de múltiplos arquivos
+        fileInput.removeAttribute('webkitdirectory');
+        fileInput.removeAttribute('directory');
+        fileInput.setAttribute('accept', '.csv,.json');
+        dropZoneText.innerHTML = 'Arraste e solte os arquivos aqui<br><small>ou clique para selecionar múltiplos arquivos CSV/JSON</small>';
+    }
+}
+
+// Inicializar o handler de upload múltiplo quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificar se o elemento existe antes de inicializar
+    const dropZone = document.getElementById('drop-zone');
+    if (dropZone) {
+        // Inicializar o MultiFileUpload do multi-upload.js
+        // Nota: O multi-upload.js será ativado quando o checkbox for marcado
+        console.log('Multi-upload disponível');
+    }
+});
+</script>
 
 <?php
 require VIEWPATH . '/footer.php';

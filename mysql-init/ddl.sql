@@ -54,8 +54,8 @@ CREATE TABLE source_types (
 
 -- Dados de Exemplo (para começar a testar)
 INSERT INTO source_types (description) VALUES
-('CSV (MinIO/S3)'),
-('JSON (MinIO/S3)'),
+('CSV'),
+('JSON'),
 ('MySQL'),
 ('PostgreSQL'),
 ('API REST');

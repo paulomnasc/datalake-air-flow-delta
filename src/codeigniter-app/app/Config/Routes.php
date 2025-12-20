@@ -68,6 +68,7 @@ $routes->post('/updateConfig', 'ConfigController::update', ['as'=>'Config.update
 $routes->delete('/deleteConfig/(:num)', 'ConfigController::delete/$1', ['as' => 'Config.delete']);
 $routes->get('/listarConfig', 'ConfigController::listarConfig', ['as'=>'listarConfig']);//Preenche o datatable após a pasta ser selecionada na tela
 $routes->post('/fileUpload', 'ConfigController::upload', ['as'=>'Config.fileUpload']);//Executa o método insert da UsuarioController
+$routes->post('/config/upload-multiple', 'ConfigController::uploadMultipleFiles', ['as'=>'Config.uploadMultiple']);//Processa upload múltiplo de arquivos
 $routes->post('/config/getAvailableTables', 'ConfigController::getAvailableTables', ['as'=>'Config.getAvailableTables']);//Busca tabelas disponíveis no banco MySQL
 //$routes->post('/salvarTabela', 'ConfigController::salvarTabela', ['as'=>'Config.salvarTabela']);//Salvar Tabela Handsontable
 

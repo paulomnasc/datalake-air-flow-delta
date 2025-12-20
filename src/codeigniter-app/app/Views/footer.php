@@ -39,5 +39,9 @@
     </script>
 <!-- FIM SCRIPT STRUCUTURED DATA JSON -->
 
+<!-- Multi-Upload e Multi-Table JavaScript -->
+<script src="<?= base_url('assets/js/multi-table-selection.js'); ?>"></script>
+<script src="<?= base_url('assets/js/multi-upload.js'); ?>"></script>
+
 </body> 
 </html>

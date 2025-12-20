@@ -67,18 +67,16 @@
     
         
     <script src="<?= base_url("assets/templates/lib/wow/wow.min.js"); ?>"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/jquery.dataTables.min.css">
+    <!-- JavaScript Libraries - CARREGAR JQUERY PRIMEIRO -->
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    
     <script src="<?= base_url("assets/templates/lib/easing/easing.min.js"); ?>"></script>
     <script src="<?= base_url("assets/templates/lib/waypoints/waypoints.min.js"); ?>"></script>
-    <script src="<?= base_url("assets/templates/lib/owlcarousel/owl.carousel.min.js"); ?>">></script>
+    <script src="<?= base_url("assets/templates/lib/owlcarousel/owl.carousel.min.js"); ?>"></script>
 
     <!-- Template Javascript -->
-    <script src="<?= base_url("assets/templates/js/main.js"); ?>">></script>
-
-
-    
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/jquery.dataTables.min.css">
-    <!-- JavaScript Libraries -->
-    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script> 
+    <script src="<?= base_url("assets/templates/js/main.js"); ?>"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     
     <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
@@ -93,6 +91,10 @@
 
 
     <!--  ----------  FIM BOOTSTRAP  --------------------------------------------------------------------------  -->
+
+    <!-- Multi-Upload e Multi-Table CSS -->
+    <link rel="stylesheet" type="text/css" href="<?= base_url('assets/css/multi-table-selection.css'); ?>">
+    <link rel="stylesheet" type="text/css" href="<?= base_url('assets/css/multi-upload.css'); ?>">
 
     <!-- INÍCIO ESTILO DA SIDEBAR -->
 
@@ -256,9 +258,6 @@
 
 
 
-<div id="success-message" class="alert alert-success" style="display:none;"></div>
-<div id="error-message" class="alert alert-warning" style="display:none;"></div>
-
 <div id="content">
 
 <div id="main-content">
@@ -333,6 +332,9 @@
     </nav>
     <!-- fecha sidebar -->
 
+    <!-- Mensagens de sucesso e erro centralizadas na tela -->
+    <div id="success-message" class="alert alert-success" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px; max-width:600px; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
+    <div id="error-message" class="alert alert-warning" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:300px; max-width:600px; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
 
     <div class="sidebyside-container">
 

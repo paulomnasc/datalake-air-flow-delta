@@ -12,6 +12,11 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     1. Bronze: Cópia do arquivo Raw
     2. Silver: Limpeza e conversão para Parquet
     3. Gold: Agregação e otimização
+    
+    Parâmetros:
+        source_filename: Caminho do arquivo na camada raw (ex: 'raw/pipe-albuns/Track.json')
+        target_table_name: Nome da tabela de destino
+        bucket_name: (opcional) Nome do bucket MinIO, default usa MINIO_BUCKET env ou 'lab01'
     """
     log.info(f"[MEDALLION] Iniciando pipeline completo para: {target_table_name}")
     log.info(f"[MEDALLION] Arquivo origem: {source_filename}")
@@ -24,7 +29,10 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
 
     import pandas as pd
     
-    bucket = os.environ.get("MINIO_BUCKET", "lab01")
+    # Permite override do bucket via kwargs, senão usa env ou default
+    bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
+    log.info(f"[MEDALLION] Usando bucket: {bucket}")
+    
     hook = S3Hook(aws_conn_id='minio_conn')
 
     src_key = source_filename.lstrip('/')

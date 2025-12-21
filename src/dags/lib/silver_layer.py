@@ -48,9 +48,22 @@ def bronze_to_silver(source_filename: str, target_table_name: str, **kwargs):
         local_file = hook.download_file(key=bronze_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
         log.info("[SILVER] Arquivo Bronze baixado: %s", local_file)
 
-        # Leitura e transformação com Pandas
-        log.info("[SILVER] Lendo CSV...")
-        df = pd.read_csv(local_file)
+        # Leitura e transformação com Pandas - detecta automaticamente CSV ou JSON
+        file_extension = os.path.splitext(local_file)[1].lower()
+        
+        if file_extension == '.json':
+            log.info("[SILVER] Lendo arquivo JSON...")
+            df = pd.read_json(local_file)
+        elif file_extension == '.csv':
+            log.info("[SILVER] Lendo arquivo CSV...")
+            df = pd.read_csv(local_file)
+        elif file_extension == '.parquet':
+            log.info("[SILVER] Lendo arquivo Parquet...")
+            df = pd.read_parquet(local_file)
+        else:
+            log.warning("[SILVER] Extensão desconhecida '%s', tentando CSV como fallback...", file_extension)
+            df = pd.read_csv(local_file)
+            
         log.info("[SILVER] Dados originais: %d linhas, %d colunas", len(df), len(df.columns))
         
         # Limpeza básica de dados

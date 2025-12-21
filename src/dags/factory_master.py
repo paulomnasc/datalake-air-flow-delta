@@ -118,6 +118,45 @@ def fetch_selected_tables(mysql_conn_id: str, dag_config_id: int) -> List[str]:
     return [rec[0] for rec in records] if records else []
 
 
+def list_files_from_minio_folder(folder_path: str, bucket_name: str = 'lab01') -> List[str]:
+    """
+    Lista todos os arquivos dentro de uma pasta no MinIO.
+    
+    Args:
+        folder_path: Caminho da pasta (ex: 'raw/pipe-albuns/')
+        bucket_name: Nome do bucket MinIO (default: 'lab01')
+        
+    Returns:
+        Lista de caminhos completos dos arquivos (ex: ['raw/pipe-albuns/Track.json', ...])
+    """
+    try:
+        from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+        
+        hook = S3Hook(aws_conn_id='minio_conn')
+        
+        # Remove a barra final se existir para o prefixo
+        prefix = folder_path.rstrip('/') + '/'
+        
+        log.info(f"[MINIO] Listando arquivos em s3://{bucket_name}/{prefix}")
+        
+        # Lista todos os objetos com o prefixo
+        keys = hook.list_keys(bucket_name=bucket_name, prefix=prefix)
+        
+        if not keys:
+            log.warning(f"[MINIO] Nenhum arquivo encontrado em {prefix}")
+            return []
+        
+        # Filtra apenas arquivos (não subpastas vazias)
+        files = [key for key in keys if not key.endswith('/')]
+        
+        log.info(f"[MINIO] {len(files)} arquivo(s) encontrado(s): {files}")
+        return files
+        
+    except Exception as e:
+        log.error(f"[MINIO] Erro ao listar arquivos em {folder_path}: {e}")
+        return []
+
+
 # ----------------------------------------------------------------------
 # 3. FUNÇÃO PRINCIPAL DE CRIAÇÃO DA DAG (COM CORREÇÃO DE MAX_ACTIVE_RUNS)
 # ----------------------------------------------------------------------
@@ -174,6 +213,60 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     # 3. Criar a Tarefa Principal (ETL/ELT - PythonOperator)
     python_module_path = task_config.get('python_module_path')
     transform_args = task_config.get('transform_args', {})
+    source_filename = task_config.get('source_filename')
+
+    # 🆕 DETECÇÃO DE MULTI-ARQUIVO: Se source_filename termina com '/', é uma pasta
+    is_folder = source_filename and source_filename.endswith('/')
+    
+    if is_folder:
+        log.info(f"[MULTI-FILE] Detectada pasta: {source_filename}")
+        
+        # Listar todos os arquivos da pasta no MinIO
+        bucket_name = transform_args.get('bucket_name') or os.environ.get('MINIO_BUCKET', 'lab01')
+        file_list = list_files_from_minio_folder(source_filename, bucket_name)
+        
+        if not file_list:
+            log.warning(f"[MULTI-FILE] Nenhum arquivo encontrado em {source_filename}, criando DAG vazia")
+            task_etl = BashOperator(
+                task_id='no_files_found',
+                bash_command=f"echo '⚠️ Nenhum arquivo encontrado em {source_filename}'",
+                dag=dag
+            )
+            return dag
+        
+        # Criar uma task para cada arquivo
+        tasks = []
+        for file_path in file_list:
+            # Extrair nome do arquivo sem extensão para o task_id
+            file_basename = os.path.basename(file_path)
+            file_name_no_ext = os.path.splitext(file_basename)[0]
+            task_id = f"process_{file_name_no_ext}"
+            
+            try:
+                callable_function = import_callable_from_path(python_module_path)
+            except (ImportError, AttributeError, ValueError) as e:
+                raise AirflowException(f"❌ Erro ao importar callable '{python_module_path}': {e}")
+            
+            op_kwargs_dict = {
+                'source_filename': file_path,  # Caminho completo do arquivo individual
+                'target_table_name': file_name_no_ext,  # Nome da tabela baseado no arquivo
+                'owner': dag_metadata.get('owner', 'airflow'),
+                'bucket_name': bucket_name,  # Passa o bucket correto
+                **transform_args
+            }
+            
+            task = PythonOperator(
+                task_id=task_id,
+                python_callable=callable_function,
+                op_kwargs=op_kwargs_dict,
+                dag=dag,
+            )
+            tasks.append(task)
+        
+        log.info(f"[MULTI-FILE] Criadas {len(tasks)} tasks para processar arquivos individuais")
+        return dag
+    
+    # Comportamento ORIGINAL para arquivo único
 
     if not python_module_path:
         # Se não houver módulo Python, cria uma tarefa dummy/log

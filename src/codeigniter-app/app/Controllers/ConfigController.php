@@ -361,6 +361,14 @@ class ConfigController extends BaseController
             // Variável que irá conter a string a ser salva em dag_configurations.source_filename
             $sourceLocation = null;
             
+            // Verificar se é upload múltiplo
+            $isMultiUpload = $this->request->getPost('enable_multi_upload') === '1';
+            
+            // Se for upload múltiplo, redirecionar para o método específico
+            if ($isMultiUpload && (str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json'))) {
+                return $this->uploadMultipleFiles();
+            }
+            
             // 2. Lógica Condicional de Upload/Caminho (usando a descrição textual)
             if (str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json')) {
                 
@@ -561,6 +569,21 @@ class ConfigController extends BaseController
             
             // Pega a descrição em minúsculas para a lógica
             $sourceTypeDescription = strtolower($sourceTypeConfig['description']);
+
+            // Verificar se é upload múltiplo
+            $isMultiUpload = $this->request->getPost('enable_multi_upload') === '1';
+            
+            // Se for upload múltiplo, redirecionar para o método específico (reutiliza a mesma função)
+            if ($isMultiUpload && (str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json'))) {
+                // Para update, vamos deletar a config antiga e criar uma nova com uploadMultipleFiles
+                // Primeiro salvamos o ID antigo
+                $oldId = $id;
+                // Chama upload múltiplo que cria novo registro
+                $response = $this->uploadMultipleFiles();
+                // Opcional: deletar o registro antigo se o novo foi criado com sucesso
+                // $model->delete($oldId);
+                return $response;
+            }
 
             // Variável que irá conter a string a ser salva em dag_configurations.source_filename
             $sourceLocation = $existingConfig->source_filename; // Inicializa com o valor atual do banco
@@ -869,8 +892,12 @@ class ConfigController extends BaseController
             
             log_message('info', "Tentando conectar em $host:$port/$databaseName com usuário $user");
             
+            // Corrigir host para Docker: localhost -> mysql (nome do serviço)
+            $actualHost = ($host === 'localhost' || $host === '127.0.0.1') ? 'mysql' : $host;
+            log_message('info', "Host traduzido para Docker: $actualHost");
+            
             // Conecta ao MySQL usando as credenciais fornecidas
-            $mysqli = new \mysqli($host, $user, $password, $databaseName, $port);
+            $mysqli = new \mysqli($actualHost, $user, $password, $databaseName, $port);
             
             if ($mysqli->connect_error) {
                 log_message('error', "Erro de conexão MySQL: " . $mysqli->connect_error);
@@ -1056,4 +1083,305 @@ class ConfigController extends BaseController
     
     }
 
+    /**
+     * Processar upload múltiplo de arquivos para batch processing
+     */
+    public function uploadMultipleFiles()
+    {
+        try {
+            // Log de entrada para debug
+            log_message('info', '=== Upload Múltiplo Iniciado ===');
+            log_message('info', 'POST data: ' . json_encode($this->request->getPost()));
+            
+            // Validar dados básicos
+            $dagId = $this->request->getPost('dag_id');
+            $batchMode = $this->request->getPost('batch_mode') ?? 'parallel';
+            $maxParallel = (int)($this->request->getPost('max_parallel_files') ?? 4);
+            
+            log_message('info', "DAG ID: {$dagId}, Batch Mode: {$batchMode}, Max Parallel: {$maxParallel}");
+            
+            if (!$dagId) {
+                throw new \Exception('dag_id é obrigatório');
+            }
+            
+            // Obter arquivos múltiplos
+            $files = $this->request->getFileMultiple('multiple_files');
+            
+            log_message('info', 'Arquivos recebidos: ' . count($files));
+            
+            if (empty($files) || !$files[0]->isValid()) {
+                log_message('error', 'Nenhum arquivo válido enviado');
+                throw new \Exception('Nenhum arquivo válido foi enviado');
+            }
+            
+            // Validar extensões
+            $this->validateFileExtensions($files);
+            
+            // Gerar timestamp único para o batch
+            $batchId = uniqid('batch_', true);
+            $timestamp = date('YmdHis');
+            
+            $uploadedFiles = [];
+            $errors = [];
+            
+            // Upload de cada arquivo para MinIO
+            foreach ($files as $index => $file) {
+                try {
+                    $fileName = $file->getName(); // Nome original do arquivo
+                    $s3Key = "raw/{$dagId}/{$fileName}"; // SEM timestamp - nome original
+                    
+                    // Upload para MinIO
+                    $this->minioClient->putObject([
+                        'Bucket' => $this->bucketName,
+                        'Key'    => $s3Key,
+                        'Body'   => fopen($file->getTempName(), 'rb'),
+                        'ContentType' => $file->getMimeType()
+                    ]);
+                    
+                    $uploadedFiles[] = [
+                        'name' => $fileName,
+                        's3_key' => $s3Key,
+                        'size' => $file->getSize()
+                    ];
+                    
+                } catch (\Exception $e) {
+                    $errors[] = [
+                        'file' => $file->getName(),
+                        'error' => $e->getMessage()
+                    ];
+                }
+            }
+            
+            // Salvar UMA configuração no banco para processar TODOS os arquivos
+            $model = new ConfigModel();
+            $sourceTypeModel = new SourceTypeModel();
+            
+            // Obter dados do formulário
+            $postData = $this->request->getPost();
+            $sourceTypeId = $postData['id_source_type'];
+            
+            // Buscar informações do tipo de fonte
+            $sourceTypeConfig = $sourceTypeModel->find($sourceTypeId);
+            if (!$sourceTypeConfig) {
+                throw new \Exception('Tipo de fonte de dados não encontrado');
+            }
+            
+            // Criar lista de todos os arquivos em JSON para salvar no source_filename
+            // MELHOR ABORDAGEM: Salvar apenas o PATH da pasta
+            // O Airflow listará dinamicamente todos os arquivos dentro
+            $folderPath = "raw/{$dagId}/";
+            
+            // Criar UMA configuração que processa TODOS os arquivos da pasta
+            $dataToInsert = [
+                'dag_id' => $dagId,
+                'description' => $postData['description'] ?? "Batch processing - pasta com " . count($uploadedFiles) . " arquivo(s)",
+                'schedule_interval' => $postData['schedule_interval'] ?? '@daily',
+                'owner' => $postData['owner'] ?? 'airflow',
+                'start_date' => $postData['start_date'] ?? date('Y-m-d'),
+                'id_source_type' => $sourceTypeId,
+                'source_filename' => $folderPath, // APENAS O PATH DA PASTA!
+                'target_table_name' => $postData['target_table_name'] ?? $dagId,
+                'python_module_path' => $postData['python_module_path'] ?? 'spark.medallion_pipeline',
+                'transform_args' => $postData['transform_args'] ?? null,
+                'is_multi_table' => 0,
+                'id_pasta' => $postData['id_pasta'] ?? null,
+                'is_active' => 1,
+                // Limpar campos SQL/SSH para fontes de arquivo
+                'sql_connection_id' => null,
+                'sql_host' => null,
+                'sql_port' => null,
+                'sql_database_name' => null,
+                'sql_user' => null,
+                'sql_password' => null,
+                'ssh_host' => null,
+                'ssh_port' => null,
+                'ssh_user' => null,
+                'ssh_key_path' => null,
+                'ssh_local_port' => null,
+                'max_parallel_tasks' => $maxParallel
+            ];
+            
+            log_message('info', 'Dados para inserir: ' . json_encode($dataToInsert));
+            
+            $insertedId = $model->insert($dataToInsert);
+            
+            if (!$insertedId) {
+                $errors_db = $model->errors();
+                log_message('error', 'Erro ao inserir no banco: ' . json_encode($errors_db));
+                throw new \Exception('Falha ao salvar configuração no banco de dados');
+            }
+            
+            log_message('info', "Configuração salva com ID: {$insertedId}");
+            
+            return $this->response->setJSON([
+                'status' => count($errors) > 0 ? 'partial' : 'success',
+                'message' => sprintf(
+                    'DAG criada com sucesso! %d arquivo(s) serão processados em modo %s',
+                    count($uploadedFiles),
+                    $batchMode === 'parallel' ? 'paralelo' : 'sequencial'
+                ),
+                'id' => $insertedId,
+                'batch_id' => $batchId,
+                'uploaded_files' => $uploadedFiles,
+                'errors' => $errors,
+                'batch_mode' => $batchMode,
+                'dag_id' => $dagId
+            ]);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Upload múltiplo falhou: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Erro no upload: ' . $e->getMessage()
+            ])->setStatusCode(500);
+        }
+    }
+    
+    /**
+     * Validar extensões de arquivos
+     */
+    private function validateFileExtensions(array $files): void
+    {
+        $allowedExtensions = ['csv', 'json'];
+        $extensions = [];
+        
+        foreach ($files as $file) {
+            // Usar pathinfo do nome do arquivo em vez de getExtension() que usa MIME type
+            $fileName = $file->getName();
+            $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            
+            if (!in_array($ext, $allowedExtensions)) {
+                throw new \Exception(
+                    "Extensão '{$ext}' não permitida no arquivo '{$fileName}'. " .
+                    "Apenas CSV e JSON são aceitos."
+                );
+            }
+            
+            $extensions[] = $ext;
+        }
+        
+        // Verificar se todos têm a mesma extensão
+        $uniqueExtensions = array_unique($extensions);
+        if (count($uniqueExtensions) > 1) {
+            throw new \Exception(
+                'Todos os arquivos devem ter o mesmo formato. ' .
+                'Detectados: ' . implode(', ', $uniqueExtensions)
+            );
+        }
+    }
+    
+    /**
+     * Gerar configuração YAML para processamento em batch
+     */
+    private function generateBatchYAML(
+        string $dagId, 
+        string $batchId, 
+        array $files, 
+        string $batchMode, 
+        int $maxParallel
+    ): array {
+        return [
+            'dag_id' => $dagId,
+            'batch_id' => $batchId,
+            'batch_mode' => $batchMode,
+            'max_parallel_tasks' => $maxParallel,
+            'total_files' => count($files),
+            'files' => array_map(function($file) {
+                return [
+                    'source_path' => $file['s3_key'],
+                    'file_name' => $file['name'],
+                    'size_bytes' => $file['size']
+                ];
+            }, $files),
+            'pipeline_function' => 'lib.medallion_pipeline.batch_raw_to_medallion',
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+    }
+    
+    /**
+     * Salvar configuração YAML
+     */
+    private function saveYAMLConfig(string $dagId, array $config): void
+    {
+        // Caminho correto: usa writable/configs (montado no docker-compose)
+        $yamlPath = WRITEPATH . 'configs/' . $dagId . '.yml';
+        
+        // Criar diretório se não existir
+        $dir = dirname($yamlPath);
+        if (!is_dir($dir)) {
+            if (!mkdir($dir, 0777, true) && !is_dir($dir)) {
+                throw new \Exception("Falha ao criar diretório: {$dir}. Verifique permissões.");
+            }
+        }
+        
+        // Verificar se o diretório é gravável
+        if (!is_writable($dir)) {
+            throw new \Exception("Diretório não tem permissão de escrita: {$dir}");
+        }
+        
+        // Converter para YAML
+        $yamlContent = $this->arrayToYaml($config);
+        
+        if (file_put_contents($yamlPath, $yamlContent) === false) {
+            throw new \Exception("Falha ao escrever arquivo YAML: {$yamlPath}");
+        }
+        
+        log_message('info', "YAML config salvo em: {$yamlPath}");
+    }
+    
+    /**
+     * Converter array para YAML (simples)
+     */
+    private function arrayToYaml(array $data, int $indent = 0): string
+    {
+        $yaml = '';
+        $prefix = str_repeat('  ', $indent);
+        
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $yaml .= $prefix . $key . ":\n";
+                if (array_keys($value) === range(0, count($value) - 1)) {
+                    // Array numérico
+                    foreach ($value as $item) {
+                        if (is_array($item)) {
+                            $yaml .= $prefix . "  -\n";
+                            $yaml .= $this->arrayToYaml($item, $indent + 2);
+                        } else {
+                            $yaml .= $prefix . "  - " . $this->yamlValue($item) . "\n";
+                        }
+                    }
+                } else {
+                    // Array associativo
+                    $yaml .= $this->arrayToYaml($value, $indent + 1);
+                }
+            } else {
+                $yaml .= $prefix . $key . ": " . $this->yamlValue($value) . "\n";
+            }
+        }
+        
+        return $yaml;
+    }
+    
+    /**
+     * Formatar valor para YAML
+     */
+    private function yamlValue($value): string
+    {
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+        if (is_null($value)) {
+            return 'null';
+        }
+        if (is_numeric($value)) {
+            return (string)$value;
+        }
+        // String - adicionar aspas se contiver caracteres especiais
+        if (preg_match('/[:\{\}\[\],&*#?|\-<>=!%@`]/', $value)) {
+            return "'" . str_replace("'", "''", $value) . "'";
+        }
+        return $value;
+    }
+
 }
+

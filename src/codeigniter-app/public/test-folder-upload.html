@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste - Upload de Pasta</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #2196F3;
+            background: #f0f8ff;
+        }
+        .upload-area.drag-over {
+            border-color: #4CAF50;
+            background: #e8f5e9;
+        }
+        #file-list {
+            margin-top: 20px;
+        }
+        .file-item {
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+        .alert {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .alert-info {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+        }
+        .checkbox-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste de Upload de Pasta</h1>
+    
+    <div class="checkbox-section">
+        <label>
+            <input type="checkbox" id="enable_multi_upload" checked>
+            📦 Upload Múltiplo Ativado
+        </label>
+        <br><br>
+        <label>
+            <input type="checkbox" id="select_folder">
+            📂 Selecionar Pasta Inteira
+        </label>
+    </div>
+    
+    <div class="alert alert-info">
+        <strong>📌 Instruções:</strong>
+        <ul style="margin: 5px 0 0 20px;">
+            <li><strong>Sem checkbox marcado:</strong> Seleciona múltiplos arquivos (Ctrl+Click)</li>
+            <li><strong>Com checkbox marcado:</strong> Seleciona uma pasta completa</li>
+        </ul>
+    </div>
+    
+    <div id="drop-zone" class="upload-area">
+        <div class="upload-icon">📁</div>
+        <p id="drop-zone-text">
+            Arraste e solte arquivos aqui<br>
+            <small>ou clique para selecionar</small>
+        </p>
+        <input 
+            type="file" 
+            id="multiple_files" 
+            name="multiple_files[]" 
+            multiple 
+            accept=".csv,.json" 
+            style="display: none;"
+        >
+    </div>
+    
+    <div id="file-list"></div>
+    
+    <script>
+        console.log('🚀 Página de teste carregada');
+        
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('multiple_files');
+        const fileList = document.getElementById('file-list');
+        const selectFolderCheckbox = document.getElementById('select_folder');
+        const dropZoneText = document.getElementById('drop-zone-text');
+        
+        // Alternar entre seleção de arquivos e pasta
+        selectFolderCheckbox.addEventListener('change', function() {
+            console.log('📂 Modo pasta:', this.checked);
+            
+            if (this.checked) {
+                fileInput.setAttribute('webkitdirectory', '');
+                fileInput.setAttribute('directory', '');
+                fileInput.removeAttribute('accept');
+                dropZoneText.innerHTML = 'Arraste e solte uma PASTA aqui<br><small>ou clique para selecionar uma pasta</small>';
+            } else {
+                fileInput.removeAttribute('webkitdirectory');
+                fileInput.removeAttribute('directory');
+                fileInput.setAttribute('accept', '.csv,.json');
+                dropZoneText.innerHTML = 'Arraste e solte ARQUIVOS aqui<br><small>ou clique para selecionar múltiplos arquivos</small>';
+            }
+            
+            console.log('Atributos atuais:', {
+                webkitdirectory: fileInput.hasAttribute('webkitdirectory'),
+                directory: fileInput.hasAttribute('directory'),
+                accept: fileInput.getAttribute('accept')
+            });
+        });
+        
+        // Click na área
+        dropZone.addEventListener('click', function() {
+            console.log('🖱️ Click detectado - abrindo seletor');
+            fileInput.click();
+        });
+        
+        // Prevenir comportamento padrão
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+        
+        // Highlight no drag over
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.add('drag-over');
+            }, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.remove('drag-over');
+            }, false);
+        });
+        
+        // Handle drop
+        dropZone.addEventListener('drop', async function(e) {
+            console.log('📥 Drop detectado');
+            const dt = e.dataTransfer;
+            
+            if (selectFolderCheckbox.checked && dt.items) {
+                console.log('📂 Processando como pasta...');
+                fileList.innerHTML = '<div class="alert alert-info">⏳ Processando pasta...</div>';
+                
+                try {
+                    const files = await getAllFilesFromItems(dt.items);
+                    console.log('✅ Total de arquivos encontrados:', files.length);
+                    displayFiles(files);
+                } catch (error) {
+                    console.error('❌ Erro:', error);
+                    fileList.innerHTML = '<div class="alert" style="background:#ffebee;border-left:4px solid #f44336;">❌ Erro ao processar pasta</div>';
+                }
+            } else {
+                console.log('📁 Processando como arquivos...');
+                displayFiles(dt.files);
+            }
+        }, false);
+        
+        // Handle file select
+        fileInput.addEventListener('change', function(e) {
+            console.log('📂 Seleção via input, total:', e.target.files.length);
+            displayFiles(e.target.files);
+        }, false);
+        
+        async function getAllFilesFromItems(items) {
+            const files = [];
+            
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                
+                if (item.kind === 'file') {
+                    const entry = item.webkitGetAsEntry();
+                    
+                    if (entry) {
+                        console.log('  Item:', entry.name, entry.isDirectory ? '(pasta)' : '(arquivo)');
+                        
+                        if (entry.isDirectory) {
+                            const dirFiles = await readDirectory(entry);
+                            files.push(...dirFiles);
+                        } else {
+                            const file = item.getAsFile();
+                            if (file) files.push(file);
+                        }
+                    }
+                }
+            }
+            
+            return files;
+        }
+        
+        function readDirectory(directoryEntry) {
+            return new Promise((resolve, reject) => {
+                const dirReader = directoryEntry.createReader();
+                const allFiles = [];
+                
+                function readEntries() {
+                    dirReader.readEntries(async (entries) => {
+                        if (entries.length === 0) {
+                            resolve(allFiles);
+                            return;
+                        }
+                        
+                        for (const entry of entries) {
+                            if (entry.isFile) {
+                                const file = await getFile(entry);
+                                if (file && (file.name.endsWith('.csv') || file.name.endsWith('.json'))) {
+                                    allFiles.push(file);
+                                }
+                            } else if (entry.isDirectory) {
+                                const subFiles = await readDirectory(entry);
+                                allFiles.push(...subFiles);
+                            }
+                        }
+                        
+                        readEntries();
+                    }, reject);
+                }
+                
+                readEntries();
+            });
+        }
+        
+        function getFile(fileEntry) {
+            return new Promise((resolve) => {
+                fileEntry.file(resolve, () => resolve(null));
+            });
+        }
+        
+        function displayFiles(files) {
+            const fileArray = Array.from(files);
+            
+            if (fileArray.length === 0) {
+                fileList.innerHTML = '<div class="alert" style="background:#fff3e0;border-left:4px solid #ff9800;">⚠️ Nenhum arquivo encontrado</div>';
+                return;
+            }
+            
+            const totalSize = fileArray.reduce((sum, f) => sum + f.size, 0);
+            const totalMB = (totalSize / 1024 / 1024).toFixed(2);
+            
+            let html = `<div class="alert alert-info"><strong>✅ ${fileArray.length} arquivo(s) encontrado(s)</strong> (${totalMB} MB)</div>`;
+            
+            fileArray.forEach((file, i) => {
+                const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+                html += `<div class="file-item">${i + 1}. ${file.name} - ${sizeMB} MB</div>`;
+            });
+            
+            fileList.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

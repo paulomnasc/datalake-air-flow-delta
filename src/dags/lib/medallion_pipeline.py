@@ -12,6 +12,11 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     1. Bronze: Cópia do arquivo Raw
     2. Silver: Limpeza e conversão para Parquet
     3. Gold: Agregação e otimização
+    
+    Parâmetros:
+        source_filename: Caminho do arquivo na camada raw (ex: 'raw/pipe-albuns/Track.json')
+        target_table_name: Nome da tabela de destino
+        bucket_name: (opcional) Nome do bucket MinIO, default usa MINIO_BUCKET env ou 'lab01'
     """
     log.info(f"[MEDALLION] Iniciando pipeline completo para: {target_table_name}")
     log.info(f"[MEDALLION] Arquivo origem: {source_filename}")
@@ -24,7 +29,10 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
 
     import pandas as pd
     
-    bucket = os.environ.get("MINIO_BUCKET", "lab01")
+    # Permite override do bucket via kwargs, senão usa env ou default
+    bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
+    log.info(f"[MEDALLION] Usando bucket: {bucket}")
+    
     hook = S3Hook(aws_conn_id='minio_conn')
 
     src_key = source_filename.lstrip('/')
@@ -374,3 +382,104 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         log.info("[MEDALLION] Gold (Parquet): %s", results.get('gold'))
     
     return results
+
+
+def batch_raw_to_medallion(batch_id: str, files: list, max_parallel: int = 4, **context):
+    """
+    Processar múltiplos arquivos em batch utilizando ThreadPoolExecutor.
+    
+    Cada arquivo é processado através do pipeline completo (Bronze → Silver → Gold)
+    de forma paralela ou limitada pelo parâmetro max_parallel.
+    
+    Args:
+        batch_id: Identificador único do batch
+        files: Lista de dicts com 'source_path', 'file_name', 'size_bytes'
+        max_parallel: Número máximo de arquivos processados simultaneamente
+        **context: Contexto do Airflow
+        
+    Returns:
+        Dict com resumo do processamento (successful, failed, results, errors)
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import os
+    
+    log.info(f"[BATCH] Iniciando processamento em batch: {batch_id}")
+    log.info(f"[BATCH] Total de arquivos: {len(files)}")
+    log.info(f"[BATCH] Paralelismo máximo: {max_parallel}")
+    
+    results = []
+    errors = []
+    
+    def process_single_file(file_info):
+        """Processar um único arquivo através do pipeline Medallion"""
+        file_name = file_info['file_name']
+        source_path = file_info['source_path']
+        
+        try:
+            log.info(f"[BATCH] Processando arquivo: {file_name}")
+            
+            # Extrair nome da tabela (sem extensão)
+            target_table = os.path.splitext(file_name)[0]
+            
+            # Chamar pipeline existente para arquivo único
+            result = raw_to_medallion(
+                source_filename=source_path,
+                target_table_name=target_table,
+                **context
+            )
+            
+            log.info(f"[BATCH] ✅ Arquivo processado com sucesso: {file_name}")
+            
+            return {
+                'status': 'success',
+                'file': file_name,
+                'source_path': source_path,
+                'target_table': target_table,
+                'result': result
+            }
+            
+        except Exception as e:
+            log.error(f"[BATCH] ❌ Erro ao processar {file_name}: {str(e)}")
+            return {
+                'status': 'error',
+                'file': file_name,
+                'source_path': source_path,
+                'error': str(e)
+            }
+    
+    # Processar arquivos em paralelo usando ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+        # Submeter todas as tasks
+        futures = {
+            executor.submit(process_single_file, file_info): file_info 
+            for file_info in files
+        }
+        
+        # Coletar resultados conforme são completados
+        for future in as_completed(futures):
+            result = future.result()
+            
+            if result['status'] == 'success':
+                results.append(result)
+            else:
+                errors.append(result)
+    
+    # Resumo final
+    summary = {
+        'batch_id': batch_id,
+        'total_files': len(files),
+        'successful': len(results),
+        'failed': len(errors),
+        'results': results,
+        'errors': errors
+    }
+    
+    log.info(f"[BATCH] ✅ Processamento batch concluído!")
+    log.info(f"[BATCH] Arquivos processados com sucesso: {len(results)}/{len(files)}")
+    
+    if errors:
+        log.warning(f"[BATCH] Arquivos com erro: {len(errors)}")
+        for error in errors:
+            log.warning(f"[BATCH]   - {error['file']}: {error['error']}")
+    
+    return summary

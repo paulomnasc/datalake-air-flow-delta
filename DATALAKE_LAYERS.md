@@ -50,6 +50,14 @@ bucket: lab01/
   - Primeira camada do Data Lake propriamente dito
   - Separado de Raw para organização
 
+> **💡 Diferença entre Raw e Bronze:**
+> 
+> - **Raw** é a área de entrada temporária onde os arquivos chegam via upload, com nomeação baseada em timestamp/hash (`raw/{dag_id}/{timestamp}_{hash}.csv`). É uma área transitória que serve para auditoria e pode ser limpa periodicamente.
+> 
+> - **Bronze** é a primeira camada oficial do Data Lake, com organização estruturada por tabela (`bronze/{target_table_name}/{arquivo}.csv`). É o armazenamento permanente dos dados originais, onde começa o pipeline de transformações do medalhão.
+> 
+> Em resumo: Raw = "Caixa de entrada", Bronze = "Arquivo organizado permanente"
+
 **Código:**
 ```python
 from lib.bronze_layer import raw_to_bronze

@@ -93,9 +93,85 @@ require VIEWPATH . '/header.php';
 
                 <!-- O campo de upload (source_file_upload) agora é OPCIONAL na edição -->
                 <div class="form-group" id="source_upload_group" style="display:none;">
-                    <label for="source_file_upload">Arquivo de Origem (CSV/JSON):</label>
-                    <input type="file" name="source_file_upload" id="source_file_upload" accept=".csv,.json">
-                    <small class="text-muted">Envie um arquivo **apenas** se quiser substituí-lo.</small>
+                    <!-- Checkbox para ativar upload múltiplo -->
+                    <div class="mb-3">
+                        <input type="checkbox" id="enable_multi_upload" name="enable_multi_upload" value="1" onchange="toggleMultiUploadMode(this.checked)">
+                        <label for="enable_multi_upload">📦 Upload Múltiplo de Arquivos (Batch Processing)</label>
+                        <br>
+                        <small class="text-muted" style="margin-left: 20px;">
+                            <strong>Dica:</strong> Use para processar múltiplos arquivos CSV/JSON simultaneamente ou sequencialmente
+                        </small>
+                    </div>
+                    
+                    <!-- Upload Único (padrão) -->
+                    <div id="single_upload_section">
+                        <label for="source_file_upload">Pasta Selecionada:</label>
+                        <input type="file" name="source_file_upload" id="source_file_upload" accept=".csv,.json">
+                        <small class="text-muted">Envie um arquivo **apenas** se quiser substituí-lo.</small>
+                    </div>
+                    
+                    <!-- Upload Múltiplo (oculto inicialmente) -->
+                    <div id="multi_upload_section" style="display:none;">
+                        <label>Arquivos de Origem (CSV/JSON):</label>
+                        
+                        <!-- Instruções de Uso -->
+                        <div class="alert alert-info" style="margin: 10px 0; padding: 10px; background: #e7f3ff; border-left: 3px solid #2196F3;">
+                            <strong>📌 Como usar:</strong>
+                            <ul style="margin: 5px 0 0 20px; padding: 0;">
+                                <li><strong>Arquivos Individuais:</strong> Deixe a opção abaixo desmarcada e selecione múltiplos arquivos (Ctrl+Click ou Shift+Click)</li>
+                                <li><strong>Pasta Completa:</strong> Marque a opção abaixo e clique para selecionar uma pasta - todos os arquivos CSV/JSON dentro serão enviados</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Opção de seleção de pasta -->
+                        <div class="mb-3">
+                            <input type="checkbox" id="select_folder" name="select_folder" value="1" onchange="toggleFolderSelection(this.checked)">
+                            <label for="select_folder">📂 Selecionar Pasta Inteira (todos os arquivos dentro da pasta)</label>
+                        </div>
+                        
+                        <!-- Área de Drag & Drop -->
+                        <div id="drop-zone" class="upload-area">
+                            <div class="upload-icon">📁</div>
+                            <p class="upload-text" id="drop-zone-text">
+                                Arraste e solte os arquivos aqui<br>
+                                <small>ou clique para selecionar múltiplos arquivos CSV/JSON</small>
+                            </p>
+                            <input 
+                                type="file" 
+                                id="multiple_files" 
+                                name="multiple_files[]" 
+                                multiple 
+                                accept=".csv,.json" 
+                                style="display: none;"
+                            >
+                        </div>
+                        
+                        <!-- Lista de Arquivos Selecionados -->
+                        <div id="file-list" class="mt-3"></div>
+                        
+                        <!-- Configurações de Batch -->
+                        <div class="mt-3">
+                            <h5>Configurações de Processamento em Batch</h5>
+                            
+                            <div class="form-group">
+                                <label>Modo de Processamento:</label>
+                                <div>
+                                    <input type="radio" id="batch_mode_parallel" name="batch_mode" value="parallel" checked>
+                                    <label for="batch_mode_parallel">Paralelo (processa múltiplos arquivos simultaneamente)</label>
+                                </div>
+                                <div>
+                                    <input type="radio" id="batch_mode_sequential" name="batch_mode" value="sequential">
+                                    <label for="batch_mode_sequential">Sequencial (processa um arquivo por vez)</label>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group" id="max_parallel_files_group">
+                                <label for="max_parallel_files">Máximo de Arquivos Paralelos:</label>
+                                <input type="number" id="max_parallel_files" name="max_parallel_files" value="4" min="1" max="16">
+                                <small class="form-text text-muted">Entre 1 e 16 (padrão: 4)</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="form-group" id="source_path_group" style="display:none;">
@@ -365,6 +441,69 @@ require VIEWPATH . '/header.php';
         });
     });
     </script>
+
+<script>
+// Controlar alternância entre upload único e múltiplo
+function toggleMultiUploadMode(isMulti) {
+    const singleSection = document.getElementById('single_upload_section');
+    const multiSection = document.getElementById('multi_upload_section');
+    const maxParallelGroup = document.getElementById('max_parallel_files_group');
+    
+    if (isMulti) {
+        singleSection.style.display = 'none';
+        multiSection.style.display = 'block';
+        // Desabilitar input de arquivo único
+        document.getElementById('source_file_upload').disabled = true;
+    } else {
+        singleSection.style.display = 'block';
+        multiSection.style.display = 'none';
+        // Habilitar input de arquivo único
+        document.getElementById('source_file_upload').disabled = false;
+    }
+}
+
+// Controlar visibilidade do campo max_parallel baseado no modo
+document.querySelectorAll('input[name="batch_mode"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        const container = document.getElementById('max_parallel_files_group');
+        if (this.value === 'parallel') {
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
+    });
+});
+
+// Alternar entre seleção de arquivos múltiplos e pasta inteira
+function toggleFolderSelection(selectFolder) {
+    const fileInput = document.getElementById('multiple_files');
+    const dropZoneText = document.getElementById('drop-zone-text');
+    
+    if (selectFolder) {
+        // Habilitar seleção de pasta
+        fileInput.setAttribute('webkitdirectory', '');
+        fileInput.setAttribute('directory', '');
+        fileInput.removeAttribute('accept'); // Pastas não usam accept
+        dropZoneText.innerHTML = 'Arraste e solte uma pasta aqui<br><small>ou clique para selecionar uma pasta com arquivos CSV/JSON</small>';
+    } else {
+        // Habilitar seleção de múltiplos arquivos
+        fileInput.removeAttribute('webkitdirectory');
+        fileInput.removeAttribute('directory');
+        fileInput.setAttribute('accept', '.csv,.json');
+        dropZoneText.innerHTML = 'Arraste e solte os arquivos aqui<br><small>ou clique para selecionar múltiplos arquivos CSV/JSON</small>';
+    }
+}
+
+// Inicializar o handler de upload múltiplo quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificar se o elemento existe antes de inicializar
+    const dropZone = document.getElementById('drop-zone');
+    if (dropZone) {
+        // Inicializar o MultiFileUpload do multi-upload.js
+        console.log('Multi-upload disponível');
+    }
+});
+</script>
 
 <?php
 require VIEWPATH . '/footer.php';

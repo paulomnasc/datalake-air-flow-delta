@@ -34,24 +34,67 @@ Para entender a arquitetura Medallion (Bronze → Silver → Gold) e todas as tr
 
 ---
 
-## Configuração mínima de hardware
+## 💻 Configuração de Hardware
 
-Os requisitos mínimos de hardware para um Apache Airflow básico são de 10GB de HD, 4GB de RAM e 2 CPUs. 
+### ⚙️ Stack Completa
 
-É importante notar que, para uma implantação em produção, pode ser necessário mais hardware, dependendo da carga de trabalho, e que o Airflow também pode rodar em ambientes como Kubernetes ou nuvem, com requisitos que variam de acordo com a plataforma escolhida. 
-Requisitos mínimos (para ambientes de teste/desenvolvimento):
+Esta solução executa simultaneamente:
+- **Apache Airflow** (Webserver + Scheduler)
+- **PostgreSQL** (metadados Airflow)
+- **MySQL** (banco de dados de origem para ingestão)
+- **MinIO** (armazenamento S3-compatible)
+- **Apache Spark** (processamento distribuído)
+- **Spark SQL Thrift Server** (camada semântica para BI)
+- **Apache Atlas** (catálogo de dados com HBase + Solr embarcados) ⚠️ **Componente mais pesado**
+- **Jupyter + PySpark** (ambiente interativo)
+- **Delta Lake** (camada ACID sobre data lake)
 
-Disco: 10 GB de HD.
-Memória: 4 GB de RAM.
-Processador (CPU): 2 CPUs (ou VCPUs). 
-Requisitos recomendados e considerações adicionais:
-Banco de dados: O Airflow precisa de um banco de dados de metadados para funcionar. 
-É recomendado um banco de dados como PostgreSQL ou MySQL. 
+### 📊 Requisitos Mínimos (Desenvolvimento/Teste)
 
-Ambiente virtual: Para evitar conflitos de dependências, é altamente recomendável usar um ambiente virtual (como o venv ou conda). 
-Sistema operacional: Embora o Airflow possa ser instalado em Windows, ele funciona melhor em um ambiente tipo Unix, como o Linux, que pode ser executado nativamente ou através do Subsistema do Windows para Linux (WSL). 
+**Stack Completa (todos os serviços ativos):**
+- **Disco:** 50 GB mínimo (recomendado 100 GB)
+  - Imagens Docker: ~10-15 GB
+  - Apache Atlas (HBase/Solr): ~10-15 GB
+  - MinIO storage: ~10-20 GB
+  - Logs e Delta Lake: ~10-20 GB
+- **Memória:** 24 GB de RAM
+  - Airflow: ~3 GB
+  - PostgreSQL + MySQL: ~2 GB
+  - MinIO: ~512 MB
+  - **Apache Atlas: ~8 GB** (HBase + Solr)
+  - Spark + PySpark: ~6 GB
+  - Spark Thrift: ~3 GB
+  - Sistema: ~2 GB
+- **Processador:** 4 CPUs (ou vCPUs)
 
-Ambientes de nuvem: Se for usar serviços como Amazon MWAA, os requisitos de hardware são variáveis e o pagamento é por uso. Os custos e recursos dependem do nível de uso. 
+**Stack Reduzida (sem Atlas/Jupyter):**
+- **Disco:** 40 GB
+- **Memória:** 16 GB de RAM *(funcional mas com performance reduzida)*
+- **Processador:** 2-4 CPUs
+
+### 🚀 Requisitos Recomendados (Produção)
+
+- **Disco:** 200+ GB (SSD recomendado)
+- **Memória:** 32-64 GB de RAM
+- **Processador:** 8+ CPUs
+- **Rede:** 1 Gbps+
+
+### 📝 Considerações Adicionais
+
+**Otimização de Recursos:**
+- Para ambientes limitados, desabilite o Apache Atlas durante desenvolvimento: não execute `--profile atlas`
+- Configure limites de memória no docker-compose.yml para cada serviço
+- Use swap apenas como fallback (pode degradar performance)
+
+**Sistema Operacional:**
+- **Linux:** Melhor performance e compatibilidade nativa
+- **WSL2:** Funcional, mas configure memória adequada no `.wslconfig`
+- **Windows:** Não recomendado para produção
+
+**Ambientes Cloud:**
+- **AWS (MWAA):** Custos variáveis por uso (a partir de ~$350/mês)
+- **GCP/Azure:** Similar, com opções de managed services
+- **Kubernetes:** Requer orquestração adicional, mas escala horizontalmente 
 
 ## 📁 Estrutura do Projeto
 

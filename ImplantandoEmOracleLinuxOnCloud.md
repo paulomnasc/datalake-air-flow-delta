@@ -117,17 +117,17 @@ Isso vai mostrar algo como `"tag_name": "v2.24.1"` — copie esse número.
 Substitua `v2.24.1` pela versão mais recente que você encontrou:
 
 ```bash
-sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.1/docker compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker compose
 ```
 
 ### ✅ Passo 3: Dê permissão de execução
 ```bash
-sudo chmod +x /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker compose
 ```
 
 ### ✅ Passo 4: Verifique se funcionou
 ```bash
-docker-compose --version
+docker compose --version
 ```
 
 Você deve ver algo como:
@@ -141,12 +141,12 @@ Docker Compose version v2.24.1
 ## 💡 Dica extra: Autocompletar no terminal (opcional)
 
 ```bash
-sudo curl -L https://raw.githubusercontent.com/docker/compose/v2.24.1/contrib/completion/bash/docker-compose -o /etc/bash_completion.d/docker-compose
+sudo curl -L https://raw.githubusercontent.com/docker/compose/v2.24.1/contrib/completion/bash/docker compose -o /etc/bash_completion.d/docker compose
 ```
 
 ---
 
-Esse erro indica que o usuário `opc` **não tem permissão para acessar o Docker daemon**, que é necessário para executar comandos como `docker-compose build`. Vamos resolver isso com um ajuste simples:
+Esse erro indica que o usuário `opc` **não tem permissão para acessar o Docker daemon**, que é necessário para executar comandos como `docker compose build`. Vamos resolver isso com um ajuste simples:
 
 ---
 
@@ -178,14 +178,14 @@ docker ps
 Se não aparecer erro de permissão, está tudo certo! Agora você pode rodar:
 
 ```bash
-docker-compose build
+docker compose build
 ```
 
 ---
 
 ## 🔍 Sobre o aviso `version is obsolete`
 
-Esse é só um alerta informativo. O Docker Compose v2 não exige mais o campo `version:` no `docker-compose.yml`. Você pode remover essa linha para evitar o aviso, mas ele **não impede o funcionamento**.
+Esse é só um alerta informativo. O Docker Compose v2 não exige mais o campo `version:` no `docker compose.yml`. Você pode remover essa linha para evitar o aviso, mas ele **não impede o funcionamento**.
 
 
 ### Configurando regra de entrada para acessar os componentes via navegador
@@ -235,6 +235,6 @@ Se tudo estiver certo, a página deve carregar 🎉
 
 Se ainda não funcionar, posso te ajudar a:
 - Verificar se o container está escutando em `0.0.0.0`
-- Confirmar se o `docker-compose.yml` está expondo a porta corretamente
+- Confirmar se o `docker compose.yml` está expondo a porta corretamente
 - Testar com `curl` de fora da instância
 

@@ -22,7 +22,7 @@ Depois de conectado, dispare sua DAG:
 
 ```bash
 # Via Airflow CLI
-docker-compose exec airflow-scheduler airflow dags trigger ingestao_customers_raw_ui_test3
+docker compose exec airflow-scheduler airflow dags trigger ingestao_customers_raw_ui_test3
 
 # Ou via UI
 # Acesse http://localhost:8085 e clique no botão "Play" da DAG
@@ -52,10 +52,10 @@ Quando o código atingir seu breakpoint:
 
 ```bash
 # Ver logs do debugpy
-docker-compose logs airflow-scheduler | grep debugpy
+docker compose logs airflow-scheduler | grep debugpy
 
 # Ver se a porta está aberta
-docker-compose exec airflow-scheduler netstat -tuln | grep 5678
+docker compose exec airflow-scheduler netstat -tuln | grep 5678
 ```
 
 ## ⚠️ Troubleshooting
@@ -63,7 +63,7 @@ docker-compose exec airflow-scheduler netstat -tuln | grep 5678
 ### Debugger não conecta?
 ```bash
 # Reinicie o scheduler
-docker-compose restart airflow-scheduler
+docker compose restart airflow-scheduler
 
 # Aguarde 10 segundos e tente conectar novamente
 ```
@@ -93,7 +93,7 @@ python -m debugpy --listen 0.0.0.0:5678 -m airflow scheduler &
 ### Debug apenas uma DAG específica
 Use `airflow tasks test` para rodar apenas uma task:
 ```bash
-docker-compose exec airflow-scheduler airflow tasks test \
+docker compose exec airflow-scheduler airflow tasks test \
   ingestao_customers_raw_ui_test3 \
   etl_process_for_customers_test \
   2025-11-23

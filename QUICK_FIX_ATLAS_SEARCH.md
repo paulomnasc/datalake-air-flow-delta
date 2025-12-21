@@ -59,7 +59,7 @@ Este script:
 cd ~/datalake-air-flow
 
 # Parar e remover container
-docker-compose down
+docker compose down
 docker stop apache-atlas
 docker rm apache-atlas
 
@@ -71,7 +71,7 @@ docker volume rm datalake-air-flow_atlas_data datalake-air-flow_atlas_logs
 
 ```bash
 # Subir Atlas
-docker-compose up -d atlas
+docker compose up -d atlas
 
 # Monitorar inicialização (aguarde ver "isHealthy=true")
 docker logs apache-atlas -f
@@ -92,7 +92,7 @@ Isso pode levar **3-5 minutos** na primeira inicialização.
 docker rm airflow-webserver airflow-scheduler
 
 # Subir novamente
-docker-compose up -d airflow-webserver airflow-scheduler
+docker compose up -d airflow-webserver airflow-scheduler
 ```
 
 ### Passo 4: Verificar funcionamento
@@ -161,7 +161,7 @@ curl -u admin:admin "http://localhost:21000/api/atlas/v2/types/typedefs"
 
 ```bash
 # ✅ CORRETO
-docker-compose down
+docker compose down
 
 # ❌ ERRADO
 docker kill $(docker ps -q)
@@ -169,7 +169,7 @@ docker kill $(docker ps -q)
 
 ### 2. Aumentar memória do Atlas (se necessário)
 
-Edite [docker-compose.yml](docker-compose.yml):
+Edite [docker compose.yml](docker compose.yml):
 
 ```yaml
 atlas:
@@ -225,7 +225,7 @@ docker network prune
 
 ## 📚 Arquivos Relacionados
 
-- [docker-compose.yml](docker-compose.yml) - Configuração da stack
+- [docker compose.yml](docker compose.yml) - Configuração da stack
 - [restart.sh](restart.sh) - Script de reinicialização
 - [ATLAS_LINEAGE_FIX.md](ATLAS_LINEAGE_FIX.md) - Configuração de lineage
 - [src/dags/lib/atlas_client.py](src/dags/lib/atlas_client.py) - Cliente Python do Atlas
@@ -261,7 +261,7 @@ Após aplicar o fix, verifique:
 1. **Backup dos dados importantes** (se houver)
 2. **Remover TODA a stack**:
    ```bash
-   docker-compose down -v  # ⚠️ Remove TODOS os volumes
+   docker compose down -v  # ⚠️ Remove TODOS os volumes
    ```
 3. **Subir tudo novamente**:
    ```bash

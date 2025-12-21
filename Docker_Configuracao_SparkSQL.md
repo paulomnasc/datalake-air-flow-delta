@@ -1,10 +1,10 @@
 # ⚙️ Configuração do Serviço Spark Thrift Server (spark-sql) no Docker Compose
 
-Este documento detalha a configuração do serviço `spark-sql` no `docker-compose.yml` para iniciar o Spark Thrift Server, garantindo que ele encontre as classes necessárias e permaneça ativo (mantendo o container rodando) para conexões externas via ODBC/JDBC.
+Este documento detalha a configuração do serviço `spark-sql` no `docker compose.yml` para iniciar o Spark Thrift Server, garantindo que ele encontre as classes necessárias e permaneça ativo (mantendo o container rodando) para conexões externas via ODBC/JDBC.
 
 ---
 
-## 1. Configuração Inicial no `docker-compose.yml`
+## 1. Configuração Inicial no `docker compose.yml`
 
 A configuração abaixo garante que o Spark Thrift Server seja inicializado com o comando correto e que todas as bibliotecas (JARs) necessárias para o ambiente (como Delta Lake) sejam carregadas.
 
@@ -12,10 +12,10 @@ A configuração abaixo garante que o Spark Thrift Server seja inicializado com 
 
 O comando `command` deve ser substituído pelo uso direto do `spark-submit`. Este método garante que o processo do Spark permaneça em **modo `client` (primeiro plano)**, impedindo que o container saia imediatamente.
 
-**Localização:** Dentro da definição do serviço `spark-sql` no seu `docker-compose.yml`.
+**Localização:** Dentro da definição do serviço `spark-sql` no seu `docker compose.yml`.
 
 ```yaml
-# Trecho do docker-compose.yml
+# Trecho do docker compose.yml
 services:
   spark-sql:
     image: apache/spark:3.5.1 # (ou a imagem que você está usando)

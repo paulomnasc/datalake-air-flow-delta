@@ -19,10 +19,10 @@ git clone https://github.com/AleTavares/atlas-dataops-lab.git
 cd atlas-dataops-lab
 
 # Iniciar ambiente
-docker-compose up -d
+docker compose up -d
 
 # Aguardar inicialização (5-10 minutos)
-docker-compose logs -f atlas
+docker compose logs -f atlas
 ```
 
 ### 2. Verificar Serviços

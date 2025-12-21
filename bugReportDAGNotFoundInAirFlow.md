@@ -6,7 +6,7 @@ Se você criou uma DAG em `src/dags/validate_and_move_raw_to_trusted.py` e ela *
 
 ### ✅ 1. Localização correta do arquivo
 
-Certifique-se de que o arquivo `.py` está na pasta mapeada como `dags` no `docker-compose.yml`:
+Certifique-se de que o arquivo `.py` está na pasta mapeada como `dags` no `docker compose.yml`:
 
 ```yaml
 volumes:

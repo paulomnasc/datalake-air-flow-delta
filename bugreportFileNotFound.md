@@ -24,7 +24,7 @@ O erro ocorre apesar do arquivo estar presente no contêiner e o volume ter sido
 - **Sistema Operacional (host)**: Linux
 - **Local do arquivo esperado no contêiner**: `/opt/airflow/dags/datasources/Persons.json`
 
-### Configuração de Volumes no `docker-compose.yml`
+### Configuração de Volumes no `docker compose.yml`
 
 A configuração de volumes estava correta, mas o problema persistia:
 

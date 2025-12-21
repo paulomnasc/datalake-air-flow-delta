@@ -16,13 +16,13 @@ SCHEDULER_STATUS=$(docker ps --filter "name=airflow-scheduler" --format "{{.Stat
 
 if [ -z "$ATLAS_STATUS" ]; then
     echo "   ❌ Container apache-atlas não está rodando!"
-    echo "   💡 Execute: docker-compose up -d"
+    echo "   💡 Execute: docker compose up -d"
     exit 1
 fi
 
 if [ -z "$SCHEDULER_STATUS" ]; then
     echo "   ❌ Container airflow-scheduler não está rodando!"
-    echo "   💡 Execute: docker-compose up -d"
+    echo "   💡 Execute: docker compose up -d"
     exit 1
 fi
 
@@ -40,7 +40,7 @@ if [ "$ATLAS_REGISTER" != "true" ]; then
     echo "   ❌ Deveria ser 'true' para habilitar lineage!"
     echo ""
     echo "   💡 Corrija no docker-compose.yml e reinicie:"
-    echo "      docker-compose down && docker-compose up -d"
+    echo "      docker compose down && docker compose up -d"
     exit 1
 fi
 

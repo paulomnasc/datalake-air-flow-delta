@@ -660,7 +660,7 @@ Função Pipeline: lib.mysql_ingestion.mysql_to_medallion
 1. DAG ID válido (sem espaços/caracteres especiais)
 2. Registro existe no banco: `SELECT * FROM dag_configurations WHERE dag_id = 'seu-dag-id'`
 3. `is_active = 1`
-4. Reiniciar scheduler: `docker-compose restart airflow-scheduler`
+4. Reiniciar scheduler: `docker compose restart airflow-scheduler`
 
 ---
 

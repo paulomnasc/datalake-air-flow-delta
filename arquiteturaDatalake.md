@@ -124,7 +124,7 @@ datalake-airflow-spark-minio/
 │   └── ingestao_delta_clientes.py
 ├── spark-apps/
 │   └── ingest_delta_clientes.py
-├── docker-compose.yml
+├── docker compose.yml
 ├── README.md
 └── requirements.txt
 ```

@@ -179,7 +179,7 @@ docker exec airflow-webserver airflow connections add \
 **Via UI** (http://localhost:8085/connection/add):
 - **Connection Id**: `mysql_northwind`
 - **Connection Type**: `MySQL`
-- **Host**: `mysql` (nome do container no docker-compose)
+- **Host**: `mysql` (nome do container no docker compose)
 - **Schema**: `northwind`
 - **Login**: `root`
 - **Password**: `root`

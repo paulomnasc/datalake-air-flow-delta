@@ -161,7 +161,7 @@ docker run -d \
 
 ---
 
-## ⚙️ 6️⃣ Integrar ao `docker-compose.yml` (opcional)
+## ⚙️ 6️⃣ Integrar ao `docker compose.yml` (opcional)
 
 Defina a imagem snapshot no compose:
 

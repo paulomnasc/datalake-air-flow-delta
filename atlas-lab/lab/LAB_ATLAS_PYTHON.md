@@ -13,7 +13,7 @@ Demonstrar o uso do Apache Atlas como catálogo de dados através de exemplos pr
 ### 1. Ambiente Rodando
 ```bash
 # Iniciar Atlas + PostgreSQL
-docker-compose up -d
+docker compose up -d
 
 # Aguardar inicialização
 ./wait-for-atlas.sh

@@ -119,13 +119,13 @@ Se necessário, você pode limpar o Atlas e reprocessar:
 
 ```bash
 # Parar Atlas
-docker-compose stop atlas
+docker compose stop atlas
 
 # Remover dados antigos
 docker volume rm datalake-air-flow_atlas_data
 
 # Reiniciar
-docker-compose up -d atlas
+docker compose up -d atlas
 
 # Aguardar inicialização (2-5 minutos)
 # Executar DAG novamente

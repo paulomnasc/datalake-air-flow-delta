@@ -459,7 +459,7 @@ with DAG(
 
 | Fase | Tarefa | Horas | Complexidade |
 |------|--------|-------|--------------|
-| **Setup** | Adicionar Atlas ao docker-compose.yml | 0.5h | Baixa |
+| **Setup** | Adicionar Atlas ao docker compose.yml | 0.5h | Baixa |
 | | Configurar rede entre containers | 0.5h | Baixa |
 | | Testar conectividade Airflow ↔ Atlas | 1h | Média |
 | **Desenvolvimento** | Criar biblioteca atlas_integration/ | 4h | Alta |
@@ -498,7 +498,7 @@ with DAG(
 **Problema**: Containers Airflow precisam comunicar com Atlas  
 **Solução**:
 ```yaml
-# docker-compose.yml
+# docker compose.yml
 services:
   atlas:
     container_name: apache-atlas
@@ -663,7 +663,7 @@ def batch_catalog_pipeline(**context):
 **Objetivo**: Validar viabilidade técnica com 1 pipeline piloto
 
 #### **Sprint 1.1: Setup Infraestrutura (8h)**
-- [x] Adicionar Apache Atlas ao docker-compose.yml
+- [x] Adicionar Apache Atlas ao docker compose.yml
 - [x] Configurar rede airflow_net compartilhada
 - [x] Testar conectividade Airflow → Atlas
 - [x] Verificar healthchecks dos containers
@@ -973,7 +973,7 @@ atlas.create_entity({...})
 
 2. **Setup Ambiente PoC** (2 dias)
    - Clonar produção para homolog
-   - Adicionar Atlas ao docker-compose
+   - Adicionar Atlas ao docker compose
    - Configurar rede
 
 3. **Desenvolvimento PoC** (3 dias)

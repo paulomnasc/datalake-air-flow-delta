@@ -7,7 +7,7 @@ echo "🔍 Verificando Apache Atlas..."
 if curl -s -f http://localhost:21000 > /dev/null 2>&1; then
     echo "✅ Atlas está rodando"
 else
-    echo "❌ Atlas não está disponível. Execute: docker-compose up -d"
+    echo "❌ Atlas não está disponível. Execute: docker compose up -d"
     exit 1
 fi
 

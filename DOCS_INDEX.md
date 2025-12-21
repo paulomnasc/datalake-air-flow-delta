@@ -237,7 +237,7 @@ above_avg = df[df['creditLimit'] > df['creditLimit_by_country_mean']]
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `docker-compose.yml` | Containers: Airflow, MinIO, MySQL, Spark |
+| `docker compose.yml` | Containers: Airflow, MinIO, MySQL, Spark |
 | `requirements.txt` | Dependências Python (deltalake==0.15.0) |
 | `src/dags/factory_master.py` | Factory de DAGs (cria DAGs automaticamente) |
 

@@ -20,4 +20,4 @@ while [ $counter -lt $timeout ]; do
 done
 
 echo "❌ Timeout: Atlas não iniciou em $timeout segundos"
-echo "📋 Verificar logs: docker-compose logs atlas"
+echo "📋 Verificar logs: docker compose logs atlas"

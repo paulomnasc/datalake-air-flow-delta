@@ -346,7 +346,7 @@ def validate_processed_file(**context):
 | Arquivo | Responsabilidade |
 |---------|-----------------|
 | `src/dags/factory_master.py` | Gera DAGs dinamicamente a partir do MySQL |
-| `docker-compose.yml` | Configura Airflow Scheduler, Worker, MinIO, MySQL |
+| `docker compose.yml` | Configura Airflow Scheduler, Worker, MinIO, MySQL |
 
 ---
 
@@ -379,9 +379,9 @@ No Airflow UI (`http://localhost:8085`):
 
 ```bash
 # Verificar todas as camadas criadas
-docker-compose exec minio ls -lh /data/lab01/bronze/ingestao_customers_raw/
-docker-compose exec minio ls -lh /data/lab01/silver/ingestao_customers_raw/
-docker-compose exec minio ls -lh /data/lab01/gold/ingestao_customers_raw/
+docker compose exec minio ls -lh /data/lab01/bronze/ingestao_customers_raw/
+docker compose exec minio ls -lh /data/lab01/silver/ingestao_customers_raw/
+docker compose exec minio ls -lh /data/lab01/gold/ingestao_customers_raw/
 ```
 
 ---
@@ -447,7 +447,7 @@ As DAGs rodarão automaticamente nos horários configurados:
 1. Verifique se a DAG anterior foi executada com sucesso
 2. Confirme que o arquivo existe na camada anterior:
    ```bash
-   docker-compose exec minio ls /data/lab01/bronze/{table}/
+   docker compose exec minio ls /data/lab01/bronze/{table}/
    ```
 
 ### Python module not found
@@ -458,7 +458,7 @@ As DAGs rodarão automaticamente nos horários configurados:
 1. Verifique que os arquivos estão em `src/dags/lib/`
 2. Reinicie o Airflow Scheduler:
    ```bash
-   docker-compose restart airflow-scheduler
+   docker compose restart airflow-scheduler
    ```
 
 ### Erro ao ler Parquet
@@ -469,7 +469,7 @@ As DAGs rodarão automaticamente nos horários configurados:
 1. Verifique se pandas e pyarrow estão instalados no `requirements.txt`
 2. Recrie a imagem Docker:
    ```bash
-   docker-compose build airflow-scheduler
+   docker compose build airflow-scheduler
    ```
 
 ---

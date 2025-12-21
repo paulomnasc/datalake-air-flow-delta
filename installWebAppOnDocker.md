@@ -59,7 +59,7 @@ O script de *entrypoint* foi modificado para atuar como uma solução de contorn
 Após aplicar todas as modificações nos arquivos, a implantação é realizada com o comando que força a reconstrução da imagem do serviço `codeigniter-app`:
 
 ```bash
-docker-compose up -d --build codeigniter-app
+docker compose up -d --build codeigniter-app
 ```
 
 **Resultado Esperado:** O contêiner `codeigniter-app` estará no status `Up` e acessível via `http://localhost:8088`.

@@ -121,7 +121,7 @@ ssh root@<IP_PUBLICO_DA_VM>
 ```bash
 sudo dnf install -y dnf-plugins-core
 sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker compose-plugin
 sudo systemctl enable --now docker
 sudo usermod -aG docker opc
 ```
@@ -143,7 +143,7 @@ Crie um diretório de trabalho:
 mkdir ~/airflow-lab && cd ~/airflow-lab
 ```
 
-Crie um arquivo `docker-compose.yml`:
+Crie um arquivo `docker compose.yml`:
 
 ```yaml
 version: '3'
@@ -247,7 +247,7 @@ docker logs airflow-scheduler 2>&1 | grep -E 'factory_master.py|DEBUG|ERROR|Trac
 
 * Não exponha porta 22 (SSH) e 8080 (Airflow) publicamente sem firewall.
 * Use `Security Lists` no Oracle Cloud para restringir o acesso ao seu IP.
-* Faça backup de `~/airflow-lab/docker-compose.yml` e volumes locais.
+* Faça backup de `~/airflow-lab/docker compose.yml` e volumes locais.
 
 ---
 

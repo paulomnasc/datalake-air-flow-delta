@@ -28,7 +28,7 @@ Resumo das ações realizadas para diagnosticar e corrigir a falha do container 
 - Criei a pasta de logs local e ajustei permissões para que o container consiga gravar:
   - `mkdir -p src/codeigniter-app/writable/logs && chmod -R 775 src/codeigniter-app/writable`
 - Reiniciei o container `codeigniter-app` para aplicar as alterações:
-  - `docker-compose restart codeigniter-app`
+  - `docker compose restart codeigniter-app`
 - Testei novamente a rota `/logarUsuario` com `curl`. Resultado: retornou `200` com JSON de sucesso indicando que o login funcionou.
 
 **Arquivos modificados / criados**:
@@ -41,7 +41,7 @@ docker logs --tail 500 codeigniter-app
 docker exec -it codeigniter-app bash -lc "php -r 'var_dump(mysqli_connect(\"mysql\", \"root\", \"root\", \"lista_revisao2\") !== false);'"
 curl -i -X POST "http://localhost:8088/logarUsuario" -d "email=admin@gmail.com" -d "senha=123"
 mkdir -p src/codeigniter-app/writable/logs && chmod -R 775 src/codeigniter-app/writable
-docker-compose restart codeigniter-app
+docker compose restart codeigniter-app
 ```
 
 **Status atual**:
@@ -53,7 +53,7 @@ docker-compose restart codeigniter-app
 - Evitar que o entrypoint do container apague `writable/logs/*` a cada start — isso remove histórico útil para debug. Em vez disso, usar rotação de logs ou manter os últimos N arquivos.
 - Ajustar `ServerName` no Apache (dentro da imagem ou via configuração) para evitar as mensagens de aviso:
   - Exemplo: adicionar `ServerName localhost` em `/etc/apache2/apache2.conf` na imagem.
-- Garantir que variáveis de conexão estejam definidas pelo `docker-compose` (ou `env_file`) para facilitar configuração entre ambientes (dev/prod).
+- Garantir que variáveis de conexão estejam definidas pelo `docker compose` (ou `env_file`) para facilitar configuração entre ambientes (dev/prod).
 - Mapear `writable` como volume persistente se quiser manter sessões e logs entre reinícios de container.
 
 Se quiser, posso:

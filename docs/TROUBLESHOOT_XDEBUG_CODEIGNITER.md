@@ -29,7 +29,7 @@ Resumo do caso: configuração do Xdebug dentro do container `codeigniter-app` n
    - (Inicial) testar com `xdebug.discover_client_host=1` para discovery automático.
 
 4. Ajustes Docker / VSCode:
-   - Adicionar `extra_hosts` no `docker-compose.yml` para mapear `host.docker.internal:host-gateway` (permite usar `host.docker.internal` do container).
+   - Adicionar `extra_hosts` no `docker compose.yml` para mapear `host.docker.internal:host-gateway` (permite usar `host.docker.internal` do container).
    - Atualizar `.vscode/launch.json` com `"hostname": "0.0.0.0"` e `"port": 9004` para que a sessão debug aceite conexões externas.
    - Atualizar `.vscode/settings.json` para `"php.debug.ideKey": "vscode"` (opcional, consistência).
 
@@ -38,7 +38,7 @@ Resumo do caso: configuração do Xdebug dentro do container `codeigniter-app` n
 
 ```
 cd /path/to/datalake-air-flow
-./restart.sh   # ou docker-compose up --build -d codeigniter-app
+./restart.sh   # ou docker compose up --build -d codeigniter-app
 ```
 
 6. Testes e solução de problemas de rede:
@@ -48,7 +48,7 @@ cd /path/to/datalake-air-flow
 
 7. Resultado final que funcionou:
    - No `Dockerfile.webapp` definimos permanentemente Xdebug configurado com `xdebug.client_host=host.docker.internal`, `xdebug.client_port=9004`, `xdebug.log=/tmp/xdebug.log` e `xdebug.idekey=vscode`.
-   - No `docker-compose.yml` adicionamos `extra_hosts:
+   - No `docker compose.yml` adicionamos `extra_hosts:
        - "host.docker.internal:host-gateway"` para garantir resolução dentro do container.
    - Rebuild do image e restart do container.
    - No VSCode: Start Debugging (Listen for Xdebug) com `hostname: 0.0.0.0` e `port: 9004`.
@@ -74,14 +74,14 @@ docker exec -i codeigniter-app tail -n 200 /tmp/xdebug.log
 Rebuild e restart do serviço web (exemplo):
 ```
 cd /home/cblna123456/datalake-air-flow
-docker-compose up --build -d codeigniter-app
+docker compose up --build -d codeigniter-app
 ```
 
 Arquivos alterados durante o troubleshooting (referência):
 - `src/codeigniter-app/.env` (DB host)
 - `src/codeigniter-app/writable/logs` (criacao/permissoes)
 - `src/codeigniter-app/Dockerfile.webapp` (xdebug config permanente)
-- `docker-compose.yml` (extra_hosts)
+- `docker compose.yml` (extra_hosts)
 - `.vscode/launch.json` (hostname: 0.0.0.0, port: 9004)
 - `.vscode/settings.json` (php.debug.ideKey)
 - `src/codeigniter-app/app/Controllers/ConfigController.php` (pequeno patch: definir $idSourceType para evitar undefined variable)
@@ -92,7 +92,7 @@ Arquivos alterados durante o troubleshooting (referência):
 - Se preferir, use `pathMappings` no `launch.json` para mapear `/var/www/html` → `${workspaceRoot}/src/codeigniter-app` (isso facilita breakpoints com paths corretos).
 
 Se quiser, eu posso:
-- Commitar essas mudanças e abrir um PR com o `Dockerfile` e `docker-compose.yml` atualizados;
+- Commitar essas mudanças e abrir um PR com o `Dockerfile` e `docker compose.yml` atualizados;
 - Gerar um passo a passo reduzido para inclusão no README do projeto;
 - Ajudar a debugar outra rota/fluxo no CodeIgniter.
 

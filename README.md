@@ -57,7 +57,7 @@ Ambientes de nuvem: Se for usar serviços como Amazon MWAA, os requisitos de har
 
 ```
 airflow-spark-minio-postgres/
-├── docker-compose.yml
+├── docker compose.yml
 ├── Dockerfile
 ├── entrypoint.sh
 └── src/
@@ -84,11 +84,11 @@ cd datalake-air-flow
 
 ```bash
 chmod +x entrypoint.sh
-docker-compose down --remove-orphans
-docker-compose build
-docker-compose up -d
+docker compose down --remove-orphans
+docker compose build
+docker compose up -d
 # Subir serviços de catálogo e Jupyter (perfil atlas)
-docker-compose --profile atlas up -d atlas pyspark-aula
+docker compose --profile atlas up -d atlas pyspark-aula
 ```
 
 ## 2.1 Verifique os containers ativos
@@ -201,14 +201,14 @@ docker exec -it postgres psql -U airflow -d airflow
 ### Caso precise reiniciar os serviços:
 
 ```bash
-docker-compose restart airflow-webserver airflow-scheduler minio mysql spark atlas
+docker compose restart airflow-webserver airflow-scheduler minio mysql spark atlas
 # Jupyter/PySpark (perfil atlas)
-docker-compose --profile atlas restart pyspark-aula
+docker compose --profile atlas restart pyspark-aula
 ```
 
 ## Verificar os processo que estão rodando
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 

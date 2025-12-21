@@ -15,7 +15,7 @@ TMPDIR=$(mktemp -d /tmp/l-restart.XXXX)
 BACKUP_MADE=0
 
 echo "1) Detectando container em execução para '$SERVICE'..."
-CID=$(docker-compose -f "$COMPOSE_FILE" ps -q "$SERVICE" || true)
+CID=$(docker compose -f "$COMPOSE_FILE" ps -q "$SERVICE" || true)
 if [ -n "$CID" ]; then
 	echo " - container encontrado: $CID"
 	echo " - procurando arquivos de configuração do Xdebug em /usr/local/etc/php/conf.d ..."
@@ -50,14 +50,14 @@ else
 fi
 
 echo "2) Reiniciando o serviço: stop -> rm -> build -> up"
-docker-compose -f "$COMPOSE_FILE" stop "$SERVICE" || true
-docker-compose -f "$COMPOSE_FILE" rm -f "$SERVICE" || true
-docker-compose -f "$COMPOSE_FILE" build --no-cache "$SERVICE"
-docker-compose -f "$COMPOSE_FILE" up -d "$SERVICE"
+docker compose -f "$COMPOSE_FILE" stop "$SERVICE" || true
+docker compose -f "$COMPOSE_FILE" rm -f "$SERVICE" || true
+docker compose -f "$COMPOSE_FILE" build --no-cache "$SERVICE"
+docker compose -f "$COMPOSE_FILE" up -d "$SERVICE"
 
 if [ "$BACKUP_MADE" -eq 1 ]; then
 	echo "3) Restaurando arquivos de configuração de $TMPDIR para o novo container..."
-	NEWCID=$(docker-compose -f "$COMPOSE_FILE" ps -q "$SERVICE" || true)
+	NEWCID=$(docker compose -f "$COMPOSE_FILE" ps -q "$SERVICE" || true)
 	if [ -n "$NEWCID" ]; then
 		find "$TMPDIR" -type f -print0 | while IFS= read -r -d '' file; do
 			rel=${file#"$TMPDIR"}
@@ -80,7 +80,7 @@ else
 fi
 
 echo "4) Verificação rápida do Xdebug no container (se estiver up):"
-docker-compose -f "$COMPOSE_FILE" exec -T "$SERVICE" php -i | egrep -i "xdebug|client_host|client_port" || true
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" php -i | egrep -i "xdebug|client_host|client_port" || true
 
 echo "Backup temporário mantido em: $TMPDIR"
 echo "l-restart concluído."

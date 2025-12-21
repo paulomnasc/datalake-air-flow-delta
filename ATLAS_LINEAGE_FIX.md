@@ -14,7 +14,7 @@ O data lineage não estava sendo registrado corretamente no Apache Atlas, imposs
 
 ### 1. Habilitação do Registro de Processos
 
-**Arquivo:** [docker-compose.yml](docker-compose.yml)
+**Arquivo:** [docker compose.yml](docker compose.yml)
 
 Adicionadas variáveis de ambiente nos containers `airflow-scheduler` e `airflow-webserver`:
 
@@ -95,8 +95,8 @@ Após as correções, o lineage ficará assim:
 ### 1. Reiniciar os Containers
 
 ```bash
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 ```
 
 ### 2. Aguardar Atlas Inicializar
@@ -192,7 +192,7 @@ docker exec airflow-scheduler env | grep ATLAS
 # ATLAS_REGISTER_PROCESSES=true
 ```
 
-Se estiver `false`, edite o [docker-compose.yml](docker-compose.yml) e reinicie.
+Se estiver `false`, edite o [docker compose.yml](docker compose.yml) e reinicie.
 
 ### Problema: Entidades criadas mas sem conexões
 

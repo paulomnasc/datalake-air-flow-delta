@@ -1150,7 +1150,7 @@ transformers = {
 # Upload de arquivo employees.csv via webapp
 # Executa DAG com pipeline completo
 # Verifica Silver layer:
-docker-compose exec minio mc ls minio/lab01/silver/employees/
+docker compose exec minio mc ls minio/lab01/silver/employees/
 ```
 
 ---

@@ -99,4 +99,4 @@ A instância MySQL foi criada com sucesso no servidor remoto via Docker, com dad
 
 ---
 
-Se quiser, posso te ajudar a montar um `docker-compose.yml` para facilitar futuras reinstanciações ou escalar com múltiplos serviços. Mas esse guia já está pronto para ser publicado no GitHub e usado em produção 💪
+Se quiser, posso te ajudar a montar um `docker compose.yml` para facilitar futuras reinstanciações ou escalar com múltiplos serviços. Mas esse guia já está pronto para ser publicado no GitHub e usado em produção 💪

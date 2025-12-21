@@ -79,7 +79,7 @@ Siga os passos padrão para instalar o Docker Engine no seu ambiente Ubuntu nati
 4.  **Instalar Docker Engine e Ferramentas:**
     ```bash
     sudo apt update
-    sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+    sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker compose-plugin -y
     ```
 5.  **Adicionar Usuário ao Grupo `docker` (Opcional, mas Recomendado):** Para usar `docker` sem `sudo`:
     ```bash
@@ -94,7 +94,7 @@ Siga os passos padrão para instalar o Docker Engine no seu ambiente Ubuntu nati
 ````
 
 airflow-spark-minio-postgres/
-├── docker-compose.yml
+├── docker compose.yml
 ├── Dockerfile
 ├── entrypoint.sh
 └── src/
@@ -124,8 +124,8 @@ cd datalake-air-flow
 
     ```bash
     chmod +x entrypoint.sh
-    docker-compose down --remove-orphans
-    docker-compose build
+    docker compose down --remove-orphans
+    docker compose build
     ```
 
     > **⚠️ SOLUÇÃO DE CONTORNO (CodeIgniter):** Se o *build* falhar ou a imagem `codeigniter-app` não aparecer na sua lista de imagens, a construção pode ter sido interrompida.
@@ -139,7 +139,7 @@ cd datalake-air-flow
 2.  **Inicialização dos Contêineres:**
 
     ```bash
-    docker-compose up -d
+    docker compose up -d
     ```
 
 3.  **Verifique os contêineres ativos:**
@@ -248,13 +248,13 @@ docker exec -it postgres psql -U airflow -d airflow
 ### Caso precise reiniciar os serviços:
 
 ```bash
-docker-compose restart airflow-webserver airflow-scheduler minio mysql spark
+docker compose restart airflow-webserver airflow-scheduler minio mysql spark
 ```
 
 ## Verificar os processo que estão rodando
 
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 ## ✅ Status Final

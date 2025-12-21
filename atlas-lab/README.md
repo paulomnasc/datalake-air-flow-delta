@@ -31,7 +31,7 @@ Este repositório fornece um ambiente completo de aprendizado para **Data Govern
 
 ```
 atlas-dataops-lab/
-├── docker-compose.yml          # Orquestração dos serviços
+├── docker compose.yml          # Orquestração dos serviços
 ├── Dockerfile                  # Atlas customizado
 ├── Dockerfile_Spark           # PySpark + Jupyter
 ├── wait-for-atlas.sh          # Script de inicialização
@@ -84,13 +84,13 @@ git clone <URL_DO_REPOSITORIO>
 cd atlas-dataops-lab
 
 # Iniciar todos os serviços
-docker-compose up --build -d
+docker compose up --build -d
 
 # Aguardar inicialização (5-10 minutos)
 ./wait-for-atlas.sh
 
 # Verificar status dos serviços
-docker-compose ps
+docker compose ps
 ```
 
 ### 3. Acesso aos Serviços
@@ -146,7 +146,7 @@ Ao integrar o Atlas com pipelines do Airflow (DAGs de ETL), é possível control
 | `ATLAS_MAX_RETRIES` | `5` | Número máximo de tentativas em caso de falha |
 | `ATLAS_BACKOFF_SECONDS` | `2.0` | Tempo base (em segundos) para backoff exponencial entre retries |
 
-##### Exemplo de Configuração no docker-compose.yml
+##### Exemplo de Configuração no docker compose.yml
 
 ```yaml
 services:
@@ -188,7 +188,7 @@ ReadTimeoutError: HTTPConnectionPool(host='apache-atlas', port=21000): Read time
 **Soluções:**
 1. Aumentar `ATLAS_HTTP_TIMEOUT` para 90 ou 120 segundos
 2. Desabilitar `ATLAS_REGISTER_PROCESSES` temporariamente
-3. Aumentar memória do container Atlas (editar `docker-compose.yml`)
+3. Aumentar memória do container Atlas (editar `docker compose.yml`)
 4. Verificar saúde do Solr: `docker logs apache-atlas | grep -i solr`
 
 **Verificação de Entidades Registradas:**
@@ -221,21 +221,21 @@ curl -u admin:admin "http://localhost:21000/api/atlas/v2/search/basic?typeName=h
 ### Gerenciamento de Serviços
 ```bash
 # Ver logs específicos
-docker-compose logs -f atlas
-docker-compose logs -f postgres_erp
-docker-compose logs -f pyspark-aula
+docker compose logs -f atlas
+docker compose logs -f postgres_erp
+docker compose logs -f pyspark-aula
 
 # Reiniciar serviço específico
-docker-compose restart atlas
+docker compose restart atlas
 
 # Parar todos os serviços
-docker-compose down
+docker compose down
 
 # Limpar volumes (CUIDADO: perde dados)
-docker-compose down -v
+docker compose down -v
 
 # Rebuild completo
-docker-compose up --build --force-recreate
+docker compose up --build --force-recreate
 ```
 
 ### Diagnóstico

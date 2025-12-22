@@ -196,6 +196,46 @@ docker exec -it airflow-webserver airflow users create \
   --password admin
 ```
 
+
+## 🔧 Configuração da Aplicação CodeIgniter
+
+### ⚠️ Permissões de Escrita (Pasta `writable`)
+
+A aplicação CodeIgniter requer permissões de escrita na pasta `writable` e suas subpastas para funcionar corretamente. Essa pasta armazena:
+- **Logs** (`writable/logs`): Arquivos de log da aplicação
+- **Cache** (`writable/cache`): Arquivos temporários de cache
+- **Session** (`writable/session`): Dados de sessão de usuários
+- **Uploads** (`writable/uploads`): Arquivos enviados via upload
+
+### 📝 Configuração Inicial de Permissões
+
+Após clonar o repositório e antes de iniciar os containers, execute:
+
+```bash
+# Criar estrutura de pastas writable se não existir
+mkdir -p src/codeigniter-app/writable/logs
+mkdir -p src/codeigniter-app/writable/cache
+mkdir -p src/codeigniter-app/writable/session
+mkdir -p src/codeigniter-app/writable/uploads
+
+# Conceder permissões de escrita (775 recomendado para desenvolvimento)
+chmod -R 775 src/codeigniter-app/writable
+
+# Em ambientes de produção, use permissões mais restritivas
+# chmod -R 755 src/codeigniter-app/writable
+# chown -R www-data:www-data src/codeigniter-app/writable
+```
+
+### 🔍 Verificação de Permissões
+
+Para verificar se as permissões estão corretas:
+
+```bash
+ls -la src/codeigniter-app/writable/
+```
+
+A saída deve mostrar permissões `rwxrwxr-x` (775) ou `rwxr-xr-x` (755) para as pastas.
+
 ## Instalação de dependências
 
 Este projeto utiliza o Airflow com integração ao MinIO via S3Hook. Para garantir que todos os operadores e hooks estejam disponíveis, instale os seguintes pacotes:
@@ -232,11 +272,47 @@ pip install apache-airflow-providers-amazon --no-deps
 | **Jupyter Notebook**| [http://localhost:8888](http://localhost:8888) | 8888  | Token: `tavares1234`       | —                  | Lab de integração Atlas (pyspark-notebook) |
 —
 | **Spark SQL (Thrift)**      | via Conector JDBC/ODBC	10000        | 10000  | `nenum` / `nenhum`      | `nenhum`          | Ponto de Acesso para Power BI/Tableau (Camada Semântica sobre Delta Lake)        |
+| **CodeIgniter WebApp** | [http://localhost:8088](http://localhost:8088) | 8088  | Configurável via aplicação | `lista_revisao2`   | Interface web para configuração de DAGs |
 
 ---
 
 ## Detalhes Importantes para o Spark SQL (Thrift)## 
 Usuário/Senha: O Spark Thrift Server (a menos que configurado com Kerberos ou autenticação complexa, o que é raro em desenvolvimento local) geralmente não requer autenticação. Basta deixar em branco ou usar valores dummy na ferramenta de BI.Banco de Dados: Ele expõe o catálogo de tabelas do Spark/Hive. Você acessa as tabelas Delta diretamente com comandos SQL, como SELECT * FROM nome_da_tabela_delta.Conexão BI: Use o driver Spark Thrift JDBC/ODBC (ou driver Hive) para conectar ferramentas de BI. O host será localhost e a porta será 10000.
+
+---
+
+
+### 🐛 Troubleshooting
+
+**Problema**: Erro HTTP 500 ao acessar a aplicação ou mensagens de "permission denied" nos logs.
+
+**Solução**:
+```bash
+# Verificar logs do container
+docker logs codeigniter-app
+
+# Recriar permissões
+chmod -R 775 src/codeigniter-app/writable
+
+# Reiniciar container
+docker compose restart codeigniter-app
+```
+
+### 🔗 Configuração de Banco de Dados
+
+Certifique-se de que o arquivo `src/codeigniter-app/.env` está configurado para usar o hostname correto do MySQL no Docker:
+
+```env
+database.default.hostname = mysql
+database.default.database = lista_revisao2
+database.default.username = root
+database.default.password = root
+```
+
+> ⚠️ **Importante**: Não use `localhost` como hostname dentro do container. Use o nome do serviço Docker (`mysql`).
+
+Para mais detalhes sobre troubleshooting da aplicação, consulte: [Falha-do-codeigniter-app-ao-conectar-no-mysql-e-escrita-nas-pastas-writable.md](Falha-do-codeigniter-app-ao-conectar-no-mysql-e-escrita-nas-pastas-writable.md)
+
 ---
 
 ## 🧪 Testes de Acesso

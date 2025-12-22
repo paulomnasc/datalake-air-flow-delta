@@ -47,7 +47,7 @@ require VIEWPATH . '/header.php';
 <div id="content">
 
     <div class="container">
-        <h1>Criar Novo Config</h1>
+        <h1>Criar Novo Fluxo</h1>
 
         <!-- form method="post" id="meuFormularioUpload" action="<?php echo route_to('Config.fileUpload'); ?>" enctype="multipart/form-data">
             

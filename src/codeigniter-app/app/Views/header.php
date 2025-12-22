@@ -298,7 +298,7 @@
                 ?> 
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="navbardrop" data-bs-toggle="dropdown">
-                        AÇÕES JOGO
+                        CONFIGURAÇÕES
                     </a>
                     <div class="dropdown-menu">
                         <?php
@@ -306,9 +306,9 @@
                             if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"): 
                         ?>
                             <?php echo anchor("listPasta", "Pastas", ['class' => 'nav-link px-4 px-lg-5']) ?>
-                            <?php echo anchor("listConfig", "Configs", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                            <?php echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']) ?>
                         <?php elseif (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === "Anonimo"): ?>
-                            <?php echo anchor("listConfig", "Configs", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                            <?php echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']) ?>
                         <?php endif; ?>
                     </div>
                 </li>
@@ -344,7 +344,7 @@
 
     
 
-    <form id="submitSaibaMais" method="POST" action="<?php echo route_to('saibaMais'); ?>">
+    <form id="submitSaibaMais" method="POST" action="<?php echo route_to('saibaMais'); ?>" style="display: none;">
 
             <button id="btn-saiba-mais" type="submit" class="nav-button" >Saiba mais
                 <i class="fas fa-info-circle" style="margin-left: 5px;"></i>

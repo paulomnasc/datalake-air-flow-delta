@@ -9,7 +9,7 @@ require VIEWPATH . '/header.php';
 <div id="content">
 
     <div class="container">
-        <h1>Editar Configuração de DAG</h1>
+        <h1>Editar Fluxo</h1>
         <!-- updQuadro.php -->
             
             

@@ -1,333 +1,481 @@
 <style>
-    .btn-primary a {
-        color: white !important; /* Força a cor do link para branco */
-        text-decoration: none; /* Remove a sublinha do link */
+    :root {
+        --bronze: #CD7F32;
+        --silver: #C0C0C0;
+        --gold: #FFD700;
+        --dark-bg: #1a1d29;
+        --card-bg: #242938;
+        --text-light: #e8eaed;
+        --accent-blue: #4A90E2;
     }
 
-    .btn-primary a:hover {
-        color: #f0f0f0 !important; /* Força a cor do link ao passar o mouse para #f0f0f0 */
+    body {
+        background: linear-gradient(135deg, #1a1d29 0%, #2d3142 100%);
+        color: var(--text-light);
     }
 
-    .btn-primary .fa-arrow-right {
-        color: white !important; /* Força a cor do ícone para branco */
+    .hero-section {
+        background: linear-gradient(135deg, rgba(74, 144, 226, 0.1) 0%, rgba(26, 29, 41, 0.9) 100%);
+        padding: 60px 20px;
+        text-align: center;
+        border-radius: 15px;
+        margin: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
     }
 
-    .btn-primary a:hover .fa-arrow-right {
-        color: #f0f0f0 !important; /* Força a cor do ícone ao passar o mouse para #f0f0f0 */
+    .hero-title {
+        font-size: 3rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, var(--bronze), var(--silver), var(--gold));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 20px;
+        text-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
     }
 
-    .carousel {
-        width: 40%;  /* Ajuste a largura conforme necessário */
-        max-width: 1200px;  /* Largura máxima para manter a proporção */
-        height: auto;  
-        margin: 20px auto;
+    .hero-subtitle {
+        font-size: 1.3rem;
+        color: var(--text-light);
+        margin-bottom: 30px;
+        opacity: 0.9;
     }
 
-
-        .slick-slide {
-            text-align: center;
-        }
-
-        .slick-slide img {
-            width: 100%;
-            border-radius: 8px;
-        }
-
-
-    .carousel-text {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.5);
-            color: white;
-            padding: 10px;
-            border-radius: 8px;
+    .medallion-flow {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 30px;
+        margin: 40px auto;
+        flex-wrap: wrap;
+        max-width: 1200px;
     }
 
-    .img-config {
-        width: 100%;  /* Garante que a imagem ocupe toda a largura disponível */
-        height: 400px;  /* Define uma altura fixa */
-        object-fit: cover;  /* Mantém as proporções da imagem enquanto preenche o contêiner */
+    .medallion-layer {
+        flex: 1;
+        min-width: 250px;
+        padding: 30px;
+        border-radius: 15px;
+        text-align: center;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        position: relative;
+        overflow: hidden;
     }
 
-    p{
-        display: none;
-        float: right;
+    .medallion-layer::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .medallion-layer:hover::before {
+        opacity: 1;
+    }
+
+    .medallion-layer:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .bronze-layer {
+        background: linear-gradient(135deg, rgba(205, 127, 50, 0.2), rgba(205, 127, 50, 0.05));
+        border: 2px solid var(--bronze);
+    }
+
+    .silver-layer {
+        background: linear-gradient(135deg, rgba(192, 192, 192, 0.2), rgba(192, 192, 192, 0.05));
+        border: 2px solid var(--silver);
+    }
+
+    .gold-layer {
+        background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 215, 0, 0.05));
+        border: 2px solid var(--gold);
+    }
+
+    .layer-icon {
+        font-size: 3.5rem;
+        margin-bottom: 15px;
+        filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.3));
+    }
+
+    .layer-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
+    .layer-desc {
+        font-size: 1rem;
+        opacity: 0.85;
+        line-height: 1.6;
+    }
+
+    .flow-arrow {
+        font-size: 2.5rem;
+        color: var(--accent-blue);
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 0.6; }
+        50% { opacity: 1; }
+    }
+
+    .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 25px;
+        margin: 40px 20px;
+    }
+
+    .feature-card {
+        background: var(--card-bg);
+        padding: 30px;
+        border-radius: 12px;
+        border-left: 4px solid var(--accent-blue);
+        transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+        transform: translateX(5px);
+        box-shadow: 0 8px 25px rgba(74, 144, 226, 0.2);
+    }
+
+    .feature-icon {
+        font-size: 2.5rem;
+        color: var(--accent-blue);
+        margin-bottom: 15px;
+    }
+
+    .feature-title {
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin-bottom: 10px;
+        color: var(--text-light);
+    }
+
+    .feature-desc {
+        color: rgba(232, 234, 237, 0.8);
+        line-height: 1.6;
+    }
+
+    .tech-stack {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 30px;
+        margin: 40px 20px;
+    }
+
+    .tech-stack h3 {
+        text-align: center;
+        color: var(--gold);
+        margin-bottom: 30px;
         font-size: 2rem;
-        font-weight: bold;
     }
 
-    /* Força a rolagem horizontal se necessário */
+    .tech-list {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 15px;
+    }
+
+    .tech-badge {
+        background: linear-gradient(135deg, rgba(74, 144, 226, 0.2), rgba(74, 144, 226, 0.05));
+        border: 1px solid var(--accent-blue);
+        padding: 10px 20px;
+        border-radius: 25px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .tech-badge:hover {
+        background: var(--accent-blue);
+        transform: scale(1.05);
+    }
+
     .table-responsive {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 20px;
+        margin: 20px 0;
+    }
+
+    .table {
+        color: var(--text-light);
+    }
+
+    .table thead {
+        background: linear-gradient(135deg, var(--accent-blue), #3a7bc8);
+        color: white;
+    }
+
+    .table-striped tbody tr:nth-of-type(odd) {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .cta-section {
+        text-align: center;
+        padding: 60px 20px;
+        margin: 40px 20px;
+        background: linear-gradient(135deg, rgba(74, 144, 226, 0.15), rgba(255, 215, 0, 0.1));
+        border-radius: 15px;
+    }
+
+    .cta-button {
+        display: inline-block;
+        padding: 15px 40px;
+        background: linear-gradient(135deg, var(--accent-blue), #3a7bc8);
+        color: white !important;
+        text-decoration: none !important;
+        border-radius: 50px;
+        font-weight: 700;
+        font-size: 1.2rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 5px 20px rgba(74, 144, 226, 0.4);
+    }
+
+    .cta-button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 30px rgba(74, 144, 226, 0.6);
+        color: white !important;
     }
 
 </style>
 
+<!-- Hero Section -->
+<div class="hero-section">
+    <h1 class="hero-title">🌊 Arquitetura Medalhão para Data Lake</h1>
+    <p class="hero-subtitle">Transforme dados brutos em insights de negócio através de camadas Bronze, Silver e Gold</p>
+</div>
 
-    
-    <!-- Navbar Start 
-                <?php echo anchor("logarUsuarioAnonimo","Experimente agora")  ?>
-                <?php echo anchor("politica","Política Privacidade")  ?>
-                <?php echo anchor("contactUs","Entre em contato")  ?>
-            
-    <!- Navbar End -->
-
-
-    <div>
-
-        
-        <h1 style="text-align: center;">Memorize jogando AGORA !!!</h1>
-
-
-        <div class="carousel">
-            <img src="assets/anime/Gif_anuncio_reduced.gif" 
-            alt="Animação de países e capitais" 
-            width="100%" height="auto" style="max-width: 800px;">
-        </div>
-
-        <h3 style="text-align: center;">Como as tabelas resumo podem me ajudar com os meus estudos ?</h3>
-        <br>
-        
-        <div style="font-size: 17px; margin-left: 20px; margin-right: 20px; text-align: justify;">
-            
-            As tabelas resumo e quadros sinópticos são ferramentas eficazes para ajudar nos estudos, pois organizam e sintetizam informações de forma clara e estruturada. 
-            Elas permitem condensar conteúdos complexos em blocos menores e mais compreensíveis, destacando os pontos principais e facilitando a revisão rápida. 
-            Utilizando uma tabela, você pode visualizar informações essenciais, como conceitos, definições ou comparações, de forma mais objetiva, sem a necessidade 
-            de reler textos longos.
-
-            Elas também ajudam a identificar padrões e relações entre diferentes temas, o que facilita a memorização. Além disso, ao organizar as ideias principais
-             em uma tabela, você pode revisar com mais agilidade, o que é útil em períodos de preparação para provas ou apresentações. Essas tabelas podem ser personalizadas para atender a diferentes tipos de conteúdo, como cronologias, fórmulas, eventos históricos ou características de um conceito.
-
-            Em resumo, as tabelas resumo são uma maneira prática de otimizar o tempo de estudo, focando no que é mais relevante e facilitando a retenção das informações.
-            <br><br>
-                Assista o vídeo, clicando em <?php echo anchor("saibaMais", "saiba mais") ?> para assistir nossos tutoriais. 
-                <br>
-        </div>
-
+<!-- Medallion Architecture Flow -->
+<div class="medallion-flow">
+    <div class="medallion-layer bronze-layer">
+        <div class="layer-icon">🥉</div>
+        <h2 class="layer-title">Bronze</h2>
+        <p class="layer-desc">
+            Ingestão de dados brutos de múltiplas fontes (MySQL, APIs, CSV). 
+            Dados sem transformação, preservando o histórico completo.
+        </p>
     </div>
-
     
-    <!-- Carrossel -->
-    <div class="carousel">
-
-        
-
-        <div>
-            <img  class="img-config"  src="<?= base_url('assets/templates/img/course-1.jpg'); ?>"  alt="Estudo">
-            <div class="carousel-text">Estudo</div>
-        </div>
-        <div>
-            <img class="img-config" src="<?= base_url('assets/templates/img/cerebro.webp'); ?>" alt="Memória">
-            <div class="carousel-text">Memória</div>
-        </div>
-        <div>
-            <img class="img-config" src="<?= base_url('assets/templates/img/course-3.jpg'); ?>" alt="Resultados">
-            <div class="carousel-text">Resultados</div>
-        </div>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
-    <script>
-        $(document).ready(function(){
-            $('.carousel').slick({
-                autoplay: true,
-                autoplaySpeed: 2000,
-                dots: true,
-                infinite: true,
-                speed: 500,
-                fade: true,
-                cssEase: 'linear'
-            });
-        });
-    </script>
-    <!-- Fim carrossel -->
-
-    <div>
-
-    <h2 style="text-align: center;">Por quê otimizar seus estudos com tabelas de resumo (ou quadros sinópticos) ?</h2>
-        <br>
-        <h3 style="text-align: center;">Motivo 1: Personalização e Flexibilidade</h3>
-        <br>
-            <div style="font-size: 17px; margin-left: 20px; margin-right: 20px; text-align: justify;">
-                    As tabelas de estudo são como mapas do tesouro para o seu aprendizado. 
-                Elas te ajudam a navegar por conteúdos complexos de forma rápida e eficiente. 
-                Ao criar suas próprias tabelas, você personaliza a organização das informações de acordo com sua forma de aprender, 
-                destacando os pontos-chave e as relações entre os conceitos. 
-                <br><br>
-                É como ter um guia personalizado para cada matéria, facilitando a revisão e a memorização. 
-                <br><br>
-                Além disso, as tabelas são versáteis e podem ser adaptadas para qualquer disciplina, desde as exatas até as humanas.
-                As tabelas de estudo são como mapas do tesouro para o seu aprendizado. Elas te ajudam a navegar por conteúdos complexos 
-                de forma rápida e eficiente. 
-                <br><br>
-                Ao criar suas próprias tabelas, você personaliza a organização das informações de acordo com sua forma de aprender, 
-                destacando os pontos-chave e as relações entre os conceitos. 
-                É como ter um guia personalizado para cada matéria, facilitando a revisão e a memorização. 
-                Além disso, as tabelas são versáteis e podem ser adaptadas para qualquer disciplina, desde as exatas até as humanas.
-                <br><br>
-                Assista o vídeo , clicando em <?php echo anchor("saibaMais", "saiba mais") ?> para assistir nossos tutoriais. 
-                <br>
-            </div>
-            <br>
-            <h3 style="text-align: center;">Motivo 2: Organização e Visualização</h3>
-            <br>
-            <div style="font-size: 17px; margin-left: 20px; margin-right: 20px; text-align: justify;">
-                Imagine transformar um texto denso e confuso em um diagrama colorido e organizado. 
-                <br><br>
-                As tabelas de estudo fazem exatamente isso! 
-                <br><br>
-                Elas são a ferramenta perfeita para visualizar as informações de forma clara e concisa, facilitando a compreensão e a memorização. 
-                Ao organizar os dados em linhas e colunas, você cria uma estrutura visual que ajuda o seu cérebro a conectar as ideias de forma 
-                mais eficiente. É como ter um quebra-cabeça que você mesmo monta, peça por peça.
-                <br><br>
-                Assista o vídeo , clicando em <?php echo anchor("saibaMais", "saiba mais") ?> para assistir nossos tutoriais. 
-                <br>
-            </div>
-            <br>
-            <h3 style="text-align: center;">Motivo 3: Eficiência para Provas e Apresentações</h3>
-            <br>
-            <div style="font-size: 17px; margin-left: 20px; margin-right: 20px; text-align: justify;">
-                Está se preparando para uma prova ou apresentação? 
-                <br><br>
-                As tabelas de estudo são suas aliadas! 
-                Elas te ajudam a otimizar o tempo de revisão, condensando o conteúdo em um formato compacto e fácil de consultar.
-                <br><br> 
-                Ao invés de reler páginas e páginas de texto, você pode rapidamente encontrar a informação que precisa na sua tabela. 
-                <br><br>
-                Além disso, as tabelas te ajudam a identificar os pontos mais importantes e a construir argumentos mais sólidos, 
-                garantindo um desempenho melhor em suas avaliações.
-
-                <br><br>
-                Assista o vídeo , clicando em <?php echo anchor("saibaMais", "saiba mais") ?> para assistir nossos tutoriais. 
-                <br>
-            </div>
-
-
+    <div class="flow-arrow">→</div>
     
-    <br>
-        <div style="font-size: 17px; margin-left: 20px; margin-right: 20px; text-align: justify;">
-            <h2 style="text-align: center;">Exemplos de resumos com quadros sinópticos</h2>
-                <br>
-                
-                <h4>1. Revolução Industrial</h4><?php echo anchor("saibaMais", "Para tutorial clique aqui") ?>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-striped table-hover">
-                        <tr>
-                            <th>Aspecto</th>
-                            <th>Primeira Revolução (Séc. XVIII)</th>
-                            <th>Segunda Revolução (Séc. XIX)</th>
-                            <th>Terceira Revolução (Séc. XX e XXI)</th>
-                        </tr>
-                        <tr>
-                            <td>Principais Inovações</td>
-                            <td>Máquina a vapor, tear mecânico</td>
-                            <td>Eletricidade, motor a combustão</td>
-                            <td>Robótica, informática, IA</td>
-                        </tr>
-                        <tr>
-                            <td>Principais Setores</td>
-                            <td>Têxtil, mineração</td>
-                            <td>Transporte, siderurgia</td>
-                            <td>Tecnologia, automação</td>
-                        </tr>
-                        <tr>
-                            <td>Impacto na Sociedade</td>
-                            <td>Urbanização, trabalho fabril</td>
-                            <td>Crescimento industrial, migrações</td>
-                            <td>Globalização, novas profissões</td>
-                        </tr>
-                    </table>
-                </div>
-
-                <h4>2. Funções da Linguagem</h4>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-striped table-hover">
-                        <tr>
-                            <th>Função</th>
-                            <th>Características</th>
-                            <th>Exemplo</th>
-                        </tr>
-                        <tr>
-                            <td>Referencial</td>
-                            <td>Informativa, objetiva</td>
-                            <td>Notícia, relatório</td>
-                        </tr>
-                        <tr>
-                            <td>Emotiva</td>
-                            <td>Expressa sentimentos</td>
-                            <td>Diário, poesia</td>
-                        </tr>
-                        <tr>
-                            <td>Conativa</td>
-                            <td>Persuasiva, direcionada ao receptor</td>
-                            <td>Propaganda, discurso político</td>
-                        </tr>
-                        <tr>
-                            <td>Fática</td>
-                            <td>Testa o canal de comunicação</td>
-                            <td>"Alô?", "Está me ouvindo?"</td>
-                        </tr>
-                        <tr>
-                            <td>Poética</td>
-                            <td>Estética, criatividade na linguagem</td>
-                            <td>Poema, música</td>
-                        </tr>
-                        <tr>
-                            <td>Metalinguística</td>
-                            <td>Explica o próprio código</td>
-                            <td>Dicionário, gramática</td>
-                        </tr>
-                    </table>
-                </div>
-                <h4>3. Classificação dos Seres Vivos</h4>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-striped table-hover">
-                        <tr>
-                            <th>Reino</th>
-                            <th>Características</th>
-                            <th>Exemplos</th>
-                        </tr>
-                        <tr>
-                            <td>Monera</td>
-                            <td>Unicelulares, procariontes</td>
-                            <td>Bactérias, cianobactérias</td>
-                        </tr>
-                        <tr>
-                            <td>Protista</td>
-                            <td>Unicelulares ou pluricelulares, eucariontes</td>
-                            <td>Protozoários, algas</td>
-                        </tr>
-                        <tr>
-                            <td>Fungi</td>
-                            <td>Heterótrofos, parede celular de quitina</td>
-                            <td>Cogumelos, leveduras</td>
-                        </tr>
-                        <tr>
-                            <td>Plantae</td>
-                            <td>Autotróficos, parede celular de celulose</td>
-                            <td>Árvores, gramíneas</td>
-                        </tr>
-                        <tr>
-                            <td>Animalia</td>
-                            <td>Heterótrofos, pluricelulares</td>
-                            <td>Mamíferos, aves, répteis</td>
-                        </tr>
-                    </table>
-                </div>
-        </div>
+    <div class="medallion-layer silver-layer">
+        <div class="layer-icon">🥈</div>
+        <h2 class="layer-title">Silver</h2>
+        <p class="layer-desc">
+            Limpeza, validação e enriquecimento de dados. 
+            Aplicação de regras de qualidade e transformações ETL.
+        </p>
     </div>
-    <!-- div para o vídeo explicativo a ser produzido -->
-    <!--div id="video-container">
-        <div id="video-title-bar">Entenda como estudar com quadros sinópticos de memória</div>
-        <iframe width="600" height="400" src="https://www.youtube.com/embed/QBU1i0ZUzg4" title="YouTube video" frameborder="0" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-            allowfullscreen>
-        </iframe>
-    </div-->
+    
+    <div class="flow-arrow">→</div>
+    
+    <div class="medallion-layer gold-layer">
+        <div class="layer-icon">🥇</div>
+        <h2 class="layer-title">Gold</h2>
+        <p class="layer-desc">
+            Dados agregados e otimizados para análise. 
+            Feature engineering para ML e dashboards de BI.
+        </p>
+    </div>
+</div>
 
-    <!-- fim div para o vídeo explicativo a ser produzido -->
+<!-- Features Grid -->
+<div class="features-grid">
+    <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3 class="feature-title">Orquestração com Airflow</h3>
+        <p class="feature-desc">
+            DAGs automatizadas para pipelines de dados com scheduling, monitoramento e retry automático.
+        </p>
+    </div>
+    
+    <div class="feature-card">
+        <div class="feature-icon">🔄</div>
+        <h3 class="feature-title">Processamento Spark</h3>
+        <p class="feature-desc">
+            Processamento distribuído de grandes volumes de dados com Apache Spark e Delta Lake.
+        </p>
+    </div>
+    
+    <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3 class="feature-title">Integração BI</h3>
+        <p class="feature-desc">
+            Conecte Power BI, Tableau via Spark SQL Thrift Server para análises em tempo real.
+        </p>
+    </div>
+    
+    <div class="feature-card">
+        <div class="feature-icon">🗄️</div>
+        <h3 class="feature-title">Armazenamento MinIO</h3>
+        <p class="feature-desc">
+            Storage S3-compatible para Data Lake com alta disponibilidade e baixo custo.
+        </p>
+    </div>
+    
+    <div class="feature-card">
+        <div class="feature-icon">🏷️</div>
+        <h3 class="feature-title">Catálogo Apache Atlas</h3>
+        <p class="feature-desc">
+            Governança de dados com linhagem, metadados e classificação automática.
+        </p>
+    </div>
+    
+    <div class="feature-card">
+        <div class="feature-icon">✅</div>
+        <h3 class="feature-title">Qualidade de Dados</h3>
+        <p class="feature-desc">
+            Validações automáticas, detecção de anomalias e data quality checks em cada camada.
+        </p>
+    </div>
+</div>
 
+<!-- Tech Stack -->
+<div class="tech-stack">
+    <h3>🛠️ Stack Tecnológica</h3>
+    <div class="tech-list">
+        <span class="tech-badge">Apache Airflow</span>
+        <span class="tech-badge">Apache Spark</span>
+        <span class="tech-badge">Delta Lake</span>
+        <span class="tech-badge">MinIO S3</span>
+        <span class="tech-badge">Apache Atlas</span>
+        <span class="tech-badge">PostgreSQL</span>
+        <span class="tech-badge">MySQL</span>
+        <span class="tech-badge">Python</span>
+        <span class="tech-badge">PySpark</span>
+        <span class="tech-badge">Docker</span>
+    </div>
+</div>
+
+<!-- Pipeline Example Section -->
+<div style="margin: 40px 20px;">
+    <h2 style="text-align: center; color: var(--gold); margin-bottom: 30px;">📋 Exemplo de Pipeline de Dados</h2>
+    
+    <div class="table-responsive">
+        <h4 style="color: var(--bronze); margin-bottom: 15px;">Camada Bronze - Dados Brutos</h4>
+        <table class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>Fonte</th>
+                    <th>Tipo</th>
+                    <th>Frequência</th>
+                    <th>Formato</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>MySQL - Customers</td>
+                    <td>Banco Relacional</td>
+                    <td>Incremental (diário)</td>
+                    <td>Parquet</td>
+                </tr>
+                <tr>
+                    <td>API REST - Vendas</td>
+                    <td>API Externa</td>
+                    <td>Streaming (real-time)</td>
+                    <td>JSON → Parquet</td>
+                </tr>
+                <tr>
+                    <td>CSV - Produtos</td>
+                    <td>Arquivo Batch</td>
+                    <td>Semanal</td>
+                    <td>CSV → Parquet</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="table-responsive">
+        <h4 style="color: var(--silver); margin-bottom: 15px;">Camada Silver - Transformações</h4>
+        <table class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>Transformação</th>
+                    <th>Descrição</th>
+                    <th>Validação</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Limpeza de Nulos</td>
+                    <td>Remoção/preenchimento de valores ausentes</td>
+                    <td>Data Quality Check</td>
+                </tr>
+                <tr>
+                    <td>Padronização</td>
+                    <td>Normalização de formatos (datas, strings)</td>
+                    <td>Schema Validation</td>
+                </tr>
+                <tr>
+                    <td>Deduplicação</td>
+                    <td>Remoção de registros duplicados</td>
+                    <td>Constraint Check</td>
+                </tr>
+                <tr>
+                    <td>Enriquecimento</td>
+                    <td>Joins com tabelas de referência</td>
+                    <td>Referential Integrity</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="table-responsive">
+        <h4 style="color: var(--gold); margin-bottom: 15px;">Camada Gold - Analytics Ready</h4>
+        <table class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>Tipo</th>
+                    <th>Uso</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>customer_lifetime_value</td>
+                    <td>Agregação (SUM)</td>
+                    <td>Segmentação de Clientes</td>
+                </tr>
+                <tr>
+                    <td>recency_days</td>
+                    <td>Temporal (DATEDIFF)</td>
+                    <td>Modelo RFM</td>
+                </tr>
+                <tr>
+                    <td>product_category_rank</td>
+                    <td>Window Function</td>
+                    <td>Análise de Performance</td>
+                </tr>
+                <tr>
+                    <td>churn_probability</td>
+                    <td>ML Feature</td>
+                    <td>Predição de Churn</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- CTA Section -->
+<div class="cta-section">
+    <h2 style="font-size: 2.2rem; margin-bottom: 20px;">Pronto para construir seu Data Lake?</h2>
+    <p style="font-size: 1.2rem; margin-bottom: 30px; opacity: 0.9;">
+        Configure suas DAGs, conecte suas fontes de dados e comece a transformar dados em valor
+    </p>
+    <a href="<?= base_url('config'); ?>" class="cta-button">
+        ⚙️ Configurar Pipeline Agora
+    </a>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>

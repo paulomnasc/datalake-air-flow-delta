@@ -25,7 +25,7 @@ require VIEWPATH.'/header.php';
 
 
             <div class="container">
-            <h4 style="text-align: center;">Listagem de Configurações (DAGs)</h4>
+            <h4 style="text-align: center;">Listagem de Fluxos (DAGs)</h4>
 
                 <input type="text" id="filtro-nome" placeholder="Filtrar por descrição">
             <img src="../assets/img/lupa.jpg" >

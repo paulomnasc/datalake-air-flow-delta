@@ -570,144 +570,80 @@ class ConfigController extends BaseController
             // Pega a descrição em minúsculas para a lógica
             $sourceTypeDescription = strtolower($sourceTypeConfig['description']);
 
-            // Verificar se é upload múltiplo
-            $isMultiUpload = $this->request->getPost('enable_multi_upload') === '1';
-            
-            // Se for upload múltiplo, redirecionar para o método específico (reutiliza a mesma função)
-            if ($isMultiUpload && (str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json'))) {
-                // Para update, vamos deletar a config antiga e criar uma nova com uploadMultipleFiles
-                // Primeiro salvamos o ID antigo
-                $oldId = $id;
-                // Chama upload múltiplo que cria novo registro
-                $response = $this->uploadMultipleFiles();
-                // Opcional: deletar o registro antigo se o novo foi criado com sucesso
-                // $model->delete($oldId);
-                return $response;
-            }
+            // Simplicidade: se chegou aqui, temos um ID e vamos atualizar o registro existente.
+            // Não criar novo registro nem tentar substituir por criação/deleção.
 
-            // Variável que irá conter a string a ser salva em dag_configurations.source_filename
-            $sourceLocation = $existingConfig->source_filename; // Inicializa com o valor atual do banco
-            
-            // 2. Lógica Condicional de Upload/Caminho (usando a descrição textual)
-            $fileRequired = str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json');
-            
             $uploadedFile = $this->request->getFile('source_filename');
 
-            if ($fileRequired) {
-                if ($uploadedFile && $uploadedFile->isValid() && !$uploadedFile->hasMoved()) {
-                    // Cenário A: Novo arquivo enviado e válido (Fazendo upload)
-                    $dagId = $existingConfig->dag_id; // Mantém o DAG ID original para o caminho
-                    $bucket = $this->bucketName ?: 'lab01';
+            // Determina dag_id a partir do POST (permite alterar) ou mantém existente
+            $dagId = $postData['dag_id'] ?? $existingConfig->dag_id;
 
-                    $newName = $uploadedFile->getRandomName();
-                    $targetMinioPath = "raw/{$dagId}/{$newName}";
+            // Determina source_location inicial como o valor existente
+            $sourceLocation = $existingConfig->source_filename;
 
-                    // Faz o upload real do arquivo para MinIO
-                    if (!$this->minioClient) {
-                        throw new \Exception('Cliente MinIO não inicializado.');
-                    }
+            // Se um novo arquivo foi enviado, faz upload para MinIO usando o dag_id informado
+            if ($uploadedFile && $uploadedFile->isValid() && !$uploadedFile->hasMoved()) {
+                if (!$this->minioClient) {
+                    throw new \Exception('Cliente MinIO não inicializado.');
+                }
 
-                    try {
-                        $this->minioClient->putObject([
-                            'Bucket' => $bucket,
-                            'Key' => $targetMinioPath,
-                            'SourceFile' => $uploadedFile->getTempName(),
-                            'ContentType' => $uploadedFile->getClientMimeType(),
-                        ]);
+                $newName = $uploadedFile->getRandomName();
+                $targetMinioPath = "raw/{$dagId}/{$newName}";
 
-                        $sourceLocation = $targetMinioPath;
-                    } catch (AwsException $e) {
-                        throw new \Exception('Erro MinIO: ' . $e->getAwsErrorMessage());
-                    }
-                } else {
-                    // Cenário B: Não há novo upload, usa o caminho original.
-                    // Prioriza o caminho original que veio via campo oculto, senão usa o valor do banco
-                    $sourceLocation = $postData['source_filename_original'] ?? $existingConfig->source_filename;
-                
-                    // Se o arquivo for requerido, mas não houver upload NEM caminho original, é um erro.
-                    if (empty($sourceLocation)) {
-                        throw new \Exception('O arquivo de origem é obrigatório para este tipo de fonte, e nenhum caminho anterior foi encontrado.');
-                    }
+                try {
+                    $this->minioClient->putObject([
+                        'Bucket' => $this->bucketName,
+                        'Key' => $targetMinioPath,
+                        'SourceFile' => $uploadedFile->getTempName(),
+                        'ContentType' => $uploadedFile->getClientMimeType(),
+                    ]);
+
+                    $sourceLocation = $targetMinioPath;
+                } catch (AwsException $e) {
+                    throw new \Exception('Erro MinIO: ' . $e->getAwsErrorMessage());
                 }
             } else {
-                // Se o tipo de fonte NÃO requer arquivo
-                $sourceLocation = $postData['source_filename'] ?? $existingConfig->source_filename;
-                
-                // Para tipos SQL, usar campos estruturados
-                if (str_contains($sourceTypeDescription, 'sql') || 
-                    str_contains($sourceTypeDescription, 'mysql') || 
-                    str_contains($sourceTypeDescription, 'postgresql')) {
-                    
-                    $sqlHost = $postData['sql_host'] ?? $existingConfig->sql_host ?? null;
-                    $sqlConnectionId = $postData['sql_connection_id'] ?? $existingConfig->sql_connection_id ?? null;
-                    $sqlDatabaseName = $postData['sql_database_name'] ?? $existingConfig->sql_database_name ?? null;
-                    
-                    if (empty($sqlHost)) {
-                        throw new \Exception('O Host do banco de dados é obrigatório para fontes SQL');
-                    }
-                    
-                    // Extrai o tipo de datasource da descrição
-                    $datasourceType = ucfirst(trim(explode('-', $sourceTypeConfig['description'])[0]));
-                    $datasourceType = str_replace(' ', '', $datasourceType);
-                    
-                    // Formata como "tipo_datasource.host"
-                    $sourceLocation = "{$datasourceType}.{$sqlHost}";
-                    
-                    // Armazena os campos SQL separadamente
-                    $postData['sql_connection_id'] = $sqlConnectionId;
-                    $postData['sql_host'] = $sqlHost;
-                    $postData['sql_port'] = $postData['sql_port'] ?? $existingConfig->sql_port ?? 3306;
-                    $postData['sql_database_name'] = $sqlDatabaseName;
-                    $postData['sql_user'] = $postData['sql_user'] ?? $existingConfig->sql_user ?? null;
-                    $postData['sql_password'] = $postData['sql_password'] ?? $existingConfig->sql_password ?? null;
-                }
+                // Se não enviou arquivo, prioriza campo oculto source_filename_original ou o post comum
+                $sourceLocation = $postData['source_filename_original'] ?? $postData['source_filename'] ?? $existingConfig->source_filename;
             }
 
-            // 3. Preparação dos Dados para Atualização
             $dataToUpdate = [
-                'id'                  => $id,
-                'id_pasta'            => $pastaID,
-                'id_source_type'      => $sourceTypeID,
-                'dag_id'              => $existingConfig->dag_id,
-                'is_active'           => $postData['is_active'] ?? 1,
-                'owner'               => $postData['owner'] ?? 'webapp_user',
-                'schedule_interval'   => $postData['schedule_interval'] ?? '0 0 * * *',
-                'description'         => $postData['description'] ?? null,
-                'source_filename'     => $sourceLocation, 
-                'target_table_name'   => $postData['target_table_name'],
-                'python_module_path'  => $postData['python_module_path'],
-                'transform_args'      => $postData['transform_args'] ?? '{}', 
-                
-                // Campos SQL estruturados (se aplicável)
-                'sql_connection_id'   => $postData['sql_connection_id'] ?? null,
-                'sql_host'            => $postData['sql_host'] ?? null,
-                'sql_port'            => $postData['sql_port'] ?? 3306,
-                'sql_database_name'   => $postData['sql_database_name'] ?? null,
-                'sql_user'            => $postData['sql_user'] ?? null,
-                'sql_password'        => $postData['sql_password'] ?? null,
-                
-                // CAMPOS PARA SSH TUNNELING (se aplicável)
-                'ssh_host'            => $postData['ssh_host'] ?? null,
-                'ssh_port'            => $postData['ssh_port'] ?? 22, 
-                'ssh_user'            => $postData['ssh_user'] ?? null,
-                'ssh_key_path'        => $postData['ssh_key_path'] ?? null, 
-                'ssh_local_port'      => $postData['ssh_local_port'] ?? 13306,
+                'id_pasta'            => (int)($postData['id_pasta'] ?? $existingConfig->id_pasta),
+                'id_source_type'      => (int)($postData['id_source_type'] ?? $existingConfig->id_source_type),
+                'dag_id'              => $dagId,
+                'is_active'           => $postData['is_active'] ?? $existingConfig->is_active ?? 1,
+                'owner'               => $postData['owner'] ?? $existingConfig->owner ?? 'webapp_user',
+                'schedule_interval'   => $postData['schedule_interval'] ?? $existingConfig->schedule_interval ?? '0 0 * * *',
+                'description'         => $postData['description'] ?? $existingConfig->description ?? null,
+                'source_filename'     => $sourceLocation,
+                'target_table_name'   => $postData['target_table_name'] ?? $existingConfig->target_table_name ?? null,
+                'python_module_path'  => $postData['python_module_path'] ?? $existingConfig->python_module_path ?? null,
+                'transform_args'      => $postData['transform_args'] ?? $existingConfig->transform_args ?? '{}',
+                'sql_connection_id'   => $postData['sql_connection_id'] ?? $existingConfig->sql_connection_id ?? null,
+                'sql_host'            => $postData['sql_host'] ?? $existingConfig->sql_host ?? null,
+                'sql_port'            => $postData['sql_port'] ?? $existingConfig->sql_port ?? 3306,
+                'sql_database_name'   => $postData['sql_database_name'] ?? $existingConfig->sql_database_name ?? null,
+                'sql_user'            => $postData['sql_user'] ?? $existingConfig->sql_user ?? null,
+                'sql_password'        => $postData['sql_password'] ?? $existingConfig->sql_password ?? null,
+                'ssh_host'            => $postData['ssh_host'] ?? $existingConfig->ssh_host ?? null,
+                'ssh_port'            => $postData['ssh_port'] ?? $existingConfig->ssh_port ?? 22,
+                'ssh_user'            => $postData['ssh_user'] ?? $existingConfig->ssh_user ?? null,
+                'ssh_key_path'        => $postData['ssh_key_path'] ?? $existingConfig->ssh_key_path ?? null,
+                'ssh_local_port'      => $postData['ssh_local_port'] ?? $existingConfig->ssh_local_port ?? 13306,
             ];
 
-            // 4. Inserção no Banco de Dados
-            $updated = $model->save($dataToUpdate);
-            
-            if (!$updated) {
-                 // Captura erros da Model/Validação, se existirem
-                 $errors = $model->errors();
-                 $errorMessage = !empty($errors) ? implode(', ', $errors) : 'Falha ao atualizar o registro. Tente novamente.';
-                 throw new \Exception($errorMessage);
+            $updated = $model->update((int)$id, $dataToUpdate);
+
+            if ($updated === false) {
+                $errors = $model->errors();
+                $errorMessage = !empty($errors) ? implode(', ', $errors) : 'Falha ao atualizar o registro. Tente novamente.';
+                throw new \Exception($errorMessage);
             }
 
-             return $this->response->setJSON([
+            return $this->response->setJSON([
                 'status' => 'success',
                 'mensagem' => 'Registro atualizado com sucesso!'
-             ]);
+            ]);
             
         } catch (\Exception $e) {
             log_message('error', 'Erro ao salvar configuração de DAG: ' . $e->getMessage());
@@ -1105,18 +1041,29 @@ class ConfigController extends BaseController
             }
             
             // Obter arquivos múltiplos
-            $files = $this->request->getFileMultiple('multiple_files');
-            
+            $files = $this->request->getFileMultiple('multiple_files') ?? [];
+            $selectFolder = $this->request->getPost('select_folder') == '1';
+
             log_message('info', 'Arquivos recebidos: ' . count($files));
-            
-            if (empty($files) || !$files[0]->isValid()) {
-                log_message('error', 'Nenhum arquivo válido enviado');
-                throw new \Exception('Nenhum arquivo válido foi enviado');
+
+            // Se não houver arquivos enviados e o usuário não escolheu "select_folder",
+            // consideramos falha. Se escolheu "select_folder", prosseguimos usando apenas
+            // o path da pasta informado no formulário (sem upload de arquivos).
+            if (empty($files) || !isset($files[0]) || !$files[0]->isValid()) {
+                if ($selectFolder) {
+                    log_message('info', 'Nenhum arquivo enviado, mas select_folder ativo — prosseguindo com processamento via pasta');
+                    $files = [];
+                } else {
+                    log_message('error', 'Nenhum arquivo válido enviado');
+                    throw new \Exception('Nenhum arquivo válido foi enviado');
+                }
             }
-            
-            // Validar extensões
-            $this->validateFileExtensions($files);
-            
+
+            // Validar extensões apenas quando houver arquivos para validar
+            if (!$selectFolder && !empty($files)) {
+                $this->validateFileExtensions($files);
+            }
+
             // Gerar timestamp único para o batch
             $batchId = uniqid('batch_', true);
             $timestamp = date('YmdHis');
@@ -1124,31 +1071,33 @@ class ConfigController extends BaseController
             $uploadedFiles = [];
             $errors = [];
             
-            // Upload de cada arquivo para MinIO
-            foreach ($files as $index => $file) {
-                try {
-                    $fileName = $file->getName(); // Nome original do arquivo
-                    $s3Key = "raw/{$dagId}/{$fileName}"; // SEM timestamp - nome original
-                    
-                    // Upload para MinIO
-                    $this->minioClient->putObject([
-                        'Bucket' => $this->bucketName,
-                        'Key'    => $s3Key,
-                        'Body'   => fopen($file->getTempName(), 'rb'),
-                        'ContentType' => $file->getMimeType()
-                    ]);
-                    
-                    $uploadedFiles[] = [
-                        'name' => $fileName,
-                        's3_key' => $s3Key,
-                        'size' => $file->getSize()
-                    ];
-                    
-                } catch (\Exception $e) {
-                    $errors[] = [
-                        'file' => $file->getName(),
-                        'error' => $e->getMessage()
-                    ];
+            // Upload de cada arquivo para MinIO (pula se estivermos usando select_folder)
+            if (!$selectFolder) {
+                foreach ($files as $index => $file) {
+                    try {
+                        $fileName = $file->getName(); // Nome original do arquivo
+                        $s3Key = "raw/{$dagId}/{$fileName}"; // SEM timestamp - nome original
+
+                        // Upload para MinIO
+                        $this->minioClient->putObject([
+                            'Bucket' => $this->bucketName,
+                            'Key'    => $s3Key,
+                            'Body'   => fopen($file->getTempName(), 'rb'),
+                            'ContentType' => $file->getMimeType()
+                        ]);
+
+                        $uploadedFiles[] = [
+                            'name' => $fileName,
+                            's3_key' => $s3Key,
+                            'size' => $file->getSize()
+                        ];
+
+                    } catch (\Exception $e) {
+                        $errors[] = [
+                            'file' => $file->getName(),
+                            'error' => $e->getMessage()
+                        ];
+                    }
                 }
             }
             

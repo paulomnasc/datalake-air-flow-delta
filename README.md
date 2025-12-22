@@ -49,6 +49,24 @@ Esta solução executa simultaneamente:
 - **Jupyter + PySpark** (ambiente interativo)
 - **Delta Lake** (camada ACID sobre data lake)
 
+#### 🐳 Serviços Docker
+
+| Service ID | Nome do Serviço | Descrição |
+|------------|----------------|-----------|
+| `airflow-webserver` | Apache Airflow (Webserver) | Interface web para orquestração de workflows |
+| `airflow-scheduler` | Apache Airflow (Scheduler) | Agendamento e execução de DAGs |
+| `airflow-worker` | Airflow Worker | Executor Celery para processamento de tarefas |
+| `postgres` | PostgreSQL | Banco de dados de metadados do Airflow |
+| `mysql` | MySQL | Banco de dados de origem para ingestão |
+| `minio` | MinIO | Armazenamento S3-compatible para data lake |
+| `spark` | Apache Spark (Master) | Nó master do cluster de processamento distribuído |
+| `spark-worker` | Spark Worker | Nó worker do cluster Spark |
+| `spark-sql` | Spark SQL Thrift Server | Interface ODBC/JDBC para consultas SQL em Delta Lake |
+| `atlas` | Apache Atlas | Catálogo de dados e governança (HBase + Solr) |
+| `pyspark-aula` | Jupyter + PySpark (Lab) | Ambiente interativo para análise e experimentação |
+| `redis` | Redis | Broker de mensagens para Celery Executor |
+| `codeigniter-app` | CodeIgniter WebApp | Interface web para configuração de DAGs |
+
 ### 📊 Requisitos Mínimos (Desenvolvimento/Teste)
 
 **Stack Completa (todos os serviços ativos):**

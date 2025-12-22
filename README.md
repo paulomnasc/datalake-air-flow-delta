@@ -196,46 +196,6 @@ docker exec -it airflow-webserver airflow users create \
   --password admin
 ```
 
-
-## 🔧 Configuração da Aplicação CodeIgniter
-
-### ⚠️ Permissões de Escrita (Pasta `writable`)
-
-A aplicação CodeIgniter requer permissões de escrita na pasta `writable` e suas subpastas para funcionar corretamente. Essa pasta armazena:
-- **Logs** (`writable/logs`): Arquivos de log da aplicação
-- **Cache** (`writable/cache`): Arquivos temporários de cache
-- **Session** (`writable/session`): Dados de sessão de usuários
-- **Uploads** (`writable/uploads`): Arquivos enviados via upload
-
-### 📝 Configuração Inicial de Permissões
-
-Após clonar o repositório e antes de iniciar os containers, execute:
-
-```bash
-# Criar estrutura de pastas writable se não existir
-mkdir -p src/codeigniter-app/writable/logs
-mkdir -p src/codeigniter-app/writable/cache
-mkdir -p src/codeigniter-app/writable/session
-mkdir -p src/codeigniter-app/writable/uploads
-
-# Conceder permissões de escrita (775 recomendado para desenvolvimento)
-chmod -R 775 src/codeigniter-app/writable
-
-# Em ambientes de produção, use permissões mais restritivas
-# chmod -R 755 src/codeigniter-app/writable
-# chown -R www-data:www-data src/codeigniter-app/writable
-```
-
-### 🔍 Verificação de Permissões
-
-Para verificar se as permissões estão corretas:
-
-```bash
-ls -la src/codeigniter-app/writable/
-```
-
-A saída deve mostrar permissões `rwxrwxr-x` (775) ou `rwxr-xr-x` (755) para as pastas.
-
 ## Instalação de dependências
 
 Este projeto utiliza o Airflow com integração ao MinIO via S3Hook. Para garantir que todos os operadores e hooks estejam disponíveis, instale os seguintes pacotes:
@@ -281,20 +241,95 @@ Usuário/Senha: O Spark Thrift Server (a menos que configurado com Kerberos ou a
 
 ---
 
+## 🔧 Configuração da Aplicação CodeIgniter
+
+### ⚠️ Permissões de Escrita (Pasta `writable`)
+
+A aplicação CodeIgniter requer permissões de escrita na pasta `writable` **dentro do container** para funcionar corretamente. Essa pasta armazena:
+- **Logs** (`writable/logs`): Arquivos de log da aplicação
+- **Cache** (`writable/cache`): Arquivos temporários de cache
+- **Session** (`writable/session`): Dados de sessão de usuários
+- **Uploads** (`writable/uploads`): Arquivos enviados via upload
+- **Configs** (`writable/configs`): Configurações geradas via interface web
+
+### 📝 Configuração de Permissões
+
+#### Opção 1: Corrigir Permissões em Container em Execução
+
+Se o container já está rodando e apresenta erros de permissão:
+
+```bash
+# Acessar o container
+docker exec -it codeigniter-app bash
+
+# Dentro do container, ajustar permissões
+chown -R www-data:www-data /var/www/html/writable
+chmod -R 755 /var/www/html/writable
+
+# Sair do container
+exit
+
+# Reiniciar para aplicar mudanças
+docker compose restart codeigniter-app
+```
+
+#### Opção 2: Permissões no Host (Apenas se Volume Mapeado)
+
+Como o código está mapeado via volume no `docker-compose.yml`, você também pode ajustar permissões no host:
+
+```bash
+# No host (fora do container)
+# Criar estrutura se não existir
+mkdir -p src/codeigniter-app/writable/{logs,cache,session,uploads,configs}
+
+# Ajustar permissões (use o UID/GID do www-data do container)
+# O padrão geralmente é 33:33 ou 1000:1000 dependendo da config
+sudo chown -R 33:33 src/codeigniter-app/writable
+chmod -R 755 src/codeigniter-app/writable
+
+# Ou permitir escrita para todos (apenas desenvolvimento)
+chmod -R 777 src/codeigniter-app/writable
+```
+
+### 🔍 Verificação de Permissões
+
+**Dentro do container:**
+```bash
+docker exec -it codeigniter-app ls -la /var/www/html/writable/
+```
+
+**No host:**
+```bash
+ls -la src/codeigniter-app/writable/
+```
+
+A saída deve mostrar `www-data` como proprietário dentro do container.
 
 ### 🐛 Troubleshooting
 
 **Problema**: Erro HTTP 500 ao acessar a aplicação ou mensagens de "permission denied" nos logs.
 
-**Solução**:
+**Diagnóstico**:
 ```bash
-# Verificar logs do container
-docker logs codeigniter-app
+# 1. Verificar logs do container
+docker logs --tail 100 codeigniter-app
 
-# Recriar permissões
-chmod -R 775 src/codeigniter-app/writable
+# 2. Verificar permissões dentro do container
+docker exec -it codeigniter-app ls -la /var/www/html/writable/
 
-# Reiniciar container
+# 3. Verificar usuário que executa o Apache
+docker exec -it codeigniter-app ps aux | grep apache
+```
+
+**Soluções**:
+```bash
+# Solução A: Ajuste rápido de permissões
+docker exec -it codeigniter-app chown -R www-data:www-data /var/www/html/writable
+docker exec -it codeigniter-app chmod -R 755 /var/www/html/writable
+docker compose restart codeigniter-app
+
+# Solução B: Permissões no host (desenvolvimento)
+sudo chmod -R 777 src/codeigniter-app/writable
 docker compose restart codeigniter-app
 ```
 
@@ -311,7 +346,9 @@ database.default.password = root
 
 > ⚠️ **Importante**: Não use `localhost` como hostname dentro do container. Use o nome do serviço Docker (`mysql`).
 
-Para mais detalhes sobre troubleshooting da aplicação, consulte: [Falha-do-codeigniter-app-ao-conectar-no-mysql-e-escrita-nas-pastas-writable.md](Falha-do-codeigniter-app-ao-conectar-no-mysql-e-escrita-nas-pastas-writable.md)
+### 📚 Mais Informações
+
+Para detalhes completos sobre troubleshooting da aplicação, consulte: [Falha-do-codeigniter-app-ao-conectar-no-mysql-e-escrita-nas-pastas-writable.md](Falha-do-codeigniter-app-ao-conectar-no-mysql-e-escrita-nas-pastas-writable.md)
 
 ---
 

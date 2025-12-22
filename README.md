@@ -291,6 +291,30 @@ chmod -R 755 src/codeigniter-app/writable
 chmod -R 777 src/codeigniter-app/writable
 ```
 
+#### Correção para bind-mounts (quando `chown` falha dentro do container)
+
+Se o diretório `writable` está montado do host (bind-mount), executar `chown` dentro do container pode falhar com "Operation not permitted". Isso acontece porque a propriedade do arquivo é gerida pelo host. Procedimento recomendado:
+
+```bash
+# 1. Identificar o bind-mount e o caminho no host (ex.: service `codeigniter-app` monta src/codeigniter-app -> /var/www/html)
+docker inspect -f '{{.Name}} {{range .Mounts}}{{.Source}}->{{.Destination}};{{end}}' $(docker ps -aq) | grep /var/www/html || true
+
+# 2. Verificar UID do usuário web dentro do container (ex.: www-data)
+docker exec -it codeigniter-app id -u www-data || echo 'use o UID correto'
+
+# 3. No host, alterar dono para o UID:GID retornado (ex.: 1000:1000)
+sudo chown -R 1000:1000 src/codeigniter-app/writable
+sudo chmod -R 755 src/codeigniter-app/writable
+
+# 4. Reiniciar o serviço para que o processo no container veja as mudanças
+docker compose restart codeigniter-app
+```
+
+Observações:
+- Preferível ajustar `chown` no host para o `UID:GID` usado pelo processo no container em vez de usar `chmod 777` (inseguro).
+- Alternativas: usar um volume nomeado Docker (permite Docker gerenciar donos), ou definir `user: "1000:1000"` no `docker-compose.yml` para rodar o processo com o UID do host.
+
+
 ### 🔍 Verificação de Permissões
 
 **Dentro do container:**

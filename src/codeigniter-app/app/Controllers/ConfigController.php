@@ -1212,6 +1212,18 @@ class ConfigController extends BaseController
             }
             
             log_message('info', "Configuração salva com ID: {$insertedId}");
+
+            // Gerar e salvar YAML de batch para a DAG criada (facilitar listagem e processamento)
+            try {
+                $batchYaml = $this->generateBatchYAML($dagId, $batchId, $uploadedFiles, $batchMode, $maxParallel);
+                // Nome único por batch para não sobrescrever
+                $yamlName = $dagId . '_' . $batchId;
+                $this->saveYAMLConfig($yamlName, $batchYaml);
+                log_message('info', "Batch YAML gerado e salvo: {$yamlName}");
+            } catch (\Exception $e) {
+                // Logar mas não falhar o fluxo principal
+                log_message('error', 'Falha ao gerar/salvar YAML do batch: ' . $e->getMessage());
+            }
             
             return $this->response->setJSON([
                 'status' => count($errors) > 0 ? 'partial' : 'success',

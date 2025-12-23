@@ -415,8 +415,46 @@ require VIEWPATH . '/header.php';
         // Lógica AJAX de submissão do formulário...
         $('#meuFormulario').submit(function(event) {
             event.preventDefault();
+            
+            console.log('📤 Formulário sendo submetido (UPDATE)...');
 
-            var formData = new FormData(this); 
+            var formData = new FormData(this);
+            
+            // 🔧 CORREÇÃO: Se upload múltiplo estiver ativo, adicionar arquivos da variável selectedFiles
+            const isMultiUploadEnabled = document.getElementById('enable_multi_upload')?.checked;
+            
+            console.log('🔍 Debug do formulário:');
+            console.log('  - Upload múltiplo habilitado:', isMultiUploadEnabled);
+            console.log('  - window.selectedFiles existe:', typeof window.selectedFiles !== 'undefined');
+            console.log('  - Qtd de arquivos em selectedFiles:', window.selectedFiles?.length || 0);
+            
+            if (isMultiUploadEnabled && typeof window.selectedFiles !== 'undefined' && window.selectedFiles.length > 0) {
+                console.log('📦 Upload múltiplo ativo - Adicionando arquivos ao FormData');
+                console.log('📄 Total de arquivos:', window.selectedFiles.length);
+                
+                // Remover o campo multiple_files[] existente (pode estar vazio)
+                formData.delete('multiple_files[]');
+                
+                // Adicionar cada arquivo selecionado
+                window.selectedFiles.forEach((file, index) => {
+                    formData.append('multiple_files[]', file);
+                    console.log(`  ✓ Arquivo ${index + 1}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+                });
+                
+                console.log('✅ Arquivos adicionados ao FormData com sucesso');
+            } else {
+                console.log('⚠️ Upload múltiplo não ativo ou sem arquivos selecionados');
+            }
+            
+            // Log do FormData para debug
+            console.log('📋 Conteúdo do FormData:');
+            for (let pair of formData.entries()) {
+                if (pair[1] instanceof File) {
+                    console.log(`  ${pair[0]}: [File] ${pair[1].name}`);
+                } else {
+                    console.log(`  ${pair[0]}: ${pair[1]}`);
+                }
+            }
 
             $.ajax({
                 url: $(this).attr('action'),
@@ -425,6 +463,7 @@ require VIEWPATH . '/header.php';
                 processData: false, 
                 contentType: false, 
                 success: function(result) {
+                    console.log('Resposta do servidor:', result);
                     if (result.status === 'success') {
                         $('#success-message').html(result.mensagem).show().delay(6000).fadeOut(function() {
                             window.location.href = "<?php echo route_to('listConfig'); ?>"; 
@@ -434,6 +473,7 @@ require VIEWPATH . '/header.php';
                     }
                 },
                 error: function(err) {
+                    console.error('❌ Erro na requisição:', err);
                     $('#error-message').html('Erro ao salvar o quadro.').show().delay(6000).fadeOut();
                     console.log(err);
                 }

@@ -15,6 +15,10 @@ copia/
 data/.minio.sys/
 __pycache__/
 
+# Ignorar arquivos de configuração de batch gerados automaticamente
+src/dags/configs/*.yml
+writable/configs/*.yml
+
 # Ignorar dependências de projetos Node.js
 node_modules/
 

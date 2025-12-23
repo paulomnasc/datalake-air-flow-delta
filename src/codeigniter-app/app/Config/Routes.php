@@ -75,6 +75,11 @@ $routes->post('/config/getAvailableTables', 'ConfigController::getAvailableTable
 
 $routes->get('/playPorId/(:num)', 'ConfigController::playPorId/$1', ['as' => 'Config.playPorId']);
 
+// Debug/Teste MinIO
+$routes->get('/test-minio/connection', 'TestMinioController::testConnection', ['as'=>'test.minio.connection']);
+$routes->get('/test-minio/upload', 'TestMinioController::testUpload', ['as'=>'test.minio.upload']);
+
+
 
 
 /* $routes->get('upload', 'UploadController::index');

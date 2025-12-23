@@ -6,8 +6,8 @@
 
 console.log('🔧 Multi-upload.js carregado - Versão 2.0 com suporte a pastas');
 
-// Controle de arquivos selecionados
-let selectedFiles = [];
+// Controle de arquivos selecionados (GLOBAL)
+window.selectedFiles = [];
 
 // Inicialização do Drag & Drop
 document.addEventListener('DOMContentLoaded', function() {
@@ -178,6 +178,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function handleFiles(files) {
+        console.log('🔄 handleFiles chamado com:', files ? files.length : 0, 'arquivo(s)');
+        
         // Verificar se recebemos um array ou FileList
         if (!files || files.length === 0) {
             alert('ℹ️ Nenhum arquivo válido encontrado.\n' +
@@ -185,13 +187,14 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        selectedFiles = Array.isArray(files) ? files : [...files];
+        window.selectedFiles = Array.isArray(files) ? files : [...files];
+        console.log('📦 window.selectedFiles atualizado:', window.selectedFiles.length, 'arquivo(s)');
         
         // Mostrar feedback se muitos arquivos foram encontrados
-        if (selectedFiles.length > 50) {
-            if (!confirm(`Foram encontrados ${selectedFiles.length} arquivos.\n` +
+        if (window.selectedFiles.length > 50) {
+            if (!confirm(`Foram encontrados ${window.selectedFiles.length} arquivos.\n` +
                         'Deseja continuar com o upload?')) {
-                selectedFiles = [];
+                window.selectedFiles = [];
                 fileList.innerHTML = '';
                 return;
             }
@@ -199,7 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Validar extensões
         const validExtensions = ['.csv', '.json'];
-        const invalidFiles = selectedFiles.filter(file => {
+        const invalidFiles = window.selectedFiles.filter(file => {
             const ext = '.' + file.name.split('.').pop().toLowerCase();
             return !validExtensions.includes(ext);
         });
@@ -208,22 +211,22 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('❌ Arquivos com extensão inválida detectados!\n' +
                   'Apenas CSV e JSON são aceitos.\n' +
                   'Arquivos inválidos serão ignorados.');
-            selectedFiles = selectedFiles.filter(file => {
+            window.selectedFiles = window.selectedFiles.filter(file => {
                 const ext = '.' + file.name.split('.').pop().toLowerCase();
                 return validExtensions.includes(ext);
             });
         }
         
         // Verificar se sobraram arquivos após filtragem
-        if (selectedFiles.length === 0) {
+        if (window.selectedFiles.length === 0) {
             alert('⚠️ Nenhum arquivo válido (CSV ou JSON) foi encontrado.');
             fileList.innerHTML = '';
             return;
         }
 
         // Validar se todos têm o mesmo formato
-        if (selectedFiles.length > 0) {
-            const extensions = selectedFiles.map(f => 
+        if (window.selectedFiles.length > 0) {
+            const extensions = window.selectedFiles.map(f => 
                 '.' + f.name.split('.').pop().toLowerCase()
             );
             const uniqueExts = [...new Set(extensions)];
@@ -231,35 +234,36 @@ document.addEventListener('DOMContentLoaded', function() {
             if (uniqueExts.length > 1) {
                 alert('⚠️ Todos os arquivos devem ter o mesmo formato!\n' +
                       'Detectados: ' + uniqueExts.join(', '));
-                selectedFiles = [];
+                window.selectedFiles = [];
                 fileList.innerHTML = '';
                 return;
             }
         }
 
+        console.log('✅ Validação concluída. Exibindo lista de arquivos...');
         displayFileList();
     }
 
     function displayFileList() {
         fileList.innerHTML = '';
         
-        if (selectedFiles.length === 0) {
+        if (window.selectedFiles.length === 0) {
             fileList.innerHTML = '<p class="text-muted">Nenhum arquivo selecionado</p>';
             return;
         }
 
-        const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
+        const totalSize = window.selectedFiles.reduce((sum, file) => sum + file.size, 0);
         const totalSizeMB = (totalSize / 1024 / 1024).toFixed(2);
 
         let html = `
             <div class="alert alert-info">
-                <strong>${selectedFiles.length} arquivo(s) selecionado(s)</strong> 
+                <strong>${window.selectedFiles.length} arquivo(s) selecionado(s)</strong> 
                 (${totalSizeMB} MB total)
             </div>
             <ul class="list-group">
         `;
 
-        selectedFiles.forEach((file, index) => {
+        window.selectedFiles.forEach((file, index) => {
             const sizeMB = (file.size / 1024 / 1024).toFixed(2);
             const ext = file.name.split('.').pop().toUpperCase();
             
@@ -284,7 +288,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Função global para remover arquivo
     window.removeFile = function(index) {
-        selectedFiles.splice(index, 1);
+        console.log('🗑️ Removendo arquivo índice:', index);
+        window.selectedFiles.splice(index, 1);
+        console.log('📦 Arquivos restantes:', window.selectedFiles.length);
         displayFileList();
     };
 

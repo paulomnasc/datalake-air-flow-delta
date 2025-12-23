@@ -35,25 +35,48 @@ class ConfigController extends BaseController
     private function _initMinioClient()
     {
         // Carrega as variáveis do .env (CodeIgniter usa getenv() nativamente)
-        $minioConfig = [
-            'endpoint' => getenv('MINIO_ENDPOINT'), 
-            'region' => getenv('MINIO_REGION'),
-            'version' => getenv('MINIO_VERSION'),
-            'use_path_style_endpoint' => filter_var(getenv('MINIO_USE_PATH_STYLE_ENDPOINT'), FILTER_VALIDATE_BOOLEAN), 
-            'credentials' => [
-                'key' => getenv('MINIO_ACCESS_KEY_ID'),
-                'secret' => getenv('MINIO_SECRET_ACCESS_KEY'),
-            ],
-        ];
+        $endpoint = getenv('MINIO_ENDPOINT');
+        $region = getenv('MINIO_REGION');
+        $version = getenv('MINIO_VERSION');
+        $usePathStyle = getenv('MINIO_USE_PATH_STYLE_ENDPOINT');
+        $key = getenv('MINIO_ACCESS_KEY_ID');
+        $secret = getenv('MINIO_SECRET_ACCESS_KEY');
         
         $this->bucketName = getenv('MINIO_BUCKET_RAW');
+        
+        log_message('info', '📋 Configuração do MinIO:');
+        log_message('info', "  Endpoint: {$endpoint}");
+        log_message('info', "  Region: {$region}");
+        log_message('info', "  Version: {$version}");
+        log_message('info', "  UsePathStyle: {$usePathStyle}");
+        log_message('info', "  Key: " . (empty($key) ? 'NÃO DEFINIDO' : '***'));
+        log_message('info', "  Secret: " . (empty($secret) ? 'NÃO DEFINIDO' : '***'));
+        log_message('info', "  Bucket: {$this->bucketName}");
+        
+        // Validar que todas as configurações estão presentes
+        if (empty($endpoint) || empty($region) || empty($key) || empty($secret) || empty($this->bucketName)) {
+            log_message('error', '❌ Configuração incompleta do MinIO no .env');
+            return;
+        }
+        
+        $minioConfig = [
+            'endpoint' => $endpoint, 
+            'region' => $region,
+            'version' => $version,
+            'use_path_style_endpoint' => filter_var($usePathStyle, FILTER_VALIDATE_BOOLEAN), 
+            'credentials' => [
+                'key' => $key,
+                'secret' => $secret,
+            ],
+        ];
 
         // Instancia o S3Client (MinIO)
         try {
             $this->minioClient = new S3Client($minioConfig);
+            log_message('info', '✅ S3Client (MinIO) inicializado com sucesso');
         } catch (\Exception $e) {
             // Em caso de falha na inicialização (ex: credenciais ausentes)
-            log_message('error', 'Falha ao inicializar S3Client (MinIO): ' . $e->getMessage());
+            log_message('error', '❌ Falha ao inicializar S3Client (MinIO): ' . $e->getMessage());
             // Opcional: abortar ou permitir que a lógica de upload lide com o cliente nulo
             $this->minioClient = null; 
         }
@@ -537,7 +560,7 @@ class ConfigController extends BaseController
         $postData = $this->request->getPost();
 
         // O valor inicial (URI, PATH ou o valor que viria do file input)
-        $sourceFilenameDB = $this->request->getPost('source_filename'); 
+        $sourceFilenameDB = $this->request->getPost('source_filename');
         
         // NOTE: upload handling is performed below after validation of source type
         
@@ -569,6 +592,14 @@ class ConfigController extends BaseController
             
             // Pega a descrição em minúsculas para a lógica
             $sourceTypeDescription = strtolower($sourceTypeConfig['description']);
+            
+            // Verificar se é upload múltiplo
+            $isMultiUpload = $this->request->getPost('enable_multi_upload') === '1';
+            
+            // Se for upload múltiplo, redirecionar para o método específico
+            if ($isMultiUpload && (str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json'))) {
+                return $this->updateMultipleFiles($id);
+            }
 
             // Simplicidade: se chegou aqui, temos um ID e vamos atualizar o registro existente.
             // Não criar novo registro nem tentar substituir por criação/deleção.
@@ -1026,8 +1057,9 @@ class ConfigController extends BaseController
     {
         try {
             // Log de entrada para debug
-            log_message('info', '=== Upload Múltiplo Iniciado ===');
-            log_message('info', 'POST data: ' . json_encode($this->request->getPost()));
+            echo "DEBUG: uploadMultipleFiles() foi chamado<br>";
+            error_log('=== Upload Múltiplo Iniciado ===');
+            error_log('POST data: ' . json_encode($this->request->getPost()));
             
             // Validar dados básicos
             $dagId = $this->request->getPost('dag_id');
@@ -1040,29 +1072,29 @@ class ConfigController extends BaseController
                 throw new \Exception('dag_id é obrigatório');
             }
             
+            // Verificar se MinIO está inicializado
+            if (!$this->minioClient) {
+                log_message('error', 'Cliente MinIO não inicializado!');
+                throw new \Exception('Cliente MinIO não está inicializado. Verifique configurações do .env');
+            }
+            
+            log_message('info', "MinIO inicializado. Bucket: {$this->bucketName}");
+            
             // Obter arquivos múltiplos
             $files = $this->request->getFileMultiple('multiple_files') ?? [];
             $selectFolder = $this->request->getPost('select_folder') == '1';
 
             log_message('info', 'Arquivos recebidos: ' . count($files));
+            log_message('info', 'Select folder: ' . ($selectFolder ? 'SIM' : 'NÃO'));
 
-            // Se não houver arquivos enviados e o usuário não escolheu "select_folder",
-            // consideramos falha. Se escolheu "select_folder", prosseguimos usando apenas
-            // o path da pasta informado no formulário (sem upload de arquivos).
+            // Validar que arquivos foram enviados
             if (empty($files) || !isset($files[0]) || !$files[0]->isValid()) {
-                if ($selectFolder) {
-                    log_message('info', 'Nenhum arquivo enviado, mas select_folder ativo — prosseguindo com processamento via pasta');
-                    $files = [];
-                } else {
-                    log_message('error', 'Nenhum arquivo válido enviado');
-                    throw new \Exception('Nenhum arquivo válido foi enviado');
-                }
+                log_message('error', 'Nenhum arquivo válido enviado');
+                throw new \Exception('Nenhum arquivo válido foi enviado. Certifique-se de selecionar arquivos ou uma pasta.');
             }
 
-            // Validar extensões apenas quando houver arquivos para validar
-            if (!$selectFolder && !empty($files)) {
-                $this->validateFileExtensions($files);
-            }
+            // Validar extensões dos arquivos
+            $this->validateFileExtensions($files);
 
             // Gerar timestamp único para o batch
             $batchId = uniqid('batch_', true);
@@ -1071,33 +1103,50 @@ class ConfigController extends BaseController
             $uploadedFiles = [];
             $errors = [];
             
-            // Upload de cada arquivo para MinIO (pula se estivermos usando select_folder)
-            if (!$selectFolder) {
-                foreach ($files as $index => $file) {
-                    try {
-                        $fileName = $file->getName(); // Nome original do arquivo
-                        $s3Key = "raw/{$dagId}/{$fileName}"; // SEM timestamp - nome original
+            // Upload de cada arquivo para MinIO
+            foreach ($files as $index => $file) {
+                try {
+                    $fileName = $file->getName(); // Nome original do arquivo
+                    $s3Key = "raw/{$dagId}/{$fileName}"; // SEM timestamp - nome original
+                    
+                    log_message('info', "Fazendo upload do arquivo: {$fileName} para {$s3Key}");
+                    log_message('info', "Arquivo temp: {$file->getTempName()}, Tamanho: {$file->getSize()}, MIME: {$file->getMimeType()}");
 
-                        // Upload para MinIO
-                        $this->minioClient->putObject([
-                            'Bucket' => $this->bucketName,
-                            'Key'    => $s3Key,
-                            'Body'   => fopen($file->getTempName(), 'rb'),
-                            'ContentType' => $file->getMimeType()
-                        ]);
-
-                        $uploadedFiles[] = [
-                            'name' => $fileName,
-                            's3_key' => $s3Key,
-                            'size' => $file->getSize()
-                        ];
-
-                    } catch (\Exception $e) {
-                        $errors[] = [
-                            'file' => $file->getName(),
-                            'error' => $e->getMessage()
-                        ];
+                    // Validar que o arquivo temp existe
+                    if (!file_exists($file->getTempName())) {
+                        throw new \Exception("Arquivo temporário não encontrado: " . $file->getTempName());
                     }
+
+                    // Upload para MinIO
+                    $putObjectResult = $this->minioClient->putObject([
+                        'Bucket' => $this->bucketName,
+                        'Key'    => $s3Key,
+                        'Body'   => fopen($file->getTempName(), 'rb'),
+                        'ContentType' => $file->getMimeType()
+                    ]);
+
+                    log_message('info', "Resposta putObject: " . json_encode($putObjectResult));
+
+                    $uploadedFiles[] = [
+                        'name' => $fileName,
+                        's3_key' => $s3Key,
+                        'size' => $file->getSize()
+                    ];
+                    
+                    log_message('info', "✅ Upload bem-sucedido: {$fileName}");
+
+                } catch (AwsException $e) {
+                    log_message('error', "❌ Erro AWS ao fazer upload de {$file->getName()}: {$e->getAwsErrorMessage()}");
+                    $errors[] = [
+                        'file' => $file->getName(),
+                        'error' => 'Erro MinIO: ' . $e->getAwsErrorMessage()
+                    ];
+                } catch (\Exception $e) {
+                    log_message('error', "❌ Erro ao fazer upload de {$file->getName()}: {$e->getMessage()}");
+                    $errors[] = [
+                        'file' => $file->getName(),
+                        'error' => $e->getMessage()
+                    ];
                 }
             }
             
@@ -1174,26 +1223,35 @@ class ConfigController extends BaseController
                 log_message('error', 'Falha ao gerar/salvar YAML do batch: ' . $e->getMessage());
             }
             
+            // Verificar se houve algum arquivo enviado com sucesso
+            if (empty($uploadedFiles) && !empty($errors)) {
+                log_message('error', 'Todos os arquivos falharam no upload');
+                throw new \Exception('Todos os arquivos falharam no upload. Verifique os logs para mais detalhes.');
+            }
+            
             return $this->response->setJSON([
                 'status' => count($errors) > 0 ? 'partial' : 'success',
-                'message' => sprintf(
-                    'DAG criada com sucesso! %d arquivo(s) serão processados em modo %s',
+                'mensagem' => sprintf(
+                    'DAG criada com sucesso! %d arquivo(s) enviado(s) para raw/%s/ e serão processados em modo %s%s',
                     count($uploadedFiles),
-                    $batchMode === 'parallel' ? 'paralelo' : 'sequencial'
+                    $dagId,
+                    $batchMode === 'parallel' ? 'paralelo' : 'sequencial',
+                    count($errors) > 0 ? sprintf(' (%d arquivo(s) falharam)', count($errors)) : ''
                 ),
                 'id' => $insertedId,
                 'batch_id' => $batchId,
                 'uploaded_files' => $uploadedFiles,
                 'errors' => $errors,
                 'batch_mode' => $batchMode,
-                'dag_id' => $dagId
+                'dag_id' => $dagId,
+                'folder_path' => $folderPath
             ]);
             
         } catch (\Exception $e) {
             log_message('error', 'Upload múltiplo falhou: ' . $e->getMessage());
             return $this->response->setJSON([
                 'status' => 'error',
-                'message' => 'Erro no upload: ' . $e->getMessage()
+                'mensagem' => 'Erro no upload: ' . $e->getMessage()
             ])->setStatusCode(500);
         }
     }
@@ -1342,6 +1400,189 @@ class ConfigController extends BaseController
             return "'" . str_replace("'", "''", $value) . "'";
         }
         return $value;
+    }
+
+    /**
+     * Processar upload múltiplo de arquivos para atualizar uma DAG existente
+     */
+    public function updateMultipleFiles($dagConfigId = null)
+    {
+        try {
+            // Log de entrada para debug
+            error_log('=== Update Múltiplo Iniciado ===');
+            error_log('POST data: ' . json_encode($this->request->getPost()));
+            
+            // Usar o ID passado como parâmetro ou obter do POST
+            if (!$dagConfigId) {
+                $dagConfigId = $this->request->getPost('id');
+            }
+            
+            // Validar que o ID foi fornecido
+            if (!$dagConfigId) {
+                throw new \Exception('ID da configuração é obrigatório');
+            }
+            
+            // Buscar a configuração existente
+            $model = new ConfigModel();
+            $existingConfig = $model->find($dagConfigId);
+            
+            if (!$existingConfig) {
+                throw new \Exception('Configuração de DAG não encontrada');
+            }
+            
+            $dagId = $existingConfig->dag_id;
+            $postData = $this->request->getPost();
+            $batchMode = $postData['batch_mode'] ?? 'parallel';
+            $maxParallel = (int)($postData['max_parallel_files'] ?? 4);
+            
+            log_message('info', "DAG ID: {$dagId}, Batch Mode: {$batchMode}, Max Parallel: {$maxParallel}");
+            
+            // Verificar se MinIO está inicializado
+            if (!$this->minioClient) {
+                log_message('error', 'Cliente MinIO não inicializado!');
+                throw new \Exception('Cliente MinIO não está inicializado. Verifique configurações do .env');
+            }
+            
+            log_message('info', "MinIO inicializado. Bucket: {$this->bucketName}");
+            
+            // Obter arquivos múltiplos
+            $files = $this->request->getFileMultiple('multiple_files') ?? [];
+            $selectFolder = $this->request->getPost('select_folder') == '1';
+
+            log_message('info', 'Arquivos recebidos: ' . count($files));
+            log_message('info', 'Select folder: ' . ($selectFolder ? 'SIM' : 'NÃO'));
+
+            // Validar que arquivos foram enviados
+            if (empty($files) || !isset($files[0]) || !$files[0]->isValid()) {
+                log_message('error', 'Nenhum arquivo válido enviado');
+                throw new \Exception('Nenhum arquivo válido foi enviado. Certifique-se de selecionar arquivos ou uma pasta.');
+            }
+
+            // Validar extensões dos arquivos
+            $this->validateFileExtensions($files);
+
+            // Gerar timestamp único para o batch
+            $batchId = uniqid('batch_', true);
+            $timestamp = date('YmdHis');
+            
+            $uploadedFiles = [];
+            $errors = [];
+            
+            // Upload de cada arquivo para MinIO
+            foreach ($files as $index => $file) {
+                try {
+                    $fileName = $file->getName(); // Nome original do arquivo
+                    $s3Key = "raw/{$dagId}/{$fileName}"; // SEM timestamp - nome original
+                    
+                    log_message('info', "Fazendo upload do arquivo: {$fileName} para {$s3Key}");
+                    log_message('info', "Arquivo temp: {$file->getTempName()}, Tamanho: {$file->getSize()}, MIME: {$file->getMimeType()}");
+
+                    // Validar que o arquivo temp existe
+                    if (!file_exists($file->getTempName())) {
+                        throw new \Exception("Arquivo temporário não encontrado: " . $file->getTempName());
+                    }
+
+                    // Upload para MinIO
+                    $putObjectResult = $this->minioClient->putObject([
+                        'Bucket' => $this->bucketName,
+                        'Key'    => $s3Key,
+                        'Body'   => fopen($file->getTempName(), 'rb'),
+                        'ContentType' => $file->getMimeType()
+                    ]);
+
+                    log_message('info', "Resposta putObject: " . json_encode($putObjectResult));
+
+                    $uploadedFiles[] = [
+                        'name' => $fileName,
+                        's3_key' => $s3Key,
+                        'size' => $file->getSize()
+                    ];
+                    
+                    log_message('info', "✅ Upload bem-sucedido: {$fileName}");
+
+                } catch (AwsException $e) {
+                    log_message('error', "❌ Erro AWS ao fazer upload de {$file->getName()}: {$e->getAwsErrorMessage()}");
+                    $errors[] = [
+                        'file' => $file->getName(),
+                        'error' => 'Erro MinIO: ' . $e->getAwsErrorMessage()
+                    ];
+                } catch (\Exception $e) {
+                    log_message('error', "❌ Erro ao fazer upload de {$file->getName()}: {$e->getMessage()}");
+                    $errors[] = [
+                        'file' => $file->getName(),
+                        'error' => $e->getMessage()
+                    ];
+                }
+            }
+            
+            // Atualizar APENAS o source_filename com o caminho da pasta (sem criar nova configuração)
+            // O Airflow listará dinamicamente todos os arquivos dentro
+            $folderPath = "raw/{$dagId}/";
+            
+            // Dados para atualização
+            $dataToUpdate = [
+                'source_filename' => $folderPath, // Atualizar apenas este campo
+                'max_parallel_tasks' => $maxParallel
+            ];
+            
+            log_message('info', 'Dados para atualizar: ' . json_encode($dataToUpdate));
+            
+            $updated = $model->update((int)$dagConfigId, $dataToUpdate);
+            
+            if (!$updated && $updated !== false) { // Se retorna NULL, pode ter sucesso mesmo assim
+                // Verificar se realmente houve erro
+                $errors_db = $model->errors();
+                if (!empty($errors_db)) {
+                    log_message('error', 'Erro ao atualizar no banco: ' . json_encode($errors_db));
+                    throw new \Exception('Falha ao atualizar configuração no banco de dados');
+                }
+            }
+            
+            log_message('info', "Configuração atualizada com sucesso");
+
+            // Gerar e salvar YAML de batch para a DAG criada (facilitar listagem e processamento)
+            try {
+                $batchYaml = $this->generateBatchYAML($dagId, $batchId, $uploadedFiles, $batchMode, $maxParallel);
+                // Nome único por batch para não sobrescrever
+                $yamlName = $dagId . '_' . $batchId;
+                $this->saveYAMLConfig($yamlName, $batchYaml);
+                log_message('info', "Batch YAML gerado e salvo: {$yamlName}");
+            } catch (\Exception $e) {
+                // Logar mas não falhar o fluxo principal
+                log_message('error', 'Falha ao gerar/salvar YAML do batch: ' . $e->getMessage());
+            }
+            
+            // Verificar se houve algum arquivo enviado com sucesso
+            if (empty($uploadedFiles) && !empty($errors)) {
+                log_message('error', 'Todos os arquivos falharam no upload');
+                throw new \Exception('Todos os arquivos falharam no upload. Verifique os logs para mais detalhes.');
+            }
+            
+            return $this->response->setJSON([
+                'status' => count($errors) > 0 ? 'partial' : 'success',
+                'mensagem' => sprintf(
+                    'DAG atualizada com sucesso! %d arquivo(s) enviado(s) para raw/%s/ e serão processados em modo %s%s',
+                    count($uploadedFiles),
+                    $dagId,
+                    $batchMode === 'parallel' ? 'paralelo' : 'sequencial',
+                    count($errors) > 0 ? sprintf(' (%d arquivo(s) falharam)', count($errors)) : ''
+                ),
+                'id' => $dagConfigId,
+                'batch_id' => $batchId,
+                'uploaded_files' => $uploadedFiles,
+                'errors' => $errors,
+                'batch_mode' => $batchMode,
+                'dag_id' => $dagId,
+                'folder_path' => $folderPath
+            ]);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Update múltiplo falhou: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Erro no upload: ' . $e->getMessage()
+            ])->setStatusCode(500);
+        }
     }
 
 }

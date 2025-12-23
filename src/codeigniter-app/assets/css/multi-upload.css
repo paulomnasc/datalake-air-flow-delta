@@ -4,23 +4,41 @@
  */
 
 /* Checkboxes de controle */
+.form-group .mb-3,
 .mb-3 {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+    display: flex !important;
+    align-items: flex-start !important;
+    flex-wrap: nowrap !important;
     margin-bottom: 1rem;
+    gap: 8px !important;
+    max-width: 100%;
 }
 
+.form-group .mb-3 input[type="checkbox"],
 .mb-3 input[type="checkbox"] {
-    margin-right: 8px;
-    margin-top: 0;
+    margin-right: 0 !important;
+    margin-top: 3px !important;
+    margin-bottom: 0 !important;
     vertical-align: middle;
+    flex-shrink: 0 !important;
+    order: 1 !important;
+    width: auto !important;
 }
 
+.form-group .mb-3 label,
 .mb-3 label {
-    margin-bottom: 0;
+    display: inline-block !important;
+    margin-bottom: 0 !important;
+    margin-top: 0 !important;
     vertical-align: middle;
     cursor: pointer;
+    order: 2 !important;
+    flex: 1 !important;
+    max-width: calc(100% - 30px) !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    white-space: normal !important;
+    width: auto !important;
 }
 
 .mb-3 small.text-muted {

@@ -198,14 +198,13 @@ require VIEWPATH . '/header.php';
                 
                 <div class="form-group" id="source_upload_group" style="display:none;">
                     <!-- Checkbox para ativar upload múltiplo -->
-                    <div class="mb-3">
-                        <input type="checkbox" id="enable_multi_upload" name="enable_multi_upload" value="1" onchange="toggleMultiUploadMode(this.checked)">
-                        <label for="enable_multi_upload">📦 Upload Múltiplo de Arquivos (Batch Processing)</label>
-                        <br>
-                        <small class="text-muted" style="margin-left: 20px;">
-                            <strong>Dica:</strong> Use para processar múltiplos arquivos CSV/JSON simultaneamente ou sequencialmente
-                        </small>
+                    <div class="mb-3" style="display: flex; align-items: flex-start; gap: 8px;">
+                        <input type="checkbox" id="enable_multi_upload" name="enable_multi_upload" value="1" onchange="toggleMultiUploadMode(this.checked)" style="margin-top: 3px; flex-shrink: 0;">
+                        <label for="enable_multi_upload" style="margin: 0; flex: 1;">📦 Upload Múltiplo de Arquivos (Batch Processing)</label>
                     </div>
+                    <small class="text-muted" style="margin-left: 28px; display: block;">
+                        <strong>Dica:</strong> Use para processar múltiplos arquivos CSV/JSON simultaneamente ou sequencialmente
+                    </small>
                     
                     <!-- Upload Único (padrão) -->
                     <div id="single_upload_section">
@@ -227,9 +226,9 @@ require VIEWPATH . '/header.php';
                         </div>
                         
                         <!-- Opção de seleção de pasta -->
-                        <div class="mb-3">
-                            <input type="checkbox" id="select_folder" name="select_folder" value="1" onchange="toggleFolderSelection(this.checked)">
-                            <label for="select_folder">📂 Selecionar Pasta Inteira (todos os arquivos dentro da pasta)</label>
+                        <div class="mb-3" style="display: flex; align-items: flex-start; gap: 8px;">
+                            <input type="checkbox" id="select_folder" name="select_folder" value="1" onchange="toggleFolderSelection(this.checked)" style="margin-top: 3px; flex-shrink: 0;">
+                            <label for="select_folder" style="margin: 0; flex: 1;">📂 Selecionar Pasta Inteira (todos os arquivos dentro da pasta)</label>
                         </div>
                         
                         <!-- Área de Drag & Drop -->
@@ -434,8 +433,8 @@ require VIEWPATH . '/header.php';
                 
                 <!-- Seção Multi-Table Selection (só para fontes SQL) -->
                 <div class="multi-table-checkbox" id="multi_table_checkbox_container" style="display: none;">
-                    <input type="checkbox" id="is_multi_table" name="is_multi_table" value="1" onchange="toggleMultiTableMode(this.checked)">
-                    <label for="is_multi_table">📊 Modo Multi-Tabela (processar múltiplas tabelas em paralelo)</label>
+                    <input type="checkbox" id="is_multi_table" name="is_multi_table" value="1" onchange="toggleMultiTableMode(this.checked)" style="margin: 0; flex-shrink: 0;">
+                    <label for="is_multi_table" style="margin: 0; flex: 1;">📊 Modo Multi-Tabela (processar múltiplas tabelas em paralelo)</label>
                 </div>
                 
                 <div id="multi-table-section" style="display: none;">

@@ -1057,7 +1057,6 @@ class ConfigController extends BaseController
     {
         try {
             // Log de entrada para debug
-            echo "DEBUG: uploadMultipleFiles() foi chamado<br>";
             error_log('=== Upload Múltiplo Iniciado ===');
             error_log('POST data: ' . json_encode($this->request->getPost()));
             
@@ -1117,12 +1116,33 @@ class ConfigController extends BaseController
                         throw new \Exception("Arquivo temporário não encontrado: " . $file->getTempName());
                     }
 
+                    // Regras adicionais por tipo
+                    $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+                    $sourceForUpload = $file->getTempName();
+                    $contentType = $file->getMimeType();
+
+                    // Bloquear arquivos vazios
+                    if ((int)$file->getSize() <= 0) {
+                        throw new \Exception('Arquivo vazio (0 bytes)');
+                    }
+
+                    if ($ext === 'json') {
+                        $jsonCheck = $this->validateAndPrepareJson($file->getTempName());
+                        if (!$jsonCheck['ok']) {
+                            throw new \Exception('JSON inválido: ' . $jsonCheck['error']);
+                        }
+                        if (!empty($jsonCheck['path'])) {
+                            $sourceForUpload = $jsonCheck['path'];
+                        }
+                        $contentType = 'application/json';
+                    }
+
                     // Upload para MinIO
                     $putObjectResult = $this->minioClient->putObject([
                         'Bucket' => $this->bucketName,
                         'Key'    => $s3Key,
-                        'Body'   => fopen($file->getTempName(), 'rb'),
-                        'ContentType' => $file->getMimeType()
+                        'Body'   => fopen($sourceForUpload, 'rb'),
+                        'ContentType' => $contentType
                     ]);
 
                     log_message('info', "Resposta putObject: " . json_encode($putObjectResult));
@@ -1286,6 +1306,80 @@ class ConfigController extends BaseController
                 'Todos os arquivos devem ter o mesmo formato. ' .
                 'Detectados: ' . implode(', ', $uniqueExtensions)
             );
+        }
+    }
+
+    /**
+     * Valida o conteúdo JSON. Suporta JSON (objeto/array) e NDJSON (um JSON por linha).
+     * Remove BOM se presente e, quando necessário, grava uma cópia sanitizada
+     * temporária para upload. Retorna array com:
+     *  - ok: bool
+     *  - path: caminho do arquivo sanitizado (opcional)
+     *  - mode: 'json' | 'ndjson' (opcional)
+     *  - error: mensagem de erro (quando ok=false)
+     */
+    private function validateAndPrepareJson(string $tempPath): array
+    {
+        try {
+            if (!is_readable($tempPath)) {
+                return ['ok' => false, 'error' => 'Arquivo temporário não legível'];
+            }
+            $content = file_get_contents($tempPath);
+            if ($content === false) {
+                return ['ok' => false, 'error' => 'Falha ao ler arquivo'];
+            }
+            if ($content === '' || strlen($content) === 0) {
+                return ['ok' => false, 'error' => 'Arquivo vazio'];
+            }
+
+            // Remover BOM (UTF-8) se presente
+            if (substr($content, 0, 3) === "\xEF\xBB\xBF") {
+                $content = substr($content, 3);
+            }
+            $trimmed = ltrim($content);
+
+            // Tentar JSON canônico (objeto/array)
+            $isJsonCandidate = strlen($trimmed) > 0 && ($trimmed[0] === '{' || $trimmed[0] === '[');
+            if ($isJsonCandidate) {
+                $decoded = json_decode($content, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    // Se conteúdo foi alterado (ex: removeu BOM), salvar cópia
+                    if ($content !== file_get_contents($tempPath)) {
+                        $tmpSan = tempnam(sys_get_temp_dir(), 'jsonfix_');
+                        file_put_contents($tmpSan, $content);
+                        return ['ok' => true, 'path' => $tmpSan, 'mode' => 'json'];
+                    }
+                    return ['ok' => true, 'path' => null, 'mode' => 'json'];
+                }
+            }
+
+            // Tentar NDJSON (JSON por linha)
+            $lines = preg_split("/(\r\n|\n|\r)/", $content);
+            $total = 0; $ok = 0; $fail = 0;
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if ($line === '') { continue; }
+                $total++;
+                json_decode($line, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $ok++;
+                } else {
+                    $fail++;
+                }
+            }
+            if ($total > 0 && $fail === 0) {
+                // Válido como NDJSON (mantém como está, apenas remove BOM se foi removido)
+                if ($content !== file_get_contents($tempPath)) {
+                    $tmpSan = tempnam(sys_get_temp_dir(), 'jsonfix_');
+                    file_put_contents($tmpSan, $content);
+                    return ['ok' => true, 'path' => $tmpSan, 'mode' => 'ndjson'];
+                }
+                return ['ok' => true, 'path' => null, 'mode' => 'ndjson'];
+            }
+
+            return ['ok' => false, 'error' => 'Conteúdo não é JSON válido nem NDJSON'];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
         }
     }
     
@@ -1482,12 +1576,33 @@ class ConfigController extends BaseController
                         throw new \Exception("Arquivo temporário não encontrado: " . $file->getTempName());
                     }
 
+                    // Regras adicionais por tipo
+                    $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+                    $sourceForUpload = $file->getTempName();
+                    $contentType = $file->getMimeType();
+
+                    // Bloquear arquivos vazios
+                    if ((int)$file->getSize() <= 0) {
+                        throw new \Exception('Arquivo vazio (0 bytes)');
+                    }
+
+                    if ($ext === 'json') {
+                        $jsonCheck = $this->validateAndPrepareJson($file->getTempName());
+                        if (!$jsonCheck['ok']) {
+                            throw new \Exception('JSON inválido: ' . $jsonCheck['error']);
+                        }
+                        if (!empty($jsonCheck['path'])) {
+                            $sourceForUpload = $jsonCheck['path'];
+                        }
+                        $contentType = 'application/json';
+                    }
+
                     // Upload para MinIO
                     $putObjectResult = $this->minioClient->putObject([
                         'Bucket' => $this->bucketName,
                         'Key'    => $s3Key,
-                        'Body'   => fopen($file->getTempName(), 'rb'),
-                        'ContentType' => $file->getMimeType()
+                        'Body'   => fopen($sourceForUpload, 'rb'),
+                        'ContentType' => $contentType
                     ]);
 
                     log_message('info', "Resposta putObject: " . json_encode($putObjectResult));

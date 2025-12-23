@@ -53,7 +53,69 @@ def bronze_to_silver(source_filename: str, target_table_name: str, **kwargs):
         
         if file_extension == '.json':
             log.info("[SILVER] Lendo arquivo JSON...")
-            df = pd.read_json(local_file)
+            # Leitura robusta de JSON: suporta NDJSON, lista de objetos e
+            # objetos com chave-raiz igual ao nome da tabela
+            import json
+            def _normalize_json_payload(payload):
+                """Converte payload JSON arbitrário em DataFrame colunares."""
+                # Lista de objetos diretamente
+                if isinstance(payload, list):
+                    if payload and isinstance(payload[0], dict):
+                        return pd.json_normalize(payload)
+                    else:
+                        return pd.DataFrame(payload)
+                # Objeto dict
+                if isinstance(payload, dict):
+                    # Se possui somente uma chave e ela corresponde ao nome da tabela,
+                    # expandir o conteúdo dessa chave
+                    if len(payload) == 1:
+                        only_key = next(iter(payload))
+                        val = payload[only_key]
+                        if isinstance(val, list):
+                            return pd.json_normalize(val)
+                        if isinstance(val, dict):
+                            return pd.json_normalize([val])
+                    # Caso geral: normalizar o dict em uma única linha
+                    return pd.json_normalize([payload])
+                # Caso não seja JSON estruturado, tentar DataFrame direto
+                return pd.DataFrame(payload)
+
+            df = None
+            # 1) Tenta NDJSON (um objeto por linha)
+            try:
+                ndjson_df = pd.read_json(local_file, lines=True)
+                # Se NDJSON devolveu algo com colunas significativas, usa
+                if not ndjson_df.empty and len(ndjson_df.columns) > 0:
+                    df = ndjson_df
+                    log.info("[SILVER] JSON no formato NDJSON detectado (%d colunas)", len(df.columns))
+            except Exception:
+                pass
+
+            # 2) Tenta leitura padrão
+            if df is None:
+                try:
+                    std_df = pd.read_json(local_file)
+                    # Se a leitura padrão gerar uma coluna única com dict/list, normaliza
+                    if len(std_df.columns) == 1:
+                        col = std_df.columns[0]
+                        series = std_df[col]
+                        first_val = series.dropna().iloc[0] if not series.dropna().empty else None
+                        if isinstance(first_val, (dict, list)):
+                            df = _normalize_json_payload(series.tolist())
+                            log.info("[SILVER] JSON com chave-raiz detectado; normalizado de coluna única '%s'", col)
+                    if df is None:
+                        df = std_df
+                except Exception:
+                    # 3) Fallback: carregar texto e parsear com json.load/json.loads
+                    with open(local_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    try:
+                        payload = json.loads(content)
+                        df = _normalize_json_payload(payload)
+                        log.info("[SILVER] JSON carregado via json.loads e normalizado (%d colunas)", len(df.columns))
+                    except Exception as e:
+                        log.error("[SILVER] Falha ao ler JSON: %s", e)
+                        raise
         elif file_extension == '.csv':
             log.info("[SILVER] Lendo arquivo CSV...")
             df = pd.read_csv(local_file)

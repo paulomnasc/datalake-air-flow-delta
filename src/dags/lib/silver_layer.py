@@ -10,6 +10,10 @@ def bronze_to_silver(source_filename: str, target_table_name: str, **kwargs):
     - Remove duplicatas e linhas vazias
     - Converte para formato Parquet
     - Aplica validações básicas
+    
+    Suporta:
+    - Arquivo único: 'raw/pasta/arquivo.csv' ou 'bronze/dag_id/tabela/arquivo.csv'
+    - Pasta com múltiplos arquivos: 'raw/dag_id/' ou 'bronze/dag_id/tabela/' (com barra no final)
     """
     log.info(f"[SILVER] Iniciando transformação para: {target_table_name}")
     log.info(f"[SILVER] Arquivo origem: {source_filename}")
@@ -27,138 +31,170 @@ def bronze_to_silver(source_filename: str, target_table_name: str, **kwargs):
 
     # Determina chave Bronze e Silver
     src_key = source_filename.lstrip('/')
-    basename = os.path.basename(src_key)
+    dag_id = kwargs.get('dag_id', 'default')
+    
+    # Detectar se é pasta (termina com /)
+    is_folder = src_key.endswith('/')
     
     # Se source_filename aponta para Raw, ajusta para Bronze
     if src_key.startswith('raw/'):
-        bronze_key = src_key.replace('raw/', 'bronze/', 1)
-    else:
-        bronze_key = f"bronze/{target_table_name}/{basename}"
+        # Extrai dag_id de raw/{dag_id}/...
+        parts = src_key.split('/')
+        if len(parts) >= 2:
+            dag_id = parts[1]
+        # Substitui raw/ por bronze/
+        src_key = src_key.replace('raw/', f'bronze/{dag_id}/', 1)
     
-    basename_no_ext = os.path.splitext(basename)[0]
-    silver_key = f"silver/{target_table_name}/{basename_no_ext}.parquet"
-
-    log.info("[SILVER] Processando: s3://%s/%s → s3://%s/%s", bucket, bronze_key, bucket, silver_key)
+    log.info("[SILVER] Pasta detectada: %s", "Sim" if is_folder else "Não")
 
     tmpdir = None
+    processed_count = 0
+    results = []
+    
     try:
         tmpdir = tempfile.mkdtemp()
         
-        # Download do arquivo Bronze
-        local_file = hook.download_file(key=bronze_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
-        log.info("[SILVER] Arquivo Bronze baixado: %s", local_file)
-
-        # Leitura e transformação com Pandas - detecta automaticamente CSV ou JSON
-        file_extension = os.path.splitext(local_file)[1].lower()
-        
-        if file_extension == '.json':
-            log.info("[SILVER] Lendo arquivo JSON...")
-            # Leitura robusta de JSON: suporta NDJSON, lista de objetos e
-            # objetos com chave-raiz igual ao nome da tabela
-            import json
-            def _normalize_json_payload(payload):
-                """Converte payload JSON arbitrário em DataFrame colunares."""
-                # Lista de objetos diretamente
-                if isinstance(payload, list):
-                    if payload and isinstance(payload[0], dict):
-                        return pd.json_normalize(payload)
-                    else:
-                        return pd.DataFrame(payload)
-                # Objeto dict
-                if isinstance(payload, dict):
-                    # Se possui somente uma chave e ela corresponde ao nome da tabela,
-                    # expandir o conteúdo dessa chave
-                    if len(payload) == 1:
-                        only_key = next(iter(payload))
-                        val = payload[only_key]
-                        if isinstance(val, list):
-                            return pd.json_normalize(val)
-                        if isinstance(val, dict):
-                            return pd.json_normalize([val])
-                    # Caso geral: normalizar o dict em uma única linha
-                    return pd.json_normalize([payload])
-                # Caso não seja JSON estruturado, tentar DataFrame direto
-                return pd.DataFrame(payload)
-
-            df = None
-            # 1) Tenta NDJSON (um objeto por linha)
-            try:
-                ndjson_df = pd.read_json(local_file, lines=True)
-                # Se NDJSON devolveu algo com colunas significativas, usa
-                if not ndjson_df.empty and len(ndjson_df.columns) > 0:
-                    df = ndjson_df
-                    log.info("[SILVER] JSON no formato NDJSON detectado (%d colunas)", len(df.columns))
-            except Exception:
-                pass
-
-            # 2) Tenta leitura padrão
-            if df is None:
-                try:
-                    std_df = pd.read_json(local_file)
-                    # Se a leitura padrão gerar uma coluna única com dict/list, normaliza
-                    if len(std_df.columns) == 1:
-                        col = std_df.columns[0]
-                        series = std_df[col]
-                        first_val = series.dropna().iloc[0] if not series.dropna().empty else None
-                        if isinstance(first_val, (dict, list)):
-                            df = _normalize_json_payload(series.tolist())
-                            log.info("[SILVER] JSON com chave-raiz detectado; normalizado de coluna única '%s'", col)
-                    if df is None:
-                        df = std_df
-                except Exception:
-                    # 3) Fallback: carregar texto e parsear com json.load/json.loads
-                    with open(local_file, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    try:
-                        payload = json.loads(content)
-                        df = _normalize_json_payload(payload)
-                        log.info("[SILVER] JSON carregado via json.loads e normalizado (%d colunas)", len(df.columns))
-                    except Exception as e:
-                        log.error("[SILVER] Falha ao ler JSON: %s", e)
-                        raise
-        elif file_extension == '.csv':
-            log.info("[SILVER] Lendo arquivo CSV...")
-            df = pd.read_csv(local_file)
-        elif file_extension == '.parquet':
-            log.info("[SILVER] Lendo arquivo Parquet...")
-            df = pd.read_parquet(local_file)
+        # Se é pasta, listar arquivos; senão processar como arquivo único
+        bronze_keys_to_process = []
+        if is_folder:
+            log.info("[SILVER] Listando arquivos em: %s", src_key)
+            keys = hook.list_keys(bucket_name=bucket, prefix=src_key)
+            if not keys:
+                log.warning("[SILVER] ⚠️ Nenhum arquivo encontrado em %s", src_key)
+                return {"layer": "silver", "files_processed": 0}
+            for key in keys:
+                if key != src_key:  # Pula a própria pasta
+                    bronze_keys_to_process.append(key)
         else:
-            log.warning("[SILVER] Extensão desconhecida '%s', tentando CSV como fallback...", file_extension)
-            df = pd.read_csv(local_file)
+            bronze_keys_to_process = [src_key]
+        
+        log.info("[SILVER] Total de arquivos a processar: %d", len(bronze_keys_to_process))
+        
+        # Processar cada arquivo
+        import json
+        for bronze_key in bronze_keys_to_process:
+            log.info("[SILVER] Processando: %s", bronze_key)
             
-        log.info("[SILVER] Dados originais: %d linhas, %d colunas", len(df), len(df.columns))
+            # Download do arquivo Bronze
+            local_file = hook.download_file(key=bronze_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
+            log.info("[SILVER] Arquivo Bronze baixado: %s", local_file)
         
-        # Limpeza básica de dados
-        original_count = len(df)
-        df = df.dropna(how='all')  # Remove linhas totalmente vazias
-        df = df.drop_duplicates()  # Remove duplicatas
-        cleaned_count = len(df)
-        
-        log.info("[SILVER] Limpeza básica: %d linhas removidas (%d → %d)", 
-                 original_count - cleaned_count, original_count, cleaned_count)
-        
-        # Aplicar inteligência automática de dados
-        df = _apply_smart_transformations(df)
-        
-        # ========== VALIDAÇÃO DE QUALIDADE DE DADOS ==========
-        log.info("[SILVER] Aplicando validação de qualidade de dados...")
-        from lib.data_quality import validate_dataframe
-        
-        df, quality_metrics = validate_dataframe(df, target_table_name)
-        
-        log.info("[SILVER] ✓ Validação de qualidade concluída:")
-        log.info("[SILVER]   - Taxa de aprovação: %.1f%%", quality_metrics['pass_rate'])
-        log.info("[SILVER]   - Linhas aprovadas: %d", quality_metrics['rows_passed'])
-        log.info("[SILVER]   - Linhas reprovadas: %d", quality_metrics['rows_failed'])
-        
-        # Salvar como Parquet
-        silver_local = os.path.join(tmpdir, f"{basename_no_ext}.parquet")
-        df.to_parquet(silver_local, index=False, compression='snappy')
-        log.info("[SILVER] Parquet criado: %s", silver_local)
+            basename = os.path.basename(bronze_key)
+            basename_no_ext = os.path.splitext(basename)[0]
 
-        # Upload para camada Silver
-        hook.load_file(filename=silver_local, key=silver_key, bucket_name=bucket, replace=True)
-        log.info("[SILVER] ✅ Arquivo salvo em: s3://%s/%s", bucket, silver_key)
+            # Leitura e transformação com Pandas - detecta automaticamente CSV ou JSON
+            file_extension = os.path.splitext(local_file)[1].lower()
+            
+            df = None
+            if file_extension == '.json':
+                log.info("[SILVER] Lendo arquivo JSON...")
+                # Leitura robusta de JSON: suporta NDJSON, lista de objetos e
+                # objetos com chave-raiz igual ao nome da tabela
+                def _normalize_json_payload(payload):
+                    """Converte payload JSON arbitrário em DataFrame colunares."""
+                    # Lista de objetos diretamente
+                    if isinstance(payload, list):
+                        if payload and isinstance(payload[0], dict):
+                            return pd.json_normalize(payload)
+                        else:
+                            return pd.DataFrame(payload)
+                    # Objeto dict
+                    if isinstance(payload, dict):
+                        # Se possui somente uma chave e ela corresponde ao nome da tabela,
+                        # expandir o conteúdo dessa chave
+                        if len(payload) == 1:
+                            only_key = next(iter(payload))
+                            val = payload[only_key]
+                            if isinstance(val, list):
+                                return pd.json_normalize(val)
+                            if isinstance(val, dict):
+                                return pd.json_normalize([val])
+                        # Caso geral: normalizar o dict em uma única linha
+                        return pd.json_normalize([payload])
+                    # Caso não seja JSON estruturado, tentar DataFrame direto
+                    return pd.DataFrame(payload)
+
+                # 1) Tenta NDJSON (um objeto por linha)
+                try:
+                    ndjson_df = pd.read_json(local_file, lines=True)
+                    # Se NDJSON devolveu algo com colunas significativas, usa
+                    if not ndjson_df.empty and len(ndjson_df.columns) > 0:
+                        df = ndjson_df
+                        log.info("[SILVER] JSON no formato NDJSON detectado (%d colunas)", len(df.columns))
+                except Exception:
+                    pass
+
+                # 2) Tenta leitura padrão
+                if df is None:
+                    try:
+                        std_df = pd.read_json(local_file)
+                        # Se a leitura padrão gerar uma coluna única com dict/list, normaliza
+                        if len(std_df.columns) == 1:
+                            col = std_df.columns[0]
+                            series = std_df[col]
+                            first_val = series.dropna().iloc[0] if not series.dropna().empty else None
+                            if isinstance(first_val, (dict, list)):
+                                df = _normalize_json_payload(series.tolist())
+                                log.info("[SILVER] JSON com chave-raiz detectado; normalizado de coluna única '%s'", col)
+                        if df is None:
+                            df = std_df
+                    except Exception:
+                        # 3) Fallback: carregar texto e parsear com json.load/json.loads
+                        with open(local_file, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        try:
+                            payload = json.loads(content)
+                            df = _normalize_json_payload(payload)
+                            log.info("[SILVER] JSON carregado via json.loads e normalizado (%d colunas)", len(df.columns))
+                        except Exception as e:
+                            log.error("[SILVER] Falha ao ler JSON: %s", e)
+                            raise
+            elif file_extension == '.csv':
+                log.info("[SILVER] Lendo arquivo CSV...")
+                df = pd.read_csv(local_file)
+            elif file_extension == '.parquet':
+                log.info("[SILVER] Lendo arquivo Parquet...")
+                df = pd.read_parquet(local_file)
+            else:
+                log.warning("[SILVER] Extensão desconhecida '%s', tentando CSV como fallback...", file_extension)
+                df = pd.read_csv(local_file)
+                
+            log.info("[SILVER] Dados originais: %d linhas, %d colunas", len(df), len(df.columns))
+            
+            # Limpeza básica de dados
+            original_count = len(df)
+            df = df.dropna(how='all')  # Remove linhas totalmente vazias
+            df = df.drop_duplicates()  # Remove duplicatas
+            cleaned_count = len(df)
+            
+            log.info("[SILVER] Limpeza básica: %d linhas removidas (%d → %d)", 
+                     original_count - cleaned_count, original_count, cleaned_count)
+            
+            # Aplicar inteligência automática de dados
+            df = _apply_smart_transformations(df)
+            
+            # ========== VALIDAÇÃO DE QUALIDADE DE DADOS ==========
+            log.info("[SILVER] Aplicando validação de qualidade de dados...")
+            from lib.data_quality import validate_dataframe
+            
+            df, quality_metrics = validate_dataframe(df, target_table_name)
+            
+            log.info("[SILVER] ✓ Validação de qualidade concluída:")
+            log.info("[SILVER]   - Taxa de aprovação: %.1f%%", quality_metrics['pass_rate'])
+            log.info("[SILVER]   - Linhas aprovadas: %d", quality_metrics['rows_passed'])
+            log.info("[SILVER]   - Linhas reprovadas: %d", quality_metrics['rows_failed'])
+            
+            # Salvar como Parquet
+            silver_key = f"silver/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
+            silver_local = os.path.join(tmpdir, f"{basename_no_ext}.parquet")
+            df.to_parquet(silver_local, index=False, compression='snappy')
+            log.info("[SILVER] Parquet criado: %s", silver_local)
+
+            # Upload para camada Silver
+            hook.load_file(filename=silver_local, key=silver_key, bucket_name=bucket, replace=True)
+            log.info("[SILVER] ✅ Arquivo salvo em: s3://%s/%s", bucket, silver_key)
+            results.append(silver_key)
+            processed_count += 1
         
     finally:
         if tmpdir is not None and os.path.exists(tmpdir):
@@ -168,8 +204,8 @@ def bronze_to_silver(source_filename: str, target_table_name: str, **kwargs):
             except Exception:
                 pass
 
-    log.info("[SILVER] Processo concluído com sucesso!")
-    return {"layer": "silver", "key": silver_key, "rows": cleaned_count}
+    log.info("[SILVER] Processo concluído! %d arquivo(s) processado(s)", processed_count)
+    return {"layer": "silver", "files_processed": processed_count, "keys": results}
 
 
 def _apply_smart_transformations(df):

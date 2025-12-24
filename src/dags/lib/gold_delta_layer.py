@@ -49,9 +49,10 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
     src_key = source_filename.lstrip('/')
     basename = os.path.basename(src_key)
     basename_no_ext = os.path.splitext(basename)[0]
+    dag_id = kwargs.get('dag_id', 'default')
     
     # Delta Lake usa diretório ao invés de arquivo único
-    gold_delta_path = f"s3://{bucket}/gold/{target_table_name}_delta/"
+    gold_delta_path = f"s3://{bucket}/gold/{dag_id}/{target_table_name}_delta/"
 
     log.info("[GOLD-DELTA] Processando: s3://%s/%s → %s", bucket, src_key, gold_delta_path)
 

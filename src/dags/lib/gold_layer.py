@@ -10,6 +10,10 @@ def silver_to_gold(source_filename: str, target_table_name: str, **kwargs):
     - Aplica agregações e métricas de negócio
     - Otimiza para queries analíticas
     - Formato final para consumo (BI, ML, APIs)
+    
+    Suporta:
+    - Arquivo único: 'silver/dag_id/tabela/arquivo.parquet'
+    - Pasta com múltiplos arquivos: 'silver/dag_id/tabela/' (com barra no final)
     """
     log.info(f"[GOLD] Iniciando agregação para: {target_table_name}")
     log.info(f"[GOLD] Arquivo origem: {source_filename}")
@@ -27,40 +31,73 @@ def silver_to_gold(source_filename: str, target_table_name: str, **kwargs):
 
     # Determina chave Silver e Gold
     src_key = source_filename.lstrip('/')
-    basename = os.path.basename(src_key)
-    basename_no_ext = os.path.splitext(basename)[0]
+    dag_id = kwargs.get('dag_id', 'default')
     
-    silver_key = f"silver/{target_table_name}/{basename_no_ext}.parquet"
-    gold_key = f"gold/{target_table_name}/{basename_no_ext}.parquet"
-
-    log.info("[GOLD] Processando: s3://%s/%s → s3://%s/%s", bucket, silver_key, bucket, gold_key)
+    # Detectar se é pasta (termina com /)
+    is_folder = src_key.endswith('/')
+    
+    # Se source_filename aponta para Silver, preenche src_key corretamente
+    if not src_key.startswith('silver/'):
+        src_key = f"silver/{dag_id}/{target_table_name}/"
+        is_folder = True
+    
+    log.info("[GOLD] Pasta detectada: %s", "Sim" if is_folder else "Não")
 
     tmpdir = None
+    processed_count = 0
+    results = []
+    
     try:
         tmpdir = tempfile.mkdtemp()
         
-        # Download do arquivo Silver
-        local_file = hook.download_file(key=silver_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
-        log.info("[GOLD] Arquivo Silver baixado: %s", local_file)
+        # Se é pasta, listar arquivos; senão processar como arquivo único
+        silver_keys_to_process = []
+        if is_folder:
+            log.info("[GOLD] Listando arquivos em: %s", src_key)
+            keys = hook.list_keys(bucket_name=bucket, prefix=src_key)
+            if not keys:
+                log.warning("[GOLD] ⚠️ Nenhum arquivo encontrado em %s", src_key)
+                return {"layer": "gold", "files_processed": 0}
+            for key in keys:
+                if key != src_key:  # Pula a própria pasta
+                    silver_keys_to_process.append(key)
+        else:
+            silver_keys_to_process = [src_key]
+        
+        log.info("[GOLD] Total de arquivos a processar: %d", len(silver_keys_to_process))
+        
+        # Processar cada arquivo
+        for silver_key in silver_keys_to_process:
+            log.info("[GOLD] Processando: %s", silver_key)
+            
+            # Download do arquivo Silver
+            local_file = hook.download_file(key=silver_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
+            log.info("[GOLD] Arquivo Silver baixado: %s", local_file)
+            
+            basename = os.path.basename(silver_key)
+            basename_no_ext = os.path.splitext(basename)[0]
 
-        # Leitura do Parquet
-        log.info("[GOLD] Lendo Parquet...")
-        df = pd.read_parquet(local_file)
-        log.info("[GOLD] Dados Silver: %d linhas, %d colunas", len(df), len(df.columns))
-        
-        # Aplicar inteligência analítica automática
-        df = _apply_analytical_intelligence(df)
-        
-        log.info("[GOLD] Aplicando otimizações finais...")
-        
-        # Salvar como Parquet otimizado
-        gold_local = os.path.join(tmpdir, f"{basename_no_ext}_gold.parquet")
-        df.to_parquet(gold_local, index=False, compression='snappy', engine='pyarrow')
-        log.info("[GOLD] Parquet otimizado criado: %s", gold_local)
+            # Leitura do Parquet
+            log.info("[GOLD] Lendo Parquet...")
+            df = pd.read_parquet(local_file)
+            log.info("[GOLD] Dados Silver: %d linhas, %d colunas", len(df), len(df.columns))
+            
+            # Aplicar inteligência analítica automática
+            df = _apply_analytical_intelligence(df)
+            
+            log.info("[GOLD] Aplicando otimizações finais...")
+            
+            # Salvar como Parquet otimizado
+            gold_key = f"gold/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
+            gold_local = os.path.join(tmpdir, f"{basename_no_ext}_gold.parquet")
+            df.to_parquet(gold_local, index=False, compression='snappy', engine='pyarrow')
+            log.info("[GOLD] Parquet otimizado criado: %s", gold_local)
 
-        # Upload para camada Gold
-        hook.load_file(filename=gold_local, key=gold_key, bucket_name=bucket, replace=True)
-        log.info("[GOLD] ✅ Arquivo salvo em: s3://%s/%s", bucket, gold_key)
+            # Upload para camada Gold
+            hook.load_file(filename=gold_local, key=gold_key, bucket_name=bucket, replace=True)
+            log.info("[GOLD] ✅ Arquivo salvo em: s3://%s/%s", bucket, gold_key)
+            results.append(gold_key)
+            processed_count += 1
         
     finally:
         if tmpdir is not None and os.path.exists(tmpdir):
@@ -70,8 +107,8 @@ def silver_to_gold(source_filename: str, target_table_name: str, **kwargs):
             except Exception:
                 pass
 
-    log.info("[GOLD] Processo concluído com sucesso!")
-    return {"layer": "gold", "key": gold_key}
+    log.info("[GOLD] Processo concluído! %d arquivo(s) processado(s)", processed_count)
+    return {"layer": "gold", "files_processed": processed_count, "keys": results}
 
 
 def _apply_analytical_intelligence(df):

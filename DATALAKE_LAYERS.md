@@ -15,16 +15,19 @@ bucket: lab01/
 │       └── {timestamp}_{hash}.csv
 │
 ├── bronze/                       # Camada Bronze (dados brutos)
-│   └── {target_table_name}/
-│       └── {arquivo}.csv
+│   └── {dag_id}/
+│       └── {target_table_name}/
+│           └── {arquivo}.csv
 │
 ├── silver/                       # Camada Silver (dados limpos)
-│   └── {target_table_name}/
-│       └── {arquivo}.parquet
+│   └── {dag_id}/
+│       └── {target_table_name}/
+│           └── {arquivo}.parquet
 │
 └── gold/                         # Camada Gold (dados agregados)
-    └── {target_table_name}/
-        └── {arquivo}.parquet
+    └── {dag_id}/
+        └── {target_table_name}/
+            └── {arquivo}.parquet
 ```
 
 ---
@@ -44,7 +47,7 @@ bucket: lab01/
 - **Função**: `lib.bronze_layer.raw_to_bronze()`
 - **Transformação**: Cópia direta de Raw → Bronze
 - **Formato**: CSV (mesmo do original)
-- **Localização**: `bronze/{target_table_name}/{arquivo}.csv`
+- **Localização**: `bronze/{dag_id}/{target_table_name}/{arquivo}.csv`
 - **Características**:
   - Dados brutos sem transformação
   - Primeira camada do Data Lake propriamente dito
@@ -54,7 +57,7 @@ bucket: lab01/
 > 
 > - **Raw** é a área de entrada temporária onde os arquivos chegam via upload, com nomeação baseada em timestamp/hash (`raw/{dag_id}/{timestamp}_{hash}.csv`). É uma área transitória que serve para auditoria e pode ser limpa periodicamente.
 > 
-> - **Bronze** é a primeira camada oficial do Data Lake, com organização estruturada por tabela (`bronze/{target_table_name}/{arquivo}.csv`). É o armazenamento permanente dos dados originais, onde começa o pipeline de transformações do medalhão.
+> - **Bronze** é a primeira camada oficial do Data Lake, com organização estruturada por DAG e tabela (`bronze/{dag_id}/{target_table_name}/{arquivo}.csv`). É o armazenamento permanente dos dados originais, onde começa o pipeline de transformações do medalhão.
 > 
 > Em resumo: Raw = "Caixa de entrada", Bronze = "Arquivo organizado permanente"
 
@@ -75,7 +78,7 @@ raw_to_bronze(
   - ✅ Remove registros duplicados (`drop_duplicates()`)
   - ✅ Converte para formato Parquet com compressão Snappy
 - **Formato**: Parquet (colunar, otimizado)
-- **Localização**: `silver/{target_table_name}/{arquivo}.parquet`
+- **Localização**: `silver/{dag_id}/{target_table_name}/{arquivo}.parquet`
 - **Características**:
   - Dados validados e limpos
   - Formato otimizado para analytics
@@ -98,7 +101,7 @@ bronze_to_silver(
   - 🎯 Otimização para queries analíticas
   - 🔧 Parquet otimizado com PyArrow
 - **Formato**: Parquet (altamente otimizado)
-- **Localização**: `gold/{target_table_name}/{arquivo}.parquet`
+- **Localização**: `gold/{dag_id}/{target_table_name}/{arquivo}.parquet`
 - **Características**:
   - Dados prontos para consumo (BI, ML, APIs)
   - Máxima performance de leitura
@@ -299,10 +302,10 @@ graph LR
 
 **Sequência de Execução:**
 
-1. **Upload**: Usuário faz upload via webapp → `raw/{dag_id}/file.csv`
-2. **Bronze DAG**: Copia para `bronze/{table}/file.csv`
-3. **Silver DAG**: Limpa e converte para `silver/{table}/file.parquet`
-4. **Gold DAG**: Agrega e otimiza para `gold/{table}/file.parquet`
+1. **Upload**: Usuário faz upload via webapp → `raw/{dag_id}/{timestamp}_{hash}.csv`
+2. **Bronze DAG**: Copia para `bronze/{dag_id}/{target_table_name}/{arquivo}.csv`
+3. **Silver DAG**: Limpa e converte para `silver/{dag_id}/{target_table_name}/{arquivo}.parquet`
+4. **Gold DAG**: Agrega e otimiza para `gold/{dag_id}/{target_table_name}/{arquivo}.parquet`
 5. **Consumo**: PowerBI, APIs, ML models consomem de Gold
 
 ---

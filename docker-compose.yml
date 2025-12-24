@@ -112,6 +112,7 @@ services:
       - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:8080
       - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
       - MINIO_BUCKET=lab01
+      - ENABLE_ATLAS=false
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
@@ -140,6 +141,7 @@ services:
       - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
       - MINIO_BUCKET=lab01
       - ENABLE_DEBUGPY=false
+      - ENABLE_ATLAS=false
       - ATLAS_HOST=http://apache-atlas:21000
       - ATLAS_USER=admin
       - ATLAS_PASS=admin
@@ -190,6 +192,7 @@ services:
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      ENABLE_ATLAS: "false"
     volumes:
       - ./src/dags:/opt/airflow/dags
       - ./scripts:/usr/local/bin/scripts:ro

@@ -196,7 +196,84 @@ docker exec -it airflow-webserver airflow users create \
   --password admin
 ```
 
-## Instalação de dependências
+---
+
+### 5. Configurar Conexões do Airflow (! Obrigatório)
+
+#### 5.1 Conexão MinIO (minio_conn)
+
+A conexão com o MinIO é **obrigatória** para que as DAGs possam acessar o armazenamento S3-compatible.
+
+**Opção 1: Via CLI (recomendado para automação)**
+
+```bash
+docker exec airflow-webserver airflow connections add minio_conn \
+  --conn-type aws \
+  --conn-login admin \
+  --conn-password admin123 \
+  --conn-extra '{"endpoint_url": "http://minio:9000"}'
+```
+
+**Opção 2: Via Interface Web do Airflow**
+
+1. Acesse: [http://localhost:8085](http://localhost:8085) → Login: `admin` / `admin`
+2. Menu: **Admin** → **Connections** → **+** (Add a new record)
+3. Preencha os campos:
+   - **Connection Id**: `minio_conn`
+   - **Connection Type**: `Amazon Web Services`
+   - **AWS Access Key ID**: `admin`
+   - **AWS Secret Access Key**: `admin123`
+   - **Extra**: `{"endpoint_url": "http://minio:9000"}`
+4. Clique em **Save**
+
+**Parâmetros:**
+- `conn-type`: `aws` (MinIO é compatível com S3)
+- `conn-login`: `admin` (usuário configurado no docker-compose)
+- `conn-password`: `admin123` (senha configurada no docker-compose)
+- `endpoint_url`: `http://minio:9000` (endpoint interno do container)
+
+#### 5.2 Conexão MySQL para DAGs Dinâmicas (mysql_dag_metadata)
+
+Se você usa o sistema de DAGs dinâmicas baseadas em configuração MySQL, crie também esta conexão.
+
+**Opção 1: Via CLI (recomendado para automação)**
+
+```bash
+docker exec airflow-webserver airflow connections add mysql_dag_metadata \
+  --conn-type mysql \
+  --conn-host mysql \
+  --conn-schema lista_revisao2 \
+  --conn-login root \
+  --conn-password root \
+  --conn-port 3306
+```
+
+**Opção 2: Via Interface Web do Airflow**
+
+1. Acesse: [http://localhost:8085](http://localhost:8085) → **Admin** → **Connections** → **+**
+2. Preencha os campos:
+   - **Connection Id**: `mysql_dag_metadata`
+   - **Connection Type**: `MySQL`
+   - **Host**: `mysql`
+   - **Schema**: `lista_revisao2`
+   - **Login**: `root`
+   - **Password**: `root`
+   - **Port**: `3306`
+3. Clique em **Save**
+
+**Parâmetros:**
+- `conn-type`: `mysql`
+- `conn-host`: `mysql` (nome do container)
+- `conn-schema`: `lista_revisao2` (banco de dados com tabela `dag_configurations`)
+- `conn-login`: `root`
+- `conn-password`: `root`
+- `conn-port`: `3306`
+
+> 📝 **Nota:** Essas conexões são persistidas no banco de metadados do Airflow (PostgreSQL) e sobrevivem a reinicializações dos containers. Porém, se você executar `docker-compose down -v` (que remove volumes), será necessário recriá-las.
+
+---
+
+### 6. Instalação de Dependências Python
 
 Este projeto utiliza o Airflow com integração ao MinIO via S3Hook. Para garantir que todos os operadores e hooks estejam disponíveis, instale os seguintes pacotes:
 
@@ -225,8 +302,8 @@ pip install apache-airflow-providers-amazon --no-deps
 | Serviço             | Endereço de Acesso                     | Porta | Usuário / Senha           | Banco de Dados     | Observações                          |
 |---------------------|----------------------------------------|-------|----------------------------|--------------------|--------------------------------------|
 | **Airflow UI**      | [http://localhost:8085](http://localhost:8085) | 8085  | `admin` / `admin`          | —                  | Criado após `airflow db init` e `users create` |
-| **MinIO Console**   | [http://localhost:9001](http://localhost:9001) | 9001  | `admin` / `admin123`| —                  | Interface web de armazenamento S3   |
-| **MinIO API S3**    | `http://localhost:9000`                | 9000  | `admin` / `admin123`| —                  | Usado por boto3, S3Hook, etc.        |
+| **MinIO Console**   | [http://localhost:9001](http://localhost:9001) | 9001  | `admin` / `admin123`       | —                  | Interface web de armazenamento S3   |
+| **MinIO API S3**    | `http://localhost:9000`                | 9000  | `admin` / `admin123`       | —                  | Usado por boto3, S3Hook, etc.        |
 | **PostgreSQL**      | via cliente externo ou terminal        | 5432  | `airflow` / `airflow`      | `airflow`          | Banco de metadados do Airflow        |
 | **Apache Atlas**    | [http://localhost:21000](http://localhost:21000) | 21000 | `admin` / `admin`          | —                  | Catálogo de dados standalone (HBase/Solr embarcados) |
 | **Jupyter Notebook**| [http://localhost:8888](http://localhost:8888) | 8888  | Token: `tavares1234`       | —                  | Lab de integração Atlas (pyspark-notebook) |

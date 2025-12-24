@@ -236,8 +236,15 @@ pip install apache-airflow-providers-amazon --no-deps
 
 ---
 
-## Detalhes Importantes para o Spark SQL (Thrift)## 
-Usuário/Senha: O Spark Thrift Server (a menos que configurado com Kerberos ou autenticação complexa, o que é raro em desenvolvimento local) geralmente não requer autenticação. Basta deixar em branco ou usar valores dummy na ferramenta de BI.Banco de Dados: Ele expõe o catálogo de tabelas do Spark/Hive. Você acessa as tabelas Delta diretamente com comandos SQL, como SELECT * FROM nome_da_tabela_delta.Conexão BI: Use o driver Spark Thrift JDBC/ODBC (ou driver Hive) para conectar ferramentas de BI. O host será localhost e a porta será 10000.
+## Detalhes Importantes para o Spark SQL (Thrift)
+
+Usuário/Senha: O Spark Thrift Server (a menos que configurado com Kerberos ou autenticação complexa, o que é raro em desenvolvimento local) geralmente não requer autenticação. Basta deixar em branco ou usar valores dummy na ferramenta de BI.
+
+Banco de Dados: Ele expõe o catálogo de tabelas do Spark/Hive. Você acessa as tabelas Delta diretamente com comandos SQL, como SELECT * FROM nome_da_tabela_delta.
+
+Conexão BI: Use o driver Spark Thrift JDBC/ODBC (ou driver Hive) para conectar ferramentas de BI. O host será localhost e a porta será 10000.
+
+📖 **Para instruções completas de conexão com Power BI/Tableau/DBeaver**, consulte: [`PowerBI_Conexao_DeltaLake_ODBC.md`](./PowerBI_Conexao_DeltaLake_ODBC.md)
 
 ---
 

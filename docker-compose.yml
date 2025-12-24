@@ -41,6 +41,8 @@ services:
       - SPARK_OPTS=--packages io.delta:delta-core_2.12:2.4.0,org.apache.hadoop:hadoop-aws:3.3.2
     ports:
       - "8081:8081"
+    volumes:
+      - spark_ivy:/home/spark/.ivy2
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "vscode:host-gateway"
@@ -202,18 +204,13 @@ services:
     container_name: spark-sql
     depends_on:
       - spark # Depende do Master para se conectar
-    # command: ["/opt/spark/sbin/start-thriftserver.sh", "--master", "spark://spark:7077", "--conf", "spark.driver.host=spark-sql"]
-    # NOVO COMANDO (usando spark-submit)
-    command: [
-      "bash",
-      "-c",
-      "spark-submit --master spark://spark:7077 --deploy-mode client --name SparkThriftServer --conf spark.driver.host=spark-sql --packages io.delta:delta-core_2.12:2.4.0 --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2"
-    ]
+    command: ["/opt/spark-apps/start-thriftserver.sh"]
     environment:
+      - SPARK_HOME=/opt/spark
       - SPARK_MASTER_HOST=spark
       # O Spark precisa de acesso ao MinIO para ler os dados Delta
       - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=admin12/var/www/html/vendor3
+      - AWS_SECRET_ACCESS_KEY=admin123
       - SPARK_CONF_DIR=/opt/spark/conf
     ports:
       - "10000:10000" # Porta padrão do Thrift Server para ODBC/JDBC
@@ -221,6 +218,11 @@ services:
     volumes:
       # Monta o conf para o Spark
       - ./spark-conf:/opt/spark/conf
+      # Volume para metastore (persistência)
+      - spark_metastore:/home/spark/metastore_db
+      - spark_warehouse:/home/spark/warehouse
+      # Volume compartilhado para JARs do Ivy (Delta Lake)
+      - spark_ivy:/home/spark/.ivy2
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "vscode:host-gateway"
@@ -321,3 +323,6 @@ volumes:
   mysql_data:
   atlas_data:
   atlas_logs:
+  spark_metastore:
+  spark_warehouse:
+  spark_ivy:

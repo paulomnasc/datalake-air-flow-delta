@@ -45,6 +45,21 @@ echo "8. 🔥 Iniciando Spark (master + worker + SQL)..."
 docker compose -f $COMPOSE_FILE up -d spark spark-worker spark-sql
 
 echo ""
+echo "8.1. ⏳ Aguardando Spark SQL Thrift Server (20s)..."
+sleep 20
+
+echo ""
+echo "8.2. ✅ Verificando status do Spark SQL..."
+if docker compose -f $COMPOSE_FILE ps spark-sql | grep -q "Up"; then
+    echo "  -> ✅ Spark SQL Thrift Server rodando (porta 10000 para Power BI/ODBC)"
+    echo "  -> 📊 Logs recentes:"
+    docker compose -f $COMPOSE_FILE logs spark-sql | grep "HiveThriftServer2 started" | tail -1
+else
+    echo "  -> ⚠️  ERRO: Spark SQL não iniciou! Verificando logs..."
+    docker compose -f $COMPOSE_FILE logs spark-sql --tail=30
+fi
+
+echo ""
 echo "9. 🌐 Iniciando CodeIgniter App..."
 docker compose -f $COMPOSE_FILE up -d codeigniter-app
 

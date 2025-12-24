@@ -1,11 +1,31 @@
 FROM apache/spark:3.5.1
 
+# Troca para root para criar diretórios
+USER root
+
+# Garante que SPARK_HOME está configurado
+ENV SPARK_HOME=/opt/spark
+ENV PATH=$SPARK_HOME/bin:$PATH
+
+# Cria diretórios necessários para o Ivy cache
+RUN mkdir -p /home/spark/.ivy2/cache && \
+    mkdir -p /home/spark/.ivy2/jars && \
+    chown -R spark:spark /home/spark/.ivy2
+
 # Copia os JARs para o diretório do Spark
 #COPY jars/*.jar /opt/spark/jars/
 
 # Copia os scripts para dentro do container
 COPY spark-apps /opt/spark-apps/
 
+# Copia o script de inicialização do Thrift Server (já com permissão +x)
+COPY start-thriftserver.sh /opt/spark-apps/start-thriftserver.sh
+
+# Ajusta permissões do diretório de trabalho
+RUN chown -R spark:spark /opt/spark-apps
+
 # Define o diretório de trabalho
 WORKDIR /opt/spark-apps
 
+# Volta para o usuário spark
+USER spark

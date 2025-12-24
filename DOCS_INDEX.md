@@ -32,6 +32,46 @@
 
 ---
 
+### 🔌 Guia de Conexão com Ferramentas de BI
+
+**Arquivo**: [`PowerBI_Conexao_DeltaLake_ODBC.md`](./PowerBI_Conexao_DeltaLake_ODBC.md)
+
+**Conteúdo**:
+- ✅ Configuração do Spark Thrift Server (porta 10000)
+- ✅ Instalação e configuração de Driver ODBC
+- ✅ Criação de DSN (Data Source Name)
+- ✅ Conexão passo a passo no Power BI Desktop
+- ✅ Uso do DBeaver para gerenciar tabelas
+- ✅ Otimizações com Hive Metastore
+- ✅ Troubleshooting de erros comuns (SSL, autenticação)
+
+**Quando ler**: Antes de conectar Power BI, Tableau, DBeaver ou qualquer ferramenta de analytics via JDBC/ODBC ao Delta Lake.
+
+---
+
+### 🚀 Guia de Scripts de Gerenciamento
+
+**Arquivo**: [`GUIA_SCRIPTS_GERENCIAMENTO.md`](./GUIA_SCRIPTS_GERENCIAMENTO.md)
+
+**Conteúdo**:
+- ✅ `startup.sh` - Inicialização completa da stack
+- ✅ `restart.sh` - Reinicialização com rebuild
+- ✅ `check-health.sh` - Verificação de saúde de todos os serviços
+- ✅ Garantias de inicialização do Spark SQL Thrift Server
+- ✅ Validações automáticas e troubleshooting
+- ✅ Ordem de execução recomendada
+
+**Quando ler**: Antes de iniciar a stack pela primeira vez, após fazer mudanças em configurações, ou quando precisar diagnosticar problemas de serviços.
+
+**Scripts principais**:
+```bash
+./startup.sh      # Primeira vez ou após limpar tudo
+./restart.sh      # Após mudanças em código/config
+./check-health.sh # Verificar status de todos os serviços
+```
+
+---
+
 ## 📖 Documentação por Camada
 
 ### 1️⃣ Camada Silver (Qualidade e Transformações)
@@ -313,7 +353,8 @@ http://localhost:9001
 ### Para Analistas de BI
 1. Leia: `TRANSFORMACOES_SILVER.md` → Seção "Colunas de Qualidade"
 2. Leia: `DELTA_LAKE_IMPLEMENTATION.md` → Seção "Integração com BI Tools"
-3. Use: Filtros de qualidade + features analíticas
+3. **Conexão Power BI/Tableau**: [`PowerBI_Conexao_DeltaLake_ODBC.md`](./PowerBI_Conexao_DeltaLake_ODBC.md) → Guia completo ODBC
+4. Use: Filtros de qualidade + features analíticas
 
 ---
 

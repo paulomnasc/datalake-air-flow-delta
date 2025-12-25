@@ -24,11 +24,21 @@ bucket: lab01/
 │       └── {target_table_name}/
 │           └── {arquivo}.parquet
 │
+├── delta/                        # Tabelas Delta Lake (transacionais)
+│   └── {target_table_name}/
+│       ├── _delta_log/           # Log transacional (obrigatório)
+│       └── *.parquet             # Arquivos de dados da tabela
+│
 └── gold/                         # Camada Gold (dados agregados)
     └── {dag_id}/
         └── {target_table_name}/
             └── {arquivo}.parquet
 ```
+
+Observações sobre a área delta/:
+- A pasta `_delta_log/` é essencial para o funcionamento das tabelas Delta Lake.
+- O caminho raiz da tabela deve apontar para `delta/{target_table_name}/` (onde existe `_delta_log/`).
+- Exemplos de uso pelo Spark SQL/Thrift Server: `delta.`s3a://lab01/delta/{target_table_name}`.
 
 ---
 

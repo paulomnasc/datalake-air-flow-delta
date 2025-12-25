@@ -29,12 +29,12 @@ echo "4. ⏳ Aguardando bancos de dados (15s)..."
 sleep 15
 
 echo ""
-echo "5. 📊 Iniciando Apache Atlas (Catálogo de Dados)..."
-docker compose -f $COMPOSE_FILE up -d atlas
+#echo "5. 📊 Iniciando Apache Atlas (Catálogo de Dados)..."
+#docker compose -f $COMPOSE_FILE up -d atlas
 
 echo ""
-echo "6. ⏳ Aguardando Atlas inicializar (30s)..."
-sleep 30
+#echo "6. ⏳ Aguardando Atlas inicializar (30s)..."
+#sleep 30
 
 echo ""
 echo "7. ✈️  Iniciando Airflow (webserver + scheduler + worker)..."
@@ -75,7 +75,7 @@ echo ""
 echo "🌐 URLs de Acesso:"
 echo "   • Airflow UI:        http://localhost:8085"
 echo "   • CodeIgniter App:   http://localhost:8088"
-echo "   • Apache Atlas:      http://localhost:21000 (admin/admin)"
+#echo "   • Apache Atlas:      http://localhost:21000 (admin/admin)"
 echo "   • MinIO Console:     http://localhost:9001 (admin/admin123)"
 echo "   • Spark Master UI:   http://localhost:8080"
 echo ""

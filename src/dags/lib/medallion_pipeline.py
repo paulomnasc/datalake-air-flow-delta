@@ -255,25 +255,50 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 err_fmt = getattr(atlas, "format_http_error", lambda x: str(x))(e)
                 log.warning("[ATLAS] Falha ao registrar silver: %s", err_fmt)
         
-        # ==================== CAMADA GOLD (DELTA LAKE) ====================
-        log.info("[GOLD] Processando: s3://%s/%s → Delta Lake", bucket, silver_key)
+        # ==================== CAMADA GOLD (PARQUET OTIMIZADO) ====================
+        log.info("[GOLD] Processando: s3://%s/%s → Gold Layer", bucket, silver_key)
         
-        # Usar Delta Lake ao invés de Parquet simples
+        # Criar camada Gold (Parquet com inteligência analítica)
         try:
-            from lib.gold_delta_layer import silver_to_gold_delta
-            log.info("[GOLD] Importação gold_delta_layer OK, chamando silver_to_gold_delta...")
+            from lib.gold_layer import silver_to_gold
+            log.info("[GOLD] Importação gold_layer OK, chamando silver_to_gold...")
             
-            gold_result = silver_to_gold_delta(
+            gold_result = silver_to_gold(
                 source_filename=silver_key,
                 target_table_name=target_table_name,
-                dag_id=dag_id
+                **kwargs
             )
             
-            results['gold_delta'] = gold_result.get('gold_delta')
-            results['gold_format'] = 'delta'
-            results['gold_version'] = gold_result.get('version', 0)
-            log.info("[GOLD] ✅ Delta Lake salvo em: %s (versão %s)", 
-                    gold_result.get('gold_delta'), gold_result.get('version', 0))
+            gold_key_result = gold_result.get('key') or (gold_result.get('keys')[0] if gold_result.get('keys') else None)
+            results['gold'] = gold_key_result
+            results['gold_format'] = 'parquet'
+            log.info("[GOLD] ✅ Gold Parquet salvo em: %s", results['gold'])
+            
+            # Atualizar gold_key para usar no próximo step (Delta)
+            gold_key = gold_key_result
+            
+        except Exception as e:
+            log.error(f"[GOLD] ❌ Erro ao processar Gold: {e}")
+            raise
+        
+        # ==================== CAMADA DELTA (TRANSACIONAL - PARA THRIFT SERVER) ====================
+        log.info("[DELTA] Processando: s3://%s/%s → Delta Lake (delta/%s/)", bucket, gold_key, target_table_name)
+        
+        # Converter Gold em tabela Delta para Thrift Server
+        try:
+            from lib.gold_delta_layer import gold_to_delta
+            log.info("[DELTA] Importação gold_to_delta OK...")
+            
+            delta_result = gold_to_delta(
+                source_filename=gold_key,
+                target_table_name=target_table_name
+            )
+            
+            results['delta'] = delta_result.get('delta')
+            results['delta_format'] = 'delta'
+            results['delta_version'] = delta_result.get('version', 0)
+            log.info("[DELTA] ✅ Delta Lake salvo em: %s (versão %s)", 
+                    delta_result.get('delta'), delta_result.get('version', 0))
 
             # Registrar tabela Gold (Delta)
             if atlas_enabled and atlas:
@@ -398,11 +423,12 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     log.info("[MEDALLION] ✅ Pipeline completo concluído com sucesso!")
     log.info("[MEDALLION] Bronze: %s", results.get('bronze'))
     log.info("[MEDALLION] Silver: %s", results.get('silver'))
-    if results.get('gold_format') == 'delta':
-        log.info("[MEDALLION] Gold (Delta Lake): %s (versão %s)", 
-                results.get('gold_delta'), results.get('gold_version', 0))
-    else:
-        log.info("[MEDALLION] Gold (Parquet): %s", results.get('gold'))
+    log.info("[MEDALLION] Gold (Parquet): %s", results.get('gold'))
+    if results.get('delta_format') == 'delta':
+        log.info("[MEDALLION] Delta Lake (Thrift): %s (versão %s)", 
+                results.get('delta'), results.get('delta_version', 0))
+    
+    return results
     
     return results
 

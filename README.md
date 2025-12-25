@@ -3,10 +3,9 @@
 Este projeto integra três componentes principais para orquestração de dados e armazenamento:
 
 - **Apache Airflow**: Orquestração de workflows
-- **PostgreSQL**: Banco de dados relacional para metadados do Airflow
+- **PostgreSQL**: Banco de dados relacional para metadados do Airflow **+ BI endpoint** (postgres-bi)
 - **MinIO**: Armazenamento de objetos compatível com S3
 - **Delta Lake**: Camada ACID sobre Data Lake com versionamento e time travel
-- **DuckDB (ODBC)**: Endpoint SQL leve no cliente (Power BI via ODBC)
 - **Apache Atlas**: Catálogo de dados e governança (standalone)
 - **Jupyter + PySpark (Lab Atlas)**: Ambiente interativo para análise e integração com Atlas
 
@@ -19,6 +18,7 @@ Para entender a arquitetura Medallion (Bronze → Silver → Gold) e todas as tr
 ### 🎯 Guias de Uso
 
 - **[📋 Guia da Interface Web](GUIDE_WEBAPP_CONFIG.md)**: Como preencher formulário de configuração de DAGs, multi-tabela, conexões SQL, validações
+- **[🔌 Conexão Power BI](MIGRACAO_DUCKDB_POSTGRESQL.md)** ⭐: PostgreSQL para BI (solução robusta, múltiplas tabelas simultâneas)
 
 ### Documentação por Camada
 
@@ -41,11 +41,10 @@ Para entender a arquitetura Medallion (Bronze → Silver → Gold) e todas as tr
 
 Esta solução executa simultaneamente:
 - **Apache Airflow** (Webserver + Scheduler)
-- **PostgreSQL** (metadados Airflow)
+- **PostgreSQL** (metadados Airflow) + **postgres-bi** (endpoint BI/Power BI)
 - **MySQL** (banco de dados de origem para ingestão)
 - **MinIO** (armazenamento S3-compatible)
 - **Apache Spark** (processamento distribuído)
-- **DuckDB (Postgres wire)** (camada SQL leve para BI)
 - **Apache Atlas** (catálogo de dados com HBase + Solr embarcados) ⚠️ **Componente mais pesado**
 - **Jupyter + PySpark** (ambiente interativo)
 - **Delta Lake** (camada ACID sobre data lake)
@@ -58,11 +57,11 @@ Esta solução executa simultaneamente:
 | `airflow-scheduler` | Apache Airflow (Scheduler) | Agendamento e execução de DAGs |
 | `airflow-worker` | Airflow Worker | Executor Celery para processamento de tarefas |
 | `postgres` | PostgreSQL | Banco de dados de metadados do Airflow |
+| `postgres-bi` | PostgreSQL (BI) | Endpoint para Power BI/ferramentas de analytics (porta 5433) |
 | `mysql` | MySQL | Banco de dados de origem para ingestão |
 | `minio` | MinIO | Armazenamento S3-compatible para data lake |
 | `spark` | Apache Spark (Master) | Nó master do cluster de processamento distribuído |
 | `spark-worker` | Spark Worker | Nó worker do cluster Spark |
-| `—` | DuckDB via ODBC (cliente) | Endpoint SQL leve para BI/Power BI |
 | `atlas` | Apache Atlas | Catálogo de dados e governança (HBase + Solr) |
 | `pyspark-aula` | Jupyter + PySpark (Lab) | Ambiente interativo para análise e experimentação |
 | `redis` | Redis | Broker de mensagens para Celery Executor |
@@ -78,7 +77,8 @@ Esta solução executa simultaneamente:
   - Logs e Delta Lake: ~10-20 GB
 - **Memória:** 24 GB de RAM
   - Airflow: ~3 GB
-  - PostgreSQL + MySQL: ~2 GB
+  - PostgreSQL (Airflow + BI): ~3 GB
+  - MySQL: ~1 GB
   - MinIO: ~512 MB
   - **Apache Atlas: ~8 GB** (HBase + Solr)
   - Spark + PySpark: ~6 GB
@@ -305,58 +305,72 @@ pip install apache-airflow-providers-amazon --no-deps
 | **Airflow UI**      | [http://localhost:8085](http://localhost:8085) | 8085  | `admin` / `admin`          | —                  | Criado após `airflow db init` e `users create` |
 | **MinIO Console**   | [http://localhost:9001](http://localhost:9001) | 9001  | `admin` / `admin123`       | —                  | Interface web de armazenamento S3   |
 | **MinIO API S3**    | `http://localhost:9000`                | 9000  | `admin` / `admin123`       | —                  | Usado por boto3, S3Hook, etc.        |
-| **PostgreSQL**      | via cliente externo ou terminal        | 5432  | `airflow` / `airflow`      | `airflow`          | Banco de metadados do Airflow        |
-| **DuckDB ODBC (cliente)** | DSN local (sem servidor)         | —     | conforme DSN               | arquivo `.duckdb`  | Use o driver ODBC DuckDB e aponte para um DB/file ou leia Parquet/S3 |
+| **PostgreSQL (Airflow)** | via cliente externo ou terminal   | 5432  | `airflow` / `airflow`      | `airflow`          | Banco de metadados do Airflow        |
+| **PostgreSQL (BI)** | via Power BI/cliente SQL               | 5433  | `pbi_user` / `pbi_password`| `datalake_bi`      | Endpoint para ferramentas de analytics (múltiplas conexões) |
 | **Apache Atlas**    | [http://localhost:21000](http://localhost:21000) | 21000 | `admin` / `admin`          | —                  | Catálogo de dados standalone (HBase/Solr embarcados) |
 | **Jupyter Notebook**| [http://localhost:8888](http://localhost:8888) | 8888  | Token: `tavares1234`       | —                  | Lab de integração Atlas (pyspark-notebook) |
 | **CodeIgniter WebApp** | [http://localhost:8088](http://localhost:8088) | 8088  | Configurável via aplicação | `lista_revisao2`   | Interface web para configuração de DAGs |
 
 ---
 
-## Conexão Power BI via DuckDB ODBC
+## 🔌 Conexão Power BI via PostgreSQL
 
-### 🤖 Sincronização Automática (Recomendado)
+### ✅ Solução Atual (PostgreSQL BI)
 
-Use a DAG `sync_duckdb_views` para manter o arquivo DuckDB sempre atualizado:
+**Por que PostgreSQL?**
+- ✅ Suporte nativo a múltiplas conexões simultâneas
+- ✅ Power BI pode acessar várias tabelas ao mesmo tempo
+- ✅ Padrão de mercado para BI/Analytics
+- ✅ Escalável e robusto
+
+### 🤖 Sincronização Automática
+
+A DAG `sync_delta_to_postgres` mantém as tabelas do PostgreSQL sempre atualizadas:
 
 1. **Ative a DAG** no Airflow UI (http://localhost:8085):
-   - Procure `sync_duckdb_views`
+   - Procure `sync_delta_to_postgres`
    - Toggle ON
    - Clique em "Trigger DAG" para executar manualmente
 
-2. **Arquivo gerado**: `/home/cblna123456/datalake-air-flow/ddb/datalake.duckdb`
-   - Views criadas automaticamente: `orders_bronze`, `customers_bronze`, `orders_silver`, `customers_silver`, `orders_delta`, `customers_delta`
-   - Atualizado diariamente às 2h AM
+2. **Tabelas criadas automaticamente**:
+   - Descoberta dinâmica de Delta tables no MinIO
+   - Sincronização diária às 02:00 AM
+   - Dados materializados (sem dependência de S3 em tempo de consulta)
 
-3. **Configure DSN ODBC** (Windows):
-   - Administrador ODBC → Adicionar DSN
-   - Driver: DuckDB
-   - Database: caminho de rede para `datalake.duckdb` (ex.: `\\servidor\compartilhado\datalake.duckdb`)
+### 📊 Conectar Power BI Desktop
 
-4. **Conecte no Power BI**: Obter dados → ODBC → selecione o DSN → escolha as views no Navigator
+1. **Obter Dados** → **PostgreSQL database**
 
-### ⚙️ Configuração Manual (Alternativa)
+2. **Preencher conexão**:
+   ```
+   Server: localhost:5433
+   Database: datalake_bi
+   ```
 
-Se preferir criar views manualmente:
+3. **Autenticação**:
+   - Tipo: Database
+   - Username: `pbi_user`
+   - Password: `pbi_password`
 
-1. Instale o driver ODBC do DuckDB (Windows): baixe do site oficial DuckDB e instale.
-2. Crie um DSN (Administrador ODBC):
-   - Driver: DuckDB
-   - Database: caminho completo para um arquivo `.duckdb` (ex.: `C:\data\bi.duckdb`).
-3. No Power BI: Obter dados → ODBC → selecione seu DSN.
-4. Consultas: você pode criar views/tabelas dentro do arquivo DuckDB ou consultar diretamente Parquet/S3.
-- O DuckDB é in-process; não há servidor. O DSN aponta para um arquivo `.duckdb` local/acessível via rede.
-- Para compartilhar sem copiar dados, deixe o `.duckdb` em uma pasta compartilhada (SMB/NFS) e padronize o DSN.
+4. **Selecionar Tabelas**:
+   - Navigator mostrará todas as tabelas `delta_*`
+   - ✅ Selecione múltiplas tabelas simultaneamente (sem locks!)
 
-## Detalhes Importantes para o Spark SQL (Thrift)
+### 🛠️ Verificar Tabelas Disponíveis
 
-Usuário/Senha: O Spark Thrift Server (a menos que configurado com Kerberos ou autenticação complexa, o que é raro em desenvolvimento local) geralmente não requer autenticação. Basta deixar em branco ou usar valores dummy na ferramenta de BI.
+```bash
+# Listar todas as tabelas
+docker compose exec -T postgres-bi \
+  psql -U pbi_user -d datalake_bi \
+  -c "SELECT tablename FROM pg_tables WHERE schemaname='public';"
 
-Banco de Dados: Ele expõe o catálogo de tabelas do Spark/Hive. Você acessa as tabelas Delta diretamente com comandos SQL, como SELECT * FROM nome_da_tabela_delta.
+# Contar registros
+docker compose exec -T postgres-bi \
+  psql -U pbi_user -d datalake_bi \
+  -c "SELECT tablename, n_live_tup as rows FROM pg_stat_user_tables;"
+```
 
-Conexão BI: Use o driver Spark Thrift JDBC/ODBC (ou driver Hive) para conectar ferramentas de BI. O host será localhost e a porta será 10000.
-
-📖 **Para instruções completas de conexão com Power BI via DuckDB ODBC**, consulte: [`PowerBI_Conexao_DuckDB_ODBC.md`](./PowerBI_Conexao_DuckDB_ODBC.md)
+📖 **Documentação completa da migração**: [`MIGRACAO_DUCKDB_POSTGRESQL.md`](./MIGRACAO_DUCKDB_POSTGRESQL.md)
 
 ---
 

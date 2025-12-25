@@ -66,6 +66,23 @@ services:
     networks:
       - airflow_net
 
+  postgres-bi:
+    image: postgres:13
+    container_name: postgres-bi
+    environment:
+      POSTGRES_USER: pbi_user
+      POSTGRES_PASSWORD: pbi_password
+      POSTGRES_DB: datalake_bi
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_bi_data:/var/lib/postgresql/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
+    networks:
+      - airflow_net
+
   redis:
     image: redis:7
     container_name: redis
@@ -322,6 +339,7 @@ networks:
 
 volumes:
   pg_data:
+  pg_bi_data:
   mysql_data:
   atlas_data:
   atlas_logs:

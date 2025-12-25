@@ -12,3 +12,4 @@ dag-factory
 pyyaml
 PyMySQL
 debugpy
+psycopg2-binary

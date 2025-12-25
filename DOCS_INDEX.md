@@ -34,18 +34,32 @@
 
 ### 🔌 Guia de Conexão com Ferramentas de BI
 
-**Arquivo**: [`PowerBI_Conexao_DeltaLake_ODBC.md`](./PowerBI_Conexao_DeltaLake_ODBC.md)
+**Arquivo**: [`MIGRACAO_DUCKDB_POSTGRESQL.md`](./MIGRACAO_DUCKDB_POSTGRESQL.md) ⭐ **RECOMENDADO**
 
 **Conteúdo**:
-- ✅ Configuração do Spark Thrift Server (porta 10000)
-- ✅ Instalação e configuração de Driver ODBC
-- ✅ Criação de DSN (Data Source Name)
+- ✅ Arquitetura PostgreSQL para BI (solução robusta)
+- ✅ Configuração do postgres-bi container (porta 5433)
+- ✅ DAG de sincronização Delta → PostgreSQL
 - ✅ Conexão passo a passo no Power BI Desktop
-- ✅ Uso do DBeaver para gerenciar tabelas
-- ✅ Otimizações com Hive Metastore
-- ✅ Troubleshooting de erros comuns (SSL, autenticação)
+- ✅ Suporte nativo a múltiplas tabelas simultâneas
+- ✅ Manutenção, backup e troubleshooting
+- ✅ Comparação DuckDB vs PostgreSQL
 
-**Quando ler**: Antes de conectar Power BI, Tableau, DBeaver ou qualquer ferramenta de analytics via JDBC/ODBC ao Delta Lake.
+**Quando ler**: **SEMPRE** antes de conectar Power BI ao datalake. Esta é a solução atual e recomendada.
+
+---
+
+**Arquivo**: [`PowerBI_Conexao_DeltaLake_ODBC.md`](./PowerBI_Conexao_DeltaLake_ODBC.md) ⚠️ **OBSOLETO** (Spark Thrift Server)
+
+**Status**: Descontinuado em favor da solução PostgreSQL
+
+**Conteúdo**:
+- ⚠️ Spark Thrift Server (porta 10000) - Infraestrutura pesada
+- ⚠️ Driver ODBC/JDBC - Configuração complexa
+- ⚠️ DBeaver para gerenciar tabelas
+- ⚠️ Troubleshooting de SSL e autenticação
+
+**Quando ler**: Apenas para referência histórica. Use PostgreSQL para novos projetos.
 
 ---
 

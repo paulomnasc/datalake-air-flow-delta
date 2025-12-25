@@ -66,6 +66,23 @@ services:
     networks:
       - airflow_net
 
+  postgres-bi:
+    image: postgres:13
+    container_name: postgres-bi
+    environment:
+      POSTGRES_USER: pbi_user
+      POSTGRES_PASSWORD: pbi_password
+      POSTGRES_DB: datalake_bi
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_bi_data:/var/lib/postgresql/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
+    networks:
+      - airflow_net
+
   redis:
     image: redis:7
     container_name: redis
@@ -117,6 +134,7 @@ services:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts:/usr/local/bin/scripts:ro
+      - ./ddb:/opt/duckdb
     ports:
       - "8085:8080"
     command: airflow webserver
@@ -154,6 +172,7 @@ services:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts:/usr/local/bin/scripts:ro
+      - ./ddb:/opt/duckdb
     ports:
       - "5678:5678"
     command: airflow scheduler
@@ -181,6 +200,7 @@ services:
       - airflow_net
 
 
+
   # 👷 AIRFLOW WORKER (Onde a DAG é executada)
   airflow-worker:
     image: apache/airflow:2.9.1
@@ -196,36 +216,37 @@ services:
     volumes:
       - ./src/dags:/opt/airflow/dags
       - ./scripts:/usr/local/bin/scripts:ro
+      - ./ddb:/opt/duckdb
     command: ["airflow", "celery", "worker"]
     networks:
       - airflow_net
 
-  spark-sql:
-    build:
-      context: .
-      dockerfile: Dockerfile.spark
-    container_name: spark-sql
-    depends_on:
-      - spark
-    command: [
-      "bash",
-      "-c",
-      "/opt/spark-apps/start-thriftserver.sh"
-    ]
-    environment:
-      - SPARK_HOME=/opt/spark
-      - SPARK_MASTER_HOST=spark
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=admin123
-      - SPARK_CONF_DIR=/opt/spark/conf
-    ports:
-      - "10000:10000"
-      - "10001:10001"
-    volumes:
-      - ./spark-conf:/opt/spark/conf
-      - spark_ivy:/home/spark/.ivy2
-    networks:
-      - airflow_net
+  # spark-sql:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.spark
+  #   container_name: spark-sql
+  #   depends_on:
+  #     - spark
+  #   command: [
+  #     "bash",
+  #     "-c",
+  #     "/opt/spark-apps/start-thriftserver.sh"
+  #   ]
+  #   environment:
+  #     - SPARK_HOME=/opt/spark
+  #     - SPARK_MASTER_HOST=spark
+  #     - AWS_ACCESS_KEY_ID=admin
+  #     - AWS_SECRET_ACCESS_KEY=admin123
+  #     - SPARK_CONF_DIR=/opt/spark/conf
+  #   ports:
+  #     - "10000:10000"
+  #     - "10001:10001"
+  #   volumes:
+  #     - ./spark-conf:/opt/spark/conf
+  #     - spark_ivy:/home/spark/.ivy2
+  #   networks:
+  #     - airflow_net
 
   # Adicione este bloco no seu docker-compose.yml
   # Novo Bloco do Serviço no docker-compose.yml
@@ -318,6 +339,7 @@ networks:
 
 volumes:
   pg_data:
+  pg_bi_data:
   mysql_data:
   atlas_data:
   atlas_logs:

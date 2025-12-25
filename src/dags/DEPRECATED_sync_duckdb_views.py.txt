@@ -1,0 +1,108 @@
+pbi_password┌───────────────────────────────────────────────────────────────────────────────┐
+│                                                                               │
+│   ⚠️  ESTE ARQUIVO FOI DESCONTINUADO EM 25/12/2024                           │
+│                                                                               │
+│   MOTIVO:                                                                     │
+│   DuckDB em arquivo local não suporta múltiplas conexões simultâneas         │
+│   do Power BI. Ao tentar adicionar 2ª tabela, ocorria erro de lock:          │
+│                                                                               │
+│   "O arquivo já está sendo usado por outro processo"                         │
+│   "File is already open in ... PID 11428, 24132, 22204, 23648"               │
+│                                                                               │
+│   SOLUÇÃO ADOTADA:                                                            │
+│   PostgreSQL com suporte nativo a múltiplas conexões                         │
+│                                                                               │
+│   NOVA DAG:                                                                   │
+│   📄 src/dags/sync_delta_to_postgres.py                            pbi_password           │
+│                                                                               │
+│   DOCUMENTAÇÃO:                                                               │
+│   📚 MIGRACAO_DUCKDB_POSTGRESQL.md                                            │
+│                                                                               │
+│   CONFIGURAÇÃO POWER BI:                                                      │
+│   Server: localhost:5433                                                      │
+│   Database: datalake_bi                                                       │
+│   User: pbi_user                                                              │
+│   Password: pbi_password                                                      │
+│                                                                               │
+│   ❌ NÃO REATIVAR ESTE ARQUIVO SEM ANTES ENTENDER AS LIMITAÇÕES              │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+HISTÓRICO DE TENTATIVAS (TODAS FALHARAM)
+================================================================================
+
+1. ❌ Try/finally para fechar conexões
+   - Resultado: Funcionou na DAG, mas Power BI mantinha locks
+
+2. ❌ Arquivo de cópia separado (datalake_bi.duckdb)
+   - Resultado: Power BI ainda travava em múltiplos acessos
+
+3. ❌ Múltiplos arquivos (datalake_bi_1.duckdb, datalake_bi_2.duckdb, etc.)
+   - Resultado: Usuário rejeitou como "péssima solução"
+
+4. ❌ PRAGMA enable_object_cache
+   - Resultado: Sem efeito nos locks
+
+5. ✅ SOLUÇÃO FINAL: PostgreSQL
+   - Resultado: Múltiplas tabelas no Power BI funcionando perfeitamente
+
+
+================================================================================
+DIAGNÓSTICO TÉCNICO
+================================================================================
+
+Power BI Mashup Engine:
+- Abre múltiplos processos (Microsoft.Mashup.Container.NetFX45.exe)
+- Cada tabela selecionada mantém conexão ativa
+- DuckDB design: Single-writer, multiple-reader (arquivo)
+- Power BI behavior: Multiple-writer tentando acessar simultaneamente
+
+Erro típico:
+```
+IO Error: Cannot open file "\\wsl.localhost\ubuntu\...\datalake_bi.duckdb": 
+O arquivo já está sendo usado por outro processo.
+File is already open in:
+- C:\Program Files\...\Microsoft.Mashup.Container.NetFX45.exe (PID 11428)
+- C:\Program Files\...\Microsoft.Mashup.Container.NetFX45.exe (PID 24132)
+- C:\Program Files\...\Microsoft.Mashup.Container.NetFX45.exe (PID 22204)
+```
+
+
+================================================================================
+CÓDIGO ORIGINAL (PRESERVADO PARA REFERÊNCIA)
+================================================================================
+
+Este arquivo continha a DAG sync_duckdb_views que:
+1. Criava conexão DuckDB em arquivo local
+2. Descobria tabelas Delta no MinIO via glob
+3. Criava views DuckDB apontando para Parquet
+4. Materializava dados em tabelas DuckDB
+5. Criava cópias do arquivo para Power BI
+
+Arquivo original renomeado para:
+📄 src/dags/sync_duckdb_views.py.bak
+
+
+================================================================================
+SE VOCÊ ESTÁ VENDO ESTE ARQUIVO:
+================================================================================
+
+1. ✅ Use: sync_delta_to_postgres.py
+2. 📚 Leia: MIGRACAO_DUCKDB_POSTGRESQL.md
+3. 🔧 Configure Power BI: PostgreSQL (localhost:5433)
+4. ❌ NÃO reative sync_duckdb_views.py
+
+Tabelas disponíveis no PostgreSQL (25/12/2024):
+- delta_customers_202512230532 (29 registros)
+- delta_employee_privileges_202512230532 (1 registro)
+- delta_orders_202512241315 (48 registros)
+- delta_products_202512241315 (45 registros)
+
+
+================================================================================
+DATA DE DESCONTINUAÇÃO: 25/12/2024
+RESPONSÁVEL: Migração DuckDB → PostgreSQL
+TICKET: Locks em Power BI multi-table
+================================================================================

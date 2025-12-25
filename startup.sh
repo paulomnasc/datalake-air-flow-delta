@@ -5,8 +5,8 @@
 
 COMPOSE_FILE="docker-compose.yml"
 
-echo "1. 🛠️ Construindo as imagens customizadas (Airflow e CodeIgniter)..."
-# O Airflow precisa ser construído para ter as dependências (Spark, MinIO)
+echo "1. 🛠️ Construindo as imagens customizadas (Airflow, CodeIgniter, DuckDB)..."
+# Inclui DuckDB pgwire e imagens com build local
 docker compose -f $COMPOSE_FILE build --no-cache
 
 echo "2. 🗄️ Iniciando serviços de infraestrutura (Postgres, MySQL, MinIO)..."
@@ -40,23 +40,13 @@ else
     echo "  -> Usuário 'admin' já existe. Pulando a criação."
 fi
 
-echo "5. 🚀 Subindo a stack completa (Airflow, Spark, CodeIgniter)..."
-# Inicia todos os serviços restantes, incluindo CodeIgniter, Spark e Airflow
+echo "5. 🚀 Subindo a stack completa (Airflow, CodeIgniter, Spark)..."
+# Inicia todos os serviços restantes (Spark Thrift desativado; DuckDB via ODBC no cliente)
 docker compose -f $COMPOSE_FILE up -d
 
-echo "5.1. 🔥 Garantindo que Spark SQL Thrift Server está rodando..."
-docker compose -f $COMPOSE_FILE up -d spark-sql
+echo "5.1. 🦆 DuckDB via ODBC: configure o driver no cliente (Power BI)."
 
-echo "5.2. ⏳ Aguardando Spark SQL inicializar (15s)..."
-sleep 15
-
-echo "5.3. ✅ Verificando status do Spark SQL..."
-if docker compose -f $COMPOSE_FILE ps spark-sql | grep -q "Up"; then
-    echo "  -> ✅ Spark SQL Thrift Server está rodando (porta 10000)"
-else
-    echo "  -> ⚠️  Spark SQL pode não ter iniciado corretamente. Verificando logs..."
-    docker compose -f $COMPOSE_FILE logs spark-sql --tail=20
-fi
+echo "5.4. 🔥 Spark SQL Thrift desativado (usar DuckDB ODBC no cliente)"
 
 echo "6. 📚 Subindo serviços de Catalogação (Apache Atlas) e Jupyter (profile atlas)..."
 # Sobe Atlas e o Jupyter/PySpark do laboratório (perfil opcional 'atlas')
@@ -67,6 +57,7 @@ echo "✅ Stack Iniciada com Sucesso!"
 echo "   - Airflow Webserver (DAGs): http://localhost:8085"
 echo "   - CodeIgniter App (Front-end): http://localhost:8088"
 echo "   - MinIO Console: http://localhost:9001"
+echo "   - DuckDB ODBC (cliente): configure DSN/local"
 echo "   - Spark Master UI: http://localhost:8080"
 #echo "   - Apache Atlas (Catálogo): http://localhost:21000 (admin/admin)"
 #echo "   - Jupyter Notebook (Lab Atlas): http://localhost:8888 (token: tavares1234)"

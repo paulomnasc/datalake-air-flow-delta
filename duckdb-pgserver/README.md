@@ -1,0 +1,1 @@
+Este diretório foi descontinuado. A solução mudou para DuckDB via ODBC (sem servidor). Use o driver ODBC oficial do DuckDB no Power BI e aponte para um arquivo `.duckdb` (ou consulte Parquet/S3 via SQL no cliente).

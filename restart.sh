@@ -17,8 +17,9 @@ echo ""
 echo "2. 🛠️  Reconstruindo imagens customizadas..."
 echo "   - Airflow (webserver + scheduler)"
 echo "   - CodeIgniter App"
-echo "   - Spark SQL"
-docker compose -f $COMPOSE_FILE build --no-cache airflow-webserver airflow-scheduler codeigniter-app spark-sql
+echo "   - DuckDB (via ODBC no cliente)"
+echo "   - Spark SQL (desativado)"
+docker compose -f $COMPOSE_FILE build --no-cache airflow-webserver airflow-scheduler codeigniter-app
 
 echo ""
 echo "3. 🚀 Iniciando serviços base (Postgres, MySQL, Redis, MinIO)..."
@@ -41,23 +42,14 @@ echo "7. ✈️  Iniciando Airflow (webserver + scheduler + worker)..."
 docker compose -f $COMPOSE_FILE up -d airflow-webserver airflow-scheduler airflow-worker
 
 echo ""
-echo "8. 🔥 Iniciando Spark (master + worker + SQL)..."
-docker compose -f $COMPOSE_FILE up -d spark spark-worker spark-sql
+echo "8. 🦆 DuckDB via ODBC: configure o driver no cliente (Power BI)."
 
 echo ""
-echo "8.1. ⏳ Aguardando Spark SQL Thrift Server (20s)..."
-sleep 20
+echo "9. 🔥 Iniciando Spark (master + worker)..."
+docker compose -f $COMPOSE_FILE up -d spark spark-worker
 
 echo ""
-echo "8.2. ✅ Verificando status do Spark SQL..."
-if docker compose -f $COMPOSE_FILE ps spark-sql | grep -q "Up"; then
-    echo "  -> ✅ Spark SQL Thrift Server rodando (porta 10000 para Power BI/ODBC)"
-    echo "  -> 📊 Logs recentes:"
-    docker compose -f $COMPOSE_FILE logs spark-sql | grep "HiveThriftServer2 started" | tail -1
-else
-    echo "  -> ⚠️  ERRO: Spark SQL não iniciou! Verificando logs..."
-    docker compose -f $COMPOSE_FILE logs spark-sql --tail=30
-fi
+echo "9.1. ✅ Spark Thrift desativado. DuckDB é o endpoint SQL."
 
 echo ""
 echo "9. 🌐 Iniciando CodeIgniter App..."

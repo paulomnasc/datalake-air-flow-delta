@@ -181,6 +181,7 @@ services:
       - airflow_net
 
 
+
   # 👷 AIRFLOW WORKER (Onde a DAG é executada)
   airflow-worker:
     image: apache/airflow:2.9.1
@@ -200,32 +201,32 @@ services:
     networks:
       - airflow_net
 
-  spark-sql:
-    build:
-      context: .
-      dockerfile: Dockerfile.spark
-    container_name: spark-sql
-    depends_on:
-      - spark
-    command: [
-      "bash",
-      "-c",
-      "/opt/spark-apps/start-thriftserver.sh"
-    ]
-    environment:
-      - SPARK_HOME=/opt/spark
-      - SPARK_MASTER_HOST=spark
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=admin123
-      - SPARK_CONF_DIR=/opt/spark/conf
-    ports:
-      - "10000:10000"
-      - "10001:10001"
-    volumes:
-      - ./spark-conf:/opt/spark/conf
-      - spark_ivy:/home/spark/.ivy2
-    networks:
-      - airflow_net
+  # spark-sql:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.spark
+  #   container_name: spark-sql
+  #   depends_on:
+  #     - spark
+  #   command: [
+  #     "bash",
+  #     "-c",
+  #     "/opt/spark-apps/start-thriftserver.sh"
+  #   ]
+  #   environment:
+  #     - SPARK_HOME=/opt/spark
+  #     - SPARK_MASTER_HOST=spark
+  #     - AWS_ACCESS_KEY_ID=admin
+  #     - AWS_SECRET_ACCESS_KEY=admin123
+  #     - SPARK_CONF_DIR=/opt/spark/conf
+  #   ports:
+  #     - "10000:10000"
+  #     - "10001:10001"
+  #   volumes:
+  #     - ./spark-conf:/opt/spark/conf
+  #     - spark_ivy:/home/spark/.ivy2
+  #   networks:
+  #     - airflow_net
 
   # Adicione este bloco no seu docker-compose.yml
   # Novo Bloco do Serviço no docker-compose.yml

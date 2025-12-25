@@ -1,0 +1,5 @@
+duckdb==0.10.2
+duckdb-engine==0.10.0
+pgwire
+psycopg[binary]==3.1.18
+SQLAlchemy>=2.0.28,<2.1

@@ -6,6 +6,7 @@ Este projeto integra três componentes principais para orquestração de dados e
 - **PostgreSQL**: Banco de dados relacional para metadados do Airflow
 - **MinIO**: Armazenamento de objetos compatível com S3
 - **Delta Lake**: Camada ACID sobre Data Lake com versionamento e time travel
+- **DuckDB (ODBC)**: Endpoint SQL leve no cliente (Power BI via ODBC)
 - **Apache Atlas**: Catálogo de dados e governança (standalone)
 - **Jupyter + PySpark (Lab Atlas)**: Ambiente interativo para análise e integração com Atlas
 
@@ -44,7 +45,7 @@ Esta solução executa simultaneamente:
 - **MySQL** (banco de dados de origem para ingestão)
 - **MinIO** (armazenamento S3-compatible)
 - **Apache Spark** (processamento distribuído)
-- **Spark SQL Thrift Server** (camada semântica para BI)
+- **DuckDB (Postgres wire)** (camada SQL leve para BI)
 - **Apache Atlas** (catálogo de dados com HBase + Solr embarcados) ⚠️ **Componente mais pesado**
 - **Jupyter + PySpark** (ambiente interativo)
 - **Delta Lake** (camada ACID sobre data lake)
@@ -61,7 +62,7 @@ Esta solução executa simultaneamente:
 | `minio` | MinIO | Armazenamento S3-compatible para data lake |
 | `spark` | Apache Spark (Master) | Nó master do cluster de processamento distribuído |
 | `spark-worker` | Spark Worker | Nó worker do cluster Spark |
-| `spark-sql` | Spark SQL Thrift Server | Interface ODBC/JDBC para consultas SQL em Delta Lake |
+| `—` | DuckDB via ODBC (cliente) | Endpoint SQL leve para BI/Power BI |
 | `atlas` | Apache Atlas | Catálogo de dados e governança (HBase + Solr) |
 | `pyspark-aula` | Jupyter + PySpark (Lab) | Ambiente interativo para análise e experimentação |
 | `redis` | Redis | Broker de mensagens para Celery Executor |
@@ -81,7 +82,7 @@ Esta solução executa simultaneamente:
   - MinIO: ~512 MB
   - **Apache Atlas: ~8 GB** (HBase + Solr)
   - Spark + PySpark: ~6 GB
-  - Spark Thrift: ~3 GB
+  - DuckDB pgwire: leve (<1 GB em uso típico)
   - Sistema: ~2 GB
 - **Processador:** 4 CPUs (ou vCPUs)
 
@@ -305,13 +306,28 @@ pip install apache-airflow-providers-amazon --no-deps
 | **MinIO Console**   | [http://localhost:9001](http://localhost:9001) | 9001  | `admin` / `admin123`       | —                  | Interface web de armazenamento S3   |
 | **MinIO API S3**    | `http://localhost:9000`                | 9000  | `admin` / `admin123`       | —                  | Usado por boto3, S3Hook, etc.        |
 | **PostgreSQL**      | via cliente externo ou terminal        | 5432  | `airflow` / `airflow`      | `airflow`          | Banco de metadados do Airflow        |
+| **DuckDB ODBC (cliente)** | DSN local (sem servidor)         | —     | conforme DSN               | arquivo `.duckdb`  | Use o driver ODBC DuckDB e aponte para um DB/file ou leia Parquet/S3 |
 | **Apache Atlas**    | [http://localhost:21000](http://localhost:21000) | 21000 | `admin` / `admin`          | —                  | Catálogo de dados standalone (HBase/Solr embarcados) |
 | **Jupyter Notebook**| [http://localhost:8888](http://localhost:8888) | 8888  | Token: `tavares1234`       | —                  | Lab de integração Atlas (pyspark-notebook) |
-—
-| **Spark SQL (Thrift)**      | via Conector JDBC/ODBC	10000        | 10000  | `nenum` / `nenhum`      | `nenhum`          | Ponto de Acesso para Power BI/Tableau (Camada Semântica sobre Delta Lake)        |
 | **CodeIgniter WebApp** | [http://localhost:8088](http://localhost:8088) | 8088  | Configurável via aplicação | `lista_revisao2`   | Interface web para configuração de DAGs |
 
 ---
+
+## Conexão Power BI via DuckDB ODBC
+
+1. Instale o driver ODBC do DuckDB (Windows): baixe do site oficial DuckDB e instale.
+2. Crie um DSN (Administrador ODBC):
+  - Driver: DuckDB
+  - Database: caminho completo para um arquivo `.duckdb` (ex.: `C:\data\bi.duckdb`).
+3. No Power BI: Obter dados → ODBC → selecione seu DSN.
+4. Consultas: você pode criar views/tabelas dentro do arquivo DuckDB ou consultar diretamente Parquet/S3, por exemplo:
+
+  - `SELECT * FROM read_parquet('\\\\server\\share\\assets\\*.parquet')`
+  - S3/MinIO: habilite extensões `httpfs` no cliente e configure credenciais via `SET` antes de consultar.
+
+Notas:
+- O DuckDB é in-process; não há servidor. O DSN aponta para um arquivo `.duckdb` local/acessível via rede.
+- Para compartilhar sem copiar dados, deixe o `.duckdb` em uma pasta compartilhada (SMB/NFS) e padronize o DSN.
 
 ## Detalhes Importantes para o Spark SQL (Thrift)
 

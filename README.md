@@ -315,17 +315,36 @@ pip install apache-airflow-providers-amazon --no-deps
 
 ## Conexão Power BI via DuckDB ODBC
 
+### 🤖 Sincronização Automática (Recomendado)
+
+Use a DAG `sync_duckdb_views` para manter o arquivo DuckDB sempre atualizado:
+
+1. **Ative a DAG** no Airflow UI (http://localhost:8085):
+   - Procure `sync_duckdb_views`
+   - Toggle ON
+   - Clique em "Trigger DAG" para executar manualmente
+
+2. **Arquivo gerado**: `/home/cblna123456/datalake-air-flow/ddb/datalake.duckdb`
+   - Views criadas automaticamente: `orders_bronze`, `customers_bronze`, `orders_silver`, `customers_silver`, `orders_delta`, `customers_delta`
+   - Atualizado diariamente às 2h AM
+
+3. **Configure DSN ODBC** (Windows):
+   - Administrador ODBC → Adicionar DSN
+   - Driver: DuckDB
+   - Database: caminho de rede para `datalake.duckdb` (ex.: `\\servidor\compartilhado\datalake.duckdb`)
+
+4. **Conecte no Power BI**: Obter dados → ODBC → selecione o DSN → escolha as views no Navigator
+
+### ⚙️ Configuração Manual (Alternativa)
+
+Se preferir criar views manualmente:
+
 1. Instale o driver ODBC do DuckDB (Windows): baixe do site oficial DuckDB e instale.
 2. Crie um DSN (Administrador ODBC):
-  - Driver: DuckDB
-  - Database: caminho completo para um arquivo `.duckdb` (ex.: `C:\data\bi.duckdb`).
+   - Driver: DuckDB
+   - Database: caminho completo para um arquivo `.duckdb` (ex.: `C:\data\bi.duckdb`).
 3. No Power BI: Obter dados → ODBC → selecione seu DSN.
-4. Consultas: você pode criar views/tabelas dentro do arquivo DuckDB ou consultar diretamente Parquet/S3, por exemplo:
-
-  - `SELECT * FROM read_parquet('\\\\server\\share\\assets\\*.parquet')`
-  - S3/MinIO: habilite extensões `httpfs` no cliente e configure credenciais via `SET` antes de consultar.
-
-Notas:
+4. Consultas: você pode criar views/tabelas dentro do arquivo DuckDB ou consultar diretamente Parquet/S3.
 - O DuckDB é in-process; não há servidor. O DSN aponta para um arquivo `.duckdb` local/acessível via rede.
 - Para compartilhar sem copiar dados, deixe o `.duckdb` em uma pasta compartilhada (SMB/NFS) e padronize o DSN.
 
@@ -337,7 +356,7 @@ Banco de Dados: Ele expõe o catálogo de tabelas do Spark/Hive. Você acessa as
 
 Conexão BI: Use o driver Spark Thrift JDBC/ODBC (ou driver Hive) para conectar ferramentas de BI. O host será localhost e a porta será 10000.
 
-📖 **Para instruções completas de conexão com Power BI/Tableau/DBeaver**, consulte: [`PowerBI_Conexao_DeltaLake_ODBC.md`](./PowerBI_Conexao_DeltaLake_ODBC.md)
+📖 **Para instruções completas de conexão com Power BI via DuckDB ODBC**, consulte: [`PowerBI_Conexao_DuckDB_ODBC.md`](./PowerBI_Conexao_DuckDB_ODBC.md)
 
 ---
 

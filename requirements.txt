@@ -5,6 +5,7 @@ werkzeug
 pyspark==3.5.1
 delta-spark==3.1.0
 deltalake==0.17.3
+duckdb==0.10.2
 SQLAlchemy
 wtforms
 dag-factory

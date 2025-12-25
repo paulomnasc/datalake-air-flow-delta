@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`customers` (
   INDEX `zip_postal_code` (`zip_postal_code` ASC),
   INDEX `state_province` (`state_province` ASC))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`employees` (
   INDEX `zip_postal_code` (`zip_postal_code` ASC),
   INDEX `state_province` (`state_province` ASC))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`privileges` (
   `privilege_name` VARCHAR(50) NULL DEFAULT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`employee_privileges` (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`inventory_transaction_types` (
   `type_name` VARCHAR(50) NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`shippers` (
   INDEX `zip_postal_code` (`zip_postal_code` ASC),
   INDEX `state_province` (`state_province` ASC))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`orders_tax_status` (
   `tax_status_name` VARCHAR(50) NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -171,7 +171,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`orders_status` (
   `status_name` VARCHAR(50) NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -231,7 +231,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`orders` (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -255,7 +255,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`products` (
   PRIMARY KEY (`id`),
   INDEX `product_code` (`product_code` ASC))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -266,7 +266,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`purchase_order_status` (
   `status` VARCHAR(50) NULL DEFAULT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -299,7 +299,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`suppliers` (
   INDEX `zip_postal_code` (`zip_postal_code` ASC),
   INDEX `state_province` (`state_province` ASC))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -342,7 +342,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`purchase_orders` (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -384,7 +384,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`inventory_transactions` (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -407,7 +407,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`invoices` (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -418,7 +418,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`order_details_status` (
   `status_name` VARCHAR(50) NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -458,7 +458,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`order_details` (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -494,7 +494,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`purchase_order_details` (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -508,7 +508,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`sales_reports` (
   `default` TINYINT(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`group_by`))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 -- -----------------------------------------------------
@@ -519,7 +519,7 @@ CREATE TABLE IF NOT EXISTS `northwind`.`strings` (
   `string_data` VARCHAR(255) NULL DEFAULT NULL,
   PRIMARY KEY (`string_id`))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET utf8mb4
+DEFAULT CHARACTER SET utf8mb4;
 
 
 SET SQL_MODE=@OLD_SQL_MODE;

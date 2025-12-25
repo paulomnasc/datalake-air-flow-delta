@@ -250,6 +250,7 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
             op_kwargs_dict = {
                 'source_filename': file_path,  # Caminho completo do arquivo individual
                 'target_table_name': file_name_no_ext,  # Nome da tabela baseado no arquivo
+                'dag_id': dag_id,  # ID da DAG para organizar camadas
                 'owner': dag_metadata.get('owner', 'airflow'),
                 'bucket_name': bucket_name,  # Passa o bucket correto
                 **transform_args
@@ -284,6 +285,7 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         op_kwargs_dict = {
             'source_filename': task_config.get('source_filename'),
             'target_table_name': task_config.get('target_table_name'),
+            'dag_id': dag_id,  # ID da DAG para organizar camadas
             'owner': dag_metadata.get('owner', 'airflow'),
             **transform_args
         }

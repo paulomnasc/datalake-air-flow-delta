@@ -4,7 +4,7 @@ version: '3.8'
 services:
 
   spark:
-    image: apache/spark:3.5.1
+    image: apache/spark:3.4.1
     container_name: spark
     #build:
     #  context: .
@@ -30,7 +30,7 @@ services:
       - airflow_net
 
   spark-worker:
-    image: apache/spark:3.5.1
+    image: apache/spark:3.4.1
     container_name: spark-worker
     depends_on:
       - spark
@@ -38,9 +38,11 @@ services:
     environment:
       - SPARK_MODE=worker
       # Use as coordenadas Maven dos seus jars
-      - SPARK_OPTS=--packages io.delta:delta-core_2.12:2.4.0,org.apache.hadoop:hadoop-aws:3.3.2
+      - SPARK_OPTS=--packages io.delta:delta-core_2.12:2.4.0,org.apache.hadoop:hadoop-aws:3.3.4
     ports:
       - "8081:8081"
+    volumes:
+      - spark_ivy:/home/spark/.ivy2
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "vscode:host-gateway"
@@ -110,6 +112,7 @@ services:
       - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:8080
       - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
       - MINIO_BUCKET=lab01
+      - ENABLE_ATLAS=false
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
@@ -138,6 +141,7 @@ services:
       - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
       - MINIO_BUCKET=lab01
       - ENABLE_DEBUGPY=false
+      - ENABLE_ATLAS=false
       - ATLAS_HOST=http://apache-atlas:21000
       - ATLAS_USER=admin
       - ATLAS_PASS=admin
@@ -188,6 +192,7 @@ services:
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      ENABLE_ATLAS: "false"
     volumes:
       - ./src/dags:/opt/airflow/dags
       - ./scripts:/usr/local/bin/scripts:ro
@@ -198,32 +203,27 @@ services:
   spark-sql:
     build:
       context: .
-      dockerfile: Dockerfile.spark # Deve conter o Spark e os jars do Delta
+      dockerfile: Dockerfile.spark
     container_name: spark-sql
     depends_on:
-      - spark # Depende do Master para se conectar
-    # command: ["/opt/spark/sbin/start-thriftserver.sh", "--master", "spark://spark:7077", "--conf", "spark.driver.host=spark-sql"]
-    # NOVO COMANDO (usando spark-submit)
+      - spark
     command: [
       "bash",
       "-c",
-      "spark-submit --master spark://spark:7077 --deploy-mode client --name SparkThriftServer --conf spark.driver.host=spark-sql --packages io.delta:delta-core_2.12:2.4.0 --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2"
+      "/opt/spark-apps/start-thriftserver.sh"
     ]
     environment:
+      - SPARK_HOME=/opt/spark
       - SPARK_MASTER_HOST=spark
-      # O Spark precisa de acesso ao MinIO para ler os dados Delta
       - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=admin12/var/www/html/vendor3
+      - AWS_SECRET_ACCESS_KEY=admin123
       - SPARK_CONF_DIR=/opt/spark/conf
     ports:
-      - "10000:10000" # Porta padrão do Thrift Server para ODBC/JDBC
-      - "10001:10001" # Porta HTTP opcional
+      - "10000:10000"
+      - "10001:10001"
     volumes:
-      # Monta o conf para o Spark
       - ./spark-conf:/opt/spark/conf
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      - "vscode:host-gateway"
+      - spark_ivy:/home/spark/.ivy2
     networks:
       - airflow_net
 
@@ -321,3 +321,6 @@ volumes:
   mysql_data:
   atlas_data:
   atlas_logs:
+  spark_metastore:
+  spark_warehouse:
+  spark_ivy:

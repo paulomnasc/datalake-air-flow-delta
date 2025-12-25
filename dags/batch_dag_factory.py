@@ -60,7 +60,8 @@ def create_batch_dag_from_config(config_file):
                 op_kwargs={
                     'batch_id': batch_id,
                     'files': files,
-                    'max_parallel': max_parallel
+                    'max_parallel': max_parallel,
+                    'dag_id': dag_id
                 },
                 doc_md=f"""
                 ### Processamento Batch Paralelo
@@ -92,7 +93,8 @@ def create_batch_dag_from_config(config_file):
                         python_callable=raw_to_medallion,
                         op_kwargs={
                             'source_filename': source_path,
-                            'target_table_name': target_table
+                            'target_table_name': target_table,
+                            'dag_id': dag_id
                         },
                         doc_md=f"""
                         ### Processar: {file_name}

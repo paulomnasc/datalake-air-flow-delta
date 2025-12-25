@@ -29,12 +29,12 @@ echo "4. ⏳ Aguardando bancos de dados (15s)..."
 sleep 15
 
 echo ""
-echo "5. 📊 Iniciando Apache Atlas (Catálogo de Dados)..."
-docker compose -f $COMPOSE_FILE up -d atlas
+#echo "5. 📊 Iniciando Apache Atlas (Catálogo de Dados)..."
+#docker compose -f $COMPOSE_FILE up -d atlas
 
 echo ""
-echo "6. ⏳ Aguardando Atlas inicializar (30s)..."
-sleep 30
+#echo "6. ⏳ Aguardando Atlas inicializar (30s)..."
+#sleep 30
 
 echo ""
 echo "7. ✈️  Iniciando Airflow (webserver + scheduler + worker)..."
@@ -43,6 +43,21 @@ docker compose -f $COMPOSE_FILE up -d airflow-webserver airflow-scheduler airflo
 echo ""
 echo "8. 🔥 Iniciando Spark (master + worker + SQL)..."
 docker compose -f $COMPOSE_FILE up -d spark spark-worker spark-sql
+
+echo ""
+echo "8.1. ⏳ Aguardando Spark SQL Thrift Server (20s)..."
+sleep 20
+
+echo ""
+echo "8.2. ✅ Verificando status do Spark SQL..."
+if docker compose -f $COMPOSE_FILE ps spark-sql | grep -q "Up"; then
+    echo "  -> ✅ Spark SQL Thrift Server rodando (porta 10000 para Power BI/ODBC)"
+    echo "  -> 📊 Logs recentes:"
+    docker compose -f $COMPOSE_FILE logs spark-sql | grep "HiveThriftServer2 started" | tail -1
+else
+    echo "  -> ⚠️  ERRO: Spark SQL não iniciou! Verificando logs..."
+    docker compose -f $COMPOSE_FILE logs spark-sql --tail=30
+fi
 
 echo ""
 echo "9. 🌐 Iniciando CodeIgniter App..."
@@ -60,7 +75,7 @@ echo ""
 echo "🌐 URLs de Acesso:"
 echo "   • Airflow UI:        http://localhost:8085"
 echo "   • CodeIgniter App:   http://localhost:8088"
-echo "   • Apache Atlas:      http://localhost:21000 (admin/admin)"
+#echo "   • Apache Atlas:      http://localhost:21000 (admin/admin)"
 echo "   • MinIO Console:     http://localhost:9001 (admin/admin123)"
 echo "   • Spark Master UI:   http://localhost:8080"
 echo ""

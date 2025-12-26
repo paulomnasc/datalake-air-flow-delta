@@ -22,7 +22,7 @@ require VIEWPATH.'/header.php';
                         <tr>
                             <th>ID</th>
                             <th>Nome</th>
-                            <th>Perfil</th>
+                            <th>Perfis</th>
                             <th>Ações</th>
                         </tr>
                         
@@ -33,7 +33,7 @@ require VIEWPATH.'/header.php';
                         <tr>
                             <td> <?php echo $Usuario->id ?> </td>
                             <td> <?php echo $Usuario->nome ?> </td>
-                            <td><?php echo $Usuario->perfil_descricao; ?></td>
+                            <td><?php echo isset($Usuario->perfis_descricao) ? $Usuario->perfis_descricao : ''; ?></td>
                             <td> 
                                 <div class="sidebyside-container">
                                     <form action="<?php echo site_url('updUsuario'); ?>" method="post">

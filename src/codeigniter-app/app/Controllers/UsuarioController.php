@@ -7,6 +7,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\UsuarioModel;
 use App\Models\PerfilModel;
 use App\Models\TokenModel;
+use App\Models\UsuarioPerfilModel;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -166,33 +167,65 @@ class UsuarioController extends BaseController
     public function list()
     {
         $model = new UsuarioModel();
-        $model->select('usuario.*, perfil.descricao as perfil_descricao');
-        $model->join('perfil', 'usuario.id_perfil = perfil.id');
-        $list = $model->findAll();
-        return $list;
+        $usuarios = $model->findAll();
+        
+        // Para cada usuário, buscar seus perfis
+        $usuarioPerfilModel = new UsuarioPerfilModel();
+        foreach ($usuarios as $usuario) {
+            $perfis = $usuarioPerfilModel->getPerfisUsuario($usuario->id);
+            $perfisDescricao = [];
+            foreach ($perfis as $perfil) {
+                $perfisDescricao[] = $perfil->perfil_descricao;
+            }
+            $usuario->perfis_descricao = implode(', ', $perfisDescricao);
+        }
+        
+        return $usuarios;
     }
 
     public function listByEmailSenha($email, $senha)
     {
         $model = new UsuarioModel();
-        $model->select('usuario.*, perfil.descricao as perfil_descricao');
-        $model->join('perfil', 'usuario.id_perfil = perfil.id');
         $model->where('usuario.senha', $senha);
         $model->where('usuario.email_confirmado', 1);
         $model->like('usuario.email', $email);
-        $list = $model->findAll();
-        return $list;
+        $usuarios = $model->findAll();
+        
+        // Para cada usuário, buscar seus perfis
+        $usuarioPerfilModel = new UsuarioPerfilModel();
+        foreach ($usuarios as $usuario) {
+            $perfis = $usuarioPerfilModel->getPerfisUsuario($usuario->id);
+            $perfisDescricao = [];
+            foreach ($perfis as $perfil) {
+                $perfisDescricao[] = $perfil->perfil_descricao;
+            }
+            $usuario->perfil_descricao = isset($perfisDescricao[0]) ? $perfisDescricao[0] : '';
+            $usuario->perfis_descricao = implode(', ', $perfisDescricao);
+        }
+        
+        return $usuarios;
     }
 
     public function listByEmail($email)
     {
         $model = new UsuarioModel();
-        $model->select('usuario.*, perfil.descricao as perfil_descricao');
-        $model->join('perfil', 'usuario.id_perfil = perfil.id');
         $model->where('usuario.email_confirmado', 1);
         $model->like('usuario.email', $email);
-        $list = $model->findAll();
-        return $list;
+        $usuarios = $model->findAll();
+        
+        // Para cada usuário, buscar seus perfis
+        $usuarioPerfilModel = new UsuarioPerfilModel();
+        foreach ($usuarios as $usuario) {
+            $perfis = $usuarioPerfilModel->getPerfisUsuario($usuario->id);
+            $perfisDescricao = [];
+            foreach ($perfis as $perfil) {
+                $perfisDescricao[] = $perfil->perfil_descricao;
+            }
+            $usuario->perfil_descricao = isset($perfisDescricao[0]) ? $perfisDescricao[0] : '';
+            $usuario->perfis_descricao = implode(', ', $perfisDescricao);
+        }
+        
+        return $usuarios;
     }
 
 
@@ -231,7 +264,16 @@ class UsuarioController extends BaseController
 
         $perfilModel = new PerfilModel();
         $data['perfis'] = $perfilModel->listToCombo();
-        $data['id_perfil_selecionado'] = $Usuario->id_perfil;
+        
+        // Buscar os perfis associados ao usuário
+        $usuarioPerfilModel = new UsuarioPerfilModel();
+        $perfisUsuario = $usuarioPerfilModel->getPerfisUsuario($id);
+        $perfisSelecionados = [];
+        foreach ($perfisUsuario as $perfil) {
+            $perfisSelecionados[] = $perfil->id_perfil;
+        }
+        
+        $data['perfis_selecionados'] = $perfisSelecionados;
         $data['id'] = $Usuario->id;
         $data['nome'] = $Usuario->nome;
         $data['email'] = $Usuario->email;
@@ -264,18 +306,36 @@ class UsuarioController extends BaseController
             'id' => $this->request->getPost('id'),
             'nome' => $this->request->getPost('nome'),
             'email' => $this->request->getPost('email'),
-            'id_perfil' => $this->request->getPost('id_perfil'),
             'senha' => $this->request->getPost('senha')
         ];
+        
+        $perfis = $this->request->getPost('id_perfil');
+        
         $model = new UsuarioModel();
+        $usuarioPerfilModel = new UsuarioPerfilModel();
+        
+        $db = \Config\Database::connect();
+        $db->transStart();
         
         try {
-            $inserted = $model->insert($data);
+            $idUsuario = $model->insert($data);
+            
+            if ($idUsuario && !empty($perfis)) {
+                $usuarioPerfilModel->savePerfisUsuario($idUsuario, $perfis);
+            }
+            
+            $db->transComplete();
+            
+            if ($db->transStatus() === false) {
+                throw new \Exception('Falha na transação ao inserir usuário e perfis.');
+            }
+            
             return $this->response->setJSON([
                 'status' => 'success',
                 'mensagem' => 'Registro inserido com sucesso!'
             ]);
         } catch (\Exception $e) {
+            $db->transRollback();
             return $this->response->setJSON([
                 'status' => 'error',
                 'mensagem' => 'Falha ao inserir o registro: ' . $e->getMessage()
@@ -292,10 +352,16 @@ class UsuarioController extends BaseController
             'id' => $this->request->getPost('id'),
             'nome' => $nome,
             'email' => $email,
-            'id_perfil' => $this->request->getPost('id_perfil'),
             'senha' => $this->request->getPost('senha')
         ];
+        
+        $perfis = $this->request->getPost('id_perfil');
+        
         $model = new UsuarioModel();
+        $usuarioPerfilModel = new UsuarioPerfilModel();
+        
+        $db = \Config\Database::connect();
+        $db->transStart();
         
         try {
             
@@ -303,9 +369,19 @@ class UsuarioController extends BaseController
 
             if($this->sendMailNoSecurity($nome, $email))    
             {
-                $inserted = $model->insert($data);
-                if($inserted)
+                $idUsuario = $model->insert($data);
+                if($idUsuario)
                 {
+                    // Salvar perfis do usuário
+                    if (!empty($perfis)) {
+                        $usuarioPerfilModel->savePerfisUsuario($idUsuario, $perfis);
+                    }
+                    
+                    $db->transComplete();
+                    
+                    if ($db->transStatus() === false) {
+                        throw new \Exception('Falha na transação ao inserir usuário e perfis.');
+                    }
 
                     $mensagem = 'Seu cadastro foi enviado com sucesso! Por gentileza, verifique sua caixa de e-mail (' . $email . ') e clique no link para confirmar seu cadastro.';
                     $mensagem = $mensagem . '<br> Caso não encontre seu e-mail verifique sua pasta SPAM';
@@ -317,7 +393,7 @@ class UsuarioController extends BaseController
                         ]);
                 }
                 else{
-                    
+                    $db->transRollback();
                     return $this->response->setJSON([
                         'status' => 'error',
                         'mensagem' => 'Falha ao processar a requisição, tente novamente mais tarde.'
@@ -331,6 +407,7 @@ class UsuarioController extends BaseController
 
 
         } catch (\Exception $e) {
+            $db->transRollback();
             return $this->response->setJSON([
                 'status' => 'error',
                 'mensagem' => 'Falha ao inserir o registro: ' . $e->getMessage()
@@ -491,7 +568,6 @@ class UsuarioController extends BaseController
                     
                     $usuario = $model->find($id);
 
-                    $data['id_perfil'] = $usuario->id_perfil;
                     $data['id'] = $usuario->id;
                     $data['nome'] = $usuario->nome;
                     $data['email'] = $usuario->email;
@@ -624,7 +700,6 @@ class UsuarioController extends BaseController
             $model = new UsuarioModel();
             $usuario = $model->find($id);
 
-            $data['id_perfil'] = $usuario->id_perfil;
             $data['id'] = $usuario->id;
             $data['nome'] = $usuario->nome;
             $data['email'] = $usuario->email;
@@ -731,26 +806,41 @@ class UsuarioController extends BaseController
     
     public function update() {
         $model = new UsuarioModel();
+        $usuarioPerfilModel = new UsuarioPerfilModel();
         $id = $this->request->getPost('id');
         $data = [
-            'id' => $this->request->getPost('id'),
             'nome' => $this->request->getPost('nome'),
             'email' => $this->request->getPost('email'),
-            'id_perfil' => $this->request->getPost('id_perfil'),
             'senha' => $this->request->getPost('senha')
         ];
+        
+        $perfis = $this->request->getPost('id_perfil');
+        
+        $db = \Config\Database::connect();
+        $db->transStart();
 
         try {
             $updated = $model->update($id, $data);
+            
+            if ($updated && !empty($perfis)) {
+                $usuarioPerfilModel->savePerfisUsuario($id, $perfis);
+            }
+            
+            $db->transComplete();
+            
+            if ($db->transStatus() === false) {
+                throw new \Exception('Falha na transação ao atualizar usuário e perfis.');
+            }
                 
             return $this->response->setJSON([
-                'status' => $updated ? 'success' : 'warning',
-                'mensagem' => $updated ? 'Registro atualizado com sucesso!' : 'Falha ao atualizar o registro. Tente novamente.'
+                'status' => 'success',
+                'mensagem' => 'Registro atualizado com sucesso!'
         ]);
         } catch (\Exception $e) {
+            $db->transRollback();
             return $this->response->setJSON([
                 'status' => 'error',
-                'mensagem' => 'Falha ao inserir o registro: ' . $e->getMessage()
+                'mensagem' => 'Falha ao atualizar o registro: ' . $e->getMessage()
             ]);
         }
         

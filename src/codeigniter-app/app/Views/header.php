@@ -315,6 +315,16 @@
                 <!-- Fim Dropdown -->
                 <?php endif; ?>
 
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-bs-toggle="dropdown">
+                        SERVIÇOS
+                    </a>
+                    <div class="dropdown-menu">
+                        <a class="dropdown-item" href="http://localhost:8085" target="_blank" rel="noopener noreferrer">Airflow UI</a>
+                        <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">MinIO S3</a>
+                    </div>
+                </li>
+
                 <?php echo anchor("politica","Política Privacidade", ['class' => 'nav-link px-4 px-lg-5'])  ?>
 
                 <?php echo anchor("tdu","Termos de uso", ['class' => 'nav-link px-4 px-lg-5'])  ?>

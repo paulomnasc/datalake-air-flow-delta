@@ -6,11 +6,13 @@ log = logging.getLogger(__name__)
 
 def raw_to_bronze(source_filename: str, target_table_name: str, **kwargs):
     """
-    Camada Bronze: Cópia bruta dos dados de Raw para Bronze.
-    Mantém o formato original (CSV) sem transformações.
+    Camada Bronze: Cópia dos dados de Raw para Bronze com conversão para Parquet.
+    
+    Transforma arquivos para formato Parquet com compressão Snappy (boa prática moderna).
+    Sem limpeza ou validação - apenas cópia com otimização de formato.
     
     Suporta:
-    - Arquivo único: 'raw/pasta/arquivo.csv'
+    - Arquivo único: 'raw/pasta/arquivo.csv' ou 'raw/pasta/arquivo.json'
     - Pasta com múltiplos arquivos: 'raw/pasta/' (com barra no final)
     """
     log.info(f"[BRONZE] Iniciando ingestão para: {target_table_name}")
@@ -18,8 +20,9 @@ def raw_to_bronze(source_filename: str, target_table_name: str, **kwargs):
     
     try:
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+        import pandas as pd
     except Exception as e:
-        log.error("S3Hook não disponível: %s", e)
+        log.error("S3Hook/Pandas não disponível: %s", e)
         raise
 
     bucket = os.environ.get("MINIO_BUCKET", "lab01")
@@ -53,30 +56,83 @@ def raw_to_bronze(source_filename: str, target_table_name: str, **kwargs):
                     
                 log.info("[BRONZE] Processando: %s", file_key)
                 basename = os.path.basename(file_key)
-                bronze_key = f"bronze/{dag_id}/{target_table_name}/{basename}"
+                basename_no_ext = os.path.splitext(basename)[0]
+                
+                # Bronze: manter apenas o basename do arquivo Raw em Parquet
+                # Estrutura: bronze/{dag_id}/{target_table_name}/{basename_no_ext}.parquet
+                bronze_key = f"bronze/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
                 
                 # Download
                 local_file = hook.download_file(key=file_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
+                log.info("[BRONZE] Arquivo baixado: %s", local_file)
                 
-                # Upload para Bronze
-                hook.load_file(filename=local_file, key=bronze_key, bucket_name=bucket, replace=True)
-                log.info("[BRONZE] ✅ Arquivo salvo em: s3://%s/%s", bucket, bronze_key)
-                results.append(bronze_key)
+                # Ler e converter para Parquet (suporta CSV, JSON)
+                try:
+                    file_ext = os.path.splitext(local_file)[1].lower()
+                    if file_ext == '.csv':
+                        df = pd.read_csv(local_file)
+                    elif file_ext == '.json':
+                        df = pd.read_json(local_file)
+                    else:
+                        log.warning("[BRONZE] ⚠️ Formato não suportado: %s, copiando como-é", file_ext)
+                        hook.load_file(filename=local_file, key=bronze_key, bucket_name=bucket, replace=True)
+                        log.info("[BRONZE] ✅ Arquivo salvo em: s3://%s/%s", bucket, bronze_key)
+                        results.append(bronze_key)
+                        continue
+                    
+                    # Salvar como Parquet com compressão Snappy
+                    local_parquet = os.path.join(tmpdir, f"{basename_no_ext}.parquet")
+                    df.to_parquet(local_parquet, index=False, compression='snappy', engine='pyarrow')
+                    log.info("[BRONZE] Arquivo convertido para Parquet: %d linhas", len(df))
+                    
+                    # Upload para Bronze
+                    hook.load_file(filename=local_parquet, key=bronze_key, bucket_name=bucket, replace=True)
+                    log.info("[BRONZE] ✅ Arquivo salvo em: s3://%s/%s", bucket, bronze_key)
+                    results.append(bronze_key)
+                except Exception as e:
+                    log.error("[BRONZE] ❌ Erro ao processar %s: %s", file_key, e)
+                    raise
         else:
             # É um arquivo específico
             basename = os.path.basename(src_key)
-            bronze_key = f"bronze/{dag_id}/{target_table_name}/{basename}"
+            basename_no_ext = os.path.splitext(basename)[0]
             
-            log.info("[BRONZE] Copiando: s3://%s/%s → s3://%s/%s", bucket, src_key, bucket, bronze_key)
+            # Bronze: converter para Parquet
+            # Estrutura: bronze/{dag_id}/{target_table_name}/{basename_no_ext}.parquet
+            bronze_key = f"bronze/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
+            
+            log.info("[BRONZE] Copiando e convertendo: s3://%s/%s → s3://%s/%s", bucket, src_key, bucket, bronze_key)
             
             # Download do arquivo Raw
             local_file = hook.download_file(key=src_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
             log.info("[BRONZE] Arquivo baixado: %s", local_file)
 
-            # Upload para camada Bronze (sem transformação)
-            hook.load_file(filename=local_file, key=bronze_key, bucket_name=bucket, replace=True)
-            log.info("[BRONZE] ✅ Arquivo salvo em: s3://%s/%s", bucket, bronze_key)
-            results.append(bronze_key)
+            # Ler e converter para Parquet (suporta CSV, JSON)
+            try:
+                file_ext = os.path.splitext(local_file)[1].lower()
+                if file_ext == '.csv':
+                    df = pd.read_csv(local_file)
+                elif file_ext == '.json':
+                    df = pd.read_json(local_file)
+                else:
+                    log.warning("[BRONZE] ⚠️ Formato não suportado: %s, copiando como-é", file_ext)
+                    hook.load_file(filename=local_file, key=bronze_key, bucket_name=bucket, replace=True)
+                    log.info("[BRONZE] ✅ Arquivo salvo em: s3://%s/%s", bucket, bronze_key)
+                    results.append(bronze_key)
+                    return {"layer": "bronze", "files_processed": 1, "keys": results}
+                
+                # Salvar como Parquet com compressão Snappy
+                local_parquet = os.path.join(tmpdir, f"{basename_no_ext}.parquet")
+                df.to_parquet(local_parquet, index=False, compression='snappy', engine='pyarrow')
+                log.info("[BRONZE] Arquivo convertido para Parquet: %d linhas", len(df))
+                
+                # Upload para camada Bronze
+                hook.load_file(filename=local_parquet, key=bronze_key, bucket_name=bucket, replace=True)
+                log.info("[BRONZE] ✅ Arquivo salvo em: s3://%s/%s", bucket, bronze_key)
+                results.append(bronze_key)
+            except Exception as e:
+                log.error("[BRONZE] ❌ Erro ao processar arquivo: %s", e)
+                raise
         
     finally:
         if tmpdir is not None and os.path.exists(tmpdir):

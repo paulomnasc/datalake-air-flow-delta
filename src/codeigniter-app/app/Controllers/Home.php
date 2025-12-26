@@ -26,4 +26,21 @@ class Home extends BaseController
     
     }
 
+    public function debugFunctionalities()
+    {
+        // Método de debug para verificar funcionalidades do usuário
+        $sessionData = [
+            'id_usuario_logado' => $_SESSION['id_usuario_logado'] ?? null,
+            'nome_usuario_logado' => $_SESSION['nome_usuario_logado'] ?? null,
+            'perfil_usuario_logado' => $_SESSION['perfil_usuario_logado'] ?? null,
+        ];
+        
+        $functionalities = $this->getUserFunctionalities();
+        
+        return $this->response->setJSON([
+            'session' => $sessionData,
+            'functionalities' => $functionalities
+        ]);
+    }
+
 }

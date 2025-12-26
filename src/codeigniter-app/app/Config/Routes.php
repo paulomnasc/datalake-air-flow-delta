@@ -18,6 +18,7 @@ Ou seja a sintaxe é: NomedaController:: método da Controller
     */ 
 $routes->get('/', 'Home::index', ['as'=>'home']);
 $routes->post('/', 'Home::index', ['as'=>'home']);
+$routes->get('/debugFunctionalities', 'Home::debugFunctionalities', ['as'=>'debugFunctionalities']);
 
 
 

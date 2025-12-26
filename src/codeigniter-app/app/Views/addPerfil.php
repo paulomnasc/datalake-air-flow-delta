@@ -12,11 +12,26 @@ require VIEWPATH . '/header.php';
             <h1>Criar Novo Perfil</h1>
             <form method="post" id="meuFormulario" action="<?php echo route_to('Perfil.insert'); ?>">
                 <div class="form-group">
-                    <label for="descricao">descricao:</label>
+                    <label for="descricao">Descrição:</label>
                     <input type="text" name="descricao" placeholder="Descrição" required>
                 </div>
+                
+                <div class="form-group">
+                    <label for="id_funcionalidade">Funcionalidades:</label>
+                    <select id="id_funcionalidade" name="id_funcionalidade[]" multiple style="height: 120px;">
+                        <?php if(isset($funcionalidades) && !empty($funcionalidades)): ?>
+                            <?php foreach($funcionalidades as $funcionalidade): ?>
+                                <option value="<?php echo $funcionalidade->id; ?>">
+                                    <?php echo $funcionalidade->descricao; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </select>
+                    <small style="display: block; margin-top: 5px; color: #666;">Segure Ctrl (Windows) ou Cmd (Mac) para selecionar múltiplas funcionalidades</small>
+                </div>
+                
                 <div class="form-actions">
-                    <button type="submit" class="save-button" value="Atualizar">Atualizar</button>
+                    <button type="submit" class="save-button" value="Atualizar">Salvar</button>
                     <button type="button" class="back-button" onclick="history.back();">Voltar</button>
                 </div>
             </form>
@@ -42,7 +57,7 @@ require VIEWPATH . '/header.php';
                         }
                     },
                     error: function(err) {
-                        $('#error-message').html('Erro ao atualizar o registro.').show().delay(6000).fadeOut(); // Mostra a mensagem de erro
+                        $('#error-message').html('Erro ao salvar o perfil.').show().delay(6000).fadeOut(); // Mostra a mensagem de erro
                         console.log(err); // Trate o erro aqui
                     }
                 });

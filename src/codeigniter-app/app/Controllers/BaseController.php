@@ -59,10 +59,75 @@ abstract class BaseController extends Controller
         // E.g.: $this->session = \Config\Services::session();
     }
 
+    /**
+     * Busca funcionalidades do usuário logado
+     */
+    protected function getUserFunctionalities()
+    {
+        $userHasBucketsAccess = false;
+        $userHasPipelinesAccess = false;
+        
+        if (isset($_SESSION['id_usuario_logado']) && !empty($_SESSION['id_usuario_logado'])) {
+            try {
+                $idUser = $_SESSION['id_usuario_logado'];
+                log_message('debug', "getUserFunctionalities: ID do usuário = {$idUser}");
+                
+                $usuarioPerfilModel = new \App\Models\UsuarioPerfilModel();
+                $perfilFuncionalidadeModel = new \App\Models\PerfilFuncionalidadeModel();
+                
+                // Buscar perfis do usuário
+                $perfisUsuario = $usuarioPerfilModel->getPerfisUsuario($idUser);
+                log_message('debug', "getUserFunctionalities: Perfis encontrados = " . count($perfisUsuario));
+                
+                if (!empty($perfisUsuario)) {
+                    $funcionalidadesBuckets = ['Visualizar Buckets', 'Criar Buckets', 'Editar Buckets', 'Deletar Buckets'];
+                    $funcionalidadesPipelines = ['Operar Fluxos de Dados'];
+                    
+                    // Verificar funcionalidades para cada perfil do usuário
+                    foreach ($perfisUsuario as $perfil) {
+                        log_message('debug', "getUserFunctionalities: Verificando perfil ID = {$perfil->id_perfil}");
+                        
+                        $funcionalidadesPerfil = $perfilFuncionalidadeModel->getFuncionalidadesPerfil($perfil->id_perfil);
+                        log_message('debug', "getUserFunctionalities: Funcionalidades do perfil = " . count($funcionalidadesPerfil));
+                        
+                        foreach ($funcionalidadesPerfil as $func) {
+                            log_message('debug', "getUserFunctionalities: Funcionalidade = {$func->funcionalidade_descricao}");
+                            
+                            if (in_array($func->funcionalidade_descricao, $funcionalidadesBuckets)) {
+                                $userHasBucketsAccess = true;
+                                log_message('debug', "getUserFunctionalities: Acesso a Buckets concedido");
+                            }
+                            if (in_array($func->funcionalidade_descricao, $funcionalidadesPipelines)) {
+                                $userHasPipelinesAccess = true;
+                                log_message('debug', "getUserFunctionalities: Acesso a Pipelines concedido");
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                log_message('error', 'Erro ao buscar funcionalidades do usuário: ' . $e->getMessage());
+            }
+        } else {
+            log_message('debug', "getUserFunctionalities: Nenhum usuário logado");
+        }
+        
+        log_message('debug', "getUserFunctionalities: Final - Buckets={$userHasBucketsAccess}, Pipelines={$userHasPipelinesAccess}");
+        
+        return [
+            'userHasBucketsAccess' => $userHasBucketsAccess,
+            'userHasPipelinesAccess' => $userHasPipelinesAccess
+        ];
+    }
+
     protected function loadView($viewName, $data = [])
     {
         // Aqui você pode registrar ou exibir o nome da view
         log_message('info', "View carregada: " . $viewName);
+
+        // Buscar funcionalidades do usuário e adicionar aos dados da view
+        $functionalities = $this->getUserFunctionalities();
+        $data['userHasBucketsAccess'] = $functionalities['userHasBucketsAccess'];
+        $data['userHasPipelinesAccess'] = $functionalities['userHasPipelinesAccess'];
 
         $seo = new SeoHelper();
         $seo->setTitle("SET-TITLE TESTE!!!");

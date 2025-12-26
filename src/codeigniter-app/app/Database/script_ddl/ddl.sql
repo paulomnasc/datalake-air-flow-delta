@@ -14,14 +14,47 @@ CREATE TABLE IF NOT EXISTS `usuario` (
   `id` tinyint unsigned NOT NULL AUTO_INCREMENT,
   `nome` varchar(100) NOT NULL,
   `email` varchar(100) NOT NULL,
-  `id_perfil` int NOT NULL,
   `senha` varchar(100) NOT NULL,
   `email_confirmado` tinyint(1) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `usuario_unique` (`email`),
-  KEY `fk_usuario_perfil_idx` (`id_perfil`),
-  CONSTRAINT `fk_usuario_perfil` FOREIGN KEY (`id_perfil`) REFERENCES `perfil` (`id`)
+  UNIQUE KEY `usuario_unique` (`email`)
 ) ENGINE=InnoDB AUTO_INCREMENT=146 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Criação da tabela associativa usuario_perfil
+CREATE TABLE IF NOT EXISTS `usuario_perfil` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `id_usuario` tinyint unsigned NOT NULL,
+  `id_perfil` int NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `usuario_perfil_unique` (`id_usuario`, `id_perfil`),
+  KEY `fk_usuario_perfil_usuario_idx` (`id_usuario`),
+  KEY `fk_usuario_perfil_perfil_idx` (`id_perfil`),
+  CONSTRAINT `fk_usuario_perfil_usuario` FOREIGN KEY (`id_usuario`) REFERENCES `usuario` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_usuario_perfil_perfil` FOREIGN KEY (`id_perfil`) REFERENCES `perfil` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Criação da tabela funcionalidade
+CREATE TABLE IF NOT EXISTS `funcionalidade` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `descricao` varchar(100) NOT NULL UNIQUE,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Criação da tabela associativa perfil_funcionalidade
+CREATE TABLE IF NOT EXISTS `perfil_funcionalidade` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `id_perfil` int NOT NULL,
+  `id_funcionalidade` int NOT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `perfil_funcionalidade_unique` (`id_perfil`, `id_funcionalidade`),
+  KEY `fk_perfil_funcionalidade_perfil_idx` (`id_perfil`),
+  KEY `fk_perfil_funcionalidade_funcionalidade_idx` (`id_funcionalidade`),
+  CONSTRAINT `fk_perfil_funcionalidade_perfil` FOREIGN KEY (`id_perfil`) REFERENCES `perfil` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_perfil_funcionalidade_funcionalidade` FOREIGN KEY (`id_funcionalidade`) REFERENCES `funcionalidade` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 -- Criação da tabela pasta

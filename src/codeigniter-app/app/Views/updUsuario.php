@@ -35,15 +35,15 @@ require VIEWPATH . '/header.php';
 
 
                 <div class="form-group">
-                    <label for="id_perfil">Perfil:</label>
-                    <select id="id_perfil" name="id_perfil" required>
-                        <option value="">Selecione</option>
+                    <label for="id_perfil">Perfis:</label>
+                    <select id="id_perfil" name="id_perfil[]" multiple required style="height: 120px;">
                         <?php foreach($perfis as $perfil): ?>
-                            <option value="<?php echo $perfil->id; ?>" <?php echo ($perfil->id == $id_perfil_selecionado) ? 'selected' : ''; ?>>
+                            <option value="<?php echo $perfil->id; ?>" <?php echo (in_array($perfil->id, $perfis_selecionados)) ? 'selected' : ''; ?>>
                                 <?php echo $perfil->descricao; ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <small style="display: block; margin-top: 5px; color: #666;">Segure Ctrl (Windows) ou Cmd (Mac) para selecionar múltiplos perfis</small>
                 </div>
 
 

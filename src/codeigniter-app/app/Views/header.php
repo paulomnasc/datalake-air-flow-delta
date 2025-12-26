@@ -1,3 +1,20 @@
+<?php
+// Carrega funcionalidades do usuário se não foram passadas pela view
+// Isso garante compatibilidade com controllers que usam view() direto
+if (!isset($userHasBucketsAccess) || !isset($userHasPipelinesAccess)) {
+    // Importa o helper
+    if (!function_exists('loadUserFunctionalities')) {
+        require_once APPPATH . 'Helpers/FunctionalityHelper.php';
+    }
+    
+    // Carrega as funcionalidades
+    loadUserFunctionalities();
+    
+    // Obtém os valores globais
+    $userHasBucketsAccess = isset($GLOBALS['userHasBucketsAccess']) ? $GLOBALS['userHasBucketsAccess'] : false;
+    $userHasPipelinesAccess = isset($GLOBALS['userHasPipelinesAccess']) ? $GLOBALS['userHasPipelinesAccess'] : false;
+}
+?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -314,6 +331,20 @@
                 </li>
                 <!-- Fim Dropdown -->
                 <?php endif; ?>
+
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-bs-toggle="dropdown">
+                        SERVIÇOS
+                    </a>
+                    <div class="dropdown-menu">
+                        <?php if (isset($userHasPipelinesAccess) && $userHasPipelinesAccess): ?>
+                            <a class="dropdown-item" href="http://localhost:8085" target="_blank" rel="noopener noreferrer">Pipelines ELT</a>
+                        <?php endif; ?>
+                        <?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
+                            <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a>
+                        <?php endif; ?>
+                    </div>
+                </li>
 
                 <?php echo anchor("politica","Política Privacidade", ['class' => 'nav-link px-4 px-lg-5'])  ?>
 

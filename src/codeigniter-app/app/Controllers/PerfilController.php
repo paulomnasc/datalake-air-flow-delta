@@ -5,6 +5,8 @@ namespace App\Controllers;
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\PerfilModel;
+use App\Models\FuncionalidadeModel;
+use App\Models\PerfilFuncionalidadeModel;
 
 class PerfilController extends BaseController
 {
@@ -24,9 +26,9 @@ class PerfilController extends BaseController
 
     public function add()
     {
-
-        return view('addPerfil');
-
+        $funcionalidadeModel = new FuncionalidadeModel();
+        $data['funcionalidades'] = $funcionalidadeModel->listToCombo();
+        return view('addPerfil', $data);
     }
 
     public function upd()
@@ -37,10 +39,20 @@ class PerfilController extends BaseController
         $model = new PerfilModel();
         $perfil = $model->find($id);
 
-        $data = [
-            'id' => $perfil->id,
-            'descricao' => $perfil->descricao
-        ];
+        $funcionalidadeModel = new FuncionalidadeModel();
+        $data['funcionalidades'] = $funcionalidadeModel->listToCombo();
+        
+        // Buscar as funcionalidades associadas ao perfil
+        $perfilFuncionalidadeModel = new PerfilFuncionalidadeModel();
+        $funcionalidadesPerfil = $perfilFuncionalidadeModel->getFuncionalidadesPerfil($id);
+        $funcionalidadesSelecionadas = [];
+        foreach ($funcionalidadesPerfil as $func) {
+            $funcionalidadesSelecionadas[] = $func->id_funcionalidade;
+        }
+        
+        $data['funcionalidades_selecionadas'] = $funcionalidadesSelecionadas;
+        $data['id'] = $perfil->id;
+        $data['descricao'] = $perfil->descricao;
 
         return view('updPerfil',$data);
 
@@ -73,27 +85,85 @@ class PerfilController extends BaseController
         $data = [
             'descricao' => $this->request->getPost('descricao')
         ];
+        
+        $funcionalidades = $this->request->getPost('id_funcionalidade');
+        
         $model = new PerfilModel();
-        $inserted = $model->insert($data);
-    
-        return $this->response->setJSON([
-            'status' => $inserted ? 'success' : 'warning',
-            'mensagem' => $inserted ? 'Registro inserido com sucesso!' : 'Falha ao inserir o registro. Tente novamente.'
-        ]);
+        $perfilFuncionalidadeModel = new PerfilFuncionalidadeModel();
+        
+        $db = \Config\Database::connect();
+        $db->transStart();
+        
+        try {
+            $idPerfil = $model->insert($data);
+            
+            if ($idPerfil && !empty($funcionalidades)) {
+                $perfilFuncionalidadeModel->saveFuncionalidadesPerfil($idPerfil, $funcionalidades);
+            }
+            
+            $db->transComplete();
+            
+            if ($db->transStatus() === false) {
+                $error = $db->error();
+                $lastQuery = method_exists($db, 'getLastQuery') ? (string) $db->getLastQuery() : '';
+                throw new \Exception('Falha na transação ao inserir perfil e funcionalidades. Detalhe: ' . ($error['code'] ?? '0') . ' - ' . ($error['message'] ?? 'sem mensagem') . ' | Query: ' . $lastQuery);
+            }
+        
+            return $this->response->setJSON([
+                'status' => 'success',
+                'mensagem' => 'Perfil inserido com sucesso!'
+            ]);
+        } catch (\Exception $e) {
+            $db->transRollback();
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Falha ao inserir o perfil: ' . $e->getMessage()
+            ]);
+        }
     }
     
     public function update() {
         $model = new PerfilModel();
+        $perfilFuncionalidadeModel = new PerfilFuncionalidadeModel();
         $id = $this->request->getPost('id');
         $data = [
             'descricao' => $this->request->getPost('descricao')
         ];
-        $updated = $model->update($id, $data);
-    
-        return $this->response->setJSON([
-            'status' => $updated ? 'success' : 'warning',
-            'mensagem' => $updated ? 'Registro atualizado com sucesso!' : 'Falha ao atualizar o registro. Tente novamente.'
-        ]);
+        
+        $funcionalidades = $this->request->getPost('id_funcionalidade');
+        
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        try {
+            $updated = $model->update($id, $data);
+            
+            if ($updated && !empty($funcionalidades)) {
+                $perfilFuncionalidadeModel->saveFuncionalidadesPerfil($id, $funcionalidades);
+            } elseif ($updated) {
+                // Remove todas as funcionalidades se não houver selecionadas
+                $perfilFuncionalidadeModel->deleteFuncionalidadesPerfil($id);
+            }
+            
+            $db->transComplete();
+            
+            if ($db->transStatus() === false) {
+                $error = $db->error();
+                $lastQuery = method_exists($db, 'getLastQuery') ? (string) $db->getLastQuery() : '';
+                throw new \Exception('Falha na transação ao atualizar perfil e funcionalidades. Detalhe: ' . ($error['code'] ?? '0') . ' - ' . ($error['message'] ?? 'sem mensagem') . ' | Query: ' . $lastQuery);
+            }
+        
+            return $this->response->setJSON([
+                'status' => 'success',
+                'mensagem' => 'Perfil atualizado com sucesso!'
+            ]);
+        } catch (\Exception $e) {
+            $db->transRollback();
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Falha ao atualizar o perfil: ' . $e->getMessage()
+            ]);
+        }
         
     }
     

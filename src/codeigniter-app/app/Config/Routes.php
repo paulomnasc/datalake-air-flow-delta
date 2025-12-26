@@ -28,6 +28,13 @@ $routes->post('/updPerfil', 'PerfilController::upd', ['as'=>'updPerfil']); //Exi
 $routes->post('/insertPerfil', 'PerfilController::insert', ['as'=>'Perfil.insert']);//Executa o método insert da PerfilController
 $routes->post('/updatePerfil', 'PerfilController::update', ['as'=>'Perfil.update']);//Executa o método update da PerfilController
 $routes->delete('/deletePerfil/(:num)', 'PerfilController::delete/$1', ['as' => 'Perfil.delete']);
+// Funcionalidade
+$routes->get('/listFuncionalidade', 'FuncionalidadeController::index', ['as' => 'listFuncionalidade']);
+$routes->post('/addFuncionalidade', 'FuncionalidadeController::add', ['as' => 'addFuncionalidade']); // Exibe a tela de add
+$routes->post('/updFuncionalidade', 'FuncionalidadeController::upd', ['as' => 'updFuncionalidade']); // Exibe a tela de upd
+$routes->post('/insertFuncionalidade', 'FuncionalidadeController::insert', ['as' => 'Funcionalidade.insert']); // Executa o método insert da FuncionalidadeController
+$routes->post('/updateFuncionalidade', 'FuncionalidadeController::update', ['as' => 'Funcionalidade.update']); // Executa o método update da FuncionalidadeController
+$routes->delete('/deleteFuncionalidade/(:num)', 'FuncionalidadeController::delete/$1', ['as' => 'Funcionalidade.delete']);
 //Usuário
 $routes->get('/listUsuario', 'UsuarioController::index', ['as'=>'listUsuario']);
 $routes->post('/addUsuario', 'UsuarioController::add', ['as'=>'addUsuario']); //Exibe a tela de add

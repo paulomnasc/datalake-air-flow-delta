@@ -442,6 +442,11 @@ require VIEWPATH . '/header.php';
                     🦆 Query Builder
                     <span style="font-size: 18px; color: rgba(255,255,255,0.7);">DuckDB SQL em Parquet</span>
                 </h1>
+                <?php if (isset($userBucket)): ?>
+                <div style="font-size: 13px; margin-top: 8px; color: rgba(255,255,255,0.8);">
+                    📦 Seu bucket: <code style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 12px;"><?= htmlspecialchars($userBucket) ?></code>
+                </div>
+                <?php endif; ?>
             </div>
             <div class="status-badge" id="statusBadge">
                 Verificando...
@@ -467,7 +472,12 @@ require VIEWPATH . '/header.php';
                     <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
                         <div style="flex: 1;">
                             <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: 600;">💡 EXEMPLO DE QUERY:</div>
-                            <code id="exampleQuery" style="font-size: 12px; color: #475569; font-family: 'Courier New', monospace; display: block; word-break: break-all;">SELECT * FROM read_parquet('s3://lab01/bronze/albuns5/Artist/Artist.parquet') LIMIT 10</code>
+                            <code id="exampleQuery" style="font-size: 12px; color: #475569; font-family: 'Courier New', monospace; display: block; word-break: break-all;">
+                                <?php 
+                                $userBucket = $userBucket ?? 'user-1';
+                                echo "SELECT * FROM read_parquet('s3://{$userBucket}/bronze/seus_dados.parquet') LIMIT 10";
+                                ?>
+                            </code>
                         </div>
                         <button 
                             onclick="copyExample()" 
@@ -533,7 +543,11 @@ require VIEWPATH . '/header.php';
         async function loadParquetFiles() {
             try {
                 const response = await fetch(`${API_BASE}/parquet-files`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        path: '<?= $userS3Path ?? "" ?>'
+                    })
                 });
                 const data = await response.json();
                 

@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Helpers\DuckDBHelper;
+use App\Helpers\SessionHelper;
 
 /**
  * QueryBuilderController
@@ -27,12 +28,21 @@ class QueryBuilderController extends BaseController
         // Verifica saúde da API DuckDB
         $duckdbStatus = DuckDBHelper::healthCheck();
         
-        // Lista arquivos Parquet disponíveis
-        $parquetFiles = DuckDBHelper::listParquetFiles('s3://lab01/bronze');
+        // Obtém bucket do usuário logado
+        $userBucket = SessionHelper::getUserBucket();
+        $userS3Path = SessionHelper::getUserS3Path();
+        
+        // Lista arquivos Parquet do bucket do usuário
+        $parquetFiles = [];
+        if ($userS3Path) {
+            $parquetFiles = DuckDBHelper::listParquetFiles($userS3Path);
+        }
         
         return view('query_builder/index', [
             'duckdbStatus' => $duckdbStatus,
             'parquetFiles' => $parquetFiles,
+            'userBucket' => $userBucket,
+            'userS3Path' => $userS3Path
         ]);
     }
     
@@ -59,6 +69,20 @@ class QueryBuilderController extends BaseController
                     'success' => false,
                     'error' => 'SQL query cannot be empty'
                 ]);
+        }
+        
+        // Segurança: verificar se query tenta acessar buckets de outros usuários
+        $userBucket = SessionHelper::getUserBucket();
+        if ($userBucket && preg_match('/s3:\\/\\/user-(\\d+)/', $sql, $matches)) {
+            $queryBucket = "user-{$matches[1]}";
+            if ($queryBucket !== $userBucket) {
+                return $this->response
+                    ->setStatusCode(403)
+                    ->setJSON([
+                        'success' => false,
+                        'error' => 'Acesso negado: você não pode consultar dados de outros usuários'
+                    ]);
+            }
         }
         
         // Segurança: validações básicas
@@ -96,14 +120,28 @@ class QueryBuilderController extends BaseController
      */
     public function getSchema()
     {
-        $path = trim($this->request->getJSON()->path ?? 's3://lab01');
+        $path = trim($this->request->getJSON()->path ?? '');
         
         if (empty($path)) {
+            // Se path vazio, usa bucket do usuário
+            $path = SessionHelper::getUserS3Path();
+            if (!$path) {
+                return $this->response
+                    ->setStatusCode(400)
+                    ->setJSON([
+                        'success' => false,
+                        'error' => 'Path cannot be empty'
+                    ]);
+            }
+        }
+        
+        // Segurança: validar se path pertence ao usuário
+        if (!SessionHelper::validateUserS3Path($path)) {
             return $this->response
-                ->setStatusCode(400)
+                ->setStatusCode(403)
                 ->setJSON([
                     'success' => false,
-                    'error' => 'Path cannot be empty'
+                    'error' => 'Acesso negado: path inválido para este usuário'
                 ]);
         }
         
@@ -145,7 +183,29 @@ class QueryBuilderController extends BaseController
     public function listParquetFiles()
     {
         $json = $this->request->getJSON(true);
-        $path = $json['path'] ?? 's3://lab01/bronze';
+        $path = $json['path'] ?? null;
+        
+        // DEBUG: Log para diagnóstico
+        log_message('debug', '[QueryBuilder] listParquetFiles recebeu path: ' . var_export($path, true));
+        log_message('debug', '[QueryBuilder] Session user ID: ' . ($_SESSION['id_usuario_logado'] ?? 'NOT SET'));
+        
+        // Se path não fornecido, usa bucket do usuário
+        if (empty($path)) {
+            $path = SessionHelper::getUserS3Path();
+            log_message('debug', '[QueryBuilder] Path vazio, usando getUserS3Path(): ' . var_export($path, true));
+        }
+        
+        // Segurança: validar se path pertence ao usuário
+        if (!SessionHelper::validateUserS3Path($path)) {
+            log_message('warning', '[QueryBuilder] Path rejeitado por segurança: ' . $path);
+            return $this->response
+                ->setStatusCode(403)
+                ->setJSON([
+                    'success' => false,
+                    'error' => 'Acesso negado: path inválido para este usuário',
+                    'files' => []
+                ]);
+        }
         
         $files = DuckDBHelper::listParquetFiles($path);
         

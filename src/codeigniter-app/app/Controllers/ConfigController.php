@@ -10,6 +10,7 @@ use App\Models\SourceTypeModel;
 use CodeIgniter\CLI\Console;
 use Aws\S3\S3Client;
 use Aws\Exception\AwsException;
+use App\Helpers\SessionHelper;
 
 class ConfigController extends BaseController
 {
@@ -147,6 +148,12 @@ class ConfigController extends BaseController
         $model = new ConfigModel();
         $model->select('quadro.*, pasta.descricao as pasta_descricao');
         $model->join('pasta', 'quadro.id_pasta = quadro.id');
+        
+        // Filtrar apenas configs das pastas do usuário logado
+        if (isset($_SESSION['id_usuario_logado'])) {
+            $model->where('pasta.id_usuario', $_SESSION['id_usuario_logado']);
+        }
+        
         $list = $model->findAll();
         return $list;
     }
@@ -157,6 +164,12 @@ class ConfigController extends BaseController
         $model->select('quadro.*, pasta.descricao as pasta_descricao');
         $model->join('pasta', 'quadro.id_pasta = quadro.id');
         $model->where('quadro.id_pasta', $id_pasta);
+        
+        // Filtrar apenas configs das pastas do usuário logado
+        if (isset($_SESSION['id_usuario_logado'])) {
+            $model->where('pasta.id_usuario', $_SESSION['id_usuario_logado']);
+        }
+        
         $list = $model->findAll();
         return $list;
     }
@@ -180,6 +193,12 @@ class ConfigController extends BaseController
         $model->select('dag_configurations.*, pasta.descricao as pasta_descricao');
         $model->join('pasta', 'pasta.id = dag_configurations.id_pasta');
         $model->where('dag_configurations.id_pasta', $id_pasta);
+        
+        // Filtrar apenas configs das pastas do usuário logado
+        if (isset($_SESSION['id_usuario_logado'])) {
+            $model->where('pasta.id_usuario', $_SESSION['id_usuario_logado']);
+        }
+        
         $list = $model->findAll();
     
         
@@ -405,7 +424,9 @@ class ConfigController extends BaseController
                 // --- INÍCIO DA LÓGICA DE UPLOAD PARA MINIO (implementação real) ---
 
                 $dagId = $postData['dag_id'] ?? 'default_dag';
-                $bucket = $this->bucketName ?: 'lab01';
+                
+                // Prioriza bucket do usuário logado, depois config, depois fallback
+                $bucket = SessionHelper::getUserBucket() ?: ($this->bucketName ?: 'lab01');
 
                 // Gera nome único para o arquivo no MinIO
                 $newName = $uploadedFile->getRandomName(); // CI gera um nome único

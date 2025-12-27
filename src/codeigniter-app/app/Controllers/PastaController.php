@@ -66,6 +66,12 @@ class PastaController extends BaseController
     public $Pastas = array(); function list()  {
         
         $model = new PastaModel();
+        
+        // Filtrar apenas pastas do usuário logado
+        if (isset($_SESSION['id_usuario_logado'])) {
+            $model->where('id_usuario', $_SESSION['id_usuario_logado']);
+        }
+        
         $list = $model->findAll();
         return $list;
     }

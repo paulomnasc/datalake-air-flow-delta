@@ -93,11 +93,19 @@ class DuckDBHelper
     /**
      * Lista arquivos Parquet disponíveis no S3/MinIO
      * 
-     * @param string $path S3 path (ex: s3://lab01/bronze)
+     * @param string $path S3 path (ex: s3://user-1/bronze)
      * @return array Lista de arquivos
      */
-    public static function listParquetFiles(string $path = 's3://lab01'): array
+    public static function listParquetFiles(string $path = null): array
     {
+        // Se path não fornecido OU vazio, tenta usar bucket do usuário logado
+        if (empty($path)) {
+            $path = \App\Helpers\SessionHelper::getUserS3Path() ?? 's3://lab01';
+        }
+        
+        // DEBUG: Log para diagnóstico
+        log_message('debug', '[DuckDBHelper] listParquetFiles chamado com path: ' . ($path ?: 'null'));
+        
         try {
             $client = \Config\Services::curlrequest();
             
@@ -108,6 +116,13 @@ class DuckDBHelper
             ]);
             
             $body = json_decode($response->getBody(), true);
+            
+            // DEBUG: Log resposta completa do DuckDB
+            log_message('debug', '[DuckDBHelper] DuckDB Response: ' . json_encode($body));
+            log_message('debug', '[DuckDBHelper] DuckDB retornou ' . count($body['files'] ?? []) . ' arquivos para path: ' . $path);
+            if (!empty($body['files'])) {
+                log_message('debug', '[DuckDBHelper] Primeiro arquivo: ' . ($body['files'][0][0] ?? 'N/A'));
+            }
             
             return $body['files'] ?? [];
             

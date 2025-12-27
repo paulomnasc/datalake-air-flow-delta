@@ -14,6 +14,16 @@ if (!isset($userHasBucketsAccess) || !isset($userHasPipelinesAccess)) {
     $userHasBucketsAccess = isset($GLOBALS['userHasBucketsAccess']) ? $GLOBALS['userHasBucketsAccess'] : false;
     $userHasPipelinesAccess = isset($GLOBALS['userHasPipelinesAccess']) ? $GLOBALS['userHasPipelinesAccess'] : false;
 }
+
+// Calcula username sugerido para Airflow (prefixo do email + id)
+$airflowUsername = '';
+if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
+    $userId = $_SESSION['id_usuario_logado'] ?? null;
+    $userEmail = $_SESSION['email_usuario_logado'] ?? '';
+    if ($userId !== null) {
+        $airflowUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail($userEmail, (int) $userId);
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -190,6 +200,18 @@ if (!isset($userHasBucketsAccess) || !isset($userHasPipelinesAccess)) {
                 <p  class="text-white">Olá <?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Visitante'; ?></p>
             </li>
 
+            <?php if (!empty($airflowUsername)): ?>
+            <li>
+                <div class="bg-light text-dark p-2 rounded mb-2">
+                    <small>Seu usuário no Airflow (senha = mesma da WebApp)</small>
+                    <div class="d-flex align-items-center">
+                        <span id="airflow-username-text" class="fw-bold me-2"><?= htmlspecialchars($airflowUsername, ENT_QUOTES, 'UTF-8'); ?></span>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyAirflowUsername()">Copiar</button>
+                    </div>
+                </div>
+            </li>
+            <?php endif; ?>
+
             <ul class="list-unstyled">
                 
                 <li>
@@ -269,6 +291,23 @@ if (!isset($userHasBucketsAccess) || !isset($userHasPipelinesAccess)) {
         sidebar.classList.remove('active');
         overlayBackground.classList.remove('active');
     });
+
+    function copyAirflowUsername() {
+        const el = document.getElementById('airflow-username-text');
+        if (!el) return;
+        const text = (el.textContent || '').trim();
+        if (!text) return;
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Usuário copiado: ' + text);
+            }).catch(() => {
+                alert('Não foi possível copiar automaticamente. Copie manualmente: ' + text);
+            });
+        } else {
+            alert('Usuário: ' + text);
+        }
+    }
 </script>
 <!-- FIM DA SIDEBAR ------------------------------------------------------------------------ -->
 

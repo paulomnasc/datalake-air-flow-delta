@@ -164,11 +164,21 @@ async def list_tables():
         return {"success": False, "error": str(e)}
 
 
+class ParquetFilesRequest(BaseModel):
+    path: str
+
+class SchemaRequest(BaseModel):
+    path: str
+
 @app.post("/query/parquet-files")
-async def list_parquet_files(path: str = Query(f"s3://{MINIO_BUCKET}", description="S3 path to search")):
+async def list_parquet_files(request: ParquetFilesRequest):
     """Lista arquivos Parquet disponíveis no S3/MinIO"""
+    path = request.path
+    
     try:
         con = get_duckdb_connection()
+        
+        logger.info(f"📁 Listando arquivos em: {path}")
         
         # Query para listar arquivos (função glob do DuckDB)
         # glob() retorna apenas a coluna 'file'
@@ -192,10 +202,14 @@ async def list_parquet_files(path: str = Query(f"s3://{MINIO_BUCKET}", descripti
 
 
 @app.post("/query/schema")
-async def get_schema(path: str = Query(f"s3://{MINIO_BUCKET}", description="S3 path to parquet file")):
+async def get_schema(request: SchemaRequest):
     """Obtém schema de um arquivo Parquet"""
+    path = request.path
+    
     try:
         con = get_duckdb_connection()
+        
+        logger.info(f"📋 Obtendo schema de: {path}")
         
         # Query para obter schema
         schema = con.execute(f"""

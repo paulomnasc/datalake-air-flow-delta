@@ -103,7 +103,7 @@ require VIEWPATH . '/header.php';
         .file-list {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 4px;
             overflow-y: auto;
             flex: 1;
             padding-right: 8px;
@@ -128,21 +128,73 @@ require VIEWPATH . '/header.php';
             background: #5568d3;
         }
         
-        .file-item {
-            padding: 10px 12px;
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
+        .tree-item {
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
             cursor: pointer;
             font-size: 13px;
             color: #475569;
-            transition: all 0.2s;
+            transition: all 0.15s;
+            border-radius: 4px;
+            user-select: none;
         }
         
-        .file-item:hover {
+        .tree-item:hover {
+            background: #f1f5f9;
+        }
+        
+        .tree-item.folder {
+            font-weight: 500;
+            color: #1e293b;
+        }
+        
+        .tree-item.file {
+            color: #64748b;
+        }
+        
+        .tree-item.file:hover {
             background: #ede9fe;
-            border-color: #667eea;
             color: #667eea;
+        }
+        
+        .tree-item .icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 6px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        
+        .tree-item .expand-icon {
+            width: 12px;
+            margin-right: 4px;
+            flex-shrink: 0;
+            transition: transform 0.2s;
+            color: #94a3b8;
+        }
+        
+        .tree-item .expand-icon.expanded {
+            transform: rotate(90deg);
+        }
+        
+        .tree-children {
+            margin-left: 16px;
+            display: none;
+        }
+        
+        .tree-children.expanded {
+            display: block;
+        }
+        
+        .tree-item .label {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         
         .editor-wrapper {
@@ -390,6 +442,11 @@ require VIEWPATH . '/header.php';
                     🦆 Query Builder
                     <span style="font-size: 18px; color: rgba(255,255,255,0.7);">DuckDB SQL em Parquet</span>
                 </h1>
+                <?php if (isset($userBucket)): ?>
+                <div style="font-size: 13px; margin-top: 8px; color: rgba(255,255,255,0.8);">
+                    📦 Seu bucket: <code style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 12px;"><?= htmlspecialchars($userBucket) ?></code>
+                </div>
+                <?php endif; ?>
             </div>
             <div class="status-badge" id="statusBadge">
                 Verificando...
@@ -415,7 +472,12 @@ require VIEWPATH . '/header.php';
                     <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
                         <div style="flex: 1;">
                             <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: 600;">💡 EXEMPLO DE QUERY:</div>
-                            <code id="exampleQuery" style="font-size: 12px; color: #475569; font-family: 'Courier New', monospace; display: block; word-break: break-all;">SELECT * FROM read_parquet('s3://lab01/bronze/albuns5/Artist/Artist.parquet') LIMIT 10</code>
+                            <code id="exampleQuery" style="font-size: 12px; color: #475569; font-family: 'Courier New', monospace; display: block; word-break: break-all;">
+                                <?php 
+                                $userBucket = $userBucket ?? 'user-1';
+                                echo "SELECT * FROM read_parquet('s3://{$userBucket}/bronze/seus_dados.parquet') LIMIT 10";
+                                ?>
+                            </code>
                         </div>
                         <button 
                             onclick="copyExample()" 
@@ -481,7 +543,11 @@ require VIEWPATH . '/header.php';
         async function loadParquetFiles() {
             try {
                 const response = await fetch(`${API_BASE}/parquet-files`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        path: '<?= $userS3Path ?? "" ?>'
+                    })
                 });
                 const data = await response.json();
                 
@@ -489,18 +555,108 @@ require VIEWPATH . '/header.php';
                 fileList.innerHTML = '';
                 
                 if (data.files && data.files.length > 0) {
-                    data.files.forEach(file => {
-                        const item = document.createElement('div');
-                        item.className = 'file-item';
-                        item.textContent = file[0];
-                        item.onclick = () => insertQuery(file[0]);
-                        fileList.appendChild(item);
-                    });
+                    const tree = buildFileTree(data.files.map(f => f[0]));
+                    renderTree(tree, fileList, 0);
                 } else {
                     fileList.innerHTML = '<p style="color: #94a3b8; font-size: 13px;">Nenhum arquivo encontrado</p>';
                 }
             } catch (e) {
                 document.getElementById('fileList').innerHTML = '<p style="color: #ef4444; font-size: 13px;">Erro ao carregar arquivos</p>';
+            }
+        }
+        
+        function buildFileTree(paths) {
+            const root = { children: {}, isFile: false };
+            
+            paths.forEach(path => {
+                // Remove s3:// prefix if present
+                const cleanPath = path.replace(/^s3:\/\//, '');
+                const parts = cleanPath.split('/');
+                let current = root;
+                
+                parts.forEach((part, index) => {
+                    if (!part) return; // Skip empty parts
+                    
+                    if (!current.children[part]) {
+                        current.children[part] = {
+                            name: part,
+                            fullPath: path,
+                            isFile: index === parts.length - 1,
+                            children: {},
+                            expanded: index < 2 // Auto-expand first 2 levels
+                        };
+                    }
+                    current = current.children[part];
+                });
+            });
+            
+            return root;
+        }
+        
+        function renderTree(node, container, level = 0) {
+            const entries = Object.values(node.children).sort((a, b) => {
+                // Folders first, then files
+                if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+                return a.name.localeCompare(b.name);
+            });
+            
+            entries.forEach(entry => {
+                const item = document.createElement('div');
+                
+                if (entry.isFile) {
+                    // File item
+                    item.className = 'tree-item file';
+                    item.innerHTML = `
+                        <span class="icon">📄</span>
+                        <span class="label" title="${entry.name}">${entry.name}</span>
+                    `;
+                    item.onclick = () => insertQuery(entry.fullPath);
+                } else {
+                    // Folder item
+                    const hasChildren = Object.keys(entry.children).length > 0;
+                    const childrenContainer = document.createElement('div');
+                    childrenContainer.className = `tree-children ${entry.expanded ? 'expanded' : ''}`;
+                    
+                    item.className = 'tree-item folder';
+                    item.innerHTML = `
+                        <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasChildren ? '▶' : ''}</span>
+                        <span class="icon">${entry.expanded ? '📂' : '📁'}</span>
+                        <span class="label" title="${entry.name}">${entry.name}</span>
+                    `;
+                    
+                    if (hasChildren) {
+                        item.onclick = (e) => {
+                            e.stopPropagation();
+                            toggleFolder(item, childrenContainer, entry);
+                        };
+                    }
+                    
+                    container.appendChild(item);
+                    
+                    if (hasChildren) {
+                        renderTree(entry, childrenContainer, level + 1);
+                        container.appendChild(childrenContainer);
+                    }
+                    return;
+                }
+                
+                container.appendChild(item);
+            });
+        }
+        
+        function toggleFolder(folderItem, childrenContainer, entry) {
+            const expandIcon = folderItem.querySelector('.expand-icon');
+            const icon = folderItem.querySelector('.icon');
+            const isExpanded = childrenContainer.classList.toggle('expanded');
+            
+            if (isExpanded) {
+                expandIcon.classList.add('expanded');
+                icon.textContent = '📂';
+                entry.expanded = true;
+            } else {
+                expandIcon.classList.remove('expanded');
+                icon.textContent = '📁';
+                entry.expanded = false;
             }
         }
         

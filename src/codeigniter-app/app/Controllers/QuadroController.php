@@ -75,6 +75,12 @@ class QuadroController extends BaseController
         $model = new QuadroModel();
         $model->select('quadro.*, pasta.descricao as pasta_descricao');
         $model->join('pasta', 'quadro.id_pasta = quadro.id');
+        
+        // Filtrar apenas quadros das pastas do usuário logado
+        if (isset($_SESSION['id_usuario_logado'])) {
+            $model->where('pasta.id_usuario', $_SESSION['id_usuario_logado']);
+        }
+        
         $list = $model->findAll();
         return $list;
     }
@@ -85,6 +91,12 @@ class QuadroController extends BaseController
         $model->select('quadro.*, pasta.descricao as pasta_descricao');
         $model->join('pasta', 'quadro.id_pasta = quadro.id');
         $model->where('quadro.id_pasta', $id_pasta);
+        
+        // Filtrar apenas quadros das pastas do usuário logado
+        if (isset($_SESSION['id_usuario_logado'])) {
+            $model->where('pasta.id_usuario', $_SESSION['id_usuario_logado']);
+        }
+        
         $list = $model->findAll();
         return $list;
     }
@@ -108,6 +120,12 @@ class QuadroController extends BaseController
         $model->select('quadro.*, pasta.descricao as pasta_descricao');
         $model->join('pasta', 'pasta.id = quadro.id_pasta');
         $model->where('quadro.id_pasta', $id_pasta);
+        
+        // Filtrar apenas quadros das pastas do usuário logado
+        if (isset($_SESSION['id_usuario_logado'])) {
+            $model->where('pasta.id_usuario', $_SESSION['id_usuario_logado']);
+        }
+        
         $list = $model->findAll();
     
         

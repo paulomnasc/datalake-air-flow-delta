@@ -7,12 +7,14 @@ require VIEWPATH . '/header.php';
 
 <style>
         .query-builder-container {
-            max-width: 1400px;
+            max-width: 100%;
             margin: 20px auto;
             background: white;
             border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
         
         .query-builder-header {
@@ -65,13 +67,18 @@ require VIEWPATH . '/header.php';
             grid-template-columns: 300px 1fr;
             gap: 0;
             min-height: 600px;
+            overflow: hidden;
+            width: 100%;
         }
         
         .query-builder-aside {
             background: #f8fafc;
             border-right: 1px solid #e2e8f0;
             padding: 20px;
-            overflow-y: auto;
+            max-height: 600px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
         
         .query-builder-aside h2 {
@@ -80,19 +87,45 @@ require VIEWPATH . '/header.php';
             margin-bottom: 12px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            flex-shrink: 0;
         }
         
         .query-builder-section {
             padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 10px;
+            overflow: hidden;
+            width: 100%;
+            min-width: 0;
         }
         
         .file-list {
             display: flex;
             flex-direction: column;
             gap: 8px;
+            overflow-y: auto;
+            flex: 1;
+            padding-right: 8px;
+            margin-right: -8px;
+        }
+        
+        .file-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .file-list::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        
+        .file-list::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+        
+        .file-list::-webkit-scrollbar-thumb:hover {
+            background: #5568d3;
         }
         
         .file-item {
@@ -115,8 +148,8 @@ require VIEWPATH . '/header.php';
         .editor-wrapper {
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            flex: 1;
+            gap: 12px;
+            flex-shrink: 0;
         }
         
         label {
@@ -189,6 +222,8 @@ require VIEWPATH . '/header.php';
             border: 2px solid #e2e8f0;
             border-radius: 6px;
             overflow: hidden;
+            min-width: 0;
+            width: 100%;
         }
         
         .results-header {
@@ -202,41 +237,74 @@ require VIEWPATH . '/header.php';
         .results-content {
             flex: 1;
             overflow: auto;
-            overflow-x: auto;
             background: white;
+            display: block;
+            width: 100%;
+        }
+        
+        .results-content::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        
+        .results-content::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        
+        .results-content::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+        
+        .results-content::-webkit-scrollbar-thumb:hover {
+            background: #5568d3;
         }
         
         table {
             width: 100%;
-            min-width: 800px;
             border-collapse: collapse;
             font-size: 13px;
+            background: white;
+            display: table;
+            table-layout: auto;
         }
         
         thead {
             position: sticky;
             top: 0;
-            background: #f1f5f9;
-            border-bottom: 2px solid #e2e8f0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-bottom: 2px solid #667eea;
+            z-index: 10;
         }
         
         th {
             padding: 12px 16px;
             text-align: left;
             font-weight: 600;
-            color: #1e293b;
+            color: white;
             white-space: nowrap;
-            max-width: 200px;
+            min-width: 80px;
         }
         
         td {
             padding: 10px 16px;
             border-bottom: 1px solid #e2e8f0;
             word-wrap: break-word;
+            word-break: break-word;
+            max-width: 300px;
+        }
+        
+        tbody tr {
+            transition: background-color 0.15s ease;
         }
         
         tbody tr:hover {
-            background: #f8fafc;
+            background: #f0f4ff;
+        }
+        
+        tbody tr:nth-child(even) {
+            background: #fafbfc;
         }
         
         .loading {

@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import json
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +29,42 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         raise
 
     import pandas as pd
+
+    def _read_json_to_df(path: str):
+        """Carrega JSON de forma robusta (NDJSON, lista, objeto, stringificada)."""
+        # 1) NDJSON
+        try:
+            df = pd.read_json(path, lines=True)
+            if not df.empty:
+                return df
+        except Exception:
+            pass
+
+        # 2) JSON padrão (lista/objeto)
+        try:
+            df = pd.read_json(path)
+            if not df.empty:
+                # Se veio tudo numa coluna objeto, tentar normalizar
+                if len(df.columns) == 1 and df.dtypes.iloc[0] == 'object':
+                    col = df.columns[0]
+                    try:
+                        normalized = pd.json_normalize(df[col].apply(lambda x: json.loads(x) if isinstance(x, str) else x))
+                        if not normalized.empty:
+                            return normalized
+                    except Exception:
+                        pass
+                return df
+        except Exception:
+            pass
+
+        # 3) Leitura manual
+        with open(path, 'r') as f:
+            payload = json.load(f)
+        if isinstance(payload, list):
+            return pd.json_normalize(payload)
+        if isinstance(payload, dict):
+            return pd.json_normalize(payload)
+        raise ValueError("Formato JSON não suportado")
     
     # Permite override do bucket via kwargs, senão usa env ou default
     bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
@@ -41,7 +78,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     
     # Definir chaves de todas as camadas
     dag_id = kwargs.get('dag_id', 'default')
-    bronze_key = f"bronze/{dag_id}/{target_table_name}/{basename}"
+    # Bronze em Parquet (boa prática: formato colunar otimizado)
+    bronze_key = f"bronze/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
     silver_key = f"silver/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
     gold_key = f"gold/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
     
@@ -108,22 +146,50 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             log.info("[MEDALLION] Atlas desabilitado (ENABLE_ATLAS=false), pulando registro de metadados")
         
         # ==================== CAMADA BRONZE ====================
-        log.info("[BRONZE] Copiando: s3://%s/%s → s3://%s/%s", bucket, src_key, bucket, bronze_key)
+        log.info("[BRONZE] Copiando e convertendo para Parquet: s3://%s/%s → s3://%s/%s", bucket, src_key, bucket, bronze_key)
         
         local_file = hook.download_file(key=src_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)
         log.info("[BRONZE] Arquivo baixado: %s", local_file)
         
-        hook.load_file(filename=local_file, key=bronze_key, bucket_name=bucket, replace=True)
-        log.info("[BRONZE] ✅ Salvo em: s3://%s/%s", bucket, bronze_key)
-        results['bronze'] = bronze_key
+        # Converter para Parquet com compressão Snappy
+        try:
+            import pandas as pd
+            file_ext = os.path.splitext(local_file)[1].lower()
+            
+            # Ler arquivo original (suporta CSV, JSON)
+            if file_ext == '.csv':
+                df_bronze = pd.read_csv(local_file)
+            elif file_ext == '.json':
+                df_bronze = _read_json_to_df(local_file)
+            else:
+                # Formato não reconhecido, copiar como-é
+                log.warning("[BRONZE] ⚠️ Formato %s não reconhecido, copiando sem conversão", file_ext)
+                hook.load_file(filename=local_file, key=bronze_key, bucket_name=bucket, replace=True)
+                log.info("[BRONZE] ✅ Salvo em: s3://%s/%s", bucket, bronze_key)
+                results['bronze'] = bronze_key
+                df_bronze = None
+            
+            # Salvar como Parquet se conseguiu ler
+            if df_bronze is not None:
+                local_parquet = os.path.join(tmpdir, f"{basename_no_ext}_bronze.parquet")
+                df_bronze.to_parquet(local_parquet, index=False, compression='snappy', engine='pyarrow')
+                log.info("[BRONZE] Convertido para Parquet: %d linhas", len(df_bronze))
+                
+                hook.load_file(filename=local_parquet, key=bronze_key, bucket_name=bucket, replace=True)
+                log.info("[BRONZE] ✅ Salvo em Parquet: s3://%s/%s", bucket, bronze_key)
+                results['bronze'] = bronze_key
+        except Exception as e:
+            log.error("[BRONZE] ❌ Erro ao converter para Parquet: %s. Copiando original.", e)
+            hook.load_file(filename=local_file, key=bronze_key, bucket_name=bucket, replace=True)
+            log.info("[BRONZE] ✅ Salvo (fallback): s3://%s/%s", bucket, bronze_key)
+            results['bronze'] = bronze_key
+            df_bronze = None
 
         # Registrar tabela Bronze
-        if atlas_enabled and atlas:
+        if atlas_enabled and atlas and df_bronze is not None:
             bronze_table = f"{target_table_name}_bronze"
             try:
-                # Construir schema de colunas (bronze: do CSV)
-                import pandas as pd
-                df_bronze = pd.read_csv(local_file)
+                # Construir schema de colunas (bronze: já lido como DataFrame)
                 bronze_columns = []
                 for col in df_bronze.columns.tolist():
                     bronze_columns.append({

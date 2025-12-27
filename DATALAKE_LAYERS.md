@@ -14,10 +14,10 @@ bucket: lab01/
 │   └── {dag_id}/
 │       └── {timestamp}_{hash}.csv
 │
-├── bronze/                       # Camada Bronze (dados brutos)
+├── bronze/                       # Camada Bronze (dados brutos em Parquet)
 │   └── {dag_id}/
 │       └── {target_table_name}/
-│           └── {arquivo}.csv
+│           └── {arquivo}.parquet
 │
 ├── silver/                       # Camada Silver (dados limpos)
 │   └── {dag_id}/
@@ -55,21 +55,25 @@ Observações sobre a área delta/:
 
 ### 2️⃣ Bronze (Dados Brutos)
 - **Função**: `lib.bronze_layer.raw_to_bronze()`
-- **Transformação**: Cópia direta de Raw → Bronze
-- **Formato**: CSV (mesmo do original)
-- **Localização**: `bronze/{dag_id}/{target_table_name}/{arquivo}.csv`
+- **Transformação**: Cópia direta de Raw → Bronze com conversão para Parquet (boa prática)
+- **Formato**: Parquet (colunar, otimizado) ⭐ *Recomendado para boa prática moderna*
+- **Localização**: `bronze/{dag_id}/{target_table_name}/{arquivo}.parquet`
 - **Características**:
-  - Dados brutos sem transformação
+  - Dados brutos sem transformação (apenas conversão de formato)
   - Primeira camada do Data Lake propriamente dito
   - Separado de Raw para organização
+  - Formato colunar otimizado para armazenamento e leitura rápida
+  - Reduz consumo de disco em comparação com JSON/CSV
 
 > **💡 Diferença entre Raw e Bronze:**
 > 
-> - **Raw** é a área de entrada temporária onde os arquivos chegam via upload, com nomeação baseada em timestamp/hash (`raw/{dag_id}/{timestamp}_{hash}.csv`). É uma área transitória que serve para auditoria e pode ser limpa periodicamente.
+> - **Raw** é a área de entrada temporária onde os arquivos chegam via upload em seu formato original (CSV, JSON, Parquet), com nomeação baseada em timestamp/hash (`raw/{dag_id}/{timestamp}_{hash}.csv`). É uma área transitória que serve para auditoria e pode ser limpa periodicamente.
 > 
-> - **Bronze** é a primeira camada oficial do Data Lake, com organização estruturada por DAG e tabela (`bronze/{dag_id}/{target_table_name}/{arquivo}.csv`). É o armazenamento permanente dos dados originais, onde começa o pipeline de transformações do medalhão.
+> - **Bronze** é a primeira camada oficial do Data Lake, com organização estruturada por DAG e tabela (`bronze/{dag_id}/{target_table_name}/{arquivo}.parquet`). É o armazenamento permanente dos dados originais em **formato Parquet otimizado**, onde começa o pipeline de transformações do medalhão.
 > 
-> Em resumo: Raw = "Caixa de entrada", Bronze = "Arquivo organizado permanente"
+> **Transformação em Bronze**: Raw → Bronze inclui conversão para Parquet com compressão Snappy para otimizar armazenamento e performance, sem nenhuma limpeza ou validação de dados.
+> 
+> Em resumo: Raw = "Caixa de entrada (formato original)", Bronze = "Arquivo permanente otimizado em Parquet"
 
 **Código:**
 ```python

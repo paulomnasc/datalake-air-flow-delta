@@ -87,7 +87,13 @@ $routes->get('/playPorId/(:num)', 'ConfigController::playPorId/$1', ['as' => 'Co
 $routes->get('/test-minio/connection', 'TestMinioController::testConnection', ['as'=>'test.minio.connection']);
 $routes->get('/test-minio/upload', 'TestMinioController::testUpload', ['as'=>'test.minio.upload']);
 
-
+// Query Builder - DuckDB Parquet
+$routes->get('/query-builder', 'QueryBuilderController::index', ['as'=>'query-builder.index']);
+$routes->post('/query-builder/execute', 'QueryBuilderController::execute', ['as'=>'query-builder.execute']);
+$routes->post('/query-builder/tables', 'QueryBuilderController::listTables', ['as'=>'query-builder.tables']);
+$routes->post('/query-builder/schema', 'QueryBuilderController::getSchema', ['as'=>'query-builder.schema']);
+$routes->get('/query-builder/status', 'QueryBuilderController::status', ['as'=>'query-builder.status']);
+$routes->post('/query-builder/parquet-files', 'QueryBuilderController::listParquetFiles', ['as'=>'query-builder.parquet-files']);
 
 
 /* $routes->get('upload', 'UploadController::index');

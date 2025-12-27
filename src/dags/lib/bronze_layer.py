@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import json
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +29,42 @@ def raw_to_bronze(source_filename: str, target_table_name: str, **kwargs):
     bucket = os.environ.get("MINIO_BUCKET", "lab01")
     hook = S3Hook(aws_conn_id='minio_conn')
     dag_id = kwargs.get('dag_id', 'default')
+
+    def _read_json_to_df(path: str):
+        """Carrega JSON de forma robusta (lista, objeto, NDJSON)."""
+        # 1) NDJSON (um objeto por linha)
+        try:
+            df = pd.read_json(path, lines=True)
+            if not df.empty:
+                return df
+        except Exception:
+            pass
+
+        # 2) JSON padrão (lista ou objeto)
+        try:
+            df = pd.read_json(path)
+            if not df.empty:
+                # Caso venha tudo em uma coluna objeto, tenta expandir
+                if len(df.columns) == 1 and df.dtypes.iloc[0] == 'object':
+                    col = df.columns[0]
+                    try:
+                        normalized = pd.json_normalize(df[col].apply(lambda x: json.loads(x) if isinstance(x, str) else x))
+                        if not normalized.empty:
+                            return normalized
+                    except Exception:
+                        pass
+                return df
+        except Exception:
+            pass
+
+        # 3) Leitura manual e normalização
+        with open(path, 'r') as f:
+            payload = json.load(f)
+        if isinstance(payload, list):
+            return pd.json_normalize(payload)
+        if isinstance(payload, dict):
+            return pd.json_normalize(payload)
+        raise ValueError("Formato JSON não suportado para Bronze")
     
     # Normalize source key
     src_key = source_filename.lstrip('/')
@@ -72,7 +109,7 @@ def raw_to_bronze(source_filename: str, target_table_name: str, **kwargs):
                     if file_ext == '.csv':
                         df = pd.read_csv(local_file)
                     elif file_ext == '.json':
-                        df = pd.read_json(local_file)
+                        df = _read_json_to_df(local_file)
                     else:
                         log.warning("[BRONZE] ⚠️ Formato não suportado: %s, copiando como-é", file_ext)
                         hook.load_file(filename=local_file, key=bronze_key, bucket_name=bucket, replace=True)
@@ -113,7 +150,7 @@ def raw_to_bronze(source_filename: str, target_table_name: str, **kwargs):
                 if file_ext == '.csv':
                     df = pd.read_csv(local_file)
                 elif file_ext == '.json':
-                    df = pd.read_json(local_file)
+                    df = _read_json_to_df(local_file)
                 else:
                     log.warning("[BRONZE] ⚠️ Formato não suportado: %s, copiando como-é", file_ext)
                     hook.load_file(filename=local_file, key=bronze_key, bucket_name=bucket, replace=True)

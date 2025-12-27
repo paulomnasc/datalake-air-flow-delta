@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import json
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +29,42 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         raise
 
     import pandas as pd
+
+    def _read_json_to_df(path: str):
+        """Carrega JSON de forma robusta (NDJSON, lista, objeto, stringificada)."""
+        # 1) NDJSON
+        try:
+            df = pd.read_json(path, lines=True)
+            if not df.empty:
+                return df
+        except Exception:
+            pass
+
+        # 2) JSON padrão (lista/objeto)
+        try:
+            df = pd.read_json(path)
+            if not df.empty:
+                # Se veio tudo numa coluna objeto, tentar normalizar
+                if len(df.columns) == 1 and df.dtypes.iloc[0] == 'object':
+                    col = df.columns[0]
+                    try:
+                        normalized = pd.json_normalize(df[col].apply(lambda x: json.loads(x) if isinstance(x, str) else x))
+                        if not normalized.empty:
+                            return normalized
+                    except Exception:
+                        pass
+                return df
+        except Exception:
+            pass
+
+        # 3) Leitura manual
+        with open(path, 'r') as f:
+            payload = json.load(f)
+        if isinstance(payload, list):
+            return pd.json_normalize(payload)
+        if isinstance(payload, dict):
+            return pd.json_normalize(payload)
+        raise ValueError("Formato JSON não suportado")
     
     # Permite override do bucket via kwargs, senão usa env ou default
     bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
@@ -123,7 +160,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             if file_ext == '.csv':
                 df_bronze = pd.read_csv(local_file)
             elif file_ext == '.json':
-                df_bronze = pd.read_json(local_file)
+                df_bronze = _read_json_to_df(local_file)
             else:
                 # Formato não reconhecido, copiar como-é
                 log.warning("[BRONZE] ⚠️ Formato %s não reconhecido, copiando sem conversão", file_ext)

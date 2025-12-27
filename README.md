@@ -509,7 +509,7 @@ Para detalhes completos sobre troubleshooting da aplicação, consulte: [Falha-d
 
 ---
 
-## 🧪 Testes de Acesso
+## 🧪 Testes de Acesso e Troubleshoot
 
 ### Airflow:
 
@@ -535,6 +535,45 @@ docker exec -it postgres psql -U airflow -d airflow
 docker compose restart airflow-webserver airflow-scheduler minio mysql spark atlas
 # Jupyter/PySpark (perfil atlas)
 docker compose --profile atlas restart pyspark-aula
+```
+
+### Caso precise liberar espaço no armazenamento:
+
+```bash
+./prune.sh
+# Depois reinicie a stack
+./restart.sh
+```
+
+### ⚠️ MinIO: Problema de Download ou Arquivos Corrompidos
+
+**Sintoma**: Ao tentar baixar um arquivo via console MinIO ou a estrutura de pastas mostra arquivos como diretórios vazios ao invés de arquivos reais.
+
+**Causa**: Permissões incorretas no volume `/var/oled/minio_data` impedem que o MinIO escreva arquivos corretamente.
+
+**Solução**:
+
+```bash
+# 1. Corrigir permissões do diretório do MinIO
+sudo chown -R 1000:1000 /var/oled/minio_data
+sudo chmod -R 755 /var/oled/minio_data
+
+# 2. Reiniciar o container MinIO
+docker compose restart minio
+
+# 3. Aguardar reinicialização (3-5 segundos)
+sleep 3
+
+# 4. Verificar se está respondendo
+curl http://localhost:9001
+```
+
+**Verificação**:
+```bash
+# Listar arquivos dentro do container (devem ser arquivos, não diretórios)
+docker exec datalake-air-flow-minio-1 ls -lh /data/lab01/raw/
+
+# Saída esperada: -rw-r--r-- (arquivo), NÃO drwxr-xr-x (diretório)
 ```
 
 ## Verificar os processo que estão rodando

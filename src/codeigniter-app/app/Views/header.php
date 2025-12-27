@@ -343,6 +343,9 @@ if (!isset($userHasBucketsAccess) || !isset($userHasPipelinesAccess)) {
                         <?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
                             <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a>
                         <?php endif; ?>
+                        <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): ?>
+                            <a class="dropdown-item" href="<?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a>
+                        <?php endif; ?>
                     </div>
                 </li>
 

@@ -8,6 +8,7 @@ use App\Models\UsuarioModel;
 use App\Models\PerfilModel;
 use App\Models\TokenModel;
 use App\Models\UsuarioPerfilModel;
+use App\Helpers\MinioHelper;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -51,11 +52,22 @@ class UsuarioController extends BaseController
             $list = $this->listByEmailSenha($data['email'], $data['senha']);
             if (!empty($list) && isset($list[0])) {
                 $usuario = $list[0]; // Acessa o primeiro usuário na lista
+                
                 // Carregando o usuário na sessão
                 $_SESSION['id_usuario_logado'] = $usuario->id;
                 $_SESSION['nome_usuario_logado'] = $usuario->nome;
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['usuario_logado'] = 1;
+                
+                // Garante que o bucket do usuário existe no MinIO
+                $bucketResult = MinioHelper::createUserBucket($usuario->id);
+                
+                // Log do resultado (opcional - pode ser removido em produção)
+                if ($bucketResult['success']) {
+                    log_message('info', "Bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+                } else {
+                    log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+                }
                 
                 return $this->response->setJSON([
                     'status' => 'success',
@@ -96,11 +108,21 @@ class UsuarioController extends BaseController
             $list = $this->listByEmailSenha($data['email'], $data['senha']);
             if (!empty($list) && isset($list[0])) {
                 $usuario = $list[0]; // Acessa o primeiro usuário na lista
+                
                 // Carregando o usuário na sessão
                 $_SESSION['id_usuario_logado'] = $usuario->id;
                 $_SESSION['nome_usuario_logado'] = $usuario->nome;
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['usuario_logado'] = 1;
+                
+                // Garante que o bucket do usuário existe no MinIO
+                $bucketResult = MinioHelper::createUserBucket($usuario->id);
+                
+                if ($bucketResult['success']) {
+                    log_message('info', "Bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+                } else {
+                    log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+                }
                 
                 return view('menu_smart');
 

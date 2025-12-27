@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use Google\Client as GoogleClient;
 use CodeIgniter\Controller;
+use App\Helpers\MinioHelper;
 
 class AuthController extends Controller
 {
@@ -31,6 +32,12 @@ class AuthController extends Controller
                 // Aqui, adicione lógica para criar ou autenticar o usuário na sua plataforma
                 // - Se o usuário já existir no banco de dados, inicie a sessão para ele.
                 // - Se o usuário não existir, insira os dados no banco e inicie a sessão.
+                
+                // IMPORTANTE: Após criar/autenticar o usuário no banco, obtenha o ID numérico
+                // e crie o bucket do usuário
+                // Exemplo (assumindo que você tem o ID do usuário no banco):
+                // $dbUserId = ...; // ID numérico do usuário no banco de dados
+                // $bucketResult = MinioHelper::createUserBucket($dbUserId);
 
                 // Exemplo básico de resposta JSON com os dados do usuário
                 return $this->response->setJSON([

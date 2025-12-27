@@ -82,7 +82,8 @@ def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
         sql_port,
         sql_database_name,
         sql_user,
-        sql_password
+        sql_password,
+        user_bucket
     FROM dag_configurations
     WHERE is_active = 1 
     ORDER BY id;
@@ -118,7 +119,7 @@ def fetch_selected_tables(mysql_conn_id: str, dag_config_id: int) -> List[str]:
     return [rec[0] for rec in records] if records else []
 
 
-def list_files_from_minio_folder(folder_path: str, bucket_name: str = 'lab01') -> List[str]:
+def list_files_from_minio_folder(folder_path: str, bucket_name: str) -> List[str]:
     """
     Lista todos os arquivos dentro de uma pasta no MinIO.
     
@@ -215,6 +216,10 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     transform_args = task_config.get('transform_args', {})
     source_filename = task_config.get('source_filename')
 
+    # Bucket isolado por usuário: task_config/transform_args > dag_metadata > env
+    bucket_name = transform_args.get('bucket_name') or dag_metadata.get('user_bucket') or os.environ.get('MINIO_BUCKET', 'lab01')
+    transform_args.setdefault('bucket_name', bucket_name)
+
     # 🆕 DETECÇÃO DE MULTI-ARQUIVO: Se source_filename termina com '/', é uma pasta
     is_folder = source_filename and source_filename.endswith('/')
     
@@ -287,6 +292,7 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
             'target_table_name': task_config.get('target_table_name'),
             'dag_id': dag_id,  # ID da DAG para organizar camadas
             'owner': dag_metadata.get('owner', 'airflow'),
+            'bucket_name': bucket_name,
             **transform_args
         }
         
@@ -310,7 +316,7 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         import os
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
         
-        bucket = os.environ.get('MINIO_BUCKET', 'lab01')
+        bucket = bucket_name
         hook = S3Hook(aws_conn_id='minio_conn')
         
         # Buscar o resultado retornado pela task anterior via XCom
@@ -405,6 +411,11 @@ def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
     
     # Criar DAG
     max_parallel = task_config.get('max_parallel_tasks', 16)
+    transform_args = task_config.get('transform_args', {})
+
+    # Bucket isolado por usuário para multi-table
+    bucket_name = transform_args.get('bucket_name') or dag_metadata.get('user_bucket') or os.environ.get('MINIO_BUCKET', 'lab01')
+    transform_args.setdefault('bucket_name', bucket_name)
     
     dag = DAG(
         dag_id=dag_id,
@@ -433,7 +444,6 @@ def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
         log.info(f"[MULTI-TABLE] Processando tabela: {table_name}")
         
         python_module_path = task_config.get('python_module_path')
-        transform_args = task_config.get('transform_args', {})
         
         if not python_module_path:
             log.warning(f"Nenhuma função Python configurada para {table_name}")
@@ -448,6 +458,7 @@ def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
                 'target_table_name': table_name,
                 'table_name': table_name,  # Importante para mysql_to_medallion
                 'owner': dag_metadata.get('owner', 'airflow'),
+                'bucket_name': bucket_name,
                 **transform_args
             }
             
@@ -486,7 +497,7 @@ try:
             id, dag_id_value, schedule_interval, owner, description, source_filename, \
             target_table_name, python_module_path, transform_args, start_date_db, \
             is_multi_table, max_parallel_tasks, sql_connection_id, sql_host, sql_port, \
-            sql_database_name, sql_user, sql_password = record
+            sql_database_name, sql_user, sql_password, user_bucket = record
             
             log.debug(f"DEBUG: Processando registro ID={id}, dag_id={dag_id_value}, multi_table={is_multi_table}")
             
@@ -510,6 +521,10 @@ try:
             if sql_password:
                 parsed_transform_args['sql_password'] = sql_password
             
+            # Define bucket do usuário para isolamento; fallback para env se não vier do banco
+            bucket_name = parsed_transform_args.get('bucket_name') or user_bucket or os.environ.get('MINIO_BUCKET', 'lab01')
+            parsed_transform_args.setdefault('bucket_name', bucket_name)
+
             dag_config = {
                 'id': id,
                 'dag_id': config_name,
@@ -518,27 +533,18 @@ try:
                     'owner': owner,
                     'description': description,
                     'start_date': start_date_db, 
-                    'max_active_runs': None
+                    'tags': ['dynamic'],
+                    'user_bucket': bucket_name
                 },
                 'task_config': {
+                    'python_module_path': python_module_path,
                     'source_filename': source_filename,
                     'target_table_name': target_table_name,
-                    'python_module_path': python_module_path,
                     'transform_args': parsed_transform_args,
-                    'max_parallel_tasks': max_parallel_tasks or 16
+                    'is_multi_table': is_multi_table,
+                    'max_parallel_tasks': max_parallel_tasks
                 }
             }
-            
-            # 3. Escolhe a função de criação baseado em is_multi_table
-            if is_multi_table:
-                log.info(f"[MULTI-TABLE] Criando DAG multi-table: {config_name}")
-                dag_object = create_multi_table_dag(dag_config)
-            else:
-                dag_object = create_dynamic_dag(dag_config)
-            
-            dag_object.fileloc = DAG_FILE_PATH 
-            globals()[f"dag_{config_name}"] = dag_object
-            
             log.info(f"✅ DAG '{config_name}' carregada com sucesso (multi_table={is_multi_table}).")
 
         except (ValueError, TypeError, json.JSONDecodeError) as e:

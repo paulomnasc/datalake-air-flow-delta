@@ -28,6 +28,7 @@ def create_batch_dag_from_config(config_file):
     batch_id = config['batch_id']
     batch_mode = config.get('batch_mode', 'parallel')
     max_parallel = config.get('max_parallel_tasks', 4)
+    bucket_name = config.get('bucket_name') or os.environ.get('MINIO_BUCKET', 'lab01')
     files = config['files']
     
     default_args = {
@@ -61,7 +62,8 @@ def create_batch_dag_from_config(config_file):
                     'batch_id': batch_id,
                     'files': files,
                     'max_parallel': max_parallel,
-                    'dag_id': dag_id
+                    'dag_id': dag_id,
+                    'bucket_name': bucket_name
                 },
                 doc_md=f"""
                 ### Processamento Batch Paralelo
@@ -94,7 +96,8 @@ def create_batch_dag_from_config(config_file):
                         op_kwargs={
                             'source_filename': source_path,
                             'target_table_name': target_table,
-                            'dag_id': dag_id
+                            'dag_id': dag_id,
+                            'bucket_name': bucket_name
                         },
                         doc_md=f"""
                         ### Processar: {file_name}

@@ -77,6 +77,14 @@ class SessionHelper
     }
 
     /**
+     * Retorna o email do usuário logado
+     */
+    public static function getUserEmail(): ?string
+    {
+        return $_SESSION['email_usuario_logado'] ?? null;
+    }
+
+    /**
      * Retorna o perfil do usuário logado
      * 
      * @return string|null

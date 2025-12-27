@@ -9,6 +9,7 @@ use App\Models\PerfilModel;
 use App\Models\TokenModel;
 use App\Models\UsuarioPerfilModel;
 use App\Helpers\MinioHelper;
+use App\Helpers\AirflowHelper;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -34,6 +35,7 @@ class UsuarioController extends BaseController
         $_SESSION['id_usuario_logado'] = null;
         $_SESSION['nome_usuario_logado'] = null;
         $_SESSION['perfil_usuario_logado'] = null;
+        $_SESSION['email_usuario_logado'] = null;
         $_SESSION['usuario_logado'] = 0;
         return view('frmLogin');
     }
@@ -57,6 +59,7 @@ class UsuarioController extends BaseController
                 $_SESSION['id_usuario_logado'] = $usuario->id;
                 $_SESSION['nome_usuario_logado'] = $usuario->nome;
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
+                $_SESSION['email_usuario_logado'] = $usuario->email;
                 $_SESSION['usuario_logado'] = 1;
                 
                 // Garante que o bucket do usuário existe no MinIO
@@ -67,6 +70,25 @@ class UsuarioController extends BaseController
                     log_message('info', "Bucket do usuário {$usuario->id}: {$bucketResult['message']}");
                 } else {
                     log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+                }
+                
+                // Sincroniza usuário com Airflow (cria ou atualiza credenciais)
+                if (AirflowHelper::isAirflowAvailable()) {
+                    $airflowResult = AirflowHelper::syncUserWithAirflow(
+                        $usuario->id,
+                        $usuario->email ?? "",
+                        explode(' ', $usuario->nome)[0] ?? 'User',
+                        (count(explode(' ', $usuario->nome)) > 1) ? implode(' ', array_slice(explode(' ', $usuario->nome), 1)) : $usuario->id,
+                        $data['senha']
+                    );
+                    
+                    if ($airflowResult['success']) {
+                        log_message('info', "[AIRFLOW] {$airflowResult['message']}");
+                    } else {
+                        log_message('warning', "[AIRFLOW] {$airflowResult['message']}");
+                    }
+                } else {
+                    log_message('warning', "[AIRFLOW] Serviço Airflow não disponível no momento");
                 }
                 
                 return $this->response->setJSON([
@@ -113,6 +135,7 @@ class UsuarioController extends BaseController
                 $_SESSION['id_usuario_logado'] = $usuario->id;
                 $_SESSION['nome_usuario_logado'] = $usuario->nome;
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
+                $_SESSION['email_usuario_logado'] = $usuario->email;
                 $_SESSION['usuario_logado'] = 1;
                 
                 // Garante que o bucket do usuário existe no MinIO
@@ -122,6 +145,25 @@ class UsuarioController extends BaseController
                     log_message('info', "Bucket do usuário {$usuario->id}: {$bucketResult['message']}");
                 } else {
                     log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+                }
+                
+                // Sincroniza usuário com Airflow (cria ou atualiza credenciais)
+                if (AirflowHelper::isAirflowAvailable()) {
+                    $airflowResult = AirflowHelper::syncUserWithAirflow(
+                        $usuario->id,
+                        $usuario->email ?? "",
+                        explode(' ', $usuario->nome)[0] ?? 'User',
+                        (count(explode(' ', $usuario->nome)) > 1) ? implode(' ', array_slice(explode(' ', $usuario->nome), 1)) : $usuario->id,
+                        $senha
+                    );
+                    
+                    if ($airflowResult['success']) {
+                        log_message('info', "[AIRFLOW] {$airflowResult['message']}");
+                    } else {
+                        log_message('warning', "[AIRFLOW] {$airflowResult['message']}");
+                    }
+                } else {
+                    log_message('warning', "[AIRFLOW] Serviço Airflow não disponível no momento");
                 }
                 
                 return view('menu_smart');

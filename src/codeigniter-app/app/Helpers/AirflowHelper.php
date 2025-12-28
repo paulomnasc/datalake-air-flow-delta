@@ -246,10 +246,11 @@ class AirflowHelper
     private static function createRole(string $roleName): bool
     {
         $rolesUrl = 'http://airflow-webserver:8080/api/v1/roles';
-        // Corpo mínimo; algumas versões exigem 'permissions' vazio
+        // API 2.9 espera a chave "actions"; se ausente gera 500 (KeyError)
+        // Tentamos primeiro com actions vazio, depois sem (fallback)
         $payloads = [
-            ['name' => $roleName],
-            ['name' => $roleName, 'permissions' => []]
+            ['name' => $roleName, 'actions' => []],
+            ['name' => $roleName]
         ];
 
         foreach ($payloads as $body) {

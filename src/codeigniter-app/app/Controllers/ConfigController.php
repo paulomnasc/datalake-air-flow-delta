@@ -425,8 +425,14 @@ class ConfigController extends BaseController
 
                 $dagId = $postData['dag_id'] ?? 'default_dag';
                 
-                // Prioriza bucket do usuário logado, depois config, depois fallback
+                // Prioriza bucket do usuário logado (alinhado com username), depois config, depois fallback
                 $bucket = SessionHelper::getUserBucket() ?: ($this->bucketName ?: 'lab01');
+                
+                // Alinhar owner com username do Airflow para access_control na DAG
+                $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
+                    \App\Helpers\SessionHelper::getUserEmail(),
+                    (int) \App\Helpers\SessionHelper::getUserId()
+                );
 
                 // Gera nome único para o arquivo no MinIO
                 $newName = $uploadedFile->getRandomName(); // CI gera um nome único
@@ -444,6 +450,8 @@ class ConfigController extends BaseController
                         'SourceFile' => $uploadedFile->getTempName(),
                         'ContentType' => $uploadedFile->getClientMimeType(),
                     ]);
+
+                    log_message('info', "📦 Upload bem-sucedido para bucket: {$bucket}, path: {$targetMinioPath}, owner: {$ownerUsername}");
 
                     // Se o upload ocorreu, salve a chave no BD
                     $sourceLocation = $targetMinioPath;
@@ -506,7 +514,7 @@ class ConfigController extends BaseController
                 'id_source_type'  => (int)($postData['id_source_type'] ?? 0), // Garante INT
                 'dag_id'                => $postData['dag_id'],   
                 'is_active'             => $postData['is_active'] ?? 1,
-                'owner'                 => $postData['owner'] ?? 'webapp_user',
+                'owner'                 => $ownerUsername ?? ($postData['owner'] ?? 'airflow'),
                 'schedule_interval'     => $postData['schedule_interval'] ?? '0 0 * * *',
                 'description'           => $postData['description'] ?? null,
                 
@@ -664,7 +672,7 @@ class ConfigController extends BaseController
                 'id_source_type'      => (int)($postData['id_source_type'] ?? $existingConfig->id_source_type),
                 'dag_id'              => $dagId,
                 'is_active'           => $postData['is_active'] ?? $existingConfig->is_active ?? 1,
-                'owner'               => $postData['owner'] ?? $existingConfig->owner ?? 'webapp_user',
+                'owner'               => $ownerUsername ?? ($postData['owner'] ?? $existingConfig->owner ?? 'airflow'),
                 'schedule_interval'   => $postData['schedule_interval'] ?? $existingConfig->schedule_interval ?? '0 0 * * *',
                 'description'         => $postData['description'] ?? $existingConfig->description ?? null,
                 'source_filename'     => $sourceLocation,
@@ -692,9 +700,12 @@ class ConfigController extends BaseController
                 throw new \Exception($errorMessage);
             }
 
+            // 🔄 Reserializar DAG após atualizar config para refletir mudanças de datasource
+            $this->reserializeDAG($dagId);
+
             return $this->response->setJSON([
                 'status' => 'success',
-                'mensagem' => 'Registro atualizado com sucesso!'
+                'mensagem' => 'Registro atualizado com sucesso! DAG será recarregada.'
             ]);
             
         } catch (\Exception $e) {
@@ -1098,7 +1109,18 @@ class ConfigController extends BaseController
                 throw new \Exception('Cliente MinIO não está inicializado. Verifique configurações do .env');
             }
             
-            log_message('info', "MinIO inicializado. Bucket: {$this->bucketName}");
+            // Determinar bucket do usuário (isolamento por usuário)
+            $userBucket = \App\Helpers\SessionHelper::getUserBucket();
+            $bucketInUse = $userBucket ?: $this->bucketName;
+            log_message('info', "MinIO inicializado. Bucket em uso: {$bucketInUse}");
+            
+            // Garantir que o bucket do usuário existe
+            $ensureResult = \App\Helpers\MinioHelper::ensureBucketExists($bucketInUse);
+            if (!$ensureResult['success']) {
+                log_message('error', "Falha ao garantir bucket '{$bucketInUse}': " . $ensureResult['message']);
+                throw new \Exception("Falha ao preparar bucket de armazenamento: " . $ensureResult['message']);
+            }
+            log_message('info', "Bucket '{$bucketInUse}' verificado/criado com sucesso");
             
             // Obter arquivos múltiplos
             $files = $this->request->getFileMultiple('multiple_files') ?? [];
@@ -1160,7 +1182,7 @@ class ConfigController extends BaseController
 
                     // Upload para MinIO
                     $putObjectResult = $this->minioClient->putObject([
-                        'Bucket' => $this->bucketName,
+                        'Bucket' => $bucketInUse,
                         'Key'    => $s3Key,
                         'Body'   => fopen($sourceForUpload, 'rb'),
                         'ContentType' => $contentType
@@ -1211,11 +1233,17 @@ class ConfigController extends BaseController
             $folderPath = "raw/{$dagId}/";
             
             // Criar UMA configuração que processa TODOS os arquivos da pasta
+            // Alinhar owner com username do Airflow para access_control
+            $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
+                \App\Helpers\SessionHelper::getUserEmail(), 
+                (int) \App\Helpers\SessionHelper::getUserId()
+            );
+
             $dataToInsert = [
                 'dag_id' => $dagId,
                 'description' => $postData['description'] ?? "Batch processing - pasta com " . count($uploadedFiles) . " arquivo(s)",
                 'schedule_interval' => $postData['schedule_interval'] ?? '@daily',
-                'owner' => $postData['owner'] ?? 'airflow',
+                'owner' => $ownerUsername ?: ($postData['owner'] ?? 'airflow'),
                 'start_date' => $postData['start_date'] ?? date('Y-m-d'),
                 'id_source_type' => $sourceTypeId,
                 'source_filename' => $folderPath, // APENAS O PATH DA PASTA!
@@ -1558,7 +1586,18 @@ class ConfigController extends BaseController
                 throw new \Exception('Cliente MinIO não está inicializado. Verifique configurações do .env');
             }
             
-            log_message('info', "MinIO inicializado. Bucket: {$this->bucketName}");
+            // Determinar bucket do usuário (isolamento por usuário)
+            $userBucket = \App\Helpers\SessionHelper::getUserBucket();
+            $bucketInUse = $userBucket ?: $this->bucketName;
+            log_message('info', "MinIO inicializado. Bucket em uso: {$bucketInUse}");
+            
+            // Garantir que o bucket do usuário existe
+            $ensureResult = \App\Helpers\MinioHelper::ensureBucketExists($bucketInUse);
+            if (!$ensureResult['success']) {
+                log_message('error', "Falha ao garantir bucket '{$bucketInUse}': " . $ensureResult['message']);
+                throw new \Exception("Falha ao preparar bucket de armazenamento: " . $ensureResult['message']);
+            }
+            log_message('info', "Bucket '{$bucketInUse}' verificado/criado com sucesso");
             
             // Obter arquivos múltiplos
             $files = $this->request->getFileMultiple('multiple_files') ?? [];
@@ -1620,7 +1659,7 @@ class ConfigController extends BaseController
 
                     // Upload para MinIO
                     $putObjectResult = $this->minioClient->putObject([
-                        'Bucket' => $this->bucketName,
+                        'Bucket' => $bucketInUse,
                         'Key'    => $s3Key,
                         'Body'   => fopen($sourceForUpload, 'rb'),
                         'ContentType' => $contentType
@@ -1718,6 +1757,34 @@ class ConfigController extends BaseController
                 'status' => 'error',
                 'mensagem' => 'Erro no upload: ' . $e->getMessage()
             ])->setStatusCode(500);
+        }
+    }
+
+    /**
+     * Reserializa uma DAG no Airflow após atualizar a configuração.
+     * Executa: airflow dags reserialize --dag-id=<dag_id>
+     * 
+     * @param string $dagId O ID da DAG a reserializar
+     */
+    private function reserializeDAG(string $dagId): void
+    {
+        try {
+            // Comando para reserializar a DAG específica no Airflow
+            $command = "docker exec airflow-scheduler airflow dags reserialize --dag-id={$dagId}";
+            
+            log_message('info', "[ConfigController] Reserializando DAG: {$dagId}");
+            
+            // Executa o comando (best-effort, não bloqueia se falhar)
+            $output = shell_exec("{$command} 2>&1");
+            
+            if (strpos($output, 'error') !== false || strpos($output, 'Error') !== false) {
+                log_message('warning', "[ConfigController] Possível erro ao reserializar {$dagId}: {$output}");
+            } else {
+                log_message('info', "[ConfigController] ✅ DAG {$dagId} reserializada com sucesso.");
+            }
+        } catch (\Exception $e) {
+            log_message('error', "[ConfigController] Falha ao reserializar DAG {$dagId}: " . $e->getMessage());
+            // Não lança exceção; permite que a atualização seja bem-sucedida mesmo se reserializar falhar
         }
     }
 

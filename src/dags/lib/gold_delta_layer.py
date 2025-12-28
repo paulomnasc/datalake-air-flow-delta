@@ -42,7 +42,8 @@ def gold_to_delta(source_filename: str, target_table_name: str, **kwargs):
     import pandas as pd
     import pyarrow as pa
     
-    bucket = os.environ.get("MINIO_BUCKET", "lab01")
+    # Bucket isolado por usuário: kwargs -> env -> fallback
+    bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
     hook = S3Hook(aws_conn_id='minio_conn')
 
     # Determina chaves

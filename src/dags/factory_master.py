@@ -1,4 +1,5 @@
 import os
+import re
 import importlib
 import json
 import logging
@@ -44,6 +45,16 @@ DEFAULT_ARGS = {
     'start_date': days_ago(1),
     'retries': 1,
 }
+
+
+def build_owner_role(owner: str) -> str:
+    """Gera nome de role a partir do owner para usar em access_control."""
+    if not owner or owner == 'airflow':
+        return ''
+    sanitized = re.sub(r'[^a-zA-Z0-9_-]+', '-', owner)
+    return sanitized.strip('-')
+
+
 
 # ----------------------------------------------------------------------
 # 2. FUNÇÕES DE UTILIDADE E HOOKS
@@ -93,8 +104,46 @@ def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
     log.debug(f"DEBUG: Query SQL:\n{sql_query}")
     
     hook = MySqlHook(mysql_conn_id=mysql_conn_id)
-    records = hook.get_records(sql=sql_query)
-    
+    try:
+        records = hook.get_records(sql=sql_query)
+        append_none_bucket = False
+    except Exception as e:
+        # Compatibilidade: se a coluna 'user_bucket' não existir, reconsulta sem ela
+        if "Unknown column 'user_bucket'" in str(e):
+            log.warning("Compat mode: coluna 'user_bucket' não existe; reconsultando sem ela")
+            fallback_query = """
+            SELECT
+                id,
+                dag_id, 
+                schedule_interval,
+                owner,
+                description,
+                source_filename,
+                target_table_name,
+                python_module_path,
+                transform_args,
+                start_date,
+                is_multi_table,
+                max_parallel_tasks,
+                sql_connection_id,
+                sql_host,
+                sql_port,
+                sql_database_name,
+                sql_user,
+                sql_password
+            FROM dag_configurations
+            WHERE is_active = 1 
+            ORDER BY id;
+            """
+            records = hook.get_records(sql=fallback_query)
+            append_none_bucket = True
+        else:
+            raise
+
+    # Se a consulta fallback foi usada, padroniza a tupla adicionando None para user_bucket
+    if append_none_bucket:
+        records = [tuple(list(rec) + [None]) for rec in records]
+
     log.info(f"DEBUG: Retornadas {len(records)} configurações do MySQL")
     for idx, rec in enumerate(records):
         log.debug(f"DEBUG: Registro {idx}: {rec}")
@@ -191,7 +240,11 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         effective_start_date = DEFAULT_ARGS['start_date']
         log.debug(f"DEBUG: start_date do DB é None, usando padrão: {effective_start_date}")
         
-    dag_args['owner'] = dag_metadata.get('owner') or DEFAULT_ARGS['owner']
+    owner_value = dag_metadata.get('owner') or DEFAULT_ARGS['owner']
+    dag_args['owner'] = owner_value
+    # Para evitar erros de role inexistente, não aplicar access_control quando a role não existe.
+    # Como a API de criação de roles está falhando (HTTP 500), mantemos access_control desativado.
+    access_control = None
     
     # 2. Criar Objeto DAG
     
@@ -208,7 +261,8 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         default_args=dag_args,
         tags=dag_metadata.get('tags'),
         max_active_runs=effective_max_runs, # Aplica a correção
-        doc_md=dag_metadata.get('description', f"DAG gerada dinamicamente a partir dos metadados da tabela dag_configurations (ID: {dag_id})")
+        doc_md=dag_metadata.get('description', f"DAG gerada dinamicamente a partir dos metadados da tabela dag_configurations (ID: {dag_id})"),
+        access_control=access_control
     )
 
     # 3. Criar a Tarefa Principal (ETL/ELT - PythonOperator)
@@ -216,8 +270,11 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     transform_args = task_config.get('transform_args', {})
     source_filename = task_config.get('source_filename')
 
-    # Bucket isolado por usuário: task_config/transform_args > dag_metadata > env
-    bucket_name = transform_args.get('bucket_name') or dag_metadata.get('user_bucket') or os.environ.get('MINIO_BUCKET', 'lab01')
+    # Bucket isolado por usuário: task_config/transform_args > dag_metadata > owner > env
+    bucket_name = transform_args.get('bucket_name') \
+        or dag_metadata.get('user_bucket') \
+        or dag_metadata.get('owner') \
+        or os.environ.get('MINIO_BUCKET', 'lab01')
     transform_args.setdefault('bucket_name', bucket_name)
 
     # 🆕 DETECÇÃO DE MULTI-ARQUIVO: Se source_filename termina com '/', é uma pasta
@@ -407,14 +464,20 @@ def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
     else:
         effective_start_date = DEFAULT_ARGS['start_date']
     
-    dag_args['owner'] = dag_metadata.get('owner') or DEFAULT_ARGS['owner']
+    owner_value = dag_metadata.get('owner') or DEFAULT_ARGS['owner']
+    dag_args['owner'] = owner_value
+    owner_role = build_owner_role(owner_value)
+    access_control = {owner_role: ["can_read", "can_edit"]} if owner_role else None
     
     # Criar DAG
     max_parallel = task_config.get('max_parallel_tasks', 16)
     transform_args = task_config.get('transform_args', {})
 
     # Bucket isolado por usuário para multi-table
-    bucket_name = transform_args.get('bucket_name') or dag_metadata.get('user_bucket') or os.environ.get('MINIO_BUCKET', 'lab01')
+    bucket_name = transform_args.get('bucket_name') \
+        or dag_metadata.get('user_bucket') \
+        or dag_metadata.get('owner') \
+        or os.environ.get('MINIO_BUCKET', 'lab01')
     transform_args.setdefault('bucket_name', bucket_name)
     
     dag = DAG(
@@ -426,7 +489,8 @@ def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
         tags=dag_metadata.get('tags', []) + ['multi-table'],
         max_active_runs=1,  # Evita overlap de execuções
         max_active_tasks=max_parallel,  # Controla paralelismo
-        doc_md=f"DAG Multi-Table: {dag_metadata.get('description', '')}. Processa múltiplas tabelas em paralelo."
+        doc_md=f"DAG Multi-Table: {dag_metadata.get('description', '')}. Processa múltiplas tabelas em paralelo.",
+        access_control=access_control
     )
     
     # Task para buscar lista de tabelas selecionadas
@@ -521,8 +585,11 @@ try:
             if sql_password:
                 parsed_transform_args['sql_password'] = sql_password
             
-            # Define bucket do usuário para isolamento; fallback para env se não vier do banco
-            bucket_name = parsed_transform_args.get('bucket_name') or user_bucket or os.environ.get('MINIO_BUCKET', 'lab01')
+            # Define bucket do usuário para isolamento; fallback para owner e env se não vier do banco
+            bucket_name = parsed_transform_args.get('bucket_name') \
+                or user_bucket \
+                or owner \
+                or os.environ.get('MINIO_BUCKET', 'lab01')
             parsed_transform_args.setdefault('bucket_name', bucket_name)
 
             dag_config = {
@@ -553,6 +620,15 @@ try:
         
         except AirflowException as e:
             log.error(f"❌ Erro de Módulo (DAG: {config_name}): {e}")
+            continue
+
+        # Criar e registrar a DAG no Airflow
+        try:
+            dag_obj = create_multi_table_dag(dag_config) if is_multi_table else create_dynamic_dag(dag_config)
+            globals()[config_name] = dag_obj
+            log.info(f"✅ DAG registrada: {config_name}")
+        except Exception as e:
+            log.error(f"❌ Falha ao criar/registrar DAG '{config_name}': {e}")
             continue
 
 except Exception as e:

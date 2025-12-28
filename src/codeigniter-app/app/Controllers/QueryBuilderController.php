@@ -30,11 +30,13 @@ class QueryBuilderController extends BaseController
         
         // Obtém bucket do usuário logado
         $userBucket = SessionHelper::getUserBucket();
-        $userS3Path = SessionHelper::getUserS3Path();
+        // Aponta para o bucket raiz (sem camada específica)
+        // A API DuckDB listará todas as camadas: raw, bronze, silver, gold
+        $userS3Path = SessionHelper::getUserS3Path('');
         
-        // Lista arquivos Parquet do bucket do usuário
+        // Lista arquivos Parquet do bucket do usuário (todas as camadas)
         $parquetFiles = [];
-        if ($userS3Path) {
+        if ($userBucket) {
             $parquetFiles = DuckDBHelper::listParquetFiles($userS3Path);
         }
         
@@ -189,10 +191,10 @@ class QueryBuilderController extends BaseController
         log_message('debug', '[QueryBuilder] listParquetFiles recebeu path: ' . var_export($path, true));
         log_message('debug', '[QueryBuilder] Session user ID: ' . ($_SESSION['id_usuario_logado'] ?? 'NOT SET'));
         
-        // Se path não fornecido, usa bucket do usuário
+        // Se path não fornecido, usa bucket do usuário na camada raw (arquivos brutos)
         if (empty($path)) {
-            $path = SessionHelper::getUserS3Path();
-            log_message('debug', '[QueryBuilder] Path vazio, usando getUserS3Path(): ' . var_export($path, true));
+            $path = SessionHelper::getUserS3Path('/raw');
+            log_message('debug', '[QueryBuilder] Path vazio, usando getUserS3Path(\'/raw\'): ' . var_export($path, true));
         }
         
         // Segurança: validar se path pertence ao usuário

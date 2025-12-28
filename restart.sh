@@ -30,6 +30,11 @@ echo "4. ⏳ Aguardando bancos de dados (15s)..."
 sleep 15
 
 echo ""
+echo "5. 🦆 Iniciando DuckDB Query API (duckdb-api)..."
+docker compose -f $COMPOSE_FILE up -d duckdb-api
+echo "   ▸ Healthcheck: aguarde alguns segundos e verifique em http://localhost:5000/health"
+
+echo ""
 #echo "5. 📊 Iniciando Apache Atlas (Catálogo de Dados)..."
 #docker compose -f $COMPOSE_FILE up -d atlas
 

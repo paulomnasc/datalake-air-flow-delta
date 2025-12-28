@@ -510,10 +510,96 @@ class UsuarioController extends BaseController
             log_message('info', 'Email de signup usuário destino:' . $email);
             $to = $email;
             //$from = getenv('smtp_username');
-            $subject = 'Confirmação de cadastro';
-            $message = "Olá, $nome. <br><br> Confirmação de cadastro de usuário na plataforma Smart-Tables.";
-            $message .= "Clique no link abaixo para confirmar seu e-mail:<br>";
-            $message .= "<a href='" . base_url("confirmEmail?token=$token") . "'>Confirmar E-mail</a>";
+            $subject = '✉️ Bem-vindo ao MyFlow! Confirme seu email para começar';
+            
+            // HTML profissional e atrativo
+            $confirmLink = base_url("confirmEmail?token=$token");
+            $message = "
+            <!DOCTYPE html>
+            <html lang='pt-BR'>
+            <head>
+                <meta charset='UTF-8'>
+                <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
+                    .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; }
+                    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 20px; text-align: center; }
+                    .header h1 { margin: 0; font-size: 32px; font-weight: bold; }
+                    .content { padding: 40px 30px; color: #333; }
+                    .greeting { font-size: 18px; margin-bottom: 20px; color: #333; }
+                    .message { font-size: 16px; line-height: 1.6; color: #666; margin: 20px 0; }
+                    .highlight { color: #667eea; font-weight: bold; }
+                    .cta-button { display: inline-block; margin: 30px 0; padding: 15px 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 50px; font-size: 16px; font-weight: bold; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: transform 0.3s ease; }
+                    .cta-button:hover { transform: translateY(-2px); }
+                    .note { background: #f0f4ff; padding: 15px; border-left: 4px solid #667eea; margin: 20px 0; border-radius: 5px; font-size: 14px; color: #555; }
+                    .footer { background: #f8f9fa; padding: 30px; text-align: center; color: #999; font-size: 13px; border-top: 1px solid #e9ecef; }
+                    .footer a { color: #667eea; text-decoration: none; }
+                    .icon { font-size: 48px; margin-bottom: 10px; }
+                </style>
+            </head>
+            <body>
+                <div class='container'>
+                    <div class='header'>
+                        <div class='icon'>🎉</div>
+                        <h1>Bem-vindo ao MyFlow!</h1>
+                    </div>
+                    <div class='content'>
+                        <p class='greeting'>Olá, <span class='highlight'>$nome</span>!</p>
+                        
+                        <p class='message'>
+                            Obrigado por se cadastrar no <span class='highlight'>MyFlow</span> – sua plataforma de datalake e analytics inteligente! 🚀
+                        </p>
+                        
+                        <p class='message'>
+                            Para ativar sua conta e começar a transformar seus dados em insights poderosos, você precisa <span class='highlight'>confirmar seu endereço de e-mail</span>.
+                        </p>
+                        
+                        <div style='text-align: center;'>
+                            <a href='$confirmLink' class='cta-button'>✓ Confirmar Meu Email</a>
+                        </div>
+                        
+                        <div class='note'>
+                            <strong>⏱️ Atenção:</strong> Este link expira em 24 horas. Se não conseguir clicar no botão acima, copie e cole este link no seu navegador: <br><br>
+                            <code style='background: #f0f0f0; padding: 5px 10px; border-radius: 3px;'>$confirmLink</code>
+                        </div>
+                        
+                        <p class='message'>
+                            Assim que confirmar seu email, você terá acesso imediato a todas as funcionalidades do MyFlow:
+                        </p>
+                        
+                        <ul style='color: #666; line-height: 1.8;'>
+                            <li>📦 Gerenciamento de buckets e armazenamento</li>
+                            <li>📊 Dashboards e relatórios avançados</li>
+                            <li>⚙️ Orquestração de fluxos de dados</li>
+                            <li>🔐 Segurança e controle de acesso</li>
+                        </ul>
+                        
+                        <p class='message' style='margin-top: 30px;'>
+                            Se você não criou esta conta ou tem alguma dúvida, entre em contato conosco pelo email <a href='mailto:suporte@smarttables.x10.mx' style='color: #667eea; text-decoration: none;'>suporte@smarttables.x10.mx</a>.
+                        </p>
+                        
+                        <p class='message'>
+                            Estamos aqui para ajudar! 💪
+                        </p>
+                        
+                        <p style='margin-top: 30px; color: #999; font-size: 14px;'>
+                            Atenciosamente,<br>
+                            <strong style='color: #333;'>Equipe MyFlow</strong>
+                        </p>
+                    </div>
+                    
+                    <div class='footer'>
+                        <p>© 2025 MyFlow - Inteligência em Dados. Todos os direitos reservados.</p>
+                        <p>
+                            <a href='http://smarttables.x10.mx/politica'>Política de Privacidade</a> | 
+                            <a href='http://smarttables.x10.mx/tdu'>Termos de Uso</a> | 
+                            <a href='http://smarttables.x10.mx/contactUs'>Suporte</a>
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            ";
 
             $subject = mb_convert_encoding($subject, 'UTF-8', 'auto');
             $message = mb_convert_encoding($message, 'UTF-8', 'auto');

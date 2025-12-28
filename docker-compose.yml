@@ -3,6 +3,22 @@ version: '3.8'
 
 services:
 
+  # 🌐 Nginx Reverse Proxy (Gateway para webapp)
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-gateway
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/myflow.conf:/etc/nginx/conf.d/myflow.conf:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - codeigniter-app
+    networks:
+      - airflow_net
+
   spark:
     image: apache/spark:3.4.1
     container_name: spark
@@ -298,11 +314,14 @@ services:
     depends_on:
       - mysql
     volumes:
-      # Mapeamento do código (para desenvolvimento local)
-      - ./src/codeigniter-app:/var/www/html
-      # Mapeamento para escrita dos YAMLs do Airflow
+      # Mapeamento do código como read-only (para desenvolvimento local, sem conflitos)
+      - ./src/codeigniter-app:/var/www/html:ro
+      # Volume Docker para writable (evita problemas de permissão do host)
+      - webapp_writable:/var/www/html/writable
+      # Volume Docker para dependências (PHP, Composer)
+      - webapp_vendor:/var/www/html/vendor
+      # Bind mount apenas para configs do Airflow (persistidos no host)
       - ./src/dags/configs:/var/www/html/writable/configs
-      - /var/www/html/vendor
     ports:
       - "8088:80"
       - "9003:9003" # <--- Porta do XDebug
@@ -381,3 +400,6 @@ volumes:
   spark_metastore:
   spark_warehouse:
   spark_ivy:
+  webapp_writable:
+  webapp_vendor:
+  nginx_logs:

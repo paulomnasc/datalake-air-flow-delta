@@ -434,6 +434,20 @@ class ConfigController extends BaseController
                     (int) \App\Helpers\SessionHelper::getUserId()
                 );
 
+                // VERIFICAÇÃO DE LIMITE DE ARMAZENAMENTO
+                $fileSize = $uploadedFile->getSize();
+                $storageCheck = \App\Helpers\MinioHelper::checkStorageLimit($bucket, $fileSize);
+                
+                if (!$storageCheck['allowed']) {
+                    log_message('warning', "Upload bloqueado por limite de armazenamento: {$storageCheck['message']}");
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => $storageCheck['message']
+                    ]);
+                }
+                
+                log_message('info', "Verificação de armazenamento OK: {$storageCheck['message']}");
+
                 // Gera nome único para o arquivo no MinIO
                 $newName = $uploadedFile->getRandomName(); // CI gera um nome único
                 $targetMinioPath = "raw/{$dagId}/{$newName}";
@@ -1138,6 +1152,26 @@ class ConfigController extends BaseController
             // Validar extensões dos arquivos
             $this->validateFileExtensions($files);
 
+            // VERIFICAÇÃO DE LIMITE DE ARMAZENAMENTO PARA UPLOAD MÚLTIPLO
+            // Calcular tamanho total de todos os arquivos
+            $totalFilesSize = 0;
+            foreach ($files as $file) {
+                $totalFilesSize += $file->getSize();
+            }
+            
+            $storageCheck = \App\Helpers\MinioHelper::checkStorageLimit($bucketInUse, $totalFilesSize);
+            
+            if (!$storageCheck['allowed']) {
+                log_message('warning', "Upload múltiplo bloqueado por limite de armazenamento: {$storageCheck['message']}");
+                throw new \Exception(
+                    "Limite de armazenamento excedido! " . 
+                    "Tamanho total dos arquivos: " . \App\Helpers\MinioHelper::formatBytes($totalFilesSize) . ". " .
+                    $storageCheck['message']
+                );
+            }
+            
+            log_message('info', "Verificação de armazenamento para upload múltiplo OK: {$storageCheck['message']}");
+
             // Gerar timestamp único para o batch
             $batchId = uniqid('batch_', true);
             $timestamp = date('YmdHis');
@@ -1614,6 +1648,26 @@ class ConfigController extends BaseController
 
             // Validar extensões dos arquivos
             $this->validateFileExtensions($files);
+
+            // VERIFICAÇÃO DE LIMITE DE ARMAZENAMENTO PARA UPDATE MÚLTIPLO
+            // Calcular tamanho total de todos os novos arquivos
+            $totalFilesSize = 0;
+            foreach ($files as $file) {
+                $totalFilesSize += $file->getSize();
+            }
+            
+            $storageCheck = \App\Helpers\MinioHelper::checkStorageLimit($bucketInUse, $totalFilesSize);
+            
+            if (!$storageCheck['allowed']) {
+                log_message('warning', "Update múltiplo bloqueado por limite de armazenamento: {$storageCheck['message']}");
+                throw new \Exception(
+                    "Limite de armazenamento excedido! " . 
+                    "Tamanho total dos novos arquivos: " . \App\Helpers\MinioHelper::formatBytes($totalFilesSize) . ". " .
+                    $storageCheck['message']
+                );
+            }
+            
+            log_message('info', "Verificação de armazenamento para update múltiplo OK: {$storageCheck['message']}");
 
             // Gerar timestamp único para o batch
             $batchId = uniqid('batch_', true);

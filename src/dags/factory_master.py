@@ -270,8 +270,11 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     transform_args = task_config.get('transform_args', {})
     source_filename = task_config.get('source_filename')
 
-    # Bucket isolado por usuário: task_config/transform_args > dag_metadata > env
-    bucket_name = transform_args.get('bucket_name') or dag_metadata.get('user_bucket') or os.environ.get('MINIO_BUCKET', 'lab01')
+    # Bucket isolado por usuário: task_config/transform_args > dag_metadata > owner > env
+    bucket_name = transform_args.get('bucket_name') \
+        or dag_metadata.get('user_bucket') \
+        or dag_metadata.get('owner') \
+        or os.environ.get('MINIO_BUCKET', 'lab01')
     transform_args.setdefault('bucket_name', bucket_name)
 
     # 🆕 DETECÇÃO DE MULTI-ARQUIVO: Se source_filename termina com '/', é uma pasta
@@ -471,7 +474,10 @@ def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
     transform_args = task_config.get('transform_args', {})
 
     # Bucket isolado por usuário para multi-table
-    bucket_name = transform_args.get('bucket_name') or dag_metadata.get('user_bucket') or os.environ.get('MINIO_BUCKET', 'lab01')
+    bucket_name = transform_args.get('bucket_name') \
+        or dag_metadata.get('user_bucket') \
+        or dag_metadata.get('owner') \
+        or os.environ.get('MINIO_BUCKET', 'lab01')
     transform_args.setdefault('bucket_name', bucket_name)
     
     dag = DAG(
@@ -579,8 +585,11 @@ try:
             if sql_password:
                 parsed_transform_args['sql_password'] = sql_password
             
-            # Define bucket do usuário para isolamento; fallback para env se não vier do banco
-            bucket_name = parsed_transform_args.get('bucket_name') or user_bucket or os.environ.get('MINIO_BUCKET', 'lab01')
+            # Define bucket do usuário para isolamento; fallback para owner e env se não vier do banco
+            bucket_name = parsed_transform_args.get('bucket_name') \
+                or user_bucket \
+                or owner \
+                or os.environ.get('MINIO_BUCKET', 'lab01')
             parsed_transform_args.setdefault('bucket_name', bucket_name)
 
             dag_config = {

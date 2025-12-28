@@ -700,9 +700,12 @@ class ConfigController extends BaseController
                 throw new \Exception($errorMessage);
             }
 
+            // 🔄 Reserializar DAG após atualizar config para refletir mudanças de datasource
+            $this->reserializeDAG($dagId);
+
             return $this->response->setJSON([
                 'status' => 'success',
-                'mensagem' => 'Registro atualizado com sucesso!'
+                'mensagem' => 'Registro atualizado com sucesso! DAG será recarregada.'
             ]);
             
         } catch (\Exception $e) {
@@ -1754,6 +1757,34 @@ class ConfigController extends BaseController
                 'status' => 'error',
                 'mensagem' => 'Erro no upload: ' . $e->getMessage()
             ])->setStatusCode(500);
+        }
+    }
+
+    /**
+     * Reserializa uma DAG no Airflow após atualizar a configuração.
+     * Executa: airflow dags reserialize --dag-id=<dag_id>
+     * 
+     * @param string $dagId O ID da DAG a reserializar
+     */
+    private function reserializeDAG(string $dagId): void
+    {
+        try {
+            // Comando para reserializar a DAG específica no Airflow
+            $command = "docker exec airflow-scheduler airflow dags reserialize --dag-id={$dagId}";
+            
+            log_message('info', "[ConfigController] Reserializando DAG: {$dagId}");
+            
+            // Executa o comando (best-effort, não bloqueia se falhar)
+            $output = shell_exec("{$command} 2>&1");
+            
+            if (strpos($output, 'error') !== false || strpos($output, 'Error') !== false) {
+                log_message('warning', "[ConfigController] Possível erro ao reserializar {$dagId}: {$output}");
+            } else {
+                log_message('info', "[ConfigController] ✅ DAG {$dagId} reserializada com sucesso.");
+            }
+        } catch (\Exception $e) {
+            log_message('error', "[ConfigController] Falha ao reserializar DAG {$dagId}: " . $e->getMessage());
+            // Não lança exceção; permite que a atualização seja bem-sucedida mesmo se reserializar falhar
         }
     }
 

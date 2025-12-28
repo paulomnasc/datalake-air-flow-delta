@@ -66,7 +66,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             return pd.json_normalize(payload)
         raise ValueError("Formato JSON não suportado")
     
-    # Permite override do bucket via kwargs, senão usa env ou default
+    # Bucket isolado por usuário: kwargs -> env -> fallback
     bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
     log.info(f"[MEDALLION] Usando bucket: {bucket}")
     
@@ -357,7 +357,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             
             delta_result = gold_to_delta(
                 source_filename=gold_key,
-                target_table_name=target_table_name
+                target_table_name=target_table_name,
+                **kwargs
             )
             
             results['delta'] = delta_result.get('delta')

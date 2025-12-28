@@ -241,17 +241,36 @@ class AirflowHelper
     }
 
     /**
+     * Obtém a lista de actions de um role existente (para clonar permissões).
+     */
+    private static function getRoleActions(string $roleName): array
+    {
+        $roleUrl = 'http://airflow-webserver:8080/api/v1/roles/' . urlencode($roleName);
+        $resp = self::apiCall('GET', $roleUrl);
+        if ($resp['success'] && !empty($resp['response']['actions'])) {
+            return $resp['response']['actions'];
+        }
+        return [];
+    }
+
+    /**
      * Cria role via API com corpo mínimo. Retorna true em sucesso ou conflito (já existe).
      */
     private static function createRole(string $roleName): bool
     {
         $rolesUrl = 'http://airflow-webserver:8080/api/v1/roles';
         // API 2.9 espera a chave "actions"; se ausente gera 500 (KeyError)
-        // Tentamos primeiro com actions vazio, depois sem (fallback)
-        $payloads = [
-            ['name' => $roleName, 'actions' => []],
-            ['name' => $roleName]
-        ];
+        // Copiamos as actions do role "User" (permissão padrão de execução/visualização)
+        $templateActions = self::getRoleActions('User');
+
+        $payloads = [];
+        if (!empty($templateActions)) {
+            $payloads[] = ['name' => $roleName, 'actions' => $templateActions];
+        }
+        // Fallback: actions vazio
+        $payloads[] = ['name' => $roleName, 'actions' => []];
+        // Fallback final: apenas name
+        $payloads[] = ['name' => $roleName];
 
         foreach ($payloads as $body) {
             $resp = self::apiCall('POST', $rolesUrl, $body);
@@ -281,12 +300,44 @@ class AirflowHelper
             }
         }
 
+        // Garante que a role tenha ações mínimas (clonadas de User) para executar/visualizar DAG
+        self::ensureRoleHasActions($ownerRole);
+
         // Tenta anexar se agora existir
         if (self::roleExists($ownerRole)) {
             $attached = self::addExistingRoleToUser($username, $ownerRole);
             if (!$attached) {
                 log_message('warning', "[AirflowHelper] Role {$ownerRole} não anexada ao usuário {$username}.");
             }
+        }
+    }
+
+    /**
+     * Se a role existir mas estiver sem actions, clona as actions do role "User" e aplica via PATCH.
+     */
+    private static function ensureRoleHasActions(string $roleName): void
+    {
+        $roleUrl = 'http://airflow-webserver:8080/api/v1/roles/' . urlencode($roleName);
+        $current = self::apiCall('GET', $roleUrl);
+        if (!$current['success']) {
+            return;
+        }
+
+        $currentActions = $current['response']['actions'] ?? [];
+        if (!empty($currentActions)) {
+            return; // já possui permissões
+        }
+
+        $templateActions = self::getRoleActions('User');
+        if (empty($templateActions)) {
+            return;
+        }
+
+        $patch = self::apiCall('PATCH', $roleUrl, ['actions' => $templateActions]);
+        if ($patch['success']) {
+            log_message('info', "[AirflowHelper] Actions clonadas para role {$roleName} a partir de User.");
+        } else {
+            log_message('warning', "[AirflowHelper] Falha ao aplicar actions na role {$roleName}: {$patch['error']}");
         }
     }
 

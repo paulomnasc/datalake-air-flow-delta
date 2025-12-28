@@ -589,6 +589,63 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
         $('#nome_arquivo').val(fileName);
     });
 
+    // Limites do PHP para upload, injetados do servidor
+    <?php
+        // Converte valores shorthand do PHP (e.g., 8M, 2G) para bytes
+        function __toBytes($val) {
+            $val = trim($val);
+            $last = strtolower($val[strlen($val)-1]);
+            $num = (int)$val;
+            switch ($last) {
+                case 'g': $num *= 1024; // fallthrough
+                case 'm': $num *= 1024; // fallthrough
+                case 'k': $num *= 1024; // fallthrough
+            }
+            return $num;
+        }
+        $uploadMaxStr = ini_get('upload_max_filesize');
+        $postMaxStr = ini_get('post_max_size');
+        $uploadMaxBytes = __toBytes($uploadMaxStr);
+        $postMaxBytes = __toBytes($postMaxStr);
+    ?>
+    const phpUploadMaxBytes = <?= $uploadMaxBytes ?>;
+    const phpPostMaxBytes = <?= $postMaxBytes ?>;
+    const phpUploadMaxHuman = '<?= $uploadMaxStr ?>';
+    const phpPostMaxHuman = '<?= $postMaxStr ?>';
+
+    function bytesToHuman(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function collectSelectedFiles() {
+        const files = [];
+        // Arquivo CSV simples
+        const csvInput = document.getElementById('arquivo');
+        if (csvInput && csvInput.files && csvInput.files.length > 0) {
+            files.push(...csvInput.files);
+        }
+        // Upload único de origem
+        const sourceSingle = document.getElementById('source_upload_file');
+        if (sourceSingle && sourceSingle.files && sourceSingle.files.length > 0) {
+            files.push(...sourceSingle.files);
+        }
+        // Upload múltiplo via input nativo
+        const multiInput = document.getElementById('multiple_files');
+        if (multiInput && multiInput.files && multiInput.files.length > 0) {
+            files.push(...multiInput.files);
+        }
+        // Upload múltiplo via selectedFiles (drag/drop)
+        if (typeof window.selectedFiles !== 'undefined' && Array.isArray(window.selectedFiles) && window.selectedFiles.length > 0) {
+            files.push(...window.selectedFiles);
+        }
+        const totalSize = files.reduce((sum, f) => sum + (f.size || 0), 0);
+        return { files, totalSize };
+    }
+
     $('#meuFormulario').submit(function(event) {
         event.preventDefault();
         
@@ -596,6 +653,26 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 
         //Código legado do handsontable desabilitado
         //salvarTabelaNaSessao();
+
+        // Pré-validação amigável contra limites do PHP
+        const { files: selectedFilesAll, totalSize: totalSelectedSize } = collectSelectedFiles();
+        // Verifica limite de post_max_size (soma dos arquivos + dados do formulário)
+        if (phpPostMaxBytes > 0 && totalSelectedSize > phpPostMaxBytes) {
+            const msg = `O envio excede o limite de POST do servidor (post_max_size: ${phpPostMaxHuman} / ${bytesToHuman(phpPostMaxBytes)}). Reduza o tamanho total ou divida em partes.`;
+            $('#error-message').html(msg).show().delay(8000).fadeOut();
+            console.warn('🚫 Bloqueado por post_max_size:', { phpPostMaxBytes, totalSelectedSize });
+            return;
+        }
+        // Verifica limite de upload_max_filesize por arquivo
+        if (phpUploadMaxBytes > 0) {
+            const oversized = selectedFilesAll.find(f => (f.size || 0) > phpUploadMaxBytes);
+            if (oversized) {
+                const msg = `O arquivo "${oversized.name}" excede o limite de upload do servidor (upload_max_filesize: ${phpUploadMaxHuman} / ${bytesToHuman(phpUploadMaxBytes)}).`;
+                $('#error-message').html(msg).show().delay(8000).fadeOut();
+                console.warn('🚫 Bloqueado por upload_max_filesize:', { phpUploadMaxBytes, file: oversized });
+                return;
+            }
+        }
 
         var formData = new FormData(this);
         
@@ -641,6 +718,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
             data: formData,
             processData: false,
             contentType: false,
+            dataType: 'json',
             success: function(result) {
                 console.log('Resposta do servidor:', result);
                 
@@ -657,7 +735,23 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
             },
             error: function(err) {
                 console.error('❌ Erro na requisição:', err);
-                $('#error-message').html('Erro ao salvar as informações.').show().delay(6000).fadeOut();
+                // Tenta extrair mensagem do backend (responseJSON.mensagem/message)
+                let mensagemErro = 'Erro ao salvar as informações.';
+                if (err.responseJSON) {
+                    mensagemErro = err.responseJSON.mensagem || err.responseJSON.message || mensagemErro;
+                } else if (err.responseText) {
+                    // Mapeia avisos brutos do PHP para mensagem amigável
+                    const txt = err.responseText;
+                    if (txt && txt.includes('POST Content-Length')) {
+                        const m = txt.match(/exceeds the limit of\s+(\d+)\s+bytes/i);
+                        const limitBytes = m && m[1] ? parseInt(m[1], 10) : phpPostMaxBytes;
+                        const limitHuman = limitBytes ? bytesToHuman(limitBytes) : phpPostMaxHuman;
+                        mensagemErro = `O envio excede o limite de POST do servidor (${limitHuman}). Diminua o tamanho total do upload ou divida em partes.`;
+                    } else {
+                        mensagemErro = txt;
+                    }
+                }
+                $('#error-message').html(mensagemErro).show().delay(6000).fadeOut();
                 console.log(err);
             }
         });

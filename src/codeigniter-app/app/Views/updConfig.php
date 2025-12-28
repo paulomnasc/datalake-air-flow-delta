@@ -4,6 +4,15 @@ if (! defined('VIEWPATH')) {
     define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR . 'Views');
 }
 require VIEWPATH . '/header.php';
+
+// Define o owner com o padrão prefixo-idusuario (username do Airflow)
+$ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
+    \App\Helpers\SessionHelper::getUserEmail(),
+    (int) \App\Helpers\SessionHelper::getUserId()
+);
+
+// Prefere o username da sessão; se não houver, mantém o owner já existente
+$ownerPrefill = $ownerUsername ?: $owner;
 ?>
 
 <div id="content">
@@ -45,8 +54,8 @@ require VIEWPATH . '/header.php';
 
         <div class="form-group">
             <label for="owner">Proprietário (Airflow Owner):</label>
-            <input type="text" name="owner" id="owner" placeholder="Ex: equipe_dados" maxlength="64" required 
-                   value="<?php echo $owner ?>">
+             <input type="text" name="owner" id="owner" placeholder="Ex: equipe_dados" maxlength="64" required 
+                 value="<?php echo esc($ownerPrefill); ?>" readonly>
         </div>
         <div class="form-group">
             <label for="schedule_interval">Agendamento (CRON):</label>
@@ -473,7 +482,7 @@ require VIEWPATH . '/header.php';
                 },
                 error: function(err) {
                     console.error('❌ Erro na requisição:', err);
-                    $('#error-message').html('Erro ao salvar o quadro.').show().delay(6000).fadeOut();
+                    $('#error-message').html('Erro ao salvar o fluxo.').show().delay(6000).fadeOut();
                     console.log(err);
                 }
             });

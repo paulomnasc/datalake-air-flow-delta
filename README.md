@@ -197,6 +197,25 @@ docker exec -it airflow-webserver airflow users create \
   --password admin
 ```
 
+#### 4.1 Governança de Acesso: Roles por Usuário (prefixo-idusuario)
+
+Para isolar a visibilidade de DAGs por usuário, utilizamos um papel específico por usuário no Airflow, igual ao seu `username` (ex.: `eng-147`).
+
+- A aplicação tenta criar automaticamente este papel via API no momento do login. Se a API do Airflow não aceitar criação (HTTP 500), o usuário é criado/atualizado com `Viewer` e você pode criar o papel via CLI/UI.
+- Assim que o papel existir, ele será anexado automaticamente ao usuário no próximo login.
+
+Comandos CLI (alternativa confiável):
+
+```bash
+docker exec -it airflow-webserver airflow roles list
+docker exec -it airflow-webserver airflow roles create eng-147
+docker exec -it airflow-webserver airflow users add-role --username eng-147 --role eng-147
+```
+
+Validação na UI:
+- Security → List Roles: verificar `eng-147`
+- Security → List Users → `eng-147`: verificar que possui `Viewer` + `eng-147`
+
 ---
 
 ### 5. Configurar Conexões do Airflow (! Obrigatório)

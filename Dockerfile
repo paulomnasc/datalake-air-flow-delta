@@ -22,6 +22,8 @@ RUN pip install --no-cache-dir -r /requirements.txt --constraint /constraints.tx
 RUN export CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-2.9.1/constraints-3.10.txt" && \
     pip install --no-cache-dir \
         apache-airflow-providers-apache-spark \
+        apache-airflow-providers-amazon \
+        apache-airflow-providers-mysql \
         pyspark \
         minio \
         --constraint "${CONSTRAINT_URL}"

@@ -84,6 +84,14 @@ class UsuarioController extends BaseController
                     
                     if ($airflowResult['success']) {
                         log_message('info', "[AIRFLOW] {$airflowResult['message']}");
+                        // Tentar anexar a role do dono (prefixo-idusuario) se ela existir
+                        $ownerRoleName = $airflowResult['username'] ?? null;
+                        if (!empty($ownerRoleName)) {
+                            $attached = AirflowHelper::addExistingRoleToUser($airflowResult['username'], $ownerRoleName);
+                            if (!$attached) {
+                                log_message('warning', "[AIRFLOW] Role {$ownerRoleName} não anexada (pode não existir); usuário segue com Viewer.");
+                            }
+                        }
                     } else {
                         log_message('warning', "[AIRFLOW] {$airflowResult['message']}");
                     }
@@ -159,6 +167,14 @@ class UsuarioController extends BaseController
                     
                     if ($airflowResult['success']) {
                         log_message('info', "[AIRFLOW] {$airflowResult['message']}");
+                        // Tentar anexar a role do dono (prefixo-idusuario) se ela existir
+                        $ownerRoleName = $airflowResult['username'] ?? null;
+                        if (!empty($ownerRoleName)) {
+                            $attached = AirflowHelper::addExistingRoleToUser($airflowResult['username'], $ownerRoleName);
+                            if (!$attached) {
+                                log_message('warning', "[AIRFLOW] Role {$ownerRoleName} não anexada (pode não existir); usuário segue com Viewer.");
+                            }
+                        }
                     } else {
                         log_message('warning', "[AIRFLOW] {$airflowResult['message']}");
                     }

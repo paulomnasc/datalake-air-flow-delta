@@ -251,7 +251,7 @@ function submitMeuFormularioUpload() {
                 }
             },
             error: function(err) {
-                $('#error-message').html('Erro ao salvar o quadro.').show().delay(6000).fadeOut(); // Mostra a mensagem de erro
+                $('#error-message').html('Erro ao salvar o fluxo.').show().delay(6000).fadeOut(); // Mostra a mensagem de erro
                 console.log(err); // Trate o erro aqui
             }
             });

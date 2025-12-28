@@ -140,15 +140,18 @@ class MinioHelper
     }
 
     /**
-     * Cria o bucket do usuário com base no ID
-     * Formato: user-{id}
+     * Cria o bucket do usuário com base no ID e email
+     * Formato: {username-prefix}-{id} (alinhado com AirflowHelper::buildUsernameFromEmail)
+     * Exemplo: eng-147, joao-89, etc.
      * 
      * @param int $userId ID do usuário
+     * @param string $email Email do usuário (para extrair prefixo)
      * @return array ['success' => bool, 'message' => string, 'bucket_name' => string]
      */
-    public static function createUserBucket(int $userId): array
+    public static function createUserBucket(int $userId, string $email = ''): array
     {
-        $bucketName = "user-" . $userId;
+        // Usar o mesmo padrão do Airflow username
+        $bucketName = \App\Helpers\AirflowHelper::buildUsernameFromEmail($email, $userId);
         $result = self::ensureBucketExists($bucketName);
         
         return array_merge($result, ['bucket_name' => $bucketName]);

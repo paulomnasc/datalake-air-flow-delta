@@ -15,13 +15,19 @@ if (!isset($userHasBucketsAccess) || !isset($userHasPipelinesAccess)) {
     $userHasPipelinesAccess = isset($GLOBALS['userHasPipelinesAccess']) ? $GLOBALS['userHasPipelinesAccess'] : false;
 }
 
-// Calcula username sugerido para Airflow (prefixo do email + id)
+// Calcula username sugerido para Airflow (prefixo do email + id) e lista de roles
 $airflowUsername = '';
+$airflowRoles = [];
 if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     $userId = $_SESSION['id_usuario_logado'] ?? null;
     $userEmail = $_SESSION['email_usuario_logado'] ?? '';
     if ($userId !== null) {
         $airflowUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail($userEmail, (int) $userId);
+        // Padrão de roles no Airflow: sempre 'Viewer' + role específica do dono (username)
+        $airflowRoles = ['Viewer'];
+        if (!empty($airflowUsername)) {
+            $airflowRoles[] = $airflowUsername;
+        }
     }
 }
 ?>
@@ -208,6 +214,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <span id="airflow-username-text" class="fw-bold me-2"><?= htmlspecialchars($airflowUsername, ENT_QUOTES, 'UTF-8'); ?></span>
                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyAirflowUsername()">Copiar</button>
                     </div>
+                    <?php if (!empty($airflowRoles)): ?>
+                    <div class="mt-2">
+                        <small class="text-muted">Roles no Airflow:</small>
+                        <?php foreach ($airflowRoles as $role): ?>
+                            <span class="badge bg-secondary me-1"><?= htmlspecialchars($role, ENT_QUOTES, 'UTF-8'); ?></span>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </li>
             <?php endif; ?>

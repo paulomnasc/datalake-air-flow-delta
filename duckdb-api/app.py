@@ -172,33 +172,125 @@ class SchemaRequest(BaseModel):
 
 @app.post("/query/parquet-files")
 async def list_parquet_files(request: ParquetFilesRequest):
-    """Lista arquivos Parquet disponíveis no S3/MinIO"""
-    path = request.path
+    """
+    Lista arquivos e estrutura de pastas no S3/MinIO.
+    
+    Retorna todos os arquivos (parquet e json) do bucket, organizados por camadas:
+    - raw: arquivos JSON brutos (uploads)
+    - bronze: arquivos parquet após primeira transformação
+    - silver: arquivos parquet após enriquecimento
+    - gold: arquivos parquet finais para BI/análise
+    """
+    path = request.path.strip() if request.path else ""
     
     try:
         con = get_duckdb_connection()
         
-        logger.info(f"📁 Listando arquivos em: {path}")
+        logger.info(f"📁 Listando arquivos em: {path or 'bucket-root'}")
         
-        # Query para listar arquivos (função glob do DuckDB)
-        # glob() retorna apenas a coluna 'file'
-        result = con.execute(f"""
-            SELECT 
-                file
-            FROM glob('{path}/**/*.parquet')
-            LIMIT 100
-        """).fetchall()
+        # Se path é o bucket raiz (vazio ou sem camada específica)
+        if not path or path.endswith("/") or path.endswith("eng-147") or path.endswith("lab01"):
+            logger.info(f"📁 Modo 'bucket-root': listando todas as camadas")
+            
+            # Extrai nome do bucket do path se fornecido
+            bucket = path.strip('/').split('/')[-1] if path else MINIO_BUCKET
+            if bucket.startswith('s3://'):
+                bucket = bucket.replace('s3://', '')
+            
+            # Tenta listar arquivos em cada camada conhecida (raw, bronze, silver, gold)
+            layers = ["raw", "bronze", "silver", "gold"]
+            all_files = []
+            
+            for layer in layers:
+                try:
+                    # Tenta encontrar parquet (para camadas processadas)
+                    layer_path_parquet = f"s3://{bucket}/{layer}/**/*.parquet"
+                    result_parquet = con.execute(f"""
+                        SELECT file
+                        FROM glob('{layer_path_parquet}')
+                        LIMIT 500
+                    """).fetchall()
+                    
+                    if result_parquet:
+                        for row in result_parquet:
+                            all_files.append((row[0],))
+                        logger.info(f"  ✅ '{layer}': {len(result_parquet)} arquivos Parquet")
+                    
+                    # Tenta encontrar json (para a camada raw)
+                    layer_path_json = f"s3://{bucket}/{layer}/**/*.json"
+                    result_json = con.execute(f"""
+                        SELECT file
+                        FROM glob('{layer_path_json}')
+                        LIMIT 500
+                    """).fetchall()
+                    
+                    if result_json:
+                        for row in result_json:
+                            all_files.append((row[0],))
+                        logger.info(f"  ✅ '{layer}': {len(result_json)} arquivos JSON")
+                    
+                except Exception as layer_error:
+                    logger.info(f"  ⓘ '{layer}': {str(layer_error)[:80]}")
+                    continue
+            
+            con.close()
+            
+            logger.info(f"Total de arquivos encontrados: {len(all_files)}")
+            
+            return {
+                "success": True,
+                "files": all_files,
+                "path": path or "bucket-root",
+                "count": len(all_files)
+            }
         
-        con.close()
-        
-        return {
-            "success": True,
-            "files": result,
-            "path": path
-        }
+        # Se path foi especificado para uma camada específica
+        else:
+            logger.info(f"📁 Modo 'path-específico': listando em {path}")
+            
+            # Tenta parquet primeiro
+            try:
+                result_parquet = con.execute(f"""
+                    SELECT file
+                    FROM glob('{path}/**/*.parquet')
+                    LIMIT 500
+                """).fetchall()
+                all_files = [(r[0],) for r in result_parquet] if result_parquet else []
+                logger.info(f"  ✅ Parquet: {len(all_files)} arquivos")
+            except:
+                all_files = []
+                logger.info(f"  ⓘ Nenhum parquet encontrado")
+            
+            # Tenta json também
+            try:
+                result_json = con.execute(f"""
+                    SELECT file
+                    FROM glob('{path}/**/*.json')
+                    LIMIT 500
+                """).fetchall()
+                if result_json:
+                    for r in result_json:
+                        all_files.append((r[0],))
+                    logger.info(f"  ✅ JSON: {len(result_json)} arquivos")
+            except:
+                logger.info(f"  ⓘ Nenhum JSON encontrado")
+            
+            con.close()
+            
+            return {
+                "success": True,
+                "files": all_files,
+                "path": path,
+                "count": len(all_files)
+            }
+            
     except Exception as e:
-        logger.error(f"❌ Error listing parquet files: {e}")
-        return {"success": False, "error": str(e)}
+        logger.error(f"❌ Error listing files: {e}")
+        try:
+            con.close()
+        except:
+            pass
+        return {"success": False, "error": str(e), "files": [], "count": 0}
 
 
 @app.post("/query/schema")

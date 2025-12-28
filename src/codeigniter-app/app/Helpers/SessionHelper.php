@@ -16,19 +16,22 @@ class SessionHelper
 
     /**
      * Retorna o nome do bucket do usuário logado
-     * Formato: user-{id}
+     * Formato: {username-prefix}-{id} (alinhado com AirflowHelper::buildUsernameFromEmail)
+     * Exemplo: eng-147, joao-89, etc.
      * 
      * @return string|null Nome do bucket ou null se usuário não estiver logado
      */
     public static function getUserBucket(): ?string
     {
         $userId = self::getUserId();
+        $email = self::getUserEmail();
         
         if ($userId === null) {
             return null;
         }
         
-        return "user-{$userId}";
+        // Usar o mesmo padrão do Airflow username: prefixo-userId
+        return \App\Helpers\AirflowHelper::buildUsernameFromEmail($email, $userId);
     }
 
     /**

@@ -4,6 +4,12 @@ if (! defined('VIEWPATH')) {
     define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR . 'Views');
 }
 require VIEWPATH . '/header.php';
+
+// Define o owner com o padrão prefixo-idusuario (username do Airflow)
+$ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
+    \App\Helpers\SessionHelper::getUserEmail(),
+    (int) \App\Helpers\SessionHelper::getUserId()
+);
 ?>
 
 <style>
@@ -167,7 +173,8 @@ require VIEWPATH . '/header.php';
                 </div>
                 <div class="form-group">
                     <label for="owner">Proprietário (Airflow Owner):</label>
-                    <input type="text" name="owner" id="owner" placeholder="Ex: equipe_dados" maxlength="64" required value="webapp_user">
+                    <input type="text" name="owner" id="owner" placeholder="Ex: equipe_dados" maxlength="64" required 
+                           value="<?php echo esc($ownerUsername); ?>" readonly>
                 </div>
                 <div class="form-group">
                     <label for="schedule_interval">Agendamento (CRON):</label>

@@ -93,14 +93,15 @@ class DuckDBHelper
     /**
      * Lista arquivos Parquet disponíveis no S3/MinIO
      * 
-     * @param string $path S3 path (ex: s3://user-1/bronze)
+     * @param string $path S3 path (ex: s3://eng-147 para listar todas as camadas)
      * @return array Lista de arquivos
      */
     public static function listParquetFiles(string $path = null): array
     {
-        // Se path não fornecido OU vazio, tenta usar bucket do usuário logado
+        // Se path não fornecido, usa bucket raiz do usuário para listar todas as camadas
         if (empty($path)) {
-            $path = \App\Helpers\SessionHelper::getUserS3Path() ?? 's3://lab01';
+            $userBucket = \App\Helpers\SessionHelper::getUserBucket();
+            $path = $userBucket ? "s3://{$userBucket}" : 's3://lab01';
         }
         
         // DEBUG: Log para diagnóstico

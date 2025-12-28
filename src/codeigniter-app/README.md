@@ -1,13 +1,77 @@
 
 
 ````markdown
-# 🚀 Solução Híbrida: Apache Airflow + PostgreSQL + MinIO
+# 🚀 Smart-Tables - WebApp CodeIgniter + Datalake
 
-Este projeto integra três componentes principais para orquestração de dados e armazenamento:
+Este projeto integra uma aplicação web CodeIgniter 4 com componentes para orquestração de dados e armazenamento:
 
+- **CodeIgniter 4**: Framework PHP para WebApp
 - **Apache Airflow**: Orquestração de workflows
 - **PostgreSQL**: Banco de dados relacional para metadados do Airflow
+- **MySQL**: Banco de dados da aplicação web
 - **MinIO**: Armazenamento de objetos compatível com S3
+- **PHPMailer**: Sistema de envio de emails SMTP
+
+---
+
+## 📧 Configuração de Email (SMTP)
+
+### Sistema de Cadastro de Usuários
+
+A aplicação possui um **sistema robusto de confirmação de email** para novos cadastros:
+
+#### 🔄 Fluxo de Cadastro:
+1. Usuário preenche formulário em `/sigInUsuario`
+2. Sistema envia email de confirmação com token único
+3. Usuário clica no link recebido
+4. Email é confirmado e login é liberado
+
+#### ⚙️ Configuração SMTP (Produção)
+
+No arquivo `.env`, as seguintes variáveis controlam o envio de emails:
+
+```env
+# SMTP Production Credentials
+smtp_host = mail.smarttables.x10.mx
+smtp_port = 587
+smtp_username = admin@smarttables.x10.mx
+smtp_password = kJ#212394
+smtp_nome_remetente = Smart_Tables
+smtp_secure = tls
+```
+
+#### 📝 Notas Importantes:
+
+- **Ambiente**: Use configurações de PRODUÇÃO para emails profissionais
+- **TLS**: Conexão segura na porta 587
+- **Domínio próprio**: Emails enviados de `admin@smarttables.x10.mx`
+- **Confirmação obrigatória**: Usuários só conseguem fazer login após confirmar email
+- **Token único**: Cada cadastro gera um token aleatório armazenado no banco
+
+#### 🔐 Segurança:
+
+- Flag `email_confirmado` no banco de dados
+- Validação de token antes de permitir acesso
+- Transações com rollback em caso de erro
+- Proteção contra spam e contas falsas
+
+---
+
+## 🌐 Acessos ao Sistema
+
+### URL de Acesso Principal
+
+- **Produção**: `http://smarttables.x10.mx/`
+- **Desenvolvimento**: `http://localhost:8088/`
+
+### Rotas Principais
+
+| Rota | Descrição |
+|------|-----------|
+| `/sigInUsuario` | Formulário de cadastro de novo usuário |
+| `/loginUsuario` | Tela de login |
+| `/confirmEmail?token=[TOKEN]` | Confirmação de email (via link no email) |
+| `/home` | Dashboard após login |
 
 A base foi clonada do repositório do Adriano e adaptada para incluir os três serviços integrados. Os artefatos de código (DAGs, scripts, configurações) estão versionados neste repositório.
 
@@ -213,10 +277,12 @@ pip install apache-airflow-providers-amazon --no-deps
 
 | Serviço | Endereço de Acesso | Porta | Usuário / Senha | Banco de Dados | Observações |
 | :--- | :--- | :--- | :--- | :--- | :--- |
+| **WebApp CodeIgniter** | http://smarttables.x10.mx/ | 8088 | Cadastro via `/sigInUsuario` | `lista_revisao2` | Confirmação via email obrigatória |
 | **Airflow UI** | [http://localhost:8085](https://www.google.com/search?q=http://localhost:8085) | 8085 | `admin` / `admin` | — | Criado após `airflow db init` e `users create` |
 | **MinIO Console** | [http://localhost:9001](https://www.google.com/search?q=http://localhost:9001) | 9001 | `admin` / `admin123`| — | Interface web de armazenamento S3 |
 | **MinIO API S3** | `http://localhost:9000` | 9000 | `admin` / `admin123`| — | Usado por boto3, S3Hook, etc. |
 | **PostgreSQL** | via cliente externo ou terminal | 5432 | `airflow` / `airflow` | `airflow` | Banco de metadados do Airflow |
+| **MySQL** | via cliente externo | 3306 | `root` / `root` | `lista_revisao2` | Banco da aplicação web |
 | **Spark SQL (Thrift)** | via Conector JDBC/ODBC 10000 | 10000 | `nenum` / `nenhum` | `nenhum` | Ponto de Acesso para Power BI/Tableau (Camada Semântica sobre Delta Lake) |
 
 -----

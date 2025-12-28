@@ -28,7 +28,7 @@ CI_ENVIRONMENT = DEVELOPMENT
 #app.baseURL = 'http://192.168.0.75:8080/'
 
 #URL PRA DESENVOLVIMENTO NO VSCODE
-app_baseURL = 'http://137.131.212.68:8088/'
+app_baseURL = 'http://localhost:8088/'
 
 #URL DE PRODUÇÃO
 # app_baseURL = 'http://smarttables.x10.mx/'
@@ -48,7 +48,6 @@ app_baseURL = 'http://137.131.212.68:8088/'
 #database.default.database = elvzlhrs_smarttables
   
 # LOCALHOST
-# Para o site no docker o host do banco de dados é 'mysql'
 database.default.hostname = mysql
 database.default.username = root
 database.default.password = root
@@ -109,7 +108,6 @@ encryption.key = hex2bin:3682f0d41371c328b887285ed623b8c65d49d1f9174d6d6a512cc9f
 #--------------------------------------------------------------------
 
 # logger.threshold = 4
-
 #--------------------------------------------------------------------
 # MINIO CONFIGS
 #--------------------------------------------------------------------
@@ -122,3 +120,14 @@ MINIO_SECRET_ACCESS_KEY = admin123
 
 # Nome do bucket de destino (para ser usado no Controller)
 MINIO_BUCKET_RAW = data-lake-raw
+
+# Limite de armazenamento por usuário no MinIO (em bytes)
+# Padrão: 1073741824 = 1GB
+# Exemplos: 
+#   - 104857600 = 100MB
+#   - 524288000 = 500MB
+#   - 1073741824 = 1GB
+#   - 5368709120 = 5GB
+#   - 10737418240 = 10GB
+MINIO_USER_STORAGE_LIMIT = 10485760
+    

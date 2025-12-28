@@ -13,6 +13,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/myflow.conf:/etc/nginx/conf.d/myflow.conf:ro
+      - /etc/letsencrypt/live/myflow.estudotabela.com.br:/etc/nginx/certs:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       - codeigniter-app

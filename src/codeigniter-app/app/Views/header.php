@@ -1,3 +1,84 @@
+<!-- Modal de Termos de Uso -->
+<div id="termsModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#fff; width:90vw; max-width:600px; max-height:80vh; border-radius:8px; overflow:hidden; display:flex; flex-direction:column;">
+        <div style="padding:16px; border-bottom:1px solid #eee; font-weight:bold;">Termos de Uso</div>
+        <div id="termsContent" style="flex:1; overflow-y:auto; padding:16px; font-size:0.95em; background:#fafafa; color:#111;"></div>
+        <div style="padding:16px; border-top:1px solid #eee; display:flex; flex-direction:column; gap:8px;">
+            <label style="display:flex; align-items:center; gap:8px; color:#111;">
+                <input type="checkbox" id="agreeCheckbox" disabled />
+                Li e concordo com os termos
+            </label>
+            <button id="proceedBtn" disabled style="padding:8px 16px; border:none; background:#1976d2; color:#fff; border-radius:4px; cursor:pointer;">Prosseguir</button>
+            <button id="closeModalBtn" style="padding:6px 12px; border:none; background:#eee; color:#333; border-radius:4px; cursor:pointer;">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openTermsModal(termsText, onProceed) {
+    const modal = document.getElementById('termsModal');
+    const content = document.getElementById('termsContent');
+    const checkbox = document.getElementById('agreeCheckbox');
+    const proceedBtn = document.getElementById('proceedBtn');
+    const closeBtn = document.getElementById('closeModalBtn');
+
+    content.innerHTML = termsText.replace(/\n/g, '<br>');
+    content.scrollTop = 0;
+    checkbox.checked = false;
+    checkbox.disabled = true;
+    proceedBtn.disabled = true;
+
+    content.onscroll = function() {
+        if (content.scrollTop + content.clientHeight >= content.scrollHeight - 2) {
+            checkbox.disabled = false;
+        }
+    };
+
+    checkbox.onchange = function() {
+        proceedBtn.disabled = !checkbox.checked;
+    };
+
+    proceedBtn.onclick = function() {
+        modal.style.display = 'none';
+        if (typeof onProceed === 'function') onProceed();
+    };
+
+    closeBtn.onclick = function() {
+        modal.style.display = 'none';
+    };
+
+    modal.style.display = 'flex';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Seleciona todos os links/botões relevantes por texto
+    const termsLinks = Array.from(document.querySelectorAll('a,button')).filter(el => {
+        const txt = (el.textContent || '').trim().toLowerCase();
+        return txt === 'experimentar' || txt === 'registre-se' || txt === 'inscrever-se';
+    });
+    const termsText = `Termos de Adesão: MyFlow Lab - Founder's Club 🚀\n\nOlá, Fundador(a)!\nVocê está sendo convidado(a) para participar da fase de nascimento do MyFlow Lab. Este é o nosso ambiente de experimentação onde você terá acesso às ferramentas e infraestruturas de dados que utilizo em meus tutoriais.\n\nAo clicar em \"De Acordo\", você aceita as seguintes condições de participação:\n\n1. O Período de Experiência (Free Pass)\nVocê terá 30 dias de acesso gratuito e irrestrito ao Lab a partir de hoje. Não solicitaremos dados de pagamento ou cartão de crédito para iniciar este período.\n\n2. Transição para Assinatura (Founder's Rate)\nPróximo ao término do seu período de 30 dias, o sistema exibirá notificações automáticas dentro da plataforma informando sobre a expiração do acesso.\nOpção de Continuidade: Para manter seus fluxos ativos e continuar utilizando o Lab, você poderá optar por assinar o plano mensal de USD 7,00 (sete dólares americanos).\nValor Vitalício: Como membro fundador, este valor será travado para você. Caso decida não assinar ao final dos 30 dias, seu acesso será suspenso, mas seus dados e fluxos permanecerão salvos por um período de cortesia para que você não perca seu trabalho.\n\n3. O que está incluído\nAcesso ao Lab: Infraestrutura pronta para execução de fluxos de dados.\nBlueprint Library: Modelos prontos baseados nos vídeos do canal.\nPrioridade de Feedback: Canal direto para sugerir novas funcionalidades.\n\n4. Sua Colaboração (O papel do Fundador)\nComo este é um ambiente em fase Beta, você concorda que:\nO sistema pode passar por atualizações e manutenções programadas.\nO seu feedback sobre a experiência de uso é fundamental para a evolução da ferramenta.\nRecomendamos manter backups externos de lógicas críticas, pois o ambiente é experimental.\n\n5. Uso Responsável\nO acesso é individual e voltado para aprendizado e desenvolvimento profissional. O uso abusivo de recursos computacionais fora dos padrões de aprendizado poderá resultar em suspensão temporária da conta.\n\nAo clicar abaixo, declaro que li e concordo com os termos, iniciando agora meu período de 30 dias de acesso ao MyFlow Lab.\n\n`;
+    termsLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            // Só intercepta se for para sigInUsuario ou for um desses botões
+            if (
+                (link.tagName === 'A' && link.getAttribute('href') && link.getAttribute('href').includes('sigInUsuario')) ||
+                link.textContent.trim().toLowerCase() === 'experimentar' ||
+                link.textContent.trim().toLowerCase() === 'registre-se' ||
+                link.textContent.trim().toLowerCase() === 'inscrever-se'
+            ) {
+                e.preventDefault();
+                openTermsModal(termsText, function() {
+                    if (link.tagName === 'A' && link.getAttribute('href')) {
+                        window.location.href = link.getAttribute('href');
+                    } else {
+                        window.location.href = '/sigInUsuario';
+                    }
+                });
+            }
+        });
+    });
+});
+</script>
 <?php
 // Carrega funcionalidades do usuário se não foram passadas pela view
 // Isso garante compatibilidade com controllers que usam view() direto
@@ -231,7 +312,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 <li>
                     <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado'])): ?>
                         
-                        <?php echo anchor("logarUsuarioAnonimo","Experimentar", ['class' => 'nav-link px-4 px-lg-5'])  ?>
+                        <?php echo anchor("sigInUsuario","Experimentar", ['class' => 'nav-link px-4 px-lg-5'])  ?>
                         
                         <?php echo anchor("loginUsuario","Entrar", ['class' => 'nav-link px-4 px-lg-5'])  ?>
                         
@@ -355,7 +436,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             
                 <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado'])): ?>
                     
-                    <?php echo anchor("logarUsuarioAnonimo","Experimentar", ['class' => 'nav-link px-4 px-lg-5'])  ?>
+                    <?php echo anchor("sigInUsuario","Experimentar", ['class' => 'nav-link px-4 px-lg-5'])  ?>
                     
 
                 <?php endif; ?>

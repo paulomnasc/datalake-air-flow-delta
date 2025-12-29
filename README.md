@@ -313,6 +313,80 @@ pip install apache-airflow-providers-amazon --no-deps
 ```
 
 
+---
+
+
+### 7. Ajustando Limite de Upload no Nginx (Erro 413 Request Entity Too Large)
+---
+
+#### Como acessar e editar arquivos dentro do container Nginx
+
+Se você precisa editar ou inspecionar arquivos diretamente dentro do container Nginx:
+
+1. Descubra o nome do container Nginx em execução:
+  ```bash
+  docker ps
+  ```
+  Procure pelo container relacionado ao Nginx.
+
+2. Acesse o shell do container:
+  ```bash
+  docker exec -it NOME_DO_CONTAINER /bin/sh
+  # ou, se disponível:
+  docker exec -it NOME_DO_CONTAINER /bin/bash
+  ```
+
+3. Navegue pelas pastas normalmente:
+  ```bash
+  cd /etc/nginx
+  ls
+  ```
+
+4. Edite arquivos com vi, nano ou outro editor disponível no container.
+
+> Dica: O ideal é manter a configuração customizada fora do container e montar via volumes, mas para testes rápidos ou debugging, esse acesso direto pode ser útil.
+
+---
+
+Se ao fazer upload de arquivos grandes você receber o erro:
+
+```
+413 Request Entity Too Large
+nginx/1.x.x
+```
+
+E sua stack estiver containerizada (Docker), siga os passos abaixo para aumentar o limite de upload do Nginx:
+
+1. **Localize o arquivo de configuração do Nginx usado no container** (exemplo: `nginx.conf` ou um arquivo em `conf.d/`).
+
+2. **Adicione ou ajuste a diretiva** dentro do bloco `http` ou `server`:
+  ```nginx
+  client_max_body_size 100M;
+  ```
+  > Altere `100M` para o tamanho desejado.
+
+3. **Garanta que o arquivo de configuração customizado está sendo montado no container** no seu `docker-compose.yml`:
+  ```yaml
+  services:
+    nginx:
+     image: nginx:latest
+     volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+     # ou, se usar sites-enabled/conf.d:
+      - ./meu-site.conf:/etc/nginx/conf.d/default.conf:ro
+  ```
+
+4. **Reinicie o container do Nginx:**
+  ```bash
+  docker-compose restart nginx
+  ```
+
+5. **Tente novamente o upload.**
+
+> Se o erro persistir, verifique também as configurações de upload do PHP (`upload_max_filesize` e `post_max_size` no `php.ini`).
+
+---
+
 
 
 ---

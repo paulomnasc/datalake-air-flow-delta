@@ -69,3 +69,5 @@ FROM `perfil_funcionalidade`;
 -- - Os perfis existentes terão suas funcionalidades gerenciadas via webapp
 -- - Você pode associar funcionalidades aos perfis através da interface web
 -- =========================================================================
+ALTER TABLE usuario
+ADD COLUMN criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;

@@ -92,6 +92,71 @@ docker restart mysql
 
 > **Atenção:** Use sempre uma senha forte e nunca exponha a porta 3306 para a internet.
 
+### 10. Erro de conexão em clientes externos (DBeaver, etc)
+
+Se o MySQL está rodando e a porta 3306 está exposta, mas clientes como DBeaver mostram "Connection refused", teste a conexão localmente no host:
+
+```bash
+mysql -h 127.0.0.1 -P 3306 -u root -p
+```
+
+Se esse comando conectar com sucesso, mas o cliente externo não, verifique:
+- Host: deve ser 127.0.0.1 (não localhost)
+- Porta: 3306
+- Usuário e senha corretos
+- JDBC URL (DBeaver):
+  ```
+  jdbc:mysql://127.0.0.1:3306/lista_revisao?allowPublicKeyRetrieval=true&useSSL=false
+  ```
+- Firewall ou antivírus bloqueando a porta
+
+> Se conectar no bash mas não no cliente, o problema é configuração do cliente ou firewall local.
+
+### 11. Executar scripts do mysql-init manualmente (quando não são executados automaticamente)
+
+Se o MySQL já está inicializado e você precisa rodar os scripts do mysql-init manualmente:
+
+1. Acesse o container do MySQL:
+```bash
+docker exec -it mysql bash
+```
+
+2. No shell do container, acesse o MySQL:
+```bash
+mysql -u root -p lista_revisao
+```
+
+3. No prompt do MySQL, execute:
+```sql
+source /docker-entrypoint-initdb.d/ddl.sql;
+source /docker-entrypoint-initdb.d/dml.sql;
+```
+
+> **Importante:** Você precisa acessar o prompt do MySQL (passo 2) antes de rodar os comandos source.
+> Repita o source para cada script que desejar executar.
+
+### 12. Execução manual dos scripts do mysql-init (método recomendado se o volume já existe)
+
+Se os scripts do mysql-init não rodaram automaticamente, siga este procedimento:
+
+1. Acesse o shell do container MySQL:
+```bash
+docker exec -it mysql bash
+```
+
+2. No shell do container, acesse o MySQL com o banco desejado:
+```bash
+mysql -u root -p lista_revisao
+```
+
+3. No prompt do MySQL, execute os scripts desejados:
+```sql
+source /docker-entrypoint-initdb.d/ddl.sql;
+source /docker-entrypoint-initdb.d/dml.sql;
+```
+
+> **Importante:** Você deve acessar o prompt do MySQL (passo 2) antes de rodar os comandos source. Repita o source para cada script que quiser executar.
+
 ---
 
 ## PostgreSQL

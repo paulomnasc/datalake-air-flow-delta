@@ -80,3 +80,13 @@ echo "📊 Serviços Ativos:"
 docker compose ps
 echo ""
 echo "=========================================================="
+
+# 🔄 Reiniciando e forçando recreate do Nginx (proxy reverso)
+echo "11. 🔁 Forçando recreate do Nginx (proxy reverso)..."
+docker compose up -d --force-recreate nginx
+
+echo "12. 📋 Logs recentes do Nginx (proxy reverso):"
+docker logs nginx-gateway --tail=30
+
+echo ""
+echo "=========================================================="

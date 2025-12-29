@@ -29,5 +29,13 @@ Thumbs.db
 # Ignorar arquivos pessoais de configuração do VSCode
 #.vscode/
 
+# Ignorar variáveis de ambiente (não versionar segredos)
+src/codeigniter-app/.env
+src/codeigniter-app/.env.local
+src/codeigniter-app/.env.production
+
+# Ignorar certificados locais
+certs/
+
 # Ignorar arquivos de configuração do JetBrains IDEs
 data/.minio.sys/

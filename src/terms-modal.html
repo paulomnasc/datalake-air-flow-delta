@@ -1,0 +1,88 @@
+<!-- Modal HTML -->
+<div id="termsModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:#fff; width:90vw; max-width:600px; max-height:80vh; border-radius:8px; overflow:hidden; display:flex; flex-direction:column;">
+    <div style="padding:16px; border-bottom:1px solid #eee; font-weight:bold;">Termos de Uso</div>
+    <div id="termsContent" style="flex:1; overflow-y:auto; padding:16px; font-size:0.95em; background:#fafafa;"></div>
+    <div style="padding:16px; border-top:1px solid #eee; display:flex; flex-direction:column; gap:8px;">
+      <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="agreeCheckbox" disabled />
+        Li e concordo com os termos
+      </label>
+      <button id="proceedBtn" disabled style="padding:8px 16px; border:none; background:#1976d2; color:#fff; border-radius:4px; cursor:pointer;">Prosseguir</button>
+      <button id="closeModalBtn" style="padding:6px 12px; border:none; background:#eee; color:#333; border-radius:4px; cursor:pointer;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Função para abrir o modal e carregar o texto dos termos
+function openTermsModal(termsText, onProceed) {
+  const modal = document.getElementById('termsModal');
+  const content = document.getElementById('termsContent');
+  const checkbox = document.getElementById('agreeCheckbox');
+  const proceedBtn = document.getElementById('proceedBtn');
+  const closeBtn = document.getElementById('closeModalBtn');
+
+  content.innerHTML = termsText.replace(/\n/g, '<br>');
+  content.scrollTop = 0;
+  checkbox.checked = false;
+  checkbox.disabled = true;
+  proceedBtn.disabled = true;
+
+  // Habilita o checkbox só quando o usuário rolar até o fim
+  content.onscroll = function() {
+    if (content.scrollTop + content.clientHeight >= content.scrollHeight - 2) {
+      checkbox.disabled = false;
+    }
+  };
+
+  checkbox.onchange = function() {
+    proceedBtn.disabled = !checkbox.checked;
+  };
+
+  proceedBtn.onclick = function() {
+    modal.style.display = 'none';
+    if (typeof onProceed === 'function') onProceed();
+  };
+
+  closeBtn.onclick = function() {
+    modal.style.display = 'none';
+  };
+
+  modal.style.display = 'flex';
+}
+
+// Exemplo de uso: vincule aos botões "Experimentar", "Registre-se" ou "Inscrever-se"
+document.addEventListener('DOMContentLoaded', function() {
+  // Substitua pelos seletores reais dos seus botões
+  const btns = [
+    document.getElementById('btnExperimentar'),
+    document.getElementById('btnRegistreSe'),
+    document.getElementById('btnInscreverSe')
+  ];
+
+  // Carregue o texto do termo (pode ser via fetch, aqui exemplo estático)
+  fetch('AdittionalStepsOnOracleLinux.md')
+    .then(r => r.text())
+    .then(termsText => {
+      btns.forEach(btn => {
+        if (btn) {
+          btn.onclick = function(e) {
+            e.preventDefault();
+            openTermsModal(termsText, function() {
+              // Redireciona para a rota sigInUsuario
+              window.location.href = '/sigInUsuario';
+            });
+          };
+        }
+      });
+    });
+});
+</script>
+
+<!--
+Coloque os IDs nos botões da sua home:
+<button id="btnExperimentar">Experimentar</button>
+<button id="btnRegistreSe">Registre-se</button>
+<button id="btnInscreverSe">Inscrever-se</button>
+-->

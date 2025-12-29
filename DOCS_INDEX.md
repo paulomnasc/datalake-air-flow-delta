@@ -18,6 +18,19 @@
 
 ### 📋 Guia da Interface Web de Configuração
 
+### 🛠️ Comandos Essenciais de Banco (MySQL/PostgreSQL)
+
+**Arquivo**: [`COMANDOS_BANCO_DOCKER.md`](./COMANDOS_BANCO_DOCKER.md)
+
+**Conteúdo**:
+- ✅ Como acessar MySQL/PostgreSQL via Docker e host
+- ✅ Backup e restore dos bancos
+- ✅ Verificação de logs e troubleshooting
+- ✅ Exemplos práticos de comandos bash
+- ✅ Referências rápidas para Airflow, ingestão e manutenção
+
+**Quando ler**: Sempre que precisar de comandos rápidos para acessar, diagnosticar ou restaurar bancos MySQL/PostgreSQL na stack Docker.
+
 **Arquivo**: [`GUIDE_WEBAPP_CONFIG.md`](./GUIDE_WEBAPP_CONFIG.md)
 
 **Conteúdo**:

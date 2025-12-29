@@ -15,7 +15,7 @@ mysql -h mysql -P 3306 -u root -p
 docker exec -it mysql mysql -u root -p
 ```
 
-### 3. Backup do banco
+### 3. Backup do banco (Faz pelo DBeaver que é fácil)
 ```bash
 docker exec mysql mysqldump -u root -pSEUSENHA --all-databases > backup.sql
 ```
@@ -174,7 +174,7 @@ psql -h postgres-bi -p 5432 -U pbi_user -d datalake_bi
 docker exec -it postgres-bi psql -U pbi_user -d datalake_bi
 ```
 
-### 3. Backup do banco
+### 3. Backup do banco (Faz pelo DBeaver que é fácil)
 ```bash
 docker compose exec -T postgres-bi \
   pg_dump -U pbi_user datalake_bi > backup_datalake_bi_$(date +%Y%m%d).sql

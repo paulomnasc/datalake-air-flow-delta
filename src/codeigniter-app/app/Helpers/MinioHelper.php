@@ -6,6 +6,7 @@ use Aws\S3\S3Client;
 use Aws\Exception\AwsException;
 
 class MinioHelper
+{
     /**
      * Realiza upload de objeto para o MinIO e loga bucket, key e endpoint
      *
@@ -33,7 +34,7 @@ class MinioHelper
             return ['success' => false, 'result' => null, 'error' => $e->getMessage()];
         }
     }
-{
+    
     private static $client = null;
 
     /**
@@ -63,6 +64,7 @@ class MinioHelper
             } catch (\Exception $e) {
                 log_message('error', '[MinioHelper] getClient: Exception ao inicializar S3Client: ' . $e->getMessage());
                 throw $e;
+                
             }
         }
         return self::$client;

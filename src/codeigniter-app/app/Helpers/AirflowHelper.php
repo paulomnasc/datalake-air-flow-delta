@@ -117,7 +117,7 @@ class AirflowHelper
                     if (!empty($ownerRole)) {
                         self::ensureOwnerRoleAndAttach($username, $ownerRole);
                     }
-                    return [codeigniter-app/writable/logs/
+                    return [
                         'success'  => true,
                         'message'  => "Usuário {$username} atualizado com sucesso no Airflow",
                         'username' => $username,

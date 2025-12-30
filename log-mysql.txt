@@ -1,0 +1,28 @@
+2025-12-28 20:45:43+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.44-1.el9 started.
+2025-12-28 20:45:43+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2025-12-28 20:45:43+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.44-1.el9 started.
+2025-12-28 20:45:43+00:00 [Note] [Entrypoint]: Initializing database files
+2025-12-28 20:45:48+00:00 [Note] [Entrypoint]: Database files initialized
+2025-12-28 20:45:48+00:00 [Note] [Entrypoint]: Starting temporary server
+2025-12-28 20:45:48+00:00 [Note] [Entrypoint]: Temporary server started.
+'/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+2025-12-28 20:45:50+00:00 [Note] [Entrypoint]: Creating database lista_revisao
+
+2025-12-28 20:45:50+00:00 [Note] [Entrypoint]: /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/ddl.sql
+
+
+2025-12-28 20:45:50+00:00 [Note] [Entrypoint]: /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/dml.sql
+
+
+2025-12-28 20:45:50+00:00 [Note] [Entrypoint]: /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/migration_multi_table.sql
+
+
+2025-12-28 20:45:51+00:00 [Note] [Entrypoint]: Stopping temporary server
+2025-12-28 20:45:52+00:00 [Note] [Entrypoint]: Temporary server stopped
+
+2025-12-28 20:45:52+00:00 [Note] [Entrypoint]: MySQL init process done. Ready for start up.
+
+2025-12-29 11:58:06+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.44-1.el9 started.
+2025-12-29 11:58:07+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2025-12-29 11:58:07+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.44-1.el9 started.
+'/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'

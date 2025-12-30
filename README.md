@@ -496,7 +496,7 @@ chmod -R 755 /var/www/html/writable
 exit
 
 # Reiniciar para aplicar mudanças
-docker compose restart codeigniter-app
+docker-compose restart codeigniter-app
 ```
 
 #### Opção 2: Permissões no Host (Apenas se Volume Mapeado)

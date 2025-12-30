@@ -203,32 +203,42 @@ async def list_parquet_files(request: ParquetFilesRequest):
             
             for layer in layers:
                 try:
-                    # Tenta encontrar parquet (para camadas processadas)
+                    # Parquet
                     layer_path_parquet = f"s3://{bucket}/{layer}/**/*.parquet"
                     result_parquet = con.execute(f"""
                         SELECT file
                         FROM glob('{layer_path_parquet}')
                         LIMIT 500
                     """).fetchall()
-                    
                     if result_parquet:
                         for row in result_parquet:
                             all_files.append((row[0],))
                         logger.info(f"  ✅ '{layer}': {len(result_parquet)} arquivos Parquet")
-                    
-                    # Tenta encontrar json (para a camada raw)
+
+                    # JSON
                     layer_path_json = f"s3://{bucket}/{layer}/**/*.json"
                     result_json = con.execute(f"""
                         SELECT file
                         FROM glob('{layer_path_json}')
                         LIMIT 500
                     """).fetchall()
-                    
                     if result_json:
                         for row in result_json:
                             all_files.append((row[0],))
                         logger.info(f"  ✅ '{layer}': {len(result_json)} arquivos JSON")
-                    
+
+                    # CSV
+                    layer_path_csv = f"s3://{bucket}/{layer}/**/*.csv"
+                    result_csv = con.execute(f"""
+                        SELECT file
+                        FROM glob('{layer_path_csv}')
+                        LIMIT 500
+                    """).fetchall()
+                    if result_csv:
+                        for row in result_csv:
+                            all_files.append((row[0],))
+                        logger.info(f"  ✅ '{layer}': {len(result_csv)} arquivos CSV")
+
                 except Exception as layer_error:
                     logger.info(f"  ⓘ '{layer}': {str(layer_error)[:80]}")
                     continue
@@ -248,20 +258,21 @@ async def list_parquet_files(request: ParquetFilesRequest):
         else:
             logger.info(f"📁 Modo 'path-específico': listando em {path}")
             
-            # Tenta parquet primeiro
+            all_files = []
+            # Parquet
             try:
                 result_parquet = con.execute(f"""
                     SELECT file
                     FROM glob('{path}/**/*.parquet')
                     LIMIT 500
                 """).fetchall()
-                all_files = [(r[0],) for r in result_parquet] if result_parquet else []
-                logger.info(f"  ✅ Parquet: {len(all_files)} arquivos")
+                if result_parquet:
+                    for r in result_parquet:
+                        all_files.append((r[0],))
+                    logger.info(f"  ✅ Parquet: {len(result_parquet)} arquivos")
             except:
-                all_files = []
                 logger.info(f"  ⓘ Nenhum parquet encontrado")
-            
-            # Tenta json também
+            # JSON
             try:
                 result_json = con.execute(f"""
                     SELECT file
@@ -274,9 +285,20 @@ async def list_parquet_files(request: ParquetFilesRequest):
                     logger.info(f"  ✅ JSON: {len(result_json)} arquivos")
             except:
                 logger.info(f"  ⓘ Nenhum JSON encontrado")
-            
+            # CSV
+            try:
+                result_csv = con.execute(f"""
+                    SELECT file
+                    FROM glob('{path}/**/*.csv')
+                    LIMIT 500
+                """).fetchall()
+                if result_csv:
+                    for r in result_csv:
+                        all_files.append((r[0],))
+                    logger.info(f"  ✅ CSV: {len(result_csv)} arquivos")
+            except:
+                logger.info(f"  ⓘ Nenhum CSV encontrado")
             con.close()
-            
             return {
                 "success": True,
                 "files": all_files,

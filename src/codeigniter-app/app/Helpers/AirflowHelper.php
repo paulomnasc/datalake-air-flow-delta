@@ -117,7 +117,7 @@ class AirflowHelper
                     if (!empty($ownerRole)) {
                         self::ensureOwnerRoleAndAttach($username, $ownerRole);
                     }
-                    return [
+                    return [codeigniter-app/writable/logs/
                         'success'  => true,
                         'message'  => "Usuário {$username} atualizado com sucesso no Airflow",
                         'username' => $username,
@@ -206,7 +206,7 @@ class AirflowHelper
         try {
             log_message('debug', "[AirflowHelper] apiCall: {$method} {$url} data=" . json_encode($data));
             $ch = curl_init($url);
-            $auth = base64_encode('admin:admin');
+            $auth = base64_encode('admin:kJ#212394');
 
             $headers = [
                 "Authorization: Basic {$auth}",

@@ -511,7 +511,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                 
                 <div class="form-group">
                     <label for="transform_args">Argumentos Extras da Função (JSON):</label>
-                    <textarea style="width: 80%; height: 400px;" name="transform_args" id="transform_args" placeholder="Deve ser um JSON válido (será armazenado no campo JSON da tabela)."></textarea>
+                    <textarea style="width: 80%; height: 400px;" name="transform_args" id="transform_args" placeholder="Deve ser um JSON válido (será armazenado no campo JSON da tabela).">{}</textarea>
                     
                 </div>
             </fieldset>

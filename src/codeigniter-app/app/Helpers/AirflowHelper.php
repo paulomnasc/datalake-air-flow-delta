@@ -5,6 +5,16 @@ namespace App\Helpers;
 class AirflowHelper
 {
     /**
+     * Retorna a URL base do Airflow (host:porta) a partir de variáveis de ambiente ou padrão.
+     */
+    private static function getAirflowBaseUrl(): string
+    {
+        $host = getenv('AIRFLOW_HOST') ?: 'airflow-webserver';
+        $port = getenv('AIRFLOW_PORT') ?: '8080';
+        return "http://{$host}:{$port}";
+    }
+{
+    /**
      * Sincroniza usuário com Airflow (cria ou atualiza)
      * 
      * @param int $userId ID do usuário no sistema
@@ -40,7 +50,7 @@ class AirflowHelper
             
             log_message('debug', "[AirflowHelper] Sincronizando usuário via API: {$username}");
 
-            $airflowUrl = 'http://airflow-webserver:8080/api/v1/users';
+            $airflowUrl = self::getAirflowBaseUrl() . '/api/v1/users';
 
             // Força perfil básico a ser Viewer (nunca usar role global 'User' para evitar acesso amplo)
             $roleName = ($role === 'User' || empty($role)) ? 'Viewer' : $role;
@@ -165,7 +175,7 @@ class AirflowHelper
     public static function isAirflowAvailable(): bool
     {
         try {
-            $ch = curl_init('http://airflow-webserver:8080/health');
+            $ch = curl_init(self::getAirflowBaseUrl() . '/health');
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => 5,
@@ -235,7 +245,7 @@ class AirflowHelper
      */
     private static function roleExists(string $roleName): bool
     {
-        $roleUrl = 'http://airflow-webserver:8080/api/v1/roles/' . urlencode($roleName);
+        $roleUrl = self::getAirflowBaseUrl() . '/api/v1/roles/' . urlencode($roleName);
         $get = self::apiCall('GET', $roleUrl);
         return $get['success'];
     }
@@ -245,7 +255,7 @@ class AirflowHelper
      */
     private static function getRoleActions(string $roleName): array
     {
-        $roleUrl = 'http://airflow-webserver:8080/api/v1/roles/' . urlencode($roleName);
+        $roleUrl = self::getAirflowBaseUrl() . '/api/v1/roles/' . urlencode($roleName);
         $resp = self::apiCall('GET', $roleUrl);
         if ($resp['success'] && !empty($resp['response']['actions'])) {
             return $resp['response']['actions'];
@@ -258,7 +268,7 @@ class AirflowHelper
      */
     private static function createRole(string $roleName): bool
     {
-        $rolesUrl = 'http://airflow-webserver:8080/api/v1/roles';
+        $rolesUrl = self::getAirflowBaseUrl() . '/api/v1/roles';
         // API 2.9 espera a chave "actions"; se ausente gera 500 (KeyError)
         // Copiamos as actions do role "User" (permissão padrão de execução/visualização)
         $templateActions = self::getRoleActions('User');
@@ -317,7 +327,7 @@ class AirflowHelper
      */
     private static function ensureRoleHasActions(string $roleName): void
     {
-        $roleUrl = 'http://airflow-webserver:8080/api/v1/roles/' . urlencode($roleName);
+        $roleUrl = self::getAirflowBaseUrl() . '/api/v1/roles/' . urlencode($roleName);
         $current = self::apiCall('GET', $roleUrl);
         if (!$current['success']) {
             return;
@@ -347,7 +357,7 @@ class AirflowHelper
     public static function addExistingRoleToUser(string $username, string $roleName): bool
     {
         // Busca usuário atual para não sobrescrever outras configurações
-        $userUrl = 'http://airflow-webserver:8080/api/v1/users/' . urlencode($username);
+        $userUrl = self::getAirflowBaseUrl() . '/api/v1/users/' . urlencode($username);
         $getUser = self::apiCall('GET', $userUrl);
         if (!$getUser['success']) {
             log_message('warning', "[AirflowHelper] Não foi possível obter usuário {$username} para adicionar role: {$getUser['error']}");

@@ -130,7 +130,7 @@ abstract class BaseController extends Controller
         $data['userHasPipelinesAccess'] = $functionalities['userHasPipelinesAccess'];
 
         $seo = new SeoHelper();
-        $seo->setTitle("SET-TITLE TESTE!!!");
+        $seo->setTitle("MyDataFlow");
         $seo->setDescription("Descubra jogos interativos online e eficaz, para estudo, incluindo jogos de memória e técnicas para memorização de conteúdos. Aprenda com tabelas resumo que tornam o estudo mais fácil e divertido!");
 
         $seo->setKeywords("jogo da memória, jogo educativo, jogo interativo, ensino médio, preparação ENEM, estudo online, quadro sinóptico, mapa mental, aprendizado divertido, concurso público, materiais didáticos");

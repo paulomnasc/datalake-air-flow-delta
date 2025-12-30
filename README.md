@@ -630,6 +630,7 @@ docker compose restart airflow-webserver airflow-scheduler minio mysql spark atl
 docker compose --profile atlas restart pyspark-aula
 ```
 
+
 ### Caso precise liberar espaço no armazenamento:
 
 ```bash
@@ -637,6 +638,65 @@ docker compose --profile atlas restart pyspark-aula
 # Depois reinicie a stack
 ./restart.sh
 ```
+
+---
+
+## 🛠️ Troubleshooting Avançado: Containers Travados, Portas Ocupadas e Permissões Docker
+
+Se containers ficarem travados em "Created" ou não puderem ser removidos, ou se aparecerem erros de porta ocupada ("address already in use"), siga este passo a passo:
+
+1. **Pare todos os containers:**
+  ```bash
+  docker stop $(docker ps -aq)
+  ```
+
+2. **Remova todos os containers:**
+  ```bash
+  docker rm -f $(docker ps -aq)
+  ```
+
+3. **Reinicie o serviço Docker:**
+  ```bash
+  sudo systemctl restart docker
+  ```
+
+4. **Verifique se as portas necessárias estão livres:**
+  ```bash
+  sudo lsof -i :3306
+  sudo lsof -i :5432
+  sudo lsof -i :6379
+  # Repita para outras portas se necessário
+  ```
+  Se aparecer algum processo, mate o PID:
+  ```bash
+  sudo kill -9 <PID>
+  ```
+
+5. **Se ainda restarem containers travados ou "permission denied":**
+  - Verifique se o Docker está instalado via snap (pode causar restrições):
+    ```bash
+    snap list | grep docker
+    ```
+  - Se sim, prefira instalar o Docker pelo repositório oficial.
+  - Verifique mensagens de erro do AppArmor:
+    ```bash
+    sudo dmesg | grep apparmor
+    ```
+  - Se necessário, remova e reinstale o Docker:
+    ```bash
+    sudo apt-get remove --purge docker-ce docker-ce-cli containerd.io
+    sudo apt-get install docker-ce
+    sudo systemctl restart docker
+    ```
+
+6. **Se nada resolver, reinicie o servidor:**
+  ```bash
+  sudo reboot
+  ```
+
+7. **Após reboot, repita os passos de remoção e verificação de portas.**
+
+Esses passos resolvem a maioria dos problemas de containers travados, portas ocupadas e erros de permissão no Docker.
 
 ### ⚠️ MinIO: Problema de Download ou Arquivos Corrompidos
 

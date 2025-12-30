@@ -9,8 +9,8 @@ services:
     container_name: nginx-gateway
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
+      - "28080:80"
+      - "28443:443"
     volumes:
       - ./nginx/myflow.conf:/etc/nginx/conf.d/myflow.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
@@ -34,8 +34,8 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
     ports:
-      - "7077:7077"
-      - "8080:8080"
+      - "27077:7077"
+      - "28081:8080"
     volumes:
       - ./spark-apps:/opt/spark-apps
     #   - ./jars:/opt/spark/jars
@@ -57,7 +57,7 @@ services:
       # Use as coordenadas Maven dos seus jars
       - SPARK_OPTS=--packages io.delta:delta-core_2.12:2.4.0,org.apache.hadoop:hadoop-aws:3.3.4
     ports:
-      - "8081:8081"
+      - "28082:8081"
     volumes:
       - spark_ivy:/home/spark/.ivy2
     extra_hosts:
@@ -74,7 +74,7 @@ services:
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
     ports:
-      - "5432:5432"
+      - "25432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     extra_hosts:
@@ -91,7 +91,7 @@ services:
       POSTGRES_PASSWORD: pbi_password
       POSTGRES_DB: datalake_bi
     ports:
-      - "5433:5432"
+      - "25433:5432"
     volumes:
       - pg_bi_data:/var/lib/postgresql/data
     extra_hosts:
@@ -105,7 +105,7 @@ services:
     container_name: redis
     restart: always
     ports:
-      - "6379:6379"
+      - "26379:6379"
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "vscode:host-gateway"
@@ -120,7 +120,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
     ports:
-      - "3306:3306"
+      - "23306:3306"
     volumes:
     # 🚨 CRÍTICO: Mapeia sua pasta local de scripts para o diretório de inicialização do Docker
       - ./mysql-init:/docker-entrypoint-initdb.d 
@@ -156,7 +156,7 @@ services:
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
     ports:
-      - "8085:8080"
+      - "28083:8080"
     command: airflow webserver
     user: root
     extra_hosts:
@@ -197,7 +197,7 @@ services:
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
     ports:
-      - "5678:5678"
+      - "25678:5678"
     command: airflow scheduler
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -212,8 +212,8 @@ services:
       MINIO_ROOT_PASSWORD: admin123
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "29000:9000"
+      - "29001:9001"
     volumes:
       - /var/oled/minio_data:/data
     extra_hosts:
@@ -241,7 +241,7 @@ services:
     volumes:
       - ./ddb:/opt/duckdb
     ports:
-      - "5000:5000"
+      - "25000:5000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "vscode:host-gateway"
@@ -324,8 +324,8 @@ services:
       # Bind mount apenas para configs do Airflow (persistidos no host)
       - ./src/dags/configs:/var/www/html/writable/configs
     ports:
-      - "8088:80"
-      - "9003:9003" # <--- Porta do XDebug
+      - "28088:80"
+      - "29003:9003" # <--- Porta do XDebug
     environment:
       - CI_ENVIRONMENT=development
       # MinIO configuration used by the webapp (read by ConfigController::_initMinioClient())
@@ -348,7 +348,7 @@ services:
     image: sburn/apache-atlas:latest
     container_name: apache-atlas
     ports:
-      - "21000:21000"
+      - "31000:21000"
     environment:
       - JAVA_OPTS=-Xmx1024m -Xms512m
       - ATLAS_SERVER_OPTS=-server -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+CMSClassUnloadingEnabled -XX:+UseConcMarkSweepGC -XX:+CMSPermGenSweepingEnabled
@@ -372,8 +372,8 @@ services:
     profiles:
       - atlas
     ports:
-      - "8888:8888" # Jupyter Notebook
-      - "4040:4040" # Spark UI
+      - "28888:8888" # Jupyter Notebook
+      - "24040:4040" # Spark UI
     volumes:
       - ./atlas-lab/notebooks:/home/jovyan/work
       - ./atlas-lab/data:/home/jovyan/data

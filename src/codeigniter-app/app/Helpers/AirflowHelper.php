@@ -11,6 +11,7 @@ class AirflowHelper
     {
         $host = getenv('AIRFLOW_HOST') ?: 'airflow-webserver';
         $port = getenv('AIRFLOW_PORT') ?: '8080';
+        log_message('debug', '[AirflowHelper] AIRFLOW_HOST=' . $host . ' AIRFLOW_PORT=' . $port);
         return "http://{$host}:{$port}";
     }
 
@@ -35,8 +36,10 @@ class AirflowHelper
         string $role = 'Viewer'
     ): array {
         try {
+            log_message('info', '[AirflowHelper] Iniciando syncUserWithAirflow para userId=' . $userId . ', email=' . $email);
             // Username baseado no prefixo do email + id para unicidade
             $username = self::buildUsernameFromEmail($email, $userId);
+            log_message('debug', '[AirflowHelper] Username gerado para Airflow: ' . $username);
             
             // Sanitizar entrada
             $firstName = substr(trim($firstName ?? ''), 0, 50) ?: "User";
@@ -51,6 +54,7 @@ class AirflowHelper
             log_message('debug', "[AirflowHelper] Sincronizando usuário via API: {$username}");
 
             $airflowUrl = self::getAirflowBaseUrl() . '/api/v1/users';
+            log_message('debug', '[AirflowHelper] URL de API do Airflow: ' . $airflowUrl);
 
             // Força perfil básico a ser Viewer (nunca usar role global 'User' para evitar acesso amplo)
             $roleName = ($role === 'User' || empty($role)) ? 'Viewer' : $role;
@@ -200,6 +204,7 @@ class AirflowHelper
     private static function apiCall(string $method, string $url, array $data = []): array
     {
         try {
+            log_message('debug', "[AirflowHelper] apiCall: {$method} {$url} data=" . json_encode($data));
             $ch = curl_init($url);
             $auth = base64_encode('admin:admin');
 
@@ -229,10 +234,12 @@ class AirflowHelper
             log_message('debug', "[AirflowAPI] {$method} {$url} HTTP {$httpCode} resp={$response}");
 
             if ($httpCode >= 200 && $httpCode < 300) {
+                log_message('info', "[AirflowHelper] Sucesso na chamada {$method} para {$url}");
                 return ['success' => true, 'error' => '', 'response' => json_decode($response, true)];
             }
 
             $err = $curlError ?: ($response ?: 'Erro desconhecido');
+            log_message('error', "[AirflowHelper] Erro na chamada {$method} para {$url}: {$err}");
             return ['success' => false, 'error' => "HTTP {$httpCode}: {$err}", 'response' => []];
 
         } catch (\Exception $e) {

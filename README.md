@@ -819,3 +819,23 @@ Navegar um recurso com interface amigável
 ```bash
 mc ls local/lab01/processed/raw/
 ```
+
+## 📦 Como exportar logs do webapp (CodeIgniter) para o host
+
+Os logs do CodeIgniter ficam no diretório writable/logs dentro do container codeigniter-app.
+
+Para copiar o log mais recente para o diretório raiz do projeto no host, execute:
+
+```bash
+docker cp codeigniter-app:/var/www/html/writable/logs/$(docker exec codeigniter-app ls -t /var/www/html/writable/logs | head -n1) ./src/codeigniter-app/
+```
+
+Isso irá copiar o arquivo de log mais recente para a pasta src/codeigniter-app/ do seu host.
+
+Se quiser copiar todos os logs:
+
+```bash
+docker cp codeigniter-app:/var/www/html/writable/logs ./src/codeigniter-app/
+```
+
+> Lembre-se de ajustar o caminho conforme sua estrutura de pastas.

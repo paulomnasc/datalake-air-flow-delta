@@ -6,6 +6,33 @@ use Aws\S3\S3Client;
 use Aws\Exception\AwsException;
 
 class MinioHelper
+    /**
+     * Realiza upload de objeto para o MinIO e loga bucket, key e endpoint
+     *
+     * @param string $bucketName Nome do bucket
+     * @param string $key Caminho/Key do objeto
+     * @param mixed $body Conteúdo do arquivo
+     * @param array $options Opções adicionais para putObject
+     * @return array ['success' => bool, 'result' => mixed, 'error' => string]
+     */
+    public static function uploadObject(string $bucketName, string $key, $body, array $options = []): array
+    {
+        try {
+            $client = self::getClient();
+            $endpoint = getenv('MINIO_ENDPOINT') ?: 'http://minio:9000';
+            log_message('debug', "[MinioHelper] putObject: Bucket={$bucketName}, Key={$key}, Endpoint={$endpoint}");
+            $result = $client->putObject(array_merge([
+                'Bucket' => $bucketName,
+                'Key' => $key,
+                'Body' => $body
+            ], $options));
+            log_message('debug', "[MinioHelper] putObject: Resultado=" . json_encode($result));
+            return ['success' => true, 'result' => $result, 'error' => ''];
+        } catch (\Exception $e) {
+            log_message('error', "[MinioHelper] putObject: Exception: " . $e->getMessage());
+            return ['success' => false, 'result' => null, 'error' => $e->getMessage()];
+        }
+    }
 {
     private static $client = null;
 

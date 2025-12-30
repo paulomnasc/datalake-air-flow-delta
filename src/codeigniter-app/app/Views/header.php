@@ -472,11 +472,11 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     </a>
                     <div class="dropdown-menu">
                         <?php if (isset($userHasPipelinesAccess) && $userHasPipelinesAccess): ?>
-                            <a class="dropdown-item" href="http://localhost:8085" target="_blank" rel="noopener noreferrer">Pipelines ELT</a>
+                            <a class="dropdown-item" href=" http://airflow.estudotabela.com.br:28083" target="_blank" rel="noopener noreferrer">Pipelines ELT</a>
                         <?php endif; ?>
-                        <?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
-                            <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a>
-                        <?php endif; ?>
+                        <!-- ?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
+                            <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->
+                        <!-- ?php endif; ?>
                         <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): ?>
                             <a class="dropdown-item" href="<?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a>
                         <?php endif; ?>

@@ -17,18 +17,27 @@ class MinioHelper
     private static function getClient()
     {
         if (self::$client === null) {
-            self::$client = new S3Client([
-                'version' => 'latest',
-                'region' => getenv('MINIO_REGION') ?: 'us-east-1',
-                'endpoint' => getenv('MINIO_ENDPOINT') ?: 'http://minio:9000',
-                'use_path_style_endpoint' => true,
-                'credentials' => [
-                    'key' => getenv('MINIO_ACCESS_KEY_ID') ?: 'admin',
-                    'secret' => getenv('MINIO_SECRET_ACCESS_KEY') ?: 'admin123',
-                ],
-            ]);
+            try {
+                $region = getenv('MINIO_REGION') ?: 'us-east-1';
+                $endpoint = getenv('MINIO_ENDPOINT') ?: 'http://minio:9000';
+                $key = getenv('MINIO_ACCESS_KEY_ID') ?: 'admin';
+                $secret = getenv('MINIO_SECRET_ACCESS_KEY') ?: 'admin123';
+                log_message('debug', '[MinioHelper] Inicializando S3Client com endpoint=' . $endpoint . ', region=' . $region . ', key=' . $key);
+                self::$client = new S3Client([
+                    'version' => 'latest',
+                    'region' => $region,
+                    'endpoint' => $endpoint,
+                    'use_path_style_endpoint' => true,
+                    'credentials' => [
+                        'key' => $key,
+                        'secret' => $secret,
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                log_message('error', '[MinioHelper] getClient: Exception ao inicializar S3Client: ' . $e->getMessage());
+                throw $e;
+            }
         }
-        
         return self::$client;
     }
 
@@ -42,10 +51,16 @@ class MinioHelper
     {
         try {
             $client = self::getClient();
-            $client->headBucket(['Bucket' => $bucketName]);
-            return true;
-        } catch (AwsException $e) {
-            // Bucket não existe ou erro de acesso
+            try {
+                $client->headBucket(['Bucket' => $bucketName]);
+                log_message('debug', "[MinioHelper] bucketExists: Bucket '{$bucketName}' existe.");
+                return true;
+            } catch (AwsException $e) {
+                log_message('error', "[MinioHelper] bucketExists: Exception: " . $e->getMessage());
+                return false;
+            }
+        } catch (\Exception $e) {
+            log_message('error', "[MinioHelper] bucketExists: Exception (getClient): " . $e->getMessage());
             return false;
         }
     }
@@ -60,34 +75,42 @@ class MinioHelper
     {
         try {
             $client = self::getClient();
-            
-            // Valida nome do bucket (S3 rules)
-            if (!preg_match('/^[a-z0-9][a-z0-9-]*[a-z0-9]$/', $bucketName)) {
+            try {
+                // Valida nome do bucket (S3 rules)
+                if (!preg_match('/^[a-z0-9][a-z0-9-]*[a-z0-9]$/', $bucketName)) {
+                    log_message('debug', "[MinioHelper] createBucket: Nome de bucket inválido: {$bucketName}");
+                    return [
+                        'success' => false,
+                        'message' => 'Nome de bucket inválido. Use apenas letras minúsculas, números e hífens.'
+                    ];
+                }
+                if (strlen($bucketName) < 3 || strlen($bucketName) > 63) {
+                    log_message('debug', "[MinioHelper] createBucket: Nome do bucket fora do tamanho permitido: {$bucketName}");
+                    return [
+                        'success' => false,
+                        'message' => 'Nome do bucket deve ter entre 3 e 63 caracteres.'
+                    ];
+                }
+                $client->createBucket([
+                    'Bucket' => $bucketName,
+                ]);
+                log_message('debug', "[MinioHelper] createBucket: Bucket '{$bucketName}' criado com sucesso.");
+                return [
+                    'success' => true,
+                    'message' => "Bucket '{$bucketName}' criado com sucesso."
+                ];
+            } catch (AwsException $e) {
+                log_message('error', "[MinioHelper] createBucket: Exception: " . $e->getMessage());
                 return [
                     'success' => false,
-                    'message' => 'Nome de bucket inválido. Use apenas letras minúsculas, números e hífens.'
+                    'message' => 'Erro ao criar bucket: ' . $e->getMessage()
                 ];
             }
-
-            if (strlen($bucketName) < 3 || strlen($bucketName) > 63) {
-                return [
-                    'success' => false,
-                    'message' => 'Nome do bucket deve ter entre 3 e 63 caracteres.'
-                ];
-            }
-
-            $client->createBucket([
-                'Bucket' => $bucketName,
-            ]);
-
-            return [
-                'success' => true,
-                'message' => "Bucket '{$bucketName}' criado com sucesso."
-            ];
-        } catch (AwsException $e) {
+        } catch (\Exception $e) {
+            log_message('error', "[MinioHelper] createBucket: Exception (getClient): " . $e->getMessage());
             return [
                 'success' => false,
-                'message' => 'Erro ao criar bucket: ' . $e->getMessage()
+                'message' => 'Erro ao inicializar cliente MinIO: ' . $e->getMessage()
             ];
         }
     }
@@ -100,21 +123,30 @@ class MinioHelper
      */
     public static function ensureBucketExists(string $bucketName): array
     {
-        if (self::bucketExists($bucketName)) {
+        try {
+            if (self::bucketExists($bucketName)) {
+                log_message('debug', "[MinioHelper] ensureBucketExists: Bucket '{$bucketName}' já existe.");
+                return [
+                    'success' => true,
+                    'message' => "Bucket '{$bucketName}' já existe.",
+                    'created' => false
+                ];
+            }
+            $result = self::createBucket($bucketName);
+            log_message('debug', "[MinioHelper] ensureBucketExists: Resultado ao criar bucket '{$bucketName}': " . json_encode($result));
             return [
-                'success' => true,
-                'message' => "Bucket '{$bucketName}' já existe.",
+                'success' => $result['success'],
+                'message' => $result['message'],
+                'created' => $result['success']
+            ];
+        } catch (\Exception $e) {
+            log_message('error', "[MinioHelper] ensureBucketExists: Exception: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Erro ao garantir bucket: ' . $e->getMessage(),
                 'created' => false
             ];
         }
-
-        $result = self::createBucket($bucketName);
-        
-        return [
-            'success' => $result['success'],
-            'message' => $result['message'],
-            'created' => $result['success']
-        ];
     }
 
     /**
@@ -126,15 +158,20 @@ class MinioHelper
     {
         try {
             $client = self::getClient();
-            $result = $client->listBuckets();
-            
-            $buckets = [];
-            foreach ($result['Buckets'] as $bucket) {
-                $buckets[] = $bucket['Name'];
+            try {
+                $result = $client->listBuckets();
+                $buckets = [];
+                foreach ($result['Buckets'] as $bucket) {
+                    $buckets[] = $bucket['Name'];
+                }
+                log_message('debug', '[MinioHelper] listBuckets: Buckets encontrados: ' . implode(', ', $buckets));
+                return $buckets;
+            } catch (AwsException $e) {
+                log_message('error', '[MinioHelper] listBuckets: Exception: ' . $e->getMessage());
+                return [];
             }
-            
-            return $buckets;
-        } catch (AwsException $e) {
+        } catch (\Exception $e) {
+            log_message('error', '[MinioHelper] listBuckets: Exception (getClient): ' . $e->getMessage());
             return [];
         }
     }
@@ -151,10 +188,19 @@ class MinioHelper
     public static function createUserBucket(int $userId, string $email = ''): array
     {
         // Usar o mesmo padrão do Airflow username
-        $bucketName = \App\Helpers\AirflowHelper::buildUsernameFromEmail($email, $userId);
-        $result = self::ensureBucketExists($bucketName);
-        
-        return array_merge($result, ['bucket_name' => $bucketName]);
+        try {
+            $bucketName = \App\Helpers\AirflowHelper::buildUsernameFromEmail($email, $userId);
+            $result = self::ensureBucketExists($bucketName);
+            log_message('debug', "[MinioHelper] createUserBucket: Resultado para bucket '{$bucketName}': " . json_encode($result));
+            return array_merge($result, ['bucket_name' => $bucketName]);
+        } catch (\Exception $e) {
+            log_message('error', '[MinioHelper] createUserBucket: Exception: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Erro ao criar bucket de usuário: ' . $e->getMessage(),
+                'bucket_name' => ''
+            ];
+        }
     }
 
     /**
@@ -167,32 +213,30 @@ class MinioHelper
     {
         try {
             $client = self::getClient();
-            $totalSize = 0;
-            
-            // Verificar se o bucket existe antes de tentar listar objetos
-            if (!self::bucketExists($bucketName)) {
-                log_message('info', "Bucket '{$bucketName}' não existe. Retornando tamanho 0.");
-                return 0;
-            }
-            
-            // Listar todos os objetos do bucket
-            $paginator = $client->getPaginator('ListObjects', [
-                'Bucket' => $bucketName
-            ]);
-            
-            foreach ($paginator as $result) {
-                if (isset($result['Contents'])) {
-                    foreach ($result['Contents'] as $object) {
-                        $totalSize += $object['Size'];
+            try {
+                $totalSize = 0;
+                if (!self::bucketExists($bucketName)) {
+                    log_message('debug', "[MinioHelper] getBucketStorageUsage: Bucket '{$bucketName}' não existe. Retornando tamanho 0.");
+                    return 0;
+                }
+                $paginator = $client->getPaginator('ListObjects', [
+                    'Bucket' => $bucketName
+                ]);
+                foreach ($paginator as $result) {
+                    if (isset($result['Contents'])) {
+                        foreach ($result['Contents'] as $object) {
+                            $totalSize += $object['Size'];
+                        }
                     }
                 }
+                log_message('debug', "[MinioHelper] getBucketStorageUsage: Bucket '{$bucketName}' possui {$totalSize} bytes de armazenamento usado.");
+                return $totalSize;
+            } catch (AwsException $e) {
+                log_message('error', "[MinioHelper] getBucketStorageUsage: Exception: " . $e->getMessage());
+                return 0;
             }
-            
-            log_message('info', "Bucket '{$bucketName}' possui {$totalSize} bytes de armazenamento usado.");
-            return $totalSize;
-            
-        } catch (AwsException $e) {
-            log_message('error', "Erro ao calcular uso de armazenamento do bucket '{$bucketName}': " . $e->getMessage());
+        } catch (\Exception $e) {
+            log_message('error', "[MinioHelper] getBucketStorageUsage: Exception (getClient): " . $e->getMessage());
             return 0;
         }
     }
@@ -206,49 +250,53 @@ class MinioHelper
      */
     public static function checkStorageLimit(string $bucketName, int $newFileSize = 0): array
     {
-        // Obter limite do .env (padrão: 1GB)
-        $storageLimit = (int) (getenv('MINIO_USER_STORAGE_LIMIT') ?: 1073741824);
-        
-        // Calcular uso atual
-        $currentUsage = self::getBucketStorageUsage($bucketName);
-        
-        // Calcular uso futuro se o upload for realizado
-        $futureUsage = $currentUsage + $newFileSize;
-        
-        // Calcular espaço disponível
-        $available = $storageLimit - $currentUsage;
-        
-        $allowed = $futureUsage <= $storageLimit;
-        
-        // Formatar mensagem
-        if ($allowed) {
-            $message = sprintf(
-                'Upload permitido. Uso atual: %s / %s (%.1f%%). Espaço disponível: %s',
-                self::formatBytes($currentUsage),
-                self::formatBytes($storageLimit),
-                ($currentUsage / $storageLimit) * 100,
-                self::formatBytes($available)
-            );
-        } else {
-            $message = sprintf(
-                'Limite de armazenamento excedido! Uso atual: %s / %s (%.1f%%). Espaço necessário: %s, mas apenas %s disponível.',
-                self::formatBytes($currentUsage),
-                self::formatBytes($storageLimit),
-                ($currentUsage / $storageLimit) * 100,
-                self::formatBytes($newFileSize),
-                self::formatBytes($available)
-            );
+        try {
+            $storageLimit = (int) (getenv('MINIO_USER_STORAGE_LIMIT') ?: 1073741824);
+            $currentUsage = self::getBucketStorageUsage($bucketName);
+            $futureUsage = $currentUsage + $newFileSize;
+            $available = $storageLimit - $currentUsage;
+            $allowed = $futureUsage <= $storageLimit;
+            if ($allowed) {
+                $message = sprintf(
+                    'Upload permitido. Uso atual: %s / %s (%.1f%%). Espaço disponível: %s',
+                    self::formatBytes($currentUsage),
+                    self::formatBytes($storageLimit),
+                    ($currentUsage / $storageLimit) * 100,
+                    self::formatBytes($available)
+                );
+            } else {
+                $message = sprintf(
+                    'Limite de armazenamento excedido! Uso atual: %s / %s (%.1f%%). Espaço necessário: %s, mas apenas %s disponível.',
+                    self::formatBytes($currentUsage),
+                    self::formatBytes($storageLimit),
+                    ($currentUsage / $storageLimit) * 100,
+                    self::formatBytes($newFileSize),
+                    self::formatBytes($available)
+                );
+            }
+            $result = [
+                'allowed' => $allowed,
+                'current_usage' => $currentUsage,
+                'limit' => $storageLimit,
+                'available' => $available,
+                'new_file_size' => $newFileSize,
+                'future_usage' => $futureUsage,
+                'message' => $message
+            ];
+            log_message('debug', '[MinioHelper] checkStorageLimit: Resultado para bucket ' . $bucketName . ': ' . json_encode($result));
+            return $result;
+        } catch (\Exception $e) {
+            log_message('error', '[MinioHelper] checkStorageLimit: Exception: ' . $e->getMessage());
+            return [
+                'allowed' => false,
+                'current_usage' => 0,
+                'limit' => 0,
+                'available' => 0,
+                'new_file_size' => $newFileSize,
+                'future_usage' => 0,
+                'message' => 'Erro ao verificar limite de armazenamento: ' . $e->getMessage()
+            ];
         }
-        
-        return [
-            'allowed' => $allowed,
-            'current_usage' => $currentUsage,
-            'limit' => $storageLimit,
-            'available' => $available,
-            'new_file_size' => $newFileSize,
-            'future_usage' => $futureUsage,
-            'message' => $message
-        ];
     }
 
     /**
@@ -260,12 +308,17 @@ class MinioHelper
      */
     public static function formatBytes(int $bytes, int $precision = 2): string
     {
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        
-        for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
-            $bytes /= 1024;
+        try {
+            $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+                $bytes /= 1024;
+            }
+            $formatted = round($bytes, $precision) . ' ' . $units[$i];
+            log_message('debug', '[MinioHelper] formatBytes: ' . $formatted);
+            return $formatted;
+        } catch (\Exception $e) {
+            log_message('error', '[MinioHelper] formatBytes: Exception: ' . $e->getMessage());
+            return '0 B';
         }
-        
-        return round($bytes, $precision) . ' ' . $units[$i];
     }
 }

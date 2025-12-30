@@ -13,7 +13,7 @@ class AirflowHelper
         $port = getenv('AIRFLOW_PORT') ?: '8080';
         return "http://{$host}:{$port}";
     }
-{
+
     /**
      * Sincroniza usuário com Airflow (cria ou atualiza)
      * 

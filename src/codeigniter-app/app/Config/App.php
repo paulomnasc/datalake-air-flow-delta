@@ -28,7 +28,15 @@ class App extends BaseConfig
      *
      * E.g., http://example.com/
      */
-    public string $baseURL = 'http://localhost:8088/';
+    public string $baseURL;
+
+    public function __construct()
+    {
+        parent::__construct();
+        // Tenta pegar do .env, senão usa padrão
+        $envBaseUrl = getenv('app_baseURL');
+        $this->baseURL = $envBaseUrl ?: 'http://localhost:8088/';
+    }
 
     /**
      * Allowed Hostnames in the Site URL other than the hostname in the baseURL.

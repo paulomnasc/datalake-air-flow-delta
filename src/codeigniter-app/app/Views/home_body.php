@@ -473,9 +473,7 @@
     <p style="font-size: 1.2rem; margin-bottom: 30px; opacity: 0.9;">
         Configure suas DAGs, conecte suas fontes de dados e comece a transformar dados em valor
     </p>
-    <a href="<?= base_url('config'); ?>" class="cta-button">
-        ⚙️ Configurar Pipeline Agora
-    </a>
+    
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>

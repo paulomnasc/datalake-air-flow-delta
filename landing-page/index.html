@@ -25,7 +25,7 @@
         }
 
         .container {
-            max-width: 800px;
+            max-width: 1200px;
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
@@ -49,12 +49,13 @@
             padding: 30px 40px 40px;
             text-align: center;
             color: white;
+            position: relative;
         }
 
         .hero-image {
             width: 100%;
-            max-height: 320px;
-            object-fit: cover;
+            max-height: 160px;
+            object-fit: contain;
             border-radius: 14px;
             box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
             margin-bottom: 28px;
@@ -155,6 +156,10 @@
         }
 
         @media (max-width: 768px) {
+            .top-nav {
+                display: none;
+            }
+
             .header {
                 padding: 40px 20px;
             }
@@ -198,6 +203,49 @@
             font-size: 14px;
             margin-top: 10px;
         }
+
+        .top-nav {
+            position: absolute;
+            bottom: 20px;
+            right: 40px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        .top-nav-button {
+            padding: 10px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .top-nav-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .top-nav-link {
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: opacity 0.3s ease;
+        }
+
+        .top-nav-link:hover {
+            opacity: 0.8;
+        }
+
+        .container {
+            position: relative;
+        }
     </style>
 </head>
 <body>
@@ -207,6 +255,10 @@
             <div class="logo">📊 Lab from Power ELT Automation</div>
             <div class="tagline">Inteligência em Dados para Seu Negócio</div>
             <div class="badge">✨ Plataforma de Datalake & Analytics</div>
+            <div class="top-nav">
+                <a href="https://myflow.estudotabela.com.br:28443/loginUsuario" class="top-nav-link">Faça Login</a>
+                <a href="https://myflow.estudotabela.com.br:28443/sigInUsuario" class="top-nav-button">🎯 Começar Agora</a>
+            </div>
         </div>
 
         <div class="content">
@@ -238,12 +290,12 @@
                 </div>
             </div>
 
-            <a href="https://myflow.estudotabela.com.br:28443" class="cta-button">
+            <a href="https://myflow.estudotabela.com.br:28443/sigInUsuario" class="cta-button">
                 🎯 Começar Agora!
             </a>
 
             <p style="margin-top: 20px; color: #999; font-size: 14px;">
-                Já tem uma conta? Acesse... <a href="https://myflow.estudotabela.com.br:28443" style="color: #667eea; text-decoration: none; font-weight: bold;">Faça Login</a>
+                Já tem uma conta? Acesse... <a href="https://myflow.estudotabela.com.br:28443/loginUsuario" style="color: #667eea; text-decoration: none; font-weight: bold;">Faça Login</a>
             </p>
         </div>
 

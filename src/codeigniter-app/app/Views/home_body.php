@@ -9,6 +9,45 @@
         --accent-blue: #4A90E2;
     }
 
+    .video-button-wrapper {
+        position: relative;
+        width: 100%;
+        height: 0;
+        margin-bottom: 20px;
+    }
+
+    .video-button {
+        position: absolute;
+        top: 10px;
+        right: 20px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+        color: white !important;
+        text-decoration: none !important;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 5px 20px rgba(231, 76, 60, 0.4);
+        border: none;
+        cursor: pointer;
+        z-index: 100;
+    }
+
+    .video-button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 30px rgba(231, 76, 60, 0.6);
+        background: linear-gradient(135deg, #c0392b, #e74c3c);
+        color: white !important;
+    }
+
+    .video-button i {
+        font-size: 1.2rem;
+    }
+
     body {
         background: linear-gradient(135deg, #1a1d29 0%, #2d3142 100%);
         color: var(--text-light);
@@ -250,6 +289,14 @@
 
 </style>
 
+<!-- Botão Assistir Video Explicativo -->
+<div class="video-button-wrapper">
+    <button class="video-button" onclick="window.open('https://youtu.be/b2MESMEBHVk', '_blank')">
+        <i class="fas fa-play-circle"></i>
+        Assistir vídeo explicativo
+    </button>
+</div>
+
 <!-- Hero Section -->
 <div class="hero-section">
     <h1 class="hero-title">🌊 Arquitetura Medalhão para Data Lake</h1>
@@ -358,7 +405,7 @@
     </div>
 </div>
 
-<!-- Pipeline Example Section -->
+<!-- Pipeline Example Section 
 <div style="margin: 40px 20px;">
     <h2 style="text-align: center; color: var(--gold); margin-bottom: 30px;">📋 Exemplo de Pipeline de Dados</h2>
     
@@ -465,7 +512,7 @@
             </tbody>
         </table>
     </div>
-</div>
+</div-->
 
 <!-- CTA Section -->
 <div class="cta-section">

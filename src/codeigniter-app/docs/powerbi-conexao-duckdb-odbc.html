@@ -34,6 +34,7 @@
         <ul>
             <li><a href="#origin">0. Geração do Arquivo</a></li>
             <li><a href="#populate">0.1 Popular com Dados</a></li>
+            <li><a href="#server">0.2 Servidor DuckDB (Recomendado)</a></li>
             <li><a href="#install">1. Baixar e Instalar</a></li>
             <li><a href="#config">2. Configurar DSN</a></li>
             <li><a href="#pbi">3. Power BI</a></li>
@@ -75,19 +76,27 @@
                 <p>No terminal (PowerShell), abra o DuckDB com o arquivo criado (ou já existente):</p>
                 <pre><code>duckdb datalake_airflow.duckdb</code></pre>
                 
-                <p style="margin-top: 15px;">Dentro do shell do DuckDB, execute os seguintes comandos para instalar a extensão PostgreSQL e copiar os dados:</p>
-                <pre><code>INSTALL postgres;
+                <p style="margin-top: 15px;">Dentro do shell do DuckDB, execute os seguintes comandos <strong style="color: #d63384;">NA ORDEM</strong> para instalar a extensão PostgreSQL e copiar os dados:</p>
+                <pre><code>-- Passo 1: Instalar e carregar a extensão PostgreSQL (executar apenas 1 vez)
+INSTALL postgres;
 LOAD postgres;
 
-ATTACH 'host=SEU_HOST_REMOTO port=25433 dbname=datalake_bi user=pbi_user password=pbi_password' AS pg (TYPE POSTGRES);
+-- Passo 2: Conectar ao PostgreSQL remoto (executar toda vez que abrir o DuckDB)
+ATTACH 'host=46.224.156.251 port=25433 dbname=datalake_bi user=pbi_user password=pbi_password' AS pg (TYPE POSTGRES);
 
+-- Passo 3: Agora sim, criar as tabelas locais a partir dos dados remotos
 CREATE TABLE delta_artist AS SELECT * FROM pg.public.delta_artist;
 
+-- Sair e salvar
 .quit</code></pre>
+
+                <p style="margin-top: 15px; background: #f8d7da; border-left: 4px solid #dc3545; padding: 10px;">
+                    🚨 <strong>CRÍTICO:</strong> O comando ATTACH <strong>NÃO é salvo no arquivo!</strong> Quando você fecha o DuckDB (.quit) e abre novamente, a conexão "pg" é perdida. Você precisa executar o ATTACH novamente antes de criar novas tabelas!
+                </p>
 
                 <p style="margin-top: 15px;"><strong>Substitua:</strong></p>
                 <ul style="margin-left: 20px;">
-                    <li><span class="path-text">SEU_HOST_REMOTO</span> pelo IP ou hostname do servidor PostgreSQL (ex: 192.168.1.100 ou meuservidor.com)</li>
+                    <li><span class="path-text">46.224.156.251</span> pelo IP ou hostname do servidor PostgreSQL (ex: 192.168.1.100 ou meuservidor.com)</li>
                     <li>Se estiver na mesma máquina, use <span class="path-text">localhost</span></li>
                 </ul>
 
@@ -99,11 +108,17 @@ CREATE TABLE delta_artist AS SELECT * FROM pg.public.delta_artist;
                 <p>Se precisar adicionar outras tabelas ao mesmo arquivo .duckdb:</p>
                 <ol style="margin-left: 20px; margin-top: 10px;">
                     <li>Abra novamente o arquivo: <span class="path-text">duckdb datalake_airflow.duckdb</span></li>
-                    <li>Execute os comandos de conexão (INSTALL, LOAD, ATTACH) se ainda não estiverem carregados nesta sessão</li>
-                    <li>Crie as novas tabelas:</li>
+                    <li><strong style="color: #d63384;">EXECUTE NOVAMENTE os comandos de conexão:</strong></li>
                 </ol>
-                <pre><code>CREATE TABLE nome_tabela2 AS SELECT * FROM pg.public.nome_tabela2;
-CREATE TABLE nome_tabela3 AS SELECT * FROM pg.public.nome_tabela3;
+                <pre><code>-- Carregar a extensão (se ainda não foi instalada)
+LOAD postgres;
+
+-- SEMPRE executar o ATTACH ao abrir uma nova sessão
+ATTACH 'host=46.224.156.251 port=25433 dbname=datalake_bi user=pbi_user password=pbi_password' AS pg (TYPE POSTGRES);
+
+-- Agora criar as novas tabelas
+CREATE TABLE delta_invoice AS SELECT * FROM pg.public.delta_invoice;
+CREATE TABLE delta_employee AS SELECT * FROM pg.public.delta_employee;
 -- ... adicione quantas tabelas precisar
 
 .quit</code></pre>
@@ -112,6 +127,132 @@ CREATE TABLE nome_tabela3 AS SELECT * FROM pg.public.nome_tabela3;
                     ⚠️ <strong>Importante:</strong> Se a tabela já existir no .duckdb, você receberá um erro. Para substituir dados existentes, use:<br>
                     <span class="path-text" style="display: block; margin-top: 5px;">DROP TABLE IF EXISTS nome_tabela;</span>
                     <span class="path-text" style="display: block;">CREATE TABLE nome_tabela AS SELECT * FROM pg.public.nome_tabela;</span>
+                </p>
+            </div>
+        </div>
+
+        <div id="server" class="card">
+            <h1>0.2 Iniciar Servidor DuckDB (SOLUÇÃO para Erro ODBC 08003)</h1>
+            <p style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 10px; margin-bottom: 15px;">
+                🚨 <strong>PROBLEMA COMUM:</strong> Ao carregar dados no Power BI você pode receber o erro <strong>ODBC 08003</strong> ou "arquivo já aberto". Isso acontece porque múltiplos processos tentam acessar o mesmo arquivo .duckdb simultaneamente.
+            </p>
+            <p style="background: #d4edda; border-left: 4px solid #28a745; padding: 10px; margin-bottom: 15px;">
+                ✅ <strong>SOLUÇÃO RECOMENDADA:</strong> Conecte direto no PostgreSQL via Power BI (sem ODBC/DuckDB). Pule para o final desta seção!
+            </p>
+            
+            <div class="step-box">
+                <h2 style="margin-top: 0; color: #0078d4;">🐍 Servidor DuckDB via Python</h2>
+                
+                <p style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin-bottom: 15px;">
+                    ⚠️ <strong>Pré-requisito:</strong> Instale o módulo Python do DuckDB primeiro:
+                </p>
+                <pre><code>pip install duckdb</code></pre>
+
+                <p style="margin-top: 15px;">Crie um arquivo <span class="path-text">duckdb_server.py</span> na mesma pasta do arquivo .duckdb:</p>
+                <pre><code>import duckdb
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import json
+
+# Conectar ao arquivo DuckDB
+con = duckdb.connect('datalake_airflow.duckdb', read_only=True)
+
+class DuckDBHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        query = json.loads(post_data).get('query', '')
+        
+        try:
+            result = con.execute(query).fetchall()
+            columns = [desc[0] for desc in con.description]
+            response = {'columns': columns, 'data': result}
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(response).encode())
+        except Exception as e:
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(str(e).encode())
+
+server = HTTPServer(('localhost', 8080), DuckDBHandler)
+print("DuckDB Server rodando na porta 8080...")
+server.serve_forever()</code></pre>
+
+                <p style="margin-top: 15px;"><strong>Execute o servidor:</strong></p>
+                <pre><code>python duckdb_server.py</code></pre>
+
+                <p style="margin-top: 20px; background: #f8d7da; border-left: 4px solid #dc3545; padding: 10px;">
+                    ❌ <strong>Problema:</strong> Esta solução ainda não resolve o problema ODBC do Power BI, pois o driver ODBC continuará tentando acessar o arquivo diretamente.
+                </p>
+
+                <h2 style="margin-top: 25px; color: #28a745;">✅ MELHOR SOLUÇÃO: Conectar via PostgreSQL</h2>
+                <p><strong>No Power BI Desktop:</strong></p>
+                <ol style="margin-left: 20px;">
+                    <li>Vá em <strong>Obter Dados</strong> > <strong>Banco de Dados</strong> > <strong>Banco de Dados PostgreSQL</strong></li>
+                    <li>Configure a conexão:</li>
+                </ol>
+                <div class="cred-box" style="margin-top: 10px;">
+                    <strong>Servidor:</strong> 46.224.156.251:25433<br>
+                    <strong>Banco de dados:</strong> datalake_bi
+                </div>
+                
+                <p style="margin-top: 15px; background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px;">
+                    ⚠️ <strong>Erro de Criptografia/SSL:</strong> Se aparecer erro relacionado a SSL ou criptografia, clique em <strong>Opções Avançadas</strong> e adicione o parâmetro de linha de comando:
+                </p>
+                <pre><code>sslmode=disable</code></pre>
+                
+                <ol start="3" style="margin-left: 20px; margin-top: 15px;">
+                    <li>Na autenticação, insira:</li>
+                </ol>
+                <div class="cred-box" style="margin-top: 10px;">
+                    <strong>Usuário:</strong> pbi_user<br>
+                    <strong>Senha:</strong> pbi_password
+                </div>
+                <ol start="4" style="margin-left: 20px; margin-top: 10px;">
+                    <li>Selecione as tabelas desejadas (delta_artist, delta_invoice, etc.)</li>
+                    <li><strong>IMPORTANTE:</strong> Escolha o modo de conectividade:</li>
+                </ol>
+                
+                <div style="margin: 15px 20px; background: #e7f3ff; border-left: 4px solid #0078d4; padding: 15px;">
+                    <h3 style="margin-top: 0; color: #0078d4;">📊 Import vs DirectQuery</h3>
+                    
+                    <p><strong>Import (Importar - Padrão):</strong></p>
+                    <ul style="margin-left: 20px;">
+                        <li>✅ Melhor performance nas visualizações</li>
+                        <li>✅ Funciona offline</li>
+                        <li>✅ Todos os recursos DAX disponíveis</li>
+                        <li>❌ Precisa atualizar manualmente para ver novos dados</li>
+                        <li>❌ Consome mais memória</li>
+                    </ul>
+                    
+                    <p style="margin-top: 10px;"><strong>DirectQuery (Consulta Direta):</strong></p>
+                    <ul style="margin-left: 20px;">
+                        <li>✅ Sempre mostra dados atualizados em tempo real</li>
+                        <li>✅ Não consome memória local (dados ficam no servidor)</li>
+                        <li>✅ Ideal para grandes volumes de dados</li>
+                        <li>❌ Mais lento (cada visualização faz query no banco)</li>
+                        <li>❌ Requer conexão constante com o servidor</li>
+                        <li>❌ Algumas funções DAX não funcionam</li>
+                    </ul>
+                    
+                    <p style="margin-top: 10px; background: #fff3cd; padding: 10px; border-radius: 4px;">
+                        💡 <strong>Recomendação:</strong> Use <strong>Import</strong> para desenvolvimento e dashboards pequenos/médios. Use <strong>DirectQuery</strong> para dados que mudam frequentemente ou volumes muito grandes.
+                    </p>
+                </div>
+
+                <ol start="6" style="margin-left: 20px;">
+                    <li>Clique em <strong>Carregar</strong> (Import) ou <strong>OK</strong> (DirectQuery)</li>
+                </ol>
+
+                <p style="margin-top: 20px; background: #d4edda; border-left: 4px solid #28a745; padding: 10px;">
+                    💡 <strong>Vantagens desta abordagem:</strong><br>
+                    ✅ Sem problemas de lock de arquivo<br>
+                    ✅ Múltiplas conexões simultâneas<br>
+                    ✅ Melhor performance<br>
+                    ✅ Suporta DirectQuery para dados em tempo real<br>
+                    ✅ Não precisa de drivers ODBC adicionais
                 </p>
             </div>
         </div>

@@ -633,3 +633,131 @@ try:
 
 except Exception as e:
     log.critical(f"❌ Erro fatal ao buscar configurações da DAG no MySQL: {e}")
+
+
+# ----------------------------------------------------------------------
+# 7. CRIAÇÃO DE DAGs DE SYNC DELTA→POSTGRES POR USUÁRIO
+# ----------------------------------------------------------------------
+
+def create_sync_delta_to_postgres_dag(owner: str, bucket: str) -> DAG:
+    """
+    Cria uma DAG de sincronização Delta → PostgreSQL para um usuário específico.
+    
+    Args:
+        owner: Username do usuário (ex: 'joao_silva_456')
+        bucket: Nome do bucket MinIO do usuário
+        
+    Returns:
+        Objeto DAG configurado
+    """
+    from datetime import timedelta
+    from airflow.operators.python import PythonOperator
+    
+    # Importa as funções do sync_delta_to_postgres
+    import sys
+    sys.path.insert(0, os.path.dirname(__file__))
+    
+    from sync_delta_to_postgres import (
+        setup_postgres,
+        sync_delta_to_postgres,
+        verify_postgres_tables
+    )
+    
+    dag_id = f"sync_delta_dw_{owner}"
+    
+    default_args = {
+        'owner': owner,
+        'depends_on_past': False,
+        'email_on_failure': False,
+        'email_on_retry': False,
+        'retries': 1,
+        'retry_delay': timedelta(minutes=5),
+    }
+    
+    dag = DAG(
+        dag_id,
+        default_args=default_args,
+        description=f'Delta → PostgreSQL para {owner} (bucket: {bucket})',
+        schedule_interval='0 2 * * *',  # 02:00 AM diário
+        start_date=days_ago(1),
+        catchup=False,
+        tags=['postgres', 'pbi', 'delta', 'sync', owner],
+        params={'bucket_name': bucket},  # Passa bucket como parâmetro
+        doc_md=f"""
+        ## DAG: Delta → PostgreSQL para {owner}
+        
+        Lê tabelas Delta do MinIO (bucket: {bucket}) via DuckDB e insere em PostgreSQL.
+        Power BI conecta direto (suporta múltiplos acessos nativamente).
+        
+        ### Configuração:
+        - Bucket: {bucket}
+        - Owner: {owner}
+        - Schedule: Diário às 02:00 AM
+        
+        ### Fluxo:
+        1. Setup: Valida conexão PostgreSQL
+        2. Sync: Lê Delta, insere em PostgreSQL
+        3. Verify: Lista tabelas criadas
+        """
+    )
+    
+    with dag:
+        setup_task = PythonOperator(
+            task_id='setup_postgres',
+            python_callable=setup_postgres,
+        )
+        
+        sync_task = PythonOperator(
+            task_id='sync_delta_to_postgres',
+            python_callable=sync_delta_to_postgres,
+        )
+        
+        verify_task = PythonOperator(
+            task_id='verify_postgres_tables',
+            python_callable=verify_postgres_tables,
+        )
+        
+        setup_task >> sync_task >> verify_task
+    
+    return dag
+
+
+# Gera DAGs de sync para cada usuário com DAGs ativas
+try:
+    log.info("🔄 Criando DAGs de sync Delta→PostgreSQL por usuário...")
+    
+    # Busca usuários únicos com DAGs ativas
+    dag_records = fetch_dag_configurations(MYSQL_CONN_ID)
+    
+    users_with_buckets = {}
+    for record in dag_records:
+        # Pega owner e bucket de cada configuração
+        owner = record[3]  # índice do owner
+        user_bucket = record[18] if len(record) > 18 else None  # índice do user_bucket
+        
+        # Define bucket: user_bucket -> owner -> fallback
+        bucket = user_bucket or owner or os.environ.get('MINIO_BUCKET', 'lab01')
+        
+        # Ignora owner padrão 'airflow'
+        if owner and owner != 'airflow':
+            users_with_buckets[owner] = bucket
+    
+    log.info(f"📊 Encontrados {len(users_with_buckets)} usuários únicos")
+    
+    # Cria uma DAG de sync para cada usuário
+    for owner, bucket in users_with_buckets.items():
+        try:
+            dag_id = f"sync_delta_dw_{owner}"
+            sync_dag = create_sync_delta_to_postgres_dag(owner, bucket)
+            globals()[dag_id] = sync_dag
+            log.info(f"✅ DAG de sync criada: {dag_id} (bucket: {bucket})")
+        except Exception as e:
+            log.error(f"❌ Falha ao criar DAG de sync para {owner}: {e}")
+            continue
+    
+    log.info(f"✅ {len(users_with_buckets)} DAGs de sync Delta→PostgreSQL criadas com sucesso")
+    
+except Exception as e:
+    log.error(f"❌ Erro ao criar DAGs de sync: {e}")
+    import traceback
+    traceback.print_exc()

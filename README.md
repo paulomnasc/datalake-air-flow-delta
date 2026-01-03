@@ -9,7 +9,7 @@ Este projeto integra três componentes principais para orquestração de dados e
 - **Apache Atlas**: Catálogo de dados e governança (standalone)
 - **Jupyter + PySpark (Lab Atlas)**: Ambiente interativo para análise e integração com Atlas
 
-A base foi clonada do repositório do Adriano e adaptada para incluir os três serviços integrados. Os artefatos de código (DAGs, scripts, configurações) estão versionados neste repositório.
+A base foi adaptada para incluir os três serviços integrados. Os artefatos de código (DAGs, scripts, configurações) estão versionados neste repositório.
 
 ## 📚 Documentação Completa
 

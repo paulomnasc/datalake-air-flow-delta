@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transformações Inteligentes da Camada Silver - Documentação Datalake</title>
+    <style>
+        :root {
+            --sidebar-width: 280px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar h2 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .sidebar nav ul {
+            list-style: none;
+        }
+
+        .sidebar nav ul li {
+            margin-bottom: 8px;
+        }
+
+        .sidebar nav ul li a {
+            color: #ecf0f1;
+            text-decoration: none;
+            display: block;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .sidebar nav ul li a:hover {
+            background: #34495e;
+            color: #3498db;
+        }
+
+        .sidebar nav ul li a.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            flex: 1;
+            background: white;
+            max-width: 1400px;
+            transition: margin-left 0.3s ease;
+        }
+
+        .content.collapsed {
+            margin-left: 0;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 900;
+            display: none;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+            transition: left 0.3s ease;
+        }
+
+        @media (min-width: 1100px) {
+            .sidebar-toggle {
+                left: calc(var(--sidebar-width) + 16px);
+            }
+        }
+
+        .content h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .content h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.8rem;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .content h3 {
+            color: #555;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+        }
+
+        .content h4 {
+            color: #666;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        .content ul {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ul li {
+            margin-bottom: 8px;
+        }
+
+        .content ol {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ol li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #3498db;
+            color: white;
+            border-radius: 3px;
+            font-size: 0.85rem;
+            margin-left: 5px;
+        }
+
+        .badge.star {
+            background: #f39c12;
+        }
+
+        .badge.warning {
+            background: #e74c3c;
+        }
+
+        .badge.success {
+            background: #27ae60;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #c7254e;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        table th {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #2980b9;
+        }
+
+        table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        blockquote {
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #555;
+            font-style: italic;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .alert-info {
+            background: #d9edf7;
+            border-left: 4px solid #31708f;
+            color: #31708f;
+        }
+
+        .alert-warning {
+            background: #fcf8e3;
+            border-left: 4px solid #8a6d3b;
+            color: #8a6d3b;
+        }
+
+        .alert-success {
+            background: #dff0d8;
+            border-left: 4px solid #3c763d;
+            color: #3c763d;
+        }
+
+        .alert-danger {
+            background: #f2dede;
+            border-left: 4px solid #a94442;
+            color: #a94442;
+        }
+
+        .masked-value {
+            font-family: 'Courier New', monospace;
+            user-select: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #f4f4f4;
+            transition: all 0.3s ease;
+        }
+
+        .masked-value:hover {
+            background: #e0e0e0;
+            text-decoration: underline;
+        }
+
+        .masked-value.revealed {
+            background: #ffffcc;
+        }
+    </style>
+    <script>
+        // Mascara valores sensíveis (passwords, tokens, secrets)
+        function maskSensitiveValues() {
+            const sensitivePatterns = [
+                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
+            ];
+
+            const codeBlocks = document.querySelectorAll('code, pre');
+            
+            codeBlocks.forEach(block => {
+                let content = block.innerHTML;
+                
+                sensitivePatterns.forEach(pattern => {
+                    content = content.replace(pattern.regex, (match, value) => {
+                        if (!value) return match;
+                        
+                        const prefix = match.substring(0, match.indexOf(value));
+                        const masked = '*'.repeat(Math.min(value.length, 12));
+                        const tooltip = `Clique para revelar o valor`;
+                        
+                        return `${prefix}<span class="masked-value" title="${tooltip}" data-original="${value}" onclick="toggleMask(event)">${masked}</span>`;
+                    });
+                });
+                
+                block.innerHTML = content;
+            });
+        }
+
+        // Toggle visibilidade de valores mascarados
+        function toggleMask(event) {
+            event.stopPropagation();
+            const span = event.target;
+            
+            if (span.classList.contains('revealed')) {
+                const original = span.getAttribute('data-original');
+                span.textContent = '*'.repeat(Math.min(original.length, 12));
+                span.classList.remove('revealed');
+            } else {
+                const original = span.getAttribute('data-original');
+                span.textContent = original;
+                span.classList.add('revealed');
+            }
+        }
+
+        function setSidebarState(isOpen) {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            sidebar.classList.toggle('collapsed', !isOpen);
+            content.classList.toggle('collapsed', !isOpen);
+
+            const useOverlay = window.innerWidth < 1100;
+            if (overlay) {
+                overlay.classList.toggle('active', isOpen && useOverlay);
+            }
+
+            toggleBtn.textContent = isOpen ? '✕' : '☰';
+            
+            // Ajusta posição do botão em telas maiores
+            if (window.innerWidth >= 1100) {
+                toggleBtn.style.left = isOpen ? 'calc(var(--sidebar-width) + 16px)' : '16px';
+            } else {
+                toggleBtn.style.left = '16px';
+            }
+        }
+
+        function initSidebarToggle() {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            const initialOpen = window.innerWidth >= 1100;
+            setSidebarState(initialOpen);
+
+            toggleBtn.addEventListener('click', function() {
+                const isOpen = !sidebar.classList.contains('collapsed');
+                setSidebarState(!isOpen);
+            });
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    setSidebarState(false);
+                });
+            }
+
+            window.addEventListener('resize', function() {
+                const shouldBeOpen = window.innerWidth >= 1100;
+                setSidebarState(shouldBeOpen);
+            });
+        }
+
+        // Executar quando documento carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            maskSensitiveValues();
+            initSidebarToggle();
+        });
+    </script>
+</head>
+<body>
+    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰</button>
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>📚 Documentação</h2>
+            <nav>
+                <ul>
+                    <li><a href="index.html" >🏠 Home</a></li>
+                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    <li><a href="migracao-duckdb-postgresql.html" >🔌 Conexão Power BI</a></li>
+                    <li><a href="transformacoes-silver.html" class="active">🥈 Transformações Silver</a></li>
+                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="content">
+<h1 id="transformacoes-inteligentes-da-camada-silver">Transformações Inteligentes da Camada Silver</h1>
+
+<h2 id="visao-geral">Visão Geral</h2>
+
+<p>A camada <strong>Silver</strong> aplica <strong>inteligência automática de dados</strong> usando bibliotecas Python (pandas) para detectar padrões e aplicar transformações sem necessidade de configuração manual. Além disso, adiciona <strong>validação de qualidade de dados</strong> e colunas de auditoria.</p>
+
+<h2 id="principio-zero-configuracao">Princípio: Zero Configuração</h2>
+
+<strong>Nenhum código customizado é necessário</strong> - o sistema analisa os dados automaticamente e aplica as melhores práticas de engenharia de dados.
+
+<p>---</p>
+
+<h2 id="dicionario-de-dados-camadas-silver">📊 Dicionário de Dados - Camadas Silver</h2>
+
+<h3 id="colunas-originais">Colunas Originais</h3>
+<p>Todas as colunas da camada Bronze são preservadas, mas com transformações automáticas:</p>
+<ul>
+<li>Nomes normalizados (lowercase, sem espaços)</li>
+<li>Tipos inferidos automaticamente (datas, números, categorias)</li>
+<li>Valores nulos tratados inteligentemente</li>
+</ul>
+
+<h3 id="colunas-de-qualidade-de-dados-adicionadas-automaticamente">Colunas de Qualidade de Dados (Adicionadas Automaticamente)</h3>
+
+<table>
+<thead><tr>
+<th>Coluna</th>
+<th>Tipo</th>
+<th>Descrição</th>
+<th>Valores</th>
+<th>Uso</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>DataQualityRulesPass</strong></td>
+<td><code>int64</code></td>
+<td>Quantidade de regras de qualidade que a linha passou</td>
+<td>0 a 5+</td>
+<td>Identificar linhas com boa qualidade. Valores altos (4-5) = dados confiáveis</td>
+</tr>
+<tr>
+<td><strong>DataQualityRulesFail</strong></td>
+<td><code>int64</code></td>
+<td>Quantidade de regras de qualidade que a linha falhou</td>
+<td>0 a 5+</td>
+<td>Identificar linhas problemáticas. Valores > 0 = dados precisam revisão</td>
+</tr>
+<tr>
+<td><strong>DataQualityRulesSkip</strong></td>
+<td><code>int64</code></td>
+<td>Quantidade de regras que não se aplicaram à linha</td>
+<td>0 a 5+</td>
+<td>Regras não executadas (ex: validação de email em linha sem email)</td>
+</tr>
+<tr>
+<td><strong>DataQualityEvaluationResult</strong></td>
+<td><code>string</code></td>
+<td>Resultado final da avaliação de qualidade</td>
+<td>"Passed" ou "Failed"</td>
+<td>Filtrar rapidamente linhas confiáveis. Filtro: <code>== "Passed"</code></td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="regras-de-qualidade-aplicadas">Regras de Qualidade Aplicadas</h3>
+
+<h4 id="regra-1-verificacao-de-valores-nulos">Regra 1: Verificação de Valores Nulos</h4>
+<ul>
+<li><strong>O que verifica</strong>: Campos críticos (id, key, code, number) não podem ser nulos</li>
+<li><strong>Pass</strong>: Campo obrigatório está preenchido</li>
+<li><strong>Fail</strong>: Campo obrigatório está vazio (NULL/NaN)</li>
+<li><strong>Skip</strong>: Coluna não é crítica</li>
+</ul>
+
+<strong>Exemplo</strong>:
+<pre><code><h1 id="customernumber-nao-pode-ser-nulo">customerNumber não pode ser nulo</h1>
+<p>customerNumber  DataQualityRulesPass  DataQualityRulesFail</p>
+<p>103            <span class="badge success">✅</span> +1                  0</p>
+<p>NULL           0                      <span class="badge warning">❌</span> +1</code></pre></p>
+
+<h4 id="regra-2-validacao-de-tipos-de-dados">Regra 2: Validação de Tipos de Dados</h4>
+<ul>
+<li><strong>O que verifica</strong>: Valores numéricos devem ser finitos (não infinito, não NaN)</li>
+<li><strong>Pass</strong>: Número é finito e válido</li>
+<li><strong>Fail</strong>: Número é infinito (inf/-inf) ou inválido</li>
+<li><strong>Skip</strong>: Coluna não é numérica</li>
+</ul>
+
+<strong>Exemplo</strong>:
+<pre><code><h1 id="creditlimit-deve-ser-numero-valido">creditLimit deve ser número válido</h1>
+<p>creditLimit    DataQualityRulesPass  DataQualityRulesFail</p>
+<p>50000.00      <span class="badge success">✅</span> +1                  0</p>
+<p>inf           0                      <span class="badge warning">❌</span> +1</code></pre></p>
+
+<h4 id="regra-3-deteccao-de-duplicatas">Regra 3: Detecção de Duplicatas</h4>
+<ul>
+<li><strong>O que verifica</strong>: Linhas duplicadas exatas (todos os campos iguais)</li>
+<li><strong>Pass</strong>: Linha é única</li>
+<li><strong>Fail</strong>: Linha é duplicata de outra</li>
+<li><strong>Skip</strong>: Nunca pula</li>
+</ul>
+
+<strong>Exemplo</strong>:
+<pre><code><h1 id="duas-linhas-identicas">Duas linhas idênticas</h1>
+<p>customerNumber  name        DataQualityRulesFail</p>
+<p>103            "John Doe"   0 (primeira ocorrência)</p>
+<p>103            "John Doe"   <span class="badge warning">❌</span> +1 (duplicata)</code></pre></p>
+
+<h4 id="regra-4-validacao-de-ranges-numericos">Regra 4: Validação de Ranges Numéricos</h4>
+<ul>
+<li><strong>O que verifica</strong>: Valores numéricos dentro de 3 desvios padrão da média (outliers)</li>
+<li><strong>Pass</strong>: Valor está dentro do range esperado</li>
+<li><strong>Fail</strong>: Valor é outlier extremo (> 3 desvios padrão)</li>
+<li><strong>Skip</strong>: Coluna não é numérica</li>
+</ul>
+
+<strong>Exemplo</strong>:
+<pre><code><h1 id="creditlimit-outliers">creditLimit outliers</h1>
+<p>creditLimit    Média    Desvio   Z-Score  DataQualityRulesFail</p>
+<p>50000         100000   30000    -1.67    0 (dentro do range)</p>
+<p>300000        100000   30000    6.67     <span class="badge warning">❌</span> +1 (outlier extremo)</code></pre></p>
+
+<h4 id="regra-5-validacao-de-padroes-de-string">Regra 5: Validação de Padrões de String</h4>
+<ul>
+<li><strong>O que verifica</strong>: Emails e telefones têm formato válido (regex)</li>
+<li><strong>Pass</strong>: String segue padrão esperado</li>
+<li><strong>Fail</strong>: String não segue padrão (email inválido, telefone malformado)</li>
+<li><strong>Skip</strong>: Coluna não contém emails/telefones</li>
+</ul>
+
+<strong>Padrões validados</strong>:
+<ul>
+<li><strong>Email</strong>: <code>usuario@dominio.com</code></li>
+<li><strong>Telefone</strong>: Formatos com 10-15 dígitos</li>
+</ul>
+
+<strong>Exemplo</strong>:
+<pre><code><h1 id="validacao-de-email">Validação de email</h1>
+<p>email                  DataQualityRulesPass  DataQualityRulesFail</p>
+<p>"john@example.com"    <span class="badge success">✅</span> +1                  0</p>
+<p>"invalid-email"       0                      <span class="badge warning">❌</span> +1</code></pre></p>
+
+<h3 id="interpretacao-dos-resultados">Interpretação dos Resultados</h3>
+
+<table>
+<thead><tr>
+<th>DataQualityRulesPass</th>
+<th>DataQualityRulesFail</th>
+<th>DataQualityEvaluationResult</th>
+<th>Interpretação</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>5</td>
+<td>0</td>
+<td>Passed</td>
+<td><span class="badge success">✅</span> Excelente - Todos os testes passaram</td>
+</tr>
+<tr>
+<td>4</td>
+<td>1</td>
+<td>Failed</td>
+<td><span class="badge warning">⚠️</span>  Atenção - 1 problema encontrado</td>
+</tr>
+<tr>
+<td>3</td>
+<td>2</td>
+<td>Failed</td>
+<td><span class="badge warning">⚠️</span>  Qualidade duvidosa - 2 problemas</td>
+</tr>
+<tr>
+<td>0-2</td>
+<td>3+</td>
+<td>Failed</td>
+<td><span class="badge warning">❌</span> Qualidade crítica - Requer revisão</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="exemplo-pratico-completo">Exemplo Prático Completo</h3>
+
+<strong>Entrada (Bronze)</strong>:
+<pre><code>customerNumber,contactFirstName,creditLimit,email
+<p>103,John,50000,john@example.com</p>
+<p>,Jane,999999999,invalid-email</p>
+<p>105,Bob,75000,bob@company.com</p>
+<p>105,Bob,75000,bob@company.com</code></pre></p>
+
+<strong>Saída (Silver)</strong>:
+<pre><code>customernumber,contactfirstname,creditlimit,email,DataQualityRulesPass,DataQualityRulesFail,DataQualityRulesSkip,DataQualityEvaluationResult
+<p>103,John,50000,john@example.com,5,0,0,Passed</p>
+<p>,Jane,999999999,invalid-email,2,3,0,Failed</p>
+<p>105,Bob,75000,bob@company.com,5,0,0,Passed</p>
+<p>105,Bob,75000,bob@company.com,4,1,0,Failed</code></pre></p>
+
+<strong>Análise</strong>:
+<ul>
+<li><strong>Linha 1</strong>: <span class="badge success">✅</span> Perfeita (5 passes, 0 fails)</li>
+<li><strong>Linha 2</strong>: <span class="badge warning">❌</span> Problemas (customernumber nulo, creditLimit outlier, email inválido)</li>
+<li><strong>Linha 3</strong>: <span class="badge success">✅</span> Perfeita (5 passes, 0 fails)</li>
+<li><strong>Linha 4</strong>: <span class="badge warning">❌</span> Duplicata (4 passes, 1 fail - duplicata detectada)</li>
+</ul>
+
+<h3 id="queries-uteis-para-analise">Queries Úteis para Análise</h3>
+
+<pre><code>import pandas as pd
+
+<p>df = pd.read_parquet('silver/customers/file.parquet')</p>
+
+<h1 id="1-taxa-de-aprovacao-geral">1. Taxa de aprovação geral</h1>
+<p>pass_rate = (df['DataQualityEvaluationResult'] == 'Passed').sum() / len(df) * 100</p>
+<p>print(f"Taxa de aprovação: {pass_rate:.1f}%")</p>
+
+<h1 id="2-filtrar-apenas-linhas-confiaveis">2. Filtrar apenas linhas confiáveis</h1>
+<p>clean_data = df[df['DataQualityEvaluationResult'] == 'Passed']</p>
+
+<h1 id="3-encontrar-linhas-com-multiplos-problemas">3. Encontrar linhas com múltiplos problemas</h1>
+<p>critical_issues = df[df['DataQualityRulesFail'] >= 3]</p>
+<p>print(f"Linhas críticas: {len(critical_issues)}")</p>
+
+<h1 id="4-distribuicao-de-qualidade">4. Distribuição de qualidade</h1>
+<p>quality_dist = df['DataQualityRulesPass'].value_counts().sort_index()</p>
+<p>print(quality_dist)</p>
+
+<h1 id="5-identificar-problemas-especificos">5. Identificar problemas específicos</h1>
+<p>null_issues = df[df['customernumber'].isna()]</p>
+<p>outliers = df[df['creditlimit'] > df['creditlimit'].mean() + 3*df['creditlimit'].std()]</code></pre></p>
+
+<p>---</p>
+
+<p>---</p>
+
+<h2 id="transformacoes-automaticas-aplicadas">Transformações Automáticas Aplicadas</h2>
+
+<h3 id="1-normalizacao-de-colunas">1. <strong>Normalização de Colunas</strong></h3>
+<pre><code><h1 id="antes-customer-name-productid-order-date">Antes: 'Customer Name', ' ProductID ', 'order_date'</h1>
+<h1 id="depois-customer-name-productid-order-date">Depois: 'customer_name', 'productid', 'order_date'</h1>
+
+<p>df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')</code></pre></p>
+
+<h3 id="2-deteccao-e-conversao-automatica-de-datas">2. <strong>Detecção e Conversão Automática de Datas</strong></h3>
+<pre><code><h1 id="detecta-automaticamente-colunas-com-formato-de-data">Detecta automaticamente colunas com formato de data</h1>
+<h1 id="se-50-das-linhas-sao-datas-validas-converte-para-datetime">Se >50% das linhas são datas válidas, converte para datetime</h1>
+
+<p>Exemplos detectados:</p>
+<ul>
+<li>'2024-01-15' → datetime64[ns]</li>
+<li>'15/01/2024' → datetime64[ns]</li>
+<li>'2024-01-15 10:30:00' → datetime64[ns]</code></pre></li>
+</ul>
+
+<strong>Benefício</strong>: Análises temporais funcionam automaticamente no Power BI/SQL.
+
+<h3 id="3-inferencia-automatica-de-tipos-numericos">3. <strong>Inferência Automática de Tipos Numéricos</strong></h3>
+<pre><code><h1 id="colunas-que-parecem-numeros-mas-estao-como-texto">Colunas que parecem números mas estão como texto</h1>
+<h1 id="se-80-das-linhas-sao-numeros-validos-converte">Se >80% das linhas são números válidos, converte</h1>
+
+<p>Antes:  'price': ['100.50', '200.00', '150.75']  (object)</p>
+<p>Depois: 'price': [100.50, 200.00, 150.75]        (float64)</code></pre></p>
+
+<h3 id="4-deteccao-automatica-de-categorias">4. <strong>Detecção Automática de Categorias</strong></h3>
+<pre><code><h1 id="colunas-com-poucos-valores-unicos-5-da-base">Colunas com poucos valores únicos (<5% da base)</h1>
+<h1 id="automaticamente-convertidas-para-tipo-category">Automaticamente convertidas para tipo 'category'</h1>
+
+<p>Exemplo:</p>
+<ul>
+<li>'status': ['Ativo', 'Inativo', 'Ativo'] → category</li>
+<li>'country': ['USA', 'France', 'USA'] → category</code></pre></li>
+</ul>
+
+<strong>Benefício</strong>: Economia de memória (~50-70%) e queries mais rápidas.
+
+<h3 id="5-normalizacao-de-texto">5. <strong>Normalização de Texto</strong></h3>
+<pre><code><h1 id="remove-espacos-extras-de-todas-as-colunas-de-texto">Remove espaços extras de todas as colunas de texto</h1>
+
+<p>Antes:  '  John Doe  '</p>
+<p>Depois: 'John Doe'</code></pre></p>
+
+<h3 id="6-preenchimento-inteligente-de-nulos">6. <strong>Preenchimento Inteligente de Nulos</strong></h3>
+
+<p>O sistema escolhe a estratégia por tipo de dado:</p>
+
+<table>
+<thead><tr>
+<th>Tipo</th>
+<th>Estratégia</th>
+<th>Exemplo</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Numérico</strong></td>
+<td>Mediana</td>
+<td><code>creditLimit: [100, 200, NaN] → [100, 200, 150]</code></td>
+</tr>
+<tr>
+<td><strong>Texto</strong></td>
+<td>'N/A'</td>
+<td><code>state: ['CA', NaN, 'NY'] → ['CA', 'N/A', 'NY']</code></td>
+</tr>
+<tr>
+<td><strong>Categórico</strong></td>
+<td>Moda (valor mais frequente)</td>
+<td><code>status: ['Ativo', NaN, 'Ativo'] → ['Ativo', 'Ativo', 'Ativo']</code></td>
+</tr>
+</tbody>
+</table>
+
+<strong>Por que mediana em vez de média?</strong>
+<ul>
+<li>Mediana é robusta a outliers</li>
+<li>Exemplo: salários [1000, 2000, 100000] → mediana=2000 (média=34333)</li>
+</ul>
+
+<h3 id="7-colunas-de-auditoria-automaticas">7. <strong>Colunas de Auditoria Automáticas</strong></h3>
+
+<p>Duas colunas são adicionadas automaticamente:</p>
+
+<pre><code>'_silver_processed_at': Timestamp de quando foi processado
+<p>'_silver_row_quality': Percentual de completude da linha (0-100%)</code></pre></p>
+
+<strong>Exemplo</strong>:
+<pre><code>customerNumber,name,creditLimit,_silver_processed_at,_silver_row_quality
+<p>103,Doe,50000,2024-11-23 10:30:00,100.0</p>
+<p>104,Smith,,2024-11-23 10:30:00,66.67</code></pre></p>
+
+<strong>Uso</strong>: Identificar linhas com baixa qualidade de dados.
+
+<p>---</p>
+
+<h2 id="exemplo-pratico-antes-e-depois">Exemplo Prático: Antes e Depois</h2>
+
+<h3 id="entrada-bronze-csv">Entrada (Bronze CSV)</h3>
+<pre><code>Customer Name, Order Date ,  Price , Status
+<p>  John Doe  ,2024-01-15,100.50,  Active  </p>
+<p>Jane Smith,2024-01-16,200,Active</p>
+<p>Bob Wilson,,150.75,</code></pre></p>
+
+<h3 id="saida-silver-parquet">Saída (Silver Parquet)</h3>
+<pre><code>customer_name,order_date,price,status,_silver_processed_at,_silver_row_quality
+<p>John Doe,2024-01-15,100.50,Active,2024-11-23 10:30:00,100.0</p>
+<p>Jane Smith,2024-01-16,200.00,Active,2024-11-23 10:30:00,100.0</p>
+<p>Bob Wilson,N/A,150.75,N/A,2024-11-23 10:30:00,50.0</code></pre></p>
+
+<strong>Transformações aplicadas</strong>:
+<ol>
+<li><span class="badge success">✅</span> Colunas normalizadas: <code>Customer Name</code> → <code>customer_name</code></li>
+<li><span class="badge success">✅</span> Data detectada e convertida: <code>Order Date</code> → <code>order_date</code> (datetime)</li>
+<li><span class="badge success">✅</span> Preços convertidos para numérico: <code>"100.50"</code> → <code>100.50</code> (float)</li>
+<li><span class="badge success">✅</span> Status convertido para categoria (apenas 2 valores únicos)</li>
+<li><span class="badge success">✅</span> Espaços removidos: <code>"  John Doe  "</code> → <code>"John Doe"</code></li>
+<li><span class="badge success">✅</span> Nulos preenchidos inteligentemente</li>
+<li><span class="badge success">✅</span> Colunas de auditoria adicionadas</li>
+</ol>
+
+<p>---</p>
+
+<h2 id="logs-de-execucao">Logs de Execução</h2>
+
+<h3 id="exemplo-real">Exemplo Real</h3>
+<pre><code>[SILVER] Limpeza básica: 3 linhas removidas (125 → 122)
+<p>[SILVER] Aplicando transformações inteligentes automáticas...</p>
+<p>[SILVER] ✓ Coluna 'orderdate' convertida para datetime</p>
+<p>[SILVER] ✓ Coluna 'requireddate' convertida para datetime</p>
+<p>[SILVER] ✓ Coluna 'shippeddate' convertida para datetime</p>
+<p>[SILVER] ✓ Coluna 'status' convertida para category (6 valores únicos)</p>
+<p>[SILVER] ✓ Coluna 'productline' convertida para category (7 valores únicos)</p>
+<p>[SILVER] ✓ Coluna 'quantityordered' convertida para numérico</p>
+<p>[SILVER] ✓ Coluna 'priceeach' convertida para numérico</p>
+<p>[SILVER] Transformações inteligentes concluídas: 2 colunas adicionadas</p>
+<p>[SILVER] Tipos finais: {'datetime64[ns]': 3, 'category': 2, 'float64': 5, 'int64': 2, 'object': 3}</p>
+<p>[SILVER] <span class="badge success">✅</span> Arquivo salvo em: s3://lab01/silver/orders/file.parquet</code></pre></p>
+
+<p>---</p>
+
+<h2 id="vantagens-da-abordagem-automatica">Vantagens da Abordagem Automática</h2>
+
+<h3 id="zero-configuracao"><span class="badge success">✅</span> Zero Configuração</h3>
+<ul>
+<li>Funciona com <strong>qualquer tabela</strong> automaticamente</li>
+<li>Nenhum código customizado necessário</li>
+<li>Nenhum arquivo de configuração</li>
+</ul>
+
+<h3 id="inteligente-por-padrao"><span class="badge success">✅</span> Inteligente por Padrão</h3>
+<ul>
+<li>Detecta tipos automaticamente (datas, números, categorias)</li>
+<li>Aplica melhores práticas de engenharia de dados</li>
+<li>Economia de memória com tipos otimizados</li>
+</ul>
+
+<h3 id="manutenivel"><span class="badge success">✅</span> Manutenível</h3>
+<ul>
+<li>Um único algoritmo para todas as tabelas</li>
+<li>Melhorias beneficiam todas as tabelas automaticamente</li>
+<li>Sem necessidade de manter transformadores por tabela</li>
+</ul>
+
+<h3 id="robusto"><span class="badge success">✅</span> Robusto</h3>
+<ul>
+<li>Usa pandas (biblioteca battle-tested)</li>
+<li>Tratamento de erros embutido</li>
+<li>Fallback: se conversão falhar, mantém original</li>
+</ul>
+
+<h3 id="escalavel"><span class="badge success">✅</span> Escalável</h3>
+<ul>
+<li>Performance não degrada com número de tabelas</li>
+<li>Mesma lógica para 1 ou 1000 tabelas</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="comparacao-customizado-vs-automatico">Comparação: Customizado vs Automático</h2>
+
+<h3 id="abordagem-customizada-manual"><span class="badge warning">❌</span> Abordagem Customizada (Manual)</h3>
+
+<pre><code><h1 id="criar-arquivo-customerspy">Criar arquivo: customers.py</h1>
+<p>def transform(df):</p>
+<p>    df['nome_completo'] = df['firstName'] + ' ' + df['lastName']</p>
+<p>    df['faixa_credito'] = pd.cut(...)</p>
+<p>    return df</p>
+
+<h1 id="criar-arquivo-orderspy">Criar arquivo: orders.py</h1>
+<p>def transform(df):</p>
+<p>    df['orderdate'] = pd.to_datetime(df['orderdate'])</p>
+<p>    return df</p>
+
+<h1 id="criar-arquivo-productspy">Criar arquivo: products.py</h1>
+<h1 id="criar-arquivo-employeespy">Criar arquivo: employees.py</h1>
+<h1 id="repetir-para-cada-tabela">... (repetir para cada tabela)</h1></code></pre>
+
+<strong>Problemas</strong>:
+<ul>
+<li>Trabalho manual para cada tabela</li>
+<li>Inconsistência entre transformações</li>
+<li>Manutenção complexa (N arquivos)</li>
+<li>Requer conhecimento de cada tabela</li>
+</ul>
+
+<h3 id="abordagem-automatica-inteligente"><span class="badge success">✅</span> Abordagem Automática (Inteligente)</h3>
+
+<pre><code><h1 id="um-algoritmo-para-todas-as-tabelas">UM algoritmo para TODAS as tabelas</h1>
+<p>def _apply_smart_transformations(df):</p>
+<p>    # Detecta datas automaticamente</p>
+<p>    # Detecta números automaticamente</p>
+<p>    # Detecta categorias automaticamente</p>
+<p>    # Preenche nulos inteligentemente</p>
+<p>    return df</code></pre></p>
+
+<strong>Vantagens</strong>:
+<ul>
+<li>Zero trabalho manual</li>
+<li>Consistência garantida</li>
+<li>Manutenção centralizada (1 função)</li>
+<li>Funciona com tabelas desconhecidas</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="configuracoes-e-thresholds">Configurações e Thresholds</h2>
+
+<p>Os thresholds podem ser ajustados em <code>_apply_smart_transformations()</code>:</p>
+
+<table>
+<thead><tr>
+<th>Parâmetro</th>
+<th>Valor Padrão</th>
+<th>Descrição</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Date detection</strong></td>
+<td>50%</td>
+<td>Se >50% das linhas são datas válidas, converte</td>
+</tr>
+<tr>
+<td><strong>Numeric detection</strong></td>
+<td>80%</td>
+<td>Se >80% das linhas são números válidos, converte</td>
+</tr>
+<tr>
+<td><strong>Category threshold</strong></td>
+<td>5%</td>
+<td>Se <5% de valores únicos, trata como categórica</td>
+</tr>
+<tr>
+<td><strong>Category max unique</strong></td>
+<td>50</td>
+<td>Máximo de valores únicos para considerar categórica</td>
+</tr>
+<tr>
+<td><strong>Null fill strategy</strong></td>
+<td>Por tipo</td>
+<td>Numérico=mediana, Texto=N/A, Categórico=moda</td>
+</tr>
+</tbody>
+</table>
+
+<p>---</p>
+
+<h2 id="validacao-de-qualidade">Validação de Qualidade</h2>
+
+<h3 id="como-dataqualityrulespass-e-calculada">Como <code>DataQualityRulesPass</code> é calculada</h3>
+
+<ul>
+<li>Implementação: <code>src/dags/lib/data_quality.py</code> (<code>DataQualityValidator.add_quality_columns</code>).</li>
+<li>Inicializa as 4 colunas de qualidade em zero e avalia cada linha.</li>
+<li>Incrementa <code>DataQualityRulesPass</code> quando a linha passa em cada regra:</li>
+<li><strong>Nulos críticos</strong>: campos-chave (<code>id</code>, <code>key</code>, <code>code</code>, <code>number</code> ou 1ª coluna) não podem ser nulos.</li>
+<li><strong>Tipos numéricos válidos</strong>: valores não podem ser <code>NaN</code>/<code>±inf</code>.</li>
+<li><strong>Duplicatas</strong>: linha não é marcada como duplicada (considerando todas as colunas de negócio).</li>
+<li><strong>Ranges numéricos</strong>: valor dentro de média ± 3 desvios padrão.</li>
+<li><strong>Padrões de string</strong>: e-mail e telefone aderem aos regex básicos definidos.</li>
+</ul>
+
+
+<h3 id="verificar-tipos-inferidos">Verificar Tipos Inferidos</h3>
+
+<pre><code>import pandas as pd
+
+<p>df = pd.read_parquet('s3://lab01/silver/customers/file.parquet')</p>
+
+<h1 id="ver-tipos-inferidos">Ver tipos inferidos</h1>
+<p>print(df.dtypes)</p>
+
+<h1 id="ver-resumo-estatistico">Ver resumo estatístico</h1>
+<p>print(df.describe(include='all'))</p>
+
+<h1 id="ver-valores-unicos-de-categorias">Ver valores únicos de categorias</h1>
+<p>for col in df.select_dtypes(include='category').columns:</p>
+<p>    print(f"{col}: {df[col].unique()}")</code></pre></p>
+
+<h3 id="verificar-qualidade-dos-dados">Verificar Qualidade dos Dados</h3>
+
+<pre><code><h1 id="verificar-completude-das-linhas">Verificar completude das linhas</h1>
+<p>print(df['_silver_row_quality'].describe())</p>
+
+<h1 id="encontrar-linhas-com-baixa-qualidade-80">Encontrar linhas com baixa qualidade (<80%)</h1>
+<p>low_quality = df[df['_silver_row_quality'] < 80]</p>
+<p>print(f"Linhas com baixa qualidade: {len(low_quality)}")</code></pre></p>
+
+<p>---</p>
+
+<h2 id="quando-adicionar-logica-customizada">Quando Adicionar Lógica Customizada?</h2>
+
+<p>A abordagem automática cobre <strong>90% dos casos</strong>. Adicione lógica customizada apenas se precisar:</p>
+
+<ol>
+<li><strong>Regras de negócio muito específicas</strong></li>
+<ul>
+<li>Exemplo: Calcular comissão com fórmula complexa do seu negócio</li>
+</ul>
+</ol>
+   
+<ol>
+<li><strong>Enriquecimento com dados externos</strong></li>
+<ul>
+<li>Exemplo: Buscar taxa de câmbio de API externa</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Transformações domínio-específicas</strong></li>
+<ul>
+<li>Exemplo: Cálculos financeiros específicos da indústria</li>
+</ul>
+</ol>
+
+<strong>Como adicionar</strong>:
+<p>Crie função em <code>gold_layer.py</code> (análise avançada) em vez de modificar Silver (dados limpos).</p>
+
+<p>---</p>
+
+<h2 id="bibliotecas-utilizadas">Bibliotecas Utilizadas</h2>
+
+<table>
+<thead><tr>
+<th>Biblioteca</th>
+<th>Uso</th>
+<th>Documentação</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>pandas</strong></td>
+<td>Análise e transformação de dados</td>
+<td><a href="https://pandas.pydata.org">pandas.pydata.org</a></td>
+</tr>
+<tr>
+<td><strong>numpy</strong></td>
+<td>Operações numéricas</td>
+<td><a href="https://numpy.org">numpy.org</a></td>
+</tr>
+<tr>
+<td><strong>pyarrow</strong></td>
+<td>Leitura/escrita Parquet</td>
+<td><a href="https://arrow.apache.org">arrow.apache.org</a></td>
+</tr>
+</tbody>
+</table>
+
+<p>---</p>
+
+<h2 id="referencias">Referências</h2>
+
+<ul>
+<li><strong>Código fonte</strong>: <code>src/dags/lib/silver_layer.py</code> → função <code>_apply_smart_transformations()</code></li>
+<li><strong>Pipeline completo</strong>: <code>src/dags/lib/medallion_pipeline.py</code></li>
+<li><strong>Pandas Type Inference</strong>: <a href="https://pandas.pydata.org/docs/user_guide/basics.html">pandas.pydata.org/docs/user_guide/basics.html</a></li>
+</ul>
+
+<p>---</p>
+
+<h2 id="historico">Histórico</h2>
+
+<table>
+<thead><tr>
+<th>Data</th>
+<th>Mudança</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>2024-11-23</td>
+<td>Refatoração para inteligência automática usando pandas</td>
+</tr>
+<tr>
+<td>2024-11-23</td>
+<td>Removida necessidade de transformadores customizados</td>
+</tr>
+<tr>
+<td>2024-11-23</td>
+<td>Implementação de detecção automática de tipos e categorias</td>
+</tr>
+</tbody>
+</table>
+
+
+<h3 id="como-funciona">Como Funciona</h3>
+
+<pre><code>def _apply_custom_transformations(df, table_name):
+<p>    """</p>
+<ol>
+<li>Normaliza nome da tabela (remove prefixos: ingestao_, raw_, bronze_)</li>
+<li>Busca módulo: utils/transformations/silver/{nome_normalizado}.py</li>
+<li>Se encontrar, chama função transform(df)</li>
+<li>Se não encontrar, retorna DataFrame sem mudanças</li>
+</ol>
+<p>    """</p>
+<p>    import importlib</p>
+    
+<p>    # Normalizar: 'ingestao_customers_raw4' → 'customers'</p>
+<p>    normalized_name = table_name.lower()</p>
+<p>    for prefix in ['ingestao_', 'raw_', 'bronze_']:</p>
+<p>        normalized_name = normalized_name.replace(prefix, '')</p>
+    
+<p>    try:</p>
+<p>        # Import dinâmico</p>
+<p>        module_path = f"utils.transformations.silver.{normalized_name}"</p>
+<p>        transformer_module = importlib.import_module(module_path)</p>
+        
+<p>        # Executar transform()</p>
+<p>        if hasattr(transformer_module, 'transform'):</p>
+<p>            return transformer_module.transform(df)</p>
+<p>    except ModuleNotFoundError:</p>
+<p>        # Sem transformador = só limpeza básica</p>
+<p>        pass</p>
+    
+<p>    return df</code></pre></p>
+
+<h3 id="fluxo-de-decisao">Fluxo de Decisão</h3>
+
+<pre><code>Arquivo Bronze CSV
+<p>    ↓</p>
+<ol>
+<li>Limpeza Básica (sempre)</li>
+<ul>
+<li>dropna(how='all')</li>
+<li>drop_duplicates()</li>
+</ul>
+</ol>
+<p>    ↓</p>
+<ol>
+<li>Buscar transformador customizado</li>
+</ol>
+<p>   ├─ Existe? → Aplicar transform(df)</p>
+<p>   └─ Não existe? → Continuar sem transformação</p>
+<p>    ↓</p>
+<ol>
+<li>Conversão para Parquet</li>
+<ul>
+<li>compression='snappy'</li>
+</ul>
+</ol>
+<p>    ↓</p>
+<p>Arquivo Silver Parquet</code></pre></p>
+
+<p>---</p>
+
+<h2 id="exemplo-tabelas-sem-transformador">Exemplo: Tabelas Sem Transformador</h2>
+
+<h3 id="tabela-generica-employees-offices-etc">Tabela Genérica (employees, offices, etc.)</h3>
+
+<pre><code><h1 id="upload-employeescsv">Upload: employees.csv</h1>
+<h1 id="target-table-ingestao-employees-raw2">Target table: ingestao_employees_raw2</h1>
+
+<h1 id="processamento">Processamento:</h1>
+<h1 id="1-bronze-employeescsv-copiado">1. Bronze: employees.csv copiado</h1>
+<h1 id="2-silver">2. Silver:</h1>
+<h1 id="busca-utilstransformationssilveremployeespy">- Busca: utils/transformations/silver/employees.py</h1>
+<h1 id="nao-encontra-aplica-so-limpeza-basica">- Não encontra: Aplica só limpeza básica</h1>
+<h1 id="salva-employeesparquet">- Salva: employees.parquet</h1>
+<h1 id="3-gold-otimiza-parquet">3. Gold: Otimiza Parquet</h1></code></pre>
+
+<strong>Log de execução</strong>:
+<pre><code>[SILVER] Limpeza básica: 2 linhas removidas (25 → 23)
+<p>[SILVER] Buscando transformador: utils.transformations.silver.employees</p>
+<p>[SILVER] Nenhum transformador customizado para 'ingestao_employees_raw2' (genérico será usado)</p>
+<p>[SILVER] Parquet criado: /tmp/tmpxyz/employees.parquet</p>
+<p>[SILVER] <span class="badge success">✅</span> Arquivo salvo em: s3://lab01/silver/ingestao_employees_raw2/employees.parquet</code></pre></p>
+
+<strong>Resultado</strong>: Funciona perfeitamente sem nenhum código customizado! 🎉
+
+<p>---</p>
+
+<h2 id="como-adicionar-transformacoes-customizadas">Como Adicionar Transformações Customizadas</h2>
+
+<h3 id="passo-1-criar-modulo-de-transformacao">Passo 1: Criar Módulo de Transformação</h3>
+
+<p>Crie arquivo: <code>src/dags/utils/transformations/silver/{nome_tabela}.py</code></p>
+
+<strong>Estrutura obrigatória</strong>:
+<pre><code>import pandas as pd
+<p>import logging</p>
+
+<p>log = logging.getLogger(__name__)</p>
+
+
+<p>def transform(df: pd.DataFrame) -> pd.DataFrame:</p>
+<p>    """</p>
+<p>    Aplica transformações de negócio.</p>
+    
+<p>    Args:</p>
+<p>        df: DataFrame já limpo (sem duplicatas/linhas vazias)</p>
+        
+<p>    Returns:</p>
+<p>        DataFrame transformado</p>
+<p>    """</p>
+<p>    log.info("[SILVER/TABELA] Iniciando transformações...")</p>
+    
+<p>    # Suas transformações aqui</p>
+<p>    df.columns = df.columns.str.lower()</p>
+<p>    # ... (adicionar colunas, categorizar, etc.)</p>
+    
+<p>    log.info("[SILVER/TABELA] Transformações concluídas")</p>
+<p>    return df</code></pre></p>
+
+<h3 id="passo-2-implementar-logica-de-negocio">Passo 2: Implementar Lógica de Negócio</h3>
+
+<h4 id="exemplo-employees">Exemplo: Employees</h4>
+
+<pre><code><h1 id="srcdagsutilstransformationssilveremployeespy">src/dags/utils/transformations/silver/employees.py</h1>
+
+<p>import pandas as pd</p>
+<p>import logging</p>
+
+<p>log = logging.getLogger(__name__)</p>
+
+
+<p>def transform(df: pd.DataFrame) -> pd.DataFrame:</p>
+<p>    log.info("[SILVER/EMPLOYEES] Iniciando transformações...")</p>
+    
+<p>    df.columns = df.columns.str.lower()</p>
+    
+<p>    # Nome completo</p>
+<p>    if 'firstname' in df.columns and 'lastname' in df.columns:</p>
+<p>        df['nome_completo'] = df['firstname'] + ' ' + df['lastname']</p>
+    
+<p>    # Tempo de empresa (em anos)</p>
+<p>    if 'hiredate' in df.columns:</p>
+<p>        df['hiredate'] = pd.to_datetime(df['hiredate'])</p>
+<p>        hoje = pd.Timestamp.now()</p>
+<p>        df['anos_empresa'] = ((hoje - df['hiredate']).dt.days / 365).round(1)</p>
+    
+<p>    # Categorizar por cargo</p>
+<p>    if 'jobtitle' in df.columns:</p>
+<p>        def categorizar_cargo(job):</p>
+<p>            job_lower = str(job).lower()</p>
+<p>            if 'president' in job_lower or 'vp' in job_lower:</p>
+<p>                return 'Executivo'</p>
+<p>            elif 'manager' in job_lower:</p>
+<p>                return 'Gerência'</p>
+<p>            elif 'sales rep' in job_lower:</p>
+<p>                return 'Vendas'</p>
+<p>            else:</p>
+<p>                return 'Outros'</p>
+        
+<p>        df['categoria_cargo'] = df['jobtitle'].apply(categorizar_cargo)</p>
+    
+<p>    log.info("[SILVER/EMPLOYEES] Transformações concluídas")</p>
+<p>    return df</code></pre></p>
+
+<h3 id="passo-3-upload-e-execucao">Passo 3: Upload e Execução</h3>
+
+<pre><code><h1 id="upload-via-webapp">Upload via webapp</h1>
+<h1 id="arquivo-employeescsv">Arquivo: employees.csv</h1>
+<h1 id="target-table-ingestao-employees-raw3">Target table: ingestao_employees_raw3</h1>
+
+<h1 id="execucao-automatica">Execução automática:</h1>
+<h1 id="silver-layer-detecta-modulo-e-aplica-transformacoes">Silver layer detecta módulo e aplica transformações</h1></code></pre>
+
+<strong>Log de execução (com transformador)</strong>:
+<pre><code>[SILVER] Limpeza básica: 0 linhas removidas (23 → 23)
+<p>[SILVER] Buscando transformador: utils.transformations.silver.employees</p>
+<p>[SILVER] <span class="badge success">✅</span> Aplicando transformador customizado: utils.transformations.silver.employees</p>
+<p>[SILVER/EMPLOYEES] Iniciando transformações...</p>
+<p>[SILVER/EMPLOYEES] Transformações concluídas</p>
+<p>[SILVER] Parquet criado: /tmp/tmpxyz/employees.parquet</code></pre></p>
+
+<p>---</p>
+
+<h2 id="transformadores-ja-criados">Transformadores Já Criados</h2>
+
+<h3 id="1-customers-utilstransformationssilvercustomerspy">1. Customers (<code>utils/transformations/silver/customers.py</code>)</h3>
+
+<strong>Transformações</strong>:
+<ul>
+<li><code>nome_completo</code> = firstName + lastName</li>
+<li><code>faixa_credito</code> = Baixo/Médio/Alto/Premium</li>
+<li><code>credito_brl</code> = valor_cliente × taxa_cambio</li>
+</ul>
+
+<strong>Ativação</strong>: Qualquer tabela com nome contendo "customers"
+<ul>
+<li><span class="badge success">✅</span> <code>ingestao_customers_raw4</code></li>
+<li><span class="badge success">✅</span> <code>customers</code></li>
+<li><span class="badge success">✅</span> <code>customers_backup</code></li>
+</ul>
+
+<h3 id="2-orders-utilstransformationssilverorderspy">2. Orders (<code>utils/transformations/silver/orders.py</code>)</h3>
+
+<strong>Transformações</strong>:
+<ul>
+<li>Conversão de datas para datetime</li>
+<li><code>dias_atraso</code> = shippedDate - requiredDate</li>
+</ul>
+
+<strong>Ativação</strong>: Tabelas com "orders" no nome
+
+<h3 id="3-products-utilstransformationssilverproductspy">3. Products (<code>utils/transformations/silver/products.py</code>)</h3>
+
+<strong>Transformações</strong>:
+<ul>
+<li><code>margem_lucro_pct</code> = ((MSRP - buyPrice) / buyPrice) × 100</li>
+<li><code>faixa_preco</code> = Econômico/Médio/Premium/Luxo</li>
+</ul>
+
+<strong>Ativação</strong>: Tabelas com "products" no nome
+
+<p>---</p>
+
+<h2 id="vantagens-da-arquitetura">Vantagens da Arquitetura</h2>
+
+<h3 id="zero-acoplamento"><span class="badge success">✅</span> Zero Acoplamento</h3>
+<ul>
+<li>Silver layer <strong>não conhece</strong> nenhuma tabela específica</li>
+<li>Funciona com qualquer tabela (employees, offices, payments, etc.)</li>
+<li>Adicionar nova tabela = criar 1 arquivo, zero mudanças no core</li>
+</ul>
+
+<h3 id="opt-in-nao-obrigatorio"><span class="badge success">✅</span> Opt-in (não obrigatório)</h3>
+<ul>
+<li>Tabelas sem transformador = funcionam perfeitamente (limpeza básica)</li>
+<li>Transformadores são opcionais, não obrigatórios</li>
+</ul>
+
+<h3 id="escalavel"><span class="badge success">✅</span> Escalável</h3>
+<ul>
+<li>Adicionar 100 tabelas = criar 100 arquivos</li>
+<li>Nenhuma alteração no <code>silver_layer.py</code></li>
+<li>Cada transformador é independente</li>
+</ul>
+
+<h3 id="testavel"><span class="badge success">✅</span> Testável</h3>
+<ul>
+<li>Testar transformador: import e chame <code>transform(df)</code></li>
+<li>Sem dependências do Airflow/MinIO</li>
+<li>Unit tests simples:</li>
+</ul>
+<pre><code>from utils.transformations.silver.customers import transform
+<p>import pandas as pd</p>
+
+<p>df_test = pd.DataFrame({'contactFirstName': ['John'], 'contactLastName': ['Doe']})</p>
+<p>df_result = transform(df_test)</p>
+<p>assert 'nome_completo' in df_result.columns</code></pre></p>
+
+<h3 id="manutenivel"><span class="badge success">✅</span> Manutenível</h3>
+<ul>
+<li>Cada transformador é um arquivo isolado</li>
+<li>Alterar lógica de customers = editar 1 arquivo</li>
+<li>Não afeta outras tabelas</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="estrutura-de-diretorios">Estrutura de Diretórios</h2>
+
+<pre><code>src/dags/
+<p>├── lib/</p>
+<p>│   ├── bronze_layer.py</p>
+<p>│   ├── silver_layer.py          ← Core genérico (zero acoplamento)</p>
+<p>│   ├── gold_layer.py</p>
+<p>│   └── medallion_pipeline.py</p>
+<p>│</p>
+<p>└── utils/</p>
+<p>    └── transformations/</p>
+<p>        └── silver/</p>
+<p>            ├── __init__.py       ← Documentação do padrão</p>
+<p>            ├── customers.py      ← Transformador opcional</p>
+<p>            ├── orders.py         ← Transformador opcional</p>
+<p>            ├── products.py       ← Transformador opcional</p>
+<p>            └── employees.py      ← (exemplo de novo transformador)</code></pre></p>
+
+<p>---</p>
+
+<h2 id="padrao-de-nomenclatura">Padrão de Nomenclatura</h2>
+
+<h3 id="normalizacao-automatica">Normalização Automática</h3>
+
+<p>O sistema remove automaticamente prefixos comuns:</p>
+
+<table>
+<thead><tr>
+<th>Nome da Tabela</th>
+<th>Nome Normalizado</th>
+<th>Módulo Buscado</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>ingestao_customers_raw4</code></td>
+<td><code>customers</code></td>
+<td><code>silver/customers.py</code></td>
+</tr>
+<tr>
+<td><code>raw_orders_v2</code></td>
+<td><code>orders</code></td>
+<td><code>silver/orders.py</code></td>
+</tr>
+<tr>
+<td><code>bronze_products</code></td>
+<td><code>products</code></td>
+<td><code>silver/products.py</code></td>
+</tr>
+<tr>
+<td><code>employees</code></td>
+<td><code>employees</code></td>
+<td><code>silver/employees.py</code></td>
+</tr>
+</tbody>
+</table>
+
+<strong>Prefixos removidos automaticamente</strong>:
+<ul>
+<li><code>ingestao_</code></li>
+<li><code>raw_</code></li>
+<li><code>bronze_</code></li>
+</ul>
+
+<p>---</p>
+
+<h2 id="validacao-e-debugging">Validação e Debugging</h2>
+
+<h3 id="verificar-se-transformador-foi-aplicado">Verificar se Transformador Foi Aplicado</h3>
+
+<strong>Via logs do Airflow</strong>:
+<pre><code>docker logs $(docker ps -q -f name=airflow-scheduler) | grep SILVER
+
+<h1 id="com-transformador">Com transformador:</h1>
+<p>[SILVER] <span class="badge success">✅</span> Aplicando transformador customizado: utils.transformations.silver.customers</p>
+
+<h1 id="sem-transformador-generico">Sem transformador (genérico):</h1>
+<p>[SILVER] Nenhum transformador customizado para 'ingestao_xyz' (genérico será usado)</code></pre></p>
+
+<h3 id="verificar-colunas-criadas">Verificar Colunas Criadas</h3>
+
+<pre><code>import pandas as pd
+
+<h1 id="ler-arquivo-silver">Ler arquivo Silver</h1>
+<p>df = pd.read_parquet('s3://lab01/silver/customers/file.parquet')</p>
+
+<h1 id="verificar-colunas">Verificar colunas</h1>
+<p>print("Colunas:", df.columns.tolist())</p>
+
+<h1 id="verificar-se-transformacoes-foram-aplicadas">Verificar se transformações foram aplicadas</h1>
+<p>custom_columns = ['nome_completo', 'faixa_credito', 'credito_brl']</p>
+<p>applied = [col for col in custom_columns if col in df.columns]</p>
+<p>print(f"Transformações aplicadas: {applied}")</code></pre></p>
+
+<p>---</p>
+
+<h2 id="comparacao-antes-vs-agora">Comparação: Antes vs Agora</h2>
+
+<h3 id="antes-acoplado"><span class="badge warning">❌</span> Antes (Acoplado)</h3>
+
+<pre><code><h1 id="silver-layerpy-tinha-dicionario-hardcoded">silver_layer.py tinha dicionário hardcoded:</h1>
+<p>transformers = {</p>
+<p>    'customers': _transform_customers,</p>
+<p>    'orders': _transform_orders,</p>
+<p>    'products': _transform_products,</p>
+<p>}</p>
+
+<h1 id="problemas">Problemas:</h1>
+<h1 id="adicionar-nova-tabela-editar-silver-layerpy">- Adicionar nova tabela = editar silver_layer.py</h1>
+<h1 id="todas-as-transformacoes-no-mesmo-arquivo-1000-linhas">- Todas as transformações no mesmo arquivo (1000+ linhas)</h1>
+<h1 id="impossivel-testar-transformacoes-isoladamente">- Impossível testar transformações isoladamente</h1>
+<h1 id="nao-funciona-com-tabelas-desconhecidas">- Não funciona com tabelas desconhecidas</h1></code></pre>
+
+<h3 id="agora-desacoplado"><span class="badge success">✅</span> Agora (Desacoplado)</h3>
+
+<pre><code><h1 id="silver-layerpy-e-100-generico">silver_layer.py é 100% genérico:</h1>
+<p>def _apply_custom_transformations(df, table_name):</p>
+<p>    try:</p>
+<p>        module = importlib.import_module(f"utils.transformations.silver.{table_name}")</p>
+<p>        return module.transform(df)</p>
+<p>    except ModuleNotFoundError:</p>
+<p>        return df  # Funciona sem transformador!</p>
+
+<h1 id="vantagens">Vantagens:</h1>
+<h1 id="adicionar-nova-tabela-criar-1-arquivo"><span class="badge success">✅</span> Adicionar nova tabela = criar 1 arquivo</h1>
+<h1 id="cada-transformador-tem-50-linhas"><span class="badge success">✅</span> Cada transformador tem ~50 linhas</h1>
+<h1 id="testar-import-e-chame-transform"><span class="badge success">✅</span> Testar: import e chame transform()</h1>
+<h1 id="funciona-com-qualquer-tabela"><span class="badge success">✅</span> Funciona com QUALQUER tabela</h1></code></pre>
+
+<p>---</p>
+
+<h2 id="referencias">Referências</h2>
+
+<ul>
+<li><strong>Core genérico</strong>: <code>src/dags/lib/silver_layer.py</code></li>
+<li><strong>Pipeline completo</strong>: <code>src/dags/lib/medallion_pipeline.py</code></li>
+<li><strong>Transformadores opcionais</strong>: <code>src/dags/utils/transformations/silver/</code></li>
+<li><strong>Documentação do padrão</strong>: <code>src/dags/utils/transformations/silver/__init__.py</code></li>
+</ul>
+
+<h2 id="historico">Histórico</h2>
+
+<table>
+<thead><tr>
+<th>Data</th>
+<th>Mudança</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>2024-11-23</td>
+<td>Refatoração para arquitetura 100% genérica (zero acoplamento)</td>
+</tr>
+<tr>
+<td>2024-11-23</td>
+<td>Transformadores movidos para módulos independentes</td>
+</tr>
+<tr>
+<td>2024-11-23</td>
+<td>Sistema de import dinâmico com fallback para genérico</td>
+</tr>
+</tbody>
+</table>
+
+
+<h3 id="sistema-plugavel">Sistema Plugável</h3>
+
+<p>O arquivo <code>lib/silver_layer.py</code> implementa um <strong>sistema plugável de transformações</strong>:</p>
+
+<pre><code>def _apply_table_transformations(df, table_name):
+<p>    """</p>
+<p>    Aplica transformações específicas baseadas no nome da tabela.</p>
+<p>    Se não houver transformação específica, retorna o DataFrame sem mudanças.</p>
+<p>    """</p>
+<p>    transformers = {</p>
+<p>        'customers': _transform_customers,</p>
+<p>        'orders': _transform_orders,</p>
+<p>        'products': _transform_products,</p>
+<p>    }</p>
+    
+<p>    # Busca case-insensitive</p>
+<p>    table_lower = table_name.lower()</p>
+<p>    for table_key, transformer_func in transformers.items():</p>
+<p>        if table_key in table_lower:</p>
+<p>            return transformer_func(df)</p>
+    
+<p>    return df  # Sem transformação específica</code></pre></p>
+
+<h3 id="fluxo-de-processamento">Fluxo de Processamento</h3>
+
+<pre><code>Bronze CSV
+<p>    ↓</p>
+<ol>
+<li>Limpeza Básica</li>
+<ul>
+<li>dropna(how='all')</li>
+<li>drop_duplicates()</li>
+</ul>
+</ol>
+<p>    ↓</p>
+<ol>
+<li>Transformação Específica (se existir)</li>
+<ul>
+<li>Preenchimento inteligente de nulos</li>
+<li>Criação de colunas calculadas</li>
+<li>Categorização</li>
+<li>Enriquecimento</li>
+</ul>
+</ol>
+<p>    ↓</p>
+<ol>
+<li>Conversão para Parquet</li>
+<ul>
+<li>compression='snappy'</li>
+</ul>
+</ol>
+<p>    ↓</p>
+<p>Silver Parquet</code></pre></p>
+
+<p>---</p>
+
+<h2 id="transformacoes-por-tabela">Transformações por Tabela</h2>
+
+<h3 id="1-customers-clientes">1. Customers (Clientes)</h3>
+
+<h4 id="operacoes-aplicadas">Operações Aplicadas</h4>
+
+<table>
+<thead><tr>
+<th>Operação</th>
+<th>Descrição</th>
+<th>Exemplo</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Normalização de Colunas</strong></td>
+<td>Todas as colunas para lowercase</td>
+<td><code>CreditLimit</code> → <code>creditlimit</code></td>
+</tr>
+<tr>
+<td><strong>Preenchimento de Nulos</strong></td>
+<td>Defaults inteligentes por coluna</td>
+<td><code>creditLimit = creditlimit.fillna(0)</code></td>
+</tr>
+<tr>
+<td><strong>Nome Completo</strong></td>
+<td>Concatenação de primeiro e último nome</td>
+<td><code>nome_completo = firstName + ' ' + lastName</code></td>
+</tr>
+<tr>
+<td><strong>Valor do Cliente</strong></td>
+<td>Cópia do limite de crédito para análise</td>
+<td><code>valor_cliente = creditLimit</code></td>
+</tr>
+<tr>
+<td><strong>Faixa de Crédito</strong></td>
+<td>Categorização em 4 níveis</td>
+<td>Baixo / Médio / Alto / Premium</td>
+</tr>
+<tr>
+<td><strong>Conversão Cambial</strong></td>
+<td>Enriquecimento com taxas de câmbio</td>
+<td><code>credito_brl = valor_cliente * taxa_cambio</code></td>
+</tr>
+</tbody>
+</table>
+
+<h4 id="codigo-de-exemplo">Código de Exemplo</h4>
+
+<pre><code>def _transform_customers(df):
+<p>    import pandas as pd</p>
+    
+<p>    df.columns = df.columns.str.lower()</p>
+    
+<p>    # Preenchimento inteligente</p>
+<p>    df['creditLimit'] = df['creditlimit'].fillna(0)</p>
+<p>    df['state'] = df['state'].replace('', pd.NA).fillna('N/A')</p>
+<p>    df['salesrepemployeenumber'] = df['salesrepemployeenumber'].fillna(0)</p>
+    
+<p>    # Coluna calculada: Nome completo</p>
+<p>    df['nome_completo'] = df['contactfirstname'].str.strip() + ' ' + df['contactlastname'].str.strip()</p>
+    
+<p>    # Categorização: Faixa de crédito</p>
+<p>    df['valor_cliente'] = df['creditLimit']</p>
+<p>    df['faixa_credito'] = pd.cut(</p>
+<p>        df['valor_cliente'],</p>
+<p>        bins=[-1, 50000, 100000, 150000, float('inf')],</p>
+<p>        labels=['Baixo', 'Médio', 'Alto', 'Premium']</p>
+<p>    )</p>
+    
+<p>    # Enriquecimento: Conversão cambial</p>
+<p>    taxas_cambio = {</p>
+<p>        'USA': 5.0, 'France': 5.3, 'Germany': 5.4, 'UK': 6.2,</p>
+<p>        'Japan': 0.035, 'Canada': 3.8, 'Australia': 3.2, 'Spain': 5.1,</p>
+<p>        'Brazil': 1.0, 'Italy': 5.2, 'Netherlands': 5.3</p>
+<p>    }</p>
+<p>    df['taxa_cambio'] = df['country'].str.strip().map(taxas_cambio).fillna(5.0)</p>
+<p>    df['credito_brl'] = df['valor_cliente'] * df['taxa_cambio']</p>
+    
+<p>    return df</code></pre></p>
+
+<h4 id="antes-vs-depois">Antes vs Depois</h4>
+
+<strong>Bronze (Entrada)</strong>:
+<pre><code>customerNumber,contactFirstName,contactLastName,country,creditLimit
+<p>103,Carine,Schmitt,France,21000.00</code></pre></p>
+
+<strong>Silver (Saída)</strong>:
+<pre><code>customernumber,contactfirstname,contactlastname,country,creditlimit,creditLimit,nome_completo,valor_cliente,faixa_credito,taxa_cambio,credito_brl
+<p>103,Carine,Schmitt,France,21000.00,21000.00,"Carine Schmitt",21000.00,Baixo,5.3,111300.00</code></pre></p>
+
+<strong>Novas Colunas Criadas</strong>:
+<ul>
+<li><code>nome_completo</code>: "Carine Schmitt"</li>
+<li><code>faixa_credito</code>: "Baixo" (< 50k)</li>
+<li><code>taxa_cambio</code>: 5.3 (France)</li>
+<li><code>credito_brl</code>: 111.300,00</li>
+</ul>
+
+<p>---</p>
+
+<h3 id="2-orders-pedidos">2. Orders (Pedidos)</h3>
+
+<h4 id="operacoes-aplicadas">Operações Aplicadas</h4>
+
+<table>
+<thead><tr>
+<th>Operação</th>
+<th>Descrição</th>
+<th>Exemplo</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Conversão de Datas</strong></td>
+<td>String → datetime</td>
+<td><code>orderDate: '2024-01-15' → datetime64</code></td>
+</tr>
+<tr>
+<td><strong>Dias de Atraso</strong></td>
+<td>Cálculo de diferença entre datas</td>
+<td><code>dias_atraso = shippedDate - requiredDate</code></td>
+</tr>
+<tr>
+<td><strong>Normalização de Status</strong></td>
+<td>Remove espaços extras</td>
+<td><code>status.strip()</code></td>
+</tr>
+</tbody>
+</table>
+
+<h4 id="codigo-de-exemplo">Código de Exemplo</h4>
+
+<pre><code>def _transform_orders(df):
+<p>    import pandas as pd</p>
+    
+<p>    df.columns = df.columns.str.lower()</p>
+    
+<p>    # Converter datas para datetime</p>
+<p>    date_columns = ['orderdate', 'requireddate', 'shippeddate']</p>
+<p>    for col in date_columns:</p>
+<p>        if col in df.columns:</p>
+<p>            df[col] = pd.to_datetime(df[col], errors='coerce')</p>
+    
+<p>    # Calcular dias de atraso</p>
+<p>    if 'shippeddate' in df.columns and 'requireddate' in df.columns:</p>
+<p>        df['dias_atraso'] = (df['shippeddate'] - df['requireddate']).dt.days</p>
+<p>        df['dias_atraso'] = df['dias_atraso'].clip(lower=0)  # Só positivos</p>
+    
+<p>    # Normalizar status</p>
+<p>    if 'status' in df.columns:</p>
+<p>        df['status'] = df['status'].str.strip()</p>
+    
+<p>    return df</code></pre></p>
+
+<h4 id="antes-vs-depois">Antes vs Depois</h4>
+
+<strong>Bronze (Entrada)</strong>:
+<pre><code>orderNumber,orderDate,requiredDate,shippedDate,status
+<p>10100,2003-01-06,2003-01-13,2003-01-10,Shipped</code></pre></p>
+
+<strong>Silver (Saída)</strong>:
+<pre><code>ordernumber,orderdate,requireddate,shippeddate,status,dias_atraso
+<p>10100,2003-01-06,2003-01-13,2003-01-10,Shipped,0</code></pre></p>
+
+<strong>Nova Coluna Criada</strong>:
+<ul>
+<li><code>dias_atraso</code>: 0 (entregue 3 dias antes)</li>
+</ul>
+
+<p>---</p>
+
+<h3 id="3-products-produtos">3. Products (Produtos)</h3>
+
+<h4 id="operacoes-aplicadas">Operações Aplicadas</h4>
+
+<table>
+<thead><tr>
+<th>Operação</th>
+<th>Descrição</th>
+<th>Exemplo</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Preenchimento de Preços</strong></td>
+<td>Preenche nulos com 0</td>
+<td><code>buyPrice.fillna(0)</code></td>
+</tr>
+<tr>
+<td><strong>Margem de Lucro</strong></td>
+<td>Cálculo percentual</td>
+<td><code>((MSRP - buyPrice) / buyPrice) * 100</code></td>
+</tr>
+<tr>
+<td><strong>Faixa de Preço</strong></td>
+<td>Categorização em 4 níveis</td>
+<td>Econômico / Médio / Premium / Luxo</td>
+</tr>
+</tbody>
+</table>
+
+<h4 id="codigo-de-exemplo">Código de Exemplo</h4>
+
+<pre><code>def _transform_products(df):
+<p>    import pandas as pd</p>
+    
+<p>    df.columns = df.columns.str.lower()</p>
+    
+<p>    # Preencher preços nulos</p>
+<p>    df['buyprice'] = df['buyprice'].fillna(0)</p>
+<p>    df['msrp'] = df['msrp'].fillna(0)</p>
+    
+<p>    # Calcular margem de lucro</p>
+<p>    if 'msrp' in df.columns and 'buyprice' in df.columns:</p>
+<p>        df['margem_lucro_pct'] = ((df['msrp'] - df['buyprice']) / df['buyprice'] * 100).round(2)</p>
+<p>        df['margem_lucro_pct'] = df['margem_lucro_pct'].fillna(0)</p>
+    
+<p>    # Categorizar por faixa de preço</p>
+<p>    if 'msrp' in df.columns:</p>
+<p>        df['faixa_preco'] = pd.cut(</p>
+<p>            df['msrp'],</p>
+<p>            bins=[0, 50, 100, 200, float('inf')],</p>
+<p>            labels=['Econômico', 'Médio', 'Premium', 'Luxo']</p>
+<p>        )</p>
+    
+<p>    return df</code></pre></p>
+
+<h4 id="antes-vs-depois">Antes vs Depois</h4>
+
+<strong>Bronze (Entrada)</strong>:
+<pre><code>productCode,productName,buyPrice,MSRP
+<p>S10_1678,1969 Harley Davidson Ultimate Chopper,48.81,95.70</code></pre></p>
+
+<strong>Silver (Saída)</strong>:
+<pre><code>productcode,productname,buyprice,msrp,margem_lucro_pct,faixa_preco
+<p>S10_1678,1969 Harley Davidson Ultimate Chopper,48.81,95.70,96.11,Médio</code></pre></p>
+
+<strong>Novas Colunas Criadas</strong>:
+<ul>
+<li><code>margem_lucro_pct</code>: 96.11% (lucro quase 100%)</li>
+<li><code>faixa_preco</code>: "Médio" (50-100)</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="como-adicionar-novas-transformacoes">Como Adicionar Novas Transformações</h2>
+
+<h3 id="passo-1-criar-funcao-de-transformacao">Passo 1: Criar Função de Transformação</h3>
+
+<p>Adicione uma nova função em <code>lib/silver_layer.py</code>:</p>
+
+<pre><code>def _transform_employees(df):
+<p>    """</p>
+<p>    Transformações para tabela de funcionários</p>
+<p>    """</p>
+<p>    import pandas as pd</p>
+    
+<p>    df.columns = df.columns.str.lower()</p>
+    
+<p>    # Criar nome completo</p>
+<p>    if 'firstname' in df.columns and 'lastname' in df.columns:</p>
+<p>        df['nome_completo'] = df['firstname'] + ' ' + df['lastname']</p>
+    
+<p>    # Calcular tempo de empresa</p>
+<p>    if 'hiredate' in df.columns:</p>
+<p>        df['hiredate'] = pd.to_datetime(df['hiredate'])</p>
+<p>        hoje = pd.Timestamp.now()</p>
+<p>        df['anos_empresa'] = ((hoje - df['hiredate']).dt.days / 365).round(1)</p>
+    
+<p>    return df</code></pre></p>
+
+<h3 id="passo-2-registrar-no-mapeamento">Passo 2: Registrar no Mapeamento</h3>
+
+<p>Adicione ao dicionário <code>transformers</code> em <code>_apply_table_transformations()</code>:</p>
+
+<pre><code>transformers = {
+<p>    'customers': _transform_customers,</p>
+<p>    'orders': _transform_orders,</p>
+<p>    'products': _transform_products,</p>
+<p>    'employees': _transform_employees,  # <-- NOVO</p>
+<p>}</code></pre></p>
+
+<h3 id="passo-3-testar">Passo 3: Testar</h3>
+
+<pre><code><h1 id="upload-de-arquivo-employeescsv-via-webapp">Upload de arquivo employees.csv via webapp</h1>
+<h1 id="executa-dag-com-pipeline-completo">Executa DAG com pipeline completo</h1>
+<h1 id="verifica-silver-layer">Verifica Silver layer:</h1>
+<p>docker compose exec minio mc ls minio/lab01/silver/employees/</code></pre></p>
+
+<p>---</p>
+
+<h2 id="logs-de-transformacao">Logs de Transformação</h2>
+
+<h3 id="exemplo-de-log-customers">Exemplo de Log (Customers)</h3>
+
+<pre><code>[SILVER] Iniciando transformação para: ingestao_customers_raw4
+<p>[SILVER] Arquivo origem: raw/ingestao_customers_raw4/20241123_abc123.csv</p>
+<p>[SILVER] Processando: s3://lab01/bronze/ingestao_customers_raw4/20241123_abc123.csv → s3://lab01/silver/ingestao_customers_raw4/20241123_abc123.parquet</p>
+<p>[SILVER] Arquivo Bronze baixado: /tmp/tmpxyz/20241123_abc123.csv</p>
+<p>[SILVER] Lendo CSV...</p>
+<p>[SILVER] Dados originais: 122 linhas, 13 colunas</p>
+<p>[SILVER] Limpeza básica: 2 linhas removidas (122 → 120)</p>
+<p>[SILVER] Aplicando transformador: _transform_customers</p>
+<p>[SILVER] Iniciando transformações de customers...</p>
+<p>[SILVER] Coluna 'nome_completo' criada</p>
+<p>[SILVER] Coluna 'faixa_credito' criada</p>
+<p>[SILVER] Colunas de conversão cambial criadas</p>
+<p>[SILVER] Transformações de customers concluídas</p>
+<p>[SILVER] Transformações específicas aplicadas para: ingestao_customers_raw4</p>
+<p>[SILVER] Parquet criado: /tmp/tmpxyz/20241123_abc123.parquet</p>
+<p>[SILVER] <span class="badge success">✅</span> Arquivo salvo em: s3://lab01/silver/ingestao_customers_raw4/20241123_abc123.parquet</p>
+<p>[SILVER] Processo concluído com sucesso!</code></pre></p>
+
+<p>---</p>
+
+<h2 id="validacao-de-transformacoes">Validação de Transformações</h2>
+
+<h3 id="verificar-colunas-criadas">Verificar Colunas Criadas</h3>
+
+<pre><code>import pandas as pd
+<p>from minio import Minio</p>
+
+<h1 id="conectar-ao-minio">Conectar ao MinIO</h1>
+<p>client = Minio(</p>
+<p>    "localhost:9000",</p>
+<p>    access_key="minio",</p>
+<p>    secret_key="minio123",</p>
+<p>    secure=False</p>
+<p>)</p>
+
+<h1 id="baixar-arquivo-silver">Baixar arquivo Silver</h1>
+<p>client.fget_object("lab01", "silver/customers/20241123_abc123.parquet", "/tmp/test.parquet")</p>
+
+<h1 id="ler-e-validar">Ler e validar</h1>
+<p>df = pd.read_parquet("/tmp/test.parquet")</p>
+<p>print("Colunas:", df.columns.tolist())</p>
+<p>print("Novas colunas criadas:", [col for col in df.columns if col in ['nome_completo', 'faixa_credito', 'credito_brl']])</p>
+<p>print("\nAmostra:")</p>
+<p>print(df[['nome_completo', 'faixa_credito', 'credito_brl']].head())</code></pre></p>
+
+<strong>Saída Esperada</strong>:
+<pre><code>Colunas: ['customernumber', 'contactfirstname', 'contactlastname', 'country', 'creditlimit', 'creditLimit', 'nome_completo', 'valor_cliente', 'faixa_credito', 'taxa_cambio', 'credito_brl']
+<p>Novas colunas criadas: ['nome_completo', 'faixa_credito', 'credito_brl']</p>
+
+<p>Amostra:</p>
+<p>           nome_completo faixa_credito  credito_brl</p>
+<p>0        Carine Schmitt         Baixo     111300.00</p>
+<p>1           Jean King           Médio     285500.00</p>
+<p>2    Peter Ferguson          Alto     467400.00</code></pre></p>
+
+<p>---</p>
+
+<h2 id="comparacao-silver-simples-vs-silver-enriquecida">Comparação: Silver Simples vs Silver Enriquecida</h2>
+
+<h3 id="silver-simples-antes">Silver Simples (Antes)</h3>
+
+<ul>
+<li><strong>Operações</strong>: dropna, drop_duplicates, to_parquet</li>
+<li><strong>Valor de Negócio</strong>: Baixo (só limpeza)</li>
+<li><strong>Colunas</strong>: Mesmas do Bronze</li>
+<li><strong>Uso</strong>: Necessita transformações posteriores no Power BI/SQL</li>
+</ul>
+
+<h3 id="silver-enriquecida-agora">Silver Enriquecida (Agora)</h3>
+
+<ul>
+<li><strong>Operações</strong>: Limpeza + Transformações de Negócio</li>
+<li><strong>Valor de Negócio</strong>: Alto (dados prontos para análise)</li>
+<li><strong>Colunas</strong>: Originais + Calculadas + Categorizadas + Enriquecidas</li>
+<li><strong>Uso</strong>: Prontos para consumo direto em dashboards</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="referencias">Referências</h2>
+
+<ul>
+<li><strong>Código Fonte</strong>: <code>src/dags/lib/silver_layer.py</code></li>
+<li><strong>Validação de Qualidade</strong>: <code>src/dags/lib/data_quality.py</code></li>
+<li><strong>Pipeline Completo</strong>: <code>src/dags/lib/medallion_pipeline.py</code></li>
+<li><strong>Código Legado (referência)</strong>: <code>src/dags/utils/transformations/refined/customers.py</code></li>
+</ul>
+
+<p>---</p>
+
+<h2 id="resumo-visual-colunas-silver">📋 Resumo Visual - Colunas Silver</h2>
+
+<h3 id="estrutura-final">Estrutura Final</h3>
+
+<pre><code>Silver = Bronze (limpo) + Transformações Inteligentes + Qualidade de Dados</code></pre>
+
+<h3 id="inventario-de-colunas">Inventário de Colunas</h3>
+
+<table>
+<thead><tr>
+<th>Origem</th>
+<th>Quantidade</th>
+<th>Exemplos</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Bronze (originais)</strong></td>
+<td>N colunas</td>
+<td>customerNumber, name, creditLimit, orderDate, ...</td>
+</tr>
+<tr>
+<td><strong>Transformações automáticas</strong></td>
+<td>0 colunas</td>
+<td>Dados transformados in-place (tipos, nulls, categorias)</td>
+</tr>
+<tr>
+<td><strong>Qualidade de dados</strong></td>
+<td><strong>4 colunas</strong></td>
+<td>DataQualityRulesPass, DataQualityRulesFail, DataQualityRulesSkip, DataQualityEvaluationResult</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="total">Total</h3>
+
+<pre><code>Total Silver = N (originais transformadas) + 4 (qualidade) colunas</code></pre>
+
+<strong>Exemplo</strong>: Tabela com 13 colunas originais → Silver com <strong>17 colunas</strong> (13 transformadas + 4 qualidade)
+
+<p>---</p>
+
+<h2 id="quick-reference-validacao-de-qualidade">🎯 Quick Reference - Validação de Qualidade</h2>
+
+<h3 id="comandos-rapidos">Comandos Rápidos</h3>
+
+<pre><code>import pandas as pd
+
+<h1 id="carregar-silver">Carregar Silver</h1>
+<p>df = pd.read_parquet('silver/customers/file.parquet')</p>
+
+<h1 id="taxa-de-aprovacao">Taxa de aprovação</h1>
+<p>(df['DataQualityEvaluationResult'] == 'Passed').sum() / len(df) * 100</p>
+
+<h1 id="filtrar-dados-confiaveis">Filtrar dados confiáveis</h1>
+<p>clean = df[df['DataQualityEvaluationResult'] == 'Passed']</p>
+
+<h1 id="linhas-problematicas">Linhas problemáticas</h1>
+<p>issues = df[df['DataQualityRulesFail'] > 0]</p>
+
+<h1 id="distribuicao-de-qualidade">Distribuição de qualidade</h1>
+<p>df['DataQualityRulesPass'].value_counts().sort_index()</code></pre></p>
+
+<h3 id="troubleshooting">Troubleshooting</h3>
+
+<table>
+<thead><tr>
+<th>Problema</th>
+<th>Causa Provável</th>
+<th>Solução</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Alta taxa de falha (>20%)</strong></td>
+<td>Dados de origem com qualidade ruim</td>
+<td>Revisar processo de coleta de dados</td>
+</tr>
+<tr>
+<td><strong>Muitos nulls (Regra 1)</strong></td>
+<td>Campos obrigatórios não preenchidos</td>
+<td>Validar formulários de entrada</td>
+</tr>
+<tr>
+<td><strong>Outliers extremos (Regra 4)</strong></td>
+<td>Valores fora do esperado</td>
+<td>Verificar se são erros ou casos reais</td>
+</tr>
+<tr>
+<td><strong>Emails inválidos (Regra 5)</strong></td>
+<td>Formato incorreto</td>
+<td>Implementar validação no front-end</td>
+</tr>
+<tr>
+<td><strong>Duplicatas (Regra 3)</strong></td>
+<td>Múltiplas cargas do mesmo dado</td>
+<td>Verificar processo de ingestão</td>
+</tr>
+</tbody>
+</table>
+
+<p>---</p>
+
+<h2 id="fluxo-completo-bronze-silver">🔄 Fluxo Completo Bronze → Silver</h2>
+
+<pre><code>┌─────────────────────────┐
+<p>│   Bronze CSV            │</p>
+<p>│   (dados brutos)        │</p>
+<p>└───────────┬─────────────┘</p>
+<p>            │</p>
+<p>            ▼</p>
+<p>┌─────────────────────────┐</p>
+<p>│ 1. Limpeza Básica       │</p>
+<p>│   • dropna(how='all')   │</p>
+<p>│   • drop_duplicates()   │</p>
+<p>└───────────┬─────────────┘</p>
+<p>            │</p>
+<p>            ▼</p>
+<p>┌─────────────────────────┐</p>
+<p>│ 2. Transformações       │</p>
+<p>│    Inteligentes         │</p>
+<p>│   • Normalizar colunas  │</p>
+<p>│   • Detectar datas      │</p>
+<p>│   • Inferir tipos       │</p>
+<p>│   • Criar categorias    │</p>
+<p>│   • Preencher nulos     │</p>
+<p>└───────────┬─────────────┘</p>
+<p>            │</p>
+<p>            ▼</p>
+<p>┌─────────────────────────┐</p>
+<p>│ 3. Validação Qualidade  │</p>
+<p>│   • 5 regras aplicadas  │</p>
+<p>│   • 4 colunas adicionadas│</p>
+<p>│   • Métricas calculadas │</p>
+<p>└───────────┬─────────────┘</p>
+<p>            │</p>
+<p>            ▼</p>
+<p>┌─────────────────────────┐</p>
+<p>│ 4. Salvar Parquet       │</p>
+<p>│   • compression=snappy  │</p>
+<p>│   • index=False         │</p>
+<p>└───────────┬─────────────┘</p>
+<p>            │</p>
+<p>            ▼</p>
+<p>┌─────────────────────────┐</p>
+<p>│   Silver Parquet        │</p>
+<p>│   (dados confiáveis)    │</p>
+<p>│   + 4 colunas qualidade │</p>
+<p>└─────────────────────────┘</code></pre></p>
+
+<p>---</p>
+
+<h2 id="historico-de-mudancas">Histórico de Mudanças</h2>
+
+<table>
+<thead><tr>
+<th>Data</th>
+<th>Mudança</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>2024-11-23</td>
+<td>Implementação inicial do sistema de transformações plugáveis</td>
+</tr>
+<tr>
+<td>2024-11-23</td>
+<td>Adicionadas transformações: customers, orders, products</td>
+</tr>
+<tr>
+<td>2024-11-23</td>
+<td>Integração com <code>medallion_pipeline.py</code></td>
+</tr>
+<tr>
+<td>2024-11-24</td>
+<td>Adicionado sistema de validação de qualidade de dados (5 regras, 4 colunas)</td>
+</tr>
+<tr>
+<td>2024-11-24</td>
+<td>Documentação completa com dicionário de dados e exemplos práticos</td>
+</tr>
+</tbody>
+</table>
+
+        </main>
+    </div>
+</body>
+</html>

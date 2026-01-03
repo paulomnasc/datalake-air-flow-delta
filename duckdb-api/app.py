@@ -55,6 +55,14 @@ def get_duckdb_connection():
         con.execute("INSTALL httpfs;")
         con.execute("LOAD httpfs;")
         
+        # Carrega extensão Delta para leitura de Delta Lake
+        try:
+            con.execute("INSTALL delta;")
+            con.execute("LOAD delta;")
+            logger.info("✅ Delta Lake extension loaded")
+        except Exception as delta_error:
+            logger.warning(f"⚠️  Delta extension não disponível: {delta_error}")
+        
         # Remove http:// do endpoint se existir (DuckDB espera apenas host:porta)
         endpoint = MINIO_ENDPOINT.replace('http://', '').replace('https://', '')
         
@@ -116,14 +124,26 @@ async def execute_query(request: QueryRequest):
     try:
         con = get_duckdb_connection()
         
+        # Verifica se a query já tem um LIMIT explícito
+        sql_upper = request.sql.upper().strip()
+        has_limit = 'LIMIT' in sql_upper
+        
+        # Se não tem LIMIT, aplica o limite de segurança
+        if not has_limit:
+            final_sql = f"{request.sql.rstrip(';')} LIMIT {request.limit}"
+            logger.info(f"🔒 Aplicando LIMIT de segurança: {request.limit}")
+        else:
+            final_sql = request.sql
+            logger.info(f"✓ Query já possui LIMIT explícito")
+        
         # Executa a query
-        result = con.execute(request.sql).fetchall()
+        result = con.execute(final_sql).fetchall()
         
         # Obtém nomes das colunas
         columns = [desc[0] for desc in con.description] if con.description else []
         
-        # Converte resultado para lista de dicts
-        data = [dict(zip(columns, row)) for row in result[:request.limit]]
+        # Converte resultado para lista de dicts (sem truncar aqui)
+        data = [dict(zip(columns, row)) for row in result]
         
         con.close()
         
@@ -347,6 +367,93 @@ async def get_schema(request: SchemaRequest):
     except Exception as e:
         logger.error(f"❌ Error getting schema: {e}")
         return {"success": False, "error": str(e)}
+
+
+@app.post("/query/delta")
+async def query_delta(request: QueryRequest):
+    """
+    Executa query em tabela Delta Lake
+    
+    Automaticamente converte queries Delta para leitura dos arquivos Parquet subjacentes.
+    
+    Exemplos de uso:
+    - SELECT * FROM delta.customers LIMIT 10
+    - SELECT * FROM customers_delta WHERE age > 30
+    """
+    sql = request.sql.strip()
+    
+    try:
+        con = get_duckdb_connection()
+        
+        # Detecta se é query Delta e converte para read_parquet
+        sql_upper = sql.upper()
+        
+        # Pattern: delta.{table} ou {table}_delta
+        if 'DELTA.' in sql_upper or '_DELTA' in sql_upper:
+            logger.info(f"🔷 Detectada query Delta Lake")
+            
+            # Extrai nome da tabela
+            import re
+            
+            # Busca padrão: delta.table_name ou table_name_delta
+            delta_pattern = r'(?:DELTA\.(\w+)|(\w+)_DELTA)'
+            matches = re.findall(delta_pattern, sql_upper)
+            
+            if matches:
+                # Pega o primeiro match (pode ser do grupo 1 ou 2)
+                table_name = matches[0][0] if matches[0][0] else matches[0][1]
+                table_name = table_name.lower()
+                
+                logger.info(f"📊 Tabela Delta detectada: {table_name}")
+                
+                # Converte para read_parquet apontando para camada delta
+                delta_path = f"s3://{MINIO_BUCKET}/delta/{table_name}/**/*.parquet"
+                
+                # Substitui referências Delta por read_parquet
+                sql_converted = re.sub(
+                    r'(?i)(FROM|JOIN)\s+(?:delta\.(\w+)|(\w+)_delta)',
+                    lambda m: f"{m.group(1).upper()} read_parquet('{delta_path}')",
+                    sql
+                )
+                
+                logger.info(f"🔄 Query convertida: {sql_converted[:200]}...")
+                sql = sql_converted
+        
+        # Verifica se a query já tem um LIMIT explícito
+        has_limit = 'LIMIT' in sql_upper
+        
+        # Se não tem LIMIT, aplica o limite de segurança
+        if not has_limit:
+            final_sql = f"{sql.rstrip(';')} LIMIT {request.limit}"
+            logger.info(f"🔒 Aplicando LIMIT de segurança: {request.limit}")
+        else:
+            final_sql = sql
+            logger.info(f"✓ Query já possui LIMIT explícito")
+        
+        # Executa a query
+        result = con.execute(final_sql).fetchall()
+        
+        # Obtém nomes das colunas
+        columns = [desc[0] for desc in con.description] if con.description else []
+        
+        # Converte resultado para lista de dicts
+        data = [dict(zip(columns, row)) for row in result]
+        
+        con.close()
+        
+        return QueryResponse(
+            success=True,
+            data=data,
+            columns=columns,
+            rows_affected=len(data)
+        )
+    
+    except Exception as e:
+        logger.error(f"❌ Delta query execution error: {e}")
+        return QueryResponse(
+            success=False,
+            error=str(e)
+        )
 
 
 if __name__ == "__main__":

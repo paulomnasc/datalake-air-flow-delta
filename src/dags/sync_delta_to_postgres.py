@@ -10,6 +10,7 @@ import duckdb
 import psycopg2
 from psycopg2 import sql
 import re
+import os
 
 # Configurações
 POSTGRES_HOST = 'postgres-bi'
@@ -21,16 +22,7 @@ POSTGRES_PASSWORD = 'pbi_password'
 MINIO_ENDPOINT = 'minio:9000'
 MINIO_ACCESS_KEY = 'admin'
 MINIO_SECRET_KEY = 'admin123'
-MINIO_BUCKET = 'lab01'
-
-SEARCH_GLOBS = [
-    's3://lab01/delta/*/*.parquet',
-    's3://lab01/delta/*/*/*.parquet',
-]
-
-EXACT_PATHS = [
-    's3://lab01/delta/customers_202512230532/*.parquet',
-]
+# MINIO_BUCKET será obtido dinamicamente: kwargs -> env -> fallback 'lab01'
 
 default_args = {
     'owner': 'airflow',
@@ -66,6 +58,40 @@ def sync_delta_to_postgres(**context):
     """
     Descobre tabelas Delta, lê via DuckDB, insere em PostgreSQL.
     """
+    # Bucket isolado por usuário - prioridades:
+    # 1. Parâmetro passado na trigger (dag_run.conf)
+    # 2. Params da DAG
+    # 3. Variável de ambiente
+    # 4. Fallback lab01
+    
+    dag_run = context.get('dag_run')
+    bucket = None
+    
+    # 1. Tenta obter de dag_run.conf (quando disparada pela webapp ou trigger manual)
+    if dag_run and dag_run.conf:
+        bucket = dag_run.conf.get('bucket_name') or dag_run.conf.get('bucket')
+    
+    # 2. Tenta params da DAG
+    if not bucket:
+        bucket = context.get('params', {}).get('bucket_name')
+    
+    # 3. Variável de ambiente
+    if not bucket:
+        bucket = os.environ.get("MINIO_BUCKET")
+    
+    # 4. Fallback
+    if not bucket:
+        bucket = "lab01"
+    
+    print(f"\n🗂️  Usando bucket: {bucket}")
+    print(f"   Fonte: {'dag_run.conf' if dag_run and dag_run.conf and dag_run.conf.get('bucket_name') else 'params/env/fallback'}")
+    
+    # Construir paths dinamicamente
+    search_globs = [
+        f's3://{bucket}/delta/*/*.parquet',
+        f's3://{bucket}/delta/*/*/*.parquet',
+    ]
+    
     duckdb_con = None
     pg_conn = None
     try:
@@ -73,7 +99,8 @@ def sync_delta_to_postgres(**context):
         duckdb_con = duckdb.connect(':memory:')
         
         # Configura DuckDB
-        print("📡 Carregando httpfs...")
+        print("📡 Instalando e carregando httpfs...")
+        duckdb_con.execute("INSTALL httpfs;")
         duckdb_con.execute("LOAD httpfs;")
         duckdb_con.execute(f"SET s3_endpoint='{MINIO_ENDPOINT}';")
         duckdb_con.execute(f"SET s3_access_key_id='{MINIO_ACCESS_KEY}';")
@@ -85,7 +112,7 @@ def sync_delta_to_postgres(**context):
         # Descobre pastas
         print("\n📊 Descobrindo estrutura no MinIO...")
         folders = set()
-        for search_path in SEARCH_GLOBS + EXACT_PATHS:
+        for search_path in search_globs:
             try:
                 print(f"  🔍 Procurando em: {search_path}")
                 rows = duckdb_con.execute(f"""
@@ -126,8 +153,8 @@ def sync_delta_to_postgres(**context):
             
             # Tenta os dois padrões
             for search_path in [
-                f"s3://{MINIO_BUCKET}/delta/{folder}/*.parquet",
-                f"s3://{MINIO_BUCKET}/delta/{folder}/*/*.parquet",
+                f"s3://{bucket}/delta/{folder}/*.parquet",
+                f"s3://{bucket}/delta/{folder}/*/*.parquet",
             ]:
                 try:
                     print(f"  📥 {table_name} ← {folder}")
@@ -244,52 +271,12 @@ def verify_postgres_tables(**context):
         raise
 
 
-with DAG(
-    'sync_delta_to_postgres',
-    default_args=default_args,
-    description='Delta → PostgreSQL para Power BI (sem locks)',
-    schedule_interval='0 2 * * *',  # 02:00 AM diário
-    start_date=datetime(2024, 1, 1),
-    catchup=False,
-    tags=['postgres', 'pbi', 'delta', 'no-locks'],
-) as dag:
-    
-    dag.doc_md = """
-    ## DAG: Delta → PostgreSQL para Power BI
-    
-    Lê tabelas Delta do MinIO via DuckDB e insere em PostgreSQL.
-    Power BI conecta direto (suporta múltiplos acessos nativamente).
-    
-    ### Fluxo:
-    1. Setup: Valida conexão PostgreSQL
-    2. Sync: Lê Delta, insere em PostgreSQL
-    3. Verify: Lista tabelas criadas
-    
-    ### Power BI - Conectar em:
-    - Server: localhost:5433 (porta externa do container)
-    - Database: datalake_bi
-    - User: pbi_user
-    - Password: pbi_password
-    
-    ### Vantagem:
-    ✅ PostgreSQL suporta múltiplos acessos
-    ✅ Sem problemas de lock
-    ✅ Power BI gerencia conexões normalmente
-    """
-    
-    setup_task = PythonOperator(
-        task_id='setup_postgres',
-        python_callable=setup_postgres,
-    )
-    
-    sync_task = PythonOperator(
-        task_id='sync_delta_to_postgres',
-        python_callable=sync_delta_to_postgres,
-    )
-    
-    verify_task = PythonOperator(
-        task_id='verify_postgres_tables',
-        python_callable=verify_postgres_tables,
-    )
-    
-    setup_task >> sync_task >> verify_task
+# NOTA: A DAG não é mais criada aqui. 
+# As DAGs de sync são criadas dinamicamente pelo factory_master.py
+# com base nos usuários ativos (uma DAG por usuário).
+#
+# Para criar manualmente uma DAG de sync, use:
+# from factory_master import create_sync_delta_to_postgres_dag
+# my_dag = create_sync_delta_to_postgres_dag(owner='username', bucket='bucket_name')
+#
+# Formato do DAG ID: sync_delta_dw_{username}

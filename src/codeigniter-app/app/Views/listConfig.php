@@ -216,10 +216,6 @@ function confirmDelete(id, descricao, deleteUrl, formId) {
                                         }
                                     ?>
                                 </form>
-                                <form action="<?= site_url('playConfig'); ?>" method="post">
-                                    <input type="hidden" name="id" value="${item.id}">
-                                    <button class="edit-button" type="submit">▶️</button>
-                                </form>
                                 <form id="deleteForm-${item.id}">
                                     <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"){
                                             ?>

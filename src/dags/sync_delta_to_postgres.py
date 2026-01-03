@@ -99,7 +99,7 @@ def sync_delta_to_postgres(**context):
         duckdb_con = duckdb.connect(':memory:')
         
         # Configura DuckDB
-        print("📡 Instalando e carregando httpfs...")
+        print("📡 Instalando e carregando extensões...")
         duckdb_con.execute("INSTALL httpfs;")
         duckdb_con.execute("LOAD httpfs;")
         duckdb_con.execute(f"SET s3_endpoint='{MINIO_ENDPOINT}';")
@@ -150,58 +150,88 @@ def sync_delta_to_postgres(**context):
         for folder in sorted(folders):
             safe_name = re.sub(r"[^a-zA-Z0-9_]+", "_", folder)
             table_name = f"delta_{safe_name}"
+            delta_path = f"s3://{bucket}/delta/{folder}/"
             
-            # Tenta os dois padrões
-            for search_path in [
-                f"s3://{bucket}/delta/{folder}/*.parquet",
-                f"s3://{bucket}/delta/{folder}/*/*.parquet",
-            ]:
-                try:
-                    print(f"  📥 {table_name} ← {folder}")
+            print(f"  📥 {table_name} ← {folder}")
+            
+            try:
+                # Ler APENAS o arquivo mais recente da versão Delta
+                # Delta Lake armazena múltiplas versões: 0-uuid.parquet, 1-uuid.parquet, ...
+                # Precisamos ler APENAS a última versão
+                print(f"     Descobrindo versão mais recente...")
+                
+                # Listar arquivos únicos e pegar o com número mais alto
+                files = duckdb_con.execute(f"""
+                    SELECT DISTINCT filename FROM read_parquet('{delta_path}*.parquet', filename=true)
+                    ORDER BY filename DESC
+                    LIMIT 1
+                """).fetchall()
+                
+                if not files:
+                    print(f"    ⚠️  Nenhum arquivo encontrado")
+                    results.append({'table': table_name, 'status': 'FAILED', 'count': 0})
+                    continue
+                
+                # Pegar o arquivo mais recente
+                latest_file = files[0][0]
+                print(f"     Usando: {latest_file.split('/')[-1]}")
+                
+                # Ler APENAS esse arquivo
+                result = duckdb_con.execute(f"""
+                    SELECT * FROM read_parquet('{latest_file}')
+                """).fetchall()
+                
+                columns = [desc[0] for desc in duckdb_con.description] if duckdb_con.description else []
+                
+                if not columns:
+                    print(f"    ⚠️  Nenhuma coluna encontrada")
+                    results.append({'table': table_name, 'status': 'FAILED', 'count': 0})
+                    continue
+                
+                count = len(result)
+                
+                if count == 0:
+                    print(f"    ⚠️  Nenhum registro encontrado")
+                    results.append({'table': table_name, 'status': 'FAILED', 'count': 0})
+                    continue
+                
+                print(f"     ✓ Encontrado {count} registros únicos")
+                
+                # DROP + CREATE
+                col_defs = ", ".join([f'"{col}" TEXT' for col in columns])
+                pg_cursor.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
+                pg_cursor.execute(f"""
+                    CREATE TABLE {table_name} (
+                        {col_defs}
+                    )
+                """)
+                print(f"     ✓ Tabela criada em PostgreSQL")
+                
+                # Insere dados
+                if result:
+                    placeholders = ", ".join(["%s"] * len(columns))
+                    insert_sql = f"""
+                        INSERT INTO {table_name} ({", ".join([f'"{col}"' for col in columns])})
+                        VALUES ({placeholders})
+                    """
                     
-                    # Lê Parquet com DuckDB
-                    duckdb_con.execute(f"SELECT * FROM read_parquet('{search_path}') LIMIT 0")
-                    columns = [desc[0] for desc in duckdb_con.description]
-                    
-                    result_df = duckdb_con.execute(f"""
-                        SELECT * FROM read_parquet('{search_path}')
-                    """).fetchall()
-                    
-                    df = result_df
-                    count = len(df)
-                    
-                    # Cria tabela em PostgreSQL (trunca se existir)
-                    col_defs = ", ".join([f'"{col}" TEXT' for col in columns])
-                    pg_cursor.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
-                    pg_cursor.execute(f"""
-                        CREATE TABLE {table_name} (
-                            {col_defs}
-                        )
-                    """)
-                    
-                    # Insere dados
-                    if df:
-                        placeholders = ", ".join(["%s"] * len(columns))
-                        insert_sql = f"""
-                            INSERT INTO {table_name} ({", ".join([f'"{col}"' for col in columns])})
-                            VALUES ({placeholders})
-                        """
-                        for row in df:
+                    batch_size = 100
+                    for i in range(0, len(result), batch_size):
+                        batch = result[i:i+batch_size]
+                        for row in batch:
                             pg_cursor.execute(insert_sql, row)
                     
-                    pg_conn.commit()
+                    print(f"     ✓ {count} registros inseridos")
+                
+                pg_conn.commit()
+                
+                print(f"  ✅ {table_name}: {count} registros (sem duplicatas)")
+                results.append({'table': table_name, 'status': 'OK', 'count': count})
                     
-                    print(f"  ✅ {table_name}: {count} registros")
-                    results.append({'table': table_name, 'status': 'OK', 'count': count})
-                    break
-                    
-                except Exception as e:
-                    print(f"    ⚠️  Erro: {str(e)[:100]}")
-                    continue
-            
-            if not any(r['table'] == table_name for r in results):
-                print(f"  ⚠️  {table_name}: FALHOU")
-                results.append({'table': table_name, 'status': 'FAILED'})
+            except Exception as e:
+                error_msg = str(e)[:150]
+                print(f"  ❌ {table_name}: {error_msg}")
+                results.append({'table': table_name, 'status': 'FAILED', 'count': 0})
         
         success = sum(1 for r in results if r['status'] == 'OK')
         print(f"\n✅ Sincronização: {success}/{len(results)} OK")

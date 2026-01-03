@@ -1,0 +1,1986 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Implementação Delta Lake no Datalake - Documentação Datalake</title>
+    <style>
+        :root {
+            --sidebar-width: 280px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar h2 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .sidebar nav ul {
+            list-style: none;
+        }
+
+        .sidebar nav ul li {
+            margin-bottom: 8px;
+        }
+
+        .sidebar nav ul li a {
+            color: #ecf0f1;
+            text-decoration: none;
+            display: block;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .sidebar nav ul li a:hover {
+            background: #34495e;
+            color: #3498db;
+        }
+
+        .sidebar nav ul li a.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            flex: 1;
+            background: white;
+            max-width: 1400px;
+            transition: margin-left 0.3s ease;
+        }
+
+        .content.collapsed {
+            margin-left: 0;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 900;
+            display: none;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+        }
+
+        @media (min-width: 1100px) {
+            .sidebar-toggle {
+                left: calc(var(--sidebar-width) + 16px);
+            }
+        }
+
+        .content h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .content h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.8rem;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .content h3 {
+            color: #555;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+        }
+
+        .content h4 {
+            color: #666;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        .content ul {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ul li {
+            margin-bottom: 8px;
+        }
+
+        .content ol {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ol li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #3498db;
+            color: white;
+            border-radius: 3px;
+            font-size: 0.85rem;
+            margin-left: 5px;
+        }
+
+        .badge.star {
+            background: #f39c12;
+        }
+
+        .badge.warning {
+            background: #e74c3c;
+        }
+
+        .badge.success {
+            background: #27ae60;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #c7254e;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        table th {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #2980b9;
+        }
+
+        table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        blockquote {
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #555;
+            font-style: italic;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .alert-info {
+            background: #d9edf7;
+            border-left: 4px solid #31708f;
+            color: #31708f;
+        }
+
+        .alert-warning {
+            background: #fcf8e3;
+            border-left: 4px solid #8a6d3b;
+            color: #8a6d3b;
+        }
+
+        .alert-success {
+            background: #dff0d8;
+            border-left: 4px solid #3c763d;
+            color: #3c763d;
+        }
+
+        .alert-danger {
+            background: #f2dede;
+            border-left: 4px solid #a94442;
+            color: #a94442;
+        }
+
+        .masked-value {
+            font-family: 'Courier New', monospace;
+            user-select: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #f4f4f4;
+            transition: all 0.3s ease;
+        }
+
+        .masked-value:hover {
+            background: #e0e0e0;
+            text-decoration: underline;
+        }
+
+        .masked-value.revealed {
+            background: #ffffcc;
+        }
+    </style>
+    <script>
+        // Mascara valores sensíveis (passwords, tokens, secrets)
+        function maskSensitiveValues() {
+            const sensitivePatterns = [
+                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
+            ];
+
+            const codeBlocks = document.querySelectorAll('code, pre');
+            
+            codeBlocks.forEach(block => {
+                let content = block.innerHTML;
+                
+                sensitivePatterns.forEach(pattern => {
+                    content = content.replace(pattern.regex, (match, value) => {
+                        if (!value) return match;
+                        
+                        const prefix = match.substring(0, match.indexOf(value));
+                        const masked = '*'.repeat(Math.min(value.length, 12));
+                        const tooltip = `Clique para revelar o valor`;
+                        
+                        return `${prefix}<span class="masked-value" title="${tooltip}" data-original="${value}" onclick="toggleMask(event)">${masked}</span>`;
+                    });
+                });
+                
+                block.innerHTML = content;
+            });
+        }
+
+        // Toggle visibilidade de valores mascarados
+        function toggleMask(event) {
+            event.stopPropagation();
+            const span = event.target;
+            
+            if (span.classList.contains('revealed')) {
+                const original = span.getAttribute('data-original');
+                span.textContent = '*'.repeat(Math.min(original.length, 12));
+                span.classList.remove('revealed');
+            } else {
+                const original = span.getAttribute('data-original');
+                span.textContent = original;
+                span.classList.add('revealed');
+            }
+        }
+
+        function setSidebarState(isOpen) {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            sidebar.classList.toggle('collapsed', !isOpen);
+            content.classList.toggle('collapsed', !isOpen);
+
+            const useOverlay = window.innerWidth < 1100;
+            if (overlay) {
+                overlay.classList.toggle('active', isOpen && useOverlay);
+            }
+
+            toggleBtn.textContent = isOpen ? '✕ Fechar' : '☰ Menu';
+        }
+
+        function initSidebarToggle() {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            const initialOpen = window.innerWidth >= 1100;
+            setSidebarState(initialOpen);
+
+            toggleBtn.addEventListener('click', function() {
+                const isOpen = !sidebar.classList.contains('collapsed');
+                setSidebarState(!isOpen);
+            });
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    setSidebarState(false);
+                });
+            }
+
+            window.addEventListener('resize', function() {
+                const shouldBeOpen = window.innerWidth >= 1100;
+                setSidebarState(shouldBeOpen);
+            });
+        }
+
+        // Executar quando documento carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            maskSensitiveValues();
+            initSidebarToggle();
+        });
+    </script>
+</head>
+<body>
+    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰ Menu</button>
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>📚 Documentação</h2>
+            <nav>
+                <ul>
+                    <li><a href="index.html" >🏠 Home</a></li>
+                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    <li><a href="migracao-duckdb-postgresql.html" >🔌 Conexão Power BI</a></li>
+                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                    <li><a href="delta-lake-implementation.html" class="active">🥇 Delta Lake & Gold</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="content">
+<h1 id="implementacao-delta-lake-no-datalake">Implementação Delta Lake no Datalake</h1>
+
+<h2 id="status-implementado-e-funcional"><span class="badge success">✅</span> Status: Implementado e Funcional</h2>
+
+<p>Este documento descreve a implementação real de Delta Lake no projeto datalake-air-flow, usando <code>deltalake-python</code> integrado com Airflow, MinIO e arquitetura Medallion.</p>
+
+<p>---</p>
+
+<h2 id="visao-geral">🎯 Visão Geral</h2>
+
+<p>Delta Lake foi implementado como a <strong>camada Gold</strong> do pipeline, transformando dados refinados (Silver) em tabelas transacionais prontas para analytics.</p>
+
+<h3 id="arquitetura-implementada">Arquitetura Implementada</h3>
+
+<pre><code>MySQL/Fontes → Raw (CSV) → Bronze (CSV) → Silver (Parquet + Quality) → Gold (Delta Lake)</code></pre>
+
+<p>---</p>
+
+<h2 id="tecnologias-utilizadas">🔧 Tecnologias Utilizadas</h2>
+
+<table>
+<thead><tr>
+<th>Componente</th>
+<th>Tecnologia</th>
+<th>Versão</th>
+<th>Função</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Orquestração</td>
+<td>Apache Airflow</td>
+<td>Latest</td>
+<td>Gerenciar DAGs e execução do pipeline</td>
+</tr>
+<tr>
+<td>Delta Engine</td>
+<td>deltalake-python</td>
+<td>0.15.0</td>
+<td>Ler/escrever formato Delta Lake</td>
+</tr>
+<tr>
+<td>Storage</td>
+<td>MinIO (S3-compatible)</td>
+<td>Latest</td>
+<td>Armazenar dados (Raw, Bronze, Silver, Gold)</td>
+</tr>
+<tr>
+<td>Data Processing</td>
+<td>Pandas + PyArrow</td>
+<td>Latest</td>
+<td>Transformações e manipulação de dados</td>
+</tr>
+<tr>
+<td>Spark (opcional)</td>
+<td>Apache Spark + delta-spark</td>
+<td>3.5.1</td>
+<td>Para processamento distribuído futuro</td>
+</tr>
+</tbody>
+</table>
+
+<p>---</p>
+
+<h2 id="caracteristicas-da-implementacao">🧱 Características da Implementação</h2>
+
+<h3 id="delta-lake-vs-parquet-tradicional">Delta Lake vs Parquet Tradicional</h3>
+
+<table>
+<thead><tr>
+<th>Recurso</th>
+<th>Parquet</th>
+<th>Delta Lake</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Formato base</td>
+<td><span class="badge success">✅</span> Colunar</td>
+<td><span class="badge success">✅</span> Parquet + metadados</td>
+</tr>
+<tr>
+<td>ACID Transactions</td>
+<td><span class="badge warning">❌</span></td>
+<td><span class="badge success">✅</span></td>
+</tr>
+<tr>
+<td>Time Travel</td>
+<td><span class="badge warning">❌</span></td>
+<td><span class="badge success">✅</span> Versões anteriores</td>
+</tr>
+<tr>
+<td>Schema Evolution</td>
+<td><span class="badge warning">❌</span></td>
+<td><span class="badge success">✅</span> Adicionar/alterar colunas</td>
+</tr>
+<tr>
+<td>MERGE/UPDATE/DELETE</td>
+<td><span class="badge warning">❌</span></td>
+<td><span class="badge success">✅</span> Operações DML</td>
+</tr>
+<tr>
+<td>Compactação automática</td>
+<td><span class="badge warning">❌</span></td>
+<td><span class="badge success">✅</span> Otimização de arquivos</td>
+</tr>
+<tr>
+<td>Transaction Log</td>
+<td><span class="badge warning">❌</span></td>
+<td><span class="badge success">✅</span> <code>_delta_log/</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>---</p>
+
+<h2 id="estrutura-de-armazenamento">📂 Estrutura de Armazenamento</h2>
+
+<h3 id="no-minio-s3">No MinIO (S3)</h3>
+
+<pre><code>s3://lab01/
+<p>├── raw/{dag_id}/{timestamp}_{hash}.csv</p>
+<p>├── bronze/{table}/{timestamp}_{hash}.csv</p>
+<p>├── silver/{table}/{timestamp}_{hash}.parquet</p>
+<p>│   ├── [Colunas originais]</p>
+<p>│   ├── DataQualityRulesPass</p>
+<p>│   ├── DataQualityRulesFail</p>
+<p>│   ├── DataQualityRulesSkip</p>
+<p>│   └── DataQualityEvaluationResult</p>
+<p>└── gold/{table}_delta/</p>
+<p>    ├── _delta_log/</p>
+<p>    │   ├── 00000000000000000000.json  ← Transaction log (versão 0)</p>
+<p>    │   └── 00000000000000000001.json  ← Próximas transações</p>
+<p>    ├── 0-{uuid}-0.parquet              ← Dados (versão 0)</p>
+<p>    └── 1-{uuid}-0.parquet              ← Próximas escritas</code></pre></p>
+
+<h3 id="por-que-multiplos-arquivos-parquet-por-arquivo-de-origem">❓ Por que múltiplos arquivos Parquet por arquivo de origem?</h3>
+
+<strong>Resposta curta</strong>: É o comportamento <strong>normal e esperado</strong> do Delta Lake - não é um problema, é uma feature!
+
+<h4 id="razoes-tecnicas">🔍 Razões Técnicas</h4>
+
+<strong>1. Versionamento (Time Travel)</strong>
+<ul>
+<li>Cada operação de escrita (<code>append</code>, <code>merge</code>, <code>overwrite</code>) cria <strong>novos arquivos</strong></li>
+<li>Arquivos antigos são <strong>mantidos</strong> para permitir consultas históricas</li>
+<li>Benefício: Você pode consultar qualquer versão anterior dos dados</li>
+</ul>
+
+<pre><code>-- Consultar versão específica (Time Travel)
+<p>SELECT * FROM delta_table VERSION AS OF 1</p>
+<p>SELECT * FROM delta_table TIMESTAMP AS OF '2025-01-01 10:00:00'</code></pre></p>
+
+<strong>2. Particionamento de Dados</strong>
+<ul>
+<li>Delta Lake particiona dados automaticamente por performance</li>
+<li>Cada partição (<code>partition_date</code>, região, etc.) = arquivo separado</li>
+<li>Exemplo: 5 datas diferentes → 5+ arquivos parquet</li>
+</ul>
+
+<pre><code><h1 id="codigo-que-gera-multiplos-arquivos-por-particao">Código que gera múltiplos arquivos por partição</h1>
+<p>df.write.format("delta").partitionBy("partition_date").save(delta_path)</p>
+<h1 id="resultado-deltacustomerspartition-date202501010-uuidparquet">Resultado: delta/customers/partition_date=20250101/0-uuid.parquet</h1>
+<h1 id="deltacustomerspartition-date202501020-uuidparquet">delta/customers/partition_date=20250102/0-uuid.parquet</h1></code></pre>
+
+<strong>3. Operações de MERGE/UPSERT</strong>
+<ul>
+<li>MERGE não reescreve toda a tabela (seria ineficiente)</li>
+<li>Cria novos arquivos com dados atualizados/novos</li>
+<li>Arquivos antigos permanecem até compactação (OPTIMIZE)</li>
+</ul>
+
+<pre><code><h1 id="merge-incrementa-arquivos-sem-reescrever-tudo">MERGE incrementa arquivos sem reescrever tudo</h1>
+<p>DeltaTable.forPath(spark, delta_path).merge(</p>
+<p>    df, "tgt.id = src.id"</p>
+<p>).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()</code></pre></p>
+
+<strong>4. Modo Append (Adição Incremental)</strong>
+<ul>
+<li>Cada execução da DAG adiciona um novo arquivo</li>
+<li>Não sobrescreve dados anteriores (preserva histórico)</li>
+<li>Eficiente para ingestão contínua</li>
+</ul>
+
+<pre><code>write_deltalake(
+<p>    delta_path,</p>
+<p>    table,</p>
+<p>    mode="append",  # ← Adiciona sem reescrever</p>
+<p>    storage_options=storage_options</p>
+<p>)</code></pre></p>
+
+<h4 id="exemplo-real">📊 Exemplo Real</h4>
+
+<pre><code><h1 id="execucao-1-2025-01-01">Execução 1 (2025-01-01)</h1>
+<p>delta/orders/</p>
+<p>├── _delta_log/00000000000000000000.json</p>
+<p>└── 0-abc123-0.parquet  (1000 linhas)</p>
+
+<h1 id="execucao-2-2025-01-02-append">Execução 2 (2025-01-02) - APPEND</h1>
+<p>delta/orders/</p>
+<p>├── _delta_log/00000000000000000000.json</p>
+<p>├── _delta_log/00000000000000000001.json</p>
+<p>├── 0-abc123-0.parquet  (1000 linhas - versão 0)</p>
+<p>└── 1-def456-0.parquet  (1000 linhas - versão 1)</p>
+
+<h1 id="execucao-3-2025-01-03-merge-10-updates">Execução 3 (2025-01-03) - MERGE (10 updates)</h1>
+<p>delta/orders/</p>
+<p>├── _delta_log/00000000000000000000.json</p>
+<p>├── _delta_log/00000000000000000001.json</p>
+<p>├── _delta_log/00000000000000000002.json</p>
+<p>├── 0-abc123-0.parquet  (1000 linhas - obsoleto)</p>
+<p>├── 1-def456-0.parquet  (1000 linhas - versão 1)</p>
+<p>└── 2-ghi789-0.parquet  (10 linhas - dados atualizados)</code></pre></p>
+
+<h4 id="beneficios-dos-multiplos-arquivos"><span class="badge success">✅</span> Benefícios dos Múltiplos Arquivos</h4>
+
+<table>
+<thead><tr>
+<th>Benefício</th>
+<th>Descrição</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>ACID Transactions</strong></td>
+<td>Cada arquivo é uma transação atômica isolada</td>
+</tr>
+<tr>
+<td><strong>Time Travel</strong></td>
+<td>Arquivos antigos permitem consultar versões históricas</td>
+</tr>
+<tr>
+<td><strong>Leitura Otimizada</strong></td>
+<td>Query engine lê apenas arquivos necessários (partition pruning)</td>
+</tr>
+<tr>
+<td><strong>Concorrência</strong></td>
+<td>Múltiplas escritas simultâneas possíveis sem lock</td>
+</tr>
+<tr>
+<td><strong>Evolução de Schema</strong></td>
+<td>Novos arquivos podem ter schemas diferentes (compatíveis)</td>
+</tr>
+<tr>
+<td><strong>Auditoria</strong></td>
+<td>Transaction log registra cada operação com timestamp</td>
+</tr>
+</tbody>
+</table>
+
+<h4 id="quando-otimizar"><span class="badge warning">⚠️</span> Quando Otimizar?</h4>
+
+<p>Muitos arquivos pequenos podem degradar performance de leitura. Sinais de alerta:</p>
+
+<ul>
+<li><strong>>100 arquivos</strong> em uma única partição</li>
+<li><strong>Arquivos < 10 MB</strong> (fragmentação excessiva)</li>
+<li><strong>Queries lentas</strong> em tabelas com muitas versões</li>
+</ul>
+
+<strong>Solução: OPTIMIZE (Compactação)</strong>
+
+<pre><code>from deltalake import DeltaTable
+
+<p>dt = DeltaTable(delta_path, storage_options=storage_options)</p>
+
+<h1 id="compactar-arquivos-pequenos-em-arquivos-maiores-128mb">Compactar arquivos pequenos em arquivos maiores (128MB)</h1>
+<p>dt.optimize().compact()</p>
+
+<h1 id="resultado-100-arquivos-de-5mb-5-arquivos-de-100mb">Resultado: 100 arquivos de 5MB → 5 arquivos de 100MB</h1></code></pre>
+
+<strong>Limpeza de Versões Antigas: VACUUM</strong>
+
+<pre><code><h1 id="remover-arquivos-de-versoes-antigas-7-dias">Remover arquivos de versões antigas (>7 dias)</h1>
+<p>dt.vacuum(retention_hours=168)  # 7 dias</p>
+
+<h1 id="cuidado-apos-vacuum-time-travel-nao-funciona-para-versoes-removidas"><span class="badge warning">⚠️</span> CUIDADO: Após VACUUM, time travel não funciona para versões removidas</h1></code></pre>
+
+<h4 id="configuracoes-de-otimizacao-recomendadas">🎯 Configurações de Otimização Recomendadas</h4>
+
+<pre><code><h1 id="no-codigo-de-escrita-delta">No código de escrita Delta</h1>
+<p>write_deltalake(</p>
+<p>    delta_path,</p>
+<p>    data,</p>
+<p>    mode="append",</p>
+<p>    storage_options=storage_options,</p>
+    
+<p>    # Otimizações</p>
+<p>    file_options={</p>
+<p>        "target_file_size": 134217728,  # 128MB (default Delta)</p>
+<p>        "compression": "snappy"          # Compressão rápida</p>
+<p>    }</p>
+<p>)</p>
+
+<h1 id="otimizacao-periodica-executar-semanalmente-via-dag">Otimização periódica (executar semanalmente via DAG)</h1>
+<p>if len(dt.files()) > 100:  # Se > 100 arquivos</p>
+<p>    dt.optimize().compact()</p>
+<p>    dt.vacuum(retention_hours=168)</code></pre></p>
+
+<h4 id="impacto-em-performance">📈 Impacto em Performance</h4>
+
+<table>
+<thead><tr>
+<th>Cenário</th>
+<th>Arquivos</th>
+<th>Tamanho Médio</th>
+<th>Performance Leitura</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Ideal</strong></td>
+<td>10-50</td>
+<td>100-200 MB</td>
+<td>⚡ Excelente</td>
+</tr>
+<tr>
+<td><strong>Bom</strong></td>
+<td>50-100</td>
+<td>50-100 MB</td>
+<td><span class="badge success">✅</span> Boa</td>
+</tr>
+<tr>
+<td><strong>Atenção</strong></td>
+<td>100-500</td>
+<td>10-50 MB</td>
+<td><span class="badge warning">⚠️</span> Considerar OPTIMIZE</td>
+</tr>
+<tr>
+<td><strong>Ruim</strong></td>
+<td>>500</td>
+<td><10 MB</td>
+<td>🐌 Lento - OPTIMIZE urgente</td>
+</tr>
+</tbody>
+</table>
+
+<h4 id="script-de-manutencao-automatica">🔧 Script de Manutenção Automática</h4>
+
+<pre><code><h1 id="dagsdelta-maintenancepy">dags/delta_maintenance.py</h1>
+<p>from datetime import timedelta</p>
+<p>from airflow.decorators import dag, task</p>
+<p>from deltalake import DeltaTable</p>
+
+<p>@dag(</p>
+<p>    schedule_interval='@weekly',</p>
+<p>    start_date=days_ago(1),</p>
+<p>    tags=['delta', 'maintenance']</p>
+<p>)</p>
+<p>def delta_optimize_dag():</p>
+<p>    @task</p>
+<p>    def optimize_delta_tables():</p>
+<p>        tables = ['customers_delta', 'orders_delta', 'products_delta']</p>
+        
+<p>        for table_name in tables:</p>
+<p>            delta_path = f"s3://lab01/delta/{table_name}/"</p>
+<p>            dt = DeltaTable(delta_path, storage_options=storage_options)</p>
+            
+<p>            # Compactar se >50 arquivos</p>
+<p>            if len(dt.files()) > 50:</p>
+<p>                log.info(f"Compactando {table_name}...")</p>
+<p>                dt.optimize().compact()</p>
+            
+<p>            # Limpar versões >30 dias</p>
+<p>            dt.vacuum(retention_hours=720)</p>
+            
+<p>            log.info(f"<span class="badge success">✅</span> {table_name}: {len(dt.files())} arquivos")</p>
+    
+<p>    optimize_delta_tables()</p>
+
+<p>delta_optimize_dag()</code></pre></p>
+
+<p>---</p>
+
+<h2 id="dicionario-de-dados-camada-gold-delta-lake">📊 Dicionário de Dados - Camada Gold (Delta Lake)</h2>
+
+<h3 id="visao-geral">Visão Geral</h3>
+
+<p>A camada Gold recebe dados da camada Silver (já limpos e validados) e adiciona <strong>inteligência analítica</strong> através de features automáticas. Todas as colunas originais são preservadas, e novas colunas são criadas automaticamente.</p>
+
+<h3 id="estrutura-de-dados">Estrutura de Dados</h3>
+
+<pre><code>Gold = Silver (colunas originais) + Features Numéricas + Features Categóricas + Features Temporais + Agregações</code></pre>
+
+<p>---</p>
+
+<h3 id="colunas-originais-da-silver">Colunas Originais (da Silver)</h3>
+
+<p>Todas as colunas da camada Silver são preservadas, incluindo:</p>
+<ul>
+<li>Dados de negócio (customerNumber, orderDate, productCode, etc.)</li>
+<li>Colunas de qualidade: DataQualityRulesPass, DataQualityRulesFail, DataQualityRulesSkip, DataQualityEvaluationResult</li>
+</ul>
+
+<p>---</p>
+
+<h3 id="features-numericas-criadas-automaticamente">Features Numéricas (Criadas Automaticamente)</h3>
+
+<p>Para cada coluna numérica original, 3 novas colunas são criadas:</p>
+
+<table>
+<thead><tr>
+<th>Coluna</th>
+<th>Tipo</th>
+<th>Fórmula</th>
+<th>Descrição</th>
+<th>Valores</th>
+<th>Uso</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>{coluna}_zscore</strong></td>
+<td><code>float64</code></td>
+<td><code>(valor - média) / desvio_padrão</code></td>
+<td>Quantos desvios padrão o valor está da média</td>
+<td>-3 a +3 (tipicamente)</td>
+<td>Identificar outliers. Valores > 2 ou < -2 são atípicos</td>
+</tr>
+<tr>
+<td><strong>{coluna}_percentile</strong></td>
+<td><code>float64</code></td>
+<td><code>rank(valor) / total * 100</code></td>
+<td>Posição percentual do valor em relação aos demais</td>
+<td>0 a 100</td>
+<td>Comparação relativa. 95 = "top 5%"</td>
+</tr>
+<tr>
+<td><strong>{coluna}_min_max_scaled</strong></td>
+<td><code>float64</code></td>
+<td><code>(valor - mín) / (máx - mín)</code></td>
+<td>Normalização entre 0 e 1</td>
+<td>0.0 a 1.0</td>
+<td>Machine Learning, comparações normalizadas</td>
+</tr>
+</tbody>
+</table>
+
+<strong>Exemplo (creditLimit)</strong>:
+<pre><code><h1 id="dados-originais">Dados originais</h1>
+<p>creditLimit = [20000, 50000, 100000, 150000]</p>
+
+<h1 id="features-criadas">Features criadas</h1>
+<p>creditLimit_zscore        = [-1.34, -0.45, 0.45, 1.34]</p>
+<p>creditLimit_percentile    = [25, 50, 75, 100]</p>
+<p>creditLimit_min_max_scaled = [0.0, 0.23, 0.62, 1.0]</code></pre></p>
+
+<strong>Interpretação</strong>:
+<ul>
+<li><code>creditLimit_zscore = 2.5</code> → Outlier positivo (muito acima da média)</li>
+<li><code>creditLimit_percentile = 95</code> → Cliente está no top 5% de crédito</li>
+<li><code>creditLimit_min_max_scaled = 0.8</code> → Cliente com 80% do crédito máximo</li>
+</ul>
+
+<p>---</p>
+
+<h3 id="features-categoricas-criadas-automaticamente">Features Categóricas (Criadas Automaticamente)</h3>
+
+<p>Para cada coluna categórica (< 50% de valores únicos), 2 novas colunas são criadas:</p>
+
+<table>
+<thead><tr>
+<th>Coluna</th>
+<th>Tipo</th>
+<th>Fórmula</th>
+<th>Descrição</th>
+<th>Valores</th>
+<th>Uso</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>{coluna}_frequency</strong></td>
+<td><code>int64</code></td>
+<td><code>count(valor)</code></td>
+<td>Quantas vezes este valor aparece no dataset</td>
+<td>1 a N</td>
+<td>Popularidade absoluta. Ex: quantos clientes na França</td>
+</tr>
+<tr>
+<td><strong>{coluna}_pct</strong></td>
+<td><code>float64</code></td>
+<td><code>frequency / total * 100</code></td>
+<td>Percentual de ocorrências</td>
+<td>0.01 a 100.0</td>
+<td>Popularidade relativa. Ex: 15% dos clientes são da França</td>
+</tr>
+</tbody>
+</table>
+
+<strong>Exemplo (country)</strong>:
+<pre><code><h1 id="dados-originais">Dados originais</h1>
+<p>country = ['USA', 'USA', 'France', 'USA', 'Germany']</p>
+
+<h1 id="features-criadas">Features criadas</h1>
+<p>country_frequency = [3, 3, 1, 3, 1]</p>
+<p>country_pct       = [60.0, 60.0, 20.0, 60.0, 20.0]</code></pre></p>
+
+<strong>Interpretação</strong>:
+<ul>
+<li><code>country_frequency = 3</code> → Este país tem 3 clientes</li>
+<li><code>country_pct = 60.0</code> → 60% dos clientes são deste país</li>
+</ul>
+
+<p>---</p>
+
+<h3 id="features-temporais-criadas-automaticamente">Features Temporais (Criadas Automaticamente)</h3>
+
+<p>Para cada coluna de data/timestamp, 5 novas colunas são criadas:</p>
+
+<table>
+<thead><tr>
+<th>Coluna</th>
+<th>Tipo</th>
+<th>Descrição</th>
+<th>Valores</th>
+<th>Uso</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>{coluna}_year</strong></td>
+<td><code>int64</code></td>
+<td>Ano extraído da data</td>
+<td>2000 a 2099</td>
+<td>Análises anuais, tendências de longo prazo</td>
+</tr>
+<tr>
+<td><strong>{coluna}_month</strong></td>
+<td><code>int64</code></td>
+<td>Mês extraído da data</td>
+<td>1 a 12</td>
+<td>Sazonalidade mensal</td>
+</tr>
+<tr>
+<td><strong>{coluna}_day</strong></td>
+<td><code>int64</code></td>
+<td>Dia do mês extraído</td>
+<td>1 a 31</td>
+<td>Análises diárias</td>
+</tr>
+<tr>
+<td><strong>{coluna}_dayofweek</strong></td>
+<td><code>int64</code></td>
+<td>Dia da semana</td>
+<td>0 (segunda) a 6 (domingo)</td>
+<td>Padrões semanais (fins de semana vs dias úteis)</td>
+</tr>
+<tr>
+<td><strong>{coluna}_quarter</strong></td>
+<td><code>int64</code></td>
+<td>Trimestre do ano</td>
+<td>1 a 4</td>
+<td>Análises trimestrais, ciclos de negócio</td>
+</tr>
+</tbody>
+</table>
+
+<strong>Exemplo (orderDate)</strong>:
+<pre><code><h1 id="dado-original">Dado original</h1>
+<p>orderDate = '2024-06-15 14:30:00'</p>
+
+<h1 id="features-criadas">Features criadas</h1>
+<p>orderDate_year      = 2024</p>
+<p>orderDate_month     = 6</p>
+<p>orderDate_day       = 15</p>
+<p>orderDate_dayofweek = 5  # Sexta-feira</p>
+<p>orderDate_quarter   = 2  # Q2</code></pre></p>
+
+<strong>Casos de Uso</strong>:
+<pre><code>-- Vendas por trimestre
+<p>SELECT orderDate_year, orderDate_quarter, SUM(amount) </p>
+<p>FROM orders_delta </p>
+<p>GROUP BY orderDate_year, orderDate_quarter</p>
+
+<p>-- Padrão de pedidos por dia da semana</p>
+<p>SELECT orderDate_dayofweek, COUNT(*) </p>
+<p>FROM orders_delta </p>
+<p>GROUP BY orderDate_dayofweek</code></pre></p>
+
+<p>---</p>
+
+<h3 id="features-de-agregacao-por-grupo">Features de Agregação por Grupo</h3>
+
+<p>Para a primeira coluna categórica com 1-80% de valores únicos, agregações são criadas:</p>
+
+<table>
+<thead><tr>
+<th>Coluna</th>
+<th>Tipo</th>
+<th>Fórmula</th>
+<th>Descrição</th>
+<th>Uso</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>{num_col}_by_{cat_col}_mean</strong></td>
+<td><code>float64</code></td>
+<td><code>mean(num_col) GROUP BY cat_col</code></td>
+<td>Média do valor numérico por categoria</td>
+<td>Comparar valor individual com média do grupo</td>
+</tr>
+</tbody>
+</table>
+
+<strong>Exemplo</strong>:
+<pre><code><h1 id="dados-creditlimit-por-country">Dados: creditLimit por country</h1>
+<p>customer | country   | creditLimit | creditLimit_by_country_mean</p>
+<p>---------|-----------|-------------|---------------------------</p>
+<p>103      | USA       | 50000       | 75000  # Média dos clientes USA</p>
+<p>104      | USA       | 100000      | 75000</p>
+<p>105      | France    | 30000       | 35000  # Média dos clientes França</p>
+<p>106      | France    | 40000       | 35000</code></pre></p>
+
+<strong>Interpretação</strong>:
+<ul>
+<li>Cliente 103: creditLimit (50K) está <strong>abaixo</strong> da média USA (75K)</li>
+<li>Cliente 104: creditLimit (100K) está <strong>acima</strong> da média USA (75K)</li>
+</ul>
+
+<strong>Caso de Uso</strong>:
+<pre><code>-- Clientes acima da média do seu país
+<p>SELECT * FROM customers_delta</p>
+<p>WHERE creditLimit > creditLimit_by_country_mean</code></pre></p>
+
+<p>---</p>
+
+<h3 id="features-de-ranking-global">Features de Ranking Global</h3>
+
+<p>Um ranking global é criado baseado na primeira coluna numérica:</p>
+
+<table>
+<thead><tr>
+<th>Coluna</th>
+<th>Tipo</th>
+<th>Fórmula</th>
+<th>Descrição</th>
+<th>Valores</th>
+<th>Uso</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>{coluna}_rank</strong></td>
+<td><code>int64</code></td>
+<td><code>dense_rank(valor DESC)</code></td>
+<td>Posição do valor em ordem decrescente</td>
+<td>1 a N</td>
+<td>Top N análises, leaderboards</td>
+</tr>
+</tbody>
+</table>
+
+<strong>Exemplo (creditLimit_rank)</strong>:
+<pre><code>customer | creditLimit | creditLimit_rank
+<p>---------|-------------|------------------</p>
+<p>103      | 150000      | 1  # Maior crédito</p>
+<p>104      | 100000      | 2</p>
+<p>105      | 100000      | 2  # Empate = mesmo rank</p>
+<p>106      | 50000       | 3</p>
+<p>107      | 20000       | 4  # Menor crédito</code></pre></p>
+
+<strong>Casos de Uso</strong>:
+<pre><code>-- Top 10 clientes por crédito
+<p>SELECT * FROM customers_delta </p>
+<p>WHERE creditLimit_rank <= 10</p>
+
+<p>-- Clientes no quartil superior (top 25%)</p>
+<p>SELECT * FROM customers_delta</p>
+<p>WHERE creditLimit_percentile >= 75</code></pre></p>
+
+<p>---</p>
+
+<h3 id="resumo-de-features-criadas-por-tipo-de-coluna">Resumo de Features Criadas por Tipo de Coluna</h3>
+
+<table>
+<thead><tr>
+<th>Tipo de Coluna Original</th>
+<th>Features Criadas</th>
+<th>Total de Novas Colunas</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Numérica</strong> (ex: creditLimit)</td>
+<td>zscore, percentile, min_max_scaled</td>
+<td><strong>3 colunas</strong></td>
+</tr>
+<tr>
+<td><strong>Categórica</strong> (ex: country)</td>
+<td>frequency, pct</td>
+<td><strong>2 colunas</strong></td>
+</tr>
+<tr>
+<td><strong>Data/Timestamp</strong> (ex: orderDate)</td>
+<td>year, month, day, dayofweek, quarter</td>
+<td><strong>5 colunas</strong></td>
+</tr>
+<tr>
+<td><strong>Agregação</strong></td>
+<td>{num}_by_{cat}_mean</td>
+<td><strong>1 coluna por par</strong></td>
+</tr>
+<tr>
+<td><strong>Ranking</strong></td>
+<td>{primeira_num}_rank</td>
+<td><strong>1 coluna</strong></td>
+</tr>
+</tbody>
+</table>
+
+<p>---</p>
+
+<h3 id="exemplo-completo-tabela-customers">Exemplo Completo: Tabela Customers</h3>
+
+<strong>Entrada (Silver - 13 colunas)</strong>:
+<pre><code>customerNumber,contactFirstName,contactLastName,country,creditLimit,orderDate,DataQualityEvaluationResult
+<p>103,John,Doe,USA,50000,2024-01-15,Passed</p>
+<p>104,Jane,Smith,France,100000,2024-02-20,Passed</p>
+<p>105,Bob,Wilson,USA,75000,2024-03-10,Passed</code></pre></p>
+
+<strong>Saída (Gold Delta - 35+ colunas)</strong>:
+
+<table>
+<thead><tr>
+<th>Categoria</th>
+<th>Colunas</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Originais (13)</strong></td>
+<td>customerNumber, contactFirstName, contactLastName, country, creditLimit, orderDate, ...</td>
+</tr>
+<tr>
+<td><strong>Numéricas (3×2 = 6)</strong></td>
+<td>creditLimit_zscore, creditLimit_percentile, creditLimit_min_max_scaled, customerNumber_zscore, ...</td>
+</tr>
+<tr>
+<td><strong>Categóricas (2×2 = 4)</strong></td>
+<td>country_frequency, country_pct, contactLastName_frequency, contactLastName_pct</td>
+</tr>
+<tr>
+<td><strong>Temporais (5×1 = 5)</strong></td>
+<td>orderDate_year, orderDate_month, orderDate_day, orderDate_dayofweek, orderDate_quarter</td>
+</tr>
+<tr>
+<td><strong>Agregações (3)</strong></td>
+<td>creditLimit_by_country_mean, customerNumber_by_country_mean, ...</td>
+</tr>
+<tr>
+<td><strong>Ranking (1)</strong></td>
+<td>creditLimit_rank</td>
+</tr>
+</tbody>
+</table>
+
+<strong>Total</strong>: ~35 colunas (13 originais + 22 features)
+
+<p>---</p>
+
+<h3 id="casos-de-uso-por-feature">Casos de Uso por Feature</h3>
+
+<h4 id="1-analise-de-outliers">1. Análise de Outliers</h4>
+<pre><code><h1 id="clientes-com-credito-anormal-outliers">Clientes com crédito anormal (outliers)</h1>
+<p>outliers = df[abs(df['creditLimit_zscore']) > 2]</code></pre></p>
+
+<h4 id="2-segmentacao-por-percentil">2. Segmentação por Percentil</h4>
+<pre><code><h1 id="clientes-premium-top-10">Clientes premium (top 10%)</h1>
+<p>premium = df[df['creditLimit_percentile'] >= 90]</code></pre></p>
+
+<h4 id="3-comparacao-com-media-do-grupo">3. Comparação com Média do Grupo</h4>
+<pre><code><h1 id="clientes-acima-da-media-do-pais">Clientes acima da média do país</h1>
+<p>above_avg = df[df['creditLimit'] > df['creditLimit_by_country_mean']]</code></pre></p>
+
+<h4 id="4-analise-temporal">4. Análise Temporal</h4>
+<pre><code><h1 id="pedidos-por-dia-da-semana">Pedidos por dia da semana</h1>
+<p>df.groupby('orderDate_dayofweek')['orderNumber'].count()</p>
+
+<h1 id="tendencia-anual">Tendência anual</h1>
+<p>df.groupby(['orderDate_year', 'orderDate_quarter']).agg({</p>
+<p>    'orderAmount': 'sum',</p>
+<p>    'orderNumber': 'count'</p>
+<p>})</code></pre></p>
+
+<h4 id="5-top-n-rankings">5. Top N Rankings</h4>
+<pre><code><h1 id="top-20-produtos-por-vendas">Top 20 produtos por vendas</h1>
+<p>top_products = df[df['productSales_rank'] <= 20]</code></pre></p>
+
+<h4 id="6-analise-de-popularidade">6. Análise de Popularidade</h4>
+<pre><code><h1 id="paises-com-mais-de-10-dos-clientes">Países com mais de 10% dos clientes</h1>
+<p>popular_countries = df[df['country_pct'] > 10]</code></pre></p>
+
+<p>---</p>
+
+<h3 id="validacao-de-features">Validação de Features</h3>
+
+<pre><code>from deltalake import DeltaTable
+
+<h1 id="carregar-delta-lake">Carregar Delta Lake</h1>
+<p>storage_options = {</p>
+<p>    "AWS_ACCESS_KEY_ID": "minioadmin",</p>
+<p>    "AWS_SECRET_ACCESS_KEY": "minioadmin",</p>
+<p>    "AWS_ENDPOINT_URL": "http://minio:9000",</p>
+<p>    "AWS_REGION": "us-east-1"</p>
+<p>}</p>
+
+<p>dt = DeltaTable("s3://lab01/gold/customers_delta/", storage_options=storage_options)</p>
+<p>df = dt.to_pandas()</p>
+
+<h1 id="verificar-features-criadas">Verificar features criadas</h1>
+<p>print("Total de colunas:", len(df.columns))</p>
+<p>print("\nFeatures numéricas:")</p>
+<p>print([col for col in df.columns if '_zscore' in col or '_percentile' in col])</p>
+
+<p>print("\nFeatures categóricas:")</p>
+<p>print([col for col in df.columns if '_frequency' in col or '_pct' in col])</p>
+
+<p>print("\nFeatures temporais:")</p>
+<p>print([col for col in df.columns if '_year' in col or '_month' in col])</p>
+
+<p>print("\nAgregações:")</p>
+<p>print([col for col in df.columns if '_by_' in col])</p>
+
+<p>print("\nRankings:")</p>
+<p>print([col for col in df.columns if '_rank' in col])</code></pre></p>
+
+<p>---</p>
+
+<h3 id="performance-e-otimizacao">Performance e Otimização</h3>
+
+<table>
+<thead><tr>
+<th>Métrica</th>
+<th>Valor</th>
+<th>Nota</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Multiplicação de colunas</strong></td>
+<td>~2.5x</td>
+<td>13 originais → 35 finais</td>
+</tr>
+<tr>
+<td><strong>Overhead de processamento</strong></td>
+<td>~15-30%</td>
+<td>Tempo adicional para criar features</td>
+</tr>
+<tr>
+<td><strong>Tamanho do arquivo</strong></td>
+<td>~1.5x</td>
+<td>Parquet comprime bem colunas derivadas</td>
+</tr>
+<tr>
+<td><strong>Benefício analítico</strong></td>
+<td>Muito alto</td>
+<td>22 features prontas para ML/BI</td>
+</tr>
+</tbody>
+</table>
+
+<strong>Otimizações aplicadas</strong>:
+<ul>
+<li><span class="badge success">✅</span> Features calculadas apenas para colunas com variação (nunique > 1)</li>
+<li><span class="badge success">✅</span> Agregações limitadas a categorias com < 80% de valores únicos</li>
+<li><span class="badge success">✅</span> Ranking usa <code>dense_rank</code> (mais eficiente que <code>rank</code>)</li>
+<li><span class="badge success">✅</span> Tipo de dados otimizado (int64 para contagens, float64 para métricas)</li>
+</ul>
+
+<p>---</p>
+
+<h3 id="integracao-com-bi-tools">Integração com BI Tools</h3>
+
+<p>As features criadas podem ser usadas diretamente em ferramentas de BI:</p>
+
+<strong>Power BI</strong>:
+<pre><code>// Clientes premium (calculado automaticamente)
+<p>Premium Customers = </p>
+<p>    CALCULATE(</p>
+<p>        COUNT(customers[customerNumber]),</p>
+<p>        customers[creditLimit_percentile] >= 90</p>
+<p>    )</p>
+
+<p>// Comparação com média do país</p>
+<p>Above Country Average = </p>
+<p>    IF(</p>
+<p>        customers[creditLimit] > customers[creditLimit_by_country_mean],</p>
+<p>        "Acima", "Abaixo"</p>
+<p>    )</code></pre></p>
+
+<strong>SQL (DuckDB, Trino, Spark)</strong>:
+<pre><code>-- Análise de sazonalidade
+<p>SELECT </p>
+<p>    orderDate_quarter,</p>
+<p>    orderDate_dayofweek,</p>
+<p>    COUNT(*) as orders,</p>
+<p>    AVG(orderAmount) as avg_amount</p>
+<p>FROM orders_delta</p>
+<p>WHERE orderDate_year = 2024</p>
+<p>GROUP BY orderDate_quarter, orderDate_dayofweek</p>
+<p>ORDER BY orderDate_quarter, orderDate_dayofweek</code></pre></p>
+
+<p>---</p>
+
+<h2 id="fluxo-de-processamento">🔄 Fluxo de Processamento</h2>
+
+<h3 id="1-entrada-silver-parquet">1. Entrada: Silver Parquet</h3>
+
+<pre><code><h1 id="arquivo-de-entrada">Arquivo de entrada</h1>
+<p>s3://lab01/silver/orders/20251124_abc123.parquet</code></pre></p>
+
+<h3 id="2-leitura-e-agregacao">2. Leitura e Agregação</h3>
+
+<pre><code><h1 id="libgold-delta-layerpy-silver-to-gold-delta">lib/gold_delta_layer.py - silver_to_gold_delta()</h1>
+<p>df = pd.read_parquet(silver_local)  # Download do MinIO</p>
+<p>df = _apply_aggregations(df)         # Transformações analíticas</p>
+<p>df = df.astype(str)                  # Convert categorical → string</code></pre></p>
+
+<h3 id="3-escrita-delta-lake">3. Escrita Delta Lake</h3>
+
+<pre><code>from deltalake import write_deltalake
+
+<p>write_deltalake(</p>
+<p>    table_or_uri=gold_delta_path,</p>
+<p>    data=df,</p>
+<p>    mode="append",                    # Ou "overwrite" na primeira vez</p>
+<p>    storage_options=storage_options,  # Credenciais MinIO</p>
+<p>    schema_mode="merge"               # Evolução de schema</p>
+<p>)</code></pre></p>
+
+<h3 id="4-versionamento-automatico">4. Versionamento Automático</h3>
+
+<pre><code>_delta_log/00000000000000000000.json:
+<p>{</p>
+<p>  "add": {</p>
+<p>    "path": "0-uuid-0.parquet",</p>
+<p>    "size": 12345,</p>
+<p>    "modificationTime": 1700000000000</p>
+<p>  },</p>
+<p>  "commitInfo": {</p>
+<p>    "timestamp": 1700000000000,</p>
+<p>    "operation": "WRITE",</p>
+<p>    "version": 0</p>
+<p>  }</p>
+<p>}</code></pre></p>
+
+<p>---</p>
+
+<h2 id="codigo-da-implementacao">💻 Código da Implementação</h2>
+
+<h3 id="arquivo-srcdagslibgold-delta-layerpy">Arquivo: <code>src/dags/lib/gold_delta_layer.py</code></h3>
+
+<pre><code>def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs):
+<p>    """</p>
+<p>    Camada Gold com Delta Lake: Dados agregados com versionamento e ACID.</p>
+    
+<p>    Recursos:</p>
+<ul>
+<li>ACID transactions</li>
+<li>Time travel (versões anteriores)</li>
+<li>Schema evolution</li>
+<li>MERGE/UPDATE/DELETE support</li>
+<li>Compactação automática</li>
+</ul>
+<p>    """</p>
+<p>    try:</p>
+<p>        from deltalake import write_deltalake, DeltaTable</p>
+<p>        from airflow.providers.amazon.aws.hooks.s3 import S3Hook</p>
+<p>    except ImportError:</p>
+<p>        # Fallback para Parquet tradicional</p>
+<p>        from lib.gold_layer import silver_to_gold</p>
+<p>        return silver_to_gold(source_filename, target_table_name, **kwargs)</p>
+    
+<p>    # 1. Download do Silver</p>
+<p>    hook = S3Hook(aws_conn_id='minio_conn')</p>
+<p>    silver_local = hook.download_file(source_filename, bucket)</p>
+    
+<p>    # 2. Leitura e transformação</p>
+<p>    df = pd.read_parquet(silver_local)</p>
+<p>    df = _apply_aggregations(df)  # Lógica de negócio</p>
+    
+<p>    # 3. Conversão de tipos (Delta não suporta categorical)</p>
+<p>    for col in df.select_dtypes(include=['category']).columns:</p>
+<p>        df[col] = df[col].astype(str)</p>
+    
+<p>    # 4. Credenciais MinIO</p>
+<p>    credentials = hook.get_credentials()</p>
+<p>    storage_options = {</p>
+<p>        "AWS_ACCESS_KEY_ID": credentials.access_key,</p>
+<p>        "AWS_SECRET_ACCESS_KEY": credentials.secret_key,</p>
+<p>        "AWS_ENDPOINT_URL": hook.conn_config.endpoint_url,</p>
+<p>        "AWS_REGION": "us-east-1",</p>
+<p>        "AWS_S3_ALLOW_UNSAFE_RENAME": "true"</p>
+<p>    }</p>
+    
+<p>    # 5. Escrita Delta Lake</p>
+<p>    gold_delta_path = f"s3://{bucket}/gold/{target_table_name}_delta/"</p>
+    
+<p>    write_deltalake(</p>
+<p>        table_or_uri=gold_delta_path,</p>
+<p>        data=df,</p>
+<p>        mode="append",</p>
+<p>        storage_options=storage_options,</p>
+<p>        schema_mode="merge"</p>
+<p>    )</p>
+    
+<p>    # 6. Obter versão criada</p>
+<p>    delta_table = DeltaTable(gold_delta_path, storage_options=storage_options)</p>
+<p>    version = delta_table.version()</p>
+    
+<p>    log.info(f"<span class="badge success">✅</span> Delta Lake salvo em: {gold_delta_path} (versão {version})")</p>
+    
+<p>    return {</p>
+<p>        "gold_delta": gold_delta_path,</p>
+<p>        "status": "success",</p>
+<p>        "version": version,</p>
+<p>        "format": "delta"</p>
+<p>    }</code></pre></p>
+
+<p>---</p>
+
+<h2 id="integracao-com-medallion-pipeline">🔌 Integração com Medallion Pipeline</h2>
+
+<h3 id="arquivo-srcdagslibmedallion-pipelinepy">Arquivo: <code>src/dags/lib/medallion_pipeline.py</code></h3>
+
+<pre><code>def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
+<p>    results = {}</p>
+    
+<p>    # Raw → Bronze</p>
+<p>    bronze_result = raw_to_bronze(source_filename, target_table_name, **kwargs)</p>
+<p>    results['bronze_key'] = bronze_result.get('bronze_key')</p>
+    
+<p>    # Bronze → Silver</p>
+<p>    silver_result = bronze_to_silver(bronze_result['bronze_key'], target_table_name, **kwargs)</p>
+<p>    results['silver_key'] = silver_result.get('silver_key')</p>
+    
+<p>    # Silver → Gold (Delta Lake)</p>
+<p>    try:</p>
+<p>        from lib.gold_delta_layer import silver_to_gold_delta</p>
+<p>        gold_result = silver_to_gold_delta(silver_result['silver_key'], target_table_name, **kwargs)</p>
+<p>        results['gold_delta'] = gold_result.get('gold_delta')</p>
+<p>        results['gold_format'] = 'delta'</p>
+<p>    except Exception as e:</p>
+<p>        log.warning(f"Delta Lake falhou, usando Parquet: {e}")</p>
+<p>        from lib.gold_layer import silver_to_gold</p>
+<p>        gold_result = silver_to_gold(silver_result['silver_key'], target_table_name, **kwargs)</p>
+<p>        results['gold_key'] = gold_result.get('gold_key')</p>
+<p>        results['gold_format'] = 'parquet'</p>
+    
+<p>    return results</code></pre></p>
+
+<p>---</p>
+
+<h2 id="testes-e-validacao">🧪 Testes e Validação</h2>
+
+<h3 id="1-verificar-delta-lake-no-minio">1. Verificar Delta Lake no MinIO</h3>
+
+<pre><code><h1 id="via-aws-cli-minio">Via AWS CLI (MinIO)</h1>
+<p>aws --endpoint-url http://localhost:9000 s3 ls s3://lab01/gold/orders_delta/</p>
+
+<h1 id="resultado-esperado">Resultado esperado:</h1>
+<h1 id="pre-delta-log">PRE _delta_log/</h1>
+<h1 id="2025-11-24-100000-12345-0-uuid-0parquet">2025-11-24 10:00:00   12345 0-uuid-0.parquet</h1></code></pre>
+
+<h3 id="2-ler-delta-lake-com-python">2. Ler Delta Lake com Python</h3>
+
+<pre><code>from deltalake import DeltaTable
+
+<p>storage_options = {</p>
+<p>    "AWS_ACCESS_KEY_ID": "minioadmin",</p>
+<p>    "AWS_SECRET_ACCESS_KEY": "minioadmin",</p>
+<p>    "AWS_ENDPOINT_URL": "http://minio:9000",</p>
+<p>    "AWS_REGION": "us-east-1"</p>
+<p>}</p>
+
+<h1 id="carregar-tabela-delta">Carregar tabela Delta</h1>
+<p>dt = DeltaTable("s3://lab01/gold/orders_delta/", storage_options=storage_options)</p>
+
+<h1 id="ver-versao-atual">Ver versão atual</h1>
+<p>print(f"Versão atual: {dt.version()}")</p>
+
+<h1 id="ver-historico-de-transacoes">Ver histórico de transações</h1>
+<p>print(dt.history())</p>
+
+<h1 id="ler-dados">Ler dados</h1>
+<p>df = dt.to_pandas()</p>
+<p>print(df.head())</code></pre></p>
+
+<h3 id="3-time-travel-versoes-anteriores">3. Time Travel (Versões Anteriores)</h3>
+
+<pre><code><h1 id="ler-versao-especifica">Ler versão específica</h1>
+<p>dt_v0 = DeltaTable("s3://lab01/gold/orders_delta/", version=0, storage_options=storage_options)</p>
+<p>df_v0 = dt_v0.to_pandas()</p>
+
+<h1 id="comparar-versoes">Comparar versões</h1>
+<p>print(f"Linhas v0: {len(df_v0)}")</p>
+<p>print(f"Linhas atual: {len(df)}")</code></pre></p>
+
+<p>---</p>
+
+<h2 id="logs-de-execucao">📊 Logs de Execução</h2>
+
+<h3 id="exemplo-de-sucesso">Exemplo de Sucesso</h3>
+
+<pre><code>[GOLD-DELTA] Iniciando agregação Delta Lake para: orders
+<p>[GOLD-DELTA] Arquivo origem: silver/orders/20251124_abc123.parquet</p>
+<p>[GOLD-DELTA] Tentando importar deltalake...</p>
+<p>[GOLD-DELTA] ✓ S3Hook importado</p>
+<p>[GOLD-DELTA] ✓ deltalake importado com sucesso!</p>
+<p>[GOLD-DELTA] Baixando Silver de: s3://lab01/silver/orders/20251124_abc123.parquet</p>
+<p>[GOLD-DELTA] ✓ 29 linhas carregadas</p>
+<p>[GOLD-DELTA] Aplicando agregações...</p>
+<p>[GOLD-DELTA] Convertendo categorical → string: ['ProductCategory', 'CustomerSegment']</p>
+<p>[GOLD-DELTA] Escrevendo Delta Lake em: s3://lab01/gold/orders_delta/</p>
+<p>[GOLD-DELTA] <span class="badge success">✅</span> Delta Lake salvo em: s3://lab01/gold/orders_delta/ (versão 0)</code></pre></p>
+
+<p>---</p>
+
+<h2 id="troubleshooting">🐛 Troubleshooting</h2>
+
+<h3 id="problema-1-modulenotfounderror-no-module-named-deltalake">Problema 1: ModuleNotFoundError: No module named 'deltalake'</h3>
+
+<strong>Causa</strong>: Pacote não instalado no Airflow scheduler/worker
+
+<strong>Solução</strong>:
+<pre><code>docker exec airflow-scheduler pip install deltalake==0.15.0
+<p>docker exec datalake-air-flow-airflow-worker-1 pip install deltalake==0.15.0</p>
+<p>docker restart airflow-scheduler datalake-air-flow-airflow-worker-1</code></pre></p>
+
+<h3 id="problema-2-invalidaccesskeyid">Problema 2: InvalidAccessKeyId</h3>
+
+<strong>Causa</strong>: Credenciais MinIO não configuradas corretamente
+
+<strong>Solução</strong>: Usar <code>S3Hook.get_credentials()</code> em vez de variáveis de ambiente:
+<pre><code>hook = S3Hook(aws_conn_id='minio_conn')
+<p>credentials = hook.get_credentials()</p>
+<p>storage_options = {</p>
+<p>    "AWS_ACCESS_KEY_ID": credentials.access_key,</p>
+<p>    "AWS_SECRET_ACCESS_KEY": credentials.secret_key,</p>
+<p>    "AWS_ENDPOINT_URL": hook.conn_config.endpoint_url</p>
+<p>}</code></pre></p>
+
+<h3 id="problema-3-arrowinvalid-dictionary-type-not-supported">Problema 3: ArrowInvalid: Dictionary type not supported</h3>
+
+<strong>Causa</strong>: Delta Lake não suporta tipo <code>categorical</code> do Pandas
+
+<strong>Solução</strong>: Converter para string antes de escrever:
+<pre><code>for col in df.select_dtypes(include=['category']).columns:
+<p>    df[col] = df[col].astype(str)</code></pre></p>
+
+<h3 id="problema-4-fallback-para-parquet">Problema 4: Fallback para Parquet</h3>
+
+<strong>Causa</strong>: Import do <code>deltalake</code> falhou ou erro na escrita
+
+<strong>Verificar</strong>:
+<pre><code>docker exec airflow-scheduler python -c "import deltalake; print(deltalake.__version__)"</code></pre>
+
+<strong>Logs</strong>: Procurar por <code>[GOLD-DELTA] Delta Lake não disponível, usando Parquet</code>
+
+<p>---</p>
+
+<h2 id="proximos-passos">🚀 Próximos Passos</h2>
+
+<h3 id="1-otimizacao">1. Otimização</h3>
+
+<ul>
+<li><strong>OPTIMIZE</strong>: Compactar arquivos pequenos</li>
+<li><strong>VACUUM</strong>: Remover arquivos antigos (cleanup)</li>
+<li><strong>Z-ORDER</strong>: Otimizar queries por colunas específicas</li>
+</ul>
+
+<pre><code>from deltalake import DeltaTable
+
+<p>dt = DeltaTable("s3://lab01/gold/orders_delta/", storage_options=storage_options)</p>
+
+<h1 id="compactar-arquivos">Compactar arquivos</h1>
+<p>dt.optimize()</p>
+
+<h1 id="limpar-versoes-antigas-7-dias">Limpar versões antigas (> 7 dias)</h1>
+<p>dt.vacuum(retention_hours=168)</code></pre></p>
+
+<h3 id="2-queries-analiticas">2. Queries Analíticas</h3>
+
+<ul>
+<li>Usar Spark SQL, Trino ou DuckDB para consultar Delta Lake</li>
+<li>Criar views materializadas</li>
+<li>Integração com Power BI via ODBC</li>
+</ul>
+
+<h3 id="3-schema-evolution">3. Schema Evolution</h3>
+
+<pre><code><h1 id="adicionar-nova-coluna">Adicionar nova coluna</h1>
+<p>df['new_column'] = 'default_value'</p>
+<p>write_deltalake(</p>
+<p>    table_or_uri=gold_delta_path,</p>
+<p>    data=df,</p>
+<p>    mode="append",</p>
+<p>    schema_mode="merge"  # Adiciona coluna automaticamente</p>
+<p>)</code></pre></p>
+
+<h3 id="4-merge-upsert">4. MERGE (Upsert)</h3>
+
+<pre><code>from deltalake import DeltaTable
+
+<p>dt = DeltaTable("s3://lab01/gold/orders_delta/", storage_options=storage_options)</p>
+
+<h1 id="atualizar-registros-existentes-ou-inserir-novos">Atualizar registros existentes ou inserir novos</h1>
+<p>dt.merge(</p>
+<p>    source=new_df,</p>
+<p>    predicate="target.order_id = source.order_id",</p>
+<p>    source_alias="source",</p>
+<p>    target_alias="target"</p>
+<p>).when_matched_update_all().when_not_matched_insert_all().execute()</code></pre></p>
+
+<p>---</p>
+
+<h2 id="comparacao-delta-lake-python-vs-delta-lake-spark">📚 Comparação: Delta Lake Python vs Delta Lake Spark</h2>
+
+<h3 id="implementacao-atual-deltalake-python">Implementação Atual (deltalake-python)</h3>
+
+<p><span class="badge success">✅</span> <strong>Vantagens</strong>:</p>
+<ul>
+<li>Simples de instalar (<code>pip install deltalake</code>)</li>
+<li>Não requer cluster Spark</li>
+<li>Integração direta com Pandas</li>
+<li>Ideal para pipelines Airflow</li>
+<li>Baixo overhead de infraestrutura</li>
+</ul>
+
+<p><span class="badge warning">❌</span> <strong>Limitações</strong>:</p>
+<ul>
+<li>Processamento single-node (não distribuído)</li>
+<li>Performance limitada para datasets muito grandes (> 1GB)</li>
+<li>Menos recursos que Spark (sem MERGE nativo, otimizações limitadas)</li>
+</ul>
+
+<h3 id="alternativa-futura-spark-delta-spark">Alternativa Futura (Spark + delta-spark)</h3>
+
+<p><span class="badge success">✅</span> <strong>Vantagens</strong>:</p>
+<ul>
+<li>Processamento distribuído</li>
+<li>Suporte completo a SQL</li>
+<li>MERGE, UPDATE, DELETE nativos</li>
+<li>Z-ORDER, OPTIMIZE automáticos</li>
+<li>Ideal para big data (> 10GB)</li>
+</ul>
+
+<p><span class="badge warning">❌</span> <strong>Desvantagens</strong>:</p>
+<ul>
+<li>Requer cluster Spark</li>
+<li>Mais complexo de configurar</li>
+<li>Maior consumo de recursos</li>
+</ul>
+
+<strong>Recomendação</strong>: Manter implementação Python para pipelines atuais. Considerar Spark se volumes crescerem significativamente (> 100GB).
+
+<p>---</p>
+
+<h2 id="arquitetura-final-implementada">🎯 Arquitetura Final Implementada</h2>
+
+<pre><code>┌─────────────────────────────────────────────────────────────────┐
+<p>│                         Fontes de Dados                         │</p>
+<p>│  MySQL (northwind) │ APIs │ Arquivos CSV │ Outras Fontes       │</p>
+<p>└─────────────────────────────────────────────────────────────────┘</p>
+<p>                                 │</p>
+<p>                                 ▼</p>
+<p>┌─────────────────────────────────────────────────────────────────┐</p>
+<p>│                    RAW LAYER (CSV - MinIO)                      │</p>
+<p>│  • Dados brutos sem transformação                               │</p>
+<p>│  • Armazenamento: s3://lab01/raw/{dag_id}/{timestamp}.csv      │</p>
+<p>└─────────────────────────────────────────────────────────────────┘</p>
+<p>                                 │</p>
+<p>                                 ▼</p>
+<p>┌─────────────────────────────────────────────────────────────────┐</p>
+<p>│                  BRONZE LAYER (CSV - MinIO)                     │</p>
+<p>│  • Limpeza básica (nulls, duplicatas)                           │</p>
+<p>│  • Tipagem de dados                                             │</p>
+<p>│  • Armazenamento: s3://lab01/bronze/{table}/{timestamp}.csv    │</p>
+<p>└─────────────────────────────────────────────────────────────────┘</p>
+<p>                                 │</p>
+<p>                                 ▼</p>
+<p>┌─────────────────────────────────────────────────────────────────┐</p>
+<p>│              SILVER LAYER (Parquet + Quality - MinIO)           │</p>
+<p>│  • Transformações inteligentes (categóricos, one-hot)           │</p>
+<p>│  • Validação de qualidade (5 regras)                            │</p>
+<p>│  • Colunas: DataQualityRulesPass/Fail/Skip/EvaluationResult    │</p>
+<p>│  • Armazenamento: s3://lab01/silver/{table}/{timestamp}.parquet│</p>
+<p>└─────────────────────────────────────────────────────────────────┘</p>
+<p>                                 │</p>
+<p>                                 ▼</p>
+<p>┌─────────────────────────────────────────────────────────────────┐</p>
+<p>│               GOLD LAYER (Delta Lake - MinIO)                   │</p>
+<p>│  • Tabelas transacionais (ACID)                                 │</p>
+<p>│  • Versionamento (_delta_log/)                                  │</p>
+<p>│  • Time travel (versões anteriores)                             │</p>
+<p>│  • Agregações e analytics                                       │</p>
+<p>│  • Armazenamento: s3://lab01/gold/{table}_delta/               │</p>
+<p>└─────────────────────────────────────────────────────────────────┘</p>
+<p>                                 │</p>
+<p>                                 ▼</p>
+<p>┌─────────────────────────────────────────────────────────────────┐</p>
+<p>│                    Analytics & BI Layer                         │</p>
+<p>│  Power BI │ Spark SQL │ Trino │ DuckDB │ Python Notebooks      │</p>
+<p>└─────────────────────────────────────────────────────────────────┘</code></pre></p>
+
+<p>---</p>
+
+<h2 id="checklist-de-implementacao">📋 Checklist de Implementação</h2>
+
+<ul>
+<li>[x] Instalar <code>deltalake==0.15.0</code> no Airflow</li>
+<li>[x] Criar módulo <code>gold_delta_layer.py</code></li>
+<li>[x] Implementar <code>silver_to_gold_delta()</code></li>
+<li>[x] Integrar com <code>medallion_pipeline.py</code></li>
+<li>[x] Configurar credenciais MinIO via S3Hook</li>
+<li>[x] Converter tipos categóricos para string</li>
+<li>[x] Testar com ingestão MySQL (northwind.orders)</li>
+<li>[x] Validar estrutura Delta (_delta_log/)</li>
+<li>[x] Verificar versionamento (versão 0 criada)</li>
+<li>[x] Logs de execução funcionais</li>
+<li>[ ] Implementar OPTIMIZE/VACUUM (futuro)</li>
+<li>[ ] Criar queries analíticas (futuro)</li>
+<li>[ ] Integração com BI tools (futuro)</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="resumo-visual-transformacao-silver-gold">📋 Resumo Visual - Transformação Silver → Gold</h2>
+
+<h3 id="multiplicacao-de-colunas">Multiplicação de Colunas</h3>
+
+<pre><code>┌─────────────────────────┐
+<p>│   Silver Parquet        │</p>
+<p>│   13 colunas originais  │</p>
+<p>│   + 4 qualidade         │</p>
+<p>│   = 17 colunas totais   │</p>
+<p>└───────────┬─────────────┘</p>
+<p>            │</p>
+<p>            ▼</p>
+<p>┌─────────────────────────┐</p>
+<p>│ Inteligência Analítica  │</p>
+<p>│ • 6 features numéricas  │</p>
+<p>│ • 4 features categóricas│</p>
+<p>│ • 5 features temporais  │</p>
+<p>│ • 3 agregações          │</p>
+<p>│ • 1 ranking             │</p>
+<p>│ = +19 features novas    │</p>
+<p>└───────────┬─────────────┘</p>
+<p>            │</p>
+<p>            ▼</p>
+<p>┌─────────────────────────┐</p>
+<p>│   Gold Delta Lake       │</p>
+<p>│   17 originais          │</p>
+<p>│   + 19 features         │</p>
+<p>│   = 36 colunas totais   │</p>
+<p>│   (2.1x aumento)        │</p>
+<p>└─────────────────────────┘</code></pre></p>
+
+<h3 id="comparacao-de-complexidade">Comparação de Complexidade</h3>
+
+<table>
+<thead><tr>
+<th>Métrica</th>
+<th>Silver</th>
+<th>Gold</th>
+<th>Ganho</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Colunas</strong></td>
+<td>17</td>
+<td>36</td>
+<td>+19 (112% aumento)</td>
+</tr>
+<tr>
+<td><strong>Pronto para ML</strong></td>
+<td><span class="badge warning">❌</span> Não</td>
+<td><span class="badge success">✅</span> Sim</td>
+<td>Features engenheiradas</td>
+</tr>
+<tr>
+<td><strong>Análise Temporal</strong></td>
+<td><span class="badge warning">❌</span> Limitada</td>
+<td><span class="badge success">✅</span> Completa</td>
+<td>5 dimensões de tempo</td>
+</tr>
+<tr>
+<td><strong>Comparações</strong></td>
+<td><span class="badge warning">❌</span> Difícil</td>
+<td><span class="badge success">✅</span> Fácil</td>
+<td>Percentis, rankings, agregações</td>
+</tr>
+<tr>
+<td><strong>Segmentação</strong></td>
+<td><span class="badge warning">⚠️</span>  Manual</td>
+<td><span class="badge success">✅</span> Automática</td>
+<td>Categorização inteligente</td>
+</tr>
+</tbody>
+</table>
+
+<p>---</p>
+
+<h2 id="quick-reference-features-gold">🎯 Quick Reference - Features Gold</h2>
+
+<h3 id="por-tipo-de-analise">Por Tipo de Análise</h3>
+
+<strong>Análise de Performance</strong>:
+<pre><code><h1 id="top-performers">Top performers</h1>
+<p>df[df['{col}_rank'] <= 10]</p>
+
+<h1 id="acima-da-media-do-grupo">Acima da média do grupo</h1>
+<p>df[df['{col}'] > df['{col}_by_{group}_mean']]</p>
+
+<h1 id="outliers-positivos">Outliers positivos</h1>
+<p>df[df['{col}_zscore'] > 2]</code></pre></p>
+
+<strong>Análise Temporal</strong>:
+<pre><code><h1 id="por-trimestre">Por trimestre</h1>
+<p>df.groupby(['date_year', 'date_quarter']).agg({'amount': 'sum'})</p>
+
+<h1 id="dia-da-semana-com-mais-atividade">Dia da semana com mais atividade</h1>
+<p>df.groupby('date_dayofweek')['id'].count()</p>
+
+<h1 id="sazonalidade-mensal">Sazonalidade mensal</h1>
+<p>df.groupby('date_month')['sales'].mean()</code></pre></p>
+
+<strong>Segmentação</strong>:
+<pre><code><h1 id="premium-top-10">Premium (top 10%)</h1>
+<p>df[df['value_percentile'] >= 90]</p>
+
+<h1 id="categorias-populares-5">Categorias populares (>5%)</h1>
+<p>df[df['category_pct'] > 5]</p>
+
+<h1 id="normalizado-para-ml">Normalizado para ML</h1>
+<p>X = df[[col for col in df.columns if '_min_max_scaled' in col]]</code></pre></p>
+
+<p>---</p>
+
+<h2 id="manutencao-e-troubleshooting">🔧 Manutenção e Troubleshooting</h2>
+
+<h3 id="verificar-health-do-delta-lake">Verificar Health do Delta Lake</h3>
+
+<pre><code><h1 id="via-minio-console">Via MinIO Console</h1>
+<p>http://localhost:9001 → lab01 → gold/{table}_delta/</p>
+
+<h1 id="deve-conter">Deve conter:</h1>
+<h1 id="delta-log-com-arquivos-json"><span class="badge success">✅</span> _delta_log/ (com arquivos .json)</h1>
+<h1 id="multiplos-arquivos-parquet"><span class="badge success">✅</span> Múltiplos arquivos .parquet</h1>
+<h1 id="tamanho-crescente-ao-longo-do-tempo"><span class="badge success">✅</span> Tamanho crescente ao longo do tempo</h1></code></pre>
+
+<h3 id="problemas-comuns">Problemas Comuns</h3>
+
+<table>
+<thead><tr>
+<th>Problema</th>
+<th>Sintoma</th>
+<th>Solução</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Muitas features (>100 colunas)</strong></td>
+<td>Tabela muito larga</td>
+<td>Normal se muitas colunas numéricas/categóricas. Considerar seleção de features</td>
+</tr>
+<tr>
+<td><strong>Features com valores idênticos</strong></td>
+<td>{col}_min_max_scaled = 0 para todos</td>
+<td>Coluna sem variação (nunique=1). Feature pulada automaticamente</td>
+</tr>
+<tr>
+<td><strong>Agregações faltando</strong></td>
+<td>{col}_by_{group}_mean não criada</td>
+<td>Categoria tem >80% de valores únicos. Considerar outra coluna de grupo</td>
+</tr>
+<tr>
+<td><strong>Performance lenta</strong></td>
+<td>Leitura/escrita demorada</td>
+<td>Executar <code>dt.optimize()</code> e <code>dt.vacuum()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>---</p>
+
+<h2 id="referencias">📖 Referências</h2>
+
+<ul>
+<li><a href="https://delta.io/">Delta Lake Official Docs</a></li>
+<li><a href="https://github.com/delta-io/delta-rs">deltalake-python GitHub</a></li>
+<li><a href="https://www.datacamp.com/pt/blog/iceberg-vs-delta-lake">Delta Lake vs Iceberg Comparison</a></li>
+<li><a href="https://atlan.com/know/iceberg/apache-iceberg-vs-delta-lake/">Atlan: Delta Lake vs Iceberg</a></li>
+<li><a href="https://docs.delta.io/latest/delta-batch.html">Apache Spark + Delta Lake</a></li>
+<li><strong>Feature Engineering</strong>: <a href="https://scikit-learn.org/stable/modules/preprocessing.html">Scikit-learn Feature Engineering</a></li>
+<li><strong>Z-Score</strong>: <a href="https://en.wikipedia.org/wiki/Standard_score">Wikipedia - Standard Score</a></li>
+</ul>
+
+<p>---</p>
+
+<h2 id="equipe-e-contribuicoes">👥 Equipe e Contribuições</h2>
+
+<strong>Implementação</strong>: Paulo Nascimento  
+<strong>Arquitetura</strong>: Data Engineering Team  
+<strong>Data</strong>: Novembro 2024  
+<strong>Versão</strong>: 1.0 (Delta Lake Python + Feature Engineering)
+
+<p>---</p>
+
+<strong>Última atualização</strong>: 24/11/2025  
+<strong>Status</strong>: <span class="badge success">✅</span> Produção
+
+<h2 id="historico-de-atualizacoes">Histórico de Atualizações</h2>
+
+<table>
+<thead><tr>
+<th>Data</th>
+<th>Versão</th>
+<th>Mudanças</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>2024-11-23</td>
+<td>1.0</td>
+<td>Implementação inicial Delta Lake com deltalake-python 0.15.0</td>
+</tr>
+<tr>
+<td>2024-11-24</td>
+<td>1.1</td>
+<td>Bugs corrigidos: silver_key, Exception handling, logs</td>
+</tr>
+<tr>
+<td>2024-11-24</td>
+<td>1.2</td>
+<td>Documentação completa com dicionário de dados e features</td>
+</tr>
+<tr>
+<td>2024-11-24</td>
+<td>1.3</td>
+<td>Adicionado guia de Feature Engineering e casos de uso</td>
+</tr>
+</tbody>
+</table>
+
+        </main>
+    </div>
+</body>
+</html>

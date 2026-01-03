@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📚 Documentação do Datalake - Índice de Navegação - Documentação Datalake</title>
+    <style>
+        :root {
+            --sidebar-width: 280px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar h2 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .sidebar nav ul {
+            list-style: none;
+        }
+
+        .sidebar nav ul li {
+            margin-bottom: 8px;
+        }
+
+        .sidebar nav ul li a {
+            color: #ecf0f1;
+            text-decoration: none;
+            display: block;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .sidebar nav ul li a:hover {
+            background: #34495e;
+            color: #3498db;
+        }
+
+        .sidebar nav ul li a.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            flex: 1;
+            background: white;
+            max-width: 1400px;
+            transition: margin-left 0.3s ease;
+        }
+
+        .content.collapsed {
+            margin-left: 0;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 900;
+            display: none;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+        }
+
+        @media (min-width: 1100px) {
+            .sidebar-toggle {
+                left: calc(var(--sidebar-width) + 16px);
+            }
+        }
+
+        .content h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .content h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.8rem;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .content h3 {
+            color: #555;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+        }
+
+        .content h4 {
+            color: #666;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        .content ul {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ul li {
+            margin-bottom: 8px;
+        }
+
+        .content ol {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ol li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #3498db;
+            color: white;
+            border-radius: 3px;
+            font-size: 0.85rem;
+            margin-left: 5px;
+        }
+
+        .badge.star {
+            background: #f39c12;
+        }
+
+        .badge.warning {
+            background: #e74c3c;
+        }
+
+        .badge.success {
+            background: #27ae60;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #c7254e;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        table th {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #2980b9;
+        }
+
+        table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        blockquote {
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #555;
+            font-style: italic;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .alert-info {
+            background: #d9edf7;
+            border-left: 4px solid #31708f;
+            color: #31708f;
+        }
+
+        .alert-warning {
+            background: #fcf8e3;
+            border-left: 4px solid #8a6d3b;
+            color: #8a6d3b;
+        }
+
+        .alert-success {
+            background: #dff0d8;
+            border-left: 4px solid #3c763d;
+            color: #3c763d;
+        }
+
+        .alert-danger {
+            background: #f2dede;
+            border-left: 4px solid #a94442;
+            color: #a94442;
+        }
+
+        .masked-value {
+            font-family: 'Courier New', monospace;
+            user-select: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #f4f4f4;
+            transition: all 0.3s ease;
+        }
+
+        .masked-value:hover {
+            background: #e0e0e0;
+            text-decoration: underline;
+        }
+
+        .masked-value.revealed {
+            background: #ffffcc;
+        }
+    </style>
+    <script>
+        // Mascara valores sensíveis (passwords, tokens, secrets)
+        function maskSensitiveValues() {
+            const sensitivePatterns = [
+                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
+            ];
+
+            const codeBlocks = document.querySelectorAll('code, pre');
+            
+            codeBlocks.forEach(block => {
+                let content = block.innerHTML;
+                
+                sensitivePatterns.forEach(pattern => {
+                    content = content.replace(pattern.regex, (match, value) => {
+                        if (!value) return match;
+                        
+                        const prefix = match.substring(0, match.indexOf(value));
+                        const masked = '*'.repeat(Math.min(value.length, 12));
+                        const tooltip = `Clique para revelar o valor`;
+                        
+                        return `${prefix}<span class="masked-value" title="${tooltip}" data-original="${value}" onclick="toggleMask(event)">${masked}</span>`;
+                    });
+                });
+                
+                block.innerHTML = content;
+            });
+        }
+
+        // Toggle visibilidade de valores mascarados
+        function toggleMask(event) {
+            event.stopPropagation();
+            const span = event.target;
+            
+            if (span.classList.contains('revealed')) {
+                const original = span.getAttribute('data-original');
+                span.textContent = '*'.repeat(Math.min(original.length, 12));
+                span.classList.remove('revealed');
+            } else {
+                const original = span.getAttribute('data-original');
+                span.textContent = original;
+                span.classList.add('revealed');
+            }
+        }
+
+        function setSidebarState(isOpen) {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            sidebar.classList.toggle('collapsed', !isOpen);
+            content.classList.toggle('collapsed', !isOpen);
+
+            const useOverlay = window.innerWidth < 1100;
+            if (overlay) {
+                overlay.classList.toggle('active', isOpen && useOverlay);
+            }
+
+            toggleBtn.textContent = isOpen ? '✕ Fechar' : '☰ Menu';
+        }
+
+        function initSidebarToggle() {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            const initialOpen = window.innerWidth >= 1100;
+            setSidebarState(initialOpen);
+
+            toggleBtn.addEventListener('click', function() {
+                const isOpen = !sidebar.classList.contains('collapsed');
+                setSidebarState(!isOpen);
+            });
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    setSidebarState(false);
+                });
+            }
+
+            window.addEventListener('resize', function() {
+                const shouldBeOpen = window.innerWidth >= 1100;
+                setSidebarState(shouldBeOpen);
+            });
+        }
+
+        // Executar quando documento carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            maskSensitiveValues();
+            initSidebarToggle();
+        });
+    </script>
+</head>
+<body>
+    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰ Menu</button>
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>📚 Documentação</h2>
+            <nav>
+                <ul>
+                    <li><a href="index.html" >🏠 Home</a></li>
+                    <li><a href="docs-index.html" class="active">📋 Índice Completo</a></li>
+                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    <li><a href="migracao-duckdb-postgresql.html" >🔌 Conexão Power BI</a></li>
+                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="content">
+<h1 id="documentacao-do-datalake-indice-de-navegacao">📚 Documentação do Datalake - Índice de Navegação</h1>
+
+<h2 id="visao-geral-da-arquitetura-medallion">Visão Geral da Arquitetura Medallion</h2>
+
+<pre><code>┌──────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+<p>│     RAW      │ → │    BRONZE    │ → │    SILVER    │ → │  GOLD DELTA  │</p>
+<p>│   (CSV)      │   │   (CSV)      │   │  (Parquet)   │   │  (Delta Lake)│</p>
+<p>│              │   │              │   │  + Quality   │   │  + Features  │</p>
+<p>└──────────────┘   └──────────────┘   └──────────────┘   └──────────────┘</p>
+<p> Dados brutos      Limpeza básica    Validação         Analytics</p>
+<p>                                      Transformações     Inteligência</code></pre></p>
+
+<p>---</p>
+
+<h2 id="guias-de-uso-e-configuracao">🎯 Guias de Uso e Configuração</h2>
+
+<h3 id="guia-da-interface-web-de-configuracao">📋 Guia da Interface Web de Configuração</h3>
+
+<h3 id="comandos-essenciais-de-banco-mysqlpostgresql">🛠️ Comandos Essenciais de Banco (MySQL/PostgreSQL)</h3>
+
+<strong>Arquivo</strong>: <a href="COMANDOS_BANCO_DOCKER.html"><code>COMANDOS_BANCO_DOCKER.md</code></a>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> Como acessar MySQL/PostgreSQL via Docker e host</li>
+<li><span class="badge success">✅</span> Backup e restore dos bancos</li>
+<li><span class="badge success">✅</span> Verificação de logs e troubleshooting</li>
+<li><span class="badge success">✅</span> Exemplos práticos de comandos bash</li>
+<li><span class="badge success">✅</span> Referências rápidas para Airflow, ingestão e manutenção</li>
+</ul>
+
+<strong>Quando ler</strong>: Sempre que precisar de comandos rápidos para acessar, diagnosticar ou restaurar bancos MySQL/PostgreSQL na stack Docker.
+
+<strong>Arquivo</strong>: <a href="guide-webapp-config.html"><code>GUIDE_WEBAPP_CONFIG.md</code></a>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> Como preencher formulário de configuração de DAGs</li>
+<li><span class="badge success">✅</span> Modo Single-Tabela vs Multi-Tabela</li>
+<li><span class="badge success">✅</span> Configuração de conexões SQL (Direta e SSH Tunnel)</li>
+<li><span class="badge success">✅</span> Seleção correta de funções de pipeline</li>
+<li><span class="badge success">✅</span> Validações automáticas e troubleshooting</li>
+<li><span class="badge success">✅</span> Exemplos práticos para cada tipo de fonte</li>
+</ul>
+
+<strong>Quando ler</strong>: Antes de criar sua primeira DAG na interface web, ou quando precisar entender as opções de configuração.
+
+<p>---</p>
+
+<h3 id="guia-de-conexao-com-ferramentas-de-bi">🔌 Guia de Conexão com Ferramentas de BI</h3>
+
+<strong>Arquivo</strong>: <a href="migracao-duckdb-postgresql.html"><code>MIGRACAO_DUCKDB_POSTGRESQL.md</code></a> <span class="badge star">⭐</span> <strong>RECOMENDADO</strong>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> Arquitetura PostgreSQL para BI (solução robusta)</li>
+<li><span class="badge success">✅</span> Configuração do postgres-bi container (porta 5433)</li>
+<li><span class="badge success">✅</span> DAG de sincronização Delta → PostgreSQL</li>
+<li><span class="badge success">✅</span> Conexão passo a passo no Power BI Desktop</li>
+<li><span class="badge success">✅</span> Suporte nativo a múltiplas tabelas simultâneas</li>
+<li><span class="badge success">✅</span> Manutenção, backup e troubleshooting</li>
+<li><span class="badge success">✅</span> Comparação DuckDB vs PostgreSQL</li>
+</ul>
+
+<strong>Quando ler</strong>: <strong>SEMPRE</strong> antes de conectar Power BI ao datalake. Esta é a solução atual e recomendada.
+
+<p>---</p>
+
+<strong>Arquivo</strong>: <a href="PowerBI_Conexao_DeltaLake_ODBC.html"><code>PowerBI_Conexao_DeltaLake_ODBC.md</code></a> <span class="badge warning">⚠️</span> <strong>OBSOLETO</strong> (Spark Thrift Server)
+
+<strong>Status</strong>: Descontinuado em favor da solução PostgreSQL
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge warning">⚠️</span> Spark Thrift Server (porta 10000) - Infraestrutura pesada</li>
+<li><span class="badge warning">⚠️</span> Driver ODBC/JDBC - Configuração complexa</li>
+<li><span class="badge warning">⚠️</span> DBeaver para gerenciar tabelas</li>
+<li><span class="badge warning">⚠️</span> Troubleshooting de SSL e autenticação</li>
+</ul>
+
+<strong>Quando ler</strong>: Apenas para referência histórica. Use PostgreSQL para novos projetos.
+
+<p>---</p>
+
+<h3 id="guia-de-scripts-de-gerenciamento">🚀 Guia de Scripts de Gerenciamento</h3>
+
+<strong>Arquivo</strong>: <a href="GUIA_SCRIPTS_GERENCIAMENTO.html"><code>GUIA_SCRIPTS_GERENCIAMENTO.md</code></a>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> <code>startup.sh</code> - Inicialização completa da stack</li>
+<li><span class="badge success">✅</span> <code>restart.sh</code> - Reinicialização com rebuild</li>
+<li><span class="badge success">✅</span> <code>check-health.sh</code> - Verificação de saúde de todos os serviços</li>
+<li><span class="badge success">✅</span> Garantias de inicialização do Spark SQL Thrift Server</li>
+<li><span class="badge success">✅</span> Validações automáticas e troubleshooting</li>
+<li><span class="badge success">✅</span> Ordem de execução recomendada</li>
+</ul>
+
+<strong>Quando ler</strong>: Antes de iniciar a stack pela primeira vez, após fazer mudanças em configurações, ou quando precisar diagnosticar problemas de serviços.
+
+<strong>Scripts principais</strong>:
+<pre><code>./startup.sh      # Primeira vez ou após limpar tudo
+<p>./restart.sh      # Após mudanças em código/config</p>
+<p>./check-health.sh # Verificar status de todos os serviços</code></pre></p>
+
+<p>---</p>
+
+<h2 id="documentacao-por-camada">📖 Documentação por Camada</h2>
+
+<h3 id="1-camada-silver-qualidade-e-transformacoes">1️⃣ Camada Silver (Qualidade e Transformações)</h3>
+
+<strong>Arquivo</strong>: <a href="transformacoes-silver.html"><code>TRANSFORMACOES_SILVER.md</code></a>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> Transformações inteligentes automáticas</li>
+<li><span class="badge success">✅</span> Sistema de validação de qualidade (5 regras)</li>
+<li><span class="badge success">✅</span> <strong>Dicionário de Dados</strong>: 4 colunas de qualidade</li>
+<li><span class="badge success">✅</span> Exemplos práticos e casos de uso</li>
+<li><span class="badge success">✅</span> Troubleshooting e otimizações</li>
+</ul>
+
+<strong>Colunas Adicionadas</strong>:
+<ul>
+<li><code>DataQualityRulesPass</code> - Regras aprovadas</li>
+<li><code>DataQualityRulesFail</code> - Regras reprovadas</li>
+<li><code>DataQualityRulesSkip</code> - Regras não aplicáveis</li>
+<li><code>DataQualityEvaluationResult</code> - "Passed" ou "Failed"</li>
+</ul>
+
+<strong>Quando ler</strong>: Para entender como funciona a validação de qualidade e quais transformações são aplicadas automaticamente.
+
+<p>---</p>
+
+<h3 id="2-camada-gold-delta-lake-e-feature-engineering">2️⃣ Camada Gold (Delta Lake e Feature Engineering)</h3>
+
+<strong>Arquivo</strong>: <a href="delta-lake-implementation.html"><code>DELTA_LAKE_IMPLEMENTATION.md</code></a>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> Implementação completa Delta Lake (deltalake-python 0.15.0)</li>
+<li><span class="badge success">✅</span> ACID transactions, versionamento, time travel</li>
+<li><span class="badge success">✅</span> <strong>Dicionário de Dados</strong>: 19+ features analíticas criadas automaticamente</li>
+<li><span class="badge success">✅</span> Feature Engineering (numéricas, categóricas, temporais, agregações)</li>
+<li><span class="badge success">✅</span> Integração com MinIO e Airflow</li>
+<li><span class="badge success">✅</span> Troubleshooting completo</li>
+</ul>
+
+<strong>Features Criadas Automaticamente</strong>:
+<ul>
+<li><strong>Numéricas</strong>: zscore, percentile, min_max_scaled (3 por coluna)</li>
+<li><strong>Categóricas</strong>: frequency, pct (2 por coluna)</li>
+<li><strong>Temporais</strong>: year, month, day, dayofweek, quarter (5 por coluna)</li>
+<li><strong>Agregações</strong>: {col}_by_{group}_mean</li>
+<li><strong>Rankings</strong>: {col}_rank</li>
+</ul>
+
+<strong>Quando ler</strong>: Para entender como funciona o Delta Lake, quais features analíticas são criadas e como usar para ML/BI.
+
+<p>---</p>
+
+<h2 id="navegacao-rapida-por-caso-de-uso">🎯 Navegação Rápida por Caso de Uso</h2>
+
+<h3 id="para-analise-de-qualidade-de-dados">Para Análise de Qualidade de Dados</h3>
+
+<p>➡️ <a href="transformacoes-silver.html"><code>TRANSFORMACOES_SILVER.md</code></a></p>
+
+<strong>Seções relevantes</strong>:
+<ul>
+<li>Dicionário de Dados - Colunas de Qualidade</li>
+<li>Regras de Qualidade Aplicadas (5 regras detalhadas)</li>
+<li>Queries Úteis para Análise</li>
+<li>Troubleshooting de Qualidade</li>
+</ul>
+
+<strong>Exemplo</strong>:
+<pre><code><h1 id="filtrar-dados-confiaveis">Filtrar dados confiáveis</h1>
+<p>df = df[df['DataQualityEvaluationResult'] == 'Passed']</code></pre></p>
+
+<p>---</p>
+
+<h3 id="para-machine-learning-feature-engineering">Para Machine Learning / Feature Engineering</h3>
+
+<p>➡️ <a href="delta-lake-implementation.html"><code>DELTA_LAKE_IMPLEMENTATION.md</code></a></p>
+
+<strong>Seções relevantes</strong>:
+<ul>
+<li>Features Numéricas (zscore, percentile, scaling)</li>
+<li>Features Categóricas (frequency encoding)</li>
+<li>Features Temporais (decomposição de datas)</li>
+<li>Casos de Uso por Feature</li>
+</ul>
+
+<strong>Exemplo</strong>:
+<pre><code><h1 id="features-prontas-para-ml">Features prontas para ML</h1>
+<p>X = df[[col for col in df.columns if '_min_max_scaled' in col]]</code></pre></p>
+
+<p>---</p>
+
+<h3 id="para-analise-temporal-series-temporais">Para Análise Temporal (Séries Temporais)</h3>
+
+<p>➡️ <a href="delta-lake-implementation.html"><code>DELTA_LAKE_IMPLEMENTATION.md</code></a> → Seção "Features Temporais"</p>
+
+<strong>Features criadas</strong>:
+<ul>
+<li><code>{date}_year</code> - Ano</li>
+<li><code>{date}_month</code> - Mês (1-12)</li>
+<li><code>{date}_day</code> - Dia do mês</li>
+<li><code>{date}_dayofweek</code> - Dia da semana (0=segunda)</li>
+<li><code>{date}_quarter</code> - Trimestre (1-4)</li>
+</ul>
+
+<strong>Exemplo</strong>:
+<pre><code>-- Vendas por trimestre
+<p>SELECT orderDate_year, orderDate_quarter, SUM(amount)</p>
+<p>FROM orders_delta</p>
+<p>GROUP BY orderDate_year, orderDate_quarter</code></pre></p>
+
+<p>---</p>
+
+<h3 id="para-segmentacao-e-rankings">Para Segmentação e Rankings</h3>
+
+<p>➡️ <a href="delta-lake-implementation.html"><code>DELTA_LAKE_IMPLEMENTATION.md</code></a> → Seções "Features Numéricas" e "Rankings"</p>
+
+<strong>Features criadas</strong>:
+<ul>
+<li><code>{col}_percentile</code> - Posição percentual (0-100)</li>
+<li><code>{col}_rank</code> - Ranking global</li>
+<li><code>{col}_by_{group}_mean</code> - Média por grupo</li>
+</ul>
+
+<strong>Exemplo</strong>:
+<pre><code><h1 id="top-10-premium">Top 10% (premium)</h1>
+<p>premium = df[df['creditLimit_percentile'] >= 90]</p>
+
+<h1 id="top-20-clientes">Top 20 clientes</h1>
+<p>top20 = df[df['creditLimit_rank'] <= 20]</code></pre></p>
+
+<p>---</p>
+
+<h3 id="para-deteccao-de-outliers">Para Detecção de Outliers</h3>
+
+<p>➡️ <a href="delta-lake-implementation.html"><code>DELTA_LAKE_IMPLEMENTATION.md</code></a> → Seção "Features Numéricas (zscore)"</p>
+
+<strong>Feature criada</strong>:
+<ul>
+<li><code>{col}_zscore</code> - Desvios padrão da média</li>
+</ul>
+
+<strong>Exemplo</strong>:
+<pre><code><h1 id="outliers-extremos-2-desvios-padrao">Outliers extremos (> 2 desvios padrão)</h1>
+<p>outliers = df[abs(df['creditLimit_zscore']) > 2]</code></pre></p>
+
+<p>---</p>
+
+<h3 id="para-comparacao-com-media-do-grupo">Para Comparação com Média do Grupo</h3>
+
+<p>➡️ <a href="delta-lake-implementation.html"><code>DELTA_LAKE_IMPLEMENTATION.md</code></a> → Seção "Features de Agregação"</p>
+
+<strong>Feature criada</strong>:
+<ul>
+<li><code>{col}_by_{group}_mean</code> - Média do grupo</li>
+</ul>
+
+<strong>Exemplo</strong>:
+<pre><code><h1 id="clientes-acima-da-media-do-pais">Clientes acima da média do país</h1>
+<p>above_avg = df[df['creditLimit'] > df['creditLimit_by_country_mean']]</code></pre></p>
+
+<p>---</p>
+
+<h2 id="resumo-de-colunas-por-camada">📊 Resumo de Colunas por Camada</h2>
+
+<h3 id="bronze">Bronze</h3>
+<ul>
+<li><strong>Origem</strong>: Raw CSV</li>
+<li><strong>Colunas</strong>: N originais (sem modificação)</li>
+<li><strong>Formato</strong>: CSV</li>
+<li><strong>Operações</strong>: Cópia simples</li>
+</ul>
+
+<h3 id="silver">Silver</h3>
+<ul>
+<li><strong>Origem</strong>: Bronze CSV</li>
+<li><strong>Colunas</strong>: N originais + 4 qualidade = <strong>N+4 total</strong></li>
+<li><strong>Formato</strong>: Parquet (comprimido)</li>
+<li><strong>Operações</strong>: Limpeza, transformações automáticas, validação de qualidade</li>
+</ul>
+
+<strong>Colunas Adicionadas</strong> (4):
+<ol>
+<li>DataQualityRulesPass</li>
+<li>DataQualityRulesFail</li>
+<li>DataQualityRulesSkip</li>
+<li>DataQualityEvaluationResult</li>
+</ol>
+
+<h3 id="gold-delta-lake">Gold (Delta Lake)</h3>
+<ul>
+<li><strong>Origem</strong>: Silver Parquet</li>
+<li><strong>Colunas</strong>: N+4 originais + ~19 features = <strong>N+23 total</strong> (em média)</li>
+<li><strong>Formato</strong>: Delta Lake (Parquet + transaction log)</li>
+<li><strong>Operações</strong>: Feature engineering, agregações, versionamento</li>
+</ul>
+
+<strong>Features Adicionadas</strong> (~19 para tabela típica):
+<ul>
+<li>6 numéricas (3 por coluna × 2 colunas)</li>
+<li>4 categóricas (2 por coluna × 2 colunas)</li>
+<li>5 temporais (5 por coluna × 1 coluna)</li>
+<li>3 agregações</li>
+<li>1 ranking</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="arquivos-relacionados">🔗 Arquivos Relacionados</h2>
+
+<h3 id="codigo-fonte">Código Fonte</h3>
+
+<table>
+<thead><tr>
+<th>Arquivo</th>
+<th>Descrição</th>
+<th>Camada</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>src/dags/lib/silver_layer.py</code></td>
+<td>Lógica da camada Silver</td>
+<td>Silver</td>
+</tr>
+<tr>
+<td><code>src/dags/lib/data_quality.py</code></td>
+<td>Validação de qualidade (5 regras)</td>
+<td>Silver</td>
+</tr>
+<tr>
+<td><code>src/dags/lib/gold_delta_layer.py</code></td>
+<td>Delta Lake + Feature Engineering</td>
+<td>Gold</td>
+</tr>
+<tr>
+<td><code>src/dags/lib/medallion_pipeline.py</code></td>
+<td>Pipeline completo Raw→Gold</td>
+<td>Todas</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="configuracao">Configuração</h3>
+
+<table>
+<thead><tr>
+<th>Arquivo</th>
+<th>Descrição</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>docker compose.yml</code></td>
+<td>Containers: Airflow, MinIO, MySQL, Spark</td>
+</tr>
+<tr>
+<td><code>requirements.txt</code></td>
+<td>Dependências Python (deltalake==0.15.0)</td>
+</tr>
+<tr>
+<td><code>src/dags/factory_master.py</code></td>
+<td>Factory de DAGs (cria DAGs automaticamente)</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="documentacao-geral">Documentação Geral</h3>
+
+<table>
+<thead><tr>
+<th>Arquivo</th>
+<th>Descrição</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>README.md</code></td>
+<td>Visão geral do projeto</td>
+</tr>
+<tr>
+<td><code>arquiteturaDatalake.md</code></td>
+<td>Arquitetura Medallion completa</td>
+</tr>
+<tr>
+<td><code>MYSQL_INGESTION.md</code></td>
+<td>Ingestão de dados MySQL</td>
+</tr>
+<tr>
+<td><code>GOLD_ANALYTICS.md</code></td>
+<td>Análises avançadas camada Gold</td>
+</tr>
+</tbody>
+</table>
+
+<p>---</p>
+
+<h2 id="inicio-rapido">🚀 Início Rápido</h2>
+
+<h3 id="1-entender-a-arquitetura">1. Entender a Arquitetura</h3>
+<pre><code>Leia: README.md → arquiteturaDatalake.md</code></pre>
+
+<h3 id="2-implementar-validacao-de-qualidade">2. Implementar Validação de Qualidade</h3>
+<pre><code>Leia: TRANSFORMACOES_SILVER.md
+<p>Arquivo: src/dags/lib/data_quality.py</code></pre></p>
+
+<h3 id="3-implementar-delta-lake">3. Implementar Delta Lake</h3>
+<pre><code>Leia: DELTA_LAKE_IMPLEMENTATION.md
+<p>Arquivo: src/dags/lib/gold_delta_layer.py</p>
+<p>Comando: pip install deltalake==0.15.0</code></pre></p>
+
+<h3 id="4-testar-pipeline-completo">4. Testar Pipeline Completo</h3>
+<pre><code><h1 id="upload-csv-via-webapp">Upload CSV via webapp</h1>
+<h1 id="ou-executar-dag-manualmente">Ou executar DAG manualmente:</h1>
+<p>docker exec airflow-scheduler airflow dags trigger ingestao-mysql-orders7</code></pre></p>
+
+<h3 id="5-verificar-resultados">5. Verificar Resultados</h3>
+<pre><code><h1 id="minio-console">MinIO Console</h1>
+<p>http://localhost:9001</p>
+
+<h1 id="verificar-estrutura">Verificar estrutura:</h1>
+<h1 id="silvertable-parquet-com-4-colunas-qualidade">silver/{table}/       → Parquet com 4 colunas qualidade</h1>
+<h1 id="goldtable-delta-delta-lake-com-features">gold/{table}_delta/   → Delta Lake com features</h1>
+<h1 id="delta-log-transaction-logs-versionamento">├── _delta_log/     → Transaction logs (versionamento)</h1>
+<h1 id="parquet-dados">└── *.parquet       → Dados</h1></code></pre>
+
+<p>---</p>
+
+<h2 id="recursos-de-aprendizado">🎓 Recursos de Aprendizado</h2>
+
+<h3 id="para-iniciantes">Para Iniciantes</h3>
+<ol>
+<li>Leia: <code>README.md</code> (visão geral)</li>
+<li>Leia: <code>arquiteturaDatalake.md</code> (arquitetura Medallion)</li>
+<li>Execute: Pipeline completo com tabela de teste</li>
+</ol>
+
+<h3 id="para-data-engineers">Para Data Engineers</h3>
+<ol>
+<li>Leia: <code>TRANSFORMACOES_SILVER.md</code> (transformações automáticas)</li>
+<li>Leia: <code>DELTA_LAKE_IMPLEMENTATION.md</code> (Delta Lake)</li>
+<li>Explore: Código fonte em <code>src/dags/lib/</code></li>
+</ol>
+
+<h3 id="para-data-scientists">Para Data Scientists</h3>
+<ol>
+<li>Leia: <code>DELTA_LAKE_IMPLEMENTATION.md</code> → Seção "Dicionário de Dados"</li>
+<li>Foco: Features Numéricas, Categóricas, Temporais</li>
+<li>Use: Features prontas para ML sem feature engineering manual</li>
+</ol>
+
+<h3 id="para-analistas-de-bi">Para Analistas de BI</h3>
+<ol>
+<li>Leia: <code>TRANSFORMACOES_SILVER.md</code> → Seção "Colunas de Qualidade"</li>
+<li>Leia: <code>DELTA_LAKE_IMPLEMENTATION.md</code> → Seção "Integração com BI Tools"</li>
+<li><strong>Conexão Power BI/Tableau</strong>: <a href="PowerBI_Conexao_DeltaLake_ODBC.html"><code>PowerBI_Conexao_DeltaLake_ODBC.md</code></a> → Guia completo ODBC</li>
+<li>Use: Filtros de qualidade + features analíticas</li>
+</ol>
+
+<p>---</p>
+
+<h2 id="suporte">📞 Suporte</h2>
+
+<h3 id="problemas-comuns">Problemas Comuns</h3>
+
+<table>
+<thead><tr>
+<th>Problema</th>
+<th>Documento</th>
+<th>Seção</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Dados com baixa qualidade</td>
+<td>TRANSFORMACOES_SILVER.md</td>
+<td>Troubleshooting</td>
+</tr>
+<tr>
+<td>Delta Lake não criado</td>
+<td>DELTA_LAKE_IMPLEMENTATION.md</td>
+<td>Troubleshooting</td>
+</tr>
+<tr>
+<td>Features faltando</td>
+<td>DELTA_LAKE_IMPLEMENTATION.md</td>
+<td>Manutenção e Troubleshooting</td>
+</tr>
+<tr>
+<td>Performance lenta</td>
+<td>DELTA_LAKE_IMPLEMENTATION.md</td>
+<td>Performance e Otimização</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="debug">Debug</h3>
+
+<pre><code><h1 id="verificar-logs-do-airflow">Verificar logs do Airflow</h1>
+<p>docker logs airflow-scheduler | grep -E "SILVER|GOLD|QUALITY"</p>
+
+<h1 id="verificar-delta-lake">Verificar Delta Lake</h1>
+<p>docker exec datalake-air-flow-minio-1 mc ls local/lab01/gold/{table}_delta/</p>
+
+<h1 id="testar-funcao-python-diretamente">Testar função Python diretamente</h1>
+<p>docker exec -it airflow-scheduler python</p>
+<p>>>> from lib.gold_delta_layer import silver_to_gold_delta</p>
+<p>>>> result = silver_to_gold_delta("silver/orders/file.parquet", "orders")</code></pre></p>
+
+<p>---</p>
+
+<h2 id="checklist-de-implementacao">📋 Checklist de Implementação</h2>
+
+<h3 id="silver-layer">Silver Layer</h3>
+<ul>
+<li>[x] Limpeza básica (dropna, drop_duplicates)</li>
+<li>[x] Transformações inteligentes automáticas</li>
+<li>[x] Validação de qualidade (5 regras)</li>
+<li>[x] 4 colunas de qualidade adicionadas</li>
+<li>[x] Formato Parquet comprimido</li>
+<li>[x] Documentação completa</li>
+</ul>
+
+<h3 id="gold-layer">Gold Layer</h3>
+<ul>
+<li>[x] Delta Lake implementado (deltalake-python 0.15.0)</li>
+<li>[x] Versionamento (_delta_log/)</li>
+<li>[x] ACID transactions</li>
+<li>[x] Feature Engineering automático (19+ features)</li>
+<li>[x] Features numéricas (zscore, percentile, scaling)</li>
+<li>[x] Features categóricas (frequency encoding)</li>
+<li>[x] Features temporais (decomposição de datas)</li>
+<li>[x] Agregações por grupo</li>
+<li>[x] Rankings globais</li>
+<li>[x] Documentação completa</li>
+</ul>
+
+<h3 id="proximos-passos-opcional">Próximos Passos (Opcional)</h3>
+<ul>
+<li>[ ] OPTIMIZE + VACUUM (compactação Delta Lake)</li>
+<li>[ ] Dashboard de qualidade de dados</li>
+<li>[ ] Integração Power BI via ODBC</li>
+<li>[ ] Queries analíticas avançadas (Trino/Spark SQL)</li>
+<li>[ ] Machine Learning pipelines</li>
+</ul>
+
+<p>---</p>
+
+<strong>Última atualização</strong>: 24/11/2025  
+<strong>Versão</strong>: 1.0  
+<strong>Status</strong>: <span class="badge success">✅</span> Documentação Completa
+
+        </main>
+    </div>
+</body>
+</html>

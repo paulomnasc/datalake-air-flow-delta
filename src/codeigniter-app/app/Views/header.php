@@ -340,6 +340,16 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 </li>    
 
                 <li>
+                    <hr class="text-white" style="margin: 10px 0;">
+                </li>
+
+                <li>
+                    <a href="/docs/index.html" class="nav-link px-4 px-lg-5" target="_blank" style="color: #87ceeb;">
+                        📚 Documentação
+                    </a>
+                </li>
+
+                <li>
 
                     <?php if (isset($_SESSION['nome_usuario_logado']) || !empty($_SESSION['nome_usuario_logado'])): ?>
                         <?php echo anchor(route_to('Usuario.logOut'), "Sair", ['class' => 'nav-link px-4 px-lg-5']); ?>

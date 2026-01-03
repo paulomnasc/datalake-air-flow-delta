@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migração: DuckDB → PostgreSQL para Power BI - Documentação Datalake</title>
+    <style>
+        :root {
+            --sidebar-width: 280px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar h2 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .sidebar nav ul {
+            list-style: none;
+        }
+
+        .sidebar nav ul li {
+            margin-bottom: 8px;
+        }
+
+        .sidebar nav ul li a {
+            color: #ecf0f1;
+            text-decoration: none;
+            display: block;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .sidebar nav ul li a:hover {
+            background: #34495e;
+            color: #3498db;
+        }
+
+        .sidebar nav ul li a.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            flex: 1;
+            background: white;
+            max-width: 1400px;
+            transition: margin-left 0.3s ease;
+        }
+
+        .content.collapsed {
+            margin-left: 0;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 900;
+            display: none;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+        }
+
+        @media (min-width: 1100px) {
+            .sidebar-toggle {
+                left: calc(var(--sidebar-width) + 16px);
+            }
+        }
+
+        .content h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .content h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.8rem;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .content h3 {
+            color: #555;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+        }
+
+        .content h4 {
+            color: #666;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        .content ul {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ul li {
+            margin-bottom: 8px;
+        }
+
+        .content ol {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ol li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #3498db;
+            color: white;
+            border-radius: 3px;
+            font-size: 0.85rem;
+            margin-left: 5px;
+        }
+
+        .badge.star {
+            background: #f39c12;
+        }
+
+        .badge.warning {
+            background: #e74c3c;
+        }
+
+        .badge.success {
+            background: #27ae60;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #c7254e;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        table th {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #2980b9;
+        }
+
+        table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        blockquote {
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #555;
+            font-style: italic;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .alert-info {
+            background: #d9edf7;
+            border-left: 4px solid #31708f;
+            color: #31708f;
+        }
+
+        .alert-warning {
+            background: #fcf8e3;
+            border-left: 4px solid #8a6d3b;
+            color: #8a6d3b;
+        }
+
+        .alert-success {
+            background: #dff0d8;
+            border-left: 4px solid #3c763d;
+            color: #3c763d;
+        }
+
+        .alert-danger {
+            background: #f2dede;
+            border-left: 4px solid #a94442;
+            color: #a94442;
+        }
+
+        .masked-value {
+            font-family: 'Courier New', monospace;
+            user-select: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #f4f4f4;
+            transition: all 0.3s ease;
+        }
+
+        .masked-value:hover {
+            background: #e0e0e0;
+            text-decoration: underline;
+        }
+
+        .masked-value.revealed {
+            background: #ffffcc;
+        }
+    </style>
+    <script>
+        // Mascara valores sensíveis (passwords, tokens, secrets)
+        function maskSensitiveValues() {
+            const sensitivePatterns = [
+                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
+            ];
+
+            const codeBlocks = document.querySelectorAll('code, pre');
+            
+            codeBlocks.forEach(block => {
+                let content = block.innerHTML;
+                
+                sensitivePatterns.forEach(pattern => {
+                    content = content.replace(pattern.regex, (match, value) => {
+                        if (!value) return match;
+                        
+                        const prefix = match.substring(0, match.indexOf(value));
+                        const masked = '*'.repeat(Math.min(value.length, 12));
+                        const tooltip = `Clique para revelar o valor`;
+                        
+                        return `${prefix}<span class="masked-value" title="${tooltip}" data-original="${value}" onclick="toggleMask(event)">${masked}</span>`;
+                    });
+                });
+                
+                block.innerHTML = content;
+            });
+        }
+
+        // Toggle visibilidade de valores mascarados
+        function toggleMask(event) {
+            event.stopPropagation();
+            const span = event.target;
+            
+            if (span.classList.contains('revealed')) {
+                const original = span.getAttribute('data-original');
+                span.textContent = '*'.repeat(Math.min(original.length, 12));
+                span.classList.remove('revealed');
+            } else {
+                const original = span.getAttribute('data-original');
+                span.textContent = original;
+                span.classList.add('revealed');
+            }
+        }
+
+        function setSidebarState(isOpen) {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            sidebar.classList.toggle('collapsed', !isOpen);
+            content.classList.toggle('collapsed', !isOpen);
+
+            const useOverlay = window.innerWidth < 1100;
+            if (overlay) {
+                overlay.classList.toggle('active', isOpen && useOverlay);
+            }
+
+            toggleBtn.textContent = isOpen ? '✕ Fechar' : '☰ Menu';
+        }
+
+        function initSidebarToggle() {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            const initialOpen = window.innerWidth >= 1100;
+            setSidebarState(initialOpen);
+
+            toggleBtn.addEventListener('click', function() {
+                const isOpen = !sidebar.classList.contains('collapsed');
+                setSidebarState(!isOpen);
+            });
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    setSidebarState(false);
+                });
+            }
+
+            window.addEventListener('resize', function() {
+                const shouldBeOpen = window.innerWidth >= 1100;
+                setSidebarState(shouldBeOpen);
+            });
+        }
+
+        // Executar quando documento carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            maskSensitiveValues();
+            initSidebarToggle();
+        });
+    </script>
+</head>
+<body>
+    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰ Menu</button>
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>📚 Documentação</h2>
+            <nav>
+                <ul>
+                    <li><a href="index.html" >🏠 Home</a></li>
+                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    <li><a href="migracao-duckdb-postgresql.html" class="active">🔌 Conexão Power BI</a></li>
+                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="content">
+<h1 id="migracao-duckdb-postgresql-para-power-bi">Migração: DuckDB → PostgreSQL para Power BI</h1>
+
+<h2 id="data-da-migracao">Data da Migração</h2>
+<strong>25/12/2024</strong>
+
+<h2 id="problema-original">Problema Original</h2>
+
+<h3 id="duckdb-com-locks-de-arquivo">DuckDB com Locks de Arquivo</h3>
+<ul>
+<li>Power BI abria arquivo <code>.duckdb</code> e mantinha conexão ativa</li>
+<li>Ao tentar adicionar segunda tabela, ocorria erro: "O arquivo já está sendo usado por outro processo"</li>
+<li>DuckDB não foi projetado para múltiplas conexões simultâneas em arquivo único</li>
+</ul>
+
+<h3 id="tentativas-anteriores-nao-funcionaram">Tentativas Anteriores (NÃO FUNCIONARAM)</h3>
+<ol>
+<li><span class="badge warning">❌</span> Múltiplos arquivos DuckDB (datalake_bi_1, datalake_bi_2, datalake_bi_3)</li>
+<li><span class="badge warning">❌</span> Try/finally para fechar conexões</li>
+<li><span class="badge warning">❌</span> PRAGMA enable_object_cache</li>
+<li><span class="badge warning">❌</span> Arquivo de cópia separado (datalake_bi.duckdb)</li>
+</ol>
+
+<strong>Conclusão:</strong> DuckDB em arquivo local não suporta múltiplos acessos simultâneos do Power BI.
+
+<p>---</p>
+
+<h2 id="solucao-implementada-postgresql">Solução Implementada: PostgreSQL</h2>
+
+<h3 id="arquitetura">Arquitetura</h3>
+
+<pre><code>┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+<p>│   MinIO     │────▶│   Airflow    │────▶│  PostgreSQL  │◀────│   Power BI   │</p>
+<p>│  (Delta)    │     │   DAG        │     │   (BI DB)    │     │  (Windows)   │</p>
+<p>└─────────────┘     └──────────────┘     └──────────────┘     └──────────────┘</p>
+<p>  s3://lab01/         DuckDB             postgres-bi:5432       localhost:5433</p>
+<p>  delta/              (em-memória)       datalake_bi            Múltiplas</p>
+<p>                                         pbi_user               Conexões</p>
+<p>                                                                Simultâneas <span class="badge success">✅</span></code></pre></p>
+
+<h3 id="componentes">Componentes</h3>
+
+<h4 id="1-postgresql-para-bi-postgres-bi">1. PostgreSQL para BI (<code>postgres-bi</code>)</h4>
+<pre><code><h1 id="docker-composeyml">docker-compose.yml</h1>
+<p>postgres-bi:</p>
+<p>  image: postgres:13</p>
+<p>  container_name: postgres-bi</p>
+<p>  environment:</p>
+<p>    POSTGRES_USER: pbi_user</p>
+<p>    POSTGRES_PASSWORD: pbi_password</p>
+<p>    POSTGRES_DB: datalake_bi</p>
+<p>  ports:</p>
+<ul>
+<li>"5433:5432"  # Porta externa para Power BI</li>
+</ul>
+<p>  volumes:</p>
+<ul>
+<li>pg_bi_data:/var/lib/postgresql/data</li>
+</ul>
+<p>  networks:</p>
+<ul>
+<li>airflow_net</code></pre></li>
+</ul>
+
+<h4 id="2-dag-de-sincronizacao-sync-delta-to-postgrespy">2. DAG de Sincronização (<code>sync_delta_to_postgres.py</code>)</h4>
+
+<strong>Fluxo:</strong>
+<ol>
+<li><strong>setup_postgres</strong>: Valida conexão com PostgreSQL</li>
+<li><strong>sync_delta_to_postgres</strong>: </li>
+<ul>
+<li>Conecta DuckDB em-memória (<code>:memory:</code>)</li>
+<li>Descobre tabelas Delta no MinIO</li>
+<li>Lê Parquet via DuckDB</li>
+<li>Insere dados em PostgreSQL</li>
+<li><strong>verify_postgres_tables</strong>: Lista tabelas criadas</li>
+</ul>
+</ol>
+
+<strong>Dependências:</strong>
+<pre><code><h1 id="requirementstxt">requirements.txt</h1>
+<p>psycopg2-binary  # Driver PostgreSQL</p>
+<p>duckdb==0.10.2   # Leitura de Parquet/S3 (em-memória apenas)</code></pre></p>
+
+<h3 id="configuracao-power-bi">Configuração Power BI</h3>
+
+<strong>Connection String:</strong>
+<pre><code>Server: localhost
+<p>Port: 5433</p>
+<p>Database: datalake_bi</p>
+<p>Authentication: Database</p>
+<p>Username: pbi_user</p>
+<p>Password: pbi_password</code></pre></p>
+
+<strong>Tabelas Disponíveis:</strong>
+<ul>
+<li><code>delta_customers_202512230532</code> (29 registros)</li>
+<li><code>delta_employee_privileges_202512230532</code> (1 registro)</li>
+<li><code>delta_orders_202512241315</code> (48 registros)</li>
+<li><code>delta_products_202512241315</code> (45 registros)</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="comparacao-antes-vs-depois">Comparação: Antes vs Depois</h2>
+
+<table>
+<thead><tr>
+<th>Aspecto</th>
+<th>DuckDB (Antigo) <span class="badge warning">❌</span></th>
+<th>PostgreSQL (Novo) <span class="badge success">✅</span></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Múltiplos acessos</strong></td>
+<td><span class="badge warning">❌</span> Lock de arquivo</td>
+<td><span class="badge success">✅</span> Nativo</td>
+</tr>
+<tr>
+<td><strong>Power BI multi-table</strong></td>
+<td><span class="badge warning">❌</span> Erro na 2ª tabela</td>
+<td><span class="badge success">✅</span> Funciona</td>
+</tr>
+<tr>
+<td><strong>Persistência</strong></td>
+<td>Arquivo <code>.duckdb</code></td>
+<td>Volume Docker</td>
+</tr>
+<tr>
+<td><strong>Gerenciamento conexões</strong></td>
+<td>Manual (try/finally)</td>
+<td>Automático</td>
+</tr>
+<tr>
+<td><strong>Escalabilidade</strong></td>
+<td>Limitada</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>Backup</strong></td>
+<td>Cópia de arquivo</td>
+<td>pg_dump</td>
+</tr>
+<tr>
+<td><strong>Porta de acesso</strong></td>
+<td>Arquivo UNC WSL</td>
+<td>TCP localhost:5433</td>
+</tr>
+</tbody>
+</table>
+
+<p>---</p>
+
+<h2 id="mudancas-em-arquivos">Mudanças em Arquivos</h2>
+
+<h3 id="criados">Criados</h3>
+<ul>
+<li><span class="badge success">✅</span> <code>src/dags/sync_delta_to_postgres.py</code> (DAG nova)</li>
+<li><span class="badge success">✅</span> <code>MIGRACAO_DUCKDB_POSTGRESQL.md</code> (este arquivo)</li>
+</ul>
+
+<h3 id="modificados">Modificados</h3>
+<ul>
+<li><span class="badge success">✅</span> <code>docker-compose.yml</code> → Adicionado <code>postgres-bi</code> service</li>
+<li><span class="badge success">✅</span> <code>requirements.txt</code> → Adicionado <code>psycopg2-binary</code></li>
+</ul>
+
+<h3 id="desativados">Desativados</h3>
+<ul>
+<li>🔴 <code>src/dags/sync_duckdb_views.py</code> → Renomeado para <code>.bak</code></li>
+<li>🔴 <code>/opt/duckdb/datalake*.duckdb</code> → Obsoletos (não apagar ainda, histórico)</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="migracao-de-dados">Migração de Dados</h2>
+
+<h3 id="executar-dag-manualmente">Executar DAG Manualmente</h3>
+<pre><code><h1 id="trigger-dag">Trigger DAG</h1>
+<p>docker compose exec -T airflow-scheduler \</p>
+<p>  airflow dags trigger sync_delta_to_postgres</p>
+
+<h1 id="verificar-tabelas-criadas">Verificar tabelas criadas</h1>
+<p>docker compose exec -T postgres-bi \</p>
+<p>  psql -U pbi_user -d datalake_bi \</p>
+<p>  -c "SELECT tablename FROM pg_tables WHERE schemaname='public';"</code></pre></p>
+
+<h3 id="agendamento">Agendamento</h3>
+<ul>
+<li><strong>Schedule:</strong> Diário às 02:00 AM</li>
+<li><strong>Retry:</strong> 1 tentativa com 5 min de delay</li>
+<li><strong>Catchup:</strong> Desabilitado</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="manutencao">Manutenção</h2>
+
+<h3 id="verificar-status-postgresql">Verificar Status PostgreSQL</h3>
+<pre><code>docker compose exec -T postgres-bi \
+<p>  psql -U pbi_user -d datalake_bi \</p>
+<p>  -c "SELECT tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size </p>
+<p>      FROM pg_tables WHERE schemaname='public';"</code></pre></p>
+
+<h3 id="limpar-tabelas-antigas">Limpar Tabelas Antigas</h3>
+<pre><code>docker compose exec -T postgres-bi \
+<p>  psql -U pbi_user -d datalake_bi \</p>
+<p>  -c "DROP TABLE IF EXISTS delta_<table_name> CASCADE;"</code></pre></p>
+
+<h3 id="backup-postgresql">Backup PostgreSQL</h3>
+<pre><code>docker compose exec -T postgres-bi \
+<p>  pg_dump -U pbi_user datalake_bi > backup_datalake_bi_$(date +%Y%m%d).sql</code></pre></p>
+
+<h3 id="restaurar-backup">Restaurar Backup</h3>
+<pre><code>cat backup_datalake_bi_YYYYMMDD.sql | \
+<p>  docker compose exec -T postgres-bi \</p>
+<p>  psql -U pbi_user -d datalake_bi</code></pre></p>
+
+<p>---</p>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<h3 id="power-bi-nao-conecta">Power BI não conecta</h3>
+<pre><code><h1 id="verificar-se-postgresql-esta-rodando">Verificar se PostgreSQL está rodando</h1>
+<p>docker compose ps postgres-bi</p>
+
+<h1 id="verificar-porta-5433-esta-aberta">Verificar porta 5433 está aberta</h1>
+<p>netstat -an | grep 5433</p>
+
+<h1 id="testar-conexao-do-host">Testar conexão do host</h1>
+<p>psql -h localhost -p 5433 -U pbi_user -d datalake_bi</code></pre></p>
+
+<h3 id="dag-falha-ao-inserir-dados">DAG falha ao inserir dados</h3>
+<pre><code><h1 id="verificar-logs">Verificar logs</h1>
+<p>docker compose logs airflow-scheduler | grep sync_delta_to_postgres</p>
+
+<h1 id="testar-conexao-manual">Testar conexão manual</h1>
+<p>docker compose exec -T airflow-scheduler python3 -c "</p>
+<p>import psycopg2</p>
+<p>conn = psycopg2.connect(</p>
+<p>    host='postgres-bi', port=5432,</p>
+<p>    database='datalake_bi', user='pbi_user', password='pbi_password'</p>
+<p>)</p>
+<p>print('<span class="badge success">✅</span> Conectado!')</p>
+<p>conn.close()</p>
+<p>"</code></pre></p>
+
+<h3 id="minio-inacessivel">MinIO inacessível</h3>
+<pre><code><h1 id="verificar-rede-docker">Verificar rede Docker</h1>
+<p>docker network inspect datalake-air-flow_airflow_net</p>
+
+<h1 id="testar-s3-do-airflow">Testar S3 do Airflow</h1>
+<p>docker compose exec -T airflow-scheduler python3 -c "</p>
+<p>import duckdb</p>
+<p>con = duckdb.connect(':memory:')</p>
+<p>con.execute('LOAD httpfs;')</p>
+<p>con.execute(\"SET s3_endpoint='minio:9000';\")</p>
+<p>con.execute(\"SET s3_access_key_id='admin';\")</p>
+<p>con.execute(\"SET s3_secret_access_key='admin123';\")</p>
+<p>con.execute(\"SET s3_use_ssl=false;\")</p>
+<p>result = con.execute(\"SELECT COUNT(*) FROM read_parquet('s3://lab01/delta/customers_202512230532/*.parquet')\").fetchone()</p>
+<p>print(f'<span class="badge success">✅</span> {result[0]} registros')</p>
+<p>"</code></pre></p>
+
+<p>---</p>
+
+<h2 id="proximos-passos-opcional">Próximos Passos (Opcional)</h2>
+
+<h3 id="1-indexacao-para-performance">1. Indexação para Performance</h3>
+<pre><code>-- Criar índices em colunas frequentes
+<p>CREATE INDEX idx_customers_id ON delta_customers_202512230532(customer_id);</p>
+<p>CREATE INDEX idx_orders_date ON delta_orders_202512241315(order_date);</code></pre></p>
+
+<h3 id="2-views-materializadas">2. Views Materializadas</h3>
+<pre><code>-- Para agregações complexas
+<p>CREATE MATERIALIZED VIEW mv_sales_summary AS</p>
+<p>SELECT DATE(order_date) as date, SUM(total) as total_sales</p>
+<p>FROM delta_orders_202512241315</p>
+<p>GROUP BY DATE(order_date);</code></pre></p>
+
+<h3 id="3-particionamento">3. Particionamento</h3>
+<pre><code>-- Para tabelas grandes (milhões de registros)
+<p>CREATE TABLE delta_orders_partitioned (</p>
+<p>    -- colunas</p>
+<p>) PARTITION BY RANGE (order_date);</code></pre></p>
+
+<p>---</p>
+
+<h2 id="observacoes-finais">Observações Finais</h2>
+
+<h3 id="por-que-postgresql">Por que PostgreSQL?</h3>
+<ol>
+<li><span class="badge success">✅</span> <strong>Padrão de mercado</strong> para BI/Analytics</li>
+<li><span class="badge success">✅</span> <strong>Gerenciamento nativo</strong> de múltiplas conexões</li>
+<li><span class="badge success">✅</span> <strong>Compatibilidade total</strong> com Power BI ODBC/PostgreSQL driver</li>
+<li><span class="badge success">✅</span> <strong>Escalável</strong> (suporta milhões de registros)</li>
+<li><span class="badge success">✅</span> <strong>Ferramentas maduras</strong> (backup, replicação, monitoramento)</li>
+</ol>
+
+<h3 id="duckdb-ainda-e-util">DuckDB ainda é útil?</h3>
+<strong>Sim!</strong> Mas apenas para:
+<ul>
+<li><span class="badge success">✅</span> Análises ad-hoc em notebooks</li>
+<li><span class="badge success">✅</span> Leitura rápida de Parquet/CSV</li>
+<li><span class="badge success">✅</span> Processamento em-memória (sem persistência)</li>
+</ul>
+
+<strong>Não usar para:</strong>
+<ul>
+<li><span class="badge warning">❌</span> Servir múltiplos clientes (Power BI, Tableau, etc.)</li>
+<li><span class="badge warning">❌</span> Banco de dados compartilhado</li>
+<li><span class="badge warning">❌</span> Aplicações com concorrência</li>
+</ul>
+
+<p>---</p>
+
+<strong>Migração concluída com sucesso em 25/12/2024</strong> <span class="badge success">✅</span>
+
+        </main>
+    </div>
+</body>
+</html>

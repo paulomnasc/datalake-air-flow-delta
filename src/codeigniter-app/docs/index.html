@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home - Solução Híbrida Datalake - Documentação Datalake</title>
+    <style>
+        :root {
+            --sidebar-width: 280px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar h2 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .sidebar nav ul {
+            list-style: none;
+        }
+
+        .sidebar nav ul li {
+            margin-bottom: 8px;
+        }
+
+        .sidebar nav ul li a {
+            color: #ecf0f1;
+            text-decoration: none;
+            display: block;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .sidebar nav ul li a:hover {
+            background: #34495e;
+            color: #3498db;
+        }
+
+        .sidebar nav ul li a.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            flex: 1;
+            background: white;
+            max-width: 1400px;
+            transition: margin-left 0.3s ease;
+        }
+
+        .content.collapsed {
+            margin-left: 0;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 900;
+            display: none;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+        }
+
+        @media (min-width: 1100px) {
+            .sidebar-toggle {
+                left: calc(var(--sidebar-width) + 16px);
+            }
+        }
+
+        .content h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .content h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.8rem;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .content h3 {
+            color: #555;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+        }
+
+        .content h4 {
+            color: #666;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        .content ul {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ul li {
+            margin-bottom: 8px;
+        }
+
+        .content ol {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ol li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #3498db;
+            color: white;
+            border-radius: 3px;
+            font-size: 0.85rem;
+            margin-left: 5px;
+        }
+
+        .badge.star {
+            background: #f39c12;
+        }
+
+        .badge.warning {
+            background: #e74c3c;
+        }
+
+        .badge.success {
+            background: #27ae60;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #c7254e;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        table th {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #2980b9;
+        }
+
+        table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        blockquote {
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #555;
+            font-style: italic;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .alert-info {
+            background: #d9edf7;
+            border-left: 4px solid #31708f;
+            color: #31708f;
+        }
+
+        .alert-warning {
+            background: #fcf8e3;
+            border-left: 4px solid #8a6d3b;
+            color: #8a6d3b;
+        }
+
+        .alert-success {
+            background: #dff0d8;
+            border-left: 4px solid #3c763d;
+            color: #3c763d;
+        }
+
+        .alert-danger {
+            background: #f2dede;
+            border-left: 4px solid #a94442;
+            color: #a94442;
+        }
+
+        .masked-value {
+            font-family: 'Courier New', monospace;
+            user-select: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #f4f4f4;
+            transition: all 0.3s ease;
+        }
+
+        .masked-value:hover {
+            background: #e0e0e0;
+            text-decoration: underline;
+        }
+
+        .masked-value.revealed {
+            background: #ffffcc;
+        }
+    </style>
+    <script>
+        // Mascara valores sensíveis (passwords, tokens, secrets)
+        function maskSensitiveValues() {
+            const sensitivePatterns = [
+                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
+            ];
+
+            const codeBlocks = document.querySelectorAll('code, pre');
+            
+            codeBlocks.forEach(block => {
+                let content = block.innerHTML;
+                
+                sensitivePatterns.forEach(pattern => {
+                    content = content.replace(pattern.regex, (match, value) => {
+                        if (!value) return match;
+                        
+                        const prefix = match.substring(0, match.indexOf(value));
+                        const masked = '*'.repeat(Math.min(value.length, 12));
+                        const tooltip = `Clique para revelar o valor`;
+                        
+                        return `${prefix}<span class="masked-value" title="${tooltip}" data-original="${value}" onclick="toggleMask(event)">${masked}</span>`;
+                    });
+                });
+                
+                block.innerHTML = content;
+            });
+        }
+
+        // Toggle visibilidade de valores mascarados
+        function toggleMask(event) {
+            event.stopPropagation();
+            const span = event.target;
+            
+            if (span.classList.contains('revealed')) {
+                const original = span.getAttribute('data-original');
+                span.textContent = '*'.repeat(Math.min(original.length, 12));
+                span.classList.remove('revealed');
+            } else {
+                const original = span.getAttribute('data-original');
+                span.textContent = original;
+                span.classList.add('revealed');
+            }
+        }
+
+        function setSidebarState(isOpen) {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            sidebar.classList.toggle('collapsed', !isOpen);
+            content.classList.toggle('collapsed', !isOpen);
+
+            const useOverlay = window.innerWidth < 1100;
+            if (overlay) {
+                overlay.classList.toggle('active', isOpen && useOverlay);
+            }
+
+            toggleBtn.textContent = isOpen ? '✕ Fechar' : '☰ Menu';
+        }
+
+        function initSidebarToggle() {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            const initialOpen = window.innerWidth >= 1100;
+            setSidebarState(initialOpen);
+
+            toggleBtn.addEventListener('click', function() {
+                const isOpen = !sidebar.classList.contains('collapsed');
+                setSidebarState(!isOpen);
+            });
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    setSidebarState(false);
+                });
+            }
+
+            window.addEventListener('resize', function() {
+                const shouldBeOpen = window.innerWidth >= 1100;
+                setSidebarState(shouldBeOpen);
+            });
+        }
+
+        // Executar quando documento carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            maskSensitiveValues();
+            initSidebarToggle();
+        });
+    </script>
+</head>
+<body>
+    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰ Menu</button>
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>📚 Documentação</h2>
+            <nav>
+                <ul>
+                    <li><a href="index.html" class="active">🏠 Home</a></li>
+                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    <li><a href="migracao-duckdb-postgresql.html" >🔌 Conexão Power BI</a></li>
+                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="content">
+<h1 id="solucao-hibrida-apache-airflow-postgresql-minio-delta-lake">🚀 Solução Híbrida: Apache Airflow + PostgreSQL + MinIO + Delta Lake</h1>
+
+<p>Este projeto integra três componentes principais para orquestração de dados e armazenamento:</p>
+
+<ul>
+<li><strong>Apache Airflow</strong>: Orquestração de workflows</li>
+<li><strong>PostgreSQL</strong>: Banco de dados relacional para metadados do Airflow <strong>+ BI endpoint</strong> (postgres-bi)</li>
+<li><strong>MinIO</strong>: Armazenamento de objetos compatível com S3</li>
+<li><strong>Delta Lake</strong>: Camada ACID sobre Data Lake com versionamento e time travel</li>
+<li><strong>Apache Atlas</strong>: Catálogo de dados e governança (standalone)</li>
+<li><strong>Jupyter + PySpark (Lab Atlas)</strong>: Ambiente interativo para análise e integração com Atlas</li>
+</ul>
+
+<p>A base foi adaptada para incluir os três serviços integrados. Os artefatos de código (DAGs, scripts, configurações) estão versionados neste repositório.</p>
+
+<h2 id="documentacao-completa">📚 Documentação Completa</h2>
+
+<p>Para entender a arquitetura Medallion (Bronze → Silver → Gold) e todas as transformações aplicadas, consulte o <strong><a href="docs-index.html">Índice de Documentação</a></strong>.</p>
+
+<h3 id="guias-de-uso">🎯 Guias de Uso</h3>
+
+<ul>
+<li><strong><a href="guide-webapp-config.html">📋 Guia da Interface Web</a></strong>: Como preencher formulário de configuração de DAGs, multi-tabela, conexões SQL, validações</li>
+<li><strong><a href="migracao-duckdb-postgresql.html">🔌 Conexão Power BI</a></strong> <span class="badge star">⭐</span>: PostgreSQL para BI (solução robusta, múltiplas tabelas simultâneas)</li>
+</ul>
+
+<h3 id="documentacao-por-camada">Documentação por Camada</h3>
+
+<ul>
+<li><strong><a href="transformacoes-silver.html">Transformações Silver</a></strong>: Data Quality, validações, dicionário de dados</li>
+<li><strong><a href="delta-lake-implementation.html">Delta Lake & Gold</a></strong>: Feature Engineering, Delta Lake, ML/BI integration</li>
+</ul>
+
+<h3 id="navegacao-rapida-por-caso-de-uso">Navegação Rápida por Caso de Uso</h3>
+
+<ul>
+<li><strong>Machine Learning</strong>: <a href="delta-lake-implementation.html#dicionario-de-dados-camada-gold-delta-lake">Feature Engineering Guide</a></li>
+<li><strong>Análise Temporal</strong>: <a href="delta-lake-implementation.html#5-features-temporais-date-columns">Temporal Features</a></li>
+<li><strong>Qualidade de Dados</strong>: <a href="transformacoes-silver.html#dicionario-de-dados-camadas-silver">Data Quality Dictionary</a></li>
+<li><strong>Segmentação</strong>: <a href="delta-lake-implementation.html#4-features-categoricas-categorical-columns">Categorical Features</a></li>
+<li><strong>Detecção de Outliers</strong>: <a href="delta-lake-implementation.html#3-features-numericas-numeric-columns">Statistical Features</a></li>
+</ul>
+
+<p>---</p>
+
+        </main>
+    </div>
+</body>
+</html>

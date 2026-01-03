@@ -68,6 +68,196 @@ s3://lab01/
     └── 1-{uuid}-0.parquet              ← Próximas escritas
 ```
 
+### ❓ Por que múltiplos arquivos Parquet por arquivo de origem?
+
+**Resposta curta**: É o comportamento **normal e esperado** do Delta Lake - não é um problema, é uma feature!
+
+#### 🔍 Razões Técnicas
+
+**1. Versionamento (Time Travel)**
+- Cada operação de escrita (`append`, `merge`, `overwrite`) cria **novos arquivos**
+- Arquivos antigos são **mantidos** para permitir consultas históricas
+- Benefício: Você pode consultar qualquer versão anterior dos dados
+
+```sql
+-- Consultar versão específica (Time Travel)
+SELECT * FROM delta_table VERSION AS OF 1
+SELECT * FROM delta_table TIMESTAMP AS OF '2025-01-01 10:00:00'
+```
+
+**2. Particionamento de Dados**
+- Delta Lake particiona dados automaticamente por performance
+- Cada partição (`partition_date`, região, etc.) = arquivo separado
+- Exemplo: 5 datas diferentes → 5+ arquivos parquet
+
+```python
+# Código que gera múltiplos arquivos por partição
+df.write.format("delta").partitionBy("partition_date").save(delta_path)
+# Resultado: delta/customers/partition_date=20250101/0-uuid.parquet
+#            delta/customers/partition_date=20250102/0-uuid.parquet
+```
+
+**3. Operações de MERGE/UPSERT**
+- MERGE não reescreve toda a tabela (seria ineficiente)
+- Cria novos arquivos com dados atualizados/novos
+- Arquivos antigos permanecem até compactação (OPTIMIZE)
+
+```python
+# MERGE incrementa arquivos sem reescrever tudo
+DeltaTable.forPath(spark, delta_path).merge(
+    df, "tgt.id = src.id"
+).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
+```
+
+**4. Modo Append (Adição Incremental)**
+- Cada execução da DAG adiciona um novo arquivo
+- Não sobrescreve dados anteriores (preserva histórico)
+- Eficiente para ingestão contínua
+
+```python
+write_deltalake(
+    delta_path,
+    table,
+    mode="append",  # ← Adiciona sem reescrever
+    storage_options=storage_options
+)
+```
+
+#### 📊 Exemplo Real
+
+```
+# Execução 1 (2025-01-01)
+delta/orders/
+├── _delta_log/00000000000000000000.json
+└── 0-abc123-0.parquet  (1000 linhas)
+
+# Execução 2 (2025-01-02) - APPEND
+delta/orders/
+├── _delta_log/00000000000000000000.json
+├── _delta_log/00000000000000000001.json
+├── 0-abc123-0.parquet  (1000 linhas - versão 0)
+└── 1-def456-0.parquet  (1000 linhas - versão 1)
+
+# Execução 3 (2025-01-03) - MERGE (10 updates)
+delta/orders/
+├── _delta_log/00000000000000000000.json
+├── _delta_log/00000000000000000001.json
+├── _delta_log/00000000000000000002.json
+├── 0-abc123-0.parquet  (1000 linhas - obsoleto)
+├── 1-def456-0.parquet  (1000 linhas - versão 1)
+└── 2-ghi789-0.parquet  (10 linhas - dados atualizados)
+```
+
+#### ✅ Benefícios dos Múltiplos Arquivos
+
+| Benefício | Descrição |
+|-----------|-----------|
+| **ACID Transactions** | Cada arquivo é uma transação atômica isolada |
+| **Time Travel** | Arquivos antigos permitem consultar versões históricas |
+| **Leitura Otimizada** | Query engine lê apenas arquivos necessários (partition pruning) |
+| **Concorrência** | Múltiplas escritas simultâneas possíveis sem lock |
+| **Evolução de Schema** | Novos arquivos podem ter schemas diferentes (compatíveis) |
+| **Auditoria** | Transaction log registra cada operação com timestamp |
+
+#### ⚠️ Quando Otimizar?
+
+Muitos arquivos pequenos podem degradar performance de leitura. Sinais de alerta:
+
+- **>100 arquivos** em uma única partição
+- **Arquivos < 10 MB** (fragmentação excessiva)
+- **Queries lentas** em tabelas com muitas versões
+
+**Solução: OPTIMIZE (Compactação)**
+
+```python
+from deltalake import DeltaTable
+
+dt = DeltaTable(delta_path, storage_options=storage_options)
+
+# Compactar arquivos pequenos em arquivos maiores (128MB)
+dt.optimize().compact()
+
+# Resultado: 100 arquivos de 5MB → 5 arquivos de 100MB
+```
+
+**Limpeza de Versões Antigas: VACUUM**
+
+```python
+# Remover arquivos de versões antigas (>7 dias)
+dt.vacuum(retention_hours=168)  # 7 dias
+
+# ⚠️ CUIDADO: Após VACUUM, time travel não funciona para versões removidas
+```
+
+#### 🎯 Configurações de Otimização Recomendadas
+
+```python
+# No código de escrita Delta
+write_deltalake(
+    delta_path,
+    data,
+    mode="append",
+    storage_options=storage_options,
+    
+    # Otimizações
+    file_options={
+        "target_file_size": 134217728,  # 128MB (default Delta)
+        "compression": "snappy"          # Compressão rápida
+    }
+)
+
+# Otimização periódica (executar semanalmente via DAG)
+if len(dt.files()) > 100:  # Se > 100 arquivos
+    dt.optimize().compact()
+    dt.vacuum(retention_hours=168)
+```
+
+#### 📈 Impacto em Performance
+
+| Cenário | Arquivos | Tamanho Médio | Performance Leitura |
+|---------|----------|---------------|---------------------|
+| **Ideal** | 10-50 | 100-200 MB | ⚡ Excelente |
+| **Bom** | 50-100 | 50-100 MB | ✅ Boa |
+| **Atenção** | 100-500 | 10-50 MB | ⚠️ Considerar OPTIMIZE |
+| **Ruim** | >500 | <10 MB | 🐌 Lento - OPTIMIZE urgente |
+
+#### 🔧 Script de Manutenção Automática
+
+```python
+# dags/delta_maintenance.py
+from datetime import timedelta
+from airflow.decorators import dag, task
+from deltalake import DeltaTable
+
+@dag(
+    schedule_interval='@weekly',
+    start_date=days_ago(1),
+    tags=['delta', 'maintenance']
+)
+def delta_optimize_dag():
+    @task
+    def optimize_delta_tables():
+        tables = ['customers_delta', 'orders_delta', 'products_delta']
+        
+        for table_name in tables:
+            delta_path = f"s3://lab01/delta/{table_name}/"
+            dt = DeltaTable(delta_path, storage_options=storage_options)
+            
+            # Compactar se >50 arquivos
+            if len(dt.files()) > 50:
+                log.info(f"Compactando {table_name}...")
+                dt.optimize().compact()
+            
+            # Limpar versões >30 dias
+            dt.vacuum(retention_hours=720)
+            
+            log.info(f"✅ {table_name}: {len(dt.files())} arquivos")
+    
+    optimize_delta_tables()
+
+delta_optimize_dag()
+```
+
 ---
 
 ## 📊 Dicionário de Dados - Camada Gold (Delta Lake)

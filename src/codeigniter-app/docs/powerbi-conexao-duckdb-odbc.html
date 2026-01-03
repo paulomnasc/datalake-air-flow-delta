@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔗 Conexão Power BI Desktop ao DuckDB via ODBC</title>
+    <style>
+        :root { --sidebar-width: 280px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
+        .container { display: flex; min-height: 100vh; }
+        .sidebar { width: var(--sidebar-width); background: #2c3e50; color: #ecf0f1; padding: 20px; position: fixed; height: 100vh; overflow-y: auto; }
+        .sidebar h2 { font-size: 1.4rem; margin-bottom: 20px; border-bottom: 1px solid #3e5871; padding-bottom: 10px; }
+        .sidebar ul { list-style: none; }
+        .sidebar ul li { margin-bottom: 12px; }
+        .sidebar ul li a { color: #bdc3c7; text-decoration: none; font-size: 0.95rem; }
+        .sidebar ul li a:hover { color: #f2c811; }
+        .main-content { margin-left: var(--sidebar-width); flex: 1; padding: 40px; max-width: 1000px; }
+        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h1 { color: #0078d4; margin-bottom: 20px; }
+        h2 { color: #2c3e50; margin: 25px 0 15px 0; border-left: 5px solid #f2c811; padding-left: 15px; }
+        .step-box { background: #f8f9fa; border: 1px solid #e9ecef; padding: 20px; border-radius: 6px; margin-bottom: 20px; }
+        .path-text { color: #d63384; font-weight: bold; font-family: monospace; }
+        .cred-box { background: #eef2f7; border-left: 4px solid #0078d4; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 0.9rem; }
+        pre { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 6px; overflow-x: auto; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <nav class="sidebar">
+        <h2>Documentação</h2>
+        <ul>
+            <li><a href="#install">1. Baixar e Instalar</a></li>
+            <li><a href="#config">2. Configurar DSN</a></li>
+            <li><a href="#pbi">3. Power BI</a></li>
+        </ul>
+    </nav>
+
+    <main class="main-content">
+        <div id="install" class="card">
+            <h1>Power BI + DuckDB (via ODBC)</h1>
+            <p>Siga os passos para conectar o Power BI ao seu Datalake utilizando as credenciais definidas.</p>
+            <div class="step-box">
+                <p>👉 <a href="https://duckdb.org/docs/stable/clients/odbc/windows" target="_blank">Documentação Oficial DuckDB (ODBC)</a></p>
+                <p style="margin-top: 15px;"><strong>Como instalar:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>1. Extraia o ZIP e localize o arquivo <span class="path-text">duckdb_odbc.inf</span>.</li>
+                    <li>2. Clique com o botão direito e selecione <strong>Instalar</strong>.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="config" class="card">
+            <h2>2. Configurar Fonte de Dados (DSN)</h2>
+            <div class="step-box">
+                <ol style="margin-left: 20px;">
+                    <li>No Windows, abra <strong>Fontes de Dados ODBC (64 bits)</strong>.</li>
+                    <li>Em <strong>DSN de Sistema</strong>, clique em <strong>Adicionar</strong> e selecione <strong>DuckDB Driver</strong>.</li>
+                    <li>Configure os campos conforme abaixo:</li>
+                </ol>
+                <div class="cred-box">
+                    DSN Name: DuckDB_Datalake<br>
+                    Database: C:\caminho\datalake_airflow.duckdb<br>
+                    Custom Strategy: postgres (se disponível)
+                </div>
+            </div>
+        </div>
+
+        <div id="pbi" class="card">
+            <h2>3. Conectar no Power BI</h2>
+            <div class="step-box">
+                <ol style="margin-left: 20px;">
+                    <li>Vá em <strong>Obter Dados</strong> > <strong>ODBC</strong> e selecione <strong>DuckDB_Datalake</strong>.</li>
+                    <li>Clique em <strong>Opções Avançadas</strong> e insira a consulta SQL:</li>
+                </ol>
+                <pre><code>select * from public.delta_artist;</code></pre>
+                
+                <ol start="3" style="margin-left: 20px; margin-top: 15px;">
+                    <li><strong>Credenciais de Acesso:</strong> Quando a janela de autenticação abrir, selecione a aba <strong>Banco de Dados</strong> e informe:</li>
+                </ol>
+                <div class="cred-box">
+                    Usuário: pbi_user<br>
+                    Senha: pbi_password<br>
+                    Banco (Database): datalake_bi
+                </div>
+                <p style="margin-top: 10px; font-size: 0.9rem; color: #666;">
+                    * Essas credenciais garantem a compatibilidade com o schema definido no seu ambiente de dados.
+                </p>
+            </div>
+        </div>
+    </main>
+</div>
+
+</body>
+</html>

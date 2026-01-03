@@ -200,8 +200,14 @@ Uma caixa de diálogo aparecerá:
 - Clique **OK**.
 
 ### 4. Credenciais (se necessário)
+Se o arquivo `.duckdb` estiver em rede protegida, o Power BI mostrará um prompt de autenticação. Preencha:
 
-Se o arquivo `.duckdb` estiver em rede protegida, forneça credenciais Windows ou de acesso à rede.
+- **Método**: Windows (ou Basic, conforme sua rede).
+- **Usuário**: `DOMINIO\usuario` ou o usuário de rede.
+- **Senha**: senha de rede.
+- Marque **Lembrar minhas credenciais** se quiser evitar novos prompts.
+
+> Não é necessário informar credenciais do PostgreSQL aqui; esta conexão é apenas ODBC para o arquivo DuckDB.
 
 ### 5. Navigator - Escolher Tabelas/Views
 

@@ -14,6 +14,7 @@ MD_FILES = {
     "DOCS_INDEX.md": "docs-index.html",
     "GUIDE_WEBAPP_CONFIG.md": "guide-webapp-config.html",
     "MIGRACAO_DUCKDB_POSTGRESQL.md": "migracao-duckdb-postgresql.html",
+    "PowerBI_Conexao_DuckDB_ODBC.md": "powerbi-conexao-duckdb-odbc.html",
     "TRANSFORMACOES_SILVER.md": "transformacoes-silver.html",
     "DELTA_LAKE_IMPLEMENTATION.md": "delta-lake-implementation.html",
 }
@@ -240,7 +241,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             padding: 2px 6px;
             border-radius: 3px;
             font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: #c7254e;
         }}
 
@@ -251,12 +252,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             overflow-x: auto;
             margin-bottom: 15px;
             border-left: 4px solid #3498db;
+            font-size: 0.9rem;
         }}
 
         pre code {{
             background: none;
             padding: 0;
             color: #333;
+            font-size: 0.85rem;
         }}
 
         table {{
@@ -467,7 +470,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <li><a href="index.html" {index_active}>🏠 Home</a></li>
                     <li><a href="docs-index.html" {docs_index_active}>📋 Índice Completo</a></li>
                     <li><a href="guide-webapp-config.html" {guide_active}>🖥️ Guia Interface Web</a></li>
-                    <li><a href="migracao-duckdb-postgresql.html" {migracao_active}>🔌 Conexão Power BI</a></li>
+                    <li><a href="powerbi-conexao-duckdb-odbc.html" {migracao_active}>🔌 Conexão Power BI</a></li>
                     <li><a href="transformacoes-silver.html" {silver_active}>🥈 Transformações Silver</a></li>
                     <li><a href="delta-lake-implementation.html" {delta_active}>🥇 Delta Lake & Gold</a></li>
                 </ul>
@@ -587,6 +590,7 @@ def md_to_html(md_content):
             'DOCS_INDEX.md': 'docs-index.html',
             'GUIDE_WEBAPP_CONFIG.md': 'guide-webapp-config.html',
             'MIGRACAO_DUCKDB_POSTGRESQL.md': 'migracao-duckdb-postgresql.html',
+            'PowerBI_Conexao_DuckDB_ODBC.md': 'powerbi-conexao-duckdb-odbc.html',
             'TRANSFORMACOES_SILVER.md': 'transformacoes-silver.html',
             'DELTA_LAKE_IMPLEMENTATION.md': 'delta-lake-implementation.html',
         }
@@ -735,7 +739,7 @@ def generate_html_from_md(md_file, html_file):
         active_flags['docs_index_active'] = 'class="active"'
     elif 'guide-webapp' in html_file:
         active_flags['guide_active'] = 'class="active"'
-    elif 'migracao' in html_file:
+    elif 'powerbi-conexao' in html_file or 'migracao' in html_file:
         active_flags['migracao_active'] = 'class="active"'
     elif 'transformacoes-silver' in html_file:
         active_flags['silver_active'] = 'class="active"'

@@ -140,6 +140,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             cursor: pointer;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             font-size: 0.95rem;
+            transition: left 0.3s ease;
         }}
 
         @media (min-width: 1100px) {{
@@ -410,7 +411,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 overlay.classList.toggle('active', isOpen && useOverlay);
             }}
 
-            toggleBtn.textContent = isOpen ? '✕ Fechar' : '☰ Menu';
+            toggleBtn.textContent = isOpen ? '✕' : '☰';
+            
+            // Ajusta posição do botão em telas maiores
+            if (window.innerWidth >= 1100) {{
+                toggleBtn.style.left = isOpen ? 'calc(var(--sidebar-width) + 16px)' : '16px';
+            }} else {{
+                toggleBtn.style.left = '16px';
+            }}
         }}
 
         function initSidebarToggle() {{
@@ -448,7 +456,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </script>
 </head>
 <body>
-    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰ Menu</button>
+    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰</button>
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
     <div class="container">
         <!-- Sidebar -->

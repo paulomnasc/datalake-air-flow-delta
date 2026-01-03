@@ -21,8 +21,9 @@
         h2 { color: #2c3e50; margin: 25px 0 15px 0; border-left: 5px solid #f2c811; padding-left: 15px; }
         .step-box { background: #f8f9fa; border: 1px solid #e9ecef; padding: 20px; border-radius: 6px; margin-bottom: 20px; }
         .path-text { color: #d63384; font-weight: bold; font-family: monospace; }
-        .cred-box { background: #eef2f7; border-left: 4px solid #0078d4; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 0.9rem; }
         pre { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 6px; overflow-x: auto; margin-top: 10px; }
+        .external-link { color: #0078d4; text-decoration: underline; font-weight: bold; font-size: 1.1rem; }
+        .cred-box { background: #eef2f7; border-left: 4px solid #0078d4; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 0.9rem; }
     </style>
 </head>
 <body>
@@ -31,6 +32,7 @@
     <nav class="sidebar">
         <h2>Documentação</h2>
         <ul>
+            <li><a href="#origin">0. Geração do Arquivo</a></li>
             <li><a href="#install">1. Baixar e Instalar</a></li>
             <li><a href="#config">2. Configurar DSN</a></li>
             <li><a href="#pbi">3. Power BI</a></li>
@@ -38,15 +40,43 @@
     </nav>
 
     <main class="main-content">
-        <div id="install" class="card">
-            <h1>Power BI + DuckDB (via ODBC)</h1>
-            <p>Siga os passos para conectar o Power BI ao seu Datalake utilizando as credenciais definidas.</p>
+
+        <div id="origin" class="card">
+            <h1>0. Geração do Arquivo de Dados (.duckdb)</h1>
+            <p>O arquivo de banco de dados deve ser gerado antes da configuração do ODBC.</p>
             <div class="step-box">
-                <p>👉 <a href="https://duckdb.org/docs/stable/clients/odbc/windows" target="_blank">Documentação Oficial DuckDB (ODBC)</a></p>
-                <p style="margin-top: 15px;"><strong>Como instalar:</strong></p>
-                <ul style="margin-left: 20px;">
-                    <li>1. Extraia o ZIP e localize o arquivo <span class="path-text">duckdb_odbc.inf</span>.</li>
-                    <li>2. Clique com o botão direito e selecione <strong>Instalar</strong>.</li>
+                <p style="color: #d63384; font-weight: bold; margin-bottom: 15px;">⚠️ Pré-requisito: Certifique-se de que o <span class="path-text">duckdb.exe</span> está no PATH do Windows</p>
+                <p>Para verificar ou adicionar o DuckDB ao PATH:</p>
+                <ul style="margin-left: 20px; margin-bottom: 15px;">
+                    <li>Vá em <strong>Variáveis de Ambiente</strong> > <strong>Path</strong> e adicione a pasta onde o <span class="path-text">duckdb.exe</span> está localizado</li>
+                    <li>Reinicie o PowerShell para aplicar as mudanças</li>
+                </ul>
+                <p>No terminal (PowerShell), execute o comando para criar o arquivo físico onde os dados do Airflow serão armazenados:</p>
+                <pre><code>duckdb datalake_airflow.duckdb</code></pre>
+                <p style="margin-top: 10px; color: #d63384; font-weight: bold;">⚠️ Importante: O comando abre um shell interativo do DuckDB. Para sair e criar o arquivo, digite:</p>
+                <pre><code>.quit</code></pre>
+                <p style="margin-top: 10px;">Ou pressione <strong>Ctrl + D</strong>. Isso encerrará o shell e salvará o arquivo <span class="path-text">datalake_airflow.duckdb</span> na pasta atual.</p>
+                
+                <p style="margin-top: 20px; color: #d63384; font-weight: bold;">❌ Se o arquivo não for criado, tente a alternativa:</p>
+                <p>No terminal (PowerShell), certifique-se de que está executando em uma pasta com permissão de escrita (evite pastas protegidas como Program Files). Depois execute:</p>
+                <pre><code>echo "SELECT 1;" | duckdb datalake_airflow.duckdb</code></pre>
+                <p style="margin-top: 10px;">Este comando cria o arquivo de forma mais confiável no Windows e não abre o shell interativo.</p>
+            </div>
+        </div>
+
+        <div id="install" class="card">
+            <h1>1. Baixar o Driver ODBC</h1>
+            <div class="step-box">
+                <p>Acesse o link oficial abaixo para realizar o download do driver:</p>
+                <p style="margin: 15px 0;">
+                    👉 <a href="https://duckdb.org/docs/stable/clients/odbc/windows" target="_blank" class="external-link">Acesse a Documentação Oficial do DuckDB (ODBC Windows)</a>
+                </p>
+                <p>Como instalar:</p>
+                <ul style="margin-left: 20px; margin-top: 10px;">
+                    <li>1. Extraia o arquivo ZIP para uma pasta segura.</li>
+                    <li>2. Clique com o botão direito no arquivo <span class="path-text">duckdb_odbc.inf</span>.</li>
+                    <li>3. Selecione <strong>Instalar</strong> (Install).</li>
+                    <li>4. Confirme as permissões do Windows.</li>
                 </ul>
             </div>
         </div>
@@ -55,15 +85,12 @@
             <h2>2. Configurar Fonte de Dados (DSN)</h2>
             <div class="step-box">
                 <ol style="margin-left: 20px;">
-                    <li>No Windows, abra <strong>Fontes de Dados ODBC (64 bits)</strong>.</li>
-                    <li>Em <strong>DSN de Sistema</strong>, clique em <strong>Adicionar</strong> e selecione <strong>DuckDB Driver</strong>.</li>
-                    <li>Configure os campos conforme abaixo:</li>
+                    <li>Abra o <strong>Administrador de Fonte de Dados ODBC (64 bits)</strong>.</li>
+                    <li>Na aba <strong>DSN de Sistema</strong>, clique em <strong>Adicionar</strong>.</li>
+                    <li>Escolha <strong>DuckDB Driver</strong>.</li>
+                    <li>No campo <strong>Database</strong>, informe o caminho do arquivo gerado no Passo 0:</li>
+                    <div class="cred-box">C:\caminho\datalake_airflow.duckdb</div>
                 </ol>
-                <div class="cred-box">
-                    DSN Name: DuckDB_Datalake<br>
-                    Database: C:\caminho\datalake_airflow.duckdb<br>
-                    Custom Strategy: postgres (se disponível)
-                </div>
             </div>
         </div>
 
@@ -71,22 +98,20 @@
             <h2>3. Conectar no Power BI</h2>
             <div class="step-box">
                 <ol style="margin-left: 20px;">
-                    <li>Vá em <strong>Obter Dados</strong> > <strong>ODBC</strong> e selecione <strong>DuckDB_Datalake</strong>.</li>
-                    <li>Clique em <strong>Opções Avançadas</strong> e insira a consulta SQL:</li>
+                    <li>No Power BI Desktop, vá em <strong>Obter Dados</strong> > <strong>ODBC</strong>.</li>
+                    <li>Selecione o DSN criado anteriormente.</li>
+                    <li>Clique em <strong>Opções Avançadas</strong> e insira a instrução SQL:</li>
                 </ol>
                 <pre><code>select * from public.delta_artist;</code></pre>
                 
-                <ol start="3" style="margin-left: 20px; margin-top: 15px;">
-                    <li><strong>Credenciais de Acesso:</strong> Quando a janela de autenticação abrir, selecione a aba <strong>Banco de Dados</strong> e informe:</li>
+                <ol start="4" style="margin-left: 20px; margin-top: 15px;">
+                    <li>Na janela de autenticação, vá na aba <strong>Banco de Dados</strong> e insira:</li>
                 </ol>
                 <div class="cred-box">
-                    Usuário: pbi_user<br>
-                    Senha: pbi_password<br>
-                    Banco (Database): datalake_bi
+                    <strong>Usuário:</strong> pbi_user<br>
+                    <strong>Senha:</strong> pbi_password<br>
+                    <strong>Database:</strong> datalake_bi
                 </div>
-                <p style="margin-top: 10px; font-size: 0.9rem; color: #666;">
-                    * Essas credenciais garantem a compatibilidade com o schema definido no seu ambiente de dados.
-                </p>
             </div>
         </div>
     </main>

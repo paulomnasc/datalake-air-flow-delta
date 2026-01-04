@@ -48,7 +48,10 @@ class AirflowHelper
             
             // Se não forneceu password, gerar uma aleatória
             if (empty($password)) {
+                log_message('warning', "[AirflowHelper] Senha vazia recebida! Gerando senha aleatória.");
                 $password = bin2hex(random_bytes(8));
+            } else {
+                log_message('info', "[AirflowHelper] Senha recebida com sucesso (tamanho: " . strlen($password) . " caracteres)");
             }
             
             log_message('debug', "[AirflowHelper] Sincronizando usuário via API: {$username}");
@@ -109,8 +112,33 @@ class AirflowHelper
                 ];
             }
 
-            // 2) Se já existe, tenta atualizar
-            if (str_contains($create['error'], 'already exists') || str_contains($create['error'], '409')) {
+            // 2) Se já existe (409), tenta buscar por email e atualizar
+            if (str_contains($create['error'], 'already exists') || str_contains($create['error'], 'already taken') || str_contains($create['error'], '409')) {
+                log_message('info', "[AirflowHelper] Email já existe no Airflow. Buscando usuário existente...");
+                
+                // Busca o usuário existente pelo email
+                $existingUser = self::getUserByEmail($email);
+                if ($existingUser) {
+                    $existingUsername = $existingUser['username'];
+                    log_message('info', "[AirflowHelper] Usuário encontrado: {$existingUsername}. Atualizando senha e roles...");
+                    
+                    // Atualiza o usuário existente com a nova senha
+                    $update = self::apiCall('PATCH', "{$airflowUrl}/{$existingUsername}", $userData);
+                    if ($update['success']) {
+                        log_message('info', "[AirflowHelper] ✅ Usuário atualizado no Airflow: {$existingUsername} (senha sincronizada)");
+                        if (!empty($ownerRole)) {
+                            self::ensureOwnerRoleAndAttach($existingUsername, $ownerRole);
+                        }
+                        return [
+                            'success'  => true,
+                            'message'  => "Usuário {$existingUsername} atualizado com sucesso no Airflow (senha sincronizada)",
+                            'username' => $existingUsername,
+                            'action'   => 'updated'
+                        ];
+                    }
+                }
+                
+                // Se não encontrou por email, tenta atualizar com o username gerado
                 $update = self::apiCall('PATCH', "{$airflowUrl}/{$username}", $userData);
                 if ($update['success']) {
                     log_message('info', "[AirflowHelper] ✅ Usuário atualizado no Airflow: {$username}");
@@ -198,6 +226,35 @@ class AirflowHelper
         }
     }
 
+    /**
+     * Busca um usuário no Airflow pelo email
+     * 
+     * @param string $email Email do usuário
+     * @return array|null Retorna os dados do usuário ou null se não encontrado
+     */
+    private static function getUserByEmail(string $email): ?array
+    {
+        try {
+            $airflowUrl = self::getAirflowBaseUrl() . '/api/v1/users';
+            $result = self::apiCall('GET', $airflowUrl);
+            
+            if ($result['success'] && isset($result['response']['users'])) {
+                foreach ($result['response']['users'] as $user) {
+                    if (isset($user['email']) && $user['email'] === $email) {
+                        log_message('debug', "[AirflowHelper] Usuário encontrado por email: " . json_encode($user));
+                        return $user;
+                    }
+                }
+            }
+            
+            log_message('debug', "[AirflowHelper] Nenhum usuário encontrado com email: {$email}");
+            return null;
+        } catch (\Exception $e) {
+            log_message('error', "[AirflowHelper] Erro ao buscar usuário por email: " . $e->getMessage());
+            return null;
+        }
+    }
+    
     /**
      * Chamada REST ao Airflow com basic auth (admin:admin)
      */

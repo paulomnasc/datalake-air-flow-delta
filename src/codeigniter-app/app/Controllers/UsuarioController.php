@@ -74,6 +74,7 @@ class UsuarioController extends BaseController
                 
                 // Sincroniza usuário com Airflow (cria ou atualiza credenciais)
                 if (AirflowHelper::isAirflowAvailable()) {
+                    log_message('info', "[LOGIN] Sincronizando usuário {$usuario->id} com Airflow - senha fornecida: " . (!empty($data['senha']) ? 'SIM' : 'NÃO'));
                     $airflowResult = AirflowHelper::syncUserWithAirflow(
                         $usuario->id,
                         $usuario->email ?? "",

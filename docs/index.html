@@ -122,6 +122,28 @@
             transition: left 0.3s ease;
         }
 
+        .home-button {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 1100;
+            background: #27ae60;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+            text-decoration: none;
+            display: inline-block;
+            transition: background 0.3s ease;
+        }
+
+        .home-button:hover {
+            background: #229954;
+        }
+
         @media (min-width: 1100px) {
             .sidebar-toggle {
                 left: calc(var(--sidebar-width) + 16px);
@@ -436,6 +458,7 @@
 </head>
 <body>
     <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰</button>
+    <a href="/" class="home-button" aria-label="Voltar para Home">🏠 Home do Site</a>
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
     <div class="container">
         <!-- Sidebar -->

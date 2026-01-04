@@ -307,6 +307,9 @@ above_avg = df[df['creditLimit'] > df['creditLimit_by_country_mean']]
 | `docker compose.yml` | Containers: Airflow, MinIO, MySQL, Spark |
 | `requirements.txt` | Dependências Python (deltalake==0.15.0) |
 | `src/dags/factory_master.py` | Factory de DAGs (cria DAGs automaticamente) |
+| `SECURITY_PENDENCIAS.md` | Pendências e riscos de segurança atuais |
+| `SECURITY_MINIO_ACTION_PLAN.md` | Plano de ação para rotação de credenciais e hardening do MinIO |
+| `SECURITY_POSTGRES_ACTION_PLAN.md` | Plano de ação para rotação de credenciais e hardening do PostgreSQL |
 
 ### Documentação Geral
 

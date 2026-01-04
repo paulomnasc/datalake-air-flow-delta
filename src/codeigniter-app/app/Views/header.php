@@ -54,17 +54,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // Seleciona todos os links/botões relevantes por texto
     const termsLinks = Array.from(document.querySelectorAll('a,button')).filter(el => {
         const txt = (el.textContent || '').trim().toLowerCase();
-        return txt === 'experimentar' || txt === 'registre-se' || txt === 'inscrever-se';
+        return (
+            txt === 'experimentar' ||
+            txt === 'registre-se' ||
+            txt === 'inscrever-se' ||
+            el.classList.contains('terms-link')
+        );
     });
     const termsText = `Termos de Adesão: MyFlow Lab - Founder's Club 🚀\n\nOlá, Fundador(a)!\nVocê está sendo convidado(a) para participar da fase de nascimento do MyFlow Lab. Este é o nosso ambiente de experimentação onde você terá acesso às ferramentas e infraestruturas de dados que utilizo em meus tutoriais.\n\nAo clicar em \"De Acordo\", você aceita as seguintes condições de participação:\n\n1. O Período de Experiência (Free Pass)\nVocê terá 30 dias de acesso gratuito e irrestrito ao Lab a partir de hoje. Não solicitaremos dados de pagamento ou cartão de crédito para iniciar este período.\n\n2. Transição para Assinatura (Founder's Rate)\nPróximo ao término do seu período de 30 dias, o sistema exibirá notificações automáticas dentro da plataforma informando sobre a expiração do acesso.\nOpção de Continuidade: Para manter seus fluxos ativos e continuar utilizando o Lab, você poderá optar por assinar o plano mensal de USD 7,00 (sete dólares americanos).\nValor Vitalício: Como membro fundador, este valor será travado para você. Caso decida não assinar ao final dos 30 dias, seu acesso será suspenso, mas seus dados e fluxos permanecerão salvos por um período de cortesia para que você não perca seu trabalho.\n\n3. O que está incluído\nAcesso ao Lab: Infraestrutura pronta para execução de fluxos de dados.\nBlueprint Library: Modelos prontos baseados nos vídeos do canal.\nPrioridade de Feedback: Canal direto para sugerir novas funcionalidades.\n\n4. Sua Colaboração (O papel do Fundador)\nComo este é um ambiente em fase Beta, você concorda que:\nO sistema pode passar por atualizações e manutenções programadas.\nO seu feedback sobre a experiência de uso é fundamental para a evolução da ferramenta.\nRecomendamos manter backups externos de lógicas críticas, pois o ambiente é experimental.\n\n5. Uso Responsável\nO acesso é individual e voltado para aprendizado e desenvolvimento profissional. O uso abusivo de recursos computacionais fora dos padrões de aprendizado poderá resultar em suspensão temporária da conta.\n\nAo clicar abaixo, declaro que li e concordo com os termos, iniciando agora meu período de 30 dias de acesso ao MyFlow Lab.\n\n`;
     termsLinks.forEach(link => {
         link.addEventListener('click', function(e) {
             // Só intercepta se for para sigInUsuario ou for um desses botões
+            const txt = (link.textContent || '').trim().toLowerCase();
             if (
                 (link.tagName === 'A' && link.getAttribute('href') && link.getAttribute('href').includes('sigInUsuario')) ||
-                link.textContent.trim().toLowerCase() === 'experimentar' ||
-                link.textContent.trim().toLowerCase() === 'registre-se' ||
-                link.textContent.trim().toLowerCase() === 'inscrever-se'
+                txt === 'experimentar' ||
+                txt === 'registre-se' ||
+                txt === 'inscrever-se' ||
+                link.classList.contains('terms-link')
             ) {
                 e.preventDefault();
                 openTermsModal(termsText, function() {
@@ -344,9 +351,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 </li>
 
                 <li>
-                    <a href="/docs/index.html" class="nav-link px-4 px-lg-5" target="_blank" style="color: #87ceeb;">
-                        📚 Documentação
-                    </a>
+                    <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
+                        <a href="/docs/index.html" class="nav-link px-4 px-lg-5" target="_blank" style="color: #87ceeb;">
+                            📚 Documentação
+                        </a>
+                    <?php else: ?>
+                        <?php echo anchor("sigInUsuario", "📚 Documentação", ['class' => 'nav-link px-4 px-lg-5 terms-link', 'style' => 'color: #87ceeb;']); ?>
+                    <?php endif; ?>
                 </li>
 
                 <li>

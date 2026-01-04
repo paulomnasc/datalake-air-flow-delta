@@ -38,6 +38,10 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
     border-bottom-color: #007bff;
     color: #007bff;
 }
+.form-group textarea#description {
+    width: 100%;
+    box-sizing: border-box;
+}
 .tab-content {
     display: none;
     padding: 20px;

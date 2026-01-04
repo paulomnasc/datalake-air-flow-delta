@@ -15,6 +15,13 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 $ownerPrefill = $ownerUsername ?: $owner;
 ?>
 
+<style>
+.form-group textarea#description {
+    width: 100%;
+    box-sizing: border-box;
+}
+</style>
+
 <div id="content">
 
     <div class="container">

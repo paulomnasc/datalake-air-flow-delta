@@ -13,7 +13,16 @@ class UsuarioModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['nome','email','senha','email_confirmado'];
+    protected $allowedFields    = [
+        'nome',
+        'email',
+        'senha',
+        'email_confirmado',
+        'data_ultimo_pagamento',
+        'data_vencimento_assinatura',
+        'status_assinatura',
+        'data_inicio_trial'
+    ];
     
 
     protected bool $allowEmptyInserts = false;
@@ -23,7 +32,7 @@ class UsuarioModel extends Model
     protected array $castHandlers = [];
 
     // Dates
-    protected $useTimestamps = false;
+    protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
     protected $createdField  = 'created_at';
     protected $updatedField  = 'updated_at';

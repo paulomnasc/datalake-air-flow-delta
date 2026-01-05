@@ -107,6 +107,12 @@ $routes->post('/email', 'MarketPlaceController::sendMailNoSecurity', ['as'=>'ema
 $routes->post('/saibaMais', 'MarketPlaceController::saibaMais', ['as'=>'saibaMais']);//Dipara o form saiba mais 
 $routes->get('/saibaMais', 'MarketPlaceController::saibaMais', ['as'=>'saibaMais']);//Dipara o form saiba mais 
 
+// Rotas de Assinatura/Subscription
+$routes->get('/subscription/renew', 'SubscriptionController::index', ['as'=>'subscription.renew']); // Página de renovação
+$routes->get('/subscription/status', 'SubscriptionController::checkStatus', ['as'=>'subscription.status']); // Verifica status via AJAX
+$routes->post('/subscription/confirmPayment', 'SubscriptionController::confirmPayment', ['as'=>'subscription.confirmPayment']); // Confirma pagamento
+$routes->get('/subscription/pix', 'SubscriptionController::pixPayment', ['as'=>'subscription.pix']); // Página PIX
+
 //Botão Donate$
 $routes->post('/donate', 'MarketPlaceController::donate');
 

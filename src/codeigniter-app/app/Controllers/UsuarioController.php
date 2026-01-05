@@ -140,6 +140,28 @@ class UsuarioController extends BaseController
             if (!empty($list) && isset($list[0])) {
                 $usuario = $list[0]; // Acessa o primeiro usuário na lista
                 
+                // Verifica e inicializa período de trial se necessário
+                $usuarioModel = new UsuarioModel();
+                $needsUpdate = false;
+                $updateData = [];
+                
+                if (empty($usuario->data_inicio_trial) && empty($usuario->data_vencimento_assinatura)) {
+                    // Primeiro login confirmado - inicia período de trial
+                    $updateData['data_inicio_trial'] = date('Y-m-d');
+                    $updateData['data_vencimento_assinatura'] = date('Y-m-d', strtotime('+30 days'));
+                    $updateData['status_assinatura'] = 'trial';
+                    $needsUpdate = true;
+                }
+                
+                // Atualiza o usuário no banco se necessário
+                if ($needsUpdate) {
+                    $usuarioModel->update($usuario->id, $updateData);
+                    // Atualiza o objeto local também
+                    foreach ($updateData as $key => $value) {
+                        $usuario->$key = $value;
+                    }
+                }
+                
                 // Carregando o usuário na sessão
                 $_SESSION['id_usuario_logado'] = $usuario->id;
                 $_SESSION['nome_usuario_logado'] = $usuario->nome;

@@ -112,6 +112,7 @@ $routes->get('/subscription/renew', 'SubscriptionController::index', ['as'=>'sub
 $routes->get('/subscription/status', 'SubscriptionController::checkStatus', ['as'=>'subscription.status']); // Verifica status via AJAX
 $routes->post('/subscription/confirmPayment', 'SubscriptionController::confirmPayment', ['as'=>'subscription.confirmPayment']); // Confirma pagamento
 $routes->get('/subscription/pix', 'SubscriptionController::pixPayment', ['as'=>'subscription.pix']); // Página PIX
+$routes->get('/test-subscription', 'TestSubscription::index'); // DEBUG - Teste de subscription
 
 //Botão Donate$
 $routes->post('/donate', 'MarketPlaceController::donate');

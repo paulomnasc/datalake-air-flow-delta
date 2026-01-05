@@ -4,8 +4,7 @@
 
 -- Adicionar coluna created_at se não existir (para rastrear data de criação do usuário)
 ALTER TABLE `usuario` 
-ADD COLUMN IF NOT EXISTS `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Data de criação do usuário',
-ADD COLUMN IF NOT EXISTS `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Data de última atualização do usuário';
+ADD COLUMN IF NOT EXISTS `criado_em` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Data de criação do usuário',
 
 -- Adicionar campos de assinatura
 ALTER TABLE `usuario` 
@@ -16,12 +15,12 @@ ADD COLUMN `data_inicio_trial` DATE NULL COMMENT 'Data de início do período de
 ADD INDEX `idx_data_vencimento` (`data_vencimento_assinatura`),
 ADD INDEX `idx_status_assinatura` (`status_assinatura`);
 
--- Atualizar usuários existentes: definir data de início do trial baseado na data de criação (created_at)
+-- Atualizar usuários existentes: definir data de início do trial baseado na data de criação (criado_em)
 -- e vencimento em 30 dias a partir da data de criação
 UPDATE `usuario` 
 SET 
-    `data_inicio_trial` = COALESCE(DATE(`created_at`), CURDATE()),
-    `data_vencimento_assinatura` = DATE_ADD(COALESCE(DATE(`created_at`), CURDATE()), INTERVAL 30 DAY),
+    `data_inicio_trial` = COALESCE(DATE(`criado_em`), CURDATE()),
+    `data_vencimento_assinatura` = DATE_ADD(COALESCE(DATE(`criado_em`), CURDATE()), INTERVAL 30 DAY),
     `status_assinatura` = 'trial'
 WHERE 
     `data_vencimento_assinatura` IS NULL 

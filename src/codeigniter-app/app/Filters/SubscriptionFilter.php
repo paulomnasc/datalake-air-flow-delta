@@ -22,13 +22,23 @@ class SubscriptionFilter implements FilterInterface
      */
     public function before(RequestInterface $request, $arguments = null)
     {
+        // Tenta usar a sessão do CodeIgniter primeiro
+        $session = session();
+        $usuarioLogado = $session->get('usuario_logado');
+        $userId = $session->get('id_usuario_logado');
+        
+        // Fallback para $_SESSION direta
+        if (!$usuarioLogado) {
+            $usuarioLogado = $_SESSION['usuario_logado'] ?? null;
+            $userId = $_SESSION['id_usuario_logado'] ?? null;
+        }
+        
         // Verifica se o usuário está logado
-        if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
+        if (!$usuarioLogado || $usuarioLogado != 1) {
             return;
         }
 
         // Obtém ID do usuário
-        $userId = $_SESSION['id_usuario_logado'] ?? null;
         if (!$userId) {
             return;
         }

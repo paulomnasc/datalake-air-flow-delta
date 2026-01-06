@@ -9,12 +9,20 @@ services:
     container_name: nginx-gateway
     restart: always
     ports:
-      - "28080:80"
-      - "28443:443"
+      - "${NGINX_PORT_HTTP}:80"
+      - "${NGINX_PORT_HTTPS}:443"
     volumes:
-      - ./nginx/myflow.conf:/etc/nginx/conf.d/myflow.conf:ro
+      - ./nginx/myflow.conf.template:/etc/nginx/templates/myflow.conf.template:ro
+      # SSL template (apenas para produção - comentar em dev)
+      # - ./nginx/myflow-ssl.conf.template:/etc/nginx/templates/myflow-ssl.conf.template:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - nginx_logs:/var/log/nginx
+    environment:
+      - NGINX_PORT_HTTP=${NGINX_PORT_HTTP}
+      - NGINX_PORT_HTTPS=${NGINX_PORT_HTTPS}
+      - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
+      - NGINX_SSL_CERT=${NGINX_SSL_CERT}
+      - NGINX_SSL_KEY=${NGINX_SSL_KEY}
     depends_on:
       - codeigniter-app
     networks:
@@ -34,8 +42,8 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
     ports:
-      - "27077:7077"
-      - "28081:8080"
+      - "${SPARK_PORT_RPC}:7077"
+      - "${SPARK_PORT_WEB}:8080"
     volumes:
       - ./spark-apps:/opt/spark-apps
     #   - ./jars:/opt/spark/jars
@@ -57,7 +65,7 @@ services:
       # Use as coordenadas Maven dos seus jars
       - SPARK_OPTS=--packages io.delta:delta-core_2.12:2.4.0,org.apache.hadoop:hadoop-aws:3.3.4
     ports:
-      - "28082:8081"
+      - "${SPARK_WORKER_PORT}:8081"
     volumes:
       - spark_ivy:/home/spark/.ivy2
     extra_hosts:
@@ -74,7 +82,7 @@ services:
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
     ports:
-      - "25432:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     extra_hosts:
@@ -91,7 +99,7 @@ services:
       POSTGRES_PASSWORD: pbi_password
       POSTGRES_DB: datalake_bi
     ports:
-      - "25433:5432"
+      - "${POSTGRES_BI_PORT}:5432"
     volumes:
       - pg_bi_data:/var/lib/postgresql/data
     extra_hosts:
@@ -105,7 +113,7 @@ services:
     container_name: redis
     restart: always
     ports:
-      - "26379:6379"
+      - "${REDIS_PORT}:6379"
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "vscode:host-gateway"
@@ -120,7 +128,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
     ports:
-      - "23306:3306"
+      - "${MYSQL_PORT}:3306"
     volumes:
     # 🚨 CRÍTICO: Mapeia sua pasta local de scripts para o diretório de inicialização do Docker
       - ./mysql-init:/docker-entrypoint-initdb.d 
@@ -156,7 +164,7 @@ services:
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
     ports:
-      - "28083:8080"
+      - "${AIRFLOW_WEBSERVER_PORT}:8080"
     command: airflow webserver
     user: root
     extra_hosts:
@@ -197,7 +205,7 @@ services:
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
     ports:
-      - "25678:5678"
+      - "${AIRFLOW_SCHEDULER_DEBUG_PORT}:5678"
     command: airflow scheduler
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -212,8 +220,8 @@ services:
       MINIO_ROOT_PASSWORD: admin123
     command: server /data --console-address ":9001"
     ports:
-      - "29000:9000"
-      - "29001:9001"
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
     volumes:
       - /var/oled/minio_data:/data
     extra_hosts:
@@ -241,7 +249,7 @@ services:
     volumes:
       - ./ddb:/opt/duckdb
     ports:
-      - "25000:5000"
+      - "${DUCKDB_API_PORT}:5000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "vscode:host-gateway"
@@ -324,10 +332,14 @@ services:
       # Bind mount apenas para configs do Airflow (persistidos no host)
       - ./src/dags/configs:/var/www/html/writable/configs
     ports:
-      - "28088:80"
-      - "29003:9003" # <--- Porta do XDebug
+      - "${CODEIGNITER_PORT}:80"
+      - "${CODEIGNITER_XDEBUG_PORT}:9003" # <--- Porta do XDebug
     environment:
       - CI_ENVIRONMENT=development
+      # Porta externa do CodeIgniter (para construir app_baseURL)
+      - CODEIGNITER_PORT=${CODEIGNITER_PORT}
+      - NGINX_PORT_HTTPS=${NGINX_PORT_HTTPS}
+      - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
       # MinIO configuration used by the webapp (read by ConfigController::_initMinioClient())
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_REGION=us-east-1
@@ -348,7 +360,7 @@ services:
     image: sburn/apache-atlas:latest
     container_name: apache-atlas
     ports:
-      - "31000:21000"
+      - "${ATLAS_PORT}:21000"
     environment:
       - JAVA_OPTS=-Xmx1024m -Xms512m
       - ATLAS_SERVER_OPTS=-server -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+CMSClassUnloadingEnabled -XX:+UseConcMarkSweepGC -XX:+CMSPermGenSweepingEnabled
@@ -372,8 +384,8 @@ services:
     profiles:
       - atlas
     ports:
-      - "28888:8888" # Jupyter Notebook
-      - "24040:4040" # Spark UI
+      - "${JUPYTER_PORT}:8888" # Jupyter Notebook
+      - "${SPARK_UI_PORT}:4040" # Spark UI
     volumes:
       - ./atlas-lab/notebooks:/home/jovyan/work
       - ./atlas-lab/data:/home/jovyan/data

@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\UsuarioModel;
 use App\Helpers\SubscriptionHelper;
+use App\Helpers\AirflowHelper;
 
 /**
  * SubscriptionController
@@ -168,6 +169,23 @@ class SubscriptionController extends BaseController
             $_SESSION['subscription_status'] = 'active';
             $_SESSION['subscription_expiry_date'] = $resultado['novo_vencimento'];
             $_SESSION['subscription_last_payment'] = date('Y-m-d');
+            $_SESSION['subscription_services_blocked'] = false; // Desbloqueia serviços
+            
+            // Reativar usuário no Airflow
+            $usuario = $usuarioModel->find($userId);
+            if ($usuario) {
+                $airflowResult = AirflowHelper::setUserActiveStatus(
+                    $userId, 
+                    $usuario->email ?? '', 
+                    true
+                );
+                
+                if ($airflowResult['success']) {
+                    log_message('info', "[SUBSCRIPTION] Usuário {$userId} reativado no Airflow após renovação");
+                } else {
+                    log_message('warning', "[SUBSCRIPTION] Falha ao reativar usuário {$userId} no Airflow: {$airflowResult['message']}");
+                }
+            }
 
             return $this->response->setJSON([
                 'status' => 'success',

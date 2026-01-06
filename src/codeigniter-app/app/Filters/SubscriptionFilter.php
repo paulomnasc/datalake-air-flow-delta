@@ -7,6 +7,7 @@ use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\UsuarioModel;
 use App\Helpers\SubscriptionHelper;
+use App\Helpers\AirflowHelper;
 
 /**
  * SubscriptionFilter
@@ -60,6 +61,18 @@ class SubscriptionFilter implements FilterInterface
         if ($novoStatus !== $statusAtual) {
             $usuarioModel->update($userId, ['status_assinatura' => $novoStatus]);
             $usuario->status_assinatura = $novoStatus;
+            
+            // Gerenciar status do usuário no Airflow baseado na assinatura
+            if ($novoStatus === 'expired' || $novoStatus === 'cancelled') {
+                // Desativar usuário no Airflow se assinatura expirou ou foi cancelada
+                AirflowHelper::setUserActiveStatus($userId, $usuario->email ?? '', false);
+                log_message('info', "[SUBSCRIPTION] Usuário {$userId} desativado no Airflow - assinatura {$novoStatus}");
+            } elseif (($statusAtual === 'expired' || $statusAtual === 'cancelled') && 
+                      ($novoStatus === 'active' || $novoStatus === 'trial')) {
+                // Reativar usuário no Airflow se assinatura foi renovada
+                AirflowHelper::setUserActiveStatus($userId, $usuario->email ?? '', true);
+                log_message('info', "[SUBSCRIPTION] Usuário {$userId} reativado no Airflow - assinatura {$novoStatus}");
+            }
         }
 
         // Carrega informações de assinatura na sessão
@@ -75,6 +88,10 @@ class SubscriptionFilter implements FilterInterface
         // Verifica se deve mostrar aviso
         $mostrarAviso = SubscriptionHelper::deveMostrarAviso($dataVencimento, $usuario->status_assinatura ?? 'trial');
         $_SESSION['subscription_show_warning'] = $mostrarAviso;
+        
+        // Define se os serviços (menu SERVIÇOS) devem estar bloqueados
+        $statusBloqueado = in_array($usuario->status_assinatura ?? 'trial', ['expired', 'cancelled']);
+        $_SESSION['subscription_services_blocked'] = $statusBloqueado;
 
         // Verifica se pode acessar
         $acessoInfo = SubscriptionHelper::podeAcessarPlataforma(

@@ -532,21 +532,33 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 <!-- Fim Dropdown -->
                 <?php endif; ?>
 
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-bs-toggle="dropdown">
-                        SERVIÇOS
-                    </a>
-                    <div class="dropdown-menu">
-                        <?php if (isset($userHasPipelinesAccess) && $userHasPipelinesAccess): ?>
-                            <a class="dropdown-item" href=" http://airflow.estudotabela.com.br:28083" target="_blank" rel="noopener noreferrer">Pipelines ELT</a>
-                        <?php endif; ?>
-                        <!-- ?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
-                            <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->
-                        <!-- ?php endif; ?-->
-                        <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): ?>
-                            <a class="dropdown-item" href="<?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a>
-                        <?php endif; ?>
-                    </div>
+                <?php 
+                // Verifica se os serviços estão bloqueados por assinatura expirada
+                $servicesBlocked = isset($_SESSION['subscription_services_blocked']) && $_SESSION['subscription_services_blocked'];
+                ?>
+
+                <li class="nav-item dropdown <?= $servicesBlocked ? 'disabled' : '' ?>">
+                    <?php if ($servicesBlocked): ?>
+                        <a class="nav-link dropdown-toggle" href="#" style="opacity: 0.5; cursor: not-allowed;" 
+                           title="Renovar assinatura para acessar os serviços" onclick="event.preventDefault(); alert('⚠️ Assinatura expirada!\n\nPara acessar os serviços, renove sua assinatura.');">
+                            SERVIÇOS 🔒
+                        </a>
+                    <?php else: ?>
+                        <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-bs-toggle="dropdown">
+                            SERVIÇOS
+                        </a>
+                        <div class="dropdown-menu">
+                            <?php if (isset($userHasPipelinesAccess) && $userHasPipelinesAccess): ?>
+                                <a class="dropdown-item" href=" http://airflow.estudotabela.com.br:28083" target="_blank" rel="noopener noreferrer">Pipelines ELT</a>
+                            <?php endif; ?>
+                            <!-- ?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
+                                <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->
+                            <!-- ?php endif; ?-->
+                            <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): ?>
+                                <a class="dropdown-item" href="<?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                 </li>
 
                 <?php echo anchor("politica","Política Privacidade", ['class' => 'nav-link px-4 px-lg-5'])  ?>

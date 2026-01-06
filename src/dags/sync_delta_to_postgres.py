@@ -13,7 +13,8 @@ import re
 import os
 
 # Configurações
-POSTGRES_HOST = 'postgres-bi'
+ENV_SUFFIX = os.environ.get('ENV_SUFFIX', '')
+POSTGRES_HOST = f'postgres-bi-{ENV_SUFFIX}' if ENV_SUFFIX else 'postgres-bi'
 POSTGRES_PORT = 5432
 POSTGRES_DB = 'datalake_bi'
 POSTGRES_USER = 'pbi_user'

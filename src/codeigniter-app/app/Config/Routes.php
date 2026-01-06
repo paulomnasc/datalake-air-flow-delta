@@ -94,6 +94,7 @@ $routes->post('/query-builder/tables', 'QueryBuilderController::listTables', ['a
 $routes->post('/query-builder/schema', 'QueryBuilderController::getSchema', ['as'=>'query-builder.schema']);
 $routes->get('/query-builder/status', 'QueryBuilderController::status', ['as'=>'query-builder.status']);
 $routes->post('/query-builder/parquet-files', 'QueryBuilderController::listParquetFiles', ['as'=>'query-builder.parquet-files']);
+$routes->get('/query-builder/debug', 'QueryBuilderController::debug', ['as'=>'query-builder.debug']);
 
 
 /* $routes->get('upload', 'UploadController::index');

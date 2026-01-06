@@ -18,6 +18,9 @@ cp .env.example .env
 
 **Verificar no `.env` (raiz do projeto):**
 ```env
+# IMPORTANTE: Sufixo para nomes de containers (evita conflitos entre ambientes)
+ENV_SUFFIX=dev
+
 MYSQL_ROOT_PASSWORD=root
 MYSQL_DATABASE=lista_revisao2
 
@@ -82,6 +85,9 @@ cp .env-prd .env
 
 **Editar `.env` (raiz do projeto):**
 ```env
+# IMPORTANTE: Sufixo para nomes de containers
+ENV_SUFFIX=prd
+
 MYSQL_ROOT_PASSWORD=SenhaSeguraProducao123!
 MYSQL_DATABASE=lista_revisao2
 
@@ -245,6 +251,9 @@ cp .env-test .env
 
 **Verificar no `.env` (portas 29xxx):**
 ```env
+# IMPORTANTE: Sufixo para nomes de containers (evita conflito com produção)
+ENV_SUFFIX=test
+
 MYSQL_ROOT_PASSWORD=YM11rMrT32xH0E6N
 MYSQL_DATABASE=lista_revisao2_test
 
@@ -389,6 +398,84 @@ docker ps | wc -l  # Muitos containers
 
 ---
 
+## 🏷️ Sistema de Sufixos de Ambiente (ENV_SUFFIX)
+
+### O que é?
+
+O `ENV_SUFFIX` é uma variável que **adiciona automaticamente um sufixo aos nomes de todos os containers Docker**. Isso permite rodar **múltiplos ambientes simultaneamente no mesmo servidor sem conflitos**.
+
+### Como funciona?
+
+**No `.env` da raiz:**
+```env
+ENV_SUFFIX=test
+```
+
+**No `docker-compose.yml`:**
+```yaml
+services:
+  mysql:
+    container_name: mysql-${ENV_SUFFIX:-dev}
+    # Resultado: mysql-test
+
+  nginx:
+    container_name: nginx-gateway-${ENV_SUFFIX:-dev}
+    # Resultado: nginx-gateway-test
+
+  codeigniter-app:
+    container_name: codeigniter-app-${ENV_SUFFIX:-dev}
+    # Resultado: codeigniter-app-test
+```
+
+### Valores recomendados:
+
+| Ambiente | ENV_SUFFIX | Containers | Uso |
+|----------|------------|------------|-----|
+| **Desenvolvimento** | `dev` | `mysql-dev`, `nginx-gateway-dev` | Ambiente local padrão |
+| **Teste/Staging** | `test` | `mysql-test`, `nginx-gateway-test` | Testes paralelos à produção |
+| **Produção** | `prd` | `mysql-prd`, `nginx-gateway-prd` | Ambiente de produção |
+| **Feature Branch** | `feature1` | `mysql-feature1`, `nginx-gateway-feature1` | Teste de feature específica |
+
+### Benefícios:
+
+✅ **Isola ambientes completamente** - Cada ambiente tem seus próprios containers  
+✅ **Evita conflitos de nomes** - Containers com nomes únicos  
+✅ **Execução simultânea** - Prod + Teste + Dev ao mesmo tempo  
+✅ **Fácil identificação** - `docker ps` mostra claramente qual ambiente  
+✅ **Valor padrão seguro** - Se omitido, usa `dev` automaticamente  
+
+### Exemplo prático:
+
+```bash
+# Terminal 1: Subir produção
+cd /root/datalake-air-flow-delta
+echo "ENV_SUFFIX=prd" >> .env
+docker-compose up -d
+# Containers: mysql-prd, nginx-gateway-prd, codeigniter-app-prd
+
+# Terminal 2: Subir teste (simultâneo!)
+cd /root/datalake-air-flow-teste
+echo "ENV_SUFFIX=test" >> .env
+docker-compose up -d
+# Containers: mysql-test, nginx-gateway-test, codeigniter-app-test
+
+# Verificar ambos rodando
+docker ps --format "table {{.Names}}\t{{.Ports}}"
+# mysql-prd         0.0.0.0:23306->3306/tcp
+# mysql-test        0.0.0.0:24306->3306/tcp
+# codeigniter-app-prd    0.0.0.0:28088->80/tcp
+# codeigniter-app-test   0.0.0.0:29088->80/tcp
+```
+
+### ⚠️ IMPORTANTE:
+
+1. **Sempre defina ENV_SUFFIX no `.env`** antes de subir os containers
+2. **Use sufixos diferentes para cada ambiente** (nunca repita)
+3. **Mantenha consistência** - não mude o sufixo após criar os containers
+4. **Documente seus sufixos** - registre qual pasta usa qual sufixo
+
+---
+
 ## 📊 Tabela de Portas por Ambiente
 
 | Serviço | Dev (padrão) | Teste (29xxx) | Produção (28xxx) |
@@ -464,6 +551,137 @@ docker ps | wc -l  # Muitos containers
 - [ ] Firewall liberando portas 28080, 28443, 28083
 - [ ] `docker-compose up -d --build`
 - [ ] Testar acesso HTTPS
+
+---
+
+---
+
+## 🔐 Segurança: Git e Merge entre Branches
+
+### ⚠️ NUNCA versione arquivos de configuração sensível!
+
+Esses arquivos **DEVEM estar no `.gitignore`** e **NUNCA fazer merge automático**:
+
+```gitignore
+# Raiz do projeto
+.env
+.env.local
+.env.*.local
+
+# CodeIgniter App
+src/codeigniter-app/.env
+src/codeigniter-app/.env.local
+
+# Dados sensíveis
+.env.production
+.env-prd
+secrets/
+```
+
+### Por quê?
+
+1. **Proteção de senhas** - Credenciais de produção nunca no Git
+2. **Dados isolados** - Cada ambiente tem sua configuração
+3. **Merge seguro** - Não sobrescreve configurações ao fazer merge
+4. **Variáveis de ambiente** - Cada servidor tem a sua
+
+### ✅ Solução: Use Templates
+
+**Crie versões template para o Git:**
+
+```bash
+# Na raiz do projeto
+cp .env .env.template
+cp .env-prd .env-prd.template
+cp .env-test .env-test.template
+```
+
+**Arquivo `.env.template` (exemplo):**
+```env
+# IMPORTANTE: Copie este arquivo para .env e preencha com seus valores
+
+# AMBIENTE (Sufixo para nomes de containers)
+ENV_SUFFIX=dev
+
+# VARIÁVEIS DO DOCKER (MySQL)
+MYSQL_ROOT_PASSWORD=ALTERAR_PARA_SUA_SENHA
+MYSQL_DATABASE=lista_revisao2
+
+# ... resto das variáveis com valores PADRÃO/EXEMPLO
+```
+
+**No `.gitignore`:**
+```
+.env*
+!.env.template
+!.env-prd.template
+!.env-test.template
+```
+
+### 📋 Workflow seguro para Merge
+
+**Antes de fazer merge de outra branch para produção:**
+
+```bash
+# 1. Fazer merge do docker-compose.yml (seguro)
+git merge evo-expire -- docker-compose.yml
+
+# 2. NÃO fazer merge automático de .env ou src/codeigniter-app/.env
+git checkout HEAD -- .env src/codeigniter-app/.env
+
+# 3. Atualizar manualmente APENAS variáveis de funcionalidade
+# Exemplo: se a PR adicionou nova variável FEATURE_X=true
+nano .env  # Adicione manualmente
+nano src/codeigniter-app/.env
+
+# 4. Verificar diferenças
+git diff --no-pager .env | head -20
+
+# 5. Commit (sem sobrescrever)
+git add docker-compose.yml
+git commit -m "Merge docker-compose.yml de evo-expire (sem sobrescrever .env)"
+```
+
+### 🛡️ Proteger produção no Git
+
+**Adicione ao `.gitattributes`:**
+```
+.env merge=union
+.env-prd merge=union
+src/codeigniter-app/.env merge=union
+```
+
+Isso força merge manual em vez de automático para esses arquivos.
+
+### 📝 Documentação por Ambiente
+
+**Criar arquivo `SETUP_ENV.md` para cada admin:**
+
+```markdown
+# Setup de Ambiente
+
+## Produção
+1. Copie `.env-prd.template` para `.env`
+2. Atualize: MYSQL_ROOT_PASSWORD, NGINX_SERVER_NAME, etc.
+3. Copie `src/codeigniter-app/.env-prd.template` para `.env`
+4. Nunca faça commit desses arquivos!
+
+## Teste
+1. Copie `.env-test.template` para `.env`
+2. Deixe ENV_SUFFIX=test (NÃO MUDE!)
+3. Copie `src/codeigniter-app/.env-test.template` para `.env`
+4. Nunca faça commit desses arquivos!
+```
+
+### ✅ Checklist antes de Merge
+
+- [ ] `.env` está em `.gitignore`
+- [ ] `src/codeigniter-app/.env` está em `.gitignore`
+- [ ] Templates (`.env.template`, `.env-prd.template`) estão NO repositório
+- [ ] Não há senhas reais nos arquivos versionados
+- [ ] Merge de `docker-compose.yml` foi manual/cuidadoso
+- [ ] `.env` local foi preservado (não sobrescrito)
+- [ ] Dados MySQL/PostgreSQL continuam intactos (volumes separados)
 
 ---
 

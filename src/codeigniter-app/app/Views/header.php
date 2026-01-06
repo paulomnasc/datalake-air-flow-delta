@@ -424,18 +424,49 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
     function copyAirflowUsername() {
         const el = document.getElementById('airflow-username-text');
-        if (!el) return;
-        const text = (el.textContent || '').trim();
-        if (!text) return;
+        if (!el) {
+            console.error('Elemento airflow-username-text não encontrado');
+            alert('Erro: Usuário Airflow não encontrado');
+            return;
+        }
+        
+        const text = (el.textContent || el.innerText || '').trim();
+        console.log('Texto a copiar:', text);
+        
+        if (!text) {
+            alert('Erro: Username vazio');
+            return;
+        }
 
+        // Tentar usar a Clipboard API (preferível)
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(() => {
-                alert('Usuário copiado: ' + text);
-            }).catch(() => {
-                alert('Não foi possível copiar automaticamente. Copie manualmente: ' + text);
+                alert('✓ Usuário copiado: ' + text);
+            }).catch((err) => {
+                console.error('Erro ao copiar:', err);
+                // Fallback para o método antigo
+                copyToClipboardFallback(text);
             });
         } else {
-            alert('Usuário: ' + text);
+            // Fallback para navegadores antigos
+            copyToClipboardFallback(text);
+        }
+    }
+    
+    function copyToClipboardFallback(text) {
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            alert('✓ Usuário copiado: ' + text);
+        } catch (err) {
+            console.error('Erro no fallback:', err);
+            alert('Não foi possível copiar automaticamente.\n\nUsuário: ' + text + '\n\nCopie manualmente (Ctrl+C)');
         }
     }
 </script>

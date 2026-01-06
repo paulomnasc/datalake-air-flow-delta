@@ -581,6 +581,85 @@ docker ps --format "table {{.Names}}\t{{.Ports}}"
 
 ---
 
+## 🗂️ Instâncias de Banco por Ambiente
+
+Resumo dos nomes/hosts das instâncias de banco de dados por ambiente. Os serviços se comunicam pelo nome do serviço na rede interna Docker (`airflow_net`), independentemente do `container_name` com sufixo.
+
+### Teste (ENV_SUFFIX=test)
+
+- PostgreSQL (Airflow metadata)
+  - Host interno: `postgres`
+  - Container: `postgres-test`
+  - Database: `airflow`
+  - Usuário/Senha: `airflow` / `airflow`
+  - Porta externa: 26432 (variável `POSTGRES_PORT`)
+
+- PostgreSQL BI (Power BI)
+  - Host interno: `postgres-bi`
+  - Container: `postgres-bi-test`
+  - Database: `datalake_bi`
+  - Usuário/Senha: `pbi_user` / `pbi_password`
+  - Porta externa: 26433 (variável `POSTGRES_BI_PORT`)
+
+- MySQL (app/metadados)
+  - Host interno: `mysql`
+  - Container: `mysql-test`
+  - Database: `lista_revisao2_test`
+  - Usuário/Senha: `root` / `YM11rMrT32xH0E6N`
+  - Porta externa: 24306 (variável `MYSQL_PORT`)
+
+### Desenvolvimento (ENV_SUFFIX=dev)
+
+- PostgreSQL (Airflow metadata)
+  - Host interno: `postgres`
+  - Container: `postgres-dev`
+  - Database: `airflow`
+  - Usuário/Senha: `airflow` / `airflow`
+  - Porta externa: 25432 (ajuste conforme seu `.env`)
+
+- PostgreSQL BI (Power BI)
+  - Host interno: `postgres-bi`
+  - Container: `postgres-bi-dev`
+  - Database: `datalake_bi`
+  - Usuário/Senha: `pbi_user` / `pbi_password`
+  - Porta externa: 25433 (ajuste conforme seu `.env`)
+
+- MySQL (app/metadados)
+  - Host interno: `mysql`
+  - Container: `mysql-dev`
+  - Database: `lista_revisao2`
+  - Usuário/Senha: `root` / `root`
+  - Porta externa: 23306 (ajuste conforme seu `.env`)
+
+### Produção (ENV_SUFFIX=prd)
+
+- PostgreSQL (Airflow metadata)
+  - Host interno: `postgres`
+  - Container: `postgres-prd`
+  - Database: `airflow`
+  - Usuário/Senha: `airflow` / senha forte definida em produção
+  - Porta externa: 25432 (ajuste conforme seu `.env-prd`)
+
+- PostgreSQL BI (Power BI)
+  - Host interno: `postgres-bi`
+  - Container: `postgres-bi-prd`
+  - Database: `datalake_bi`
+  - Usuário/Senha: `pbi_user` / senha forte definida em produção
+  - Porta externa: 25433 (ajuste conforme seu `.env-prd`)
+
+- MySQL (app/metadados)
+  - Host interno: `mysql`
+  - Container: `mysql-prd`
+  - Database: `lista_revisao2`
+  - Usuário/Senha: `root` / senha forte definida em produção
+  - Porta externa: 23306 (ajuste conforme seu `.env-prd`)
+
+Notas:
+- Dentro da rede Docker, use sempre o host interno (`postgres`, `postgres-bi`, `mysql`).
+- Os `container_name` incluem o sufixo do ambiente e ajudam na identificação via `docker ps`.
+- As portas externas são configuráveis via `.env` e podem variar; os valores acima seguem o padrão documentado na tabela de portas.
+
+
 ---
 
 ## ⚠️ Notas Importantes (Multi-Instância)

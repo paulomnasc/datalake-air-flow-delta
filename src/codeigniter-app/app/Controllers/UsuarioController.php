@@ -42,9 +42,6 @@ class UsuarioController extends BaseController
 
     public function logar()
     {
-        /* echo "logou fake";
-        die(); */
-
         $data = [
             'email' => $this->request->getPost('email'),
             'senha' => $this->request->getPost('senha')

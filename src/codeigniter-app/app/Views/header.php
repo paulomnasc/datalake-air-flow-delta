@@ -549,7 +549,8 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         </a>
                         <div class="dropdown-menu">
                             <?php if (isset($userHasPipelinesAccess) && $userHasPipelinesAccess): ?>
-                                <a class="dropdown-item" href=" http://airflow.estudotabela.com.br:28083" target="_blank" rel="noopener noreferrer">Pipelines ELT</a>
+                                <?php $airflowExternalUrl = getenv('AIRFLOW_EXTERNAL_URL') ?: 'http://localhost:8080'; ?>
+                                <a class="dropdown-item" href="<?= htmlspecialchars($airflowExternalUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Pipelines ELT</a>
                             <?php endif; ?>
                             <!-- ?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
                                 <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->

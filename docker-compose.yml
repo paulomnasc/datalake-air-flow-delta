@@ -342,6 +342,13 @@ services:
       - MINIO_ACCESS_KEY_ID=admin
       - MINIO_SECRET_ACCESS_KEY=admin123
       - MINIO_BUCKET_RAW=lab01
+      # Airflow external URL for menu link
+      - AIRFLOW_EXTERNAL_URL=http://${NGINX_SERVER_NAME}:${AIRFLOW_WEBSERVER_PORT}
+      # Airflow internal connection (API sync)
+      - AIRFLOW_HOST=airflow-webserver-${ENV_SUFFIX:-dev}
+      - AIRFLOW_PORT=8080
+      - AIRFLOW_ADMIN_USERNAME=admin
+      - AIRFLOW_ADMIN_PASSWORD=admin
       # ... (demais variáveis de ambiente)
     extra_hosts:
       - "host.docker.internal:host-gateway"

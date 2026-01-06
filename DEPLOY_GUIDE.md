@@ -163,7 +163,44 @@ docker-compose down
 docker-compose up -d --build
 ```
 
-### 6. Verificar logs
+### 6. Criar Airflow Connections (IMPORTANTE!)
+
+**Em ambiente NOVO do zero, as connections do Airflow não existem e precisam ser criadas manualmente:**
+
+```bash
+# Acessar o container Airflow de produção
+docker exec airflow-webserver bash
+
+# 1. Criar connection MinIO
+airflow connections add minio_conn \
+  --conn-type aws \
+  --conn-login admin \
+  --conn-password admin123 \
+  --conn-extra '{"endpoint_url":"http://minio:9000"}'
+
+# 2. Criar connection MySQL (dados de DAG)
+airflow connections add mysql_dag_metadata \
+  --conn-type mysql \
+  --conn-host mysql \
+  --conn-login root \
+  --conn-password SenhaSeguraProducao123! \
+  --conn-schema lista_revisao2 \
+  --conn-port 3306
+
+# 3. Sair do container
+exit
+
+# Verificar se as connections foram criadas
+docker exec airflow-webserver airflow connections list | grep -E "minio|mysql_dag"
+```
+
+**Resultado esperado:**
+```
+minio_conn      | aws       | admin   | admin123      | http://minio:9000
+mysql_dag_metadata | mysql | root    | *** | lista_revisao2
+```
+
+### 7. Verificar logs
 
 ```bash
 # Verificar se todos os containers subiram
@@ -179,7 +216,7 @@ docker logs codeigniter-app
 docker logs airflow-webserver
 ```
 
-### 7. Acessar serviços
+### 8. Acessar serviços
 
 - **WebApp**: https://myflow.estudotabela.com.br:28443
 - **Airflow**: http://airflow.estudotabela.com.br:28083
@@ -299,7 +336,44 @@ AIRFLOW_PORT=8080
 cd /home/seu-usuario/datalake-air-flow-test
 docker-compose up -d --build
 ```
+### 5.1. Criar Airflow Connections para TESTE
 
+**Em ambiente NOVO do zero, as connections do Airflow não existem e precisam ser criadas manualmente:**
+
+```bash
+# Acessar o container Airflow de teste
+docker exec airflow-webserver-test bash
+
+# 1. Criar connection MinIO
+airflow connections add minio_conn \
+  --conn-type aws \
+  --conn-login admin \
+  --conn-password admin123 \
+  --conn-extra '{"endpoint_url":"http://minio:9000"}'
+
+# 2. Criar connection MySQL (dados de DAG - NOTE: usar database de TESTE)
+airflow connections add mysql_dag_metadata \
+  --conn-type mysql \
+  --conn-host mysql \
+  --conn-login root \
+  --conn-password YM11rMrT32xH0E6N \
+  --conn-schema lista_revisao2_test \
+  --conn-port 3306
+
+# 3. Sair do container
+exit
+
+# Verificar se as connections foram criadas
+docker exec airflow-webserver-test airflow connections list | grep -E "minio|mysql_dag"
+```
+
+**Resultado esperado para TESTE:**
+```
+minio_conn      | aws       | admin   | admin123      | http://minio:9000
+mysql_dag_metadata | mysql | root    | *** | lista_revisao2_test
+```
+
+⚠️ **IMPORTANTE:** Note que a database para TESTE é `lista_revisao2_test` (com sufixo `_test`), enquanto em produção seria `lista_revisao2`.
 ### 5. Acessar serviços de TESTE
 
 - **WebApp Teste**: http://localhost:29088
@@ -685,6 +759,112 @@ Isso força merge manual em vez de automático para esses arquivos.
 
 ---
 
+---
+
+## 🔌 Airflow Connections (Setup Completo)
+
+### O que são Airflow Connections?
+
+Connections são **credenciais e endereços** que os DAGs usam para conectar em serviços externos:
+- MinIO (S3) - para leitura/escrita de dados
+- MySQL - para acessar banco de dados de metadados
+- PostgreSQL, APIs, etc.
+
+**Em ambiente novo, precisam ser criadas manualmente (não vêm pré-configuradas).**
+
+### Criar todas as Connections (Produção)
+
+```bash
+# Entrar no container Airflow
+docker exec -it airflow-webserver bash
+
+# 1. MinIO Connection (S3-compatible)
+airflow connections add minio_conn \
+  --conn-type aws \
+  --conn-login admin \
+  --conn-password admin123 \
+  --conn-extra '{"endpoint_url":"http://minio:9000"}'
+
+# 2. MySQL Metadata Connection
+airflow connections add mysql_dag_metadata \
+  --conn-type mysql \
+  --conn-host mysql \
+  --conn-login root \
+  --conn-password SenhaSeguraProducao123! \
+  --conn-schema lista_revisao2 \
+  --conn-port 3306
+
+# 3. Listar todas as connections
+airflow connections list
+
+# 4. Sair
+exit
+```
+
+### Criar todas as Connections (Teste)
+
+```bash
+# Entrar no container Airflow de teste
+docker exec -it airflow-webserver-test bash
+
+# 1. MinIO Connection
+airflow connections add minio_conn \
+  --conn-type aws \
+  --conn-login admin \
+  --conn-password admin123 \
+  --conn-extra '{"endpoint_url":"http://minio:9000"}'
+
+# 2. MySQL Metadata Connection (NOTE: database de TESTE)
+airflow connections add mysql_dag_metadata \
+  --conn-type mysql \
+  --conn-host mysql \
+  --conn-login root \
+  --conn-password YM11rMrT32xH0E6N \
+  --conn-schema lista_revisao2_test \
+  --conn-port 3306
+
+# 3. Listar
+airflow connections list
+
+# 4. Sair
+exit
+```
+
+### Usar Connections nos DAGs
+
+**Exemplo em um DAG Python:**
+
+```python
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+from airflow.providers.mysql.hooks.mysql import MySqlHook
+
+# Usar MinIO via connection
+s3_hook = S3Hook(aws_conn_id='minio_conn')
+files = s3_hook.list_keys(bucket_name='data-lake-raw')
+
+# Usar MySQL via connection
+mysql_hook = MySqlHook(mysql_conn_id='mysql_dag_metadata')
+result = mysql_hook.get_records('SELECT * FROM alguma_tabela')
+```
+
+### Verificar Connection Details
+
+```bash
+# Ver detalhes de uma connection específica
+docker exec airflow-webserver airflow connections get minio_conn
+docker exec airflow-webserver airflow connections get mysql_dag_metadata
+
+# Atualizar uma connection (se precisar mudar senha)
+docker exec airflow-webserver airflow connections delete minio_conn
+docker exec airflow-webserver airflow connections add minio_conn \
+  --conn-type aws \
+  --conn-login admin \
+  --conn-password NOVA_SENHA \
+  --conn-extra '{"endpoint_url":"http://minio:9000"}'
+```
+
+---
+
 ## 🐛 Troubleshooting
 
 ### Nginx não inicia:
@@ -701,8 +881,36 @@ ls -la /etc/letsencrypt/live/myflow.estudotabela.com.br/
 # Testar conexão
 docker exec codeigniter-app curl http://airflow-webserver:8080/api/v1/health
 
-# Verificar variável AIRFLOW_PORT no .env do CodeIgniter
-grep AIRFLOW src/codeigniter-app/.env
+# Verificar variável AIRFLOW_HOST e AIRFLOW_PORT no docker-compose.yml
+grep AIRFLOW docker-compose.yml | grep environment -A 10
+
+# Verificar no container
+docker exec codeigniter-app-test printenv | grep AIRFLOW
+```
+
+### Airflow DAG não consegue acessar MinIO/MySQL:
+
+```bash
+# Verificar se as connections existem
+docker exec airflow-webserver airflow connections list | grep -E "minio|mysql"
+
+# Se não existir, criar manualmente (ver seção "Airflow Connections" acima)
+
+# Testar conexão MinIO manualmente
+docker exec airflow-webserver python -c "
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+hook = S3Hook(aws_conn_id='minio_conn')
+buckets = hook.list_buckets()
+print(f'Buckets: {buckets}')
+"
+
+# Testar conexão MySQL manualmente
+docker exec airflow-webserver python -c "
+from airflow.providers.mysql.hooks.mysql import MySqlHook
+hook = MySqlHook(mysql_conn_id='mysql_dag_metadata')
+records = hook.get_records('SELECT 1')
+print(f'MySQL OK: {records}')
+"
 ```
 
 ### MySQL não conecta:
@@ -712,6 +920,9 @@ grep MYSQL_ROOT_PASSWORD .env
 
 # Testar conexão
 docker exec -it mysql mysql -uroot -p
+
+# Do container CodeIgniter/Airflow
+docker exec codeigniter-app mysql -h mysql -u root -p lista_revisao2_test -e "SELECT 1;"
 ```
 
 ---

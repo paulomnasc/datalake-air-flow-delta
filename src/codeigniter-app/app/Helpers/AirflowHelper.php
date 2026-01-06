@@ -319,7 +319,11 @@ class AirflowHelper
         try {
             log_message('debug', "[AirflowHelper] apiCall: {$method} {$url} data=" . json_encode($data));
             $ch = curl_init($url);
-            $auth = base64_encode('admin:kJ#212394');
+            
+            // Get credentials from environment variables
+            $username = getenv('AIRFLOW_ADMIN_USERNAME') ?: 'admin';
+            $password = getenv('AIRFLOW_ADMIN_PASSWORD') ?: 'admin';
+            $auth = base64_encode($username . ':' . $password);
 
             $headers = [
                 "Authorization: Basic {$auth}",

@@ -587,14 +587,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         
     </form>
 
-    <!--form id="submitDonate" method="POST" action="<!?php echo route_to('donate'); ?>">
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-P312EQG53Y"></script>
+    <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
 
-        <button type="submit" class="nav-button">Doe $
-            <i class="fas fa-money"></i>
-            
-        </button>
-
-    </form-->
+    gtag('config', 'G-P312EQG53Y');
+    </script>
 
     
 </div>

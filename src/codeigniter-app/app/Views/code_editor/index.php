@@ -413,6 +413,79 @@ require VIEWPATH . '/header.php';
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        
+        /* Sidebar Tabs */
+        .sidebar-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            border-bottom: 1px solid #334155;
+            background: #0f172a;
+        }
+        
+        .sidebar-tab {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            background: #1e293b;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .sidebar-tab:hover {
+            background: #334155;
+            color: #cbd5e1;
+        }
+        
+        .sidebar-tab.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .sidebar-tab-content {
+            display: none;
+            padding: 12px;
+            overflow-y: auto;
+            max-height: calc(100vh - 250px);
+        }
+        
+        .sidebar-tab-content.active {
+            display: block;
+        }
+        
+        /* Git Changes List */
+        #gitChanges li, #gitHistory li {
+            padding: 8px;
+            background: #1e293b;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            border-left: 3px solid #667eea;
+        }
+        
+        #gitChanges li .file-status {
+            display: inline-block;
+            margin-right: 6px;
+            font-weight: bold;
+        }
+        
+        #gitHistory li {
+            background: #0f172a;
+            border-left: 3px solid #10b981;
+            padding: 10px;
+        }
+        
+        #gitHistory li .commit-hash {
+            display: block;
+            font-family: monospace;
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
 </style>
 
 <div id="content">
@@ -436,31 +509,79 @@ require VIEWPATH . '/header.php';
             <!-- Sidebar retrátil -->
             <aside id="editorSidebar" class="sidebar">
                 <button class="sidebar-close-btn" onclick="toggleEditorSidebar()">×</button>
-                <div class="sidebar-section">
-                    <h3>📁 Arquivos Parquet</h3>
-                    <ul class="file-tree" id="fileTree"></ul>
+                
+                <!-- Tabs de navegação -->
+                <div class="sidebar-tabs">
+                    <button class="sidebar-tab active" onclick="switchSidebarTab('files')" data-tab="files">
+                        📁 Arquivos
+                    </button>
+                    <button class="sidebar-tab" onclick="switchSidebarTab('git')" data-tab="git">
+                        🔗 Git
+                    </button>
                 </div>
                 
-                <div class="sidebar-section">
-                    <h3>📊 Exemplos</h3>
-                    <ul class="file-tree">
-                        <li class="file-item" onclick="loadExample('select')">
-                            <span class="file-icon">✨</span>
-                            <span>SELECT básico</span>
-                        </li>
-                        <li class="file-item" onclick="loadExample('join')">
-                            <span class="file-icon">🔗</span>
-                            <span>JOIN tables</span>
-                        </li>
-                        <li class="file-item" onclick="loadExample('aggregate')">
-                            <span class="file-icon">📈</span>
-                            <span>Agregações</span>
-                        </li>
-                        <li class="file-item" onclick="loadExample('window')">
-                            <span class="file-icon">🪟</span>
-                            <span>Window Functions</span>
-                        </li>
-                    </ul>
+                <!-- Tab: Arquivos Parquet -->
+                <div id="tab-files" class="sidebar-tab-content active">
+                    <div class="sidebar-section">
+                        <h3>📁 Arquivos Parquet</h3>
+                        <ul class="file-tree" id="fileTree"></ul>
+                    </div>
+                    
+                    <div class="sidebar-section">
+                        <h3>📊 Exemplos</h3>
+                        <ul class="file-tree">
+                            <li class="file-item" onclick="loadExample('select')">
+                                <span class="file-icon">✨</span>
+                                <span>SELECT básico</span>
+                            </li>
+                            <li class="file-item" onclick="loadExample('join')">
+                                <span class="file-icon">🔗</span>
+                                <span>JOIN tables</span>
+                            </li>
+                            <li class="file-item" onclick="loadExample('aggregate')">
+                                <span class="file-icon">📈</span>
+                                <span>Agregações</span>
+                            </li>
+                            <li class="file-item" onclick="loadExample('window')">
+                                <span class="file-icon">🪟</span>
+                                <span>Window Functions</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <!-- Tab: Git with isomorphic-git -->
+                <div id="tab-git" class="sidebar-tab-content">
+                    <div class="sidebar-section">
+                        <h3>🔗 GitHub</h3>
+                        
+                        <div id="gitNotConnected" style="padding: 16px;">
+                            <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Conecte seu GitHub para versionar scripts SQL</p>
+                            <input type="password" id="githubToken" placeholder="GitHub Token (PAT)" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
+                            <input type="text" id="repoURL" placeholder="Repo: user/sql-scripts" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
+                            <button class="btn btn-primary" onclick="connectGitHub()" style="width: 100%;">
+                                ✓ Conectar
+                            </button>
+                        </div>
+                        
+                        <div id="gitConnected" style="display: none;">
+                            <div id="repoInfo" style="padding: 10px; background: #1e293b; border-radius: 6px; font-size: 11px; margin-bottom: 12px; color: #cbd5e1;"></div>
+                            
+                            <div style="margin-bottom: 12px;">
+                                <label style="font-size: 12px; color: #94a3b8;">Mensagem de Commit:</label>
+                                <textarea id="commitMsg" placeholder="Descrever mudanças..." style="width: 100%; height: 70px; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; resize: none; margin-top: 4px;"></textarea>
+                            </div>
+                            
+                            <button class="btn btn-primary" onclick="gitAddCommitPush()" style="width: 100%; margin-bottom: 8px;">
+                                📤 Commit & Push
+                            </button>
+                            
+                            <div id="gitStatus" style="padding: 10px; background: #0f172a; border-radius: 6px; font-size: 11px; color: #64748b; margin-top: 8px; max-height: 150px; overflow-y: auto;"></div>
+                            
+                            <button class="btn btn-secondary" onclick="disconnectGitHub()" style="width: 100%; margin-top: 8px;">
+                                🔓 Desconectar
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </aside>
             
@@ -914,6 +1035,152 @@ ORDER BY departamento, rank;`
                 <p>Execute uma query para ver os resultados</p>
             </div>
         `;
+        
+        
+        // ===== GIT (isomorphic-git) =====
+        
+        // Carrega bundles UMD de isomorphic-git e lightning-fs
+        (function loadIsomorphicGit() {
+            const scripts = [
+                'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.7/dist/bundle.umd.min.js',
+                'https://cdn.jsdelivr.net/npm/lightning-fs@4.6.3/dist/lightning-fs.min.js'
+            ];
+            scripts.forEach(src => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.defer = true;
+                document.head.appendChild(s);
+            });
+        })();
+        
+        let gitConfig = null;
+        let fs, pfs, git;
+        
+        // Aguardar carregamento dos bundles UMD
+        function isGitReady() {
+            return typeof window.git !== 'undefined' && typeof window.LightningFS !== 'undefined';
+        }
+        
+        function initFS() {
+            if (fs && pfs) return;
+            fs = new LightningFS('code-editor-fs');
+            pfs = fs.promises;
+        }
+        
+        // Trocar abas da sidebar
+        function switchSidebarTab(tabName) {
+            document.querySelectorAll('.sidebar-tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.sidebar-tab-content').forEach(content => content.classList.remove('active'));
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+        
+        // Conectar e clonar o repositório
+        async function connectGitHub() {
+            const status = document.getElementById('gitStatus');
+            if (!isGitReady()) {
+                status.innerText = 'Aguardando carregamento do isomorphic-git...';
+                setTimeout(connectGitHub, 800);
+                return;
+            }
+            git = window.git;
+            initFS();
+            const token = document.getElementById('githubToken').value.trim();
+            const repoURL = document.getElementById('repoURL').value.trim();
+            if (!token || !repoURL.includes('/')) {
+                alert('Informe token e repo no formato user/repo');
+                return;
+            }
+            const [owner, repo] = repoURL.split('/');
+            gitConfig = { owner, repo, token, branch: 'main' };
+            localStorage.setItem('gitConfig', JSON.stringify(gitConfig));
+            
+            status.innerText = 'Clonando repositório...';
+            document.getElementById('gitNotConnected').style.display = 'none';
+            document.getElementById('gitConnected').style.display = 'block';
+            document.getElementById('repoInfo').innerHTML = `Conectado a <strong>${owner}/${repo}</strong>`;
+            
+            try {
+                await pfs.mkdir('/repo').catch(() => {});
+                await git.clone({
+                    fs,
+                    http: git.http,
+                    dir: '/repo',
+                    url: `https://github.com/${owner}/${repo}.git`,
+                    singleBranch: true,
+                    depth: 1,
+                    ref: gitConfig.branch,
+                    onAuth: () => ({ username: gitConfig.token, password: 'x-oauth-basic' })
+                });
+                status.innerText = '✓ Clone concluído';
+            } catch (e) {
+                status.innerText = 'Erro ao clonar: ' + e.message;
+                alert('Erro ao clonar: ' + e.message);
+            }
+        }
+        
+        function disconnectGitHub() {
+            gitConfig = null;
+            localStorage.removeItem('gitConfig');
+            document.getElementById('gitNotConnected').style.display = 'block';
+            document.getElementById('gitConnected').style.display = 'none';
+            document.getElementById('githubToken').value = '';
+            document.getElementById('repoURL').value = '';
+            document.getElementById('commitMsg').value = '';
+            document.getElementById('gitStatus').innerText = '';
+        }
+        
+        // Add, commit e push no repositório clonado
+        async function gitAddCommitPush() {
+            if (!gitConfig) {
+                alert('Conecte o GitHub primeiro');
+                return;
+            }
+            const commitMsg = document.getElementById('commitMsg').value.trim();
+            if (!commitMsg) {
+                alert('Informe uma mensagem de commit');
+                return;
+            }
+            const status = document.getElementById('gitStatus');
+            status.innerText = 'Preparando commit...';
+            try {
+                const sql = editor.getValue();
+                const filename = `scripts/query_${Date.now()}.sql`;
+                await pfs.mkdir('/repo/scripts').catch(() => {});
+                await pfs.writeFile(`/repo/${filename}`, sql);
+                status.innerText = 'git add';
+                await git.add({ fs, dir: '/repo', filepath: filename });
+                status.innerText = 'git commit';
+                await git.commit({ fs, dir: '/repo', message: commitMsg, author: { name: 'Code Editor', email: 'user@example.com' } });
+                status.innerText = 'git push';
+                await git.push({
+                    fs,
+                    http: git.http,
+                    dir: '/repo',
+                    remote: 'origin',
+                    ref: gitConfig.branch || 'main',
+                    onAuth: () => ({ username: gitConfig.token, password: 'x-oauth-basic' })
+                });
+                status.innerText = '✓ Push realizado';
+                document.getElementById('commitMsg').value = '';
+                alert('Commit & push concluído!');
+            } catch (e) {
+                console.error(e);
+                status.innerText = 'Erro: ' + e.message;
+                alert('Erro: ' + e.message);
+            }
+        }
+        
+        // Restaurar conexão ao carregar
+        window.addEventListener('load', function() {
+            const saved = localStorage.getItem('gitConfig');
+            if (saved) {
+                gitConfig = JSON.parse(saved);
+                document.getElementById('gitNotConnected').style.display = 'none';
+                document.getElementById('gitConnected').style.display = 'block';
+                document.getElementById('repoInfo').innerHTML = `Conectado a <strong>${gitConfig.owner}/${gitConfig.repo}</strong>`;
+            }
+        });
     </script>
 
 <?php

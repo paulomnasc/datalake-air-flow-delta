@@ -104,6 +104,7 @@ $routes->post('/code-editor/schema', 'CodeEditorController::getSchema', ['as'=>'
 $routes->post('/code-editor/files', 'CodeEditorController::listParquetFiles', ['as'=>'code-editor.files']);
 
 
+
 /* $routes->get('upload', 'UploadController::index');
 $routes->post('/fileUpload', 'UploadController::upload',['as'=>'Config.upload']); */
 

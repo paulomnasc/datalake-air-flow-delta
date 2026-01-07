@@ -10,6 +10,8 @@ use App\Controllers\QueryBuilderController;
  * Interface avançada com Monaco Editor para execução de queries SQL
  * Herda toda a lógica funcional do QueryBuilderController (DuckDB, segurança, etc)
  * 
+ * Git é gerenciado pelo frontend usando isomorphic-git (sem backend necessário)
+ * 
  * Rotas:
  * - GET  /code-editor              → Exibe interface web com Monaco Editor
  * - POST /code-editor/execute      → Executa query (herdado de QueryBuilderController)

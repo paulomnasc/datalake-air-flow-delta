@@ -553,10 +553,32 @@ require VIEWPATH . '/header.php';
                 <div id="tab-git" class="sidebar-tab-content">
                     <div class="sidebar-section">
                         <h3>🔗 GitHub</h3>
+                        <div id="gitLoadingStatus" style="padding: 12px; background: #1e293b; border-radius: 6px; font-size: 11px; color: #94a3b8; margin-bottom: 12px; display: none;">
+                            ⏳ Carregando isomorphic-git...
+                        </div>
                         
                         <div id="gitNotConnected" style="padding: 16px;">
                             <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Conecte seu GitHub para versionar scripts SQL</p>
-                            <input type="password" id="githubToken" placeholder="GitHub Token (PAT)" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
+                            <input type="text" id="githubUsername" placeholder="GitHub Username" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
+                            <input type="password" id="githubToken" placeholder="Personal Access Token" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
+                            <p style="font-size: 10px; color: #64748b; margin-bottom: 8px; line-height: 1.4;">
+                                💡 Gere em: <a href="https://github.com/settings/tokens/new" target="_blank" style="color: #667eea; text-decoration: none;">GitHub Settings → Developer settings → Personal access tokens → Generate new token</a><br>
+                                Marque o scope: <strong style="color: #94a3b8;">repo</strong>
+                            </p>
+                            <details style="margin-bottom: 8px;">
+                                <summary style="font-size: 11px; color: #94a3b8; cursor: pointer;">Modo offline (sem CDN)</summary>
+                                <div style="font-size: 10px; color: #64748b; margin-top: 6px; line-height: 1.5;">
+                                    Se os CDNs estiverem bloqueados, você pode usar arquivos locais. Qualquer uma das opções abaixo funciona:<br>
+                                    • ESM (preferível):<br>
+                                    - <strong style="color:#94a3b8;">/assets/vendor/isomorphic-git/index.js</strong> ou <strong style="color:#94a3b8;">/public/assets/vendor/isomorphic-git/index.js</strong><br>
+                                    - <strong style="color:#94a3b8;">/assets/vendor/isomorphic-git/http-web.js</strong> ou <strong style="color:#94a3b8;">/public/assets/vendor/isomorphic-git/http-web.js</strong><br>
+                                    - <strong style="color:#94a3b8;">/assets/vendor/lightning-fs/index.js</strong> ou <strong style="color:#94a3b8;">/public/assets/vendor/lightning-fs/index.js</strong><br>
+                                    • UMD (alternativa):<br>
+                                    - <strong style="color:#94a3b8;">/assets/vendor/isomorphic-git/bundle.umd.min.js</strong> ou <strong style="color:#94a3b8;">/public/assets/vendor/isomorphic-git/bundle.umd.min.js</strong><br>
+                                    - <strong style="color:#94a3b8;">/assets/vendor/lightning-fs/lightning-fs.min.js</strong> ou <strong style="color:#94a3b8;">/public/assets/vendor/lightning-fs/lightning-fs.min.js</strong><br>
+                                    O loader tenta primeiro os caminhos locais (/assets e /public/assets) antes dos CDNs.
+                                </div>
+                            </details>
                             <input type="text" id="repoURL" placeholder="Repo: user/sql-scripts" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
                             <button class="btn btn-primary" onclick="connectGitHub()" style="width: 100%;">
                                 ✓ Conectar
@@ -1039,27 +1061,126 @@ ORDER BY departamento, rank;`
         
         // ===== GIT (isomorphic-git) =====
         
-        // Carrega bundles UMD de isomorphic-git e lightning-fs
-        (function loadIsomorphicGit() {
-            const scripts = [
-                'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.7/dist/bundle.umd.min.js',
-                'https://cdn.jsdelivr.net/npm/lightning-fs@4.6.3/dist/lightning-fs.min.js'
-            ];
-            scripts.forEach(src => {
-                const s = document.createElement('script');
-                s.src = src;
-                s.defer = true;
-                document.head.appendChild(s);
-            });
+        // Carregar bundles UMD sem conflito AMD (usando iframe isolado)
+        (function bootGit() {
+            const loadingStatus = document.getElementById('gitLoadingStatus');
+            function setLoading(msg) { if (loadingStatus) { loadingStatus.style.display = 'block'; loadingStatus.textContent = msg; } }
+            function clearLoading() { if (loadingStatus) loadingStatus.style.display = 'none'; }
+            
+            setLoading('⏳ Carregando bibliotecas Git...');
+            
+            // Criar iframe isolado para carregar Git sem conflito com Monaco loader
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = 'about:blank';
+            
+            iframe.onload = async () => {
+                const iframeWindow = iframe.contentWindow;
+                
+                async function loadScriptInIframe(url, name) {
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        const code = await response.text();
+                        // Executar no escopo do iframe
+                        iframeWindow.eval(code);
+                        console.log(`✓ ${name} carregado no iframe`);
+                        return true;
+                    } catch (e) {
+                        console.error(`❌ Falha ao carregar ${name}:`, e.message);
+                        return false;
+                    }
+                }
+                
+                // Carregar scripts no iframe
+                if (!await loadScriptInIframe('https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/dist/lightning-fs.min.js', 'LightningFS')) {
+                    setLoading('❌ Falha ao carregar LightningFS');
+                    return;
+                }
+                
+                if (!await loadScriptInIframe('https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.7/index.umd.min.js', 'isomorphic-git')) {
+                    setLoading('❌ Falha ao carregar isomorphic-git');
+                    return;
+                }
+                
+                if (!await loadScriptInIframe('https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.7/http/web/index.umd.min.js', 'Git HTTP')) {
+                    console.warn('⚠️ Falha ao carregar HTTP plugin (não crítico)');
+                }
+                
+                // Copiar variáveis globais do iframe para a página principal
+                if (iframeWindow.git) {
+                    window.git = iframeWindow.git;
+                    console.log('✓ window.git copiado do iframe');
+                } else {
+                    console.error('❌ git não encontrado no iframe');
+                }
+                
+                if (iframeWindow.LightningFS) {
+                    window.LightningFS = iframeWindow.LightningFS;
+                    console.log('✓ window.LightningFS copiado do iframe');
+                } else {
+                    console.error('❌ LightningFS não encontrado no iframe');
+                }
+                
+                // Remover iframe
+                document.body.removeChild(iframe);
+                
+                clearLoading();
+                initGitAfterLoad();
+            };
+            
+            document.body.appendChild(iframe);
         })();
         
         let gitConfig = null;
         let fs, pfs, git;
         
+        // Inicializar após carregamento bem-sucedido dos scripts
+        function initGitAfterLoad() {
+            // Verificar variáveis globais possíveis
+            console.log('Verificando variáveis Git disponíveis...');
+            console.log('window.git:', typeof window.git);
+            console.log('window.LightningFS:', typeof window.LightningFS);
+            console.log('window.FS:', typeof window.FS);
+            
+            // isomorphic-git pode expor como 'git' ou exportar diretamente
+            git = window.git;
+            
+            if (!git) {
+                console.error('❌ window.git não encontrado');
+                // Listar todas as variáveis globais que contêm 'git' ou 'lightning'
+                const gitVars = Object.keys(window).filter(k => 
+                    k.toLowerCase().includes('git') || 
+                    k.toLowerCase().includes('lightning') ||
+                    k.toLowerCase().includes('fs')
+                );
+                console.log('Variáveis relacionadas:', gitVars);
+                return;
+            }
+            
+            if (!window.LightningFS) {
+                console.error('❌ window.LightningFS não encontrado');
+                return;
+            }
+            
+            console.log('✓ Git inicializado com sucesso');
+        }
+        
         // Aguardar carregamento dos bundles UMD
         function isGitReady() {
             return typeof window.git !== 'undefined' && typeof window.LightningFS !== 'undefined';
         }
+        
+        // Verificar status de carregamento periodicamente
+        let gitLoadCheckInterval = setInterval(() => {
+            const loadingStatus = document.getElementById('gitLoadingStatus');
+            if (isGitReady()) {
+                if (loadingStatus) loadingStatus.style.display = 'none';
+                clearInterval(gitLoadCheckInterval);
+            } else {
+                if (loadingStatus) loadingStatus.style.display = 'block';
+            }
+        }, 500);
         
         function initFS() {
             if (fs && pfs) return;
@@ -1076,23 +1197,36 @@ ORDER BY departamento, rank;`
         }
         
         // Conectar e clonar o repositório
+        let connectAttempts = 0;
         async function connectGitHub() {
             const status = document.getElementById('gitStatus');
+            
             if (!isGitReady()) {
-                status.innerText = 'Aguardando carregamento do isomorphic-git...';
+                connectAttempts++;
+                if (connectAttempts > 10) {
+                    alert('❌ Erro ao carregar isomorphic-git. Recarregue a página.\n\nVerifique o console (F12) para detalhes.');
+                    console.error('isomorphic-git não carregou após 10 tentativas');
+                    console.log('window.git:', typeof window.git);
+                    console.log('window.LightningFS:', typeof window.LightningFS);
+                    connectAttempts = 0;
+                    return;
+                }
+                status.innerText = 'Aguardando carregamento do isomorphic-git... (' + connectAttempts + '/10)';
                 setTimeout(connectGitHub, 800);
                 return;
             }
+            connectAttempts = 0;
             git = window.git;
             initFS();
             const token = document.getElementById('githubToken').value.trim();
             const repoURL = document.getElementById('repoURL').value.trim();
-            if (!token || !repoURL.includes('/')) {
-                alert('Informe token e repo no formato user/repo');
+            const username = document.getElementById('githubUsername').value.trim();
+            if (!username || !token || !repoURL.includes('/')) {
+                alert('Informe username, token e repo no formato user/repo');
                 return;
             }
             const [owner, repo] = repoURL.split('/');
-            gitConfig = { owner, repo, token, branch: 'main' };
+            gitConfig = { owner, repo, token, username, branch: 'main' };
             localStorage.setItem('gitConfig', JSON.stringify(gitConfig));
             
             status.innerText = 'Clonando repositório...';
@@ -1110,7 +1244,7 @@ ORDER BY departamento, rank;`
                     singleBranch: true,
                     depth: 1,
                     ref: gitConfig.branch,
-                    onAuth: () => ({ username: gitConfig.token, password: 'x-oauth-basic' })
+                    onAuth: () => ({ username: gitConfig.username || gitConfig.owner, password: gitConfig.token || 'x-oauth-basic' })
                 });
                 status.innerText = '✓ Clone concluído';
             } catch (e) {
@@ -1159,7 +1293,7 @@ ORDER BY departamento, rank;`
                     dir: '/repo',
                     remote: 'origin',
                     ref: gitConfig.branch || 'main',
-                    onAuth: () => ({ username: gitConfig.token, password: 'x-oauth-basic' })
+                    onAuth: () => ({ username: gitConfig.username || gitConfig.owner, password: gitConfig.token || 'x-oauth-basic' })
                 });
                 status.innerText = '✓ Push realizado';
                 document.getElementById('commitMsg').value = '';
@@ -1176,9 +1310,16 @@ ORDER BY departamento, rank;`
             const saved = localStorage.getItem('gitConfig');
             if (saved) {
                 gitConfig = JSON.parse(saved);
+                if (!gitConfig.username) {
+                    gitConfig.username = gitConfig.owner || '';
+                    localStorage.setItem('gitConfig', JSON.stringify(gitConfig));
+                }
                 document.getElementById('gitNotConnected').style.display = 'none';
                 document.getElementById('gitConnected').style.display = 'block';
                 document.getElementById('repoInfo').innerHTML = `Conectado a <strong>${gitConfig.owner}/${gitConfig.repo}</strong>`;
+                document.getElementById('githubUsername').value = gitConfig.username || '';
+                document.getElementById('githubToken').value = gitConfig.token || '';
+                document.getElementById('repoURL').value = `${gitConfig.owner}/${gitConfig.repo}`;
             }
         });
     </script>

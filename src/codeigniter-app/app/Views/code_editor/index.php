@@ -1,34 +1,21 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SQL Code Editor - Datalake</title>
-    
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
+<?php
+if (! defined('VIEWPATH')) {
+    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR . 'Views');
+}
+require VIEWPATH . '/header.php';
+?>
+
+<style>
+        .code-editor-container {
+            max-width: 100%;
+            margin: 20px auto;
             background: white;
             border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            overflow: hidden;
+            overflow: visible;
         }
         
-        header {
+        .code-editor-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 24px 32px;
@@ -37,7 +24,7 @@
             align-items: center;
         }
         
-        header h1 {
+        .code-editor-header h1 {
             font-size: 28px;
             font-weight: 700;
             display: flex;
@@ -70,16 +57,88 @@
         }
         
         .editor-layout {
-            display: grid;
-            grid-template-columns: 280px 1fr;
-            height: calc(100vh - 160px);
+            display: flex;
+            flex-direction: column;
+            min-height: 600px;
+            height: auto;
+            width: 100%;
+            position: relative;
         }
         
+        /* Sidebar retrátil com overlay */
         .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 280px;
             background: #f8fafc;
             border-right: 1px solid #e2e8f0;
             overflow-y: auto;
             padding: 20px;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            z-index: 2000;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar.active {
+            transform: translateX(0);
+        }
+        
+        .sidebar-overlay-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1999;
+            display: none;
+        }
+        
+        .sidebar-overlay-bg.active {
+            display: block;
+        }
+        
+        .sidebar-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #e2e8f0;
+            border: none;
+            border-radius: 4px;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            color: #475569;
+            transition: all 0.2s;
+        }
+        
+        .sidebar-close-btn:hover {
+            background: #cbd5e1;
+            color: #1e293b;
+        }
+        
+        .sidebar-toggle-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .sidebar-toggle-btn:hover {
+            background: #5568d3;
         }
         
         .sidebar-section {
@@ -302,11 +361,12 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-    </style>
-</head>
-<body>
+</style>
+
+<div id="content">
     <div class="container">
-        <header>
+        <div class="code-editor-container">
+            <div class="code-editor-header">
             <h1>
                 <span>💻</span>
                 SQL Code Editor
@@ -315,11 +375,15 @@
                 <span class="status-dot"></span>
                 <?php echo (is_array($duckdbStatus) && isset($duckdbStatus['status']) && $duckdbStatus['status'] === 'healthy') ? 'DuckDB Online' : 'DuckDB Offline'; ?>
             </div>
-        </header>
+    </div>
         
         <div class="editor-layout">
-            <!-- Sidebar -->
-            <aside class="sidebar">
+            <!-- Overlay background -->
+            <div id="sidebarOverlayBg" class="sidebar-overlay-bg"></div>
+            
+            <!-- Sidebar retrátil -->
+            <aside id="editorSidebar" class="sidebar">
+                <button class="sidebar-close-btn" onclick="toggleEditorSidebar()">×</button>
                 <div class="sidebar-section">
                     <h3>📁 Arquivos Parquet</h3>
                     <ul class="file-tree" id="fileTree">
@@ -369,6 +433,9 @@
             <!-- Main Editor Area -->
             <main class="main-editor">
                 <div class="toolbar">
+                    <button class="sidebar-toggle-btn" onclick="toggleEditorSidebar()">
+                        📁 Arquivos
+                    </button>
                     <button class="btn btn-primary" onclick="executeQuery()" id="executeBtn">
                         ▶️ Executar
                     </button>
@@ -392,7 +459,9 @@
                 </div>
             </main>
         </div>
+        </div>
     </div>
+</div>
     
     <!-- Monaco Editor -->
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
@@ -400,6 +469,19 @@
     <script>
         let editor;
         const userBucket = '<?php echo esc($userBucket ?? 'user-1'); ?>';
+        
+        // Toggle sidebar retrátil
+        function toggleEditorSidebar() {
+            const sidebar = document.getElementById('editorSidebar');
+            const overlay = document.getElementById('sidebarOverlayBg');
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+        
+        // Fechar sidebar ao clicar no overlay
+        document.getElementById('sidebarOverlayBg').addEventListener('click', function() {
+            toggleEditorSidebar();
+        });
         
         // Configurar Monaco Editor
         require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
@@ -634,5 +716,7 @@ ORDER BY departamento, rank;`
             </div>
         `;
     </script>
-</body>
-</html>
+
+<?php
+require VIEWPATH . '/footer.php';
+?>

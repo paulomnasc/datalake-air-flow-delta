@@ -565,10 +565,6 @@ require VIEWPATH . '/header.php';
                                 💡 Gere em: <a href="https://github.com/settings/tokens/new" target="_blank" style="color: #667eea; text-decoration: none;">GitHub Settings → Developer settings → Personal access tokens → Generate new token</a><br>
                                 Marque o scope: <strong style="color: #94a3b8;">repo</strong>
                             </p>
-                            <label style="display: flex; align-items: center; font-size: 11px; color: #94a3b8; margin-bottom: 8px; cursor: pointer;">
-                                <input type="checkbox" id="disableCorsProxy" style="margin-right: 6px;">
-                                Desabilitar CORS Proxy (tentar conexão direta)
-                            </label>
                             <details style="margin-bottom: 8px;">
                                 <summary style="font-size: 11px; color: #94a3b8; cursor: pointer;">Modo offline (sem CDN)</summary>
                                 <div style="font-size: 10px; color: #64748b; margin-top: 6px; line-height: 1.5;">
@@ -1129,134 +1125,167 @@ ORDER BY departamento, rank;`
                             console.log('✓ window.git atribuído de module.exports');
                         }
                         
-                        // Restaurar define original
-                        if (origDefine) window.define = origDefine;
+                        // RESETAR module.exports para próximo script (HTTP)
+                        window.module.exports = {};
                         
-                        // Criar HTTP client inline imediatamente
-                        createHttpClientImmediate();
+                        // Deletar define novamente para carregar HTTP plugin SEM AMD
+                        delete window.define;
+                        delete window.require;
+                        
+                        // Limpar module para HTTP plugin
+                        window.module = { exports: {} };
+                        
+                        // Carregar HTTP plugin com fallback de URLs
+                        const httpUrls = [
+                            'https://cdn.jsdelivr.net/npm/@isomorphic-git/http-web@1.25.7/index.umd.min.js',
+                            'https://unpkg.com/@isomorphic-git/http-web@1.25.7/index.umd.min.js',
+                            'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.7/http/web/index.umd.min.js'
+                        ];
+                        
+                        let httpLoaded = false;
+                        
+                        function tryLoadHttp(urlIndex = 0) {
+                            if (urlIndex >= httpUrls.length) {
+                                console.error('❌ Falha ao carregar HTTP plugin de todas as URLs');
+                                // Criar fallback HTTP client simples
+                                createSimpleHttpClient();
+                                return;
+                            }
+                            
+                            const httpScript = document.createElement('script');
+                            httpScript.src = httpUrls[urlIndex];
+                            console.log(`📡 Tentando HTTP plugin URL ${urlIndex}: ${httpUrls[urlIndex]}`);
+                            
+                            httpScript.onerror = () => {
+                                console.warn(`⚠️ Falha URL ${urlIndex}, tentando próxima...`);
+                                tryLoadHttp(urlIndex + 1);
+                            };
+                            
+                            httpScript.onload = () => {
+                                console.log(`✓ Git HTTP carregado de URL ${urlIndex}`);
+                                console.log('window.module.exports (HTTP):', window.module?.exports);
+                                console.log('window.GitHttp:', window.GitHttp);
+                                console.log('window.http:', window.http);
+                                
+                                // Restaurar define original
+                                if (origDefine) window.define = origDefine;
+                                
+                                // O HTTP plugin pode estar em diferentes lugares
+                                let httpImpl = null;
+                                
+                                // Procurar em várias localizações possíveis
+                                if (window.module?.exports?.default?.request) {
+                                    httpImpl = window.module.exports.default;
+                                    console.log('✓ HTTP encontrado em module.exports.default');
+                                } else if (window.module?.exports?.request) {
+                                    httpImpl = window.module.exports;
+                                    console.log('✓ HTTP encontrado em module.exports');
+                                } else if (window.GitHttp) {
+                                    httpImpl = window.GitHttp;
+                                    console.log('✓ HTTP encontrado em window.GitHttp');
+                                } else if (window.http) {
+                                    httpImpl = window.http;
+                                    console.log('✓ HTTP encontrado em window.http');
+                                } else if (window.module?.exports && typeof window.module.exports === 'function') {
+                                    // Tentar instanciar
+                                    httpImpl = window.module.exports;
+                                    console.log('✓ HTTP é classe/factory');
+                                } else {
+                                    console.warn('⚠️ HTTP não encontrado em locais esperados, tentando próxima URL...');
+                                    httpLoaded = false;
+                                    tryLoadHttp(urlIndex + 1);
+                                    return;
+                                }
+                                
+                                // Registrar no git
+                                if (window.git && httpImpl) {
+                                    window.git.http = httpImpl;
+                                    console.log('✓ git.http atribuído');
+                                    console.log('git.http.request tipo:', typeof window.git.http?.request);
+                                    httpLoaded = true;
+                                }
+                                
+                                if (httpLoaded) {
+                                    clearLoading();
+                                    initGitAfterLoad();
+                                } else {
+                                    tryLoadHttp(urlIndex + 1);
+                                }
+                            };
+                            
+                            document.head.appendChild(httpScript);
+                        }
+                        
+                        function createSimpleHttpClient() {
+                            console.log('🔧 Criando HTTP client fallback robusto...');
+                            
+                            // Implementação completa de HTTP para isomorphic-git
+                            window.git.http = {
+                                request: async (method, url, opts = {}) => {
+                                    console.log(`📤 HTTP ${method} ${url}`);
+                                    
+                                    const headers = {
+                                        'User-Agent': 'isomorphic-git/1.25.7',
+                                        ...opts.headers
+                                    };
+                                    
+                                    const fetchOpts = {
+                                        method: method || 'GET',
+                                        headers,
+                                        credentials: 'omit',
+                                        mode: 'cors'
+                                    };
+                                    
+                                    if (opts.body) {
+                                        if (typeof opts.body === 'string') {
+                                            fetchOpts.body = opts.body;
+                                        } else if (opts.body instanceof Uint8Array) {
+                                            fetchOpts.body = opts.body;
+                                        } else if (Array.isArray(opts.body)) {
+                                            fetchOpts.body = opts.body.join('');
+                                        }
+                                    }
+                                    
+                                    try {
+                                        const res = await fetch(url, fetchOpts);
+                                        
+                                        // Converter headers da resposta
+                                        const resHeaders = {};
+                                        for (const [key, value] of res.headers.entries()) {
+                                            resHeaders[key.toLowerCase()] = value;
+                                        }
+                                        
+                                        // Ler corpo como texto
+                                        const bodyText = await res.text();
+                                        
+                                        return {
+                                            url: url,
+                                            method: method || 'GET',
+                                            headers: resHeaders,
+                                            body: [bodyText],
+                                            status: res.status,
+                                            statusText: res.statusText
+                                        };
+                                    } catch (err) {
+                                        console.error('❌ Erro HTTP:', err);
+                                        throw err;
+                                    }
+                                }
+                            };
+                            
+                            console.log('✓ HTTP client fallback robusto criado');
+                            console.log('git.http.request tipo:', typeof window.git.http.request);
+                            clearLoading();
+                            initGitAfterLoad();
+                        }
+                        
+                        tryLoadHttp();
                     };
                     document.head.appendChild(gitScript);
                 };
                 document.head.appendChild(lfsScript);
             }, 2000); // Aguardar 2 segundos para Monaco terminar
         })();
-
-        // Função para criar HTTP client inline - chamada após git estar pronto
-        function createHttpClientImmediate() {
-            console.log('🔧 Criando HTTP client inline...');
-            
-            if (!window.git) {
-                console.error('❌ window.git não está disponível');
-                return;
-            }
-            
-            window.git.http = {
-                // Assinatura compatível com isomorphic-git: recebe um objeto com url/method/headers/body
-                request: async ({ url, method = 'GET', headers = {}, body } = {}) => {
-                    if (!url) {
-                        throw new Error('HTTP client: url não informado');
-                    }
-                    console.log(`📤 HTTP ${method} ${url.substring(0, 100)}${url.length > 100 ? '...' : ''}`);
-                    
-                    // Fallback de auth se não veio do isomorphic-git (usa gitConfig global)
-                    let authHeader = headers['authorization'] || headers['Authorization'];
-                    
-                    if (!authHeader && window.gitConfig && window.gitConfig.token) {
-                        // Para GitHub, username deve ser o owner/username do GitHub, não email
-                        const ghUsername = window.gitConfig.owner || window.gitConfig.username;
-                        authHeader = 'Basic ' + btoa(`${ghUsername}:${window.gitConfig.token}`);
-                    }
-
-                    const mergedHeaders = {
-                        'User-Agent': 'isomorphic-git/1.25.7',
-                        ...headers,
-                        ...(authHeader ? { authorization: authHeader } : {})
-                    };
-                    // Garantir Authorization sempre em minúsculas e visível no log
-                    if (mergedHeaders.Authorization && !mergedHeaders.authorization) {
-                        mergedHeaders.authorization = mergedHeaders.Authorization;
-                        delete mergedHeaders.Authorization;
-                    }
-
-                    // NÃO fazer proxy aqui - deixar o isomorphic-git gerenciar corsProxy
-                    // O isomorphic-git vai adicionar o corsProxy na URL quando necessário
-                    const targetUrl = url;
-
-                    // Remover cabeçalhos proibidos pelo navegador
-                    delete mergedHeaders.host;
-                    delete mergedHeaders.origin;
-                    
-                    const fetchOpts = {
-                        method,
-                        headers: mergedHeaders,
-                        credentials: 'omit',
-                        mode: 'cors'
-                    };
-                    
-                    if (body) {
-                        if (typeof body === 'string') {
-                            fetchOpts.body = body;
-                        } else if (body instanceof Uint8Array) {
-                            fetchOpts.body = body;
-                        } else if (Array.isArray(body)) {
-                            fetchOpts.body = body.join('');
-                        }
-                    }
-                    
-                    try {
-                        const res = await fetch(targetUrl, fetchOpts);
-                        const resHeaders = {};
-                        for (const [key, value] of res.headers.entries()) {
-                            resHeaders[key.toLowerCase()] = value;
-                        }
-                        // Para respostas binárias, usar arrayBuffer; senão, usar text
-                        const bodyBuffer = await res.arrayBuffer();
-                        const bodyUint8 = new Uint8Array(bodyBuffer);
-                        
-                        console.log(`📥 HTTP ${res.status} ${res.statusText} (${bodyBuffer.byteLength} bytes)`);
-                        
-                        if (res.status >= 400) {
-                            const bodyText = new TextDecoder().decode(bodyUint8);
-                            console.error(`❌ ERRO ${res.status} em ${method} ${url.substring(0, 80)}`);
-                            console.error('Resposta:', bodyText.substring(0, 300));
-                            console.error('Headers:', Object.entries(resHeaders).slice(0, 5));
-                        }
-                        
-                        return {
-                            url,
-                            method,
-                            headers: resHeaders,
-                            body: [bodyUint8],
-                            status: res.status,
-                            statusText: res.statusText || 'HTTP Error'
-                        };
-                    } catch (err) {
-                        console.error(`❌ Erro FETCH em ${method} ${url.substring(0, 80)}:`, err.message);
-                        // Retornar objeto no formato esperado para o isomorphic-git levantar HttpError com status 0
-                        return {
-                            url,
-                            method,
-                            headers: {},
-                            body: [new Uint8Array(0)],
-                            status: 0,
-                            statusText: err.message || 'Fetch failed'
-                        };
-                    }
-                }
-            };
-            
-            console.log('✓ HTTP client criado');
-            console.log('git.http.request:', typeof window.git.http.request);
-            // Limpar indicador de carregamento com fallback se escopo local não estiver disponível
-            if (typeof clearLoading === 'function') {
-                clearLoading();
-            } else {
-                const el = document.getElementById('gitLoadingStatus');
-                if (el) el.style.display = 'none';
-            }
-            initGitAfterLoad();
-        }
-
         
         let gitConfig = null;
         let fs, pfs, git;
@@ -1268,17 +1297,6 @@ ORDER BY departamento, rank;`
             console.log('window.git:', typeof window.git);
             console.log('window.LightningFS:', typeof window.LightningFS);
             console.log('window.FS:', typeof window.FS);
-
-            // Restaurar gitConfig do localStorage para window (necessário para Authorization)
-            try {
-                const stored = localStorage.getItem('gitConfig');
-                if (stored) {
-                    gitConfig = JSON.parse(stored);
-                    window.gitConfig = gitConfig;
-                }
-            } catch (e) {
-                console.warn('Não foi possível restaurar gitConfig do localStorage', e);
-            }
             
             // isomorphic-git pode expor como 'git' ou exportar diretamente
             git = window.git;
@@ -1383,7 +1401,6 @@ ORDER BY departamento, rank;`
             }
             const [owner, repo] = repoURL.split('/');
             gitConfig = { owner, repo, token, username, branch: 'main' };
-            window.gitConfig = gitConfig;
             localStorage.setItem('gitConfig', JSON.stringify(gitConfig));
             
             status.innerText = 'Clonando repositório...';
@@ -1411,28 +1428,17 @@ ORDER BY departamento, rank;`
                     throw new Error('HTTP plugin não carregado corretamente');
                 }
                 
-                // Definir proxy CORS opcional; use string vazia para desabilitar
-                const disableCors = document.getElementById('disableCorsProxy')?.checked;
-                const corsProxy = disableCors ? undefined : (window.gitCorsProxy === '' ? undefined : (window.gitCorsProxy || 'https://cors.isomorphic-git.org'));
-                console.log('Iniciando clone de:', `https://github.com/${owner}/${repo}.git`, 'via proxy:', corsProxy || 'DIRETO (sem proxy)');
-                console.log('Credenciais:', { username: gitConfig.username || gitConfig.owner, hasToken: !!gitConfig.token });
+                console.log('Iniciando clone de:', `https://github.com/${owner}/${repo}.git`);
                 
                 await git.clone({
                     fs,
                     http: git.http,
-                    ...(corsProxy ? { corsProxy } : {}),
                     dir: '/repo',
                     url: `https://github.com/${owner}/${repo}.git`,
                     singleBranch: true,
                     depth: 1,
                     ref: gitConfig.branch,
-                    onAuth: () => {
-                        console.log('onAuth chamado - fornecendo credenciais');
-                        return { 
-                            username: gitConfig.username || gitConfig.owner, 
-                            password: gitConfig.token 
-                        };
-                    }
+                    onAuth: () => ({ username: gitConfig.username || gitConfig.owner, password: gitConfig.token })
                 });
                 
                 console.log('✓ Clone concluído com sucesso');

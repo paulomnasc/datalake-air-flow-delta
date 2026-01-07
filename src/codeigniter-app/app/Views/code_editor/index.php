@@ -325,10 +325,15 @@
                     <ul class="file-tree" id="fileTree">
                         <?php if (!empty($parquetFiles)): ?>
                             <?php foreach ($parquetFiles as $file): ?>
-                                <li class="file-item" onclick="insertFilePath('<?php echo esc($file); ?>')">
+                                <?php 
+                                    $filePath = is_array($file) ? ($file['path'] ?? $file['name'] ?? '') : $file;
+                                    if (!empty($filePath)):
+                                ?>
+                                <li class="file-item" onclick="insertFilePath('<?php echo esc($filePath); ?>')">
                                     <span class="file-icon">📄</span>
-                                    <span><?php echo basename($file); ?></span>
+                                    <span><?php echo basename($filePath); ?></span>
                                 </li>
+                                <?php endif; ?>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <li class="file-item" style="cursor: default; color: #94a3b8;">

@@ -313,7 +313,7 @@
             </h1>
             <div class="status-badge">
                 <span class="status-dot"></span>
-                <?php echo $duckdbStatus['status'] === 'healthy' ? 'DuckDB Online' : 'DuckDB Offline'; ?>
+                <?php echo (is_array($duckdbStatus) && isset($duckdbStatus['status']) && $duckdbStatus['status'] === 'healthy') ? 'DuckDB Online' : 'DuckDB Offline'; ?>
             </div>
         </header>
         

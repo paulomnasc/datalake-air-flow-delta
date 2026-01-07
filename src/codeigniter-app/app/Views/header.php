@@ -545,6 +545,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <!-- ?php endif; ?-->
                         <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): ?>
                             <a class="dropdown-item" href="<?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a>
+                            <a class="dropdown-item" href="<?= base_url('code-editor') ?>">💻 Code Editor (Monaco)</a>
                         <?php endif; ?>
                     </div>
                 </li>

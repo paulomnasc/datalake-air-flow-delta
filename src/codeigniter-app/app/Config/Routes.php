@@ -95,6 +95,13 @@ $routes->post('/query-builder/schema', 'QueryBuilderController::getSchema', ['as
 $routes->get('/query-builder/status', 'QueryBuilderController::status', ['as'=>'query-builder.status']);
 $routes->post('/query-builder/parquet-files', 'QueryBuilderController::listParquetFiles', ['as'=>'query-builder.parquet-files']);
 
+// Code Editor - Monaco Editor with DuckDB
+$routes->get('/code-editor', 'CodeEditorController::index', ['as'=>'code-editor.index']);
+$routes->post('/code-editor/execute', 'CodeEditorController::execute', ['as'=>'code-editor.execute']);
+$routes->post('/code-editor/tables', 'CodeEditorController::listTables', ['as'=>'code-editor.tables']);
+$routes->post('/code-editor/schema', 'CodeEditorController::getSchema', ['as'=>'code-editor.schema']);
+$routes->post('/code-editor/files', 'CodeEditorController::listParquetFiles', ['as'=>'code-editor.files']);
+
 
 /* $routes->get('upload', 'UploadController::index');
 $routes->post('/fileUpload', 'UploadController::upload',['as'=>'Config.upload']); */

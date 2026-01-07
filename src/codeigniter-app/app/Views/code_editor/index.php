@@ -156,28 +156,80 @@ require VIEWPATH . '/header.php';
         
         .file-tree {
             list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 13px;
         }
         
-        .file-item {
-            padding: 8px 12px;
-            margin-bottom: 4px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            color: #475569;
-            transition: all 0.2s;
+        .tree-item {
             display: flex;
             align-items: center;
-            gap: 8px;
+            padding: 6px 8px;
+            cursor: pointer;
+            color: #475569;
+            transition: all 0.15s;
+            border-radius: 4px;
+            user-select: none;
         }
         
-        .file-item:hover {
+        .tree-item:hover {
             background: #e2e8f0;
+        }
+        
+        .tree-item.folder {
+            font-weight: 500;
             color: #1e293b;
         }
         
-        .file-icon {
-            font-size: 16px;
+        .tree-item.file {
+            color: #64748b;
+        }
+        
+        .tree-item.file:hover {
+            background: #ede9fe;
+            color: #667eea;
+        }
+        
+        .tree-item .icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 6px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        
+        .tree-item .expand-icon {
+            width: 12px;
+            margin-right: 4px;
+            flex-shrink: 0;
+            transition: transform 0.2s;
+            color: #94a3b8;
+        }
+        
+        .tree-item .expand-icon.expanded {
+            transform: rotate(90deg);
+        }
+        
+        .tree-children {
+            margin-left: 16px;
+            display: none;
+        }
+        
+        .tree-children.expanded {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .tree-item .label {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         
         .main-editor {
@@ -371,9 +423,9 @@ require VIEWPATH . '/header.php';
                 <span>💻</span>
                 SQL Code Editor
             </h1>
-            <div class="status-badge">
+            <div class="status-badge" id="statusBadge">
                 <span class="status-dot"></span>
-                <?php echo (is_array($duckdbStatus) && isset($duckdbStatus['status']) && $duckdbStatus['status'] === 'healthy') ? 'DuckDB Online' : 'DuckDB Offline'; ?>
+                🔴 DuckDB Offline
             </div>
     </div>
         
@@ -386,25 +438,7 @@ require VIEWPATH . '/header.php';
                 <button class="sidebar-close-btn" onclick="toggleEditorSidebar()">×</button>
                 <div class="sidebar-section">
                     <h3>📁 Arquivos Parquet</h3>
-                    <ul class="file-tree" id="fileTree">
-                        <?php if (!empty($parquetFiles)): ?>
-                            <?php foreach ($parquetFiles as $file): ?>
-                                <?php 
-                                    $filePath = is_array($file) ? ($file['path'] ?? $file['name'] ?? '') : $file;
-                                    if (!empty($filePath)):
-                                ?>
-                                <li class="file-item" onclick="insertFilePath('<?php echo esc($filePath); ?>')">
-                                    <span class="file-icon">📄</span>
-                                    <span><?php echo basename($filePath); ?></span>
-                                </li>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <li class="file-item" style="cursor: default; color: #94a3b8;">
-                                <span>Nenhum arquivo encontrado</span>
-                            </li>
-                        <?php endif; ?>
-                    </ul>
+                    <ul class="file-tree" id="fileTree"></ul>
                 </div>
                 
                 <div class="sidebar-section">
@@ -483,6 +517,168 @@ require VIEWPATH . '/header.php';
             toggleEditorSidebar();
         });
         
+        // Carregar status do DuckDB dinamicamente
+        async function loadDuckDBStatus() {
+            try {
+                const response = await fetch('/code-editor/status');
+                const data = await response.json();
+                
+                const badge = document.getElementById('statusBadge');
+                if (data.healthy) {
+                    badge.innerHTML = '<span class="status-dot"></span>🟢 DuckDB Online';
+                } else {
+                    badge.innerHTML = '<span class="status-dot"></span>🔴 DuckDB Offline';
+                }
+            } catch (e) {
+                const badge = document.getElementById('statusBadge');
+                badge.innerHTML = '<span class="status-dot"></span>🔴 DuckDB Offline';
+            }
+        }
+        
+        // Carregar arquivos Parquet
+        async function loadParquetFiles() {
+            try {
+                const response = await fetch('/code-editor/files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: '' })
+                });
+                const data = await response.json();
+                
+                const fileTree = document.getElementById('fileTree');
+                fileTree.innerHTML = '';
+                
+                if (data.files && data.files.length > 0) {
+                    const tree = buildFileTree(data.files.map(f => f[0]));
+                    renderTree(tree, fileTree, 0);
+                } else {
+                    fileTree.innerHTML = '<div style="color: #94a3b8; font-size: 13px; padding: 8px;">Nenhum arquivo encontrado</div>';
+                }
+            } catch (e) {
+                document.getElementById('fileTree').innerHTML = '<div style="color: #ef4444; font-size: 13px; padding: 8px;">Erro ao carregar arquivos</div>';
+            }
+        }
+        
+        function buildFileTree(paths) {
+            const root = { children: {}, isFile: false };
+            
+            paths.forEach(path => {
+                const cleanPath = path.replace(/^s3:\/\//, '');
+                const parts = cleanPath.split('/');
+                let current = root;
+                
+                parts.forEach((part, index) => {
+                    if (!part) return;
+                    
+                    if (!current.children[part]) {
+                        current.children[part] = {
+                            name: part,
+                            fullPath: path,
+                            isFile: index === parts.length - 1,
+                            children: {},
+                            expanded: index < 2
+                        };
+                    }
+                    current = current.children[part];
+                });
+            });
+            
+            return root;
+        }
+        
+        function renderTree(node, container, level = 0) {
+            const entries = Object.values(node.children).sort((a, b) => {
+                if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+                return a.name.localeCompare(b.name);
+            });
+            
+            entries.forEach(entry => {
+                const item = document.createElement('div');
+                
+                if (entry.isFile) {
+                    item.className = 'tree-item file';
+                    item.innerHTML = `
+                        <span class="icon">📄</span>
+                        <span class="label" title="${entry.name}">${entry.name}</span>
+                    `;
+                    item.onclick = () => insertQueryFromFile(entry.fullPath);
+                } else {
+                    const hasChildren = Object.keys(entry.children).length > 0;
+                    const childrenContainer = document.createElement('div');
+                    childrenContainer.className = `tree-children ${entry.expanded ? 'expanded' : ''}`;
+                    
+                    item.className = 'tree-item folder';
+                    item.innerHTML = `
+                        <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasChildren ? '▶' : ''}</span>
+                        <span class="icon">${entry.expanded ? '📂' : '📁'}</span>
+                        <span class="label" title="${entry.name}">${entry.name}</span>
+                    `;
+                    
+                    if (hasChildren) {
+                        item.onclick = (e) => {
+                            e.stopPropagation();
+                            toggleFolder(item, childrenContainer, entry);
+                        };
+                    }
+                    
+                    container.appendChild(item);
+                    
+                    if (hasChildren) {
+                        renderTree(entry, childrenContainer, level + 1);
+                        container.appendChild(childrenContainer);
+                    }
+                    return;
+                }
+                
+                container.appendChild(item);
+            });
+        }
+        
+        function toggleFolder(folderItem, childrenContainer, entry) {
+            const expandIcon = folderItem.querySelector('.expand-icon');
+            const icon = folderItem.querySelector('.icon');
+            const isExpanded = childrenContainer.classList.toggle('expanded');
+            
+            if (isExpanded) {
+                expandIcon.classList.add('expanded');
+                icon.textContent = '📂';
+                entry.expanded = true;
+            } else {
+                expandIcon.classList.remove('expanded');
+                icon.textContent = '📁';
+                entry.expanded = false;
+            }
+        }
+        
+        function insertQueryFromFile(filePath) {
+            // Validar extensão do arquivo
+            const supportedExtensions = ['.parquet', '.csv', '.json', '.jsonl', '.tsv'];
+            const fileExtension = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+            
+            if (!supportedExtensions.includes(fileExtension)) {
+                alert(`❌ Arquivo não compatível!\n\nArquivo: ${filePath.split('/').pop()}\nExtensão: ${fileExtension}\n\nFormatos suportados:\n✓ .parquet (recomendado)\n✓ .csv\n✓ .json / .jsonl\n✓ .tsv`);
+                return;
+            }
+            
+            // Determinar função de leitura baseada na extensão
+            let readFunction = 'read_parquet';
+            if (fileExtension === '.csv' || fileExtension === '.tsv') {
+                readFunction = 'read_csv';
+            } else if (fileExtension === '.json' || fileExtension === '.jsonl') {
+                readFunction = 'read_json';
+            }
+            
+            const sql = `SELECT * FROM ${readFunction}('${filePath}') LIMIT 10`;
+            editor.setValue(sql);
+            editor.focus();
+            toggleEditorSidebar(); // Fechar sidebar
+        }
+        
+        // Carregar status ao iniciar
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDuckDBStatus();
+        });
+        
         // Configurar Monaco Editor
         require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
         
@@ -515,6 +711,9 @@ LIMIT 10;`,
             
             // Atalho Ctrl+Enter para executar
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, executeQuery);
+            
+            // Carregar arquivos após editor pronto
+            loadParquetFiles();
             
             // SQL Keywords para autocomplete
             monaco.languages.registerCompletionItemProvider('sql', {

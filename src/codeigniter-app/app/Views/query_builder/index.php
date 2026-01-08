@@ -474,7 +474,7 @@ require VIEWPATH . '/header.php';
                             <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: 600;">💡 EXEMPLO DE QUERY:</div>
                             <code id="exampleQuery" style="font-size: 12px; color: #475569; font-family: 'Courier New', monospace; display: block; word-break: break-all;">
                                 <?php 
-                                $userBucket = $userBucket ?? 'user-1';
+                                $userBucket = $userBucket ?? 'lab01';
                                 echo "SELECT * FROM read_parquet('s3://{$userBucket}/bronze/seus_dados.parquet') LIMIT 10";
                                 ?>
                             </code>

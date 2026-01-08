@@ -36,7 +36,7 @@ class SessionHelper
 
     /**
      * Retorna o path S3 completo do bucket do usuário
-     * Formato: s3://user-{id}
+     * Formato: s3://{username} (e.g., s3://kauan-duardo-179)
      * 
      * @param string $suffix Path adicional (ex: '/bronze/files')
      * @return string|null Path S3 completo ou null se usuário não estiver logado
@@ -133,7 +133,7 @@ class SessionHelper
             return false;
         }
         
-        // Verifica se o path começa com s3://user-{id}
+        // Verifica se o path começa com s3://{userBucket}
         return str_starts_with($s3Path, "s3://{$userBucket}/") || $s3Path === "s3://{$userBucket}";
     }
 
@@ -152,7 +152,7 @@ class SessionHelper
             return $text;
         }
         
-        // Substitui s3://lab01 por s3://user-{id}
+        // Substitui s3://lab01 pelo bucket do usuário para compatibilidade com queries antigas
         return str_replace('s3://lab01', "s3://{$userBucket}", $text);
     }
 }

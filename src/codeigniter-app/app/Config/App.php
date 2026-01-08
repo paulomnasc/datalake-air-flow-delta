@@ -33,9 +33,27 @@ class App extends BaseConfig
     public function __construct()
     {
         parent::__construct();
-        // Tenta pegar do .env, senão usa padrão
+        
+        // Tenta pegar do .env primeiro (permite override manual)
         $envBaseUrl = getenv('app_baseURL');
-        $this->baseURL = $envBaseUrl ?: 'http://localhost:8088/';
+        
+        if ($envBaseUrl) {
+            // Se tem no .env, usa
+            $this->baseURL = $envBaseUrl;
+        } else {
+            // Senão, constrói dinamicamente a partir das variáveis do Docker
+            $serverName = getenv('NGINX_SERVER_NAME') ?: 'localhost';
+            $port = getenv('CODEIGNITER_PORT') ?: '8088';
+            $httpsPort = getenv('NGINX_PORT_HTTPS') ?: '443';
+            
+            // Em produção, se tiver HTTPS, usa a porta HTTPS
+            // Senão, usa a porta HTTP do CodeIgniter
+            if ($serverName !== 'localhost' && file_exists('/etc/letsencrypt')) {
+                $this->baseURL = "https://{$serverName}:{$httpsPort}/";
+            } else {
+                $this->baseURL = "http://{$serverName}:{$port}/";
+            }
+        }
     }
 
     /**

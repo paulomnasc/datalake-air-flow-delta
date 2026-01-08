@@ -72,7 +72,11 @@ require VIEWPATH . '/header.php';
                 <!-- Informações de Renovação -->
                 <div class="alert alert-info" role="alert">
                     <h5 class="alert-heading">📋 Informações da Renovação</h5>
-                    <p><strong>Valor:</strong> USD 7,00 (sete dólares americanos) por mês</p>
+                    <p><strong>Valor:</strong> USD <?= number_format($valor_usd, 2); ?> (sete dólares americanos) por mês</p>
+                    <p class="mb-1"><strong>Conversão câmbio do dia:</strong> USD <?= number_format($valor_usd, 2); ?> × BRL <?= number_format($cotacao_usd_brl, 4); ?> = <strong>R$ <?= number_format($valor_brl, 2, ',', '.'); ?></strong></p>
+                    <?php if (!empty($cotacao_mensagem)): ?>
+                        <small class="text-warning d-block">⚠️ <?= htmlspecialchars($cotacao_mensagem, ENT_QUOTES, 'UTF-8'); ?></small>
+                    <?php endif; ?>
                     <p><strong>Como Founder Member, este valor está travado para você!</strong></p>
                     <p class="mb-0">
                         <strong>Ao renovar agora:</strong> Sua assinatura será válida até 
@@ -84,30 +88,24 @@ require VIEWPATH . '/header.php';
                 <div class="card bg-light mb-4">
                     <div class="card-body text-center">
                         <h5>💰 Pague via PIX</h5>
-                        <p class="text-muted">Escaneie o QR Code abaixo com o app do seu banco</p>
+                        Chave pix Cpf: 032.067.407-03
+                        Nome: Cristiane Bomfim Lemos do Nascimento
+                        Envie o comprovante para admin@estudotabela.com.br
+                        <!-- p class="text-muted">Escaneie o QR Code abaixo com o app do seu banco</p-->
                         
-                        <!-- ÁREA PARA INSERIR O QR CODE -->
-                        <div id="qrcode-area" class="my-4 p-4 bg-white border rounded d-inline-block">
-                            <!-- Placeholder - Você pode substituir por uma imagem real ou gerar dinamicamente -->
-                            <div style="width: 300px; height: 300px; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px;">
-                                <div class="text-center">
-                                    <i class="bi bi-qr-code" style="font-size: 80px; color: #6c757d;"></i>
-                                    <p class="mt-3 text-muted">
-                                        <strong>Insira seu QR Code aqui</strong><br>
-                                        <small>Edite esta view para adicionar o QR Code real</small>
-                                    </p>
-                                </div>
-                            </div>
+                        <!-- ÁREA PARA INSERIR O QR CODE 
+                        <div id="qrcode-area" class="my-4 p-3 bg-white border rounded d-inline-block" style="width: 320px; height: 320px;">
+                            <img src="<?= base_url('assets/img/qr-pix-mydataflow.png'); ?>" alt="QR Code PIX" width="300" height="300" style="width: 300px; height: 300px; max-width: 100%; max-height: 100%; display: block; margin: 0 auto;">
                         </div>
-
+                        -->
                         <!-- Instruções -->
                         <div class="alert alert-warning mt-3" role="alert">
                             <h6>📌 Instruções:</h6>
                             <ol class="text-start mb-0">
                                 <li>Abra o aplicativo do seu banco</li>
                                 <li>Selecione a opção PIX</li>
-                                <li>Escaneie o QR Code acima</li>
-                                <li>Confirme o pagamento de <strong>USD 7,00</strong></li>
+                                <li>Informe o Cpf acima</li>
+                                <li>Confirme o pagamento de <strong>R$ <?= number_format($valor_brl, 2, ',', '.'); ?></strong></li>
                                 <li>Após o pagamento, clique no botão "Já paguei" abaixo</li>
                             </ol>
                         </div>

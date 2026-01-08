@@ -43,14 +43,15 @@ class App extends BaseConfig
         } else {
             // Senão, constrói dinamicamente a partir das variáveis do Docker
             $serverName = getenv('NGINX_SERVER_NAME') ?: 'localhost';
-            $port = getenv('CODEIGNITER_PORT') ?: '8088';
             $httpsPort = getenv('NGINX_PORT_HTTPS') ?: '443';
             
-            // Em produção, se tiver HTTPS, usa a porta HTTPS
-            // Senão, usa a porta HTTP do CodeIgniter
-            if ($serverName !== 'localhost' && file_exists('/etc/letsencrypt')) {
+            // Em produção (server_name != localhost), sempre usa HTTPS com a porta do Nginx
+            // Em desenvolvimento local, usa HTTP
+            if ($serverName !== 'localhost') {
                 $this->baseURL = "https://{$serverName}:{$httpsPort}/";
             } else {
+                // Desenvolvimento: usa a porta do CodeIgniter diretamente
+                $port = getenv('CODEIGNITER_PORT') ?: '8088';
                 $this->baseURL = "http://{$serverName}:{$port}/";
             }
         }

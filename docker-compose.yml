@@ -9,8 +9,8 @@ services:
     container_name: nginx-gateway-${ENV_SUFFIX:-dev}
     restart: always
     ports:
-      - "${NGINX_PORT_HTTP}:80"
-      - "${NGINX_PORT_HTTPS}:443"
+      - "${NGINX_PORT_HTTP}:${NGINX_PORT_HTTP}"
+      - "${NGINX_PORT_HTTPS}:${NGINX_PORT_HTTPS}"
     volumes:
       - ./nginx/myflow.conf.template:/etc/nginx/templates/myflow.conf.template:ro
       # SSL template (apenas para produção - comentar em dev)
@@ -25,6 +25,7 @@ services:
       - NGINX_SSL_KEY=${NGINX_SSL_KEY}
     depends_on:
       - codeigniter-app
+      - airflow-webserver
     networks:
       - airflow_net
 

@@ -1,4 +1,10 @@
-# 🚀 Guia de Implantação - Dev vs Produção
+# 🚀 Guia de Implantação - Teste vs Produção
+
+> **Contexto deste servidor:** aqui rodam **apenas dois ambientes** do projeto `datalake-air-flow-teste`:
+> - **TEST** (homologação) → use `.env-test` (portas 29xxx, `ENV_SUFFIX=test`)
+> - **PRD** (produção) → use `.env-prd` (portas 28xxx, `ENV_SUFFIX=` vazio)
+>
+> Ambiente DEV não roda nesta máquina. Para alternar TEST/PRD basta copiar o `.env` correto e subir o `docker-compose`.
 
 ## 📋 Pré-requisitos
 - Docker e Docker Compose instalados
@@ -7,73 +13,7 @@
 
 ---
 
-## 🏠 DESENVOLVIMENTO (Localhost)
-
-### 1. Configurar variáveis de ambiente
-
-```bash
-# Copiar arquivo de configuração de desenvolvimento
-cp .env.example .env
-```
-
-**Verificar no `.env` (raiz do projeto):**
-```env
-# IMPORTANTE: Sufixo para nomes de containers (evita conflitos entre ambientes)
-ENV_SUFFIX=dev
-
-MYSQL_ROOT_PASSWORD=root
-MYSQL_DATABASE=lista_revisao2
-
-# Portas altas para evitar conflitos
-NGINX_PORT_HTTP=28080
-NGINX_PORT_HTTPS=28443
-CODEIGNITER_PORT=28088
-MYSQL_PORT=23306
-AIRFLOW_WEBSERVER_PORT=28083
-# ... (demais portas)
-
-# Nginx sem SSL
-NGINX_SSL_ENABLED=false
-NGINX_SERVER_NAME=localhost
-```
-
-### 2. Configurar .env do CodeIgniter
-
-```bash
-cd src/codeigniter-app
-# Usar o arquivo de desenvolvimento (já existe)
-```
-
-**Verificar `src/codeigniter-app/.env`:**
-```env
-CI_ENVIRONMENT=development
-app_baseURL='http://localhost:28088/'
-
-database.default.hostname=mysql
-database.default.username=root
-database.default.password=root
-database.default.database=lista_revisao2
-
-AIRFLOW_HOST=airflow-webserver
-AIRFLOW_PORT=8080
-```
-
-### 3. Subir os containers
-
-```bash
-cd /home/cblna123456/datalake-air-flow
 docker-compose up -d
-```
-
-### 4. Acessar serviços
-
-- **WebApp**: http://localhost:28088
-- **Airflow**: http://localhost:28083
-- **MinIO Console**: http://localhost:29001
-- **MySQL**: localhost:23306
-
----
-
 ## 🌐 PRODUÇÃO (Servidor Remoto)
 
 ### 1. Configurar variáveis de ambiente
@@ -130,6 +70,48 @@ smtp_password=SuaSenhaEmail
 AIRFLOW_HOST=airflow-webserver
 AIRFLOW_PORT=8080
 ```
+
+---
+
+## 🧪 TESTE / HOMOLOGAÇÃO (Mesmo servidor)
+
+### 1. Configurar variáveis de ambiente
+
+```bash
+cp .env-test .env
+```
+
+**Verificar `.env` (raiz do projeto):**
+```env
+ENV_SUFFIX=test
+
+# Portas 29xxx para não conflitar com PRD
+NGINX_PORT_HTTP=29080
+NGINX_PORT_HTTPS=29443
+AIRFLOW_WEBSERVER_PORT=29083
+CODEIGNITER_PORT=29088
+MYSQL_PORT=24306
+MINIO_API_PORT=30000
+MINIO_CONSOLE_PORT=30001
+
+# SSL desabilitado em teste (NGINX_SSL_ENABLED=false)
+NGINX_SERVER_NAME=46.224.156.251
+```
+
+### 2. Subir os containers de TESTE
+
+```bash
+docker-compose down
+docker-compose up -d
+```
+
+### 3. Acessar serviços (teste)
+- WebApp: http://46.224.156.251:29088
+- Airflow: http://46.224.156.251:29083
+- MinIO Console: http://46.224.156.251:30001
+- MySQL: 46.224.156.251:24306
+
+---
 
 ### 3. Habilitar SSL no Nginx (IMPORTANTE!)
 

@@ -470,6 +470,21 @@ class ConfigController extends BaseController
                     (int) \App\Helpers\SessionHelper::getUserId()
                 );
 
+                // GARANTIR QUE O BUCKET DO USUÁRIO EXISTE
+                $bucketCheck = \App\Helpers\MinioHelper::ensureBucketExists($bucket);
+                
+                if (!$bucketCheck['success']) {
+                    log_message('error', "Falha ao criar/verificar bucket: {$bucketCheck['message']}");
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => "Erro ao preparar armazenamento: {$bucketCheck['message']}"
+                    ]);
+                }
+                
+                if ($bucketCheck['created']) {
+                    log_message('info', "Bucket '{$bucket}' criado automaticamente para novo usuário.");
+                }
+
                 // VERIFICAÇÃO DE LIMITE DE ARMAZENAMENTO
                 $fileSize = $uploadedFile->getSize();
                 $storageCheck = \App\Helpers\MinioHelper::checkStorageLimit($bucket, $fileSize);
@@ -696,13 +711,41 @@ class ConfigController extends BaseController
                 if (!$this->minioClient) {
                     throw new \Exception('Cliente MinIO não inicializado.');
                 }
+                
+                // Prioriza bucket do usuário logado
+                $bucket = SessionHelper::getUserBucket() ?: ($this->bucketName ?: 'lab01');
+                
+                // GARANTIR QUE O BUCKET DO USUÁRIO EXISTE
+                $bucketCheck = \App\Helpers\MinioHelper::ensureBucketExists($bucket);
+                
+                if (!$bucketCheck['success']) {
+                    throw new \Exception("Erro ao preparar armazenamento: {$bucketCheck['message']}");
+                }
+                
+                if ($bucketCheck['created']) {
+                    log_message('info', "Bucket '{$bucket}' criado automaticamente.");
+                }
+                
+                // VERIFICAÇÃO DE LIMITE DE ARMAZENAMENTO
+                $fileSize = $uploadedFile->getSize();
+                $storageCheck = \App\Helpers\MinioHelper::checkStorageLimit($bucket, $fileSize);
+                
+                if (!$storageCheck['allowed']) {
+                    log_message('warning', "Upload bloqueado por limite de armazenamento: {$storageCheck['message']}");
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => $storageCheck['message']
+                    ]);
+                }
+                
+                log_message('info', "Verificação de armazenamento OK: {$storageCheck['message']}");
 
                 $newName = $uploadedFile->getRandomName();
                 $targetMinioPath = "raw/{$dagId}/{$newName}";
 
                 try {
                     $this->minioClient->putObject([
-                        'Bucket' => $this->bucketName,
+                        'Bucket' => $bucket,
                         'Key' => $targetMinioPath,
                         'SourceFile' => $uploadedFile->getTempName(),
                         'ContentType' => $uploadedFile->getClientMimeType(),

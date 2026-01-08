@@ -42,9 +42,6 @@ class UsuarioController extends BaseController
 
     public function logar()
     {
-        /* echo "logou fake";
-        die(); */
-
         $data = [
             'email' => $this->request->getPost('email'),
             'senha' => $this->request->getPost('senha')
@@ -139,6 +136,28 @@ class UsuarioController extends BaseController
             $list = $this->listByEmailSenha($data['email'], $data['senha']);
             if (!empty($list) && isset($list[0])) {
                 $usuario = $list[0]; // Acessa o primeiro usuário na lista
+                
+                // Verifica e inicializa período de trial se necessário
+                $usuarioModel = new UsuarioModel();
+                $needsUpdate = false;
+                $updateData = [];
+                
+                if (empty($usuario->data_inicio_trial) && empty($usuario->data_vencimento_assinatura)) {
+                    // Primeiro login confirmado - inicia período de trial
+                    $updateData['data_inicio_trial'] = date('Y-m-d');
+                    $updateData['data_vencimento_assinatura'] = date('Y-m-d', strtotime('+30 days'));
+                    $updateData['status_assinatura'] = 'trial';
+                    $needsUpdate = true;
+                }
+                
+                // Atualiza o usuário no banco se necessário
+                if ($needsUpdate) {
+                    $usuarioModel->update($usuario->id, $updateData);
+                    // Atualiza o objeto local também
+                    foreach ($updateData as $key => $value) {
+                        $usuario->$key = $value;
+                    }
+                }
                 
                 // Carregando o usuário na sessão
                 $_SESSION['id_usuario_logado'] = $usuario->id;
@@ -650,14 +669,10 @@ class UsuarioController extends BaseController
             return true;
 
         } catch (Exception $e) {
+            // Loga o erro completo
+            log_message('error', 'Erro SMTP ao enviar email: ' . $e->getMessage());
+            log_message('error', 'PHPMailer ErrorInfo: ' . $mail->ErrorInfo);
             throw $e;
-            // Garantir que a mensagem de erro seja codificada corretamente
-            /* $errorMessage = mb_convert_encoding($mail->ErrorInfo . $e->getMessage(), 'UTF-8', 'auto');
-            $response = [
-                'status' => 'error',
-                'mensagem' => 'Falha ao inserir o registro: ' . $errorMessage
-            ];
-            return $this->response->setJSON($response, JSON_UNESCAPED_UNICODE); */
         }
     }
 
@@ -748,35 +763,27 @@ class UsuarioController extends BaseController
                         // Realiza o login do usuário autorizado na plataforma
 
                         $this->logarUsuarioConfirmaEmail($usuario->email, $usuario->senha);
-                        //return redirect()->route('home')->with('success-message', 'Seu e-mail foi confirmado com sucesso!');
                         return view("bemVindoNovoUsuario");    
-                        /* return $this->response->setJSON([
-                            'status' => 'success',
-                            'mensagem' => 'Seu e-mail foi confirmado com sucesso!'
-                        ]); */
                     } else {
                         log_message('error', 'Erro ao atualizar o registro: ' . $model->getLastQuery());
-                        return $this->response->setJSON([
-                            'status' => 'error',
-                            'mensagem' => 'Não foi possível confirmar seu e-mail.'
+                        return view('email_confirmation_error', [
+                            'mensagem' => 'Não foi possível confirmar seu e-mail. Por favor, tente novamente.'
                         ]);
                     }
                 } else {
-                    return $this->response->setJSON([
-                        'status' => 'error',
-                        'mensagem' => 'Nenhum registro encontrado para atualização.'
+                    return view('email_confirmation_error', [
+                        'mensagem' => 'Nenhum usuário encontrado com este token. O link pode ter expirado.'
                     ]);
                 }
             } else {
-                return $this->response->setJSON([
-                    'status' => 'error',
-                    'mensagem' => 'Token inválido.'
+                return view('email_confirmation_error', [
+                    'mensagem' => 'Token inválido ou expirado. Por favor, solicite um novo link de confirmação.'
                 ]);
             }
         } catch (Exception $e) {
-            return $this->response->setJSON([
-                'status' => 'error',
-                'mensagem' => 'Falha ao confirmar seu e-mail... :-( : ' . $e->getMessage()
+            log_message('error', 'Erro na confirmação de email: ' . $e->getMessage());
+            return view('email_confirmation_error', [
+                'mensagem' => 'Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.'
             ]);
         }
     }

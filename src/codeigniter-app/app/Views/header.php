@@ -14,6 +14,37 @@
     </div>
 </div>
 
+<!-- Aviso de Vencimento de Assinatura -->
+<?php if (isset($_SESSION['subscription_show_warning']) && $_SESSION['subscription_show_warning']): ?>
+    <?php
+        $diasRestantes = $_SESSION['subscription_days_remaining'] ?? 0;
+        $statusAssinatura = $_SESSION['subscription_status'] ?? 'trial';
+        $mensagemAviso = \App\Helpers\SubscriptionHelper::obterMensagemAviso($diasRestantes, $statusAssinatura);
+        $classeAlerta = \App\Helpers\SubscriptionHelper::obterClasseAlerta($diasRestantes);
+    ?>
+    <div id="subscription-warning" class="alert <?= $classeAlerta ?>" 
+         style="position: fixed; top: 20px; right: 20px; z-index: 9998; max-width: 400px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); animation: slideIn 0.5s ease;">
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" style="float: right;"></button>
+        <strong>⏰ Atenção!</strong>
+        <p style="margin: 8px 0;"><?= htmlspecialchars($mensagemAviso, ENT_QUOTES, 'UTF-8'); ?></p>
+        <a href="<?= base_url('subscription/renew') ?>" class="btn btn-sm <?= ($diasRestantes <= 2) ? 'btn-danger' : 'btn-warning' ?>" style="margin-top: 8px;">
+            🔄 Renovar Agora
+        </a>
+    </div>
+    <style>
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+<?php endif; ?>
+
 <!--Start of Tawk.to Script-->
 <script type="text/javascript">
 var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
@@ -523,31 +554,43 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"): 
                         ?>
                             <?php echo anchor("listPasta", "Pastas", ['class' => 'nav-link px-4 px-lg-5']) ?>
-                            <?php echo anchor("listConfig", "Fluxos/Pipelines", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                            <?php echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']) ?>
                         <?php elseif (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === "Anonimo"): ?>
-                            <?php echo anchor("listConfig", "Fluxos/Pipelines", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                            <?php echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']) ?>
                         <?php endif; ?>
                     </div>
                 </li>
                 <!-- Fim Dropdown -->
                 <?php endif; ?>
 
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-bs-toggle="dropdown">
-                        SERVIÇOS
-                    </a>
-                    <div class="dropdown-menu">
-                        <?php if (isset($userHasPipelinesAccess) && $userHasPipelinesAccess): ?>
-                            <a class="dropdown-item" href=" http://airflow.estudotabela.com.br:28083" target="_blank" rel="noopener noreferrer">Execução de Pipelines ELT</a>
-                        <?php endif; ?>
-                        <!-- ?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
-                            <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->
-                        <!-- ?php endif; ?-->
-                        <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): ?>
-                            <a class="dropdown-item" href="<?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a>
-                            <a class="dropdown-item" href="<?= base_url('code-editor') ?>">💻 Code Editor (Monaco)</a>
-                        <?php endif; ?>
-                    </div>
+                <?php 
+                // Verifica se os serviços estão bloqueados por assinatura expirada
+                $servicesBlocked = isset($_SESSION['subscription_services_blocked']) && $_SESSION['subscription_services_blocked'];
+                ?>
+
+                <li class="nav-item dropdown <?= $servicesBlocked ? 'disabled' : '' ?>">
+                    <?php if ($servicesBlocked): ?>
+                        <a class="nav-link dropdown-toggle" href="#" style="opacity: 0.5; cursor: not-allowed;" 
+                           title="Renovar assinatura para acessar os serviços" onclick="event.preventDefault(); alert('⚠️ Assinatura expirada!\n\nPara acessar os serviços, renove sua assinatura.');">
+                            SERVIÇOS 🔒
+                        </a>
+                    <?php else: ?>
+                        <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-bs-toggle="dropdown">
+                            SERVIÇOS
+                        </a>
+                        <div class="dropdown-menu">
+                            <?php if (isset($userHasPipelinesAccess) && $userHasPipelinesAccess): ?>
+                                <?php $airflowExternalUrl = getenv('AIRFLOW_EXTERNAL_URL') ?: 'http://localhost:8080'; ?>
+                                <a class="dropdown-item" href="<?= htmlspecialchars($airflowExternalUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Pipelines ELT</a>
+                            <?php endif; ?>
+                            <!-- ?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
+                                <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->
+                            <!-- ?php endif; ?-->
+                            <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): ?>
+                                <a class="dropdown-item" href="<?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                 </li>
 
                 <?php echo anchor("politica","Política Privacidade", ['class' => 'nav-link px-4 px-lg-5'])  ?>
@@ -587,15 +630,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         
     </form>
 
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-P312EQG53Y"></script>
-    <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
+    <!--form id="submitDonate" method="POST" action="<!?php echo route_to('donate'); ?>">
 
-    gtag('config', 'G-P312EQG53Y');
-    </script>
+        <button type="submit" class="nav-button">Doe $
+            <i class="fas fa-money"></i>
+            
+        </button>
+
+    </form-->
 
     
 </div>

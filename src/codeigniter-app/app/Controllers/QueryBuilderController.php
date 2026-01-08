@@ -75,15 +75,20 @@ class QueryBuilderController extends BaseController
         
         // Segurança: verificar se query tenta acessar buckets de outros usuários
         $userBucket = SessionHelper::getUserBucket();
-        if ($userBucket && preg_match('/s3:\\/\\/user-(\\d+)/', $sql, $matches)) {
-            $queryBucket = "user-{$matches[1]}";
-            if ($queryBucket !== $userBucket) {
-                return $this->response
-                    ->setStatusCode(403)
-                    ->setJSON([
-                        'success' => false,
-                        'error' => 'Acesso negado: você não pode consultar dados de outros usuários'
-                    ]);
+        if ($userBucket) {
+            // Procura por qualquer referência a s3:// bucket que não seja do usuário
+            if (preg_match_all('/s3:\\/\\/([a-zA-Z0-9._-]+)/', $sql, $matches)) {
+                foreach ($matches[1] as $bucketInQuery) {
+                    if ($bucketInQuery !== $userBucket && $bucketInQuery !== 'lab01') {
+                        // lab01 é permitido como fallback (compatibilidade com queries antigas)
+                        return $this->response
+                            ->setStatusCode(403)
+                            ->setJSON([
+                                'success' => false,
+                                'error' => "Acesso negado: você não pode consultar o bucket '{$bucketInQuery}'. Seu bucket é '{$userBucket}'"
+                            ]);
+                    }
+                }
             }
         }
         
@@ -235,5 +240,28 @@ class QueryBuilderController extends BaseController
         }
         
         return $sql;
+    }
+    
+    /**
+     * Debug endpoint para verificar configuração do usuário
+     * GET /query-builder/debug
+     */
+    public function debug()
+    {
+        $userData = SessionHelper::getUserData();
+        $duckdbHealth = DuckDBHelper::healthCheck();
+        
+        // Testa listagem de arquivos
+        $parquetFiles = [];
+        if ($userData['bucket'] ?? false) {
+            $parquetFiles = DuckDBHelper::listParquetFiles($userData['s3_path']);
+        }
+        
+        return $this->response->setJSON([
+            'user' => $userData,
+            'duckdb' => $duckdbHealth,
+            'files_count' => count($parquetFiles),
+            'sample_files' => array_slice($parquetFiles, 0, 5)
+        ]);
     }
 }

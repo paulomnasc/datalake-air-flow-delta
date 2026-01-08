@@ -323,12 +323,42 @@ class ConfigController extends BaseController
     
     public function upload()
     {
-        
         try {
-
+            // Verificar limite de tamanho ANTES de processar o arquivo
+            // Usar o mesmo limite do MINIO_USER_STORAGE_LIMIT (.env)
+            $maxFileSize = 10 * 1024 * 1024; // 10 MB em bytes (10485760)
             $file = $this->request->getFile('arquivo');
+            
+            // Verificar se o arquivo foi enviado
+            if (!$file) {
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => 'Nenhum arquivo foi enviado.'
+                ]);
+            }
+            
+            // Verificar erro de upload (incluindo tamanho excedido)
+            $error = $file->getError();
+            if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+                $maxAllowed = ini_get('upload_max_filesize');
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => "❌ Tamanho do arquivo excede o limite permitido de {$maxAllowed}. Por favor, envie um arquivo menor."
+                ]);
+            }
+            
+            // Verificar tamanho do arquivo em bytes
+            $fileSize = $file->getSize();
+            if ($fileSize > $maxFileSize) {
+                $maxSizeMB = round($maxFileSize / (1024 * 1024), 2);
+                $fileSizeMB = round($fileSize / (1024 * 1024), 2);
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => "❌ Arquivo muito grande! Tamanho: {$fileSizeMB} MB. Limite máximo: {$maxSizeMB} MB."
+                ]);
+            }
 
-            if ($file && $file->isValid() && !$file->hasMoved()) {
+            if ($file->isValid() && !$file->hasMoved()) {
 
                 $folder = 'uploads/' . $_SESSION['id_usuario_logado'] . '/';
 
@@ -345,12 +375,20 @@ class ConfigController extends BaseController
                 
             } else {
                 // Trate o erro do arquivo aqui, caso não seja válido ou já tenha sido movido
-                return redirect()->back()->with('error', 'Erro ao processar o arquivo.');
+                $errorMsg = 'Erro ao processar o arquivo.';
+                if ($file->getError() !== 0) {
+                    $errorMsg .= ' Código de erro: ' . $file->getErrorString();
+                }
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => $errorMsg
+                ]);
             }
+            
             return $this->response->setJSON([
                 'status' => 'success',
                 'mensagem' => 'O arquivo ' . $file->getName() . ' foi enviado com sucesso.',
-                'uploadedFile' => base_url($folder . $file->getName()) // Isso deve estar presente
+                'uploadedFile' => base_url($folder . $file->getName())
             ]);
             
 
@@ -360,8 +398,6 @@ class ConfigController extends BaseController
                 'mensagem' => 'Falha ao inserir o arquivo: ' . $e->getMessage()
             ]);
         }
-
-        
     }
     
     // O insert agora será chamado após o processo de upload no novo subform

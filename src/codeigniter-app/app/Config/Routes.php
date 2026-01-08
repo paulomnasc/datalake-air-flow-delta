@@ -94,6 +94,7 @@ $routes->post('/query-builder/tables', 'QueryBuilderController::listTables', ['a
 $routes->post('/query-builder/schema', 'QueryBuilderController::getSchema', ['as'=>'query-builder.schema']);
 $routes->get('/query-builder/status', 'QueryBuilderController::status', ['as'=>'query-builder.status']);
 $routes->post('/query-builder/parquet-files', 'QueryBuilderController::listParquetFiles', ['as'=>'query-builder.parquet-files']);
+$routes->get('/query-builder/debug', 'QueryBuilderController::debug', ['as'=>'query-builder.debug']);
 
 // Code Editor - Monaco Editor with DuckDB
 $routes->get('/code-editor', 'CodeEditorController::index', ['as'=>'code-editor.index']);
@@ -115,6 +116,13 @@ $routes->get('/tdu', 'MarketPlaceController::tdu', ['as'=>'tdu']);//Termos de us
 $routes->post('/email', 'MarketPlaceController::sendMailNoSecurity', ['as'=>'email']);//Dipara o email preenchido na tela contactUs 
 $routes->post('/saibaMais', 'MarketPlaceController::saibaMais', ['as'=>'saibaMais']);//Dipara o form saiba mais 
 $routes->get('/saibaMais', 'MarketPlaceController::saibaMais', ['as'=>'saibaMais']);//Dipara o form saiba mais 
+
+// Rotas de Assinatura/Subscription
+$routes->get('/subscription/renew', 'SubscriptionController::index', ['as'=>'subscription.renew']); // Página de renovação
+$routes->get('/subscription/status', 'SubscriptionController::checkStatus', ['as'=>'subscription.status']); // Verifica status via AJAX
+$routes->post('/subscription/confirmPayment', 'SubscriptionController::confirmPayment', ['as'=>'subscription.confirmPayment']); // Confirma pagamento
+$routes->get('/subscription/pix', 'SubscriptionController::pixPayment', ['as'=>'subscription.pix']); // Página PIX
+$routes->get('/test-subscription', 'TestSubscription::index'); // DEBUG - Teste de subscription
 
 //Botão Donate$
 $routes->post('/donate', 'MarketPlaceController::donate');

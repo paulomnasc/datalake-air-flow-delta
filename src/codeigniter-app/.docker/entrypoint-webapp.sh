@@ -16,6 +16,16 @@ fi
 cp /tmp/htaccess-no-ssl /var/www/html/.htaccess
 echo "✅ .htaccess substituído para desabilitar o redirecionamento HTTPS."
 
+# Criar symlink ou copiar assets para public/assets
+echo "📦 Verificando e preparando assets..."
+if [ -d "/var/www/html/assets" ] && [ ! -L "/var/www/html/public/assets" ]; then
+    if [ ! -d "/var/www/html/public/assets" ]; then
+        # Criar symlink dos assets
+        ln -s /var/www/html/assets /var/www/html/public/assets
+        echo "✅ Symlink criado: /var/www/html/public/assets -> /var/www/html/assets"
+    fi
+fi
+
 # Remove o conteúdo das pastas de cache e logs (Ignora erro se a pasta for a raiz)
 rm -rf /var/www/html/writable/cache/*
 rm -rf /var/www/html/writable/logs/*

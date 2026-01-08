@@ -227,6 +227,62 @@ class AirflowHelper
     }
 
     /**
+     * Ativa ou desativa um usuário no Airflow
+     * 
+     * @param int $userId ID do usuário
+     * @param string $email Email do usuário
+     * @param bool $active True para ativar, False para desativar
+     * @return array ['success' => bool, 'message' => string]
+     */
+    public static function setUserActiveStatus(int $userId, string $email, bool $active): array
+    {
+        try {
+            if (!self::isAirflowAvailable()) {
+                return [
+                    'success' => false,
+                    'message' => 'Airflow não disponível'
+                ];
+            }
+
+            $username = self::buildUsernameFromEmail($email, $userId);
+            $airflowUrl = self::getAirflowBaseUrl() . "/api/v1/users/{$username}";
+            
+            // Verificar se usuário existe
+            $getUserResult = self::apiCall('GET', $airflowUrl);
+            if (!$getUserResult['success']) {
+                return [
+                    'success' => false,
+                    'message' => "Usuário {$username} não encontrado no Airflow"
+                ];
+            }
+            
+            // Atualizar status active
+            $updateData = ['active' => $active];
+            $result = self::apiCall('PATCH', $airflowUrl, $updateData);
+            
+            if ($result['success']) {
+                $status = $active ? 'ativado' : 'desativado';
+                log_message('info', "[AIRFLOW] Usuário {$username} {$status} com sucesso");
+                return [
+                    'success' => true,
+                    'message' => "Usuário {$status} com sucesso no Airflow"
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'message' => "Falha ao atualizar status do usuário: " . ($result['error'] ?? 'erro desconhecido')
+                ];
+            }
+        } catch (\Exception $e) {
+            log_message('error', "[AIRFLOW] Erro ao alterar status do usuário: {$e->getMessage()}");
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
      * Busca um usuário no Airflow pelo email
      * 
      * @param string $email Email do usuário
@@ -263,7 +319,11 @@ class AirflowHelper
         try {
             log_message('debug', "[AirflowHelper] apiCall: {$method} {$url} data=" . json_encode($data));
             $ch = curl_init($url);
-            $auth = base64_encode('admin:kJ#212394');
+            
+            // Get credentials from environment variables
+            $username = getenv('AIRFLOW_ADMIN_USERNAME') ?: 'admin';
+            $password = getenv('AIRFLOW_ADMIN_PASSWORD') ?: 'admin';
+            $auth = base64_encode($username . ':' . $password);
 
             $headers = [
                 "Authorization: Basic {$auth}",

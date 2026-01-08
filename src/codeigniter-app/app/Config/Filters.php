@@ -34,6 +34,7 @@ class Filters extends BaseFilters
         'forcehttps'    => ForceHTTPS::class,
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
+        'subscription'  => \App\Filters\SubscriptionFilter::class, // Filtro de controle de assinatura
     ];
 
     /**
@@ -69,6 +70,7 @@ class Filters extends BaseFilters
      */
     public array $globals = [
         'before' => [
+            'subscription', // Verifica status de assinatura em todas as requisições
             // 'honeypot',
             // 'csrf',
             // 'invalidchars',

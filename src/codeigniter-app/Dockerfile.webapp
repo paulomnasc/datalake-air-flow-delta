@@ -71,6 +71,13 @@ RUN echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.
     echo "xdebug.log_level=7" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
     echo "xdebug.idekey=vscode" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
 
+# 9. Configurar limites de upload do PHP (10MB - alinhado com MINIO_USER_STORAGE_LIMIT)
+RUN echo "upload_max_filesize = 10M" >> /usr/local/etc/php/conf.d/uploads.ini && \
+    echo "post_max_size = 10M" >> /usr/local/etc/php/conf.d/uploads.ini && \
+    echo "memory_limit = 128M" >> /usr/local/etc/php/conf.d/uploads.ini && \
+    echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/uploads.ini && \
+    echo "max_input_time = 300" >> /usr/local/etc/php/conf.d/uploads.ini
+
 # A porta padrão do Apache é 80
 EXPOSE 80
 

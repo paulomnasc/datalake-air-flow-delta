@@ -104,8 +104,10 @@ class DuckDBHelper
             $path = $userBucket ? "s3://{$userBucket}" : 's3://lab01';
         }
         
-        // DEBUG: Log para diagnóstico
-        log_message('debug', '[DuckDBHelper] listParquetFiles chamado com path: ' . ($path ?: 'null'));
+        // DEBUG: Log para diagnóstico (opcional - pode não estar disponível em teste)
+        if (function_exists('log_message')) {
+            log_message('debug', '[DuckDBHelper] listParquetFiles chamado com path: ' . ($path ?: 'null'));
+        }
         
         try {
             $client = \Config\Services::curlrequest();

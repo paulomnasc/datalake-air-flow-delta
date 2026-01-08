@@ -6,23 +6,32 @@ services:
   # 🌐 Nginx Reverse Proxy (Gateway para webapp)
   nginx:
     image: nginx:alpine
-    container_name: nginx-gateway
+    container_name: nginx-gateway-${ENV_SUFFIX:-dev}
     restart: always
     ports:
-      - "28080:80"
-      - "28443:443"
+      - "${NGINX_PORT_HTTP}:${NGINX_PORT_HTTP}"
+      - "${NGINX_PORT_HTTPS}:${NGINX_PORT_HTTPS}"
     volumes:
-      - ./nginx/myflow.conf:/etc/nginx/conf.d/myflow.conf:ro
+      - ./nginx/myflow.conf.template:/etc/nginx/templates/myflow.conf.template:ro
+      # SSL template (apenas para produção - comentar em dev)
+      # - ./nginx/myflow-ssl.conf.template:/etc/nginx/templates/myflow-ssl.conf.template:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - nginx_logs:/var/log/nginx
+    environment:
+      - NGINX_PORT_HTTP=${NGINX_PORT_HTTP}
+      - NGINX_PORT_HTTPS=${NGINX_PORT_HTTPS}
+      - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
+      - NGINX_SSL_CERT=${NGINX_SSL_CERT}
+      - NGINX_SSL_KEY=${NGINX_SSL_KEY}
     depends_on:
       - codeigniter-app
+      - airflow-webserver
     networks:
       - airflow_net
 
   spark:
     image: apache/spark:3.4.1
-    container_name: spark
+    container_name: spark-${ENV_SUFFIX:-dev}
     #build:
     #  context: .
     #  dockerfile: Dockerfile.spark
@@ -34,8 +43,8 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
     ports:
-      - "27077:7077"
-      - "28081:8080"
+      - "${SPARK_PORT_RPC}:7077"
+      - "${SPARK_PORT_WEB}:8080"
     volumes:
       - ./spark-apps:/opt/spark-apps
     #   - ./jars:/opt/spark/jars
@@ -48,7 +57,7 @@ services:
 
   spark-worker:
     image: apache/spark:3.4.1
-    container_name: spark-worker
+    container_name: spark-worker-${ENV_SUFFIX:-dev}
     depends_on:
       - spark
     command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark:7077"]
@@ -57,7 +66,7 @@ services:
       # Use as coordenadas Maven dos seus jars
       - SPARK_OPTS=--packages io.delta:delta-core_2.12:2.4.0,org.apache.hadoop:hadoop-aws:3.3.4
     ports:
-      - "28082:8081"
+      - "${SPARK_WORKER_PORT}:8081"
     volumes:
       - spark_ivy:/home/spark/.ivy2
     extra_hosts:
@@ -68,13 +77,13 @@ services:
 
   postgres:
     image: postgres:13
-    container_name: postgres
+    container_name: postgres-${ENV_SUFFIX:-dev}
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
     ports:
-      - "25432:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     extra_hosts:
@@ -85,13 +94,13 @@ services:
 
   postgres-bi:
     image: postgres:13
-    container_name: postgres-bi
+    container_name: postgres-bi-${ENV_SUFFIX:-dev}
     environment:
       POSTGRES_USER: pbi_user
       POSTGRES_PASSWORD: pbi_password
       POSTGRES_DB: datalake_bi
     ports:
-      - "25433:5432"
+      - "${POSTGRES_BI_PORT}:5432"
     volumes:
       - pg_bi_data:/var/lib/postgresql/data
     extra_hosts:
@@ -102,10 +111,10 @@ services:
 
   redis:
     image: redis:7
-    container_name: redis
+    container_name: redis-${ENV_SUFFIX:-dev}
     restart: always
     ports:
-      - "26379:6379"
+      - "${REDIS_PORT}:6379"
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "vscode:host-gateway"
@@ -114,13 +123,13 @@ services:
 
   mysql:
     image: mysql:8.0
-    container_name: mysql
+    container_name: mysql-${ENV_SUFFIX:-dev}
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
     ports:
-      - "23306:3306"
+      - "${MYSQL_PORT}:3306"
     volumes:
     # 🚨 CRÍTICO: Mapeia sua pasta local de scripts para o diretório de inicialização do Docker
       - ./mysql-init:/docker-entrypoint-initdb.d 
@@ -134,11 +143,12 @@ services:
 
   airflow-webserver:
     build: .
-    container_name: airflow-webserver
+    container_name: airflow-webserver-${ENV_SUFFIX:-dev}
     restart: always
     depends_on:
       - postgres
     environment:
+      - ENV_SUFFIX=${ENV_SUFFIX:-dev}
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
@@ -156,7 +166,7 @@ services:
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
     ports:
-      - "28083:8080"
+      - "${AIRFLOW_WEBSERVER_PORT}:8080"
     command: airflow webserver
     user: root
     extra_hosts:
@@ -167,12 +177,13 @@ services:
 
   airflow-scheduler:
     build: .
-    container_name: airflow-scheduler
+    container_name: airflow-scheduler-${ENV_SUFFIX:-dev}
     restart: always
     depends_on:
       - postgres
       - atlas
     environment:
+      - ENV_SUFFIX=${ENV_SUFFIX:-dev}
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
@@ -197,7 +208,7 @@ services:
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
     ports:
-      - "25678:5678"
+      - "${AIRFLOW_SCHEDULER_DEBUG_PORT}:5678"
     command: airflow scheduler
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -212,8 +223,8 @@ services:
       MINIO_ROOT_PASSWORD: admin123
     command: server /data --console-address ":9001"
     ports:
-      - "29000:9000"
-      - "29001:9001"
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
     volumes:
       - /var/oled/minio_data:/data
     extra_hosts:
@@ -227,7 +238,7 @@ services:
     build:
       context: ./duckdb-api
       dockerfile: Dockerfile
-    container_name: duckdb-api
+    container_name: duckdb-api-${ENV_SUFFIX:-dev}
     restart: always
     depends_on:
       - minio
@@ -241,7 +252,7 @@ services:
     volumes:
       - ./ddb:/opt/duckdb
     ports:
-      - "25000:5000"
+      - "${DUCKDB_API_PORT}:5000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "vscode:host-gateway"
@@ -310,24 +321,22 @@ services:
         # Passa as variáveis para o Dockerfile
         HOST_UID: ${UID:-1000} 
         HOST_GID: ${GID:-1000}
-    container_name: codeigniter-app
+    container_name: codeigniter-app-${ENV_SUFFIX:-dev}
     restart: always
     depends_on:
       - mysql
     volumes:
-      # Mapeamento do código como read-only (para desenvolvimento local, sem conflitos)
-      - ./src/codeigniter-app:/var/www/html:ro
-      # Volume Docker para writable (evita problemas de permissão do host)
-      - webapp_writable:/var/www/html/writable
-      # Volume Docker para dependências (PHP, Composer)
-      - webapp_vendor:/var/www/html/vendor
-      # Bind mount apenas para configs do Airflow (persistidos no host)
-      - ./src/dags/configs:/var/www/html/writable/configs
+      # Mapeamento do código completo (sem read-only para permitir writable)
+      - ./src/codeigniter-app:/var/www/html
     ports:
-      - "28088:80"
-      - "29003:9003" # <--- Porta do XDebug
+      - "${CODEIGNITER_PORT}:80"
+      - "${CODEIGNITER_XDEBUG_PORT}:9003" # <--- Porta do XDebug
     environment:
       - CI_ENVIRONMENT=development
+      # Porta externa do CodeIgniter (para construir app_baseURL)
+      - CODEIGNITER_PORT=${CODEIGNITER_PORT}
+      - NGINX_PORT_HTTPS=${NGINX_PORT_HTTPS}
+      - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
       # MinIO configuration used by the webapp (read by ConfigController::_initMinioClient())
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_REGION=us-east-1
@@ -336,6 +345,13 @@ services:
       - MINIO_ACCESS_KEY_ID=admin
       - MINIO_SECRET_ACCESS_KEY=admin123
       - MINIO_BUCKET_RAW=lab01
+      # Airflow external URL for menu link
+      - AIRFLOW_EXTERNAL_URL=http://${NGINX_SERVER_NAME}:${AIRFLOW_WEBSERVER_PORT}
+      # Airflow internal connection (API sync)
+      - AIRFLOW_HOST=airflow-webserver-${ENV_SUFFIX:-dev}
+      - AIRFLOW_PORT=8080
+      - AIRFLOW_ADMIN_USERNAME=admin
+      - AIRFLOW_ADMIN_PASSWORD=admin
       # ... (demais variáveis de ambiente)
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -346,9 +362,9 @@ services:
 
   atlas:
     image: sburn/apache-atlas:latest
-    container_name: apache-atlas
+    container_name: apache-atlas-${ENV_SUFFIX:-dev}
     ports:
-      - "31000:21000"
+      - "${ATLAS_PORT}:21000"
     environment:
       - JAVA_OPTS=-Xmx1024m -Xms512m
       - ATLAS_SERVER_OPTS=-server -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+CMSClassUnloadingEnabled -XX:+UseConcMarkSweepGC -XX:+CMSPermGenSweepingEnabled
@@ -368,12 +384,12 @@ services:
     build:
       context: ./atlas-lab
       dockerfile: Dockerfile_Spark
-    container_name: pyspark_aula_container
+    container_name: pyspark-aula-${ENV_SUFFIX:-dev}
     profiles:
       - atlas
     ports:
-      - "28888:8888" # Jupyter Notebook
-      - "24040:4040" # Spark UI
+      - "${JUPYTER_PORT}:8888" # Jupyter Notebook
+      - "${SPARK_UI_PORT}:4040" # Spark UI
     volumes:
       - ./atlas-lab/notebooks:/home/jovyan/work
       - ./atlas-lab/data:/home/jovyan/data

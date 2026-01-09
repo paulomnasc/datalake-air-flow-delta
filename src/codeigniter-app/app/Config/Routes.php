@@ -96,6 +96,27 @@ $routes->get('/query-builder/status', 'QueryBuilderController::status', ['as'=>'
 $routes->post('/query-builder/parquet-files', 'QueryBuilderController::listParquetFiles', ['as'=>'query-builder.parquet-files']);
 $routes->get('/query-builder/debug', 'QueryBuilderController::debug', ['as'=>'query-builder.debug']);
 
+// Code Editor - Monaco Editor with DuckDB
+$routes->get('/code-editor', 'CodeEditorController::index', ['as'=>'code-editor.index']);
+$routes->get('/code-editor/status', 'CodeEditorController::status', ['as'=>'code-editor.status']);
+$routes->post('/code-editor/execute', 'CodeEditorController::execute', ['as'=>'code-editor.execute']);
+$routes->post('/code-editor/tables', 'CodeEditorController::listTables', ['as'=>'code-editor.tables']);
+$routes->post('/code-editor/schema', 'CodeEditorController::getSchema', ['as'=>'code-editor.schema']);
+$routes->post('/code-editor/files', 'CodeEditorController::listParquetFiles', ['as'=>'code-editor.files']);
+
+// Git CORS Proxy endpoint
+$routes->match(['get','post','options'], '/git-proxy.php', 'GitProxyController::index');
+$routes->match(['get','post','options'], '/git-proxy', 'GitProxyController::index');
+
+// Git Server-side endpoints (clone no servidor)
+$routes->post('/api/git-clone', 'GitServerController::cloneRepository', ['as'=>'api.git.clone']);
+$routes->get('/api/git-files', 'GitServerController::listFiles', ['as'=>'api.git.files']);
+$routes->get('/api/git-file-content', 'GitServerController::getFileContent', ['as'=>'api.git.file.content']);
+$routes->post('/api/git-file-save', 'GitServerController::saveFileContent', ['as'=>'api.git.file.save']);
+$routes->match(['delete', 'post'], '/api/git-file-delete', 'GitServerController::deleteFileContent', ['as'=>'api.git.file.delete']);
+$routes->post('/api/git-push', 'GitServerController::gitPush', ['as'=>'api.git.push']);
+
+
 
 /* $routes->get('upload', 'UploadController::index');
 $routes->post('/fileUpload', 'UploadController::upload',['as'=>'Config.upload']); */

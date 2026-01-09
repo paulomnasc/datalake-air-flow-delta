@@ -536,10 +536,10 @@ docker ps --format "table {{.Names}}\t{{.Ports}}"
 
 | Serviço | Dev (padrão) | Teste (29xxx) | Produção (28xxx) |
 |---------|---|---|---|
-| Nginx HTTP | 80 | 29080 | 28080 |
-| Nginx HTTPS | 443 | 29443 | 28443 |
-| CodeIgniter | 80 | 29088 | 28088 |
-| Airflow | 8080 | 29083 | 28083 |
+| Nginx HTTP | 8090 | 29080 | 28080 |
+| Nginx HTTPS | 8443 | 29443 | 28443 |
+| CodeIgniter | 8088 | 29088 | 28088 |
+| Airflow | 8082 | 29083 | 28083 |
 | Airflow Scheduler | 5678 | 26678 | 25678 |
 | MySQL | 3306 | 24306 | 23306 |
 | PostgreSQL | 5432 | 26432 | 25432 |

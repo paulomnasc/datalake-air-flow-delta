@@ -418,5 +418,5 @@ volumes:
   spark_warehouse:
   spark_ivy:
   webapp_writable:
-  webapp_vendor:
   nginx_logs:
+  webapp_vendor:

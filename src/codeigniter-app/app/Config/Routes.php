@@ -104,6 +104,16 @@ $routes->post('/code-editor/tables', 'CodeEditorController::listTables', ['as'=>
 $routes->post('/code-editor/schema', 'CodeEditorController::getSchema', ['as'=>'code-editor.schema']);
 $routes->post('/code-editor/files', 'CodeEditorController::listParquetFiles', ['as'=>'code-editor.files']);
 
+// Git CORS Proxy endpoint
+$routes->match(['get','post','options'], '/git-proxy.php', 'GitProxyController::index');
+$routes->match(['get','post','options'], '/git-proxy', 'GitProxyController::index');
+
+// Git Server-side endpoints (clone no servidor)
+$routes->post('/api/git-clone', 'GitServerController::cloneRepository', ['as'=>'api.git.clone']);
+$routes->get('/api/git-files', 'GitServerController::listFiles', ['as'=>'api.git.files']);
+$routes->get('/api/git-file-content', 'GitServerController::getFileContent', ['as'=>'api.git.file.content']);
+$routes->post('/api/git-file-save', 'GitServerController::saveFileContent', ['as'=>'api.git.file.save']);
+
 
 
 /* $routes->get('upload', 'UploadController::index');

@@ -821,6 +821,14 @@ require VIEWPATH . '/header.php';
             toggleEditorSidebar(); // Fechar sidebar
         }
         
+        // Suppress Chrome extension message errors - estes não afetam a funcionalidade
+        window.addEventListener('unhandledrejection', function(event) {
+            if (event.reason?.message?.includes('message channel closed')) {
+                console.warn('⚠️ Chrome extension message channel error (ignorado):', event.reason.message);
+                event.preventDefault(); // Previne que o erro quebre a app
+            }
+        });
+        
         // Carregar status ao iniciar
         document.addEventListener('DOMContentLoaded', function() {
             loadDuckDBStatus();
@@ -830,60 +838,69 @@ require VIEWPATH . '/header.php';
         require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
         
         require(['vs/editor/editor.main'], function () {
-            editor = monaco.editor.create(document.getElementById('editor-container'), {
-                value: `-- Bem-vindo ao SQL Code Editor
+            try {
+                editor = monaco.editor.create(document.getElementById('editor-container'), {
+                    value: `-- Bem-vindo ao SQL Code Editor
 -- Execute queries SQL diretamente nos seus arquivos Parquet
 
 SELECT * 
 FROM read_parquet('s3://${userBucket}/bronze/seus_dados.parquet') 
 LIMIT 10;`,
-                language: 'sql',
-                theme: 'vs-dark',
-                automaticLayout: true,
-                minimap: { enabled: true },
-                fontSize: 14,
-                lineNumbers: 'on',
-                roundedSelection: true,
-                scrollBeyondLastLine: false,
-                readOnly: false,
-                cursorStyle: 'line',
-                suggestOnTriggerCharacters: true,
-                quickSuggestions: true,
-                wordBasedSuggestions: true,
-                tabSize: 2,
-                insertSpaces: true,
-                formatOnPaste: true,
-                formatOnType: true,
-            });
-            
-            // Atalho Ctrl+Enter para executar
-            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, executeQuery);
-            
-            // Carregar arquivos após editor pronto
-            loadParquetFiles();
-            
-            // SQL Keywords para autocomplete
-            monaco.languages.registerCompletionItemProvider('sql', {
-                provideCompletionItems: function(model, position) {
-                    const suggestions = [
-                        {
-                            label: 'read_parquet',
-                            kind: monaco.languages.CompletionItemKind.Function,
-                            insertText: "read_parquet('s3://${userBucket}/bronze/${1:file}.parquet')",
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            documentation: 'Lê arquivo Parquet do S3'
-                        },
-                        {
-                            label: 'SELECT * FROM',
-                            kind: monaco.languages.CompletionItemKind.Snippet,
-                            insertText: "SELECT * FROM \${1:table} LIMIT \${2:10};",
-                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                            documentation: 'SELECT básico'
-                        }
-                    ];
-                    return { suggestions: suggestions };
-                }
-            });
+                    language: 'sql',
+                    theme: 'vs-dark',
+                    automaticLayout: true,
+                    minimap: { enabled: true },
+                    fontSize: 14,
+                    lineNumbers: 'on',
+                    roundedSelection: true,
+                    scrollBeyondLastLine: false,
+                    readOnly: false,
+                    cursorStyle: 'line',
+                    suggestOnTriggerCharacters: true,
+                    quickSuggestions: true,
+                    wordBasedSuggestions: true,
+                    tabSize: 2,
+                    insertSpaces: true,
+                    formatOnPaste: true,
+                    formatOnType: true,
+                });
+                
+                // Atalho Ctrl+Enter para executar
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, executeQuery);
+                
+                // Carregar arquivos após editor pronto
+                loadParquetFiles();
+                
+                // SQL Keywords para autocomplete
+                monaco.languages.registerCompletionItemProvider('sql', {
+                    provideCompletionItems: function(model, position) {
+                        const suggestions = [
+                            {
+                                label: 'read_parquet',
+                                kind: monaco.languages.CompletionItemKind.Function,
+                                insertText: "read_parquet('s3://${userBucket}/bronze/${1:file}.parquet')",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: 'Lê arquivo Parquet do S3'
+                            },
+                            {
+                                label: 'SELECT * FROM',
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "SELECT * FROM \${1:table} LIMIT \${2:10};",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: 'SELECT básico'
+                            }
+                        ];
+                        return { suggestions: suggestions };
+                    }
+                });
+                
+                console.log('✓ Monaco Editor inicializado com sucesso');
+            } catch (monError) {
+                console.error('❌ Erro ao inicializar Monaco:', monError);
+                console.warn('💡 Continuando sem Monaco Editor - form ainda funcional');
+            }
+        }, function(err) {
+            console.error('❌ Erro ao carregar Monaco libraries:', err);
         });
         
         // Executar query
@@ -1215,6 +1232,26 @@ ORDER BY departamento, rank;`
                         
                         console.log(`📥 HTTP ${res.status} ${res.statusText} (${bodyBuffer.byteLength} bytes)`);
                         
+                        // Log detalhado para TODAS as requisições Git para debug completo
+                        console.log('🔍 DEBUG response detalhada:');
+                        console.log('  URL:', url.substring(0, 120));
+                        console.log('  Method:', method);
+                        console.log('  Status:', res.status, '(' + typeof res.status + ')');
+                        console.log('  StatusText:', res.statusText, '(' + typeof res.statusText + ')');
+                        console.log('  Content-Type:', resHeaders['content-type']);
+                        console.log('  Content-Length:', resHeaders['content-length']);
+                        console.log('  Body length:', bodyUint8.length);
+                        console.log('  Body is Uint8Array:', bodyUint8 instanceof Uint8Array);
+                        
+                        if (bodyUint8.length <= 200) {
+                            const decoded = new TextDecoder().decode(bodyUint8);
+                            console.log('  Body completo:', decoded);
+                            console.log('  Body hex:', Array.from(bodyUint8.slice(0, 50)).map(x => x.toString(16).padStart(2, '0')).join(' '));
+                        } else {
+                            console.log('  Body primeiros 200 bytes:', new TextDecoder().decode(bodyUint8.slice(0, 200)));
+                            console.log('  Body primeiros 50 bytes (hex):', Array.from(bodyUint8.slice(0, 50)).map(x => x.toString(16).padStart(2, '0')).join(' '));
+                        }
+                        
                         if (res.status >= 400) {
                             const bodyText = new TextDecoder().decode(bodyUint8);
                             console.error(`❌ ERRO ${res.status} em ${method} ${url.substring(0, 80)}`);
@@ -1222,16 +1259,25 @@ ORDER BY departamento, rank;`
                             console.error('Headers:', Object.entries(resHeaders).slice(0, 5));
                         }
                         
+                        // VALIDAR que status e statusText não sejam undefined
+                        const validStatus = typeof res.status === 'number' ? res.status : 500;
+                        const validStatusText = res.statusText || 'Unknown';
+                        
+                        if (typeof res.status !== 'number') {
+                            console.error('⚠️ AVISO: res.status não é number!', res.status, typeof res.status);
+                        }
+                        
                         return {
                             url,
                             method,
                             headers: resHeaders,
                             body: [bodyUint8],
-                            status: res.status,
-                            statusText: res.statusText || 'HTTP Error'
+                            status: validStatus,
+                            statusText: validStatusText
                         };
                     } catch (err) {
                         console.error(`❌ Erro FETCH em ${method} ${url.substring(0, 80)}:`, err.message);
+                        console.error('Erro completo:', err);
                         // Retornar objeto no formato esperado para o isomorphic-git levantar HttpError com status 0
                         return {
                             url,
@@ -1377,8 +1423,8 @@ ORDER BY departamento, rank;`
             const token = document.getElementById('githubToken').value.trim();
             const repoURL = document.getElementById('repoURL').value.trim();
             const username = document.getElementById('githubUsername').value.trim();
-            if (!username || !token || !repoURL.includes('/')) {
-                alert('Informe username, token e repo no formato user/repo');
+            if (!repoURL.includes('/')) {
+                alert('Informe o repo no formato user/repo');
                 return;
             }
             const [owner, repo] = repoURL.split('/');
@@ -1389,56 +1435,45 @@ ORDER BY departamento, rank;`
             status.innerText = 'Clonando repositório...';
             
             try {
-                // Limpar /repo se já existir
-                try {
-                    const files = await pfs.readdir('/repo');
-                    for (const file of files) {
-                        try {
-                            await pfs.rmdir(`/repo/${file}`, { recursive: true });
-                        } catch (e) {
-                            await pfs.unlink(`/repo/${file}`);
-                        }
-                    }
-                    console.log('✓ Diretório /repo limpo');
-                } catch (e) {
-                    console.log('Criando /repo pela primeira vez');
-                }
-                
-                await pfs.mkdir('/repo').catch(() => {});
-                
-                // Garantir que http está registrado
-                if (!git.http) {
-                    throw new Error('HTTP plugin não carregado corretamente');
-                }
-                
-                // Definir proxy CORS opcional; use string vazia para desabilitar
-                const disableCors = document.getElementById('disableCorsProxy')?.checked;
-                const corsProxy = disableCors ? undefined : (window.gitCorsProxy === '' ? undefined : (window.gitCorsProxy || 'https://cors.isomorphic-git.org'));
-                console.log('Iniciando clone de:', `https://github.com/${owner}/${repo}.git`, 'via proxy:', corsProxy || 'DIRETO (sem proxy)');
-                console.log('Credenciais:', { username: gitConfig.username || gitConfig.owner, hasToken: !!gitConfig.token });
-                
-                await git.clone({
-                    fs,
-                    http: git.http,
-                    ...(corsProxy ? { corsProxy } : {}),
-                    dir: '/repo',
-                    url: `https://github.com/${owner}/${repo}.git`,
-                    singleBranch: true,
-                    depth: 1,
-                    ref: gitConfig.branch,
-                    onAuth: () => {
-                        console.log('onAuth chamado - fornecendo credenciais');
-                        return { 
-                            username: gitConfig.username || gitConfig.owner, 
-                            password: gitConfig.token 
-                        };
-                    }
+                // Chamada server-side para clonar no MinIO
+                const cloneResponse = await fetch('/api/git-clone', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: gitConfig.username || gitConfig.owner,
+                        // token opcional para repositórios públicos
+                        token: gitConfig.token || undefined,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        branch: gitConfig.branch || 'main'
+                    })
                 });
+
+                if (!cloneResponse.ok) {
+                    const errorData = await cloneResponse.json();
+                    throw new Error(errorData.error || 'Clone failed on server');
+                }
+
+                const cloneResult = await cloneResponse.json();
+                console.log('✅ Clone server-side concluído:', cloneResult);
                 
-                console.log('✓ Clone concluído com sucesso');
-                status.innerText = '✓ Clone concluído';
+                status.innerText = 'Carregando arquivos...';
                 
-                // Só atualizar UI se clone foi bem-sucedido
+                // Listar arquivos do repositório
+                const filesResponse = await fetch(`/api/git-files?owner=${owner}&repo=${repo}`);
+                if (!filesResponse.ok) {
+                    throw new Error('Failed to load files');
+                }
+                
+                const filesResult = await filesResponse.json();
+                console.log('✅ Arquivos carregados:', filesResult);
+                
+                // Clone bem-sucedido - atualizar UI
+                status.innerText = '✓ Clone concluído com sucesso (persistido no MinIO)';
+                console.log('✓ Clone bem-sucedido via servidor (persistido no MinIO)');
+                
                 document.getElementById('gitNotConnected').style.display = 'none';
                 document.getElementById('gitConnected').style.display = 'block';
                 document.getElementById('repoInfo').innerHTML = `Conectado a <strong>${owner}/${repo}</strong>`;
@@ -1447,10 +1482,10 @@ ORDER BY departamento, rank;`
                 // Clone falhou - reverter UI e limpar config
                 gitConfig = null;
                 localStorage.removeItem('gitConfig');
-                status.innerText = 'Erro ao clonar: ' + e.message;
-                alert('Erro ao clonar: ' + e.message);
+                status.innerText = 'Erro ao clonar: ' + (e?.message || 'Falha desconhecida');
+                alert('Erro ao clonar: ' + (e?.message || 'Falha desconhecida'));
                 console.error('Clone error:', e);
-                console.log('git.http available:', !!git.http);
+                console.error('Stack trace:', e?.stack);
                 
                 // Garantir que UI volta ao estado inicial
                 document.getElementById('gitNotConnected').style.display = 'block';

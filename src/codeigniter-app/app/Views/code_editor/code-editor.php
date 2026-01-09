@@ -959,22 +959,67 @@ LIMIT 10;`,
             executeBtn.disabled = true;
             resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div> Executando query...</div>';
             
+            // Controller para cancelar requisição após timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+            }, 45000); // 45 segundos
+            
             try {
                 const response = await fetch('/code-editor/execute', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sql, limit })
+                    credentials: 'include',
+                    body: JSON.stringify({ sql, limit }),
+                    signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorMsg = `Erro HTTP ${response.status}`;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorMsg = errorJson.error || errorJson.message || errorMsg;
+                    } catch (e) {
+                        errorMsg = errorText || errorMsg;
+                    }
+                    showError(errorMsg);
+                    return;
+                }
                 
                 const result = await response.json();
                 
                 if (result.success) {
                     displayResults(result);
                 } else {
-                    showError(result.error || 'Erro ao executar query');
+                    // Melhorar mensagem de erro para arquivo não encontrado
+                    let errorMsg = result.error || 'Erro ao executar query';
+                    
+                    // Detectar erros comuns
+                    if (errorMsg.includes('No files found') || errorMsg.includes('does not exist') || errorMsg.includes('NoSuchKey')) {
+                        errorMsg = '❌ Arquivo não encontrado no MinIO. Verifique se o caminho está correto e se o arquivo existe.';
+                    } else if (errorMsg.includes('Invalid Input Error') || errorMsg.includes('not a valid Parquet') || errorMsg.includes('Parquet file')) {
+                        errorMsg = '❌ Arquivo inválido ou corrompido. Certifique-se de que é um arquivo Parquet válido.';
+                    } else if (errorMsg.includes('Permission denied') || errorMsg.includes('Access Denied')) {
+                        errorMsg = '❌ Sem permissão para acessar este arquivo.';
+                    } else if (errorMsg.includes('timeout')) {
+                        errorMsg = '❌ Timeout: Query demorou muito (>30s). Verifique se o arquivo existe e está acessível, ou se está corrompido.';
+                    }
+                    
+                    showError(errorMsg);
                 }
             } catch (error) {
-                showError('Erro de conexão: ' + error.message);
+                clearTimeout(timeoutId);
+                
+                if (error.name === 'AbortError') {
+                    showError('❌ Timeout: Query foi cancelada após 45 segundos. Verifique o caminho do arquivo ou se ele existe.');
+                } else if (error.message.includes('timeout') || error.message.includes('timed out')) {
+                    showError('❌ Timeout na conexão. Verifique se o servidor está acessível.');
+                } else {
+                    showError('Erro de conexão: ' + error.message);
+                }
             } finally {
                 executeBtn.disabled = false;
             }

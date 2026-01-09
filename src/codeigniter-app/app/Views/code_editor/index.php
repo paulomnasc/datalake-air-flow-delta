@@ -592,29 +592,47 @@ require VIEWPATH . '/header.php';
                         <div id="gitConnected" style="display: none;">
                             <div id="repoInfo" style="padding: 10px; background: #1e293b; border-radius: 6px; font-size: 11px; margin-bottom: 12px; color: #cbd5e1;"></div>
                             
+                            <!-- Seção: Arquivo Atual -->
                             <div style="margin-bottom: 12px;">
-                                <label style="font-size: 12px; color: #94a3b8;">Mensagem de Commit:</label>
-                                <textarea id="commitMsg" placeholder="Descrever mudanças..." style="width: 100%; height: 70px; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; resize: none; margin-top: 4px;"></textarea>
+                                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📝 Arquivo Atual</h3>
+                                <div id="currentFileInfo" style="padding: 8px; background: #0f172a; border-radius: 4px; font-size: 11px; color: #64748b; margin-bottom: 8px;">
+                                    Nenhum arquivo aberto
+                                </div>
+                                <button class="btn btn-primary" onclick="saveGitFile()" style="width: 100%; margin-bottom: 4px;">
+                                    💾 Salvar
+                                </button>
+                                <button class="btn btn-secondary" onclick="deleteGitFile()" style="width: 100%; margin-bottom: 8px; background: #dc2626; color: white;">
+                                    🗑️ Deletar
+                                </button>
                             </div>
                             
-                            <button class="btn btn-primary" onclick="gitAddCommitPush()" style="width: 100%; margin-bottom: 8px;">
-                                📤 Commit & Push
-                            </button>
+                            <!-- Seção: Criar Novo Arquivo -->
+                            <div style="margin-bottom: 12px;">
+                                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">➕ Criar Novo Arquivo</h3>
+                                <input type="text" id="newFileName" placeholder="exemplo.sql" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
+                                <button class="btn btn-primary" onclick="createNewGitFile()" style="width: 100%;">
+                                    ✨ Criar do Editor
+                                </button>
+                            </div>
                             
-                            <div id="gitStatus" style="padding: 10px; background: #0f172a; border-radius: 6px; font-size: 11px; color: #64748b; margin-top: 8px; max-height: 150px; overflow-y: auto;"></div>
-                            
-                            <button class="btn btn-primary" onclick="saveGitFile()" style="width: 100%; margin-bottom: 8px;">
-                                💾 Salvar Arquivo
-                            </button>
-                            
+                            <!-- Seção: Arquivos do Repositório -->
                             <div style="margin-bottom: 12px;">
                                 <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📄 Arquivos do Repositório</h3>
                                 <ul class="file-tree" id="gitFileTree"></ul>
                             </div>
                             
-                            <div id="gitStatus" style="padding: 10px; background: #0f172a; border-radius: 6px; font-size: 11px; color: #64748b; margin-top: 8px; max-height: 150px; overflow-y: auto;"></div>
+                            <!-- Seção: Commit & Push -->
+                            <div style="margin-bottom: 12px;">
+                                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📤 Sincronizar GitHub</h3>
+                                <textarea id="commitMsg" placeholder="Descrever mudanças..." style="width: 100%; height: 60px; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; resize: none; margin-bottom: 4px;"></textarea>
+                                <button class="btn btn-primary" onclick="gitAddCommitPush()" style="width: 100%; margin-bottom: 8px;">
+                                    🚀 Commit & Push
+                                </button>
+                            </div>
                             
-                            <button class="btn btn-secondary" onclick="disconnectGitHub()" style="width: 100%; margin-top: 8px;">
+                            <div id="gitStatus" style="padding: 10px; background: #0f172a; border-radius: 6px; font-size: 11px; color: #64748b; margin-bottom: 8px; max-height: 150px; overflow-y: auto;"></div>
+                            
+                            <button class="btn btn-secondary" onclick="disconnectGitHub()" style="width: 100%;">
                                 🔓 Desconectar
                             </button>
                         </div>
@@ -646,6 +664,15 @@ require VIEWPATH . '/header.php';
                 
                 <div id="editor-container"></div>
                 
+                <!-- Markdown Preview Panel (hidden by default) -->
+                <div id="markdown-preview" style="display: none; padding: 20px; background: #fff; border-top: 1px solid #e2e8f0; overflow-y: auto; max-height: 400px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 style="font-size: 16px; font-weight: 600; color: #1e293b;">📖 Preview Markdown</h3>
+                        <button onclick="toggleMarkdownPreview()" style="background: #e2e8f0; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">Fechar</button>
+                    </div>
+                    <div id="markdown-content" style="line-height: 1.6; color: #334155;"></div>
+                </div>
+                
                 <div class="results-section">
                     <div id="results"></div>
                 </div>
@@ -657,6 +684,8 @@ require VIEWPATH . '/header.php';
     
     <!-- Monaco Editor -->
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
     
     <script>
         let editor;
@@ -1523,6 +1552,28 @@ ORDER BY departamento, rank;`
             if (gitFileTree) gitFileTree.innerHTML = '';
         }
         
+        // Recarregar lista de arquivos do Git
+        async function loadGitFiles() {
+            if (!gitConfig) {
+                console.error('Git não configurado');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/git-files?owner=${gitConfig.owner}&repo=${gitConfig.repo}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load files');
+                }
+                
+                const result = await response.json();
+                console.log('✅ Arquivos recarregados:', result);
+                
+                renderGitFileTree(result.files || []);
+            } catch (error) {
+                console.error('Erro ao recarregar arquivos:', error);
+            }
+        }
+        
         // Renderizar árvore de arquivos do Git
         function renderGitFileTree(files) {
             console.log('🔍 renderGitFileTree chamada com:', files);
@@ -1592,6 +1643,17 @@ ORDER BY departamento, rank;`
                     monaco.editor.setModelLanguage(editor.getModel(), language);
                     editor.setValue(result.content || '');
                     currentGitFile = file;
+                    
+                    // Atualizar display de arquivo atual
+                    document.getElementById('currentFileInfo').innerHTML = `📄 ${file.name}`;
+                    
+                    // Se for Markdown, mostrar preview
+                    if (language === 'markdown') {
+                        showMarkdownPreview(result.content);
+                    } else {
+                        hideMarkdownPreview();
+                    }
+                    
                     console.log(`✅ Arquivo carregado: ${file.name} (${language})`);
                 }
             } catch (error) {
@@ -1648,71 +1710,216 @@ ORDER BY departamento, rank;`
             }
         }
         
-        // Add, commit e push no repositório clonado
+        // Criar novo arquivo a partir do conteúdo do editor
+        async function createNewGitFile() {
+            if (!gitConfig) {
+                alert('Conecte o GitHub primeiro');
+                return;
+            }
+            
+            const fileName = document.getElementById('newFileName').value.trim();
+            if (!fileName) {
+                alert('Informe o nome do arquivo');
+                return;
+            }
+            
+            if (!editor) {
+                alert('Editor não inicializado');
+                return;
+            }
+            
+            const content = editor.getValue();
+            if (!content.trim()) {
+                if (!confirm('O editor está vazio. Criar arquivo vazio?')) {
+                    return;
+                }
+            }
+            
+            const status = document.getElementById('gitStatus');
+            
+            try {
+                status.innerText = `Criando ${fileName}...`;
+                
+                const response = await fetch('/api/git-file-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        file: fileName,
+                        content: content
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao criar arquivo');
+                }
+                
+                const result = await response.json();
+                status.innerText = `✓ ${fileName} criado com sucesso`;
+                console.log('✅ Arquivo criado:', result);
+                
+                // Limpar input e recarregar lista de arquivos
+                document.getElementById('newFileName').value = '';
+                
+                // Recarregar lista de arquivos
+                await loadGitFiles();
+                
+                setTimeout(() => {
+                    status.innerText = '';
+                }, 3000);
+            } catch (error) {
+                status.innerText = 'Erro ao criar: ' + error.message;
+                console.error('Erro ao criar arquivo:', error);
+                alert('Erro ao criar: ' + error.message);
+            }
+        }
+        
+        // Deletar arquivo atual
+        async function deleteGitFile() {
+            if (!gitConfig || !currentGitFile) {
+                alert('Nenhum arquivo aberto para deletar');
+                return;
+            }
+            
+            if (!confirm(`Tem certeza que deseja deletar "${currentGitFile.name}"? Esta ação não pode ser desfeita.`)) {
+                return;
+            }
+            
+            const status = document.getElementById('gitStatus');
+            
+            try {
+                status.innerText = `Deletando ${currentGitFile.name}...`;
+                
+                const response = await fetch('/api/git-file-delete', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        file: currentGitFile.path
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao deletar');
+                }
+                
+                const result = await response.json();
+                status.innerText = `✓ ${currentGitFile.name} deletado com sucesso`;
+                console.log('✅ Arquivo deletado:', result);
+                
+                // Limpar editor e info
+                if (editor) {
+                    editor.setValue('');
+                }
+                document.getElementById('currentFileInfo').innerHTML = 'Nenhum arquivo aberto';
+                currentGitFile = null;
+                
+                // Recarregar lista de arquivos
+                await loadGitFiles();
+                
+                setTimeout(() => {
+                    status.innerText = '';
+                }, 3000);
+            } catch (error) {
+                status.innerText = 'Erro ao deletar: ' + error.message;
+                console.error('Erro ao deletar arquivo:', error);
+                alert('Erro ao deletar: ' + error.message);
+            }
+        }
+        
+        // Mostrar preview de Markdown
+        function showMarkdownPreview(markdownContent) {
+            const previewPanel = document.getElementById('markdown-preview');
+            const contentDiv = document.getElementById('markdown-content');
+            
+            if (typeof marked !== 'undefined') {
+                contentDiv.innerHTML = marked.parse(markdownContent || '');
+                previewPanel.style.display = 'block';
+                
+                // Atualizar preview quando editor mudar
+                if (editor) {
+                    editor.onDidChangeModelContent(() => {
+                        const currentContent = editor.getValue();
+                        contentDiv.innerHTML = marked.parse(currentContent);
+                    });
+                }
+            } else {
+                console.warn('Marked.js não carregado');
+            }
+        }
+        
+        // Esconder preview de Markdown
+        function hideMarkdownPreview() {
+            const previewPanel = document.getElementById('markdown-preview');
+            previewPanel.style.display = 'none';
+        }
+        
+        // Toggle preview de Markdown
+        function toggleMarkdownPreview() {
+            const previewPanel = document.getElementById('markdown-preview');
+            if (previewPanel.style.display === 'none') {
+                if (currentGitFile && currentGitFile.name.endsWith('.md')) {
+                    showMarkdownPreview(editor.getValue());
+                } else {
+                    alert('Abra um arquivo .md para ver o preview');
+                }
+            } else {
+                hideMarkdownPreview();
+            }
+        }
+        
+        // Add, commit e push no repositório clonado (server-side via MinIO)
         async function gitAddCommitPush() {
             if (!gitConfig) {
                 alert('Conecte o GitHub primeiro');
                 return;
             }
+            
             const commitMsg = document.getElementById('commitMsg').value.trim();
             if (!commitMsg) {
                 alert('Informe uma mensagem de commit');
                 return;
             }
+            
             const status = document.getElementById('gitStatus');
-            status.innerText = 'Preparando commit...';
+            status.innerText = 'Preparando push para GitHub...';
+            
             try {
-                // Verificar se /repo existe e contém .git
-                try {
-                    await pfs.stat('/repo');
-                } catch (e) {
-                    throw new Error('Repositório não foi clonado. Clique em "Conectar" primeiro.');
-                }
-                
-                // Criar pasta scripts se não existir
-                const sql = editor.getValue();
-                const filename = `scripts/query_${Date.now()}.sql`;
-                
-                // Criar /repo/scripts com retry
-                try {
-                    await pfs.mkdir('/repo/scripts');
-                    console.log('✓ Pasta /repo/scripts criada');
-                } catch (mkdirErr) {
-                    // Pasta pode já existir, isso é ok
-                    console.log('Pasta /repo/scripts já existe ou erro:', mkdirErr.code);
-                }
-                
-                // Escrever arquivo
-                status.innerText = 'Escrevendo arquivo...';
-                await pfs.writeFile(`/repo/${filename}`, sql);
-                console.log(`✓ Arquivo ${filename} escrito`);
-                
-                status.innerText = 'git add';
-                await git.add({ fs, dir: '/repo', filepath: filename });
-                console.log('✓ git add');
-                
-                status.innerText = 'git commit';
-                await git.commit({ fs, dir: '/repo', message: commitMsg, author: { name: 'Code Editor', email: 'user@example.com' } });
-                console.log('✓ git commit');
-                
-                status.innerText = 'git push';
-                await git.push({
-                    fs,
-                    http: git.http,
-                    dir: '/repo',
-                    remote: 'origin',
-                    ref: gitConfig.branch || 'main',
-                    onAuth: () => ({ username: gitConfig.username || gitConfig.owner, password: gitConfig.token || 'x-oauth-basic' })
+                const response = await fetch('/api/git-push', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        token: gitConfig.token,
+                        commitMsg: commitMsg
+                    })
                 });
-                console.log('✓ git push');
                 
-                status.innerText = '✓ Push realizado';
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || error.message || 'Push failed');
+                }
+                
+                const result = await response.json();
+                status.innerText = `✓ Push realizado! ${result.downloadedFiles} arquivos sincronizados`;
+                console.log('✅ Push concluído:', result);
+                
+                // Limpar mensagem de commit
                 document.getElementById('commitMsg').value = '';
-                alert('Commit & push concluído!');
-            } catch (e) {
-                console.error('Erro completo:', e);
-                status.innerText = 'Erro: ' + e.message;
-                alert('Erro: ' + e.message);
+                
+                setTimeout(() => {
+                    status.innerText = '';
+                }, 5000);
+                
+            } catch (error) {
+                status.innerText = 'Erro no push: ' + error.message;
+                console.error('Erro ao fazer push:', error);
+                alert('Erro ao fazer push: ' + error.message);
             }
         }
         

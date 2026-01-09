@@ -373,4 +373,193 @@ class GitServerController extends BaseController
 
         return @rmdir($directory);
     }
+
+    /**
+     * Deletar arquivo do MinIO
+     * DELETE /api/git-file-delete
+     */
+    public function deleteFileContent()
+    {
+        $method = strtoupper($this->request->getMethod());
+        
+        if ($method !== 'DELETE' && $method !== 'POST') {
+            return $this->response->setStatusCode(405)->setJSON(['error' => 'Method not allowed']);
+        }
+
+        // Auth opcional no editor: permitir sem sessão
+
+        $input = $this->request->getJSON();
+        $owner = $input->owner ?? null;
+        $repo = $input->repo ?? null;
+        $file = $input->file ?? null;
+
+        if (!$owner || !$repo || !$file) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'error' => 'Missing required fields: owner, repo, file'
+            ]);
+        }
+
+        // Validação de path traversal
+        if (strpos($file, '..') !== false || strpos($file, './') === 0) {
+            return $this->response->setStatusCode(403)->setJSON([
+                'error' => 'Invalid file path'
+            ]);
+        }
+
+        try {
+            $s3Key = "scripts/{$owner}/{$repo}/{$file}";
+            
+            // Deletar objeto do MinIO
+            $this->s3Client->deleteObject([
+                'Bucket' => $this->minioBucket,
+                'Key'    => $s3Key
+            ]);
+
+            return $this->response->setStatusCode(200)->setJSON([
+                'success' => true,
+                'message' => 'File deleted successfully',
+                's3Key' => $s3Key
+            ]);
+
+        } catch (AwsException $e) {
+            return $this->response->setStatusCode(500)->setJSON([
+                'error' => 'Failed to delete file from MinIO',
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Commit e push alterações do MinIO para GitHub
+     * POST /api/git-push
+     */
+    public function gitPush()
+    {
+        // Auth opcional no editor: permitir sem sessão
+
+        $input = $this->request->getJSON();
+        $owner = $input->owner ?? null;
+        $repo = $input->repo ?? null;
+        $token = $input->token ?? null;
+        $commitMsg = $input->commitMsg ?? 'Update files';
+
+        if (!$owner || !$repo || !$token) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'error' => 'Missing required fields: owner, repo, token'
+            ]);
+        }
+
+        try {
+            // 1. Criar diretório temporário para clone
+            $tempDir = "/tmp/git-push/{$owner}/{$repo}";
+            
+            if (is_dir($tempDir)) {
+                $this->_removeDirectory($tempDir);
+            }
+            
+            @mkdir($tempDir, 0755, true);
+
+            // 2. Clonar repositório
+            $repoUrl = "https://{$owner}:{$token}@github.com/{$owner}/{$repo}.git";
+            $cloneCmd = "cd {$tempDir} && git clone {$repoUrl} . 2>&1";
+            
+            exec($cloneCmd, $cloneOutput, $cloneReturnCode);
+            
+            if ($cloneReturnCode !== 0) {
+                throw new \Exception('Git clone failed: ' . implode("\n", $cloneOutput));
+            }
+
+            // 3. Baixar todos os arquivos do MinIO para o diretório clonado
+            $s3Prefix = "scripts/{$owner}/{$repo}/";
+            
+            $result = $this->s3Client->listObjectsV2([
+                'Bucket' => $this->minioBucket,
+                'Prefix' => $s3Prefix
+            ]);
+
+            $downloadedCount = 0;
+            
+            if (isset($result['Contents'])) {
+                foreach ($result['Contents'] as $object) {
+                    $s3Key = $object['Key'];
+                    
+                    // Remove o prefixo para obter o caminho relativo
+                    $relativePath = str_replace($s3Prefix, '', $s3Key);
+                    
+                    if (empty($relativePath) || substr($relativePath, -1) === '/') {
+                        continue; // Skip folders
+                    }
+                    
+                    // Baixar conteúdo do MinIO
+                    $s3Object = $this->s3Client->getObject([
+                        'Bucket' => $this->minioBucket,
+                        'Key'    => $s3Key
+                    ]);
+                    
+                    $content = (string) $s3Object['Body'];
+                    
+                    // Criar diretórios necessários
+                    $localFilePath = $tempDir . '/' . $relativePath;
+                    $localDir = dirname($localFilePath);
+                    
+                    if (!is_dir($localDir)) {
+                        @mkdir($localDir, 0755, true);
+                    }
+                    
+                    // Salvar arquivo
+                    file_put_contents($localFilePath, $content);
+                    $downloadedCount++;
+                }
+            }
+
+            // 4. Configurar git user
+            exec("cd {$tempDir} && git config user.name \"{$owner}\" 2>&1");
+            exec("cd {$tempDir} && git config user.email \"{$owner}@users.noreply.github.com\" 2>&1");
+
+            // 5. Add, commit e push
+            exec("cd {$tempDir} && git add . 2>&1", $addOutput, $addReturnCode);
+            
+            $commitCmd = "cd {$tempDir} && git commit -m " . escapeshellarg($commitMsg) . " 2>&1";
+            exec($commitCmd, $commitOutput, $commitReturnCode);
+            
+            // Se não há mudanças, commit retorna código 1
+            if ($commitReturnCode !== 0 && !stripos(implode(' ', $commitOutput), 'nothing to commit')) {
+                throw new \Exception('Git commit failed: ' . implode("\n", $commitOutput));
+            }
+            
+            $pushCmd = "cd {$tempDir} && git push origin main 2>&1";
+            exec($pushCmd, $pushOutput, $pushReturnCode);
+            
+            if ($pushReturnCode !== 0) {
+                // Tentar master se main falhar
+                $pushCmd = "cd {$tempDir} && git push origin master 2>&1";
+                exec($pushCmd, $pushOutput, $pushReturnCode);
+                
+                if ($pushReturnCode !== 0) {
+                    throw new \Exception('Git push failed: ' . implode("\n", $pushOutput));
+                }
+            }
+
+            // 6. Limpar diretório temporário
+            $this->_removeDirectory($tempDir);
+
+            return $this->response->setStatusCode(200)->setJSON([
+                'success' => true,
+                'message' => 'Changes pushed to GitHub successfully',
+                'downloadedFiles' => $downloadedCount,
+                'commitMsg' => $commitMsg
+            ]);
+
+        } catch (\Exception $e) {
+            // Limpar em caso de erro
+            if (isset($tempDir) && is_dir($tempDir)) {
+                $this->_removeDirectory($tempDir);
+            }
+            
+            return $this->response->setStatusCode(500)->setJSON([
+                'error' => 'Git push failed',
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
 }

@@ -6,7 +6,7 @@ services:
   # 🌐 Nginx Reverse Proxy (Gateway para webapp)
   nginx:
     image: nginx:alpine
-    container_name: nginx-gateway-${ENV_SUFFIX:-dev}
+    container_name: nginx-gateway${ENV_SUFFIX:+-${ENV_SUFFIX}}
     restart: always
     ports:
       - "${NGINX_PORT_HTTP}:${NGINX_PORT_HTTP}"
@@ -23,6 +23,7 @@ services:
       - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
       - NGINX_SSL_CERT=${NGINX_SSL_CERT}
       - NGINX_SSL_KEY=${NGINX_SSL_KEY}
+      - AIRFLOW_WEBSERVER_PORT=${AIRFLOW_WEBSERVER_PORT}
     depends_on:
       - codeigniter-app
       - airflow-webserver
@@ -31,7 +32,7 @@ services:
 
   spark:
     image: apache/spark:3.4.1
-    container_name: spark-${ENV_SUFFIX:-dev}
+    container_name: spark${ENV_SUFFIX:+-${ENV_SUFFIX}}
     #build:
     #  context: .
     #  dockerfile: Dockerfile.spark
@@ -57,7 +58,7 @@ services:
 
   spark-worker:
     image: apache/spark:3.4.1
-    container_name: spark-worker-${ENV_SUFFIX:-dev}
+    container_name: spark-worker${ENV_SUFFIX:+-${ENV_SUFFIX}}
     depends_on:
       - spark
     command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark:7077"]
@@ -77,7 +78,7 @@ services:
 
   postgres:
     image: postgres:13
-    container_name: postgres-${ENV_SUFFIX:-dev}
+    container_name: postgres${ENV_SUFFIX:+-${ENV_SUFFIX}}
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -94,7 +95,7 @@ services:
 
   postgres-bi:
     image: postgres:13
-    container_name: postgres-bi-${ENV_SUFFIX:-dev}
+    container_name: postgres-bi${ENV_SUFFIX:+-${ENV_SUFFIX}}
     environment:
       POSTGRES_USER: pbi_user
       POSTGRES_PASSWORD: pbi_password
@@ -111,7 +112,7 @@ services:
 
   redis:
     image: redis:7
-    container_name: redis-${ENV_SUFFIX:-dev}
+    container_name: redis${ENV_SUFFIX:+-${ENV_SUFFIX}}
     restart: always
     ports:
       - "${REDIS_PORT}:6379"
@@ -123,7 +124,7 @@ services:
 
   mysql:
     image: mysql:8.0
-    container_name: mysql-${ENV_SUFFIX:-dev}
+    container_name: mysql${ENV_SUFFIX:+-${ENV_SUFFIX}}
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -143,7 +144,7 @@ services:
 
   airflow-webserver:
     build: .
-    container_name: airflow-webserver-${ENV_SUFFIX:-dev}
+    container_name: airflow-webserver${ENV_SUFFIX:+-${ENV_SUFFIX}}
     restart: always
     depends_on:
       - postgres
@@ -177,7 +178,7 @@ services:
 
   airflow-scheduler:
     build: .
-    container_name: airflow-scheduler-${ENV_SUFFIX:-dev}
+    container_name: airflow-scheduler${ENV_SUFFIX:+-${ENV_SUFFIX}}
     restart: always
     depends_on:
       - postgres
@@ -238,7 +239,7 @@ services:
     build:
       context: ./duckdb-api
       dockerfile: Dockerfile
-    container_name: duckdb-api-${ENV_SUFFIX:-dev}
+    container_name: duckdb-api${ENV_SUFFIX:+-${ENV_SUFFIX}}
     restart: always
     depends_on:
       - minio
@@ -321,7 +322,7 @@ services:
         # Passa as variáveis para o Dockerfile
         HOST_UID: ${UID:-1000} 
         HOST_GID: ${GID:-1000}
-    container_name: codeigniter-app-${ENV_SUFFIX:-dev}
+    container_name: codeigniter-app${ENV_SUFFIX:+-${ENV_SUFFIX}}
     restart: always
     depends_on:
       - mysql
@@ -348,7 +349,7 @@ services:
       # Airflow external URL for menu link
       - AIRFLOW_EXTERNAL_URL=http://${NGINX_SERVER_NAME}:${AIRFLOW_WEBSERVER_PORT}
       # Airflow internal connection (API sync)
-      - AIRFLOW_HOST=airflow-webserver-${ENV_SUFFIX:-dev}
+      - AIRFLOW_HOST=airflow-webserver${ENV_SUFFIX:+-${ENV_SUFFIX}}
       - AIRFLOW_PORT=8080
       - AIRFLOW_ADMIN_USERNAME=admin
       - AIRFLOW_ADMIN_PASSWORD=admin
@@ -362,7 +363,7 @@ services:
 
   atlas:
     image: sburn/apache-atlas:latest
-    container_name: apache-atlas-${ENV_SUFFIX:-dev}
+    container_name: apache-atlas${ENV_SUFFIX:+-${ENV_SUFFIX}}
     ports:
       - "${ATLAS_PORT}:21000"
     environment:
@@ -384,7 +385,7 @@ services:
     build:
       context: ./atlas-lab
       dockerfile: Dockerfile_Spark
-    container_name: pyspark-aula-${ENV_SUFFIX:-dev}
+    container_name: pyspark-aula${ENV_SUFFIX:+-${ENV_SUFFIX}}
     profiles:
       - atlas
     ports:

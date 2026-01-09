@@ -34,6 +34,21 @@ docker-compose down
 docker-compose up -d
 ```
 
+### Passo adicional (CodeIgniter Web App)
+Para que a aplicação web use as credenciais corretas do ambiente, ajuste os arquivos de ambiente do CodeIgniter:
+
+```bash
+# Para TESTE (desenvolvimento)
+cd /root/datalake-air-flow-delta/src/codeigniter-app
+mv -f .env .env-dsv-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+cp -f .env-test-template .env
+
+# Para PRODUÇÃO
+cd /root/datalake-air-flow-delta/src/codeigniter-app
+mv -f .env .env-dsv-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+cp -f .env-prd .env
+```
+
 ## 📊 Diferenças entre Ambientes
 
 | Variável | TEST | PRD |
@@ -104,6 +119,18 @@ docker-compose down && \
 docker-compose up -d
 ```
 
+```bash
+# Ajuste rápido CodeIgniter (TEST)
+cd /root/datalake-air-flow-delta/src/codeigniter-app && \
+mv -f .env .env-dsv-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true && \
+cp -f .env-test-template .env
+
+# Ajuste rápido CodeIgniter (PRD)
+cd /root/datalake-air-flow-delta/src/codeigniter-app && \
+mv -f .env .env-dsv-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true && \
+cp -f .env-prd .env
+```
+
 ## 🗑️ Limpeza de Backups Antigos
 
 ```bash
@@ -117,3 +144,34 @@ find . -name ".env.backup-*" -mtime +30 -delete
 ---
 **Última atualização:** 08/01/2026
 **Ambiente atual:** TEST (29xxx)
+
+---
+
+## 🧩 Apêndice — Script Rápido (PRD no projeto delta)
+
+Este bloco executa a troca completa para PRD no projeto `datalake-air-flow-delta`, incluindo ajuste do CodeIgniter e verificação básica.
+
+```bash
+# 1) Projeto delta (produção)
+cd /root/datalake-air-flow-delta
+
+# Backup e ativar .env de PRD
+cp .env .env.backup-"$(date +%Y%m%d-%H%M%S)"
+cp .env-prd .env
+
+# 2) Ajustar CodeIgniter para PRD
+cd src/codeigniter-app
+mv -f .env .env-dsv-"$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+cp -f .env-prd .env
+
+# 3) Subir stack
+cd /root/datalake-air-flow-delta
+docker-compose down
+docker-compose up -d
+
+# 4) Verificação rápida
+docker-compose ps
+grep -E "^(ENV_SUFFIX|NGINX_SERVER_NAME|NGINX_PORT_HTTP|NGINX_PORT_HTTPS)=" .env
+PORT=$(grep -E "^NGINX_PORT_HTTP=" .env | cut -d= -f2)
+curl -I "http://localhost:${PORT}" | head -1
+```

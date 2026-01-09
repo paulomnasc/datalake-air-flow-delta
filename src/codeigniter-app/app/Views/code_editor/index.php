@@ -1482,6 +1482,7 @@ ORDER BY departamento, rank;`
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
+                        userBucket: userBucket,
                         username: gitConfig.username || gitConfig.owner,
                         // token opcional para repositórios públicos
                         token: gitConfig.token || undefined,
@@ -1493,7 +1494,9 @@ ORDER BY departamento, rank;`
 
                 if (!cloneResponse.ok) {
                     const errorData = await cloneResponse.json();
-                    throw new Error(errorData.error || 'Clone failed on server');
+                    const errMsg = errorData.message || errorData.error || 'Clone failed on server';
+                    const debugInfo = errorData.debug ? ' [DEBUG: ' + JSON.stringify(errorData.debug) + ']' : '';
+                    throw new Error(errMsg + debugInfo);
                 }
 
                 const cloneResult = await cloneResponse.json();
@@ -1502,9 +1505,14 @@ ORDER BY departamento, rank;`
                 status.innerText = 'Carregando arquivos...';
                 
                 // Listar arquivos do repositório
-                const filesResponse = await fetch(`/api/git-files?owner=${owner}&repo=${repo}`);
+                const filesResponse = await fetch(`/api/git-files?userBucket=${encodeURIComponent(userBucket)}&owner=${owner}&repo=${repo}`);
                 if (!filesResponse.ok) {
-                    throw new Error('Failed to load files');
+                    let errText = await filesResponse.text();
+                    try {
+                        const errJson = JSON.parse(errText);
+                        errText = errJson.message || errJson.error || JSON.stringify(errJson);
+                    } catch (e) {}
+                    throw new Error('Failed to load files: ' + errText);
                 }
                 
                 const filesResult = await filesResponse.json();
@@ -1560,9 +1568,14 @@ ORDER BY departamento, rank;`
             }
             
             try {
-                const response = await fetch(`/api/git-files?owner=${gitConfig.owner}&repo=${gitConfig.repo}`);
+                const response = await fetch(`/api/git-files?userBucket=${encodeURIComponent(userBucket)}&owner=${gitConfig.owner}&repo=${gitConfig.repo}`);
                 if (!response.ok) {
-                    throw new Error('Failed to load files');
+                    let errText = await response.text();
+                    try {
+                        const errJson = JSON.parse(errText);
+                        errText = errJson.message || errJson.error || JSON.stringify(errJson);
+                    } catch (e) {}
+                    throw new Error('Failed to load files: ' + errText);
                 }
                 
                 const result = await response.json();
@@ -1618,7 +1631,7 @@ ORDER BY departamento, rank;`
             
             try {
                 const response = await fetch(
-                    `/api/git-file-content?owner=${gitConfig.owner}&repo=${gitConfig.repo}&file=${encodeURIComponent(file.path)}`
+                    `/api/git-file-content?userBucket=${encodeURIComponent(userBucket)}&owner=${gitConfig.owner}&repo=${gitConfig.repo}&file=${encodeURIComponent(file.path)}`
                 );
                 
                 if (!response.ok) {
@@ -1684,6 +1697,7 @@ ORDER BY departamento, rank;`
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        userBucket: userBucket,
                         owner: gitConfig.owner,
                         repo: gitConfig.repo,
                         file: currentGitFile.path,
@@ -1744,6 +1758,7 @@ ORDER BY departamento, rank;`
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        userBucket: userBucket,
                         owner: gitConfig.owner,
                         repo: gitConfig.repo,
                         file: fileName,
@@ -1796,6 +1811,7 @@ ORDER BY departamento, rank;`
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        userBucket: userBucket,
                         owner: gitConfig.owner,
                         repo: gitConfig.repo,
                         file: currentGitFile.path
@@ -1893,6 +1909,7 @@ ORDER BY departamento, rank;`
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        userBucket: userBucket,
                         owner: gitConfig.owner,
                         repo: gitConfig.repo,
                         token: gitConfig.token,

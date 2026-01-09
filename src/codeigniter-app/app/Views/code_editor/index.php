@@ -603,6 +603,17 @@ require VIEWPATH . '/header.php';
                             
                             <div id="gitStatus" style="padding: 10px; background: #0f172a; border-radius: 6px; font-size: 11px; color: #64748b; margin-top: 8px; max-height: 150px; overflow-y: auto;"></div>
                             
+                            <button class="btn btn-primary" onclick="saveGitFile()" style="width: 100%; margin-bottom: 8px;">
+                                💾 Salvar Arquivo
+                            </button>
+                            
+                            <div style="margin-bottom: 12px;">
+                                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📄 Arquivos do Repositório</h3>
+                                <ul class="file-tree" id="gitFileTree"></ul>
+                            </div>
+                            
+                            <div id="gitStatus" style="padding: 10px; background: #0f172a; border-radius: 6px; font-size: 11px; color: #64748b; margin-top: 8px; max-height: 150px; overflow-y: auto;"></div>
+                            
                             <button class="btn btn-secondary" onclick="disconnectGitHub()" style="width: 100%; margin-top: 8px;">
                                 🔓 Desconectar
                             </button>
@@ -1470,13 +1481,18 @@ ORDER BY departamento, rank;`
                 const filesResult = await filesResponse.json();
                 console.log('✅ Arquivos carregados:', filesResult);
                 
-                // Clone bem-sucedido - atualizar UI
+                // Clone bem-sucedido - atualizar UI PRIMEIRO
                 status.innerText = '✓ Clone concluído com sucesso (persistido no MinIO)';
                 console.log('✓ Clone bem-sucedido via servidor (persistido no MinIO)');
                 
                 document.getElementById('gitNotConnected').style.display = 'none';
                 document.getElementById('gitConnected').style.display = 'block';
                 document.getElementById('repoInfo').innerHTML = `Conectado a <strong>${owner}/${repo}</strong>`;
+                
+                // Renderizar árvore de arquivos DEPOIS (elemento precisa estar visível)
+                setTimeout(() => {
+                    renderGitFileTree(filesResult.files || []);
+                }, 100);
                 
             } catch (e) {
                 // Clone falhou - reverter UI e limpar config
@@ -1502,6 +1518,134 @@ ORDER BY departamento, rank;`
             document.getElementById('repoURL').value = '';
             document.getElementById('commitMsg').value = '';
             document.getElementById('gitStatus').innerText = '';
+            // Limpar árvore de arquivos
+            const gitFileTree = document.getElementById('gitFileTree');
+            if (gitFileTree) gitFileTree.innerHTML = '';
+        }
+        
+        // Renderizar árvore de arquivos do Git
+        function renderGitFileTree(files) {
+            console.log('🔍 renderGitFileTree chamada com:', files);
+            const gitFileTree = document.getElementById('gitFileTree');
+            console.log('🔍 Elemento gitFileTree:', gitFileTree);
+            
+            if (!gitFileTree) {
+                console.error('❌ Elemento gitFileTree não encontrado no DOM');
+                return;
+            }
+            
+            gitFileTree.innerHTML = '';
+            
+            if (!files || files.length === 0) {
+                console.warn('⚠️ Nenhum arquivo para renderizar');
+                gitFileTree.innerHTML = '<li style="color: #94a3b8; padding: 8px;">Nenhum arquivo</li>';
+                return;
+            }
+            
+            console.log(`✅ Renderizando ${files.length} arquivo(s)`);
+            files.forEach(file => {
+                const li = document.createElement('li');
+                li.className = 'tree-item file';
+                li.innerHTML = `
+                    <span class="icon">📄</span>
+                    <span class="label">${file.name}</span>
+                `;
+                li.onclick = () => loadGitFileContent(file);
+                gitFileTree.appendChild(li);
+                console.log(`  📄 Arquivo adicionado: ${file.name}`);
+            });
+            console.log('✅ Árvore de arquivos renderizada com sucesso');
+        }
+        
+        // Carregar conteúdo do arquivo no Monaco Editor
+        let currentGitFile = null;
+        async function loadGitFileContent(file) {
+            if (!gitConfig) {
+                alert('Repositório não conectado');
+                return;
+            }
+            
+            try {
+                const response = await fetch(
+                    `/api/git-file-content?owner=${gitConfig.owner}&repo=${gitConfig.repo}&file=${encodeURIComponent(file.path)}`
+                );
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao carregar arquivo');
+                }
+                
+                const result = await response.json();
+                
+                // Detectar linguagem pela extensão
+                const ext = file.name.split('.').pop().toLowerCase();
+                const langMap = {
+                    'js': 'javascript', 'ts': 'typescript', 'py': 'python',
+                    'sql': 'sql', 'json': 'json', 'md': 'markdown',
+                    'html': 'html', 'css': 'css', 'yaml': 'yaml', 'yml': 'yaml',
+                    'sh': 'shell', 'txt': 'plaintext'
+                };
+                const language = langMap[ext] || 'plaintext';
+                
+                // Atualizar Monaco Editor
+                if (editor) {
+                    monaco.editor.setModelLanguage(editor.getModel(), language);
+                    editor.setValue(result.content || '');
+                    currentGitFile = file;
+                    console.log(`✅ Arquivo carregado: ${file.name} (${language})`);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar arquivo:', error);
+                alert('Erro ao carregar arquivo: ' + error.message);
+            }
+        }
+        
+        // Salvar arquivo editado de volta ao MinIO
+        async function saveGitFile() {
+            if (!gitConfig || !currentGitFile) {
+                alert('Nenhum arquivo aberto para salvar');
+                return;
+            }
+            
+            if (!editor) {
+                alert('Editor não inicializado');
+                return;
+            }
+            
+            const content = editor.getValue();
+            const status = document.getElementById('gitStatus');
+            
+            try {
+                status.innerText = 'Salvando arquivo...';
+                
+                const response = await fetch('/api/git-file-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        file: currentGitFile.path,
+                        content: content
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao salvar');
+                }
+                
+                const result = await response.json();
+                status.innerText = `✓ ${currentGitFile.name} salvo com sucesso no MinIO`;
+                console.log('✅ Arquivo salvo:', result);
+                
+                setTimeout(() => {
+                    status.innerText = '';
+                }, 3000);
+            } catch (error) {
+                status.innerText = 'Erro ao salvar: ' + error.message;
+                console.error('Erro ao salvar arquivo:', error);
+                alert('Erro ao salvar: ' + error.message);
+            }
         }
         
         // Add, commit e push no repositório clonado

@@ -4,6 +4,7 @@ Este guia documenta os procedimentos para alternar entre ambientes (TEST, PRD).
 
 ## 📋 Arquivos de Configuração Disponíveis
 
+- **`.env-dev`** - Desenvolvimento/DSV (portas 8xxx)
 - **`.env-test`** - Teste/Homologação (portas 29xxx)
 - **`.env-prd`** - Produção (portas 28xxx)
 
@@ -15,6 +16,15 @@ Este guia documenta os procedimentos para alternar entre ambientes (TEST, PRD).
 4. ⚠️ **NÃO edite** `nginx/myflow.conf` manualmente! É gerado automaticamente. Se precisar corrigir, delete-o e deixe o Docker regenerar ao fazer `docker-compose up -d`
 
 ## 🔧 Procedimento de Troca de Ambiente
+
+### Para DESENVOLVIMENTO (DSV):
+```bash
+cd /root/datalake-air-flow-teste
+cp .env .env.backup-$(date +%Y%m%d-%H%M%S)
+cp .env-dev .env
+docker-compose down
+docker-compose up -d
+```
 
 ### Para TESTE:
 ```bash
@@ -38,7 +48,12 @@ docker-compose up -d
 Para que a aplicação web use as credenciais corretas do ambiente, ajuste os arquivos de ambiente do CodeIgniter:
 
 ```bash
-# Para TESTE (desenvolvimento)
+# Para DSV (desenvolvimento)
+cd /root/datalake-air-flow-delta/src/codeigniter-app
+mv -f .env .env-dsv-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+cp -f .env-test-template .env
+
+# Para TESTE (homologação)
 cd /root/datalake-air-flow-delta/src/codeigniter-app
 mv -f .env .env-dsv-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
 cp -f .env-test-template .env
@@ -51,17 +66,19 @@ cp -f .env-prd .env
 
 ## 📊 Diferenças entre Ambientes
 
-| Variável | TEST | PRD |
-|----------|------|-----|
-| `ENV_SUFFIX` | test | (vazio) |
-| `NGINX_PORT_HTTP` | 29080 | 28080 |
-| `NGINX_PORT_HTTPS` | 29443 | 28443 |
-| `NGINX_SERVER_NAME` | 46.224.156.251 | myflow.estudotabela.com.br |
-| `MYSQL_DATABASE` | lista_revisao2_test | lista_revisao2 |
-| `AIRFLOW_PORT_WEB` | 29083 | 28083 |
-| `MINIO_PORT_API` | 30000 | 29000 |
-| `MINIO_PORT_CONSOLE` | 30001 | 29001 |
-| `NGINX_SSL_ENABLED` | false | true |
+| Variável | DSV | TEST | PRD |
+|----------|-----|------|-----|
+| `ENV_SUFFIX` | (vazio) | test | (vazio) |
+| `NGINX_PORT_HTTP` | 8090 | 29080 | 28080 |
+| `NGINX_PORT_HTTPS` | 8443 | 29443 | 28443 |
+| `NGINX_SERVER_NAME` | (local) | 46.224.156.251 | myflow.estudotabela.com.br |
+| `MYSQL_DATABASE` | lista_revisao2 | lista_revisao2_test | lista_revisao2 |
+| `AIRFLOW_PORT_WEB` | 8082 | 29083 | 28083 |
+| `MINIO_PORT_API` | 9000 | 30000 | 29000 |
+| `MINIO_PORT_CONSOLE` | 9001 | 30001 | 29001 |
+| `NGINX_SSL_ENABLED` | false* | false | true |
+
+\*SSL não declarado no `.env-dev`; usar HTTP local.
 
 ## ✅ Verificação Pós-Troca
 
@@ -104,6 +121,13 @@ docker ps --format "{{.Names}}" | head -5
 Quando o usuário solicitar **"trocar para [ambiente]"**, executar:
 
 ```bash
+# Trocar para DSV
+cd /root/datalake-air-flow-teste && \
+cp .env .env.backup-$(date +%Y%m%d-%H%M%S) && \
+cp .env-dev .env && \
+docker-compose down && \
+docker-compose up -d
+
 # Trocar para TEST
 cd /root/datalake-air-flow-teste && \
 cp .env .env.backup-$(date +%Y%m%d-%H%M%S) && \
@@ -120,7 +144,7 @@ docker-compose up -d
 ```
 
 ```bash
-# Ajuste rápido CodeIgniter (TEST)
+# Ajuste rápido CodeIgniter (DSV/TEST)
 cd /root/datalake-air-flow-delta/src/codeigniter-app && \
 mv -f .env .env-dsv-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true && \
 cp -f .env-test-template .env
@@ -142,8 +166,8 @@ find . -name ".env.backup-*" -mtime +30 -delete
 ```
 
 ---
-**Última atualização:** 08/01/2026
-**Ambiente atual:** TEST (29xxx)
+**Última atualização:** 09/01/2026
+**Ambiente atual:** DSV (8xxx)
 
 ---
 

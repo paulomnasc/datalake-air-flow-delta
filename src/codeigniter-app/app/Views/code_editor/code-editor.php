@@ -592,6 +592,10 @@ require VIEWPATH . '/header.php';
                         <div id="gitConnected" style="display: none;">
                             <div id="repoInfo" style="padding: 10px; background: #1e293b; border-radius: 6px; font-size: 11px; margin-bottom: 12px; color: #cbd5e1;"></div>
                             
+                            <!-- Mensagens de sucesso/erro -->
+                            <div id="git-success-message" class="alert alert-success" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px;"></div>
+                            <div id="git-error-message" class="alert alert-danger" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px;"></div>
+                            
                             <!-- Seção: Arquivo Atual -->
                             <div style="margin-bottom: 12px;">
                                 <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📝 Arquivo Atual</h3>
@@ -1935,16 +1939,37 @@ ORDER BY departamento, rank;`
                 }
                 
                 const result = await response.json();
-                status.innerText = `✓ ${currentGitFile.name} salvo com sucesso no MinIO`;
+                status.innerText = '';
                 console.log('✅ Arquivo salvo:', result);
                 
+                // Exibir mensagem de sucesso com fade
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${currentGitFile.name} salvo com sucesso no MinIO`;
+                successMsg.style.display = 'block';
                 setTimeout(() => {
-                    status.innerText = '';
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
                 }, 3000);
             } catch (error) {
-                status.innerText = 'Erro ao salvar: ' + error.message;
+                status.innerText = '';
                 console.error('Erro ao salvar arquivo:', error);
-                alert('Erro ao salvar: ' + error.message);
+                
+                // Exibir mensagem de erro com fade
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao salvar: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
             }
         }
         
@@ -1996,22 +2021,43 @@ ORDER BY departamento, rank;`
                 }
                 
                 const result = await response.json();
-                status.innerText = `✓ ${fileName} criado com sucesso`;
+                status.innerText = '';
                 console.log('✅ Arquivo criado:', result);
+                
+                // Exibir mensagem de sucesso com fade
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${fileName} criado com sucesso`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
                 
                 // Limpar input e recarregar lista de arquivos
                 document.getElementById('newFileName').value = '';
                 
                 // Recarregar lista de arquivos
                 await loadGitFiles();
-                
-                setTimeout(() => {
-                    status.innerText = '';
-                }, 3000);
             } catch (error) {
-                status.innerText = 'Erro ao criar: ' + error.message;
+                status.innerText = '';
                 console.error('Erro ao criar arquivo:', error);
-                alert('Erro ao criar: ' + error.message);
+                
+                // Exibir mensagem de erro com fade
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao criar: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
             }
         }
         
@@ -2048,8 +2094,21 @@ ORDER BY departamento, rank;`
                 }
                 
                 const result = await response.json();
-                status.innerText = `✓ ${currentGitFile.name} deletado com sucesso`;
+                status.innerText = '';
                 console.log('✅ Arquivo deletado:', result);
+                
+                // Exibir mensagem de sucesso com fade
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${currentGitFile.name} deletado com sucesso`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
                 
                 // Limpar editor e info
                 if (editor) {
@@ -2060,14 +2119,22 @@ ORDER BY departamento, rank;`
                 
                 // Recarregar lista de arquivos
                 await loadGitFiles();
-                
-                setTimeout(() => {
-                    status.innerText = '';
-                }, 3000);
             } catch (error) {
-                status.innerText = 'Erro ao deletar: ' + error.message;
+                status.innerText = '';
                 console.error('Erro ao deletar arquivo:', error);
-                alert('Erro ao deletar: ' + error.message);
+                
+                // Exibir mensagem de erro com fade
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao deletar: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
             }
         }
         

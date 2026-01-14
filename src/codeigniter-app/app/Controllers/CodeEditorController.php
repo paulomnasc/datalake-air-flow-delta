@@ -41,7 +41,7 @@ class CodeEditorController extends QueryBuilderController
             $parquetFiles = \App\Helpers\DuckDBHelper::listParquetFiles($userS3Path);
         }
         
-        return view('code_editor/index', [
+        return view('code_editor/code-editor', [
             'duckdbStatus' => $duckdbStatus,
             'parquetFiles' => $parquetFiles,
             'userBucket' => $userBucket,

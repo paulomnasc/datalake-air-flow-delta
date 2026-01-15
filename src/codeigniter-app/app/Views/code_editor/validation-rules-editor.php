@@ -578,6 +578,13 @@ $userBucket = $userBucket ?? 'lab01';
     }
     
     async function saveValidation() {
+        // Se temos arquivo aberto no Git, salvar lá
+        if (currentGitFile && gitConfig) {
+            await saveGitFile();
+            return;
+        }
+        
+        // Caso contrário, criar novo arquivo no Git
         const code = editor?.getValue() || '';
         
         if (!code.trim()) {
@@ -585,23 +592,37 @@ $userBucket = $userBucket ?? 'lab01';
             return;
         }
         
+        if (!gitConfig) {
+            alert('❌ Conecte GitHub primeiro');
+            return;
+        }
+        
+        // Solicitar nome do arquivo
+        const fileName = prompt('Nome do arquivo (ex: validador.py):', 'validador.py');
+        if (!fileName) return;
+        
         try {
-            const response = await fetch('/validation-rules/save', {
+            const response = await fetch('/api/git-file-save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, userBucket })
+                body: JSON.stringify({
+                    userBucket: userBucket,
+                    owner: gitConfig.owner,
+                    repo: gitConfig.repo,
+                    file: fileName,
+                    content: code
+                })
             });
             
-            const result = await response.json();
-            
-            if (result.success) {
-                showGitMessage('✓ Validação salva com sucesso', 'success');
-                loadRulesList();
-            } else {
-                showGitMessage('❌ ' + result.error, 'error');
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Falha ao salvar');
             }
+            
+            showGitMessage(`✓ ${fileName} salvo com sucesso`, 'success');
+            await loadGitFiles();
         } catch (error) {
-            showGitMessage('❌ Erro: ' + error.message, 'error');
+            showGitMessage(`❌ Erro ao salvar: ${error.message}`, 'error');
         }
     }
     

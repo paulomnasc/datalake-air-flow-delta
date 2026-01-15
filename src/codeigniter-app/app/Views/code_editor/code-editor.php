@@ -712,13 +712,7 @@ require VIEWPATH . '/header.php';
         userBucket = '<?php echo esc($userBucket ?? 'user-1'); ?>';
         let currentResults = null; // Armazenar resultados atuais para download CSV
         
-        // Toggle sidebar retrátil
-        function toggleEditorSidebar() {
-            const sidebar = document.getElementById('editorSidebar');
-            const overlay = document.getElementById('sidebarOverlayBg');
-            sidebar.classList.toggle('active');
-            overlay.classList.toggle('active');
-        }
+        // toggleEditorSidebar() agora é global via git-file-manager.js
         
         // Fechar sidebar ao clicar no overlay
         document.getElementById('sidebarOverlayBg').addEventListener('click', function() {
@@ -1567,8 +1561,8 @@ ORDER BY departamento, rank;`
         }
 
         
-        let gitConfig = null;
-        let fs, pfs, git;
+        // gitConfig, pfs e git já estão declarados globalmente em git-file-manager.js
+        let fs; // Apenas fs é local para code-editor
         
         // Inicializar após carregamento bem-sucedido dos scripts
         function initGitAfterLoad() {
@@ -1634,22 +1628,10 @@ ORDER BY departamento, rank;`
             return typeof window.git !== 'undefined' && typeof window.LightningFS !== 'undefined';
         }
         
-        // Trocar abas da sidebar
-        function switchSidebarTab(tabName) {
-            document.querySelectorAll('.sidebar-tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.sidebar-tab-content').forEach(content => content.classList.remove('active'));
-            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-
-            // Ao abrir a aba Git, restaurar estado salvo
-            if (tabName === 'git') {
-                console.log('🔀 switchSidebarTab(git) ativado');
-                restoreGitFromStorage('switchSidebarTab');
-            }
-        }
+        // switchSidebarTab() agora é global via git-file-manager.js
         
         // Conectar e clonar o repositório
-        let connectAttempts = 0;
+        // connectAttempts já está declarado globalmente em git-file-manager.js
         async function connectGitHub() {
             const status = document.getElementById('gitStatus');
             

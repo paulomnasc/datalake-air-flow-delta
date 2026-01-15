@@ -466,4 +466,40 @@ window.addEventListener('load', function() {
     restoreGitFromStorage('window-load');
 });
 
+// ============================================
+// FUNÇÕES GLOBAIS DE UI (compartilhadas)
+// ============================================
+
+// Toggle sidebar do Validation Rules Editor
+window.toggleValidationSidebar = function() {
+    const sidebar = document.getElementById('validationSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar) sidebar.classList.toggle('active');
+    if (overlay) overlay.classList.toggle('active');
+};
+
+// Toggle sidebar do Code Editor
+window.toggleEditorSidebar = function() {
+    const sidebar = document.getElementById('editorSidebar');
+    const overlay = document.getElementById('sidebarOverlayBg');
+    if (sidebar) sidebar.classList.toggle('active');
+    if (overlay) overlay.classList.toggle('active');
+};
+
+// Trocar abas da sidebar (Code Editor)
+window.switchSidebarTab = function(tabName) {
+    document.querySelectorAll('.sidebar-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.sidebar-tab-content').forEach(content => content.classList.remove('active'));
+    const tabButton = document.querySelector(`[data-tab="${tabName}"]`);
+    const tabContent = document.getElementById(`tab-${tabName}`);
+    if (tabButton) tabButton.classList.add('active');
+    if (tabContent) tabContent.classList.add('active');
+
+    // Ao abrir a aba Git, restaurar estado salvo
+    if (tabName === 'git' && typeof restoreGitFromStorage === 'function') {
+        console.log('🔀 switchSidebarTab(git) ativado');
+        restoreGitFromStorage('switchSidebarTab');
+    }
+};
+
 console.log('✅ git-file-manager.js carregado e pronto');

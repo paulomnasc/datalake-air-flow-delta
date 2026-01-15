@@ -239,6 +239,7 @@ class ValidationRulesController extends ResourceController
         try {
             $data = $this->request->getJSON(true);
             $filename = $data['filename'] ?? null;
+            $content = $data['content'] ?? null;
             
             if (!$filename) {
                 return $this->failValidationError('Nome do arquivo é obrigatório');
@@ -252,12 +253,28 @@ class ValidationRulesController extends ResourceController
             }
             
             // Caminho do repositório Git e script de sync
-            $repoPath = ROOTPATH;  // Raiz do projeto
-            $syncScript = $repoPath . 'sync_validators_to_airflow.sh';
+            // Dentro do container, o diretório raiz está mapeado como /datalake-root
+            $repoPath = '/datalake-root';
+            $syncScript = $repoPath . '/sync_validators_to_airflow.sh';
+            
+            log_message('info', "Script path: $syncScript, exists: " . (file_exists($syncScript) ? 'yes' : 'no'));
             
             if (!file_exists($syncScript)) {
                 log_message('error', "Script de sincronização não encontrado: $syncScript");
-                return $this->failServerError('Script de sincronização não disponível');
+                return $this->failServerError('Script de sincronização não disponível em: ' . $syncScript);
+            }
+            
+            // Se conteúdo foi fornecido, salvar o arquivo no repositório local primeiro
+            if (!empty($content)) {
+                $localFilePath = $repoPath . '/' . $filename;
+                log_message('info', "Salvando conteúdo em: $localFilePath");
+                
+                if (file_put_contents($localFilePath, $content) === false) {
+                    log_message('error', "Falha ao salvar arquivo: $localFilePath");
+                    return $this->failServerError('Não foi possível salvar o arquivo localmente');
+                }
+                
+                log_message('info', "Arquivo salvo com sucesso: $localFilePath");
             }
             
             // Executar script de sincronização

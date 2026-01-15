@@ -14,7 +14,8 @@
 #
 # ============================================================================
 
-set -e  # Parar em erro
+# Não interromper em erros; contabilizar e seguir
+set +e
 
 # Cores para output
 GREEN='\033[0;32m'
@@ -39,13 +40,18 @@ echo -e "${BLUE}═════════════════════�
 
 echo -e "${YELLOW}[1/5]${NC} Verificando container Airflow..."
 
-if ! docker ps --filter "name=$AIRFLOW_CONTAINER" --format "{{.Names}}" | grep -q "$AIRFLOW_CONTAINER"; then
+#!/usr/bin/env bash
+
+# Detectar nome real do container (com sufixo -dev, etc)
+REAL_CONTAINER_NAME=$(docker ps --filter "name=$AIRFLOW_CONTAINER" --format "{{.Names}}" | head -n1)
+if [ -z "$REAL_CONTAINER_NAME" ]; then
     echo -e "${RED}❌ Container '$AIRFLOW_CONTAINER' não está rodando!${NC}"
     echo "Containers disponíveis:"
     docker ps --format "table {{.Names}}\t{{.Status}}" | grep -i airflow || echo "  (nenhum)"
     exit 1
 fi
 
+AIRFLOW_CONTAINER="$REAL_CONTAINER_NAME"
 echo -e "${GREEN}✅ Container $AIRFLOW_CONTAINER está rodando${NC}\n"
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -54,13 +60,30 @@ echo -e "${GREEN}✅ Container $AIRFLOW_CONTAINER está rodando${NC}\n"
 
 echo -e "${YELLOW}[2/5]${NC} Procurando validadores em $REPO_ROOT..."
 
-# Procurar por arquivos Python que contêm 'class' (validadores)
-VALIDADORES=$(find "$REPO_ROOT" -maxdepth 1 -type f -name "*.py" 2>/dev/null | \
-    grep -E "(validador|validator|cep_|CEP_)" | \
-    sort)
+# Se o usuário informou um arquivo/padrão, tentar resolvê-lo primeiro
+if [ -n "$1" ]; then
+    ARG="$1"
+    # Se for caminho absoluto ou relativo existente
+    if [ -f "$ARG" ]; then
+        VALIDADORES="$ARG"
+    elif [ -f "$REPO_ROOT/$ARG" ]; then
+        VALIDADORES="$REPO_ROOT/$ARG"
+    else
+        # Buscar pelo nome (case-insensitive) dentro do REPO_ROOT
+        VALIDADORES=$(find "$REPO_ROOT" -type f \( -name "$ARG" -o -iname "$ARG" \) 2>/dev/null | sort)
+    fi
+fi
+
+# Se ainda não encontrou, usar heurística por padrão
+if [ -z "$VALIDADORES" ]; then
+    # Procurar por arquivos Python que contêm 'class' (validadores) por nome
+    VALIDADORES=$(find "$REPO_ROOT" -maxdepth 1 -type f -name "*.py" 2>/dev/null | \
+        grep -E "(validador|validator|cep_|CEP_)" | \
+        sort)
+fi
 
 if [ -z "$VALIDADORES" ]; then
-    echo -e "${YELLOW}⚠️  Nenhum validador encontrado com padrão 'validador|validator|cep'${NC}"
+    echo -e "${YELLOW}⚠️  Nenhum validador encontrado com padrão informado${NC}"
     echo -e "${YELLOW}   Procurando por todos os arquivos .py com 'class' e 'def validate'...${NC}"
     VALIDADORES=$(find "$REPO_ROOT" -maxdepth 1 -type f -name "*.py" 2>/dev/null | \
         xargs grep -l "def validate\|class.*:" 2>/dev/null | \
@@ -87,7 +110,7 @@ echo -e "${YELLOW}[3/5]${NC} Copiando validadores para container...\n"
 COPIED_COUNT=0
 FAILED_COUNT=0
 
-echo "$VALIDADORES" | while read -r file; do
+while read -r file; do
     if [ -z "$file" ]; then
         continue
     fi
@@ -102,7 +125,7 @@ echo "$VALIDADORES" | while read -r file; do
         echo -e "${RED}❌${NC}"
         ((FAILED_COUNT++))
     fi
-done
+done <<< "$VALIDADORES"
 
 echo ""
 
@@ -112,7 +135,7 @@ echo ""
 
 echo -e "${YELLOW}[4/5]${NC} Verificando integridade dos arquivos...\n"
 
-echo "$VALIDADORES" | while read -r file; do
+while read -r file; do
     if [ -z "$file" ]; then
         continue
     fi
@@ -140,7 +163,7 @@ sys.path.insert(0, '$AIRFLOW_DAGS_PATH')
 import $(echo "$filename" | sed 's/.py$//')
 " 2>&1 | sed 's/^/      /'
     fi
-done
+done <<< "$VALIDADORES"
 
 echo ""
 
@@ -150,7 +173,7 @@ echo ""
 
 echo -e "${YELLOW}[5/5]${NC} Validadores em $AIRFLOW_DAGS_PATH:\n"
 
-docker exec "$AIRFLOW_CONTAINER" ls -lah "$AIRFLOW_DAGS_PATH"/*.py 2>/dev/null | grep -E "(validador|validator|cep_)" | \
+docker exec "$AIRFLOW_CONTAINER" ls -lah "$AIRFLOW_DAGS_PATH"/*.py 2>/dev/null | grep -E "(validador|validator|cep_|MEU_VALIDADOR|meu_validador)" | \
     awk '{print "   • " $9 " (" $5 ")"}' || \
     echo "   (nenhum encontrado)"
 
@@ -176,3 +199,11 @@ done
 echo ""
 
 echo -e "${GREEN}✅ Feito! Verifique o Airflow Web UI.${NC}\n"
+
+# Sinalizar sucesso/fracasso geral
+if [ "$COPIED_COUNT" -gt 0 ]; then
+    exit 0
+else
+    echo -e "${RED}❌ Nenhum arquivo copiado. Verifique o nome informado.${NC}"
+    exit 1
+fi

@@ -873,21 +873,24 @@ $userBucket = $userBucket ?? 'lab01';
             return;
         }
         
-        // Validar currentGitFile
-        if (!currentGitFile || typeof currentGitFile !== 'string' || !currentGitFile.trim()) {
+        // Pegar nome do arquivo do elemento currentFileInfo
+        const fileInfoElement = document.getElementById('currentFileInfo');
+        const fileInfoText = fileInfoElement?.innerHTML || fileInfoElement?.textContent || '';
+        
+        if (!fileInfoText || fileInfoText.includes('Nenhum arquivo')) {
             showDeployModal('error', '❌ Nenhum arquivo aberto', 'Abra ou crie um arquivo no Git primeiro');
             return;
         }
         
-        // Obter nome do arquivo com segurança
+        // Extrair nome do arquivo (formato: "📄 nome_arquivo.py")
         let filename = '';
         try {
-            filename = currentGitFile.trim().split('/').pop();
-            if (!filename) {
+            filename = fileInfoText.replace(/📄\s*/g, '').trim();
+            if (!filename || filename === 'Nenhum arquivo aberto') {
                 throw new Error('Nome de arquivo inválido');
             }
         } catch (e) {
-            showDeployModal('error', '❌ Erro ao processar arquivo', 'O nome do arquivo é inválido: ' + String(currentGitFile));
+            showDeployModal('error', '❌ Erro ao processar arquivo', 'Não foi possível obter o nome do arquivo');
             return;
         }
         
@@ -910,7 +913,8 @@ $userBucket = $userBucket ?? 'lab01';
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    filename: filename
+                    filename: filename,
+                    content: code
                 })
             });
             

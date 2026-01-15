@@ -102,7 +102,7 @@ def import_callable_from_path(module_path: str):
         raise ValueError(f"Função/Classe não encontrada: {callable_name}") from e
 
 
-def get_callable_executor(callable_obj, source_filename: str = None, **op_kwargs):
+def get_callable_executor(callable_obj, **op_kwargs):
     """
     Retorna um wrapper que executará a função ou instância de classe corretamente.
     
@@ -123,9 +123,9 @@ def get_callable_executor(callable_obj, source_filename: str = None, **op_kwargs
             log.info(f"[FACTORY] Instanciando {callable_obj.__name__}...")
             instance = callable_obj()
             
-            log.info(f"[FACTORY] Executando como função com kwargs: source_filename={source_filename}")
+            log.info(f"[FACTORY] Executando como função com kwargs")
             # Chamar a instância como função (requer __call__ definido)
-            result = instance(source_filename=source_filename, **merged_kwargs)
+            result = instance(**merged_kwargs)
             
             return result
         
@@ -139,7 +139,7 @@ def get_callable_executor(callable_obj, source_filename: str = None, **op_kwargs
             merged_kwargs = {**op_kwargs, **context}
             
             log.info(f"[FACTORY] Executando função {callable_obj.__name__} com kwargs")
-            result = callable_obj(source_filename=source_filename, **merged_kwargs)
+            result = callable_obj(**merged_kwargs)
             
             return result
         
@@ -398,7 +398,6 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
             # Obter executor (suporta tanto função quanto classe)
             executor_func = get_callable_executor(
                 callable_obj,
-                source_filename=file_path,
                 **op_kwargs_dict
             )
             
@@ -440,10 +439,12 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         task_id_name = f"etl_process_for_{task_config.get('target_table_name', 'data')}"
         log.debug(f"DEBUG: Criando PythonOperator '{task_id_name}' com op_kwargs: {op_kwargs_dict}")
         
+        # Adicionar source_filename ao op_kwargs_dict
+        op_kwargs_dict['source_filename'] = task_config.get('source_filename')
+        
         # Obter executor (suporta tanto função quanto classe)
         executor_func = get_callable_executor(
             callable_obj,
-            source_filename=task_config.get('source_filename'),
             **op_kwargs_dict
         )
         

@@ -13,6 +13,7 @@ services:
       - "${NGINX_PORT_HTTPS}:${NGINX_PORT_HTTPS}"
     volumes:
       - ./nginx/myflow.conf.template:/etc/nginx/templates/myflow.conf.template:ro
+      - ./nginx/error-pages:/etc/nginx/error-pages:ro
       # SSL template (apenas para produção - comentar em dev)
       # - ./nginx/myflow-ssl.conf.template:/etc/nginx/templates/myflow-ssl.conf.template:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
@@ -23,6 +24,7 @@ services:
       - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
       - NGINX_SSL_CERT=${NGINX_SSL_CERT}
       - NGINX_SSL_KEY=${NGINX_SSL_KEY}
+      - AIRFLOW_WEBSERVER_PORT=${AIRFLOW_WEBSERVER_PORT}
     depends_on:
       - codeigniter-app
       - airflow-webserver
@@ -335,6 +337,7 @@ services:
       - CI_ENVIRONMENT=development
       # Porta externa do CodeIgniter (para construir app_baseURL)
       - CODEIGNITER_PORT=${CODEIGNITER_PORT}
+      - NGINX_PORT_HTTP=${NGINX_PORT_HTTP}
       - NGINX_PORT_HTTPS=${NGINX_PORT_HTTPS}
       - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
       # MinIO configuration used by the webapp (read by ConfigController::_initMinioClient())

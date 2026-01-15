@@ -229,4 +229,72 @@ class ValidationRulesController extends ResourceController
             return $this->failServerError('Erro ao deletar: ' . $e->getMessage());
         }
     }
+    
+    /**
+     * Sincroniza validador do Git para o Airflow
+     * POST /api/validation-deploy
+     */
+    public function deploy()
+    {
+        try {
+            $data = $this->request->getJSON(true);
+            $filename = $data['filename'] ?? null;
+            
+            if (!$filename) {
+                return $this->failValidationError('Nome do arquivo é obrigatório');
+            }
+            
+            // Sanitizar nome de arquivo
+            $filename = preg_replace('/[^a-zA-Z0-9_.-]/', '', $filename);
+            
+            if (empty($filename)) {
+                return $this->failValidationError('Nome de arquivo inválido');
+            }
+            
+            // Caminho do repositório Git e script de sync
+            $repoPath = ROOTPATH;  // Raiz do projeto
+            $syncScript = $repoPath . 'sync_validators_to_airflow.sh';
+            
+            if (!file_exists($syncScript)) {
+                log_message('error', "Script de sincronização não encontrado: $syncScript");
+                return $this->failServerError('Script de sincronização não disponível');
+            }
+            
+            // Executar script de sincronização
+            $command = "cd " . escapeshellarg($repoPath) . " && " .
+                       "bash " . escapeshellarg($syncScript) . " " . 
+                       escapeshellarg($filename);
+            
+            log_message('info', "Executando deploy: $command");
+            
+            $output = [];
+            $returnCode = 0;
+            exec($command . " 2>&1", $output, $returnCode);
+            
+            $outputText = implode("\n", $output);
+            
+            if ($returnCode !== 0) {
+                log_message('error', "Deploy falhou com código $returnCode: $outputText");
+                return $this->respond([
+                    'success' => false,
+                    'error' => 'Falha ao sincronizar',
+                    'details' => $outputText,
+                    'return_code' => $returnCode
+                ], 500);
+            }
+            
+            log_message('info', "Deploy concluído com sucesso para $filename");
+            
+            return $this->respond([
+                'success' => true,
+                'message' => "✅ $filename sincronizado para Airflow!",
+                'output' => $outputText,
+                'next_step' => 'Aguarde 30 segundos e procure a DAG no Airflow Web UI'
+            ]);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Erro ao fazer deploy: ' . $e->getMessage());
+            return $this->failServerError('Erro ao sincronizar: ' . $e->getMessage());
+        }
+    }
 }

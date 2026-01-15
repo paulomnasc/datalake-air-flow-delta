@@ -110,6 +110,7 @@ $routes->get('/api/validation-rules', 'ValidationRulesController::list', ['as'=>
 $routes->post('/api/validation-rule-save', 'ValidationRulesController::save', ['as'=>'validation-rules.save']);
 $routes->post('/api/validation-rule-test', 'ValidationRulesController::test', ['as'=>'validation-rules.test']);
 $routes->delete('/api/validation-rule-delete', 'ValidationRulesController::delete', ['as'=>'validation-rules.delete']);
+$routes->post('/api/validation-deploy', 'ValidationRulesController::deploy', ['as'=>'validation-deploy']);
 
 // Git CORS Proxy endpoint
 $routes->match(['get','post','options'], '/git-proxy.php', 'GitProxyController::index');

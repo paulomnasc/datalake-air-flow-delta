@@ -220,6 +220,161 @@ $userBucket = $userBucket ?? 'lab01';
         background: #334155;
     }
     
+    .btn-success {
+        background: #f59e0b;
+        color: white;
+    }
+    
+    .btn-success:hover {
+        background: #d97706;
+    }
+    
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    /* ===== DEPLOY NOTIFICATION MODAL ===== */
+    .deploy-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        z-index: 3000;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .deploy-modal-overlay.active {
+        display: flex;
+    }
+    
+    .deploy-modal {
+        background: #1e293b;
+        border-radius: 12px;
+        padding: 32px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
+        color: #e2e8f0;
+        text-align: center;
+        animation: modalSlideIn 0.3s ease;
+    }
+    
+    @keyframes modalSlideIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+    
+    .deploy-modal.success {
+        border: 2px solid #10b981;
+    }
+    
+    .deploy-modal.error {
+        border: 2px solid #ef4444;
+    }
+    
+    .deploy-modal.loading {
+        border: 2px solid #f59e0b;
+    }
+    
+    .deploy-modal-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        animation: iconBounce 1s ease infinite;
+    }
+    
+    .deploy-modal.success .deploy-modal-icon {
+        animation: none;
+    }
+    
+    .deploy-modal.error .deploy-modal-icon {
+        animation: none;
+    }
+    
+    @keyframes iconBounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    .deploy-modal h2 {
+        font-size: 24px;
+        margin: 16px 0;
+        font-weight: 600;
+    }
+    
+    .deploy-modal-message {
+        font-size: 14px;
+        color: #94a3b8;
+        margin: 16px 0;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        text-align: left;
+        max-height: 200px;
+        overflow-y: auto;
+        background: #0f172a;
+        padding: 12px;
+        border-radius: 6px;
+    }
+    
+    .deploy-modal-buttons {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+        justify-content: center;
+    }
+    
+    .deploy-modal-btn {
+        padding: 10px 24px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.2s;
+    }
+    
+    .deploy-modal-btn.success {
+        background: #10b981;
+        color: white;
+    }
+    
+    .deploy-modal-btn.success:hover {
+        background: #059669;
+    }
+    
+    .deploy-modal-btn.secondary {
+        background: #475569;
+        color: white;
+    }
+    
+    .deploy-modal-btn.secondary:hover {
+        background: #334155;
+    }
+    
+    .loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #e2e8f0;
+        border-top: 3px solid #f59e0b;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
     .rules-list {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -421,6 +576,9 @@ $userBucket = $userBucket ?? 'lab01';
                         <button class="btn btn-primary" onclick="saveValidation()">
                             💾 Salvar
                         </button>
+                        <button class="btn btn-success" onclick="deployValidator()" title="Sincronizar para Airflow">
+                            🚀 Implantar
+                        </button>
                         <button class="btn btn-secondary" onclick="clearEditor()">
                             🗑️ Limpar
                         </button>
@@ -434,6 +592,18 @@ $userBucket = $userBucket ?? 'lab01';
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deploy Notification Modal -->
+<div class="deploy-modal-overlay" id="deployModalOverlay">
+    <div class="deploy-modal" id="deployModal">
+        <div class="deploy-modal-icon" id="deployModalIcon">⏳</div>
+        <h2 id="deployModalTitle">Implantando...</h2>
+        <div class="deploy-modal-message" id="deployModalMessage">Sincronizando arquivo para Airflow...</div>
+        <div class="deploy-modal-buttons" id="deployModalButtons">
+            <!-- Buttons dinamically added -->
         </div>
     </div>
 </div>
@@ -691,6 +861,164 @@ $userBucket = $userBucket ?? 'lab01';
         }
     }
     
+    /**
+     * Deploy do validador para o Airflow
+     * Sincroniza o arquivo atual do Git para /opt/airflow/dags/
+     */
+    async function deployValidator() {
+        const code = editor?.getValue() || '';
+        
+        if (!code.trim()) {
+            showDeployModal('error', '❌ Editor vazio', 'Escreva código no editor antes de fazer deploy');
+            return;
+        }
+        
+        // Validar currentGitFile
+        if (!currentGitFile || typeof currentGitFile !== 'string' || !currentGitFile.trim()) {
+            showDeployModal('error', '❌ Nenhum arquivo aberto', 'Abra ou crie um arquivo no Git primeiro');
+            return;
+        }
+        
+        // Obter nome do arquivo com segurança
+        let filename = '';
+        try {
+            filename = currentGitFile.trim().split('/').pop();
+            if (!filename) {
+                throw new Error('Nome de arquivo inválido');
+            }
+        } catch (e) {
+            showDeployModal('error', '❌ Erro ao processar arquivo', 'O nome do arquivo é inválido: ' + String(currentGitFile));
+            return;
+        }
+        
+        // Mostrar confirmar
+        if (!confirm(`Sincronizar "${filename}" para Airflow?\n\nIsso copiará o arquivo para /opt/airflow/dags/ e reiniciará o detector de DAGs.`)) {
+            return;
+        }
+        
+        try {
+            // Mostrar modal de loading
+            showDeployModal('loading', '⏳ Implantando...', `Sincronizando "${filename}" para Airflow...`);
+            
+            // Desabilitar botão durante deploy
+            const deployBtn = event.target;
+            const originalText = deployBtn.innerHTML;
+            deployBtn.disabled = true;
+            deployBtn.innerHTML = '⏳ Implantando...';
+            
+            const response = await fetch('/api/validation-deploy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filename: filename
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Reabilitar botão
+            deployBtn.disabled = false;
+            deployBtn.innerHTML = originalText;
+            
+            if (result.success) {
+                showDeployModal(
+                    'success',
+                    '✅ Sucesso!',
+                    `${result.message}\n\n${result.next_step}`,
+                    filename
+                );
+            } else {
+                showDeployModal(
+                    'error',
+                    '❌ Erro ao sincronizar',
+                    `${result.error}\n\n${result.details || 'Verifique os logs para mais informações.'}`,
+                    filename
+                );
+            }
+            
+        } catch (error) {
+            console.error('Deploy error:', error);
+            showDeployModal('error', '❌ Erro ao sincronizar', 'Erro: ' + error.message);
+            const deployBtn = event.target;
+            if (deployBtn) {
+                deployBtn.disabled = false;
+                deployBtn.innerHTML = '🚀 Implantar';
+            }
+        }
+    }
+    
+    /**
+     * Exibe modal de feedback de deploy
+     */
+    function showDeployModal(type, title, message, filename = null) {
+        const overlay = document.getElementById('deployModalOverlay');
+        const modal = document.getElementById('deployModal');
+        const icon = document.getElementById('deployModalIcon');
+        const titleEl = document.getElementById('deployModalTitle');
+        const messageEl = document.getElementById('deployModalMessage');
+        const buttonsEl = document.getElementById('deployModalButtons');
+        
+        // Remover classes de tipo anterior
+        modal.classList.remove('success', 'error', 'loading');
+        modal.classList.add(type);
+        
+        // Atualizar ícone
+        if (type === 'loading') {
+            icon.innerHTML = '<div class="loading-spinner"></div>';
+        } else if (type === 'success') {
+            icon.innerHTML = '✅';
+        } else if (type === 'error') {
+            icon.innerHTML = '❌';
+        }
+        
+        // Atualizar título e mensagem
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        
+        // Adicionar botões
+        buttonsEl.innerHTML = '';
+        
+        if (type === 'loading') {
+            // Sem botões durante loading
+        } else if (type === 'success') {
+            const btnOk = document.createElement('button');
+            btnOk.className = 'deploy-modal-btn success';
+            btnOk.textContent = '✓ Ok';
+            btnOk.onclick = () => {
+                overlay.classList.remove('active');
+                // Se houver filename, recarregar arquivos do Git
+                if (filename) {
+                    setTimeout(() => loadGitFiles(), 500);
+                }
+            };
+            buttonsEl.appendChild(btnOk);
+        } else if (type === 'error') {
+            const btnClose = document.createElement('button');
+            btnClose.className = 'deploy-modal-btn secondary';
+            btnClose.textContent = 'Fechar';
+            btnClose.onclick = () => overlay.classList.remove('active');
+            buttonsEl.appendChild(btnClose);
+        }
+        
+        // Mostrar modal
+        overlay.classList.add('active');
+    }
+    
+    /**
+     * Fechar modal ao clicar fora
+     */
+    document.addEventListener('DOMContentLoaded', () => {
+        const overlay = document.getElementById('deployModalOverlay');
+        if (overlay) {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.classList.remove('active');
+                }
+            });
+        }
+    });
+
+    
     // ===== GIT (isomorphic-git) - MIGRADO DE code-editor.php =====
     
     // Aguardar Monaco carregar, depois carregar Git via <script> tags sequencialmente
@@ -941,7 +1269,7 @@ $userBucket = $userBucket ?? 'lab01';
             if (editor) {
                 monaco.editor.setModelLanguage(editor.getModel(), 'python');
                 editor.setValue(result.content || '');
-                currentGitFile = file;
+                currentGitFile = file.path;
                 document.getElementById('currentFileInfo').innerHTML = `📄 ${file.name}`;
                 console.log(`✅ Arquivo carregado: ${file.name}`);
             }

@@ -61,13 +61,89 @@ def build_owner_role(owner: str) -> str:
 # ----------------------------------------------------------------------
 
 def import_callable_from_path(module_path: str):
-    """Importa e retorna uma função Python a partir de um caminho de módulo."""
+    """
+    Importa e retorna uma função Python OU uma classe a partir de um caminho de módulo.
+    
+    Suporta dois padrões:
+    1. Função: 'modulo.minha_funcao' → retorna a função
+    2. Classe herdando raw_to_medallion: 'modulo.MeuValidador' → retorna a classe (não instancia)
+    
+    Uso:
+        # Para função
+        func = import_callable_from_path('lib.medallion_pipeline.raw_to_medallion')
+        resultado = func(source_filename=..., **kwargs)
+        
+        # Para classe (herança)
+        cls = import_callable_from_path('meu_validador.MeuValidador')
+        instancia = cls()  # Instancia
+        resultado = instancia(source_filename=..., **kwargs)  # Executa __call__()
+    """
     if '.' not in module_path:
         raise ValueError(f"O caminho do módulo é inválido: {module_path}")
 
-    module_name, func_name = module_path.rsplit('.', 1)
-    module = importlib.import_module(module_name)
-    return getattr(module, func_name)
+    module_name, callable_name = module_path.rsplit('.', 1)
+    
+    try:
+        module = importlib.import_module(module_name)
+        callable_obj = getattr(module, callable_name)
+        
+        # Log informativo
+        log.info(f"✅ Importado '{callable_name}' de '{module_name}'")
+        
+        # Se for uma classe que herda de raw_to_medallion, retornar a classe
+        # Se for uma função, retornar a função
+        return callable_obj
+        
+    except ImportError as e:
+        log.error(f"❌ Falha ao importar módulo '{module_name}': {e}")
+        raise ValueError(f"Módulo não encontrado: {module_name}") from e
+    except AttributeError as e:
+        log.error(f"❌ '{callable_name}' não encontrado em '{module_name}': {e}")
+        raise ValueError(f"Função/Classe não encontrada: {callable_name}") from e
+
+
+def get_callable_executor(callable_obj, source_filename: str = None, **op_kwargs):
+    """
+    Retorna um wrapper que executará a função ou instância de classe corretamente.
+    
+    Se for uma classe, instancia e depois chama como função.
+    Se for uma função, chama diretamente.
+    """
+    import inspect
+    
+    # Verificar se é uma classe
+    if inspect.isclass(callable_obj):
+        log.info(f"[FACTORY] Detectada classe: {callable_obj.__name__}")
+        
+        # É classe - precisa instanciar
+        def executor(**context):
+            # Mesclar op_kwargs com context (context tem prioridade)
+            merged_kwargs = {**op_kwargs, **context}
+            
+            log.info(f"[FACTORY] Instanciando {callable_obj.__name__}...")
+            instance = callable_obj()
+            
+            log.info(f"[FACTORY] Executando como função com kwargs: source_filename={source_filename}")
+            # Chamar a instância como função (requer __call__ definido)
+            result = instance(source_filename=source_filename, **merged_kwargs)
+            
+            return result
+        
+        return executor
+    else:
+        # É função - chamar diretamente
+        log.info(f"[FACTORY] Detectada função: {callable_obj.__name__}")
+        
+        def executor(**context):
+            # Mesclar op_kwargs com context
+            merged_kwargs = {**op_kwargs, **context}
+            
+            log.info(f"[FACTORY] Executando função {callable_obj.__name__} com kwargs")
+            result = callable_obj(source_filename=source_filename, **merged_kwargs)
+            
+            return result
+        
+        return executor
 
 def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
     """
@@ -305,10 +381,11 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
             task_id = f"process_{file_name_no_ext}"
             
             try:
-                callable_function = import_callable_from_path(python_module_path)
+                callable_obj = import_callable_from_path(python_module_path)
             except (ImportError, AttributeError, ValueError) as e:
                 raise AirflowException(f"❌ Erro ao importar callable '{python_module_path}': {e}")
             
+            # Preparar kwargs
             op_kwargs_dict = {
                 'source_filename': file_path,  # Caminho completo do arquivo individual
                 'target_table_name': file_name_no_ext,  # Nome da tabela baseado no arquivo
@@ -318,10 +395,17 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
                 **transform_args
             }
             
+            # Obter executor (suporta tanto função quanto classe)
+            executor_func = get_callable_executor(
+                callable_obj,
+                source_filename=file_path,
+                **op_kwargs_dict
+            )
+            
             task = PythonOperator(
                 task_id=task_id,
-                python_callable=callable_function,
-                op_kwargs=op_kwargs_dict,
+                python_callable=executor_func,
+                provide_context=True,
                 dag=dag,
             )
             tasks.append(task)
@@ -340,7 +424,7 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         )
     else:
         try:
-            callable_function = import_callable_from_path(python_module_path)
+            callable_obj = import_callable_from_path(python_module_path)
         except (ImportError, AttributeError, ValueError) as e:
             raise AirflowException(f"❌ Erro ao importar callable '{python_module_path}' para a DAG {dag_id}: {e}")
 
@@ -356,10 +440,17 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         task_id_name = f"etl_process_for_{task_config.get('target_table_name', 'data')}"
         log.debug(f"DEBUG: Criando PythonOperator '{task_id_name}' com op_kwargs: {op_kwargs_dict}")
         
+        # Obter executor (suporta tanto função quanto classe)
+        executor_func = get_callable_executor(
+            callable_obj,
+            source_filename=task_config.get('source_filename'),
+            **op_kwargs_dict
+        )
+        
         task_etl = PythonOperator(
             task_id=task_id_name,
-            python_callable=callable_function,
-            op_kwargs=op_kwargs_dict,
+            python_callable=executor_func,
+            provide_context=True,
             dag=dag,
         )
     
@@ -514,7 +605,7 @@ def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
             return {'status': 'skipped', 'table': table_name}
         
         try:
-            callable_function = import_callable_from_path(python_module_path)
+            callable_obj = import_callable_from_path(python_module_path)
             
             # Preparar kwargs com table_name específica
             op_kwargs = {
@@ -526,8 +617,16 @@ def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
                 **transform_args
             }
             
-            # Executar pipeline para esta tabela
-            result = callable_function(**op_kwargs, **context)
+            # Executar diretamente se for função, ou instanciar se for classe
+            import inspect
+            
+            if inspect.isclass(callable_obj):
+                log.info(f"[MULTI-TABLE] Instanciando classe {callable_obj.__name__} para tabela {table_name}")
+                instance = callable_obj()
+                result = instance(source_filename=task_config.get('source_filename'), **op_kwargs, **context)
+            else:
+                log.info(f"[MULTI-TABLE] Executando função {callable_obj.__name__} para tabela {table_name}")
+                result = callable_obj(source_filename=task_config.get('source_filename'), **op_kwargs, **context)
             
             log.info(f"[MULTI-TABLE] ✅ Tabela {table_name} processada com sucesso")
             return {'status': 'success', 'table': table_name, 'result': result}

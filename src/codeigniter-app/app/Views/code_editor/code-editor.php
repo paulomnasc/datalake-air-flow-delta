@@ -59,8 +59,8 @@ require VIEWPATH . '/header.php';
         .editor-layout {
             display: flex;
             flex-direction: column;
-            min-height: 600px;
-            height: auto;
+            min-height: calc(100vh - 200px);
+            height: calc(100vh - 200px);
             width: 100%;
             position: relative;
         }
@@ -236,6 +236,8 @@ require VIEWPATH . '/header.php';
             display: flex;
             flex-direction: column;
             background: #fff;
+            flex: 1;
+            overflow: hidden;
         }
         
         .toolbar {

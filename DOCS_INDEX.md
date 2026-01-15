@@ -31,6 +31,35 @@
 
 **Quando ler**: Sempre que precisar de comandos rápidos para acessar, diagnosticar ou restaurar bancos MySQL/PostgreSQL na stack Docker.
 
+---
+
+### 🛡️ Guia de Validações Customizadas - Medallion
+
+**Arquivo**: [`GUIA_VALIDACOES_CUSTOMIZADAS.md`](./GUIA_VALIDACOES_CUSTOMIZADAS.md) ⭐ **RECOMENDADO**
+
+**Conteúdo**:
+- ✅ Editor web visual para criar regras de validação Python
+- ✅ 4 templates prontos (Nulos, Duplicatas, Quality Score, Regras de Negócio)
+- ✅ Guia rápido de 5 minutos para primeira validação
+- ✅ Casos de uso práticos (LGPD, SLA, Anomalias, Integridade Referencial)
+- ✅ API completa da função `validate(df, **context)`
+- ✅ Boas práticas e anti-patterns
+- ✅ Troubleshooting de problemas comuns
+- ✅ Validações isoladas por camada (Bronze/Silver/Gold) e tabela
+- ✅ Zero necessidade de editar código Python das DAGs
+
+**Quando ler**: 
+- Quando precisar validar qualidade de dados nos pipelines Medallion
+- Para criar regras de negócio específicas sem tocar na dag_factory
+- Ao implementar governança de dados (LGPD, SLAs, auditoria)
+- Para detectar anomalias ou valores suspeitos automaticamente
+
+**Documentação Técnica Completa**: [`CUSTOM_VALIDATIONS_README.md`](./CUSTOM_VALIDATIONS_README.md)
+
+---
+
+### 📋 Guia da Interface Web de Configuração
+
 **Arquivo**: [`GUIDE_WEBAPP_CONFIG.md`](./GUIDE_WEBAPP_CONFIG.md)
 
 **Conteúdo**:

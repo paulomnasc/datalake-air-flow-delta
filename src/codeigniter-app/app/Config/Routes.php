@@ -104,9 +104,17 @@ $routes->post('/code-editor/tables', 'CodeEditorController::listTables', ['as'=>
 $routes->post('/code-editor/schema', 'CodeEditorController::getSchema', ['as'=>'code-editor.schema']);
 $routes->post('/code-editor/files', 'CodeEditorController::listParquetFiles', ['as'=>'code-editor.files']);
 
+// Validation Rules Editor
+$routes->get('/validation-rules-editor', 'ValidationRulesController::index', ['as'=>'validation-rules.editor']);
+$routes->get('/api/validation-rules', 'ValidationRulesController::list', ['as'=>'validation-rules.list']);
+$routes->post('/api/validation-rule-save', 'ValidationRulesController::save', ['as'=>'validation-rules.save']);
+$routes->post('/api/validation-rule-test', 'ValidationRulesController::test', ['as'=>'validation-rules.test']);
+$routes->delete('/api/validation-rule-delete', 'ValidationRulesController::delete', ['as'=>'validation-rules.delete']);
+
 // Git CORS Proxy endpoint
 $routes->match(['get','post','options'], '/git-proxy.php', 'GitProxyController::index');
 $routes->match(['get','post','options'], '/git-proxy', 'GitProxyController::index');
+
 
 // Git Server-side endpoints (clone no servidor)
 $routes->post('/api/git-clone', 'GitServerController::cloneRepository', ['as'=>'api.git.clone']);

@@ -7,7 +7,61 @@ require VIEWPATH . '/header.php';
 $userBucket = $userBucket ?? 'lab01';
 ?>
 
+<!-- ================================================ -->
+<!-- Git File Manager - Centralizado (reutilizável) -->
+<!-- ================================================ -->
+<script src="/assets/js/git-file-manager.js"></script>
+<script>
+    // Configurar para code-editor
+    gitConfigKey = 'gitConfig';
+    userBucket = '<?php echo $userBucket ?? 'lab01'; ?>';
+</script>
+
 <style>
+    /* Layout com Sidebar */
+    .validation-layout {
+        display: flex;
+        gap: 0;
+        margin-top: 20px;
+        position: relative;
+        height: calc(100vh - 200px);
+    }
+    
+    .validation-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 280px;
+        background: #f8fafc;
+        border-right: 1px solid #e2e8f0;
+        overflow-y: auto;
+        padding: 20px;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 2000;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    }
+    
+    .validation-sidebar.active {
+        transform: translateX(0);
+    }
+    
+    .sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1999;
+        display: none;
+    }
+    
+    .sidebar-overlay.active {
+        display: block;
+    }
+    
     .validation-container {
         max-width: 1400px;
         margin: 20px auto;
@@ -15,6 +69,7 @@ $userBucket = $userBucket ?? 'lab01';
         border-radius: 12px;
         padding: 24px;
         color: #e2e8f0;
+        flex: 1;
     }
     
     .validation-header {
@@ -22,6 +77,9 @@ $userBucket = $userBucket ?? 'lab01';
         padding: 20px;
         border-radius: 8px;
         margin-bottom: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
     
     .validation-header h1 {
@@ -30,110 +88,118 @@ $userBucket = $userBucket ?? 'lab01';
         color: white;
     }
     
-    .rules-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 16px;
+    .sidebar-toggle-btn {
+        background: #10b981;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+    }
+    
+    .sidebar-toggle-btn:hover {
+        background: #059669;
+    }
+    
+    .sidebar-close-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: #e2e8f0;
+        border: none;
+        border-radius: 4px;
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        color: #475569;
+        transition: all 0.2s;
+    }
+    
+    .sidebar-close-btn:hover {
+        background: #cbd5e1;
+        color: #1e293b;
+    }
+    
+    .sidebar-section {
         margin-bottom: 24px;
     }
     
-    .rule-card {
-        background: #0f172a;
-        border: 1px solid #334155;
-        border-radius: 8px;
-        padding: 16px;
-        cursor: pointer;
-        transition: all 0.2s;
+    .sidebar-section h3 {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-bottom: 12px;
+        letter-spacing: 0.5px;
     }
     
-    .rule-card:hover {
-        border-color: #10b981;
-        transform: translateY(-2px);
-    }
-    
-    .rule-card.active {
-        border-color: #10b981;
-        background: #1e293b;
-    }
-    
-    .rule-card h3 {
-        margin: 0 0 8px 0;
-        font-size: 16px;
-        color: #10b981;
-    }
-    
-    .rule-card p {
-        margin: 0;
-        font-size: 13px;
-        color: #94a3b8;
-    }
-    
-    .editor-section {
-        background: #0f172a;
-        border-radius: 8px;
-        padding: 20px;
-        margin-bottom: 16px;
-    }
-    
-    .editor-section h2 {
-        margin: 0 0 16px 0;
-        font-size: 18px;
-        color: #10b981;
-    }
-    
-    .form-group {
-        margin-bottom: 16px;
-    }
-    
-    .form-group label {
-        display: block;
-        margin-bottom: 8px;
-        font-size: 13px;
-        color: #94a3b8;
-        font-weight: 500;
-    }
-    
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-        width: 100%;
-        padding: 10px;
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 6px;
-        color: #e2e8f0;
-        font-size: 14px;
-        font-family: 'Monaco', 'Menlo', monospace;
-    }
-    
-    .form-group input:focus,
-    .form-group select:focus,
-    .form-group textarea:focus {
-        outline: none;
-        border-color: #10b981;
-    }
-    
-    .code-editor-wrapper {
-        height: 400px;
-        border: 1px solid #334155;
-        border-radius: 6px;
-        overflow: hidden;
-    }
-    
-    .btn-group {
+    .file-tree {
+        list-style: none;
         display: flex;
-        gap: 12px;
-        margin-top: 20px;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 13px;
+    }
+    
+    .tree-item {
+        display: flex;
+        align-items: center;
+        padding: 6px 8px;
+        cursor: pointer;
+        color: #475569;
+        transition: all 0.15s;
+        border-radius: 4px;
+        user-select: none;
+    }
+    
+    .tree-item:hover {
+        background: #e2e8f0;
+    }
+    
+    .tree-item.folder {
+        font-weight: 500;
+        color: #1e293b;
+    }
+    
+    .tree-item.file {
+        color: #64748b;
+    }
+    
+    .tree-item.file:hover {
+        background: #ede9fe;
+        color: #667eea;
+    }
+    
+    .tree-item .icon {
+        width: 16px;
+        height: 16px;
+        margin-right: 6px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+    }
+    
+    .tree-children {
+        display: none;
+        margin-left: 12px;
+    }
+    
+    .tree-children.expanded {
+        display: block;
     }
     
     .btn {
-        padding: 10px 20px;
         border: none;
+        padding: 8px 16px;
         border-radius: 6px;
-        font-size: 14px;
         cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
         transition: all 0.2s;
-        font-weight: 500;
     }
     
     .btn-primary {
@@ -154,375 +220,346 @@ $userBucket = $userBucket ?? 'lab01';
         background: #334155;
     }
     
-    .btn-danger {
-        background: #dc2626;
-        color: white;
+    .rules-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
     }
     
-    .btn-danger:hover {
-        background: #b91c1c;
+    .rule-card {
+        background: #0f172a;
+        border: 2px solid #334155;
+        border-radius: 8px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 0.2s;
     }
     
-    .template-section {
+    .rule-card:hover {
+        border-color: #10b981;
+        background: #1e293b;
+    }
+    
+    .rule-card h3 {
+        margin: 0 0 8px 0;
+        font-size: 16px;
+        color: #10b981;
+    }
+    
+    .rule-card p {
+        margin: 0;
+        font-size: 12px;
+        color: #94a3b8;
+    }
+    
+    .editor-section {
         background: #0f172a;
         border: 1px solid #334155;
         border-radius: 8px;
         padding: 16px;
-        margin-top: 16px;
+        margin-bottom: 16px;
     }
     
-    .template-section h3 {
-        margin: 0 0 12px 0;
-        font-size: 14px;
-        color: #10b981;
-    }
-    
-    .template-item {
-        background: #1e293b;
-        padding: 12px;
-        border-radius: 4px;
-        margin-bottom: 8px;
-        cursor: pointer;
-        border: 1px solid transparent;
-    }
-    
-    .template-item:hover {
-        border-color: #10b981;
-    }
-    
-    .template-item h4 {
-        margin: 0 0 4px 0;
-        font-size: 13px;
+    .editor-section h2 {
+        margin: 0 0 16px 0;
+        font-size: 18px;
         color: #e2e8f0;
     }
     
-    .template-item p {
-        margin: 0;
-        font-size: 11px;
-        color: #64748b;
+    .alert {
+        padding: 8px;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        font-size: 12px;
+    }
+    
+    .alert-success {
+        background: #10b981;
+        color: white;
+    }
+    
+    .alert-danger {
+        background: #dc2626;
+        color: white;
+    }
+    
+    #editor-container {
+        height: 400px;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        margin-bottom: 16px;
+    }
+    
+    .results-section {
+        margin-top: 24px;
     }
 </style>
 
-<div class="validation-container">
-    <div class="validation-header">
-        <h1>🛡️ Editor de Regras de Validação Medallion</h1>
-        <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">
-            Crie validações customizadas para Bronze, Silver e Gold sem editar código da DAG
-        </p>
+<!-- Sidebar Git retrátil -->
+<aside class="validation-sidebar" id="validationSidebar">
+    <button class="sidebar-close-btn" onclick="toggleValidationSidebar()">×</button>
+    
+    <div class="sidebar-section">
+        <h3>🔗 GitHub</h3>
+        
+        <div id="gitLoadingStatus" style="padding: 12px; background: #1e293b; border-radius: 6px; font-size: 11px; color: #94a3b8; margin-bottom: 12px; display: none;">
+            ⏳ Carregando isomorphic-git...
+        </div>
+        
+        <div id="gitNotConnected" style="padding: 16px;">
+            <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Conecte seu GitHub para versionar validadores Python</p>
+            <input type="text" id="githubUsername" placeholder="GitHub Username" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
+            <input type="password" id="githubToken" placeholder="Personal Access Token" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
+            <p style="font-size: 10px; color: #64748b; margin-bottom: 8px; line-height: 1.4;">
+                💡 Gere em: <a href="https://github.com/settings/tokens/new" target="_blank" style="color: #667eea; text-decoration: none;">GitHub Settings → Developer settings → Personal access tokens</a><br>
+                Marque o scope: <strong style="color: #94a3b8;">repo</strong>
+            </p>
+            <input type="text" id="repoURL" placeholder="Repo: user/validators" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
+            <button class="btn btn-primary" onclick="connectGitHub()" style="width: 100%;">
+                ✓ Conectar
+            </button>
+        </div>
+        
+        <div id="gitConnected" style="display: none;">
+            <div id="repoInfo" style="padding: 10px; background: #1e293b; border-radius: 6px; font-size: 11px; margin-bottom: 12px; color: #cbd5e1;"></div>
+            
+            <!-- Mensagens de sucesso/erro -->
+            <div id="git-success-message" class="alert alert-success" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px;"></div>
+            <div id="git-error-message" class="alert alert-danger" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px;"></div>
+            
+            <!-- Seção: Arquivo Atual -->
+            <div style="margin-bottom: 12px;">
+                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📝 Arquivo Atual</h3>
+                <div id="currentFileInfo" style="padding: 8px; background: #0f172a; border-radius: 4px; font-size: 11px; color: #64748b; margin-bottom: 8px;">
+                    Nenhum arquivo aberto
+                </div>
+                <button class="btn btn-primary" onclick="saveGitFile()" style="width: 100%; margin-bottom: 4px;">
+                    💾 Salvar
+                </button>
+                <button class="btn btn-secondary" onclick="deleteGitFile()" style="width: 100%; margin-bottom: 8px; background: #dc2626; color: white;">
+                    🗑️ Deletar
+                </button>
+            </div>
+            
+            <!-- Seção: Criar Novo Arquivo -->
+            <div style="margin-bottom: 12px;">
+                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">➕ Criar Novo Arquivo</h3>
+                <input type="text" id="newFileName" placeholder="validador.py" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
+                <button class="btn btn-primary" onclick="createNewGitFile()" style="width: 100%;">
+                    ✨ Criar do Editor
+                </button>
+            </div>
+            
+            <!-- Seção: Arquivos do Repositório -->
+            <div style="margin-bottom: 12px;">
+                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📄 Arquivos do Repositório</h3>
+                <ul class="file-tree" id="gitFileTree"></ul>
+            </div>
+            
+            <!-- Seção: Commit & Push -->
+            <div style="margin-bottom: 12px;">
+                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📤 Sincronizar GitHub</h3>
+                <textarea id="commitMsg" placeholder="Descrever mudanças..." style="width: 100%; height: 60px; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; resize: none; margin-bottom: 4px;"></textarea>
+                <button class="btn btn-primary" onclick="gitAddCommitPush()" style="width: 100%; margin-bottom: 8px;">
+                    🚀 Commit & Push
+                </button>
+            </div>
+            
+            <div id="gitStatus" style="padding: 10px; background: #0f172a; border-radius: 6px; font-size: 11px; color: #64748b; margin-bottom: 8px; max-height: 150px; overflow-y: auto;"></div>
+            
+            <button class="btn btn-secondary" onclick="disconnectGitHub()" style="width: 100%;">
+                🔓 Desconectar
+            </button>
+        </div>
     </div>
+</aside>
 
-    <div class="row">
-        <!-- Coluna esquerda: Lista de regras -->
-        <div class="col-md-4">
-            <div class="editor-section">
-                <h2>📋 Regras Existentes</h2>
-                <div class="rules-list" id="rulesList">
-                    <div class="rule-card" onclick="showRuleTemplate('empty')">
-                        <h3>+ Nova Regra</h3>
-                        <p>Criar nova regra de validação</p>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleValidationSidebar()"></div>
+
+<div class="validation-layout">
+    <div class="validation-container">
+        <div class="validation-header">
+            <h1>🛡️ Validações Customizadas - Medallion</h1>
+            <button class="sidebar-toggle-btn" onclick="toggleValidationSidebar()">
+                🔗 GitHub
+            </button>
+        </div>
+
+        <div class="row">
+            <!-- Coluna esquerda: Lista de regras -->
+            <div class="col-md-4">
+                <div class="editor-section">
+                    <h2>📋 Regras Existentes</h2>
+                    <div class="rules-list" id="rulesList">
+                        <div class="rule-card" onclick="showRuleTemplate('empty')">
+                            <h3>+ Nova Regra</h3>
+                            <p>Criar nova regra de validação</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Templates -->
+                <div class="editor-section">
+                    <h2>📚 Templates Disponíveis</h2>
+                    <div id="templatesList">
+                        <!-- Preenchido via JS -->
                     </div>
                 </div>
             </div>
-            
-            <!-- Templates -->
-            <div class="template-section">
-                <h3>📚 Templates Disponíveis</h3>
-                <div id="templatesList">
-                    <!-- Preenchido via JS -->
-                </div>
-            </div>
-        </div>
 
-        <!-- Coluna direita: Editor -->
-        <div class="col-md-8">
-            <div class="editor-section">
-                <h2 id="editorTitle">📝 Editor de Regra</h2>
-                
-                <div class="form-group">
-                    <label>Nome da Regra *</label>
-                    <input type="text" id="ruleName" placeholder="ex: validar_cpf_funcionarios">
+            <!-- Coluna direita: Editor -->
+            <div class="col-md-8">
+                <div class="editor-section">
+                    <h2>✏️ Editor Python</h2>
+                    <div id="editor-container"></div>
+                    
+                    <div style="display: flex; gap: 8px; margin-top: 12px;">
+                        <button class="btn btn-primary" onclick="testValidation()">
+                            ▶️ Testar
+                        </button>
+                        <button class="btn btn-primary" onclick="saveValidation()">
+                            💾 Salvar
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearEditor()">
+                            🗑️ Limpar
+                        </button>
+                    </div>
                 </div>
                 
-                <div class="form-group">
-                    <label>Camada Medallion *</label>
-                    <select id="ruleLayer">
-                        <option value="">Selecione...</option>
-                        <option value="bronze">Bronze (Ingestão)</option>
-                        <option value="silver">Silver (Transformação)</option>
-                        <option value="gold">Gold (Agregação)</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label>Tabela/Dataset</label>
-                    <input type="text" id="ruleTable" placeholder="ex: funcionarios, vendas (opcional)">
-                </div>
-                
-                <div class="form-group">
-                    <label>Descrição</label>
-                    <textarea id="ruleDescription" rows="2" placeholder="Descreva o que esta regra valida..."></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label>Código de Validação (Python) *</label>
-                    <div class="code-editor-wrapper" id="validationCodeEditor"></div>
-                </div>
-                
-                <div class="btn-group">
-                    <button class="btn btn-primary" onclick="saveValidationRule()">💾 Salvar Regra</button>
-                    <button class="btn btn-secondary" onclick="testValidationRule()">🧪 Testar</button>
-                    <button class="btn btn-danger" onclick="deleteValidationRule()">🗑️ Deletar</button>
+                <div class="editor-section">
+                    <h2>📊 Resultado do Teste</h2>
+                    <div id="testResults" style="padding: 16px; background: #0f172a; border-radius: 6px; min-height: 100px; font-size: 12px; color: #94a3b8;">
+                        Teste uma validação para ver os resultados aqui
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Mensagens -->
-<div id="success-message" class="alert alert-success" style="display:none; position: fixed; top: 80px; right: 20px; z-index: 9999;"></div>
-<div id="error-message" class="alert alert-danger" style="display:none; position: fixed; top: 80px; right: 20px; z-index: 9999;"></div>
-
+<!-- Monaco Editor -->
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+
 <script>
-    const userBucket = '<?= $userBucket ?>';
-    let validationEditor = null;
-    let currentRule = null;
+    let editor;
+    // Reuse global userBucket from git-file-manager.js to avoid redeclaration errors
+    userBucket = '<?php echo $userBucket; ?>';
     
-    // Templates de validação
-    const validationTemplates = {
-        'check_nulls': {
-            name: 'Verificar Nulos',
-            description: 'Valida se colunas críticas não contêm valores nulos',
-            layer: 'silver',
-            code: `def validate(df, **context):
-    """Valida que colunas críticas não tenham valores nulos."""
-    import pandas as pd
+    // ===== SIDEBAR TOGGLE =====
+    function toggleValidationSidebar() {
+        const sidebar = document.getElementById('validationSidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        sidebar.classList.toggle('active');
+        overlay.classList.toggle('active');
+    }
     
-    # Colunas que não podem ser nulas
-    required_columns = ['id', 'nome', 'email']
-    
-    for col in required_columns:
-        if col in df.columns:
-            null_count = df[col].isnull().sum()
-            if null_count > 0:
-                raise ValueError(f"Coluna '{col}' tem {null_count} valores nulos")
-    
-    return {'status': 'ok', 'validated_rows': len(df)}`
-        },
-        
-        'check_duplicates': {
-            name: 'Verificar Duplicatas',
-            description: 'Detecta registros duplicados por chave primária',
-            layer: 'silver',
-            code: `def validate(df, **context):
-    """Valida que não existam duplicatas na chave primária."""
-    import pandas as pd
-    
-    # Definir chave primária
-    primary_key = ['id']
-    
-    duplicates = df[df.duplicated(subset=primary_key, keep=False)]
-    
-    if len(duplicates) > 0:
-        raise ValueError(f"Encontradas {len(duplicates)} linhas duplicadas")
-    
-    return {'status': 'ok', 'unique_records': len(df)}`
-        },
-        
-        'data_quality': {
-            name: 'Quality Score',
-            description: 'Calcula score de qualidade dos dados',
-            layer: 'gold',
-            code: `def validate(df, **context):
-    """Calcula score de qualidade de dados."""
-    import pandas as pd
-    
-    total_cells = df.shape[0] * df.shape[1]
-    null_cells = df.isnull().sum().sum()
-    
-    quality_score = ((total_cells - null_cells) / total_cells) * 100
-    
-    if quality_score < 95:
-        context['task_instance'].xcom_push(
-            key='quality_warning',
-            value=f'Quality score baixo: {quality_score:.2f}%'
-        )
-    
-    return {
-        'status': 'ok',
-        'quality_score': quality_score,
-        'total_cells': total_cells,
-        'null_cells': null_cells
-    }`
-        },
-        
-        'business_rule': {
-            name: 'Regra de Negócio',
-            description: 'Valida regras de negócio específicas',
-            layer: 'silver',
-            code: `def validate(df, **context):
-    """Valida regras de negócio customizadas."""
-    import pandas as pd
-    
-    # Exemplo: Salários devem estar entre R$ 1.320 e R$ 50.000
-    if 'salario' in df.columns:
-        invalid_salaries = df[
-            (df['salario'] < 1320) | (df['salario'] > 50000)
-        ]
-        
-        if len(invalid_salaries) > 0:
-            raise ValueError(
-                f"{len(invalid_salaries)} salários fora do range permitido"
-            )
-    
-    # Exemplo: Email deve ter @ e domínio
-    if 'email' in df.columns:
-        invalid_emails = df[~df['email'].str.contains('@', na=False)]
-        if len(invalid_emails) > 0:
-            raise ValueError(
-                f"{len(invalid_emails)} emails inválidos"
-            )
-    
-    return {'status': 'ok', 'validated_records': len(df)}`
-        }
-    };
-    
-    // Inicializar Monaco Editor
+    // ===== MONACO EDITOR =====
     require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
     
     require(['vs/editor/editor.main'], function () {
-        validationEditor = monaco.editor.create(document.getElementById('validationCodeEditor'), {
-            value: '# Selecione um template ou escreva sua validação\n',
+        editor = monaco.editor.create(document.getElementById('editor-container'), {
+            value: `# Validador Customizado\n# Implemente a função: validate(df: DataFrame) -> DataFrame\n\ndef validate(df):\n    """Valide dados no medallion"""\n    # Sua lógica aqui\n    return df\n`,
             language: 'python',
             theme: 'vs-dark',
             automaticLayout: true,
             minimap: { enabled: false },
-            fontSize: 13,
+            fontSize: 14,
+            lineNumbers: 'on',
+            roundedSelection: true,
+            scrollBeyondLastLine: false,
+            readOnly: false,
+            cursorStyle: 'line',
+            tabSize: 4,
+            insertSpaces: true,
+            formatOnPaste: true,
+            formatOnType: true,
         });
         
-        loadValidationRules();
-        renderTemplates();
+        // Atalho Ctrl+Enter para testar
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, testValidation);
+        
+            // Restaurar estado Git ao carregar editor
+            restoreGitFromStorage('monaco-ready');
     });
+
+        // Restaurar Git ao carregar a página (mesma lógica do code-editor)
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔍 DOMContentLoaded - restauração Git (validation)');
+            restoreGitFromStorage('DOMContentLoaded');
+            // Fallback curto se DOM atrasar
+            let tries = 0;
+            const intervalId = setInterval(() => {
+                tries++;
+                restoreGitFromStorage(`interval-${tries}`);
+                if (tries >= 5) clearInterval(intervalId);
+            }, 800);
+            // Carregar listas específicas da página
+            loadTemplates();
+            loadRulesList();
+        });
+
+        window.addEventListener('load', function() {
+            console.log('🔍 window.load - restauração Git (validation)');
+            restoreGitFromStorage('window-load');
+        });
     
-    function renderTemplates() {
-        const container = document.getElementById('templatesList');
-        container.innerHTML = '';
-        
-        Object.keys(validationTemplates).forEach(key => {
-            const template = validationTemplates[key];
-            const div = document.createElement('div');
-            div.className = 'template-item';
-            div.onclick = () => applyTemplate(key);
-            div.innerHTML = `
-                <h4>${template.name}</h4>
-                <p>${template.description}</p>
-            `;
-            container.appendChild(div);
+    // ===== TEMPLATES =====
+    const templates = {
+        empty: { name: 'Regra Vazia', code: `def validate(df):\n    return df\n` },
+        null_check: {
+            name: 'Verificar Nulos',
+            code: `def validate(df):\n    """Remove registros com valores nulos em colunas críticas"""\n    return df.dropna(subset=['critical_column'])\n`
+        },
+        duplicate_check: {
+            name: 'Remover Duplicatas',
+            code: `def validate(df):\n    """Remove registros duplicados"""\n    return df.drop_duplicates()\n`
+        },
+        type_check: {
+            name: 'Validar Tipos',
+            code: `def validate(df):\n    """Valida tipos de dados"""\n    try:\n        df['amount'] = df['amount'].astype('float64')\n        return df\n    except:\n        return df.iloc[0:0]  # Retorna vazio se falhar\n`
+        }
+    };
+    
+    function loadTemplates() {
+        const list = document.getElementById('templatesList');
+        list.innerHTML = '';
+        Object.entries(templates).forEach(([key, tmpl]) => {
+            const item = document.createElement('div');
+            item.className = 'rule-card';
+            item.onclick = () => showRuleTemplate(key);
+            item.innerHTML = `<h3>${tmpl.name}</h3><p>Clique para usar este template</p>`;
+            list.appendChild(item);
         });
     }
     
-    function applyTemplate(templateKey) {
-        const template = validationTemplates[templateKey];
-        document.getElementById('ruleLayer').value = template.layer;
-        validationEditor.setValue(template.code);
-        showMessage(`Template "${template.name}" aplicado`, 'success');
-    }
-    
-    function showRuleTemplate(type) {
-        if (type === 'empty') {
-            currentRule = null;
-            document.getElementById('ruleName').value = '';
-            document.getElementById('ruleLayer').value = '';
-            document.getElementById('ruleTable').value = '';
-            document.getElementById('ruleDescription').value = '';
-            validationEditor.setValue('def validate(df, **context):\n    """\n    df: pandas DataFrame com os dados\n    context: contexto do Airflow (task_instance, dag_run, etc)\n    """\n    # Sua lógica de validação aqui\n    \n    return {\'status\': \'ok\'}');
+    function showRuleTemplate(templateKey) {
+        const template = templates[templateKey];
+        if (template && editor) {
+            editor.setValue(template.code);
+            editor.focus();
         }
     }
     
-    async function saveValidationRule() {
-        const name = document.getElementById('ruleName').value.trim();
-        const layer = document.getElementById('ruleLayer').value;
-        const table = document.getElementById('ruleTable').value.trim();
-        const description = document.getElementById('ruleDescription').value.trim();
-        const code = validationEditor.getValue();
-        
-        if (!name || !layer || !code) {
-            showMessage('Preencha nome, camada e código', 'error');
-            return;
-        }
-        
-        try {
-            const response = await fetch('/api/validation-rule-save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userBucket,
-                    name,
-                    layer,
-                    table: table || null,
-                    description,
-                    code
-                })
-            });
-            
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Falha ao salvar');
-            }
-            
-            const result = await response.json();
-            showMessage(`✓ Regra "${name}" salva com sucesso`, 'success');
-            loadValidationRules();
-        } catch (error) {
-            showMessage('❌ ' + error.message, 'error');
+    function clearEditor() {
+        if (editor) {
+            editor.setValue('def validate(df):\n    return df\n');
         }
     }
     
-    async function loadValidationRules() {
-        try {
-            const response = await fetch(`/api/validation-rules?userBucket=${userBucket}`);
-            const result = await response.json();
-            
-            const container = document.getElementById('rulesList');
-            container.innerHTML = '<div class="rule-card" onclick="showRuleTemplate(\'empty\')"><h3>+ Nova Regra</h3><p>Criar nova regra de validação</p></div>';
-            
-            if (result.rules && result.rules.length > 0) {
-                result.rules.forEach(rule => {
-                    const div = document.createElement('div');
-                    div.className = 'rule-card';
-                    div.onclick = () => editRule(rule);
-                    div.innerHTML = `
-                        <h3>${rule.name}</h3>
-                        <p><strong>${rule.layer.toUpperCase()}</strong>${rule.table ? ' • ' + rule.table : ''}</p>
-                        <p style="font-size: 11px; margin-top: 4px;">${rule.description || 'Sem descrição'}</p>
-                    `;
-                    container.appendChild(div);
-                });
-            }
-        } catch (error) {
-            console.error('Erro ao carregar regras:', error);
-        }
-    }
-    
-    function editRule(rule) {
-        currentRule = rule;
-        document.getElementById('ruleName').value = rule.name;
-        document.getElementById('ruleLayer').value = rule.layer;
-        document.getElementById('ruleTable').value = rule.table || '';
-        document.getElementById('ruleDescription').value = rule.description || '';
-        validationEditor.setValue(rule.code);
-    }
-    
-    async function testValidationRule() {
-        const code = validationEditor.getValue();
+    async function testValidation() {
+        const code = editor?.getValue() || '';
+        const resultsDiv = document.getElementById('testResults');
         
         if (!code.trim()) {
-            showMessage('Código vazio', 'error');
+            resultsDiv.innerHTML = '<div class="alert alert-danger">❌ Editor vazio</div>';
             return;
         }
         
+        resultsDiv.innerHTML = '<div style="color: #94a3b8;">⏳ Testando validação...</div>';
+        
         try {
-            const response = await fetch('/api/validation-rule-test', {
+            const response = await fetch('/validation-rules/test', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code, userBucket })
@@ -531,61 +568,499 @@ $userBucket = $userBucket ?? 'lab01';
             const result = await response.json();
             
             if (result.success) {
-                showMessage('✓ Código válido! ' + (result.message || ''), 'success');
+                resultsDiv.innerHTML = `<div class="alert alert-success">✓ ${result.message}</div>`;
             } else {
-                showMessage('❌ ' + result.error, 'error');
+                resultsDiv.innerHTML = `<div class="alert alert-danger">❌ ${result.error}</div>`;
             }
         } catch (error) {
-            showMessage('❌ Erro ao testar: ' + error.message, 'error');
+            resultsDiv.innerHTML = `<div class="alert alert-danger">❌ Erro: ${error.message}</div>`;
         }
     }
     
-    async function deleteValidationRule() {
-        if (!currentRule) {
-            showMessage('Selecione uma regra primeiro', 'error');
-            return;
-        }
+    async function saveValidation() {
+        const code = editor?.getValue() || '';
         
-        if (!confirm(`Deletar regra "${currentRule.name}"?`)) {
+        if (!code.trim()) {
+            alert('❌ Editor vazio');
             return;
         }
         
         try {
-            const response = await fetch('/api/validation-rule-delete', {
+            const response = await fetch('/validation-rules/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, userBucket })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showGitMessage('✓ Validação salva com sucesso', 'success');
+                loadRulesList();
+            } else {
+                showGitMessage('❌ ' + result.error, 'error');
+            }
+        } catch (error) {
+            showGitMessage('❌ Erro: ' + error.message, 'error');
+        }
+    }
+    
+    async function loadRulesList() {
+        try {
+            const response = await fetch(`/validation-rules/list?userBucket=${userBucket}`);
+            const result = await response.json();
+            
+            const rulesList = document.getElementById('rulesList');
+            rulesList.innerHTML = '<div class="rule-card" onclick="showRuleTemplate(\'empty\'"><h3>+ Nova Regra</h3><p>Criar nova regra</p></div>';
+            
+            if (result.rules && result.rules.length > 0) {
+                result.rules.forEach(rule => {
+                    const card = document.createElement('div');
+                    card.className = 'rule-card';
+                    card.onclick = () => showRuleTemplate(rule.name);
+                    card.innerHTML = `<h3>${rule.name}</h3><p>${rule.description || 'Regra customizada'}</p>`;
+                    rulesList.appendChild(card);
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao carregar regras:', error);
+        }
+    }
+    
+    function showGitMessage(msg, type) {
+        const successDiv = document.getElementById('git-success-message');
+        const errorDiv = document.getElementById('git-error-message');
+        
+        if (type === 'success') {
+            successDiv.textContent = msg;
+            successDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+            setTimeout(() => { successDiv.style.display = 'none'; }, 3000);
+        } else if (type === 'error') {
+            errorDiv.textContent = msg;
+            errorDiv.style.display = 'block';
+            successDiv.style.display = 'none';
+            setTimeout(() => { errorDiv.style.display = 'none'; }, 3000);
+        }
+    }
+    
+    // ===== GIT (isomorphic-git) - MIGRADO DE code-editor.php =====
+    
+    // Aguardar Monaco carregar, depois carregar Git via <script> tags sequencialmente
+    (function bootGit() {
+        const loadingStatus = document.getElementById('gitLoadingStatus');
+        function setLoading(msg) { if (loadingStatus) { loadingStatus.style.display = 'block'; loadingStatus.textContent = msg; } }
+        function clearLoading() { if (loadingStatus) loadingStatus.style.display = 'none'; }
+        
+        setLoading('⏳ Carregando bibliotecas Git...');
+        
+        // Aguardar um pouco para Monaco terminar de carregar seus próprios módulos AMD
+        setTimeout(() => {
+            console.log('Iniciando carregamento de Git...');
+            
+            // Salvar define original
+            const origDefine = window.define;
+            delete window.define;
+            delete window.require;
+            
+            // Criar ambiente mínimo para UMD
+            window.module = { exports: {} };
+            window.exports = {};
+            
+            // Carregar LightningFS via <script>
+            const lfsScript = document.createElement('script');
+            lfsScript.src = 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/dist/lightning-fs.min.js';
+            lfsScript.onerror = () => {
+                setLoading('❌ Falha LightningFS');
+                window.define = origDefine;
+            };
+            lfsScript.onload = () => {
+                console.log('✓ LightningFS carregado');
+                if (window.module?.exports && !window.LightningFS) {
+                    window.LightningFS = window.module.exports;
+                    console.log('✓ window.LightningFS atribuído');
+                }
+                window.module.exports = {};
+                if (origDefine) window.define = origDefine;
+                
+                // Carregar isomorphic-git
+                const gitScript = document.createElement('script');
+                gitScript.src = 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.7/index.umd.min.js';
+                gitScript.onerror = () => {
+                    setLoading('❌ Falha isomorphic-git');
+                    window.define = origDefine;
+                };
+                gitScript.onload = () => {
+                    console.log('✓ isomorphic-git carregado');
+                    if (window.module?.exports && !window.git) {
+                        window.git = window.module.exports;
+                        console.log('✓ window.git atribuído');
+                    }
+                    if (origDefine) window.define = origDefine;
+                    createHttpClientImmediate();
+                };
+                document.head.appendChild(gitScript);
+            };
+            document.head.appendChild(lfsScript);
+        }, 2000);
+    })();
+
+    // Função para criar HTTP client inline - chamada após git estar pronto
+    function createHttpClientImmediate() {
+        console.log('🔧 Criando HTTP client inline...');
+        
+        if (!window.git) {
+            console.error('❌ window.git não está disponível');
+            return;
+        }
+        
+        window.git.http = {
+            request: async ({ url, method = 'GET', headers = {}, body } = {}) => {
+                if (!url) throw new Error('HTTP client: url não informado');
+                console.log(`📤 HTTP ${method} ${url.substring(0, 100)}`);
+                
+                let authHeader = headers['authorization'] || headers['Authorization'];
+                if (!authHeader && window.gitConfig && window.gitConfig.token) {
+                    const ghUsername = window.gitConfig.owner || window.gitConfig.username;
+                    authHeader = 'Basic ' + btoa(`${ghUsername}:${window.gitConfig.token}`);
+                }
+
+                const mergedHeaders = {
+                    'User-Agent': 'isomorphic-git/1.25.7',
+                    ...headers,
+                    ...(authHeader ? { authorization: authHeader } : {})
+                };
+                
+                if (mergedHeaders.Authorization && !mergedHeaders.authorization) {
+                    mergedHeaders.authorization = mergedHeaders.Authorization;
+                    delete mergedHeaders.Authorization;
+                }
+
+                delete mergedHeaders.host;
+                delete mergedHeaders.origin;
+                
+                const fetchOpts = {
+                    method,
+                    headers: mergedHeaders,
+                    credentials: 'omit',
+                    mode: 'cors'
+                };
+                
+                if (body) {
+                    if (typeof body === 'string') {
+                        fetchOpts.body = body;
+                    } else if (body instanceof Uint8Array) {
+                        fetchOpts.body = body;
+                    } else if (Array.isArray(body)) {
+                        fetchOpts.body = body.join('');
+                    }
+                }
+                
+                try {
+                    const res = await fetch(url, fetchOpts);
+                    const resHeaders = {};
+                    for (const [key, value] of res.headers.entries()) {
+                        resHeaders[key.toLowerCase()] = value;
+                    }
+                    const bodyBuffer = await res.arrayBuffer();
+                    const bodyUint8 = new Uint8Array(bodyBuffer);
+                    
+                    console.log(`📥 HTTP ${res.status} ${res.statusText}`);
+                    
+                    if (res.status >= 400) {
+                        const bodyText = new TextDecoder().decode(bodyUint8);
+                        console.error(`❌ ERRO ${res.status}:`, bodyText.substring(0, 300));
+                    }
+                    
+                    const validStatus = typeof res.status === 'number' ? res.status : 500;
+                    const validStatusText = res.statusText || 'Unknown';
+                    
+                    return {
+                        url,
+                        method,
+                        headers: resHeaders,
+                        body: [bodyUint8],
+                        status: validStatus,
+                        statusText: validStatusText
+                    };
+                } catch (err) {
+                    console.error(`❌ Erro FETCH:`, err.message);
+                    return {
+                        url,
+                        method,
+                        headers: {},
+                        body: [new Uint8Array(0)],
+                        status: 0,
+                        statusText: err.message || 'Fetch failed'
+                    };
+                }
+            }
+        };
+        
+        console.log('✓ HTTP client criado');
+        const el = document.getElementById('gitLoadingStatus');
+        if (el) el.style.display = 'none';
+    }
+
+    // Funções Git são importadas do git-file-manager.js centralizado
+    // connectGitHub, disconnectGitHub, loadGitFiles, renderGitFileTree, etc estão lá
+    
+    let currentGitFile = null;
+    
+    function renderGitTree(node, container, level = 0) {
+        const entries = Object.values(node.children).sort((a, b) => {
+            if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+            return a.name.localeCompare(b.name);
+        });
+        
+        entries.forEach(entry => {
+            const item = document.createElement('div');
+            if (entry.isFile) {
+                item.className = 'tree-item file';
+                item.innerHTML = `<span class="icon">📄</span><span style="overflow: hidden; text-overflow: ellipsis;">${entry.name}</span>`;
+                item.onclick = () => loadGitFileContent(entry.fileData);
+            } else {
+                const hasChildren = Object.keys(entry.children).length > 0;
+                const childrenContainer = document.createElement('div');
+                childrenContainer.className = `tree-children ${entry.expanded ? 'expanded' : ''}`;
+                
+                item.className = 'tree-item folder';
+                item.innerHTML = `<span style="margin-right:4px;">${entry.expanded ? '▼' : '▶'}</span><span class="icon">${entry.expanded ? '📂' : '📁'}</span><span>${entry.name}</span>`;
+                
+                if (hasChildren) {
+                    item.onclick = (e) => {
+                        e.stopPropagation();
+                        const isExp = childrenContainer.classList.toggle('expanded');
+                        entry.expanded = isExp;
+                        item.querySelector('span').textContent = isExp ? '▼' : '▶';
+                        item.querySelector('.icon').textContent = isExp ? '📂' : '📁';
+                    };
+                }
+                
+                container.appendChild(item);
+                if (hasChildren) {
+                    renderGitTree(entry, childrenContainer, level + 1);
+                    container.appendChild(childrenContainer);
+                }
+                return;
+            }
+            container.appendChild(item);
+        });
+    }
+    
+    
+    function renderGitFileTree(files) {
+        console.log('🔍 renderGitFileTree chamada com:', files ? files.length + ' arquivos' : 'sem arquivos');
+        const gitFileTree = document.getElementById('gitFileTree');
+        
+        if (!gitFileTree) {
+            console.error('❌ CRÍTICO: Elemento gitFileTree não encontrado no DOM!');
+            console.log('   Elementos disponíveis com "Tree":', document.querySelectorAll('[id*="Tree"]'));
+            return;
+        }
+        
+        console.log('✅ Elemento gitFileTree encontrado');
+        gitFileTree.innerHTML = '';
+        
+        if (!files || files.length === 0) {
+            console.warn('⚠️ Nenhum arquivo para renderizar');
+            gitFileTree.innerHTML = '<div style="color: #94a3b8; font-size: 12px;">Sem arquivos</div>';
+            return;
+        }
+        
+        try {
+            console.log('🌳 Construindo árvore de arquivos...');
+            const tree = buildGitFileTree(files);
+            console.log('✅ Árvore construída, renderizando...');
+            renderGitTree(tree, gitFileTree, 0);
+            console.log('✅ Árvore renderizada com sucesso');
+        } catch (error) {
+            console.error('❌ Erro ao renderizar árvore:', error);
+            gitFileTree.innerHTML = '<div style="color: #dc2626; font-size: 12px;">❌ Erro ao renderizar arquivos</div>';
+        }
+    }
+    
+    async function loadGitFileContent(file) {
+        if (!gitConfig) {
+            alert('Repositório não conectado');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/git-file-content?userBucket=${encodeURIComponent(userBucket)}&owner=${gitConfig.owner}&repo=${gitConfig.repo}&file=${encodeURIComponent(file.path)}`);
+            if (!response.ok) throw new Error('Falha ao carregar');
+            const result = await response.json();
+            
+            if (editor) {
+                monaco.editor.setModelLanguage(editor.getModel(), 'python');
+                editor.setValue(result.content || '');
+                currentGitFile = file;
+                document.getElementById('currentFileInfo').innerHTML = `📄 ${file.name}`;
+                console.log(`✅ Arquivo carregado: ${file.name}`);
+            }
+        } catch (error) {
+            alert('Erro: ' + error.message);
+        }
+    }
+    
+    async function saveGitFile() {
+        if (!gitConfig || !currentGitFile) {
+            alert('Nenhum arquivo aberto');
+            return;
+        }
+        if (!editor) {
+            alert('Editor não inicializado');
+            return;
+        }
+        
+        const content = editor.getValue();
+        const status = document.getElementById('gitStatus');
+        
+        try {
+            status.innerText = 'Salvando...';
+            const response = await fetch('/api/git-file-save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userBucket: userBucket,
+                    owner: gitConfig.owner,
+                    repo: gitConfig.repo,
+                    file: currentGitFile.path,
+                    content: content
+                })
+            });
+            
+            if (!response.ok) throw new Error('Falha');
+            status.innerText = '';
+            showGitMessage(`✓ ${currentGitFile.name} salvo`, 'success');
+        } catch (error) {
+            status.innerText = '';
+            showGitMessage(`❌ Erro: ${error.message}`, 'error');
+        }
+    }
+    
+    async function createNewGitFile() {
+        if (!gitConfig) {
+            alert('Conecte GitHub primeiro');
+            return;
+        }
+        
+        const fileName = document.getElementById('newFileName').value.trim();
+        if (!fileName) {
+            alert('Informe nome do arquivo');
+            return;
+        }
+        if (!editor) {
+            alert('Editor não inicializado');
+            return;
+        }
+        
+        const content = editor.getValue();
+        const status = document.getElementById('gitStatus');
+        
+        try {
+            status.innerText = `Criando ${fileName}...`;
+            const response = await fetch('/api/git-file-save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userBucket: userBucket,
+                    owner: gitConfig.owner,
+                    repo: gitConfig.repo,
+                    file: fileName,
+                    content: content
+                })
+            });
+            
+            if (!response.ok) throw new Error('Falha');
+            status.innerText = '';
+            showGitMessage(`✓ ${fileName} criado`, 'success');
+            document.getElementById('newFileName').value = '';
+            await loadGitFiles();
+        } catch (error) {
+            status.innerText = '';
+            showGitMessage(`❌ Erro: ${error.message}`, 'error');
+        }
+    }
+    
+    async function deleteGitFile() {
+        if (!gitConfig || !currentGitFile) {
+            alert('Nenhum arquivo para deletar');
+            return;
+        }
+        
+        if (!confirm(`Deletar "${currentGitFile.name}"?`)) return;
+        
+        const status = document.getElementById('gitStatus');
+        
+        try {
+            status.innerText = `Deletando...`;
+            const response = await fetch('/api/git-file-delete', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    userBucket,
-                    name: currentRule.name
+                    userBucket: userBucket,
+                    owner: gitConfig.owner,
+                    repo: gitConfig.repo,
+                    file: currentGitFile.path
+                })
+            });
+            
+            if (!response.ok) throw new Error('Falha');
+            status.innerText = '';
+            showGitMessage(`✓ Deletado`, 'success');
+            if (editor) editor.setValue('');
+            document.getElementById('currentFileInfo').innerHTML = 'Nenhum arquivo';
+            currentGitFile = null;
+            await loadGitFiles();
+        } catch (error) {
+            status.innerText = '';
+            showGitMessage(`❌ Erro: ${error.message}`, 'error');
+        }
+    }
+    
+    async function gitAddCommitPush() {
+        if (!gitConfig) {
+            alert('Conecte GitHub primeiro');
+            return;
+        }
+        
+        const commitMsg = document.getElementById('commitMsg').value.trim();
+        if (!commitMsg) {
+            alert('Informe mensagem de commit');
+            return;
+        }
+        
+        const status = document.getElementById('gitStatus');
+        status.innerText = 'Preparando push...';
+        
+        try {
+            const response = await fetch('/api/git-push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userBucket: userBucket,
+                    owner: gitConfig.owner,
+                    repo: gitConfig.repo,
+                    token: gitConfig.token,
+                    commitMsg: commitMsg
                 })
             });
             
             if (!response.ok) {
-                throw new Error('Falha ao deletar');
+                const error = await response.json();
+                throw new Error(error.error || 'Push failed');
             }
             
-            showMessage('✓ Regra deletada', 'success');
-            showRuleTemplate('empty');
-            loadValidationRules();
+            const result = await response.json();
+            status.innerText = `✓ Push OK! ${result.downloadedFiles} arquivos sincronizados`;
+            document.getElementById('commitMsg').value = '';
+            setTimeout(() => { status.innerText = ''; }, 5000);
         } catch (error) {
-            showMessage('❌ ' + error.message, 'error');
+            status.innerText = 'Erro: ' + error.message;
         }
     }
     
-    function showMessage(message, type) {
-        const msgDiv = document.getElementById(type === 'success' ? 'success-message' : 'error-message');
-        msgDiv.innerHTML = message;
-        msgDiv.style.display = 'block';
-        
-        setTimeout(() => {
-            msgDiv.style.opacity = '0';
-            msgDiv.style.transition = 'opacity 0.5s';
-            setTimeout(() => {
-                msgDiv.style.display = 'none';
-                msgDiv.style.opacity = '1';
-            }, 500);
-        }, 3000);
-    }
 </script>
 
 <?php require VIEWPATH . '/footer.php'; ?>

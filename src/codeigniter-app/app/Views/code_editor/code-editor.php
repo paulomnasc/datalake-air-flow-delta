@@ -5,6 +5,16 @@ if (! defined('VIEWPATH')) {
 require VIEWPATH . '/header.php';
 ?>
 
+<!-- ================================================ -->
+<!-- Git File Manager - Centralizado (reutilizável) -->
+<!-- ================================================ -->
+<script src="/assets/js/git-file-manager.js"></script>
+<script>
+    // Configurar para code-editor
+    gitConfigKey = 'gitConfig';
+    userBucket = '<?php echo $userBucket ?? 'lab01'; ?>';
+</script>
+
 <style>
         .code-editor-container {
             max-width: 100%;
@@ -661,6 +671,9 @@ require VIEWPATH . '/header.php';
                     <button class="btn btn-secondary" onclick="clearEditor()">
                         🗑️ Limpar
                     </button>
+                    <button class="btn btn-secondary" id="downloadCsvBtn" onclick="downloadCSV()" disabled style="opacity: 0.5;">
+                        📄 Baixar CSV
+                    </button>
                     
                     <div class="limit-control">
                         <label>Limite:</label>
@@ -695,7 +708,9 @@ require VIEWPATH . '/header.php';
     
     <script>
         let editor;
-        const userBucket = '<?php echo esc($userBucket ?? 'user-1'); ?>';
+        // Reuse global userBucket from git-file-manager.js to avoid redeclaration
+        userBucket = '<?php echo esc($userBucket ?? 'user-1'); ?>';
+        let currentResults = null; // Armazenar resultados atuais para download CSV
         
         // Toggle sidebar retrátil
         function toggleEditorSidebar() {
@@ -1119,6 +1134,7 @@ LIMIT 10;`,
         // Exibir resultados
         function displayResults(result) {
             const resultsDiv = document.getElementById('results');
+            const csvBtn = document.getElementById('downloadCsvBtn');
             
             if (!result.data || result.data.length === 0) {
                 resultsDiv.innerHTML = `
@@ -1130,8 +1146,16 @@ LIMIT 10;`,
                         <p>Sem resultados</p>
                     </div>
                 `;
+                currentResults = null;
+                csvBtn.disabled = true;
+                csvBtn.style.opacity = '0.5';
                 return;
             }
+            
+            // Armazenar resultados para download CSV
+            currentResults = result;
+            csvBtn.disabled = false;
+            csvBtn.style.opacity = '1';
             
             const columns = result.columns || Object.keys(result.data[0]);
             const rowCount = result.data.length;
@@ -1170,11 +1194,17 @@ LIMIT 10;`,
         // Exibir erro
         function showError(message) {
             const resultsDiv = document.getElementById('results');
+            const csvBtn = document.getElementById('downloadCsvBtn');
+            
             resultsDiv.innerHTML = `
                 <div class="error-message">
                     ❌ <strong>Erro:</strong> ${message}
                 </div>
             `;
+            
+            currentResults = null;
+            csvBtn.disabled = true;
+            csvBtn.style.opacity = '0.5';
         }
         
         // Formatar SQL
@@ -1193,7 +1223,64 @@ LIMIT 10;`,
                         <p>Execute uma query para ver os resultados</p>
                     </div>
                 `;
+                
+                // Limpar resultados e desabilitar botão CSV
+                currentResults = null;
+                const csvBtn = document.getElementById('downloadCsvBtn');
+                if (csvBtn) {
+                    csvBtn.disabled = true;
+                    csvBtn.style.opacity = '0.5';
+                }
             }
+        }
+        
+        // Baixar resultados em CSV
+        function downloadCSV() {
+            if (!currentResults || !currentResults.data || currentResults.data.length === 0) {
+                alert('⚠️ Nenhum resultado disponível para download');
+                return;
+            }
+            
+            const columns = currentResults.columns || Object.keys(currentResults.data[0]);
+            const rows = currentResults.data;
+            
+            // Cabeçalho CSV
+            let csv = columns.map(col => `"${col}"`).join(',') + '\n';
+            
+            // Linhas de dados
+            rows.forEach(row => {
+                const values = columns.map(col => {
+                    const value = row[col];
+                    if (value === null || value === undefined) {
+                        return '';
+                    }
+                    // Escapar aspas duplas e envolver em aspas se houver vírgulas/quebras
+                    const stringValue = String(value).replace(/"/g, '""');
+                    if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
+                        return `"${stringValue}"`;
+                    }
+                    return stringValue;
+                });
+                csv += values.join(',') + '\n';
+            });
+            
+            // Criar blob e download
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            // Nome arquivo com timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const filename = `query_results_${timestamp}.csv`;
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log(`✅ CSV baixado: ${filename} (${rows.length} linhas)`);
         }
         
         // Inserir caminho do arquivo

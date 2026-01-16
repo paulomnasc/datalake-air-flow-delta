@@ -482,8 +482,10 @@ window.toggleValidationSidebar = function() {
 window.toggleEditorSidebar = function() {
     const sidebar = document.getElementById('editorSidebar');
     const overlay = document.getElementById('sidebarOverlayBg');
-    if (sidebar) sidebar.classList.toggle('active');
-    if (overlay) overlay.classList.toggle('active');
+    if (!sidebar) return;
+    const willOpen = !sidebar.classList.contains('active');
+    sidebar.classList.toggle('active', willOpen);
+    if (overlay) overlay.classList.toggle('active', willOpen);
 };
 
 // Trocar abas da sidebar (Code Editor)

@@ -117,7 +117,20 @@ class CodeEditorController extends QueryBuilderController
         ]);
     }
     
+    /**
+     * Página de teste do componente git-sidebar
+     */
+    public function testGitSidebar()
+    {
+        $userBucket = \App\Helpers\SessionHelper::getUserBucket();
+        
+        return view('code_editor/test-git-sidebar', [
+            'userBucket' => $userBucket ?? 'lab01'
+        ]);
+    }
+    
     // Todos os outros métodos (execute, listTables, getSchema, etc)
     // são herdados do QueryBuilderController
     // Nenhuma duplicação de código!
 }
+

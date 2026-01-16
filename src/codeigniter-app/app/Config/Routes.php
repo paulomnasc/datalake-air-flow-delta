@@ -103,6 +103,7 @@ $routes->post('/code-editor/execute', 'CodeEditorController::execute', ['as'=>'c
 $routes->post('/code-editor/tables', 'CodeEditorController::listTables', ['as'=>'code-editor.tables']);
 $routes->post('/code-editor/schema', 'CodeEditorController::getSchema', ['as'=>'code-editor.schema']);
 $routes->post('/code-editor/files', 'CodeEditorController::listParquetFiles', ['as'=>'code-editor.files']);
+$routes->get('/test-git-sidebar', 'CodeEditorController::testGitSidebar', ['as'=>'test-git-sidebar']);
 
 // Validation Rules Editor
 $routes->get('/validation-rules-editor', 'ValidationRulesController::index', ['as'=>'validation-rules.editor']);

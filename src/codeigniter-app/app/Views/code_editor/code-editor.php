@@ -9,99 +9,8 @@ require VIEWPATH . '/header.php';
 <!-- Git File Manager - Centralizado (reutilizável) -->
 <!-- ================================================ -->
 <script src="/assets/js/git-file-manager.js"></script>
-<script>
-    // Configurar para code-editor
-    gitConfigKey = 'gitConfig';
-    userBucket = '<?php echo $userBucket ?? 'lab01'; ?>';
-</script>
-
 <style>
-        .code-editor-container {
-            max-width: 100%;
-            margin: 20px auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            overflow: visible;
-        }
-        
-        .code-editor-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 24px 32px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .code-editor-header h1 {
-            font-size: 28px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(255,255,255,0.2);
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 500;
-        }
-        
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #4ade80;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        .editor-layout {
-            display: flex;
-            flex-direction: column;
-            min-height: calc(100vh - 200px);
-            height: calc(100vh - 200px);
-            width: 100%;
-            position: relative;
-        }
-        
-        /* Sidebar retrátil com overlay */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 280px;
-            background: #f8fafc;
-            border-right: 1px solid #e2e8f0;
-            overflow-y: auto;
-            padding: 20px;
-            transform: translateX(-100%);
-            transition: transform 0.3s ease;
-            z-index: 2000;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-        }
-        
-        .sidebar.active {
-            transform: translateX(0);
-        }
-        
         .sidebar-overlay-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 100%;
             background: rgba(0, 0, 0, 0.5);
             z-index: 1999;
             display: none;
@@ -132,6 +41,57 @@ require VIEWPATH . '/header.php';
             color: #1e293b;
         }
         
+        .sidebar {
+            width: 320px;
+            background: #0f172a;
+            border-right: 1px solid #334155;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            transition: transform 0.2s ease, width 0.2s ease, padding 0.2s ease;
+            transform: translateX(0);
+            z-index: 2000;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        /* Fechada no desktop: some e libera espaço para o editor */
+        .sidebar:not(.active) {
+            width: 0;
+            padding: 0;
+            border-right: none;
+            transform: translateX(0);
+        }
+
+        /* Modo desktop mantém sidebar fixa à esquerda */
+        @media (min-width: 993px) {
+            .sidebar {
+                position: relative;
+            }
+        }
+
+        /* Modo mobile: usa slide sem colapsar largura */
+        @media (max-width: 992px) {
+            .sidebar {
+                position: fixed;
+                top: 0;
+                bottom: 0;
+                left: 0;
+                width: 85vw;
+                transform: translateX(-100%);
+            }
+
+            .sidebar:not(.active) {
+                width: 85vw;
+                transform: translateX(-100%);
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+        }
+
         .sidebar-toggle-btn {
             background: #667eea;
             color: white;
@@ -159,7 +119,7 @@ require VIEWPATH . '/header.php';
             font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
-            color: #64748b;
+            color: #cbd5e1;
             margin-bottom: 12px;
             letter-spacing: 0.5px;
         }
@@ -170,6 +130,18 @@ require VIEWPATH . '/header.php';
             flex-direction: column;
             gap: 4px;
             font-size: 13px;
+            color: #e2e8f0;
+        }
+
+        .file-tree .file-item {
+            color: #e2e8f0;
+            padding: 6px 8px;
+            border-radius: 4px;
+        }
+
+        .file-tree .file-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
         }
         
         .tree-item {
@@ -177,28 +149,29 @@ require VIEWPATH . '/header.php';
             align-items: center;
             padding: 6px 8px;
             cursor: pointer;
-            color: #475569;
+            color: #e2e8f0;
             transition: all 0.15s;
             border-radius: 4px;
             user-select: none;
         }
         
         .tree-item:hover {
-            background: #e2e8f0;
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
         }
         
         .tree-item.folder {
             font-weight: 500;
-            color: #1e293b;
+            color: #cbd5e1;
         }
         
         .tree-item.file {
-            color: #64748b;
+            color: #e2e8f0;
         }
         
         .tree-item.file:hover {
-            background: #ede9fe;
-            color: #667eea;
+            background: rgba(102, 126, 234, 0.2);
+            color: #ffffff;
         }
         
         .tree-item .icon {
@@ -325,6 +298,14 @@ require VIEWPATH . '/header.php';
             overflow: auto;
             padding: 20px;
             background: #f8fafc;
+        }
+
+        .editor-layout {
+            display: flex;
+            gap: 0;
+            background: #0b1224;
+            min-height: calc(100vh - 140px);
+            position: relative;
         }
         
         .results-header {
@@ -519,7 +500,7 @@ require VIEWPATH . '/header.php';
             <div id="sidebarOverlayBg" class="sidebar-overlay-bg"></div>
             
             <!-- Sidebar retrátil -->
-            <aside id="editorSidebar" class="sidebar">
+            <aside id="editorSidebar" class="sidebar active">
                 <button class="sidebar-close-btn" onclick="toggleEditorSidebar()">×</button>
                 
                 <!-- Tabs de navegação -->
@@ -561,99 +542,11 @@ require VIEWPATH . '/header.php';
                         </ul>
                     </div>
                 </div>
-                <!-- Tab: Git with isomorphic-git -->
-                <div id="tab-git" class="sidebar-tab-content">
-                    <div class="sidebar-section">
-                        <h3>🔗 GitHub</h3>
-                        <div id="gitLoadingStatus" style="padding: 12px; background: #1e293b; border-radius: 6px; font-size: 11px; color: #94a3b8; margin-bottom: 12px; display: none;">
-                            ⏳ Carregando isomorphic-git...
-                        </div>
-                        
-                        <div id="gitNotConnected" style="padding: 16px;">
-                            <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Conecte seu GitHub para versionar scripts SQL</p>
-                            <input type="text" id="githubUsername" placeholder="GitHub Username" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
-                            <input type="password" id="githubToken" placeholder="Personal Access Token" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
-                            <p style="font-size: 10px; color: #64748b; margin-bottom: 8px; line-height: 1.4;">
-                                💡 Gere em: <a href="https://github.com/settings/tokens/new" target="_blank" style="color: #667eea; text-decoration: none;">GitHub Settings → Developer settings → Personal access tokens → Generate new token</a><br>
-                                Marque o scope: <strong style="color: #94a3b8;">repo</strong>
-                            </p>
-                            <label style="display: flex; align-items: center; font-size: 11px; color: #94a3b8; margin-bottom: 8px; cursor: pointer;">
-                                <input type="checkbox" id="disableCorsProxy" style="margin-right: 6px;">
-                                Desabilitar CORS Proxy (tentar conexão direta)
-                            </label>
-                            <details style="margin-bottom: 8px;">
-                                <summary style="font-size: 11px; color: #94a3b8; cursor: pointer;">Modo offline (sem CDN)</summary>
-                                <div style="font-size: 10px; color: #64748b; margin-top: 6px; line-height: 1.5;">
-                                    Se os CDNs estiverem bloqueados, você pode usar arquivos locais. Qualquer uma das opções abaixo funciona:<br>
-                                    • ESM (preferível):<br>
-                                    - <strong style="color:#94a3b8;">/assets/vendor/isomorphic-git/index.js</strong> ou <strong style="color:#94a3b8;">/public/assets/vendor/isomorphic-git/index.js</strong><br>
-                                    - <strong style="color:#94a3b8;">/assets/vendor/isomorphic-git/http-web.js</strong> ou <strong style="color:#94a3b8;">/public/assets/vendor/isomorphic-git/http-web.js</strong><br>
-                                    - <strong style="color:#94a3b8;">/assets/vendor/lightning-fs/index.js</strong> ou <strong style="color:#94a3b8;">/public/assets/vendor/lightning-fs/index.js</strong><br>
-                                    • UMD (alternativa):<br>
-                                    - <strong style="color:#94a3b8;">/assets/vendor/isomorphic-git/bundle.umd.min.js</strong> ou <strong style="color:#94a3b8;">/public/assets/vendor/isomorphic-git/bundle.umd.min.js</strong><br>
-                                    - <strong style="color:#94a3b8;">/assets/vendor/lightning-fs/lightning-fs.min.js</strong> ou <strong style="color:#94a3b8;">/public/assets/vendor/lightning-fs/lightning-fs.min.js</strong><br>
-                                    O loader tenta primeiro os caminhos locais (/assets e /public/assets) antes dos CDNs.
-                                </div>
-                            </details>
-                            <input type="text" id="repoURL" placeholder="Repo: user/sql-scripts" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
-                            <button class="btn btn-primary" onclick="connectGitHub()" style="width: 100%;">
-                                ✓ Conectar
-                            </button>
-                        </div>
-                        
-                        <div id="gitConnected" style="display: none;">
-                            <div id="repoInfo" style="padding: 10px; background: #1e293b; border-radius: 6px; font-size: 11px; margin-bottom: 12px; color: #cbd5e1;"></div>
-                            
-                            <!-- Mensagens de sucesso/erro -->
-                            <div id="git-success-message" class="alert alert-success" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px;"></div>
-                            <div id="git-error-message" class="alert alert-danger" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px;"></div>
-                            
-                            <!-- Seção: Arquivo Atual -->
-                            <div style="margin-bottom: 12px;">
-                                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📝 Arquivo Atual</h3>
-                                <div id="currentFileInfo" style="padding: 8px; background: #0f172a; border-radius: 4px; font-size: 11px; color: #64748b; margin-bottom: 8px;">
-                                    Nenhum arquivo aberto
-                                </div>
-                                <button class="btn btn-primary" onclick="saveGitFile()" style="width: 100%; margin-bottom: 4px;">
-                                    💾 Salvar
-                                </button>
-                                <button class="btn btn-secondary" onclick="deleteGitFile()" style="width: 100%; margin-bottom: 8px; background: #dc2626; color: white;">
-                                    🗑️ Deletar
-                                </button>
-                            </div>
-                            
-                            <!-- Seção: Criar Novo Arquivo -->
-                            <div style="margin-bottom: 12px;">
-                                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">➕ Criar Novo Arquivo</h3>
-                                <input type="text" id="newFileName" placeholder="exemplo.sql" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
-                                <button class="btn btn-primary" onclick="createNewGitFile()" style="width: 100%;">
-                                    ✨ Criar do Editor
-                                </button>
-                            </div>
-                            
-                            <!-- Seção: Arquivos do Repositório -->
-                            <div style="margin-bottom: 12px;">
-                                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📄 Arquivos do Repositório</h3>
-                                <ul class="file-tree" id="gitFileTree"></ul>
-                            </div>
-                            
-                            <!-- Seção: Commit & Push -->
-                            <div style="margin-bottom: 12px;">
-                                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📤 Sincronizar GitHub</h3>
-                                <textarea id="commitMsg" placeholder="Descrever mudanças..." style="width: 100%; height: 60px; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; resize: none; margin-bottom: 4px;"></textarea>
-                                <button class="btn btn-primary" onclick="gitAddCommitPush()" style="width: 100%; margin-bottom: 8px;">
-                                    🚀 Commit & Push
-                                </button>
-                            </div>
-                            
-                            <div id="gitStatus" style="padding: 10px; background: #0f172a; border-radius: 6px; font-size: 11px; color: #64748b; margin-bottom: 8px; max-height: 150px; overflow-y: auto;"></div>
-                            
-                            <button class="btn btn-secondary" onclick="disconnectGitHub()" style="width: 100%;">
-                                🔓 Desconectar
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <!-- Tab: Git with isomorphic-git (componente reutilizável) -->
+                <?php
+                    $fileFilter = '.parquet';
+                    include VIEWPATH . '/components/git-sidebar.php';
+                ?>
             </aside>
             
             <!-- Main Editor Area -->
@@ -1034,6 +927,36 @@ LIMIT 10;`,
                     }
                 });
                 
+                // Quando um arquivo do Git é selecionado via componente
+                window.addEventListener('git-file-selected', (e) => {
+                    const { filepath, filename, content } = e.detail || {};
+                    if (!filepath || !filename) return;
+
+                    const ext = filename.split('.').pop().toLowerCase();
+                    const langMap = {
+                        'js': 'javascript', 'ts': 'typescript', 'py': 'python',
+                        'sql': 'sql', 'json': 'json', 'md': 'markdown',
+                        'html': 'html', 'css': 'css', 'yaml': 'yaml', 'yml': 'yaml',
+                        'sh': 'shell', 'txt': 'plaintext', 'parquet': 'sql'
+                    };
+                    const language = langMap[ext] || 'plaintext';
+
+                    monaco.editor.setModelLanguage(editor.getModel(), language);
+                    editor.setValue(content || '');
+                    currentGitFile = { path: filepath, name: filename };
+                    const currentInfo = document.getElementById('currentFileInfo');
+                    if (currentInfo) currentInfo.innerHTML = `📄 ${filename}`;
+
+                    if (language === 'markdown') {
+                        showMarkdownPreview(content || '');
+                    } else {
+                        hideMarkdownPreview();
+                    }
+
+                    const status = document.getElementById('gitStatus');
+                    if (status) status.innerText = `✓ ${filename} carregado do Git`;
+                });
+
                 console.log('✓ Monaco Editor inicializado com sucesso');
             } catch (monError) {
                 console.error('❌ Erro ao inicializar Monaco:', monError);

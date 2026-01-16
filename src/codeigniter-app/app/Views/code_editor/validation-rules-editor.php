@@ -12,8 +12,8 @@ $userBucket = $userBucket ?? 'lab01';
 <!-- ================================================ -->
 <script src="/assets/js/git-file-manager.js"></script>
 <script>
-    // Configurar para code-editor
-    gitConfigKey = 'gitConfig';
+    // Configurar para validation-rules-editor
+    gitConfigKey = 'validationGitConfig';
     userBucket = '<?php echo $userBucket ?? 'lab01'; ?>';
 </script>
 
@@ -32,11 +32,11 @@ $userBucket = $userBucket ?? 'lab01';
         top: 0;
         left: 0;
         height: 100%;
-        width: 280px;
-        background: #f8fafc;
-        border-right: 1px solid #e2e8f0;
+        width: 320px;
+        background: #0f172a;
+        border-right: 1px solid #334155;
         overflow-y: auto;
-        padding: 20px;
+        padding: 0;
         transform: translateX(-100%);
         transition: transform 0.3s ease;
         z-index: 2000;
@@ -455,79 +455,10 @@ $userBucket = $userBucket ?? 'lab01';
 <aside class="validation-sidebar" id="validationSidebar">
     <button class="sidebar-close-btn" onclick="toggleValidationSidebar()">×</button>
     
-    <div class="sidebar-section">
-        <h3>🔗 GitHub</h3>
-        
-        <div id="gitLoadingStatus" style="padding: 12px; background: #1e293b; border-radius: 6px; font-size: 11px; color: #94a3b8; margin-bottom: 12px; display: none;">
-            ⏳ Carregando isomorphic-git...
-        </div>
-        
-        <div id="gitNotConnected" style="padding: 16px;">
-            <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Conecte seu GitHub para versionar validadores Python</p>
-            <input type="text" id="githubUsername" placeholder="GitHub Username" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
-            <input type="password" id="githubToken" placeholder="Personal Access Token" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
-            <p style="font-size: 10px; color: #64748b; margin-bottom: 8px; line-height: 1.4;">
-                💡 Gere em: <a href="https://github.com/settings/tokens/new" target="_blank" style="color: #667eea; text-decoration: none;">GitHub Settings → Developer settings → Personal access tokens</a><br>
-                Marque o scope: <strong style="color: #94a3b8;">repo</strong>
-            </p>
-            <input type="text" id="repoURL" placeholder="Repo: user/validators" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
-            <button class="btn btn-primary" onclick="connectGitHub()" style="width: 100%;">
-                ✓ Conectar
-            </button>
-        </div>
-        
-        <div id="gitConnected" style="display: none;">
-            <div id="repoInfo" style="padding: 10px; background: #1e293b; border-radius: 6px; font-size: 11px; margin-bottom: 12px; color: #cbd5e1;"></div>
-            
-            <!-- Mensagens de sucesso/erro -->
-            <div id="git-success-message" class="alert alert-success" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px;"></div>
-            <div id="git-error-message" class="alert alert-danger" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px;"></div>
-            
-            <!-- Seção: Arquivo Atual -->
-            <div style="margin-bottom: 12px;">
-                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📝 Arquivo Atual</h3>
-                <div id="currentFileInfo" style="padding: 8px; background: #0f172a; border-radius: 4px; font-size: 11px; color: #64748b; margin-bottom: 8px;">
-                    Nenhum arquivo aberto
-                </div>
-                <button class="btn btn-primary" onclick="saveGitFile()" style="width: 100%; margin-bottom: 4px;">
-                    💾 Salvar
-                </button>
-                <button class="btn btn-secondary" onclick="deleteGitFile()" style="width: 100%; margin-bottom: 8px; background: #dc2626; color: white;">
-                    🗑️ Deletar
-                </button>
-            </div>
-            
-            <!-- Seção: Criar Novo Arquivo -->
-            <div style="margin-bottom: 12px;">
-                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">➕ Criar Novo Arquivo</h3>
-                <input type="text" id="newFileName" placeholder="validador.py" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
-                <button class="btn btn-primary" onclick="createNewGitFile()" style="width: 100%;">
-                    ✨ Criar do Editor
-                </button>
-            </div>
-            
-            <!-- Seção: Arquivos do Repositório -->
-            <div style="margin-bottom: 12px;">
-                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📄 Arquivos do Repositório</h3>
-                <ul class="file-tree" id="gitFileTree"></ul>
-            </div>
-            
-            <!-- Seção: Commit & Push -->
-            <div style="margin-bottom: 12px;">
-                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📤 Sincronizar GitHub</h3>
-                <textarea id="commitMsg" placeholder="Descrever mudanças..." style="width: 100%; height: 60px; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; resize: none; margin-bottom: 4px;"></textarea>
-                <button class="btn btn-primary" onclick="gitAddCommitPush()" style="width: 100%; margin-bottom: 8px;">
-                    🚀 Commit & Push
-                </button>
-            </div>
-            
-            <div id="gitStatus" style="padding: 10px; background: #0f172a; border-radius: 6px; font-size: 11px; color: #64748b; margin-bottom: 8px; max-height: 150px; overflow-y: auto;"></div>
-            
-            <button class="btn btn-secondary" onclick="disconnectGitHub()" style="width: 100%;">
-                🔓 Desconectar
-            </button>
-        </div>
-    </div>
+    <?php
+        $fileFilter = '.py';
+        include VIEWPATH . '/components/git-sidebar.php';
+    ?>
 </aside>
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleValidationSidebar()"></div>
@@ -613,6 +544,7 @@ $userBucket = $userBucket ?? 'lab01';
 
 <script>
     let editor;
+    let currentGitFile = null;
     // Reuse global userBucket from git-file-manager.js to avoid redeclaration errors
     userBucket = '<?php echo $userBucket; ?>';
     
@@ -622,6 +554,119 @@ $userBucket = $userBucket ?? 'lab01';
         const overlay = document.getElementById('sidebarOverlay');
         sidebar.classList.toggle('active');
         overlay.classList.toggle('active');
+    }
+    
+    // ===== GIT LOADER (isomorphic-git) =====
+    (function bootGit() {
+        const loadingStatus = document.getElementById('gitLoadingStatus');
+        function setLoading(msg) { if (loadingStatus) { loadingStatus.style.display = 'block'; loadingStatus.textContent = msg; } }
+        function clearLoading() { if (loadingStatus) loadingStatus.style.display = 'none'; }
+        
+        setLoading('⏳ Carregando bibliotecas Git...');
+        
+        setTimeout(() => {
+            console.log('Iniciando carregamento de Git (validation-rules-editor)...');
+            
+            const origDefine = window.define;
+            delete window.define;
+            delete window.require;
+            
+            window.module = { exports: {} };
+            window.exports = {};
+            
+            const lfsScript = document.createElement('script');
+            lfsScript.src = 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/dist/lightning-fs.min.js';
+            lfsScript.onerror = () => {
+                setLoading('❌ Falha LightningFS');
+                window.define = origDefine;
+            };
+            lfsScript.onload = () => {
+                console.log('✓ LightningFS carregado (validation)');
+                if (window.module?.exports && !window.LightningFS) {
+                    window.LightningFS = window.module.exports;
+                }
+                window.module.exports = {};
+                if (origDefine) window.define = origDefine;
+                
+                const gitScript = document.createElement('script');
+                gitScript.src = 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.7/index.umd.min.js';
+                gitScript.onerror = () => {
+                    setLoading('❌ Falha isomorphic-git');
+                    window.define = origDefine;
+                };
+                gitScript.onload = () => {
+                    console.log('✓ isomorphic-git carregado (validation)');
+                    if (window.module?.exports && !window.git) {
+                        window.git = window.module.exports;
+                    }
+                    if (origDefine) window.define = origDefine;
+                    
+                    // HTTP client inline
+                    window.git.http = {
+                        async request({ url, method = 'GET', headers = {}, body }) {
+                            try {
+                                const reqHeaders = new Headers(headers);
+                                if (!reqHeaders.has('User-Agent')) {
+                                    reqHeaders.set('User-Agent', 'isomorphic-git/1.25.7');
+                                }
+                                const res = await fetch(url, { method, headers: reqHeaders, body });
+                                const resHeaders = {};
+                                res.headers.forEach((v, k) => { resHeaders[k] = v; });
+                                const bodyBuffer = await res.arrayBuffer();
+                                const bodyUint8 = new Uint8Array(bodyBuffer);
+                                return {
+                                    url, method,
+                                    headers: resHeaders,
+                                    body: [bodyUint8],
+                                    status: res.status,
+                                    statusText: res.statusText
+                                };
+                            } catch (err) {
+                                return { url, method, headers: {}, body: [new Uint8Array(0)], status: 0, statusText: err.message };
+                            }
+                        }
+                    };
+                    console.log('✓ HTTP client criado (validation)');
+                    clearLoading();
+                    initGitAfterLoad();
+                };
+                document.head.appendChild(gitScript);
+            };
+            document.head.appendChild(lfsScript);
+        }, 2000);
+    })();
+    
+    // Variáveis fs, pfs, git já declaradas globalmente em git-file-manager.js
+    let fs; // apenas fs é local
+    function initGitAfterLoad() {
+        console.log('🔧 initGitAfterLoad (validation)');
+        git = window.git;
+        if (!git || !window.LightningFS) {
+            console.error('❌ Git ou LightningFS indisponível');
+            return;
+        }
+        initFS();
+        console.log('✓ Git pronto (validation)');
+        restoreGitFromStorage('initGitAfterLoad');
+    }
+    
+    function initFS() {
+        if (fs && pfs) return;
+        if (!window.LightningFS) {
+            console.error('❌ LightningFS não disponível');
+            return;
+        }
+        try {
+            fs = new window.LightningFS('validation-fs', { wipe: false });
+            pfs = fs.promises;
+            console.log('✓ Filesystem inicializado (validation)');
+        } catch (e) {
+            console.error('❌ Erro ao inicializar filesystem:', e);
+        }
+    }
+    
+    function isGitReady() {
+        return typeof window.git !== 'undefined' && typeof window.LightningFS !== 'undefined';
     }
     
     // ===== MONACO EDITOR =====
@@ -649,6 +694,30 @@ $userBucket = $userBucket ?? 'lab01';
         // Atalho Ctrl+Enter para testar
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, testValidation);
         
+        // Quando um arquivo do Git é selecionado via componente
+        window.addEventListener('git-file-selected', (e) => {
+            const { filepath, filename, content } = e.detail || {};
+            if (!filepath || !filename) return;
+
+            const ext = filename.split('.').pop().toLowerCase();
+            const langMap = {
+                'js': 'javascript', 'ts': 'typescript', 'py': 'python',
+                'sql': 'sql', 'json': 'json', 'md': 'markdown',
+                'html': 'html', 'css': 'css', 'yaml': 'yaml', 'yml': 'yaml',
+                'sh': 'shell', 'txt': 'plaintext'
+            };
+            const language = langMap[ext] || 'plaintext';
+
+            monaco.editor.setModelLanguage(editor.getModel(), language);
+            editor.setValue(content || '');
+            currentGitFile = { path: filepath, name: filename };
+            const currentInfo = document.getElementById('currentFileInfo');
+            if (currentInfo) currentInfo.innerHTML = `📄 ${filename}`;
+
+            const status = document.getElementById('gitStatus');
+            if (status) status.innerText = `✓ ${filename} carregado do Git`;
+        });
+
             // Restaurar estado Git ao carregar editor
             restoreGitFromStorage('monaco-ready');
     });
@@ -1184,7 +1253,7 @@ $userBucket = $userBucket ?? 'lab01';
     // Funções Git são importadas do git-file-manager.js centralizado
     // connectGitHub, disconnectGitHub, loadGitFiles, renderGitFileTree, etc estão lá
     
-    let currentGitFile = null;
+    // currentGitFile já declarado no início do script (linha ~547)
     
     function renderGitTree(node, container, level = 0) {
         const entries = Object.values(node.children).sort((a, b) => {

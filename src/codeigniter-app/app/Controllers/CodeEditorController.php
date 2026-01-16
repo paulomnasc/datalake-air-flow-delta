@@ -22,10 +22,10 @@ use App\Controllers\QueryBuilderController;
 class CodeEditorController extends QueryBuilderController
 {
     /**
-     * Exibe interface web para Code Editor com Monaco
-     * Usa a mesma lógica de preparação de dados do QueryBuilder
+     * Exibe interface web UNIFICADA: SQL + Validation Rules em uma única view com abas
+     * Consolidação de code-editor e validation-rules-editor em unified-code-editor.php
      */
-    public function index()
+    public function unified()
     {
         // Verifica saúde da API DuckDB
         $duckdbStatus = \App\Helpers\DuckDBHelper::healthCheck();
@@ -41,12 +41,23 @@ class CodeEditorController extends QueryBuilderController
             $parquetFiles = \App\Helpers\DuckDBHelper::listParquetFiles($userS3Path);
         }
         
-        return view('code_editor/code-editor', [
+        return view('code_editor/unified-code-editor', [
             'duckdbStatus' => $duckdbStatus,
             'parquetFiles' => $parquetFiles,
             'userBucket' => $userBucket,
             'userS3Path' => $userS3Path
         ]);
+    }
+
+    /**
+     * Exibe interface web para Code Editor com Monaco (LEGACY - redirecionado para unified)
+     * Mantido para compatibilidade com bookmarks antigos
+     * Usa a mesma lógica de preparação de dados do QueryBuilder
+     */
+    public function index()
+    {
+        // Redireciona para versão unificada
+        return redirect()->to('/code-editor');
     }
     
     /**
@@ -127,6 +138,18 @@ class CodeEditorController extends QueryBuilderController
         return view('code_editor/test-git-sidebar', [
             'userBucket' => $userBucket ?? 'lab01'
         ]);
+    }
+
+    /**
+     * Executa query SQL via API (unificado)
+     * Intermediário entre frontend e QueryBuilderController::execute()
+     * Compatível com o fluxo do unified-editor.js
+     */
+    public function querySQL()
+    {
+        // Delega para o execute() do QueryBuilderController
+        // que trata da validação, segurança e execução
+        return $this->execute();
     }
     
     // Todos os outros métodos (execute, listTables, getSchema, etc)

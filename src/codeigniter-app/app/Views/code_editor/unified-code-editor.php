@@ -487,7 +487,7 @@ require VIEWPATH . '/header.php';
             <div class="code-editor-header">
             <h1>
                 <span>💻</span>
-                SQL Code Editor
+                Code Editor
             </h1>
             <div class="status-badge" id="statusBadge">
                 <span class="status-dot"></span>
@@ -1187,7 +1187,99 @@ LIMIT 10;`,
         }
         
         async function saveValidation() {
-            alert('💾 Salvamento será implementado');
+            if (!editorValidation) {
+                alert('❌ Editor de validação não inicializado');
+                return;
+            }
+            
+            const code = editorValidation.getValue();
+            
+            if (!code.trim()) {
+                alert('❌ Editor vazio');
+                return;
+            }
+            
+            // Se há arquivo aberto do Git, salvar direto
+            if (currentGitFile && gitConfig) {
+                const status = document.getElementById('gitStatus');
+                
+                try {
+                    if (status) status.innerText = 'Salvando...';
+                    
+                    const response = await fetch('/api/git-file-save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userBucket: userBucket,
+                            owner: gitConfig.owner,
+                            repo: gitConfig.repo,
+                            file: currentGitFile.path,
+                            content: code
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error || 'Falha ao salvar');
+                    }
+                    
+                    if (status) status.innerText = '';
+                    alert(`✅ ${currentGitFile.name} salvo com sucesso!`);
+                    console.log('✅ Arquivo validação salvo no Git');
+                    
+                } catch (error) {
+                    if (status) status.innerText = '';
+                    alert('❌ Erro ao salvar: ' + error.message);
+                    console.error('Erro ao salvar validação:', error);
+                }
+                return;
+            }
+            
+            // Se não há arquivo aberto, solicitar nome do arquivo
+            const fileName = prompt('Nome do arquivo (ex: validador.py):', 'validador.py');
+            if (!fileName) return;
+            
+            if (!gitConfig) {
+                alert('❌ Conecte ao GitHub primeiro');
+                return;
+            }
+            
+            const status = document.getElementById('gitStatus');
+            
+            try {
+                if (status) status.innerText = `Criando ${fileName}...`;
+                
+                const response = await fetch('/api/git-file-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        file: fileName,
+                        content: code
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao criar');
+                }
+                
+                if (status) status.innerText = '';
+                alert(`✅ ${fileName} criado com sucesso!`);
+                console.log('✅ Novo arquivo validação criado');
+                
+                // Recarregar lista de arquivos
+                if (typeof loadGitFiles === 'function') {
+                    await loadGitFiles();
+                }
+                
+            } catch (error) {
+                if (status) status.innerText = '';
+                alert('❌ Erro ao criar: ' + error.message);
+                console.error('Erro ao criar validação:', error);
+            }
         }
         
         async function deployValidator() {

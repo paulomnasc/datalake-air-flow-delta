@@ -4,19 +4,23 @@ namespace App\Controllers;
 
 use Aws\S3\S3Client;
 use Aws\Exception\AwsException;
+use App\Helpers\SessionHelper;
 
 class GitServerController extends BaseController
 {
     private $s3Client;
     private $minioEndpoint;
-    private $minioBucket;
     private $tempClonePath = '/tmp/git-clone';
 
     public function __construct()
     {
+        // Garantir que sessão está inicializada
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
         // Configuração MinIO
         $this->minioEndpoint = getenv('MINIO_ENDPOINT') ?: 'http://minio:9000';
-        $this->minioBucket = getenv('MINIO_BUCKET') ?: 'lab01';
 
         // Inicializar S3 client para MinIO
         $this->s3Client = new S3Client([
@@ -43,17 +47,16 @@ class GitServerController extends BaseController
             return $this->response->setStatusCode(405)->setJSON(['error' => 'Method not allowed']);
         }
 
-        // Auth opcional no editor: permitir sem sessão
-
         $input = $this->request->getJSON();
+        $userBucket = $input->userBucket ?? null;
         $token = $input->token ?? null;
         $owner = $input->owner ?? null;
         $repo = $input->repo ?? null;
         $branch = $input->branch ?? 'main';
 
-        if (!$owner || !$repo) {
+        if (!$userBucket || !$owner || !$repo) {
             return $this->response->setStatusCode(400)->setJSON([
-                'error' => 'Missing required fields: owner, repo'
+                'error' => 'Missing required fields: userBucket, owner, repo'
             ]);
         }
 
@@ -98,6 +101,7 @@ class GitServerController extends BaseController
         }
 
         // Fazer upload de CADA arquivo para MinIO (hierarquia: scripts/{owner}/{repo})
+        // Bucket = userBucket (ex: admin-146)
         $s3Path = "scripts/{$owner}/{$repo}";
         $uploadedCount = 0;
         $uploadErrors = [];
@@ -108,7 +112,7 @@ class GitServerController extends BaseController
                 $s3Key = "{$s3Path}/{$relativePath}";
                 
                 $this->s3Client->putObject([
-                    'Bucket' => $this->minioBucket,
+                    'Bucket' => $userBucket,
                     'Key'    => $s3Key,
                     'Body'   => fopen($filePath, 'r'),
                     'ACL'    => 'private'
@@ -126,7 +130,7 @@ class GitServerController extends BaseController
             'success' => true,
             'filesCount' => count($files),
             'uploadedCount' => $uploadedCount,
-            's3Path' => "s3://{$this->minioBucket}/{$s3Path}",
+            's3Path' => "s3://{$userBucket}/{$s3Path}",
             'errors' => $uploadErrors ?: null
         ]);
     }
@@ -143,14 +147,13 @@ class GitServerController extends BaseController
             return $this->response->setStatusCode(405)->setJSON(['error' => 'Method not allowed']);
         }
 
-        // Auth opcional no editor: permitir sem sessão
-
+        $userBucket = $this->request->getGet('userBucket');
         $owner = $this->request->getGet('owner');
         $repo = $this->request->getGet('repo');
 
-        if (!$owner || !$repo) {
+        if (!$userBucket || !$owner || !$repo) {
             return $this->response->setStatusCode(400)->setJSON([
-                'error' => 'Missing required parameters: owner, repo'
+                'error' => 'Missing required parameters: userBucket, owner, repo'
             ]);
         }
         
@@ -159,7 +162,7 @@ class GitServerController extends BaseController
             
             // Listar objetos no MinIO
             $result = $this->s3Client->listObjectsV2([
-                'Bucket' => $this->minioBucket,
+                'Bucket' => $userBucket,
                 'Prefix' => $s3Path . '/'
             ]);
 
@@ -168,15 +171,21 @@ class GitServerController extends BaseController
                 foreach ($result['Contents'] as $object) {
                     $key = $object['Key'];
                     // Remover prefixo s3Path/ e .git files
-                        $relativePath = str_replace($s3Path . '/', '', $key);
+                    $relativePath = str_replace($s3Path . '/', '', $key);
                     
                     if (strpos($relativePath, '.git') === false && !empty($relativePath)) {
+                        $lastModified = $object['LastModified'] ?? null;
+                        if ($lastModified instanceof \DateTimeInterface) {
+                            $lastModified = $lastModified->format('c');
+                        } elseif (is_object($lastModified)) {
+                            $lastModified = null;
+                        }
                         $files[] = [
                             'name' => basename($relativePath),
                             'path' => $relativePath,
                             's3Key' => $key,
                             'size' => $object['Size'] ?? 0,
-                            'lastModified' => $object['LastModified'] ?? null
+                            'lastModified' => $lastModified
                         ];
                     }
                 }
@@ -186,13 +195,18 @@ class GitServerController extends BaseController
                 'success' => true,
                 'count' => count($files),
                 'files' => $files,
-                's3Path' => "s3://{$this->minioBucket}/{$s3Path}"
+                's3Path' => "s3://{$userBucket}/{$s3Path}",
+                'bucket' => $userBucket,
+                'userBucket' => $userBucket
             ]);
 
         } catch (AwsException $e) {
             return $this->response->setStatusCode(500)->setJSON([
                 'error' => 'Failed to list files from MinIO',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
+                'bucket' => $userBucket,
+                'userBucket' => $userBucket,
+                'prefix' => isset($s3Path) ? ($s3Path . '/') : null
             ]);
         }
     }
@@ -209,15 +223,14 @@ class GitServerController extends BaseController
             return $this->response->setStatusCode(405)->setJSON(['error' => 'Method not allowed']);
         }
 
-        // Auth opcional no editor: permitir sem sessão
-
+        $userBucket = $this->request->getGet('userBucket');
         $owner = $this->request->getGet('owner');
         $repo = $this->request->getGet('repo');
         $file = $this->request->getGet('file');
 
-        if (!$owner || !$repo || !$file) {
+        if (!$userBucket || !$owner || !$repo || !$file) {
             return $this->response->setStatusCode(400)->setJSON([
-                'error' => 'Missing required parameters: owner, repo, file'
+                'error' => 'Missing required parameters: userBucket, owner, repo, file'
             ]);
         }
 
@@ -233,7 +246,7 @@ class GitServerController extends BaseController
             
             // Obter objeto do MinIO
             $result = $this->s3Client->getObject([
-                'Bucket' => $this->minioBucket,
+                'Bucket' => $userBucket,
                 'Key'    => $s3Key
             ]);
 
@@ -267,17 +280,16 @@ class GitServerController extends BaseController
             return $this->response->setStatusCode(405)->setJSON(['error' => 'Method not allowed']);
         }
 
-        // Auth opcional no editor: permitir sem sessão
-
         $input = $this->request->getJSON();
+        $userBucket = $input->userBucket ?? null;
         $owner = $input->owner ?? null;
         $repo = $input->repo ?? null;
         $file = $input->file ?? null;
         $content = $input->content ?? null;
 
-        if (!$owner || !$repo || !$file || $content === null) {
+        if (!$userBucket || !$owner || !$repo || !$file || $content === null) {
             return $this->response->setStatusCode(400)->setJSON([
-                'error' => 'Missing required fields: owner, repo, file, content'
+                'error' => 'Missing required fields: userBucket, owner, repo, file, content'
             ]);
         }
 
@@ -293,7 +305,7 @@ class GitServerController extends BaseController
             
             // Fazer upload do arquivo atualizado
             $this->s3Client->putObject([
-                'Bucket' => $this->minioBucket,
+                'Bucket' => $userBucket,
                 'Key'    => $s3Key,
                 'Body'   => $content,
                 'ACL'    => 'private'
@@ -386,16 +398,15 @@ class GitServerController extends BaseController
             return $this->response->setStatusCode(405)->setJSON(['error' => 'Method not allowed']);
         }
 
-        // Auth opcional no editor: permitir sem sessão
-
         $input = $this->request->getJSON();
+        $userBucket = $input->userBucket ?? null;
         $owner = $input->owner ?? null;
         $repo = $input->repo ?? null;
         $file = $input->file ?? null;
 
-        if (!$owner || !$repo || !$file) {
+        if (!$userBucket || !$owner || !$repo || !$file) {
             return $this->response->setStatusCode(400)->setJSON([
-                'error' => 'Missing required fields: owner, repo, file'
+                'error' => 'Missing required fields: userBucket, owner, repo, file'
             ]);
         }
 
@@ -411,7 +422,7 @@ class GitServerController extends BaseController
             
             // Deletar objeto do MinIO
             $this->s3Client->deleteObject([
-                'Bucket' => $this->minioBucket,
+                'Bucket' => $userBucket,
                 'Key'    => $s3Key
             ]);
 
@@ -435,17 +446,16 @@ class GitServerController extends BaseController
      */
     public function gitPush()
     {
-        // Auth opcional no editor: permitir sem sessão
-
         $input = $this->request->getJSON();
+        $userBucket = $input->userBucket ?? null;
         $owner = $input->owner ?? null;
         $repo = $input->repo ?? null;
         $token = $input->token ?? null;
         $commitMsg = $input->commitMsg ?? 'Update files';
 
-        if (!$owner || !$repo || !$token) {
+        if (!$userBucket || !$owner || !$repo || !$token) {
             return $this->response->setStatusCode(400)->setJSON([
-                'error' => 'Missing required fields: owner, repo, token'
+                'error' => 'Missing required fields: userBucket, owner, repo, token'
             ]);
         }
 
@@ -473,7 +483,7 @@ class GitServerController extends BaseController
             $s3Prefix = "scripts/{$owner}/{$repo}/";
             
             $result = $this->s3Client->listObjectsV2([
-                'Bucket' => $this->minioBucket,
+                'Bucket' => $userBucket,
                 'Prefix' => $s3Prefix
             ]);
 
@@ -492,7 +502,7 @@ class GitServerController extends BaseController
                     
                     // Baixar conteúdo do MinIO
                     $s3Object = $this->s3Client->getObject([
-                        'Bucket' => $this->minioBucket,
+                        'Bucket' => $userBucket,
                         'Key'    => $s3Key
                     ]);
                     

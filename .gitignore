@@ -28,7 +28,7 @@ Thumbs.db
 
 # Ignorar arquivos pessoais de configuração do VSCode
 #.vscode/
-
+.env
 # Ignorar variáveis de ambiente (não versionar segredos)
 .env
 .env.*

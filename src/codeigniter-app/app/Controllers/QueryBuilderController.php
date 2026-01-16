@@ -92,6 +92,23 @@ class QueryBuilderController extends BaseController
             }
         }
         
+        // Validação: verificar se o arquivo S3 existe antes de enviar para DuckDB
+        // Procura por padrões de read_parquet('s3://...')
+        if (preg_match_all('/read_parquet\\s*\\(\\s*[\'"]?(s3:\\/\\/[^\'"\\)]+)[\'"\\)]/', $sql, $matches)) {
+            foreach ($matches[1] as $s3Path) {
+                // Validar se arquivo existe usando DuckDBHelper
+                $fileExists = DuckDBHelper::fileExists($s3Path);
+                if (!$fileExists) {
+                    return $this->response
+                        ->setStatusCode(404)
+                        ->setJSON([
+                            'success' => false,
+                            'error' => "Arquivo não encontrado: {$s3Path}"
+                        ]);
+                }
+            }
+        }
+        
         // Segurança: validações básicas
         $sql = $this->_sanitizeSql($sql);
         
@@ -100,31 +117,6 @@ class QueryBuilderController extends BaseController
         return $this->response->setJSON($result);
     }
     
-    /**
-     * Lista tabelas/views disponíveis
-     * 
-     * POST /query-builder/tables
-     */
-    public function listTables()
-    {
-        $tables = DuckDBHelper::listTables();
-        
-        return $this->response->setJSON([
-            'success' => true,
-            'tables' => $tables
-        ]);
-    }
-    
-    /**
-     * Obtém schema de um Parquet
-     * 
-     * POST /query-builder/schema
-     * 
-     * Body:
-     * {
-     *     "path": "s3://lab01/bronze/customers"
-     * }
-     */
     public function getSchema()
     {
         $path = trim($this->request->getJSON()->path ?? '');

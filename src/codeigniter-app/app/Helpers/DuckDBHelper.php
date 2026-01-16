@@ -43,10 +43,23 @@ class DuckDBHelper
                     'limit' => $limit
                 ],
                 'timeout' => 30,
+                'connect_timeout' => 5,
                 'http_errors' => false
             ]);
             
+            $statusCode = $response->getStatusCode();
             $body = json_decode($response->getBody(), true);
+            
+            // Se DuckDB retornou erro
+            if ($statusCode >= 400 || (isset($body['success']) && !$body['success'])) {
+                $errorMsg = $body['error'] ?? $body['message'] ?? "DuckDB error (HTTP {$statusCode})";
+                log_message('warning', "⚠️ DuckDB Query Warning: " . substr($sql, 0, 100) . " -> " . $errorMsg);
+                
+                return [
+                    'success' => false,
+                    'error' => $errorMsg
+                ];
+            }
             
             log_message('info', "✅ DuckDB Query Executed: " . substr($sql, 0, 100));
             
@@ -55,8 +68,16 @@ class DuckDBHelper
                 'error' => 'Invalid response from DuckDB API'
             ];
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             log_message('error', "❌ DuckDB Query Error: " . $e->getMessage());
+            
+            // Detectar timeouts
+            if (stripos($e->getMessage(), 'timeout') !== false || stripos($e->getMessage(), 'timed out') !== false) {
+                return [
+                    'success' => false,
+                    'error' => 'Query timeout: A requisição demorou muito ou o arquivo não é acessível. Verifique se o caminho S3 está correto.'
+                ];
+            }
             
             return [
                 'success' => false,
@@ -159,6 +180,39 @@ class DuckDBHelper
         } catch (\Exception $e) {
             log_message('error', "❌ DuckDB Get Schema Error: " . $e->getMessage());
             return [];
+        }
+    }
+    
+    /**
+     * Verifica se um arquivo existe no S3/MinIO
+     * 
+     * @param string $s3Path Caminho S3 (ex: s3://admin-146/bronze/arquivo.parquet)
+     * @return bool True se arquivo existe
+     */
+    public static function fileExists(string $s3Path): bool
+    {
+        try {
+            $client = \Config\Services::curlrequest();
+            
+            $response = $client->post(self::$duckdbApi . '/query', [
+                'json' => [
+                    'sql' => "SELECT COUNT(*) FROM read_parquet('{$s3Path}') LIMIT 1",
+                    'limit' => 1
+                ],
+                'timeout' => 10,
+                'connect_timeout' => 5,
+                'http_errors' => false
+            ]);
+            
+            $statusCode = $response->getStatusCode();
+            $body = json_decode($response->getBody(), true);
+            
+            // Se conseguiu ler o arquivo, ele existe
+            return ($statusCode === 200 && ($body['success'] ?? false));
+            
+        } catch (\Throwable $e) {
+            // Se houver erro, arquivo não existe ou não é acessível
+            return false;
         }
     }
     

@@ -5,6 +5,16 @@ if (! defined('VIEWPATH')) {
 require VIEWPATH . '/header.php';
 ?>
 
+<!-- ================================================ -->
+<!-- Git File Manager - Centralizado (reutilizável) -->
+<!-- ================================================ -->
+<script src="/assets/js/git-file-manager.js"></script>
+<script>
+    // Configurar para code-editor
+    gitConfigKey = 'gitConfig';
+    userBucket = '<?php echo $userBucket ?? 'lab01'; ?>';
+</script>
+
 <style>
         .code-editor-container {
             max-width: 100%;
@@ -59,8 +69,8 @@ require VIEWPATH . '/header.php';
         .editor-layout {
             display: flex;
             flex-direction: column;
-            min-height: 600px;
-            height: auto;
+            min-height: calc(100vh - 200px);
+            height: calc(100vh - 200px);
             width: 100%;
             position: relative;
         }
@@ -236,6 +246,8 @@ require VIEWPATH . '/header.php';
             display: flex;
             flex-direction: column;
             background: #fff;
+            flex: 1;
+            overflow: hidden;
         }
         
         .toolbar {
@@ -592,6 +604,10 @@ require VIEWPATH . '/header.php';
                         <div id="gitConnected" style="display: none;">
                             <div id="repoInfo" style="padding: 10px; background: #1e293b; border-radius: 6px; font-size: 11px; margin-bottom: 12px; color: #cbd5e1;"></div>
                             
+                            <!-- Mensagens de sucesso/erro -->
+                            <div id="git-success-message" class="alert alert-success" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px;"></div>
+                            <div id="git-error-message" class="alert alert-danger" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px;"></div>
+                            
                             <!-- Seção: Arquivo Atual -->
                             <div style="margin-bottom: 12px;">
                                 <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📝 Arquivo Atual</h3>
@@ -655,6 +671,9 @@ require VIEWPATH . '/header.php';
                     <button class="btn btn-secondary" onclick="clearEditor()">
                         🗑️ Limpar
                     </button>
+                    <button class="btn btn-secondary" id="downloadCsvBtn" onclick="downloadCSV()" disabled style="opacity: 0.5;">
+                        📄 Baixar CSV
+                    </button>
                     
                     <div class="limit-control">
                         <label>Limite:</label>
@@ -689,15 +708,11 @@ require VIEWPATH . '/header.php';
     
     <script>
         let editor;
-        const userBucket = '<?php echo esc($userBucket ?? 'user-1'); ?>';
+        // Reuse global userBucket from git-file-manager.js to avoid redeclaration
+        userBucket = '<?php echo esc($userBucket ?? 'user-1'); ?>';
+        let currentResults = null; // Armazenar resultados atuais para download CSV
         
-        // Toggle sidebar retrátil
-        function toggleEditorSidebar() {
-            const sidebar = document.getElementById('editorSidebar');
-            const overlay = document.getElementById('sidebarOverlayBg');
-            sidebar.classList.toggle('active');
-            overlay.classList.toggle('active');
-        }
+        // toggleEditorSidebar() agora é global via git-file-manager.js
         
         // Fechar sidebar ao clicar no overlay
         document.getElementById('sidebarOverlayBg').addEventListener('click', function() {
@@ -742,7 +757,11 @@ require VIEWPATH . '/header.php';
                     fileTree.innerHTML = '<div style="color: #94a3b8; font-size: 13px; padding: 8px;">Nenhum arquivo encontrado</div>';
                 }
             } catch (e) {
-                document.getElementById('fileTree').innerHTML = '<div style="color: #ef4444; font-size: 13px; padding: 8px;">Erro ao carregar arquivos</div>';
+                console.warn('⚠️ Erro ao carregar arquivos Parquet (não crítico):', e.message);
+                const fileTree = document.getElementById('fileTree');
+                if (fileTree) {
+                    fileTree.innerHTML = '<div style="color: #ef4444; font-size: 13px; padding: 8px;">Erro ao carregar arquivos</div>';
+                }
             }
         }
         
@@ -861,6 +880,14 @@ require VIEWPATH . '/header.php';
             toggleEditorSidebar(); // Fechar sidebar
         }
         
+        // ========================================
+        // VERSION CONTROL - CODE EDITOR SCRIPT
+        // v2.5.1 - Git Persistence Fix - 14/01/2026 19:15
+        // ========================================
+        console.log('🔧 CODE EDITOR SCRIPT v2.5.1 - Git Persistence Fix carregado');
+        console.log('⏱️ Timestamp:', new Date().toLocaleTimeString());
+        console.log('📦 localStorage.gitConfig inicial:', localStorage.getItem('gitConfig') ? '✅ EXISTE' : '❌ NULL');
+        
         // Suppress Chrome extension message errors - estes não afetam a funcionalidade
         window.addEventListener('unhandledrejection', function(event) {
             if (event.reason?.message?.includes('message channel closed')) {
@@ -869,9 +896,82 @@ require VIEWPATH . '/header.php';
             }
         });
         
+        // Rastrear limpeza de localStorage ao sair da página
+        window.addEventListener('beforeunload', function() {
+            const gitCfg = localStorage.getItem('gitConfig');
+            console.log('👋 beforeunload: localStorage.gitConfig existe?', gitCfg ? '✅ SIM' : '❌ NÃO');
+            if (gitCfg) console.log('   Conteúdo salvo:', JSON.parse(gitCfg).owner + '/' + JSON.parse(gitCfg).repo);
+        });
+        
+        // Função única para restaurar estado Git salvo no localStorage
+        function restoreGitFromStorage(trigger = 'unknown') {
+            try {
+                const stored = localStorage.getItem('gitConfig');
+                console.log(`🔍 restoreGitFromStorage(${trigger}) ->`, stored ? 'EXISTE' : 'NULL');
+                if (!stored) {
+                    console.warn(`⚠️ restoreGitFromStorage(${trigger}): gitConfig não encontrado no localStorage`);
+                    return;
+                }
+
+                const config = JSON.parse(stored);
+                if (!config || !config.owner) {
+                    console.warn(`⚠️ restoreGitFromStorage(${trigger}): config inválido`, config);
+                    return;
+                }
+
+                gitConfig = config;
+                window.gitConfig = config;
+                console.log(`✅ gitConfig restaurado (${trigger}):`, config);
+
+                const gitFileTree = document.getElementById('gitFileTree');
+                const gitConnected = document.getElementById('gitConnected');
+                const gitNotConnected = document.getElementById('gitNotConnected');
+                const repoInfo = document.getElementById('repoInfo');
+                const gitUserInput = document.getElementById('githubUsername');
+                const gitTokenInput = document.getElementById('githubToken');
+                const gitRepoInput = document.getElementById('repoURL');
+
+                if (gitNotConnected) gitNotConnected.style.display = 'none';
+                if (gitConnected) gitConnected.style.display = 'block';
+                if (repoInfo) repoInfo.innerHTML = `Conectado a <strong>${config.owner}/${config.repo}</strong>`;
+                if (gitUserInput) gitUserInput.value = config.username || config.owner || '';
+                if (gitTokenInput) gitTokenInput.value = config.token || '';
+                if (gitRepoInput) gitRepoInput.value = `${config.owner}/${config.repo}`;
+
+                // Carregar arquivos se árvore estiver vazia OU se trigger for SPA (switchSidebarTab)
+                if (gitFileTree) {
+                    const isEmpty = !gitFileTree.children || gitFileTree.children.length === 0;
+                    const isSpaNavigation = trigger === 'switchSidebarTab';
+                    if (isEmpty || isSpaNavigation) {
+                        console.log(`📂 Carregando arquivos Git (restore via ${trigger}, isEmpty=${isEmpty}, isSPA=${isSpaNavigation})...`);
+                        loadGitFiles();
+                    }
+                }
+            } catch (e) {
+                console.error(`❌ Erro em restoreGitFromStorage(${trigger}):`, e);
+            }
+        }
+
+        // Log imediato quando script carrega
+        console.log('⏱️ script DOMContentLoaded iniciado às', new Date().toLocaleTimeString());
+        
         // Carregar status ao iniciar
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('⏱️ DOMContentLoaded event disparado às', new Date().toLocaleTimeString());
             loadDuckDBStatus();
+            // Debug inicial
+            const saved = localStorage.getItem('gitConfig');
+            console.log('🔍 DOMContentLoaded - localStorage.gitConfig:', saved ? '✅ ENCONTRADO' : '❌ NULL');
+            if (saved) try { const cfg = JSON.parse(saved); console.log('   owner:', cfg.owner, 'repo:', cfg.repo); } catch(e) {}
+            // Tenta restauração imediata
+            restoreGitFromStorage('DOMContentLoaded');
+            // Fallback periódico curto para cenários em que DOM atrasar
+            let tries = 0;
+            const intervalId = setInterval(() => {
+                tries++;
+                restoreGitFromStorage(`interval-${tries}`);
+                if (tries >= 5) clearInterval(intervalId);
+            }, 800);
         });
         
         // Configurar Monaco Editor
@@ -1028,6 +1128,7 @@ LIMIT 10;`,
         // Exibir resultados
         function displayResults(result) {
             const resultsDiv = document.getElementById('results');
+            const csvBtn = document.getElementById('downloadCsvBtn');
             
             if (!result.data || result.data.length === 0) {
                 resultsDiv.innerHTML = `
@@ -1039,8 +1140,16 @@ LIMIT 10;`,
                         <p>Sem resultados</p>
                     </div>
                 `;
+                currentResults = null;
+                csvBtn.disabled = true;
+                csvBtn.style.opacity = '0.5';
                 return;
             }
+            
+            // Armazenar resultados para download CSV
+            currentResults = result;
+            csvBtn.disabled = false;
+            csvBtn.style.opacity = '1';
             
             const columns = result.columns || Object.keys(result.data[0]);
             const rowCount = result.data.length;
@@ -1079,11 +1188,17 @@ LIMIT 10;`,
         // Exibir erro
         function showError(message) {
             const resultsDiv = document.getElementById('results');
+            const csvBtn = document.getElementById('downloadCsvBtn');
+            
             resultsDiv.innerHTML = `
                 <div class="error-message">
                     ❌ <strong>Erro:</strong> ${message}
                 </div>
             `;
+            
+            currentResults = null;
+            csvBtn.disabled = true;
+            csvBtn.style.opacity = '0.5';
         }
         
         // Formatar SQL
@@ -1102,7 +1217,64 @@ LIMIT 10;`,
                         <p>Execute uma query para ver os resultados</p>
                     </div>
                 `;
+                
+                // Limpar resultados e desabilitar botão CSV
+                currentResults = null;
+                const csvBtn = document.getElementById('downloadCsvBtn');
+                if (csvBtn) {
+                    csvBtn.disabled = true;
+                    csvBtn.style.opacity = '0.5';
+                }
             }
+        }
+        
+        // Baixar resultados em CSV
+        function downloadCSV() {
+            if (!currentResults || !currentResults.data || currentResults.data.length === 0) {
+                alert('⚠️ Nenhum resultado disponível para download');
+                return;
+            }
+            
+            const columns = currentResults.columns || Object.keys(currentResults.data[0]);
+            const rows = currentResults.data;
+            
+            // Cabeçalho CSV
+            let csv = columns.map(col => `"${col}"`).join(',') + '\n';
+            
+            // Linhas de dados
+            rows.forEach(row => {
+                const values = columns.map(col => {
+                    const value = row[col];
+                    if (value === null || value === undefined) {
+                        return '';
+                    }
+                    // Escapar aspas duplas e envolver em aspas se houver vírgulas/quebras
+                    const stringValue = String(value).replace(/"/g, '""');
+                    if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
+                        return `"${stringValue}"`;
+                    }
+                    return stringValue;
+                });
+                csv += values.join(',') + '\n';
+            });
+            
+            // Criar blob e download
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            // Nome arquivo com timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const filename = `query_results_${timestamp}.csv`;
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log(`✅ CSV baixado: ${filename} (${rows.length} linhas)`);
         }
         
         // Inserir caminho do arquivo
@@ -1389,8 +1561,8 @@ ORDER BY departamento, rank;`
         }
 
         
-        let gitConfig = null;
-        let fs, pfs, git;
+        // gitConfig, pfs e git já estão declarados globalmente em git-file-manager.js
+        let fs; // Apenas fs é local para code-editor
         
         // Inicializar após carregamento bem-sucedido dos scripts
         function initGitAfterLoad() {
@@ -1399,17 +1571,6 @@ ORDER BY departamento, rank;`
             console.log('window.git:', typeof window.git);
             console.log('window.LightningFS:', typeof window.LightningFS);
             console.log('window.FS:', typeof window.FS);
-
-            // Restaurar gitConfig do localStorage para window (necessário para Authorization)
-            try {
-                const stored = localStorage.getItem('gitConfig');
-                if (stored) {
-                    gitConfig = JSON.parse(stored);
-                    window.gitConfig = gitConfig;
-                }
-            } catch (e) {
-                console.warn('Não foi possível restaurar gitConfig do localStorage', e);
-            }
             
             // isomorphic-git pode expor como 'git' ou exportar diretamente
             git = window.git;
@@ -1435,6 +1596,7 @@ ORDER BY departamento, rank;`
             initFS();
             
             console.log('✓ Git inicializado com sucesso');
+            restoreGitFromStorage('initGitAfterLoad');
         }
         
         function initFS() {
@@ -1466,16 +1628,10 @@ ORDER BY departamento, rank;`
             return typeof window.git !== 'undefined' && typeof window.LightningFS !== 'undefined';
         }
         
-        // Trocar abas da sidebar
-        function switchSidebarTab(tabName) {
-            document.querySelectorAll('.sidebar-tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.sidebar-tab-content').forEach(content => content.classList.remove('active'));
-            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-        }
+        // switchSidebarTab() agora é global via git-file-manager.js
         
         // Conectar e clonar o repositório
-        let connectAttempts = 0;
+        // connectAttempts já está declarado globalmente em git-file-manager.js
         async function connectGitHub() {
             const status = document.getElementById('gitStatus');
             
@@ -1515,7 +1671,9 @@ ORDER BY departamento, rank;`
             const [owner, repo] = repoURL.split('/');
             gitConfig = { owner, repo, token, username, branch: 'main' };
             window.gitConfig = gitConfig;
+            console.log('💾 Salvando gitConfig no localStorage:', gitConfig);
             localStorage.setItem('gitConfig', JSON.stringify(gitConfig));
+            console.log('✅ Salvo com sucesso. Verificando:', localStorage.getItem('gitConfig'));
             
             status.innerText = 'Clonando repositório...';
             
@@ -1563,7 +1721,12 @@ ORDER BY departamento, rank;`
                 const filesResult = await filesResponse.json();
                 console.log('✅ Arquivos carregados:', filesResult);
                 
-                // Clone bem-sucedido - atualizar UI PRIMEIRO
+                // Clone bem-sucedido - SALVAR gitConfig no localStorage IMEDIATAMENTE
+                console.log('💾 Salvando gitConfig no localStorage:', gitConfig);
+                localStorage.setItem('gitConfig', JSON.stringify(gitConfig));
+                console.log('✅ Salvo com sucesso. Verificando:', localStorage.getItem('gitConfig'));
+                
+                // Atualizar UI DEPOIS
                 status.innerText = '✓ Clone concluído com sucesso (persistido no MinIO)';
                 console.log('✓ Clone bem-sucedido via servidor (persistido no MinIO)');
                 
@@ -1607,13 +1770,21 @@ ORDER BY departamento, rank;`
         
         // Recarregar lista de arquivos do Git
         async function loadGitFiles() {
+            console.log('📂 loadGitFiles() chamado às', new Date().toLocaleTimeString());
+            console.log('   gitConfig:', gitConfig);
+            console.log('   userBucket:', userBucket);
+            
             if (!gitConfig) {
-                console.error('Git não configurado');
+                console.error('❌ Git não configurado');
                 return;
             }
             
             try {
+                console.log(`🌐 Buscando arquivos: /api/git-files?userBucket=${userBucket}&owner=${gitConfig.owner}&repo=${gitConfig.repo}`);
                 const response = await fetch(`/api/git-files?userBucket=${encodeURIComponent(userBucket)}&owner=${gitConfig.owner}&repo=${gitConfig.repo}`);
+                
+                console.log('✅ Resposta recebida. Status:', response.status);
+                
                 if (!response.ok) {
                     let errText = await response.text();
                     try {
@@ -1624,15 +1795,107 @@ ORDER BY departamento, rank;`
                 }
                 
                 const result = await response.json();
-                console.log('✅ Arquivos recarregados:', result);
+                console.log('✅ Arquivos recarregados. Quantidade:', result.files ? result.files.length : 0, 'Dados:', result);
                 
                 renderGitFileTree(result.files || []);
             } catch (error) {
-                console.error('Erro ao recarregar arquivos:', error);
+                console.error('❌ Erro ao recarregar arquivos:', error);
+                console.error('Stack:', error.stack);
             }
         }
         
         // Renderizar árvore de arquivos do Git
+        function buildGitFileTree(files) {
+            const root = { children: {}, isFile: false };
+            
+            files.forEach(file => {
+                const parts = file.path.split('/');
+                let current = root;
+                
+                parts.forEach((part, index) => {
+                    if (!part) return;
+                    
+                    if (!current.children[part]) {
+                        current.children[part] = {
+                            name: part,
+                            fullPath: file.path,
+                            isFile: index === parts.length - 1,
+                            fileData: file,
+                            children: {},
+                            expanded: index < 2
+                        };
+                    }
+                    current = current.children[part];
+                });
+            });
+            
+            return root;
+        }
+        
+        function renderGitTree(node, container, level = 0) {
+            const entries = Object.values(node.children).sort((a, b) => {
+                if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+                return a.name.localeCompare(b.name);
+            });
+            
+            entries.forEach(entry => {
+                const item = document.createElement('div');
+                
+                if (entry.isFile) {
+                    item.className = 'tree-item file';
+                    item.innerHTML = `
+                        <span class="icon">📄</span>
+                        <span class="label" title="${entry.name}">${entry.name}</span>
+                    `;
+                    item.onclick = () => loadGitFileContent(entry.fileData);
+                } else {
+                    const hasChildren = Object.keys(entry.children).length > 0;
+                    const childrenContainer = document.createElement('div');
+                    childrenContainer.className = `tree-children ${entry.expanded ? 'expanded' : ''}`;
+                    
+                    item.className = 'tree-item folder';
+                    item.innerHTML = `
+                        <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasChildren ? '▶' : ''}</span>
+                        <span class="icon">${entry.expanded ? '📂' : '📁'}</span>
+                        <span class="label" title="${entry.name}">${entry.name}</span>
+                    `;
+                    
+                    if (hasChildren) {
+                        item.onclick = (e) => {
+                            e.stopPropagation();
+                            toggleGitFolder(item, childrenContainer, entry);
+                        };
+                    }
+                    
+                    container.appendChild(item);
+                    
+                    if (hasChildren) {
+                        renderGitTree(entry, childrenContainer, level + 1);
+                        container.appendChild(childrenContainer);
+                    }
+                    return;
+                }
+                
+                container.appendChild(item);
+            });
+        }
+        
+        function toggleGitFolder(folderItem, childrenContainer, entry) {
+            const expandIcon = folderItem.querySelector('.expand-icon');
+            const icon = folderItem.querySelector('.icon');
+            const isExpanded = childrenContainer.classList.toggle('expanded');
+            
+            if (isExpanded) {
+                expandIcon.classList.add('expanded');
+                icon.textContent = '📂';
+                entry.expanded = true;
+            } else {
+                expandIcon.classList.remove('expanded');
+                icon.textContent = '📁';
+                entry.expanded = false;
+            }
+        }
+        
         function renderGitFileTree(files) {
             console.log('🔍 renderGitFileTree chamada com:', files);
             const gitFileTree = document.getElementById('gitFileTree');
@@ -1647,22 +1910,13 @@ ORDER BY departamento, rank;`
             
             if (!files || files.length === 0) {
                 console.warn('⚠️ Nenhum arquivo para renderizar');
-                gitFileTree.innerHTML = '<li style="color: #94a3b8; padding: 8px;">Nenhum arquivo</li>';
+                gitFileTree.innerHTML = '<div style="color: #94a3b8; font-size: 13px; padding: 8px;">Nenhum arquivo encontrado</div>';
                 return;
             }
             
             console.log(`✅ Renderizando ${files.length} arquivo(s)`);
-            files.forEach(file => {
-                const li = document.createElement('li');
-                li.className = 'tree-item file';
-                li.innerHTML = `
-                    <span class="icon">📄</span>
-                    <span class="label">${file.name}</span>
-                `;
-                li.onclick = () => loadGitFileContent(file);
-                gitFileTree.appendChild(li);
-                console.log(`  📄 Arquivo adicionado: ${file.name}`);
-            });
+            const tree = buildGitFileTree(files);
+            renderGitTree(tree, gitFileTree, 0);
             console.log('✅ Árvore de arquivos renderizada com sucesso');
         }
         
@@ -1756,16 +2010,37 @@ ORDER BY departamento, rank;`
                 }
                 
                 const result = await response.json();
-                status.innerText = `✓ ${currentGitFile.name} salvo com sucesso no MinIO`;
+                status.innerText = '';
                 console.log('✅ Arquivo salvo:', result);
                 
+                // Exibir mensagem de sucesso com fade
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${currentGitFile.name} salvo com sucesso no MinIO`;
+                successMsg.style.display = 'block';
                 setTimeout(() => {
-                    status.innerText = '';
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
                 }, 3000);
             } catch (error) {
-                status.innerText = 'Erro ao salvar: ' + error.message;
+                status.innerText = '';
                 console.error('Erro ao salvar arquivo:', error);
-                alert('Erro ao salvar: ' + error.message);
+                
+                // Exibir mensagem de erro com fade
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao salvar: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
             }
         }
         
@@ -1817,22 +2092,43 @@ ORDER BY departamento, rank;`
                 }
                 
                 const result = await response.json();
-                status.innerText = `✓ ${fileName} criado com sucesso`;
+                status.innerText = '';
                 console.log('✅ Arquivo criado:', result);
+                
+                // Exibir mensagem de sucesso com fade
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${fileName} criado com sucesso`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
                 
                 // Limpar input e recarregar lista de arquivos
                 document.getElementById('newFileName').value = '';
                 
                 // Recarregar lista de arquivos
                 await loadGitFiles();
-                
-                setTimeout(() => {
-                    status.innerText = '';
-                }, 3000);
             } catch (error) {
-                status.innerText = 'Erro ao criar: ' + error.message;
+                status.innerText = '';
                 console.error('Erro ao criar arquivo:', error);
-                alert('Erro ao criar: ' + error.message);
+                
+                // Exibir mensagem de erro com fade
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao criar: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
             }
         }
         
@@ -1869,8 +2165,21 @@ ORDER BY departamento, rank;`
                 }
                 
                 const result = await response.json();
-                status.innerText = `✓ ${currentGitFile.name} deletado com sucesso`;
+                status.innerText = '';
                 console.log('✅ Arquivo deletado:', result);
+                
+                // Exibir mensagem de sucesso com fade
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${currentGitFile.name} deletado com sucesso`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
                 
                 // Limpar editor e info
                 if (editor) {
@@ -1881,14 +2190,22 @@ ORDER BY departamento, rank;`
                 
                 // Recarregar lista de arquivos
                 await loadGitFiles();
-                
-                setTimeout(() => {
-                    status.innerText = '';
-                }, 3000);
             } catch (error) {
-                status.innerText = 'Erro ao deletar: ' + error.message;
+                status.innerText = '';
                 console.error('Erro ao deletar arquivo:', error);
-                alert('Erro ao deletar: ' + error.message);
+                
+                // Exibir mensagem de erro com fade
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao deletar: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
             }
         }
         
@@ -1988,19 +2305,8 @@ ORDER BY departamento, rank;`
         // Restaurar conexão ao carregar
         window.addEventListener('load', function() {
             const saved = localStorage.getItem('gitConfig');
-            if (saved) {
-                gitConfig = JSON.parse(saved);
-                if (!gitConfig.username) {
-                    gitConfig.username = gitConfig.owner || '';
-                    localStorage.setItem('gitConfig', JSON.stringify(gitConfig));
-                }
-                document.getElementById('gitNotConnected').style.display = 'none';
-                document.getElementById('gitConnected').style.display = 'block';
-                document.getElementById('repoInfo').innerHTML = `Conectado a <strong>${gitConfig.owner}/${gitConfig.repo}</strong>`;
-                document.getElementById('githubUsername').value = gitConfig.username || '';
-                document.getElementById('githubToken').value = gitConfig.token || '';
-                document.getElementById('repoURL').value = `${gitConfig.owner}/${gitConfig.repo}`;
-            }
+            console.log('🔍 window-load event - localStorage.gitConfig:', saved ? '✅ ENCONTRADO' : '❌ NULL');
+            restoreGitFromStorage('window-load');
         });
     </script>
 

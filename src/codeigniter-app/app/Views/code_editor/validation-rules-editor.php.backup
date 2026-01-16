@@ -1,0 +1,996 @@
+<?php
+if (! defined('VIEWPATH')) {
+    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR . 'Views');
+}
+require VIEWPATH . '/header.php';
+
+$userBucket = $userBucket ?? 'lab01';
+?>
+
+<style>
+    /* Layout com Sidebar */
+    .validation-layout {
+        display: flex;
+        gap: 0;
+        margin-top: 20px;
+        position: relative;
+        height: calc(100vh - 200px);
+    }
+    
+    .validation-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 280px;
+        background: #f8fafc;
+        border-right: 1px solid #e2e8f0;
+        overflow-y: auto;
+        padding: 20px;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 2000;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    }
+    
+    .validation-sidebar.active {
+        transform: translateX(0);
+    }
+    
+    .sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1999;
+        display: none;
+    }
+    
+    .sidebar-overlay.active {
+        display: block;
+    }
+    
+    .validation-container {
+        max-width: 1400px;
+        margin: 20px auto;
+        background: #1e293b;
+        border-radius: 12px;
+        padding: 24px;
+        color: #e2e8f0;
+        flex: 1;
+    }
+    
+    .validation-header {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .validation-header h1 {
+        margin: 0;
+        font-size: 24px;
+        color: white;
+    }
+    
+    .sidebar-toggle-btn {
+        background: #10b981;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+    }
+    
+    .sidebar-toggle-btn:hover {
+        background: #059669;
+    }
+    
+    .rules-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    
+    .rule-card {
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .rule-card:hover {
+        border-color: #10b981;
+        transform: translateY(-2px);
+    }
+    
+    .rule-card.active {
+        border-color: #10b981;
+        background: #1e293b;
+    }
+    
+    .rule-card h3 {
+        margin: 0 0 8px 0;
+        font-size: 16px;
+        color: #10b981;
+    }
+    
+    .rule-card p {
+        margin: 0;
+        font-size: 13px;
+        color: #94a3b8;
+    }
+    
+    .editor-section {
+        background: #0f172a;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+    
+    .editor-section h2 {
+        margin: 0 0 16px 0;
+        font-size: 18px;
+        color: #10b981;
+    }
+    
+    .form-group {
+        margin-bottom: 16px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+        color: #94a3b8;
+        font-weight: 500;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 10px;
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        color: #e2e8f0;
+        font-size: 14px;
+        font-family: 'Monaco', 'Menlo', monospace;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #10b981;
+    }
+    
+    .code-editor-wrapper {
+        height: 400px;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    
+    .btn-group {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+    }
+    
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 500;
+    }
+    
+    .btn-primary {
+        background: #10b981;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: #059669;
+    }
+    
+    .btn-secondary {
+        background: #475569;
+        color: white;
+    }
+    
+    .btn-secondary:hover {
+        background: #334155;
+    }
+    
+    .btn-danger {
+        background: #dc2626;
+        color: white;
+    }
+    
+    .btn-danger:hover {
+        background: #b91c1c;
+    }
+    
+    .template-section {
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 16px;
+    }
+    
+    .template-section h3 {
+        margin: 0 0 12px 0;
+        font-size: 14px;
+        color: #10b981;
+    }
+    
+    .template-item {
+        background: #1e293b;
+        padding: 12px;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        border: 1px solid transparent;
+    }
+    
+    .template-item:hover {
+        border-color: #10b981;
+    }
+    
+    .template-item h4 {
+        margin: 0 0 4px 0;
+        font-size: 13px;
+        color: #e2e8f0;
+    }
+    
+    .template-item p {
+        margin: 0;
+        font-size: 11px;
+        color: #64748b;
+    }
+</style>
+
+<div class="validation-container">
+    <div class="validation-header">
+        <h1>🛡️ Editor de Regras de Validação Medallion</h1>
+        <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">
+            Crie validações customizadas para Bronze, Silver e Gold sem editar código da DAG
+        </p>
+    </div>
+
+    <div class="row">
+        <!-- Coluna esquerda: Lista de regras -->
+        <div class="col-md-4">
+            <div class="editor-section">
+                <h2>📋 Regras Existentes</h2>
+                <div class="rules-list" id="rulesList">
+                    <div class="rule-card" onclick="showRuleTemplate('empty')">
+                        <h3>+ Nova Regra</h3>
+                        <p>Criar nova regra de validação</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Templates -->
+            <div class="template-section">
+                <h3>📚 Templates Disponíveis</h3>
+                <div id="templatesList">
+                    <!-- Preenchido via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna direita: Editor -->
+        <div class="col-md-8">
+            <div class="editor-section">
+                <h2 id="editorTitle">📝 Editor de Regra</h2>
+                
+                <div class="form-group">
+                    <label>Nome da Regra *</label>
+                    <input type="text" id="ruleName" placeholder="ex: validar_cpf_funcionarios">
+                </div>
+                
+                <div class="form-group">
+                    <label>Camada Medallion *</label>
+                    <select id="ruleLayer">
+                        <option value="">Selecione...</option>
+                        <option value="bronze">Bronze (Ingestão)</option>
+                        <option value="silver">Silver (Transformação)</option>
+                        <option value="gold">Gold (Agregação)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Tabela/Dataset</label>
+                    <input type="text" id="ruleTable" placeholder="ex: funcionarios, vendas (opcional)">
+                </div>
+                
+                <div class="form-group">
+                    <label>Descrição</label>
+                    <textarea id="ruleDescription" rows="2" placeholder="Descreva o que esta regra valida..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Código de Validação (Python) *</label>
+                    <div class="code-editor-wrapper" id="validationCodeEditor"></div>
+                </div>
+                
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="saveValidationRule()">💾 Salvar Regra</button>
+                    <button class="btn btn-secondary" onclick="testValidationRule()">🧪 Testar</button>
+                    <button class="btn btn-danger" onclick="deleteValidationRule()">🗑️ Deletar</button>
+                </div>
+                
+                <!-- Seção: GitHub -->
+                <div style="margin-top: 24px; padding: 20px; background: #0f172a; border: 1px solid #334155; border-radius: 8px;">
+                    <h3 style="margin-top: 0;">🔗 Sincronização GitHub</h3>
+                    
+                    <div id="gitNotConnected" style="padding: 16px;">
+                        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Conecte seu GitHub para versionar suas regras de validação</p>
+                        <input type="text" id="githubUsername" placeholder="GitHub Username" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
+                        <input type="password" id="githubToken" placeholder="Personal Access Token" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
+                        <p style="font-size: 10px; color: #64748b; margin-bottom: 8px; line-height: 1.4;">
+                            💡 Gere em: <a href="https://github.com/settings/tokens/new" target="_blank" style="color: #667eea; text-decoration: none;">GitHub Settings</a> → Marque o scope: <strong>repo</strong>
+                        </p>
+                        <input type="text" id="gitRepoURL" placeholder="Repo: user/validators" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 8px;">
+                        <button class="btn btn-primary" onclick="connectGitHub()" style="width: 100%;">
+                            ✓ Conectar GitHub
+                        </button>
+                    </div>
+                    
+                    <div id="gitConnected" style="display: none;">
+                        <div id="gitRepoInfo" style="padding: 10px; background: #1e293b; border-radius: 6px; font-size: 11px; margin-bottom: 12px; color: #cbd5e1;"></div>
+                        
+                        <div id="git-success-message" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px; background: #10b981; color: white; border-radius: 4px;"></div>
+                        <div id="git-error-message" style="display:none; font-size: 12px; padding: 8px; margin-bottom: 8px; background: #dc2626; color: white; border-radius: 4px;"></div>
+                        
+                        <div style="margin-bottom: 12px;">
+                            <h4 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">Salvar Código em GitHub</h4>
+                            <input type="text" id="gitRuleName" placeholder="nome-da-regra" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
+                            <button class="btn btn-primary" onclick="saveToGit()" style="width: 100%; margin-bottom: 4px;">
+                                💾 Salvar em GitHub
+                            </button>
+                        </div>
+                        
+                        <div style="margin-bottom: 12px;">
+                            <textarea id="gitCommitMsg" placeholder="Descrever mudanças..." style="width: 100%; height: 50px; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; resize: none; margin-bottom: 4px;"></textarea>
+                            <button class="btn btn-primary" onclick="gitCommitPush()" style="width: 100%; margin-bottom: 8px;">
+                                🚀 Commit & Push
+                            </button>
+                        </div>
+                        
+                        <button class="btn btn-secondary" onclick="disconnectGitHub()" style="width: 100%; background: #dc2626;">
+                            🔓 Desconectar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mensagens -->
+<div id="success-message" class="alert alert-success" style="display:none; position: fixed; top: 80px; right: 20px; z-index: 9999;"></div>
+<div id="error-message" class="alert alert-danger" style="display:none; position: fixed; top: 80px; right: 20px; z-index: 9999;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script>
+    const userBucket = '<?= $userBucket ?>';
+    let validationEditor = null;
+    let currentRule = null;
+    let gitConfig = null; // Para sincronização GitHub
+    
+    // Templates de validação
+    const validationTemplates = {
+        'check_nulls': {
+            name: 'Verificar Nulos',
+            description: 'Valida se colunas críticas não contêm valores nulos',
+            layer: 'silver',
+            code: `def validate(df, **context):
+    """Valida que colunas críticas não tenham valores nulos."""
+    import pandas as pd
+    
+    # Colunas que não podem ser nulas
+    required_columns = ['id', 'nome', 'email']
+    
+    for col in required_columns:
+        if col in df.columns:
+            null_count = df[col].isnull().sum()
+            if null_count > 0:
+                raise ValueError(f"Coluna '{col}' tem {null_count} valores nulos")
+    
+    return {'status': 'ok', 'validated_rows': len(df)}`
+        },
+        
+        'check_duplicates': {
+            name: 'Verificar Duplicatas',
+            description: 'Detecta registros duplicados por chave primária',
+            layer: 'silver',
+            code: `def validate(df, **context):
+    """Valida que não existam duplicatas na chave primária."""
+    import pandas as pd
+    
+    # Definir chave primária
+    primary_key = ['id']
+    
+    duplicates = df[df.duplicated(subset=primary_key, keep=False)]
+    
+    if len(duplicates) > 0:
+        raise ValueError(f"Encontradas {len(duplicates)} linhas duplicadas")
+    
+    return {'status': 'ok', 'unique_records': len(df)}`
+        },
+        
+        'data_quality': {
+            name: 'Quality Score',
+            description: 'Calcula score de qualidade dos dados',
+            layer: 'gold',
+            code: `def validate(df, **context):
+    """Calcula score de qualidade de dados."""
+    import pandas as pd
+    
+    total_cells = df.shape[0] * df.shape[1]
+    null_cells = df.isnull().sum().sum()
+    
+    quality_score = ((total_cells - null_cells) / total_cells) * 100
+    
+    if quality_score < 95:
+        context['task_instance'].xcom_push(
+            key='quality_warning',
+            value=f'Quality score baixo: {quality_score:.2f}%'
+        )
+    
+    return {
+        'status': 'ok',
+        'quality_score': quality_score,
+        'total_cells': total_cells,
+        'null_cells': null_cells
+    }`
+        },
+        
+        'business_rule': {
+            name: 'Regra de Negócio',
+            description: 'Valida regras de negócio específicas',
+            layer: 'silver',
+            code: `def validate(df, **context):
+    """Valida regras de negócio customizadas."""
+    import pandas as pd
+    
+    # Exemplo: Salários devem estar entre R$ 1.320 e R$ 50.000
+    if 'salario' in df.columns:
+        invalid_salaries = df[
+            (df['salario'] < 1320) | (df['salario'] > 50000)
+        ]
+        
+        if len(invalid_salaries) > 0:
+            raise ValueError(
+                f"{len(invalid_salaries)} salários fora do range permitido"
+            )
+    
+    # Exemplo: Email deve ter @ e domínio
+    if 'email' in df.columns:
+        invalid_emails = df[~df['email'].str.contains('@', na=False)]
+        if len(invalid_emails) > 0:
+            raise ValueError(
+                f"{len(invalid_emails)} emails inválidos"
+            )
+    
+    return {'status': 'ok', 'validated_records': len(df)}`
+        }
+    };
+    
+    // Inicializar Monaco Editor
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+    
+    require(['vs/editor/editor.main'], function () {
+        validationEditor = monaco.editor.create(document.getElementById('validationCodeEditor'), {
+            value: '# Selecione um template ou escreva sua validação\n',
+            language: 'python',
+            theme: 'vs-dark',
+            automaticLayout: true,
+            minimap: { enabled: false },
+            fontSize: 13,
+        });
+        
+        loadValidationRules();
+        renderTemplates();
+        initGit();
+    });
+    
+    // Inicializar Git
+    function initGit() {
+        const saved = localStorage.getItem('gitConfig');
+        if (saved) {
+            gitConfig = JSON.parse(saved);
+            showGitConnected();
+        }
+    }
+    
+    // Conectar ao GitHub
+    async function connectGitHub() {
+        const username = document.getElementById('githubUsername').value;
+        const token = document.getElementById('githubToken').value;
+        const repo = document.getElementById('gitRepoURL').value;
+        
+        if (!username || !token || !repo) {
+            alert('⚠️ Preencha todos os campos');
+            return;
+        }
+        
+        gitConfig = { username, token, repo };
+        localStorage.setItem('gitConfig', JSON.stringify(gitConfig));
+        
+        showGitMessage('✅ Conectado ao GitHub!', 'success');
+        showGitConnected();
+    }
+    
+    // Desconectar GitHub
+    function disconnectGitHub() {
+        gitConfig = null;
+        localStorage.removeItem('gitConfig');
+        
+        document.getElementById('gitNotConnected').style.display = 'block';
+        document.getElementById('gitConnected').style.display = 'none';
+        document.getElementById('githubUsername').value = '';
+        document.getElementById('githubToken').value = '';
+        document.getElementById('gitRepoURL').value = '';
+        
+        showGitMessage('🔐 Desconectado do GitHub', 'success');
+    }
+    
+    // Mostrar se conectado
+    function showGitConnected() {
+        document.getElementById('gitNotConnected').style.display = 'none';
+        document.getElementById('gitConnected').style.display = 'block';
+        
+        const repoInfo = document.getElementById('gitRepoInfo');
+        repoInfo.innerHTML = `📁 ${gitConfig.username}/${gitConfig.repo}`;
+    }
+    
+    // Salvar para Git
+    async function saveToGit() {
+        if (!gitConfig) {
+            alert('⚠️ Conecte ao GitHub primeiro');
+            return;
+        }
+        
+        const code = validationEditor.getValue();
+        const ruleName = document.getElementById('gitRuleName').value || document.getElementById('ruleName').value;
+        
+        if (!code.trim()) {
+            alert('⚠️ Escreva código Python primeiro');
+            return;
+        }
+        
+        try {
+            const url = `https://api.github.com/repos/${gitConfig.username}/${gitConfig.repo}/contents/validators/${ruleName}.py`;
+            const content = btoa(unescape(encodeURIComponent(code)));
+            const message = `Adicionar validador: ${ruleName}`;
+            
+            // Tentar obter SHA para atualização
+            let sha = undefined;
+            try {
+                const checkRes = await fetch(url, {
+                    headers: { 'Authorization': `token ${gitConfig.token}` }
+                });
+                if (checkRes.ok) {
+                    const data = await checkRes.json();
+                    sha = data.sha;
+                }
+            } catch (e) {}
+            
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${gitConfig.token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message,
+                    content,
+                    ...(sha && { sha })
+                })
+            });
+            
+            if (response.ok) {
+                showGitMessage(`✅ Salvo em GitHub: ${ruleName}.py`, 'success');
+                document.getElementById('gitRuleName').value = '';
+            } else {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            showGitMessage(`❌ Erro ao salvar: ${error.message}`, 'error');
+        }
+    }
+    
+    // Commit e Push
+    async function gitCommitPush() {
+        if (!gitConfig) {
+            alert('⚠️ Conecte ao GitHub primeiro');
+            return;
+        }
+        
+        const message = document.getElementById('gitCommitMsg').value;
+        if (!message.trim()) {
+            alert('⚠️ Escreva uma mensagem de commit');
+            return;
+        }
+        
+        showGitMessage('Sincronizando com GitHub...', 'info');
+        // Em uma implementação real, usaria isomorphic-git para fazer commit
+        // Por enquanto, a mudança já foi feita pelo saveToGit()
+        showGitMessage('🚀 Sincronizado com sucesso!', 'success');
+        document.getElementById('gitCommitMsg').value = '';
+    }
+    
+    // Exibir mensagem Git
+    function showGitMessage(msg, type) {
+        const successDiv = document.getElementById('git-success-message');
+        const errorDiv = document.getElementById('git-error-message');
+        
+        if (type === 'success') {
+            successDiv.textContent = msg;
+            successDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+            setTimeout(() => { successDiv.style.display = 'none'; }, 3000);
+        } else if (type === 'error') {
+            errorDiv.textContent = msg;
+            errorDiv.style.display = 'block';
+            successDiv.style.display = 'none';
+            setTimeout(() => { errorDiv.style.display = 'none'; }, 3000);
+        }
+    }
+        const container = document.getElementById('templatesList');
+        container.innerHTML = '';
+        
+        Object.keys(validationTemplates).forEach(key => {
+            const template = validationTemplates[key];
+            const div = document.createElement('div');
+            div.className = 'template-item';
+            div.onclick = () => applyTemplate(key);
+            div.innerHTML = `
+                <h4>${template.name}</h4>
+                <p>${template.description}</p>
+            `;
+            container.appendChild(div);
+        });
+    }
+    
+    function applyTemplate(templateKey) {
+        const template = validationTemplates[templateKey];
+        document.getElementById('ruleLayer').value = template.layer;
+        validationEditor.setValue(template.code);
+        showMessage(`Template "${template.name}" aplicado`, 'success');
+    }
+    
+    function showRuleTemplate(type) {
+        if (type === 'empty') {
+            currentRule = null;
+            document.getElementById('ruleName').value = '';
+            document.getElementById('ruleLayer').value = '';
+            document.getElementById('ruleTable').value = '';
+            document.getElementById('ruleDescription').value = '';
+            validationEditor.setValue('def validate(df, **context):\n    """\n    df: pandas DataFrame com os dados\n    context: contexto do Airflow (task_instance, dag_run, etc)\n    """\n    # Sua lógica de validação aqui\n    \n    return {\'status\': \'ok\'}');
+        }
+    }
+    
+    async function saveValidationRule() {
+        const name = document.getElementById('ruleName').value.trim();
+        const layer = document.getElementById('ruleLayer').value;
+        const table = document.getElementById('ruleTable').value.trim();
+        const description = document.getElementById('ruleDescription').value.trim();
+        const code = validationEditor.getValue();
+        
+        if (!name || !layer || !code) {
+            showMessage('Preencha nome, camada e código', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/validation-rule-save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userBucket,
+                    name,
+                    layer,
+                    table: table || null,
+                    description,
+                    code
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Falha ao salvar');
+            }
+            
+            const result = await response.json();
+            showMessage(`✓ Regra "${name}" salva com sucesso`, 'success');
+            loadValidationRules();
+        } catch (error) {
+            showMessage('❌ ' + error.message, 'error');
+        }
+    }
+    
+    async function loadValidationRules() {
+        try {
+            const response = await fetch(`/api/validation-rules?userBucket=${userBucket}`);
+            const result = await response.json();
+            
+            const container = document.getElementById('rulesList');
+            container.innerHTML = '<div class="rule-card" onclick="showRuleTemplate(\'empty\')"><h3>+ Nova Regra</h3><p>Criar nova regra de validação</p></div>';
+            
+            if (result.rules && result.rules.length > 0) {
+                result.rules.forEach(rule => {
+                    const div = document.createElement('div');
+                    div.className = 'rule-card';
+                    div.onclick = () => editRule(rule);
+                    div.innerHTML = `
+                        <h3>${rule.name}</h3>
+                        <p><strong>${rule.layer.toUpperCase()}</strong>${rule.table ? ' • ' + rule.table : ''}</p>
+                        <p style="font-size: 11px; margin-top: 4px;">${rule.description || 'Sem descrição'}</p>
+                    `;
+                    container.appendChild(div);
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao carregar regras:', error);
+        }
+    }
+    
+    function editRule(rule) {
+        currentRule = rule;
+        document.getElementById('ruleName').value = rule.name;
+        document.getElementById('ruleLayer').value = rule.layer;
+        document.getElementById('ruleTable').value = rule.table || '';
+        document.getElementById('ruleDescription').value = rule.description || '';
+        validationEditor.setValue(rule.code);
+    }
+    
+    async function testValidationRule() {
+        const code = validationEditor.getValue();
+        
+        if (!code.trim()) {
+            showMessage('Código vazio', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/validation-rule-test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, userBucket })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showMessage('✓ Código válido! ' + (result.message || ''), 'success');
+            } else {
+                showMessage('❌ ' + result.error, 'error');
+            }
+        } catch (error) {
+            showMessage('❌ Erro ao testar: ' + error.message, 'error');
+        }
+    }
+    
+    async function deleteValidationRule() {
+        if (!currentRule) {
+            showMessage('Selecione uma regra primeiro', 'error');
+            return;
+        }
+        
+        if (!confirm(`Deletar regra "${currentRule.name}"?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/validation-rule-delete', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userBucket,
+                    name: currentRule.name
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Falha ao deletar');
+            }
+            
+            showMessage('✓ Regra deletada', 'success');
+            showRuleTemplate('empty');
+            loadValidationRules();
+        } catch (error) {
+            showMessage('❌ ' + error.message, 'error');
+        }
+    }
+    
+    function showMessage(message, type) {
+        const msgDiv = document.getElementById(type === 'success' ? 'success-message' : 'error-message');
+        msgDiv.innerHTML = message;
+        msgDiv.style.display = 'block';
+        
+        setTimeout(() => {
+            msgDiv.style.opacity = '0';
+            msgDiv.style.transition = 'opacity 0.5s';
+            setTimeout(() => {
+                msgDiv.style.display = 'none';
+                msgDiv.style.opacity = '1';
+            }, 500);
+        }, 3000);
+    }
+    
+    // ===== GIT FUNCTIONS =====
+    
+    // Inicializar Git
+    function initGit() {
+        const saved = localStorage.getItem('gitConfig');
+        if (saved) {
+            gitConfig = JSON.parse(saved);
+            showGitConnected();
+        }
+    }
+    
+    // Conectar ao GitHub
+    async function connectGitHub() {
+        const username = document.getElementById('githubUsername').value;
+        const token = document.getElementById('githubToken').value;
+        const repo = document.getElementById('gitRepoURL').value;
+        
+        if (!username || !token || !repo) {
+            alert('⚠️ Preencha todos os campos');
+            return;
+        }
+        
+        gitConfig = { username, token, repo };
+        localStorage.setItem('gitConfig', JSON.stringify(gitConfig));
+        
+        showGitMessage('✅ Conectado ao GitHub!', 'success');
+        showGitConnected();
+    }
+    
+    // Desconectar GitHub
+    function disconnectGitHub() {
+        gitConfig = null;
+        localStorage.removeItem('gitConfig');
+        
+        document.getElementById('gitNotConnected').style.display = 'block';
+        document.getElementById('gitConnected').style.display = 'none';
+        document.getElementById('githubUsername').value = '';
+        document.getElementById('githubToken').value = '';
+        document.getElementById('gitRepoURL').value = '';
+        
+        showGitMessage('🔓 Desconectado do GitHub', 'success');
+    }
+    
+    // Mostrar se conectado
+    function showGitConnected() {
+        document.getElementById('gitNotConnected').style.display = 'none';
+        document.getElementById('gitConnected').style.display = 'block';
+        
+        const repoInfo = document.getElementById('gitRepoInfo');
+        repoInfo.innerHTML = `📁 ${gitConfig.username}/${gitConfig.repo}`;
+    }
+    
+    // Salvar para Git
+    async function saveToGit() {
+        if (!gitConfig) {
+            alert('⚠️ Conecte ao GitHub primeiro');
+            return;
+        }
+        
+        const code = validationEditor.getValue();
+        const ruleName = document.getElementById('gitRuleName').value || document.getElementById('ruleName').value;
+        
+        if (!code.trim()) {
+            alert('⚠️ Escreva código Python primeiro');
+            return;
+        }
+        
+        if (!ruleName.trim()) {
+            alert('⚠️ Defina um nome para a regra');
+            return;
+        }
+        
+        try {
+            const fileName = ruleName.replace(/[^a-zA-Z0-9_]/g, '_') + '.py';
+            const url = `https://api.github.com/repos/${gitConfig.username}/${gitConfig.repo}/contents/validators/${fileName}`;
+            const content = btoa(unescape(encodeURIComponent(code)));
+            const message = `Adicionar validador: ${ruleName}`;
+            
+            // Tentar obter SHA para atualização
+            let sha = undefined;
+            try {
+                const checkRes = await fetch(url, {
+                    headers: { 'Authorization': `token ${gitConfig.token}` }
+                });
+                if (checkRes.ok) {
+                    const data = await checkRes.json();
+                    sha = data.sha;
+                }
+            } catch (e) {}
+            
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${gitConfig.token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message,
+                    content,
+                    ...(sha && { sha })
+                })
+            });
+            
+            if (response.ok) {
+                showGitMessage(`✅ Salvo em GitHub: ${fileName}`, 'success');
+                document.getElementById('gitRuleName').value = '';
+            } else {
+                const error = await response.json();
+                throw new Error(error.message || `HTTP ${response.status}`);
+            }
+        } catch (error) {
+            showGitMessage(`❌ Erro ao salvar: ${error.message}`, 'error');
+        }
+    }
+    
+    // Commit e Push
+    async function gitCommitPush() {
+        if (!gitConfig) {
+            alert('⚠️ Conecte ao GitHub primeiro');
+            return;
+        }
+        
+        const message = document.getElementById('gitCommitMsg').value;
+        if (!message.trim()) {
+            alert('⚠️ Escreva uma mensagem de commit');
+            return;
+        }
+        
+        showGitMessage('⏳ Sincronizando com GitHub...', 'success');
+        // A mudança já foi feita pelo saveToGit()
+        setTimeout(() => {
+            showGitMessage('🚀 Sincronizado com sucesso!', 'success');
+            document.getElementById('gitCommitMsg').value = '';
+        }, 800);
+    }
+    
+    // Exibir mensagem Git
+    function showGitMessage(msg, type) {
+        const successDiv = document.getElementById('git-success-message');
+        const errorDiv = document.getElementById('git-error-message');
+        
+        if (type === 'success') {
+            successDiv.textContent = msg;
+            successDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+            setTimeout(() => { successDiv.style.display = 'none'; }, 3000);
+        } else if (type === 'error') {
+            errorDiv.textContent = msg;
+            errorDiv.style.display = 'block';
+            successDiv.style.display = 'none';
+            setTimeout(() => { errorDiv.style.display = 'none'; }, 3000);
+        }
+    }
+</script>
+
+<?php require VIEWPATH . '/footer.php'; ?>

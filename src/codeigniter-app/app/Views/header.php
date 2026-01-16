@@ -587,8 +587,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->
                             <!-- ?php endif; ?-->
                             <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): ?>
-                                <a class="dropdown-item" href="<?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a>
-                                <a class="dropdown-item" href="<?= base_url('code-editor') ?>">💻 Code Editor</a>
+                                <!-- a class="dropdown-item" href="<! ?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a-->
+                                <a class="dropdown-item" href="<?= base_url('code-editor') ?>">💻 Code Editor SQL</a>
+                                <a class="dropdown-item" href="<?= base_url('validation-rules-editor') ?>">🛡️ Validações Customizadas</a>
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>

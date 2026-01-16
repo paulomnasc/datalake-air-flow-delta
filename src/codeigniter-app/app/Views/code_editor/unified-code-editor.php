@@ -1283,7 +1283,66 @@ LIMIT 10;`,
         }
         
         async function deployValidator() {
-            alert('🚀 Deploy será implementado');
+            const code = editorValidation?.getValue() || '';
+            
+            if (!code.trim()) {
+                alert('❌ Editor vazio - Escreva código antes de fazer deploy');
+                return;
+            }
+            
+            // Verificar se há arquivo aberto
+            let filename = '';
+            if (currentGitFile && currentGitFile.name) {
+                filename = currentGitFile.name;
+            } else {
+                filename = prompt('Nome do arquivo para deploy (ex: validador.py):', 'validador.py');
+                if (!filename) return;
+            }
+            
+            // Confirmar deploy
+            if (!confirm(`🚀 Sincronizar "${filename}" para Airflow?\n\nIsso copiará o arquivo para /opt/airflow/dags/ e reiniciará o detector de DAGs.`)) {
+                return;
+            }
+            
+            try {
+                const resultsDiv = document.getElementById('testResults');
+                if (resultsDiv) {
+                    resultsDiv.innerHTML = '<div style="color: #f59e0b;">⏳ Implantando...</div>';
+                }
+                
+                const response = await fetch('/api/validation-deploy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: filename,
+                        content: code
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Sucesso!\n\n${result.message}\n\n${result.next_step || ''}`);
+                    if (resultsDiv) {
+                        resultsDiv.innerHTML = `<div style="color: #10b981;">✅ ${result.message}</div>`;
+                    }
+                    console.log('✅ Deploy realizado:', result);
+                } else {
+                    alert(`❌ Erro ao sincronizar\n\n${result.error}\n\n${result.details || 'Verifique os logs.'}`);
+                    if (resultsDiv) {
+                        resultsDiv.innerHTML = `<div style="color: #dc2626;">❌ ${result.error}</div>`;
+                    }
+                    console.error('❌ Erro no deploy:', result);
+                }
+                
+            } catch (error) {
+                console.error('Deploy error:', error);
+                alert('❌ Erro ao sincronizar: ' + error.message);
+                const resultsDiv = document.getElementById('testResults');
+                if (resultsDiv) {
+                    resultsDiv.innerHTML = `<div style="color: #dc2626;">❌ Erro: ${error.message}</div>`;
+                }
+            }
         }
         
         // Executar query

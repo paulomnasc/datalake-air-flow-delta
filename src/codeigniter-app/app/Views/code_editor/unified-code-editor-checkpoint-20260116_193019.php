@@ -551,18 +551,6 @@ require VIEWPATH . '/header.php';
             
             <!-- Main Editor Area -->
             <main class="main-editor">
-                <!-- Tab Navigation -->
-                <div class="editor-tabs" style="display: flex; gap: 4px; padding: 12px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                    <button class="editor-tab active" onclick="switchMainTab('sql')" data-tab="sql" style="flex: 0 1 auto; padding: 10px 20px; border: 1px solid #cbd5e1; background: #667eea; color: white; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
-                        💻 SQL Editor
-                    </button>
-                    <button class="editor-tab" onclick="switchMainTab('validation')" data-tab="validation" style="flex: 0 1 auto; padding: 10px 20px; border: 1px solid #cbd5e1; background: #e2e8f0; color: #475569; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
-                        🛡️ Validações
-                    </button>
-                </div>
-
-                <!-- SQL TAB PANEL -->
-                <div id="sql-panel" class="tab-panel active" style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
                 <div class="toolbar">
                     <button class="sidebar-toggle-btn" onclick="toggleEditorSidebar()">
                         📁 Arquivos
@@ -600,48 +588,6 @@ require VIEWPATH . '/header.php';
                 <div class="results-section">
                     <div id="results"></div>
                 </div>
-                </div>
-                <!-- FIM SQL TAB PANEL -->
-
-                <!-- VALIDATION TAB PANEL -->
-                <div id="validation-panel" class="tab-panel" style="display: none; flex-direction: column; flex: 1; overflow: hidden;">
-                    <div class="toolbar">
-                        <button class="sidebar-toggle-btn" onclick="toggleEditorSidebar()">
-                            📁 GitHub
-                        </button>
-                        <button class="btn btn-primary" onclick="testValidation()">
-                            ▶️ Testar
-                        </button>
-                        <button class="btn btn-primary" onclick="saveValidation()">
-                            💾 Salvar
-                        </button>
-                        <button class="btn btn-success" onclick="deployValidator()" style="background: #10b981;">
-                            🚀 Deploy
-                        </button>
-                    </div>
-
-                    <div style="display: flex; gap: 0; flex: 1; overflow: hidden;">
-                        <div style="flex: 0 0 300px; border-right: 1px solid #e2e8f0; overflow-y: auto; padding: 16px; background: #f8fafc;">
-                            <h2 style="margin: 0 0 16px 0; font-size: 18px;">📚 Templates</h2>
-                            <div id="templatesList"></div>
-                        </div>
-
-                        <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-                            <div style="padding: 16px; border-bottom: 1px solid #e2e8f0;">
-                                <h2 style="margin-bottom: 12px; font-size: 18px;">✏️ Editor Python</h2>
-                                <div id="editor-validation" style="height: 400px; border: 1px solid #e2e8f0; border-radius: 6px;"></div>
-                            </div>
-                            
-                            <div style="padding: 16px; background: #f8fafc; flex: 1; overflow: auto;">
-                                <h2 style="margin-bottom: 12px; font-size: 18px;">📊 Resultado</h2>
-                                <div id="testResults" style="padding: 16px; background: #fff; border-radius: 6px; min-height: 100px; font-size: 12px; color: #64748b;">
-                                    Teste uma validação para ver os resultados
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- FIM VALIDATION TAB PANEL -->
             </main>
         </div>
         </div>
@@ -655,36 +601,9 @@ require VIEWPATH . '/header.php';
     
     <script>
         let editor;
-        let editorValidation;
-        let currentTab = 'sql';
         // Reuse global userBucket from git-file-manager.js to avoid redeclaration
         userBucket = '<?php echo esc($userBucket ?? 'user-1'); ?>';
-        let currentResults = null;
-        
-        // Switch between tabs
-        function switchMainTab(tab) {
-            currentTab = tab;
-            
-            // Update buttons
-            document.querySelectorAll('.editor-tab').forEach(btn => {
-                if (btn.dataset.tab === tab) {
-                    btn.style.background = tab === 'sql' ? '#667eea' : '#10b981';
-                    btn.style.color = 'white';
-                } else {
-                    btn.style.background = '#e2e8f0';
-                    btn.style.color = '#475569';
-                }
-            });
-            
-            // Update panels
-            document.getElementById('sql-panel').style.display = tab === 'sql' ? 'flex' : 'none';
-            document.getElementById('validation-panel').style.display = tab === 'validation' ? 'flex' : 'none';
-            
-            // Lazy load validation editor
-            if (tab === 'validation' && !editorValidation) {
-                setTimeout(initValidationEditor, 100);
-            }
-        }
+        let currentResults = null; // Armazenar resultados atuais para download CSV
         
         // toggleEditorSidebar() agora é global via git-file-manager.js
         
@@ -1046,100 +965,6 @@ LIMIT 10;`,
         }, function(err) {
             console.error('❌ Erro ao carregar Monaco libraries:', err);
         });
-        
-        // ===== VALIDATION EDITOR =====
-        function initValidationEditor() {
-            if (editorValidation) return;
-            
-            editorValidation = monaco.editor.create(document.getElementById('editor-validation'), {
-                value: `def validate(df):
-    """Valide dados no medallion"""
-    return df
-`,
-                language: 'python',
-                theme: 'vs-dark',
-                automaticLayout: true,
-                minimap: { enabled: false },
-                fontSize: 14,
-                tabSize: 4,
-            });
-            
-            loadTemplates();
-        }
-        
-        const templates = {
-            empty: { 
-                name: 'Regra Vazia', 
-                code: `def validate(df):
-    return df
-` 
-            },
-            null_check: {
-                name: 'Verificar Nulos',
-                code: `def validate(df):
-    """Remove registros com valores nulos em colunas críticas"""
-    return df.dropna(subset=['critical_column'])
-`
-            },
-            duplicate_check: {
-                name: 'Remover Duplicatas',
-                code: `def validate(df):
-    """Remove registros duplicados"""
-    return df.drop_duplicates()
-`
-            },
-            type_check: {
-                name: 'Validar Tipos',
-                code: `def validate(df):
-    """Valida tipos de dados"""
-    try:
-        df['amount'] = df['amount'].astype('float64')
-        return df
-    except:
-        return df.iloc[0:0]  # Retorna vazio se falhar
-`
-            }
-        };
-        
-        function loadTemplates() {
-            const list = document.getElementById('templatesList');
-            if (!list) return;
-            list.innerHTML = '';
-            Object.entries(templates).forEach(([key, tmpl]) => {
-                const div = document.createElement('div');
-                div.style.cssText = 'background: #e0e7ff; padding: 12px; border-radius: 6px; cursor: pointer; margin-bottom: 8px;';
-                div.innerHTML = `<h3 style="margin: 0 0 4px 0; font-size: 14px; color: #10b981;">${tmpl.name}</h3>`;
-                div.onclick = () => {
-                    if (editorValidation) editorValidation.setValue(tmpl.code);
-                };
-                list.appendChild(div);
-            });
-        }
-        
-        async function testValidation() {
-            const code = editorValidation?.getValue() || '';
-            const resultsDiv = document.getElementById('testResults');
-            
-            if (!code.trim()) {
-                resultsDiv.innerHTML = '<div style="color: #dc2626;">❌ Editor vazio</div>';
-                return;
-            }
-            
-            if (!code.includes('def validate')) {
-                resultsDiv.innerHTML = '<div style="color: #dc2626;">❌ Função "def validate(df)" não encontrada</div>';
-                return;
-            }
-            
-            resultsDiv.innerHTML = '<div style="color: #10b981;">✓ Sintaxe OK!</div>';
-        }
-        
-        async function saveValidation() {
-            alert('💾 Salvamento será implementado');
-        }
-        
-        async function deployValidator() {
-            alert('🚀 Deploy será implementado');
-        }
         
         // Executar query
         async function executeQuery() {

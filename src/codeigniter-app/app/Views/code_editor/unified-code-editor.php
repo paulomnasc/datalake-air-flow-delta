@@ -663,6 +663,7 @@ require VIEWPATH . '/header.php';
         
         // Switch between tabs
         function switchMainTab(tab) {
+            console.log('📌 Switching to tab:', tab);
             currentTab = tab;
             
             // Update buttons
@@ -680,12 +681,17 @@ require VIEWPATH . '/header.php';
             document.getElementById('sql-panel').style.display = tab === 'sql' ? 'flex' : 'none';
             document.getElementById('validation-panel').style.display = tab === 'validation' ? 'flex' : 'none';
             
-            // Lazy load validation editor
+            // Inicializar editor de validação imediatamente
             if (tab === 'validation' && !editorValidation) {
-                setTimeout(initValidationEditor, 100);
+                console.log('⏳ Inicializando editor de validação...');
+                // Aguardar um pouco para o DOM estar pronto
+                setTimeout(() => {
+                    initValidationEditor();
+                }, 50);
             }
         }
         
+
         // toggleEditorSidebar() agora é global via git-file-manager.js
         
         // Fechar sidebar ao clicar no overlay
@@ -1010,8 +1016,12 @@ LIMIT 10;`,
                 
                 // Quando um arquivo do Git é selecionado via componente
                 window.addEventListener('git-file-selected', (e) => {
+                    console.log('📄 git-file-selected event:', e.detail);
                     const { filepath, filename, content } = e.detail || {};
-                    if (!filepath || !filename) return;
+                    if (!filepath || !filename) {
+                        console.warn('⚠️ Arquivo sem filepath ou filename');
+                        return;
+                    }
 
                     const ext = filename.split('.').pop().toLowerCase();
                     const langMap = {
@@ -1022,17 +1032,45 @@ LIMIT 10;`,
                     };
                     const language = langMap[ext] || 'plaintext';
 
-                    monaco.editor.setModelLanguage(editor.getModel(), language);
-                    editor.setValue(content || '');
+                    console.log('📌 currentTab:', currentTab, '| editorValidation:', editorValidation ? 'EXISTS' : 'NULL');
+
+                    // Carregar no editor apropriado baseado na aba ativa
+                    if (currentTab === 'sql' && editor) {
+                        console.log('→ Carregando em editor SQL');
+                        monaco.editor.setModelLanguage(editor.getModel(), language);
+                        editor.setValue(content || '');
+                        
+                        if (language === 'markdown') {
+                            showMarkdownPreview(content || '');
+                        } else {
+                            hideMarkdownPreview();
+                        }
+                    } else if (currentTab === 'validation') {
+                        console.log('→ Carregando em editor Validação');
+                        // Se editor não existe, inicializar agora
+                        if (!editorValidation) {
+                            console.log('⏳ EditorValidation não existe, inicializando...');
+                            initValidationEditor();
+                            // Tentar novamente após inicialização
+                            setTimeout(() => {
+                                if (editorValidation) {
+                                    console.log('✓ EditorValidation criado, carregando conteúdo');
+                                    monaco.editor.setModelLanguage(editorValidation.getModel(), language);
+                                    editorValidation.setValue(content || '');
+                                } else {
+                                    console.error('❌ EditorValidation ainda é null após inicialização');
+                                }
+                            }, 100);
+                        } else {
+                            console.log('✓ EditorValidation existe, carregando conteúdo');
+                            monaco.editor.setModelLanguage(editorValidation.getModel(), language);
+                            editorValidation.setValue(content || '');
+                        }
+                    }
+                    
                     currentGitFile = { path: filepath, name: filename };
                     const currentInfo = document.getElementById('currentFileInfo');
                     if (currentInfo) currentInfo.innerHTML = `📄 ${filename}`;
-
-                    if (language === 'markdown') {
-                        showMarkdownPreview(content || '');
-                    } else {
-                        hideMarkdownPreview();
-                    }
 
                     const status = document.getElementById('gitStatus');
                     if (status) status.innerText = `✓ ${filename} carregado do Git`;
@@ -1049,22 +1087,37 @@ LIMIT 10;`,
         
         // ===== VALIDATION EDITOR =====
         function initValidationEditor() {
-            if (editorValidation) return;
+            if (editorValidation) {
+                console.log('✓ EditorValidation já existe');
+                return;
+            }
             
-            editorValidation = monaco.editor.create(document.getElementById('editor-validation'), {
-                value: `def validate(df):
+            try {
+                console.log('🔧 Inicializando editorValidation...');
+                const container = document.getElementById('editor-validation');
+                if (!container) {
+                    console.error('❌ Container editor-validation não encontrado!');
+                    return;
+                }
+                
+                editorValidation = monaco.editor.create(container, {
+                    value: `def validate(df):
     """Valide dados no medallion"""
     return df
 `,
-                language: 'python',
-                theme: 'vs-dark',
-                automaticLayout: true,
-                minimap: { enabled: false },
-                fontSize: 14,
-                tabSize: 4,
-            });
-            
-            loadTemplates();
+                    language: 'python',
+                    theme: 'vs-dark',
+                    automaticLayout: true,
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    tabSize: 4,
+                });
+                
+                console.log('✓ EditorValidation criado com sucesso');
+                loadTemplates();
+            } catch (err) {
+                console.error('❌ Erro ao criar editorValidation:', err);
+            }
         }
         
         const templates = {
@@ -2048,24 +2101,35 @@ ORDER BY departamento, rank;`
                 };
                 const language = langMap[ext] || 'plaintext';
                 
-                // Atualizar Monaco Editor
-                if (editor) {
+                // Atualizar Monaco Editor conforme aba ativa
+                if (currentTab === 'sql' && editor) {
                     monaco.editor.setModelLanguage(editor.getModel(), language);
                     editor.setValue(result.content || '');
-                    currentGitFile = file;
-                    
-                    // Atualizar display de arquivo atual
-                    document.getElementById('currentFileInfo').innerHTML = `📄 ${file.name}`;
-                    
-                    // Se for Markdown, mostrar preview
+                } else {
+                    // Validação: garantir editorValidation inicializado
+                    if (!editorValidation) {
+                        initValidationEditor();
+                        await new Promise(res => setTimeout(res, 100));
+                    }
+                    if (editorValidation) {
+                        monaco.editor.setModelLanguage(editorValidation.getModel(), language);
+                        editorValidation.setValue(result.content || '');
+                    }
+                }
+                
+                currentGitFile = file;
+                const currentInfo = document.getElementById('currentFileInfo');
+                if (currentInfo) currentInfo.innerHTML = `📄 ${file.name}`;
+                
+                if (currentTab === 'sql') {
                     if (language === 'markdown') {
                         showMarkdownPreview(result.content);
                     } else {
                         hideMarkdownPreview();
                     }
-                    
-                    console.log(`✅ Arquivo carregado: ${file.name} (${language})`);
                 }
+                
+                console.log(`✅ Arquivo carregado: ${file.name} (${language}) -> tab: ${currentTab}`);
             } catch (error) {
                 console.error('Erro ao carregar arquivo:', error);
                 alert('Erro ao carregar arquivo: ' + error.message);

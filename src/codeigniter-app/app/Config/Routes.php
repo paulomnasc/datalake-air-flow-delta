@@ -132,6 +132,8 @@ $routes->post('/api/git-clone', 'GitServerController::cloneRepository', ['as'=>'
 $routes->get('/api/git-files', 'GitServerController::listFiles', ['as'=>'api.git.files']);
 $routes->get('/api/git-file-content', 'GitServerController::getFileContent', ['as'=>'api.git.file.content']);
 $routes->post('/api/git-file-save', 'GitServerController::saveFileContent', ['as'=>'api.git.file.save']);
+$routes->post('/api/git-folder-create', 'GitServerController::createFolder', ['as'=>'api.git.folder.create']);
+$routes->post('/api/git-entry-rename', 'GitServerController::renameEntry', ['as'=>'api.git.entry.rename']);
 $routes->match(['delete', 'post'], '/api/git-file-delete', 'GitServerController::deleteFileContent', ['as'=>'api.git.file.delete']);
 $routes->post('/api/git-push', 'GitServerController::gitPush', ['as'=>'api.git.push']);
 

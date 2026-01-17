@@ -12,6 +12,13 @@ $userBucket = $userBucket ?? 'lab01';
 ?>
 
 <!-- Tab: Git with isomorphic-git -->
+<style>
+    #gitFileTree .tree-item.selected {
+        background: #111827;
+        border: 1px solid #334155;
+        border-radius: 4px;
+    }
+</style>
 <div id="tab-git" class="sidebar-tab-content">
     <div class="sidebar-section">
         <h3>🔗 GitHub</h3>
@@ -65,6 +72,26 @@ $userBucket = $userBucket ?? 'lab01';
                 <button class="btn btn-primary" onclick="createNewGitFile()" style="width: 100%;">
                     ✨ Criar do Editor
                 </button>
+            </div>
+
+            <!-- Seção: Criar Pasta -->
+            <div style="margin-bottom: 12px;">
+                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">📁 Criar Pasta</h3>
+                <input type="text" id="newFolderName" placeholder="nova-pasta" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
+                <button class="btn btn-primary" onclick="createGitFolder()" style="width: 100%;">
+                    📁 Criar Pasta
+                </button>
+                <small style="display: block; margin-top: 4px; color: #94a3b8;">Usa a pasta selecionada ou cria na raiz.</small>
+            </div>
+
+            <!-- Seção: Renomear -->
+            <div style="margin-bottom: 12px;">
+                <h3 style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">✏️ Renomear</h3>
+                <input type="text" id="renameItemName" placeholder="novo-nome" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; margin-bottom: 4px;">
+                <button class="btn btn-secondary" onclick="renameGitEntry()" style="width: 100%;">
+                    ✏️ Renomear Selecionado
+                </button>
+                <small id="renameTargetInfo" style="display: block; margin-top: 4px; color: #94a3b8;">Selecione um arquivo ou pasta.</small>
             </div>
             
             <!-- Seção: Arquivos do Repositório -->

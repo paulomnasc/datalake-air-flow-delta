@@ -2111,18 +2111,22 @@ ORDER BY departamento, rank;`
             const root = { children: {}, isFile: false };
             
             files.forEach(file => {
-                const parts = file.path.split('/');
+                const parts = file.path.split('/').filter(Boolean);
                 let current = root;
+                const accumulated = [];
                 
                 parts.forEach((part, index) => {
-                    if (!part) return;
+                    accumulated.push(part);
+                    const pathSoFar = accumulated.join('/');
+                    const isFile = index === parts.length - 1;
                     
                     if (!current.children[part]) {
                         current.children[part] = {
                             name: part,
-                            fullPath: file.path,
-                            isFile: index === parts.length - 1,
-                            fileData: file,
+                            path: pathSoFar,
+                            fullPath: pathSoFar,
+                            isFile: isFile,
+                            fileData: isFile ? file : null,
                             children: {},
                             expanded: index < 2
                         };
@@ -2142,6 +2146,8 @@ ORDER BY departamento, rank;`
             
             entries.forEach(entry => {
                 const item = document.createElement('div');
+                item.dataset.path = entry.fullPath || entry.path || entry.name;
+                item.dataset.type = entry.isFile ? 'file' : 'folder';
                 
                 if (entry.isFile) {
                     item.className = 'tree-item file';
@@ -2149,7 +2155,10 @@ ORDER BY departamento, rank;`
                         <span class="icon">📄</span>
                         <span class="label" title="${entry.name}">${entry.name}</span>
                     `;
-                    item.onclick = () => loadGitFileContent(entry.fileData);
+                    item.onclick = () => {
+                        setSelectedGitNode(entry, item);
+                        loadGitFileContent(entry.fileData);
+                    };
                 } else {
                     const hasChildren = Object.keys(entry.children).length > 0;
                     const childrenContainer = document.createElement('div');
@@ -2162,12 +2171,13 @@ ORDER BY departamento, rank;`
                         <span class="label" title="${entry.name}">${entry.name}</span>
                     `;
                     
-                    if (hasChildren) {
-                        item.onclick = (e) => {
-                            e.stopPropagation();
+                    item.onclick = (e) => {
+                        e.stopPropagation();
+                        setSelectedGitNode(entry, item);
+                        if (hasChildren) {
                             toggleGitFolder(item, childrenContainer, entry);
-                        };
-                    }
+                        }
+                    };
                     
                     container.appendChild(item);
                     
@@ -2209,6 +2219,7 @@ ORDER BY departamento, rank;`
             }
             
             gitFileTree.innerHTML = '';
+            setSelectedGitNode(null, null);
             
             if (!files || files.length === 0) {
                 console.warn('⚠️ Nenhum arquivo para renderizar');
@@ -2224,6 +2235,44 @@ ORDER BY departamento, rank;`
         
         // Carregar conteúdo do arquivo no Monaco Editor
         let currentGitFile = null;
+        let selectedGitNode = null;
+        let selectedGitNodeElement = null;
+
+        function setSelectedGitNode(entry, element) {
+            if (selectedGitNodeElement) {
+                selectedGitNodeElement.classList.remove('selected');
+            }
+            selectedGitNode = entry;
+            selectedGitNodeElement = element;
+            if (element) {
+                element.classList.add('selected');
+            }
+            const renameInfo = document.getElementById('renameTargetInfo');
+            if (renameInfo) {
+                if (entry) {
+                    const label = entry.isFile ? 'Arquivo' : 'Pasta';
+                    const target = entry.fullPath || entry.path || entry.name;
+                    renameInfo.textContent = `${label}: ${target}`;
+                } else {
+                    renameInfo.textContent = 'Selecione um arquivo ou pasta.';
+                }
+            }
+
+            const renameInput = document.getElementById('renameItemName');
+            if (renameInput) {
+                renameInput.value = entry ? entry.name : '';
+            }
+        }
+
+        function normalizeGitPath(path) {
+            if (!path) return '';
+            return path
+                .replace(/\\/g, '/')
+                .replace(/\/+/g, '/')
+                .replace(/^\/+/, '')
+                .replace(/\/+$/, '');
+        }
+
         async function loadGitFileContent(file) {
             if (!gitConfig) {
                 alert('Repositório não conectado');
@@ -2433,6 +2482,181 @@ ORDER BY departamento, rank;`
                 // Exibir mensagem de erro com fade
                 const errorMsg = document.getElementById('git-error-message');
                 errorMsg.innerHTML = `❌ Erro ao criar: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
+            }
+        }
+        
+        async function createGitFolder() {
+            if (!gitConfig) {
+                alert('Conecte o GitHub primeiro');
+                return;
+            }
+
+            const folderInput = document.getElementById('newFolderName');
+            const folderName = folderInput ? folderInput.value.trim() : '';
+            if (!folderName) {
+                alert('Informe o nome da pasta');
+                return;
+            }
+
+            const parentPath = selectedGitNode && !selectedGitNode.isFile
+                ? normalizeGitPath(selectedGitNode.fullPath || selectedGitNode.path)
+                : '';
+            const targetPath = normalizeGitPath(parentPath ? `${parentPath}/${folderName}` : folderName);
+            if (!targetPath) {
+                alert('Caminho da pasta inválido');
+                return;
+            }
+
+            const status = document.getElementById('gitStatus');
+
+            try {
+                status.innerText = `Criando pasta ${targetPath}...`;
+                const response = await fetch('/api/git-folder-create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        path: targetPath
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao criar pasta');
+                }
+
+                const result = await response.json();
+                status.innerText = '';
+                console.log('✅ Pasta criada:', result);
+
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ Pasta ${targetPath} criada com sucesso`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
+
+                if (folderInput) folderInput.value = '';
+                await loadGitFiles();
+            } catch (error) {
+                status.innerText = '';
+                console.error('Erro ao criar pasta:', error);
+
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao criar pasta: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
+            }
+        }
+
+        async function renameGitEntry() {
+            if (!gitConfig) {
+                alert('Conecte o GitHub primeiro');
+                return;
+            }
+
+            if (!selectedGitNode) {
+                alert('Selecione um arquivo ou pasta para renomear');
+                return;
+            }
+
+            const renameInput = document.getElementById('renameItemName');
+            const newName = renameInput ? renameInput.value.trim() : '';
+            if (!newName) {
+                alert('Informe o novo nome');
+                return;
+            }
+
+            const currentPath = normalizeGitPath(selectedGitNode.fullPath || selectedGitNode.path || (selectedGitNode.fileData ? selectedGitNode.fileData.path : ''));
+            if (!currentPath) {
+                alert('Caminho selecionado inválido');
+                return;
+            }
+
+            const parentPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : '';
+            const newPath = normalizeGitPath(parentPath ? `${parentPath}/${newName}` : newName);
+            if (!newPath) {
+                alert('Novo caminho inválido');
+                return;
+            }
+
+            const status = document.getElementById('gitStatus');
+
+            try {
+                status.innerText = `Renomeando ${currentPath}...`;
+                const response = await fetch('/api/git-entry-rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        oldPath: currentPath,
+                        newPath: newPath,
+                        isFile: !!selectedGitNode.isFile
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao renomear');
+                }
+
+                const result = await response.json();
+                status.innerText = '';
+                console.log('✅ Item renomeado:', result);
+
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${currentPath} renomeado para ${newPath}`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
+
+                if (currentGitFile && normalizeGitPath(currentGitFile.path) === currentPath) {
+                    currentGitFile.path = newPath;
+                    currentGitFile.name = newName;
+                    const currentInfo = document.getElementById('currentFileInfo');
+                    if (currentInfo) currentInfo.innerHTML = `📄 ${newName}`;
+                }
+
+                if (renameInput) renameInput.value = '';
+                setSelectedGitNode(null, null);
+                await loadGitFiles();
+            } catch (error) {
+                status.innerText = '';
+                console.error('Erro ao renomear:', error);
+
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao renomear: ${error.message}`;
                 errorMsg.style.display = 'block';
                 setTimeout(() => {
                     errorMsg.style.opacity = '0';

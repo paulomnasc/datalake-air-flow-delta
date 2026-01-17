@@ -18,6 +18,23 @@ $userBucket = $userBucket ?? 'lab01';
         border: 1px solid #334155;
         border-radius: 4px;
     }
+    
+    #gitFileTree .tree-item.drag-over {
+        background: #1e3a5f;
+        border: 2px dashed #667eea;
+    }
+    
+    #gitFileTree .tree-item.dragging {
+        opacity: 0.5;
+    }
+    
+    #gitFileTree .tree-item {
+        cursor: grab;
+    }
+    
+    #gitFileTree .tree-item:active {
+        cursor: grabbing;
+    }
 </style>
 <div id="tab-git" class="sidebar-tab-content">
     <div class="sidebar-section">

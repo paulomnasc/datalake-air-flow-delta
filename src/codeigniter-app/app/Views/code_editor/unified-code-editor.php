@@ -2160,6 +2160,7 @@ ORDER BY departamento, rank;`
                 
                 if (entry.isFile) {
                     item.className = 'tree-item file';
+                    item.draggable = true;
                     item.innerHTML = `
                         <span class="icon">📄</span>
                         <span class="label" title="${entry.name}">${entry.name}</span>
@@ -2168,12 +2169,28 @@ ORDER BY departamento, rank;`
                         setSelectedGitNode(entry, item);
                         loadGitFileContent(entry.fileData);
                     };
+                    
+                    // Drag handlers
+                    item.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', JSON.stringify({
+                            path: entry.fullPath || entry.path,
+                            name: entry.name,
+                            isFile: true
+                        }));
+                        item.classList.add('dragging');
+                    });
+                    
+                    item.addEventListener('dragend', () => {
+                        item.classList.remove('dragging');
+                    });
                 } else {
                     const hasChildren = Object.keys(entry.children).length > 0;
                     const childrenContainer = document.createElement('div');
                     childrenContainer.className = `tree-children ${entry.expanded ? 'expanded' : ''}`;
                     
                     item.className = 'tree-item folder';
+                    item.draggable = true;
                     item.innerHTML = `
                         <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasChildren ? '▶' : ''}</span>
                         <span class="icon">${entry.expanded ? '📂' : '📁'}</span>
@@ -2198,6 +2215,53 @@ ORDER BY departamento, rank;`
                             toggleGitFolder(item, childrenContainer, entry);
                         }
                     };
+                    
+                    // Drag handlers for folder
+                    item.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', JSON.stringify({
+                            path: entry.fullPath || entry.path,
+                            name: entry.name,
+                            isFile: false
+                        }));
+                        item.classList.add('dragging');
+                    });
+                    
+                    item.addEventListener('dragend', () => {
+                        item.classList.remove('dragging');
+                    });
+                    
+                    // Drop handlers - allow dropping files/folders into this folder
+                    item.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        item.classList.add('drag-over');
+                    });
+                    
+                    item.addEventListener('dragleave', () => {
+                        item.classList.remove('drag-over');
+                    });
+                    
+                    item.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        item.classList.remove('drag-over');
+                        
+                        const draggedData = JSON.parse(e.dataTransfer.getData('text/plain'));
+                        const targetFolderPath = entry.fullPath || entry.path;
+                        
+                        if (draggedData.path === targetFolderPath) {
+                            return; // Can't drop into itself
+                        }
+                        
+                        // Check if trying to drop parent into child
+                        if (targetFolderPath.startsWith(draggedData.path + '/')) {
+                            alert('❌ Não pode mover uma pasta para dentro de si mesma');
+                            return;
+                        }
+                        
+                        moveGitEntry(draggedData.path, targetFolderPath, draggedData.name, draggedData.isFile);
+                    });
                     
                     container.appendChild(item);
                     
@@ -2580,6 +2644,85 @@ ORDER BY departamento, rank;`
 
                 const errorMsg = document.getElementById('git-error-message');
                 errorMsg.innerHTML = `❌ Erro ao criar pasta: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
+            }
+        }
+
+        async function moveGitEntry(sourcePath, targetFolderPath, itemName, isFile) {
+            if (!gitConfig) {
+                alert('Conecte o GitHub primeiro');
+                return;
+            }
+
+            const normalizedSource = normalizeGitPath(sourcePath);
+            const normalizedTarget = normalizeGitPath(targetFolderPath);
+            const newPath = normalizeGitPath(`${normalizedTarget}/${itemName}`);
+
+            if (normalizedSource === newPath) {
+                return; // Same location
+            }
+
+            const status = document.getElementById('gitStatus');
+
+            try {
+                status.innerText = `Movendo ${itemName}...`;
+                const response = await fetch('/api/git-entry-rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        oldPath: normalizedSource,
+                        newPath: newPath,
+                        isFile: isFile
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao mover');
+                }
+
+                const result = await response.json();
+                status.innerText = '';
+                console.log('✅ Item movido:', result);
+
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${itemName} movido para ${normalizedTarget}`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
+
+                if (currentGitFile && normalizeGitPath(currentGitFile.path) === normalizedSource) {
+                    currentGitFile.path = newPath;
+                    currentGitFile.name = itemName;
+                    const currentInfo = document.getElementById('currentFileInfo');
+                    if (currentInfo) currentInfo.innerHTML = `📄 ${itemName}`;
+                }
+
+                setSelectedGitNode(null, null);
+                await loadGitFiles();
+            } catch (error) {
+                status.innerText = '';
+                console.error('Erro ao mover:', error);
+
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao mover: ${error.message}`;
                 errorMsg.style.display = 'block';
                 setTimeout(() => {
                     errorMsg.style.opacity = '0';

@@ -269,10 +269,18 @@ class ValidationRulesController extends ResourceController
                 $localFilePath = $repoPath . '/' . $filename;
                 log_message('info', "Salvando conteúdo em: $localFilePath");
                 
+                // Tentar remover arquivo existente se pertencer a outro usuário
+                if (file_exists($localFilePath)) {
+                    @unlink($localFilePath);
+                }
+                
                 if (file_put_contents($localFilePath, $content) === false) {
                     log_message('error', "Falha ao salvar arquivo: $localFilePath");
                     return $this->failServerError('Não foi possível salvar o arquivo localmente');
                 }
+                
+                // Tentar definir permissões (suppressar erro se falhar)
+                @chmod($localFilePath, 0666);
                 
                 log_message('info', "Arquivo salvo com sucesso: $localFilePath");
             }

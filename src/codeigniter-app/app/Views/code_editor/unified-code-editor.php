@@ -2112,13 +2112,22 @@ ORDER BY departamento, rank;`
             
             files.forEach(file => {
                 const parts = file.path.split('/').filter(Boolean);
+
+                // Ignorar arquivo .gitkeep, mas manter a pasta como nó de pasta
+                let isGitkeepPlaceholder = false;
+                if (parts.length > 0 && parts[parts.length - 1] === '.gitkeep') {
+                    parts.pop();
+                    if (parts.length === 0) return; // nada a criar
+                    isGitkeepPlaceholder = true;
+                }
+
                 let current = root;
                 const accumulated = [];
                 
                 parts.forEach((part, index) => {
                     accumulated.push(part);
                     const pathSoFar = accumulated.join('/');
-                    const isFile = index === parts.length - 1;
+                    const isFile = isGitkeepPlaceholder ? false : (index === parts.length - 1);
                     
                     if (!current.children[part]) {
                         current.children[part] = {
@@ -2174,6 +2183,17 @@ ORDER BY departamento, rank;`
                     item.onclick = (e) => {
                         e.stopPropagation();
                         setSelectedGitNode(entry, item);
+                        
+                        // Limpar editor quando pasta é selecionada
+                        if (editor) {
+                            editor.setValue('');
+                        }
+                        currentGitFile = null;
+                        const currentInfo = document.getElementById('currentFileInfo');
+                        if (currentInfo) {
+                            currentInfo.innerHTML = `📁 ${entry.name} (pasta)`;
+                        }
+                        
                         if (hasChildren) {
                             toggleGitFolder(item, childrenContainer, entry);
                         }

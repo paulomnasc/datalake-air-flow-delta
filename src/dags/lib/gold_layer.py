@@ -164,7 +164,8 @@ def _apply_analytical_intelligence(df):
         for col in categorical_cols:
             # Frequência da categoria (quantas vezes aparece)
             value_counts = df[col].value_counts()
-            df[f'{col}_frequency'] = df[col].map(value_counts).astype('int64')
+            # Use Int64 (nullable integer) para suportar NaN
+            df[f'{col}_frequency'] = df[col].map(value_counts).astype('Int64')
             
             # Percentual do total (converter para numérico antes de dividir)
             df[f'{col}_pct'] = (df[f'{col}_frequency'].astype('float64') / len(df) * 100).round(2)

@@ -290,9 +290,13 @@ class RawToMedallionPipeline:
             **self.context
         )
         
-        silver_key = silver_result.get('key')
-        if not silver_key:
+        # bronze_to_silver retorna {"layer": "silver", "keys": [...]} (plural)
+        silver_keys = silver_result.get('keys', [])
+        if not silver_keys:
             raise ValueError("Silver retornou nenhuma chave")
+        
+        # Pegar primeira chave (normalmente há apenas uma)
+        silver_key = silver_keys[0] if isinstance(silver_keys, list) else silver_keys
         
         log.info(f"[SILVER] ✅ Silver padrão: {silver_key}")
         
@@ -382,9 +386,13 @@ class RawToMedallionPipeline:
             **self.context
         )
         
-        gold_key = gold_result.get('key')
-        if not gold_key:
+        # silver_to_gold retorna {"layer": "gold", "keys": [...]} (plural)
+        gold_keys = gold_result.get('keys', [])
+        if not gold_keys:
             raise ValueError("Gold retornou nenhuma chave")
+        
+        # Pegar primeira chave (normalmente há apenas uma)
+        gold_key = gold_keys[0] if isinstance(gold_keys, list) else gold_keys
         
         log.info(f"[GOLD] ✅ Gold padrão: {gold_key}")
         

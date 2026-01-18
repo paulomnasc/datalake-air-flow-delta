@@ -612,6 +612,9 @@ require VIEWPATH . '/header.php';
                         <button class="btn btn-primary" onclick="testValidation()">
                             ▶️ Testar
                         </button>
+                        <button class="btn btn-primary" onclick="runPythonScript()">
+                            ⚡ Executar
+                        </button>
                         <button class="btn btn-primary" onclick="saveValidation()">
                             💾 Salvar
                         </button>
@@ -637,6 +640,7 @@ require VIEWPATH . '/header.php';
                                 <div id="testResults" style="padding: 16px; background: #fff; border-radius: 6px; min-height: 100px; font-size: 12px; color: #64748b;">
                                     Teste uma validação para ver os resultados
                                 </div>
+                                <div id="editor-validation-output" style="height: 240px; border: 1px solid #e2e8f0; border-radius: 6px; margin-top: 12px;"></div>
                             </div>
                         </div>
                     </div>
@@ -660,6 +664,9 @@ require VIEWPATH . '/header.php';
         // Reuse global userBucket from git-file-manager.js to avoid redeclaration
         userBucket = '<?php echo esc($userBucket ?? 'user-1'); ?>';
         let currentResults = null;
+        
+        // Console Monaco para saída Python
+        let editorOutput;
         
         // Switch between tabs
         function switchMainTab(tab) {
@@ -1089,6 +1096,19 @@ LIMIT 10;`,
         function initValidationEditor() {
             if (editorValidation) {
                 console.log('✓ EditorValidation já existe');
+                // Criar console se ainda não existir
+                const outEl = document.getElementById('editor-validation-output');
+                if (outEl && !editorOutput && window.monaco) {
+                    editorOutput = monaco.editor.create(outEl, {
+                        value: 'Console pronto.\n',
+                        language: 'plaintext',
+                        theme: 'vs-dark',
+                        automaticLayout: true,
+                        readOnly: true,
+                        minimap: { enabled: false },
+                        fontSize: 13
+                    });
+                }
                 return;
             }
             
@@ -1112,6 +1132,20 @@ LIMIT 10;`,
                     fontSize: 14,
                     tabSize: 4,
                 });
+
+                // Criar o console Monaco para output
+                const outEl = document.getElementById('editor-validation-output');
+                if (outEl && window.monaco) {
+                    editorOutput = monaco.editor.create(outEl, {
+                        value: 'Console pronto.\n',
+                        language: 'plaintext',
+                        theme: 'vs-dark',
+                        automaticLayout: true,
+                        readOnly: true,
+                        minimap: { enabled: false },
+                        fontSize: 13
+                    });
+                }
                 
                 console.log('✓ EditorValidation criado com sucesso');
                 loadTemplates();
@@ -1279,6 +1313,71 @@ LIMIT 10;`,
                 if (status) status.innerText = '';
                 alert('❌ Erro ao criar: ' + error.message);
                 console.error('Erro ao criar validação:', error);
+            }
+        }
+        
+        async function runPythonScript() {
+            const code = editorValidation?.getValue() || '';
+            const resultsDiv = document.getElementById('testResults');
+
+            if (!code.trim()) {
+                resultsDiv.innerHTML = '<div style="color: #dc2626;">❌ Editor vazio</div>';
+                return;
+            }
+
+            try {
+                resultsDiv.innerHTML = '<div style="color: #f59e0b;">⏳ Enviando para servidor...</div>';
+                if (editorOutput) editorOutput.setValue('Executando no servidor...\n');
+
+                // Envia código Python para executar no backend com DuckDB
+                const response = await fetch('/code-editor/execute-python', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ 
+                        code: code,
+                        userBucket: userBucket
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorMsg = `Erro HTTP ${response.status}`;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorMsg = errorJson.error || errorJson.message || errorMsg;
+                    } catch (e) {
+                        errorMsg = errorText || errorMsg;
+                    }
+                    
+                    resultsDiv.innerHTML = `<div style="color: #dc2626;">❌ ${errorMsg}</div>`;
+                    if (editorOutput) editorOutput.setValue(`Erro: ${errorMsg}`);
+                    return;
+                }
+
+                const result = await response.json();
+
+                let outputText = '';
+                if (result.stderr && String(result.stderr).trim()) {
+                    outputText += 'STDERR:\n' + String(result.stderr).trim() + '\n\n';
+                }
+                outputText += 'STDOUT:\n' + String(result.stdout || '').trim() + '\n';
+                if (result.result !== undefined && result.result !== null) {
+                    outputText += '\n\nResultado da função:\n' + JSON.stringify(result.result, null, 2);
+                }
+
+                if (editorOutput) editorOutput.setValue(outputText || '');
+                if (result.success) {
+                    resultsDiv.innerHTML = '<div style="color: #10b981;">✅ Execução concluída</div>';
+                } else {
+                    let errorMsg = result.error || 'Erro ao executar';
+                    resultsDiv.innerHTML = `<div style="color: #dc2626;">❌ ${errorMsg}</div>`;
+                }
+            } catch (e) {
+                const msg = '❌ Erro ao executar: ' + e.message;
+                resultsDiv.innerHTML = `<div style="color: #dc2626;">${msg}</div>`;
+                if (editorOutput) editorOutput.setValue(msg + '\nVeja o console para detalhes.');
+                console.error('Erro ao executar Python:', e);
             }
         }
         

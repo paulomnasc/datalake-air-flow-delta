@@ -107,6 +107,7 @@ $routes->get('/validation-rules-editor', 'CodeEditorController::unified', ['as'=
 // Code Editor Legacy Routes
 $routes->get('/code-editor/status', 'CodeEditorController::status', ['as'=>'code-editor.status']);
 $routes->post('/code-editor/execute', 'CodeEditorController::execute', ['as'=>'code-editor.execute']);
+$routes->post('/code-editor/execute-python', 'CodeEditorController::executePython', ['as'=>'code-editor.execute-python']);
 $routes->post('/code-editor/tables', 'CodeEditorController::listTables', ['as'=>'code-editor.tables']);
 $routes->post('/code-editor/schema', 'CodeEditorController::getSchema', ['as'=>'code-editor.schema']);
 $routes->post('/code-editor/files', 'CodeEditorController::listParquetFiles', ['as'=>'code-editor.files']);

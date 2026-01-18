@@ -151,6 +151,220 @@ class CodeEditorController extends QueryBuilderController
         // que trata da validação, segurança e execução
         return $this->execute();
     }
+
+    /**
+     * Executa código Python no backend com acesso a DuckDB e arquivos do usuário
+     * 
+     * POST /code-editor/execute-python
+     * 
+     * Params:
+     *   - code (string): Código Python a executar
+     *   - userBucket (string): Bucket do usuário (opcional, obtido da sessão)
+     * 
+     * Response:
+     *   - success (bool): True se execução OK
+     *   - stdout (string): Saída padrão do script
+     *   - stderr (string): Saída de erros
+     *   - result (mixed): Resultado retornado pelo script (se houver variável 'result')
+     */
+    public function executePython()
+    {
+        $code = trim($this->request->getJSON()->code ?? '');
+        
+        if (empty($code)) {
+            return $this->response
+                ->setStatusCode(400)
+                ->setJSON([
+                    'success' => false,
+                    'error' => 'Python code cannot be empty'
+                ]);
+        }
+
+        // Segurança: obtém bucket do usuário da sessão
+        $userBucket = \App\Helpers\SessionHelper::getUserBucket();
+        if (!$userBucket) {
+            return $this->response
+                ->setStatusCode(403)
+                ->setJSON([
+                    'success' => false,
+                    'error' => 'User bucket not found. Please login.'
+                ]);
+        }
+
+        // Sanitização básica: remover comandos perigosos (sem regex para evitar erros de delimitador)
+        $forbiddenTokens = [
+            'os.system',
+            'subprocess.',
+            'exec(',
+            'eval(',
+            '__import__',
+            'open("/etc',
+            "open('/etc",
+            'open("/root',
+            "open('/root"
+        ];
+
+        foreach ($forbiddenTokens as $token) {
+            if (stripos($code, $token) !== false) {
+                return $this->response
+                    ->setStatusCode(403)
+                    ->setJSON([
+                        'success' => false,
+                        'error' => 'Operação não permitida por razões de segurança'
+                    ]);
+            }
+        }
+
+        try {
+            // Cria wrapper Python que captura stdout/stderr
+            $pythonWrapper = sprintf(
+                <<<'PYTHON'
+import sys
+import io
+import contextlib
+import traceback
+import json
+import os
+
+# Captura saída padrão
+stdout_capture = io.StringIO()
+stderr_capture = io.StringIO()
+
+# Injeta variáveis do usuário
+user_bucket = %s
+duckdb_path = "s3://{}/".format(user_bucket)
+
+# Código do usuário
+user_code = %s
+
+try:
+    with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
+        # Preparar DuckDB apenas se o código usar duckdb ou read_parquet
+        try:
+            if ('read_parquet' in user_code) or ('duckdb' in user_code):
+                import duckdb
+                try:
+                    duckdb.install_extension('httpfs')
+                    duckdb.load_extension('httpfs')
+                except Exception:
+                    # Extensão pode já estar instalada/carregada
+                    pass
+        except Exception as _duckdb_err:
+            print('Aviso: duckdb não disponível:', _duckdb_err, file=sys.stderr)
+
+        # Executa código do usuário
+        exec(user_code, globals())
+    
+    # Tenta extrair variável 'result' se existir
+    result = globals().get('result', None)
+    
+    exit_code = 0
+except Exception as e:
+    result = None
+    traceback.print_exc(file=stderr_capture)
+    exit_code = 1
+
+stdout_value = stdout_capture.getvalue()
+stderr_value = stderr_capture.getvalue()
+
+# Output JSON
+output = {
+    'success': exit_code == 0,
+    'stdout': stdout_value,
+    'stderr': stderr_value,
+    'result': result
+}
+print(json.dumps(output))
+PYTHON
+,
+                json_encode($userBucket),
+                json_encode($code)
+            );
+
+            // Executa Python via shell (deve estar instalado no servidor)
+            $descriptorspec = [
+                0 => ['pipe', 'r'],   // stdin
+                1 => ['pipe', 'w'],   // stdout
+                2 => ['pipe', 'w']    // stderr
+            ];
+
+            // Descobrir binário Python
+            $pythonBinary = getenv('PYTHON_BIN') ?: '';
+            if (empty($pythonBinary)) {
+                $candidates = ['python3', 'python'];
+                foreach ($candidates as $cmd) {
+                    $version = @shell_exec($cmd . ' --version 2>/dev/null');
+                    if (!empty($version)) {
+                        $pythonBinary = $cmd;
+                        break;
+                    }
+                }
+            }
+
+            if (empty($pythonBinary)) {
+                return $this->response
+                    ->setStatusCode(500)
+                    ->setJSON([
+                        'success' => false,
+                        'error' => 'Python não encontrado no servidor. Instale python3 ou configure PYTHON_BIN.'
+                    ]);
+            }
+
+            // Propagar variáveis de ambiente relevantes para S3
+            $env = [
+                'AWS_ACCESS_KEY_ID' => getenv('AWS_ACCESS_KEY_ID') ?: '',
+                'AWS_SECRET_ACCESS_KEY' => getenv('AWS_SECRET_ACCESS_KEY') ?: '',
+                'AWS_REGION' => getenv('AWS_REGION') ?: '',
+                'S3_ENDPOINT' => getenv('S3_ENDPOINT') ?: '',
+                'S3_URL_STYLE' => getenv('S3_URL_STYLE') ?: '',
+                'AWS_S3_ALLOW_UNVERIFIED_SSL' => getenv('AWS_S3_ALLOW_UNVERIFIED_SSL') ?: ''
+            ];
+
+            $process = proc_open($pythonBinary . ' -', $descriptorspec, $pipes, null, $env);
+
+            if (is_resource($process)) {
+                fwrite($pipes[0], $pythonWrapper);
+                fclose($pipes[0]);
+
+                $stdout = stream_get_contents($pipes[1]);
+                $stderr = stream_get_contents($pipes[2]);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+
+                $returnCode = proc_close($process);
+
+                // Tenta decodificar JSON retornado
+                $result = json_decode($stdout, true);
+                
+                if (is_array($result)) {
+                    return $this->response->setJSON($result);
+                } else {
+                    // Fallback se saída não for JSON válido
+                    return $this->response->setJSON([
+                        'success' => false,
+                        'stdout' => $stdout,
+                        'stderr' => $stderr,
+                        'result' => null,
+                        'error' => !empty($stderr) ? $stderr : 'Falha na execução Python'
+                    ]);
+                }
+            } else {
+                return $this->response
+                    ->setStatusCode(500)
+                    ->setJSON([
+                        'success' => false,
+                        'error' => 'Falha ao executar Python no servidor'
+                    ]);
+            }
+        } catch (\Exception $e) {
+            return $this->response
+                ->setStatusCode(500)
+                ->setJSON([
+                    'success' => false,
+                    'error' => 'Erro ao processar requisição: ' . $e->getMessage()
+                ]);
+        }
+    }
     
     // Todos os outros métodos (execute, listTables, getSchema, etc)
     // são herdados do QueryBuilderController

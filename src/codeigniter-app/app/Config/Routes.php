@@ -96,21 +96,32 @@ $routes->get('/query-builder/status', 'QueryBuilderController::status', ['as'=>'
 $routes->post('/query-builder/parquet-files', 'QueryBuilderController::listParquetFiles', ['as'=>'query-builder.parquet-files']);
 $routes->get('/query-builder/debug', 'QueryBuilderController::debug', ['as'=>'query-builder.debug']);
 
-// Code Editor - Monaco Editor with DuckDB
-$routes->get('/code-editor', 'CodeEditorController::index', ['as'=>'code-editor.index']);
+// 🆕 UNIFIED CODE EDITOR - Nova Rota (SQL + Validation Rules)
+$routes->get('/unified-code-editor', 'CodeEditorController::unified', ['as'=>'unified-code-editor']);
+
+// Unified Code Editor (SQL + Validation Rules) - NOVA ROTA
+$routes->get('/code-editor-unified', 'CodeEditorController::unified', ['as'=>'code-editor.unified']);
+$routes->get('/code-editor', 'CodeEditorController::unified', ['as'=>'code-editor.index']);
+$routes->get('/validation-rules-editor', 'CodeEditorController::unified', ['as'=>'validation-rules.editor']);
+
+// Code Editor Legacy Routes
 $routes->get('/code-editor/status', 'CodeEditorController::status', ['as'=>'code-editor.status']);
 $routes->post('/code-editor/execute', 'CodeEditorController::execute', ['as'=>'code-editor.execute']);
+$routes->post('/code-editor/execute-python', 'CodeEditorController::executePython', ['as'=>'code-editor.execute-python']);
 $routes->post('/code-editor/tables', 'CodeEditorController::listTables', ['as'=>'code-editor.tables']);
 $routes->post('/code-editor/schema', 'CodeEditorController::getSchema', ['as'=>'code-editor.schema']);
 $routes->post('/code-editor/files', 'CodeEditorController::listParquetFiles', ['as'=>'code-editor.files']);
+$routes->get('/test-git-sidebar', 'CodeEditorController::testGitSidebar', ['as'=>'test-git-sidebar']);
 
-// Validation Rules Editor
-$routes->get('/validation-rules-editor', 'ValidationRulesController::index', ['as'=>'validation-rules.editor']);
+// Validation Rules API endpoints
 $routes->get('/api/validation-rules', 'ValidationRulesController::list', ['as'=>'validation-rules.list']);
 $routes->post('/api/validation-rule-save', 'ValidationRulesController::save', ['as'=>'validation-rules.save']);
 $routes->post('/api/validation-rule-test', 'ValidationRulesController::test', ['as'=>'validation-rules.test']);
 $routes->delete('/api/validation-rule-delete', 'ValidationRulesController::delete', ['as'=>'validation-rules.delete']);
 $routes->post('/api/validation-deploy', 'ValidationRulesController::deploy', ['as'=>'validation-deploy']);
+
+// SQL API endpoint
+$routes->post('/api/query-sql', 'CodeEditorController::querySQL', ['as'=>'api.query-sql']);
 
 // Git CORS Proxy endpoint
 $routes->match(['get','post','options'], '/git-proxy.php', 'GitProxyController::index');
@@ -122,6 +133,8 @@ $routes->post('/api/git-clone', 'GitServerController::cloneRepository', ['as'=>'
 $routes->get('/api/git-files', 'GitServerController::listFiles', ['as'=>'api.git.files']);
 $routes->get('/api/git-file-content', 'GitServerController::getFileContent', ['as'=>'api.git.file.content']);
 $routes->post('/api/git-file-save', 'GitServerController::saveFileContent', ['as'=>'api.git.file.save']);
+$routes->post('/api/git-folder-create', 'GitServerController::createFolder', ['as'=>'api.git.folder.create']);
+$routes->post('/api/git-entry-rename', 'GitServerController::renameEntry', ['as'=>'api.git.entry.rename']);
 $routes->match(['delete', 'post'], '/api/git-file-delete', 'GitServerController::deleteFileContent', ['as'=>'api.git.file.delete']);
 $routes->post('/api/git-push', 'GitServerController::gitPush', ['as'=>'api.git.push']);
 

@@ -22,6 +22,15 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && docker-php-ext-install pdo_mysql gd intl opcache mysqli
 
+# 2.1 PYTHON para execução das validações (backend)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --break-system-packages --no-cache-dir duckdb pandas numpy pyarrow
+ENV PYTHON_BIN=/usr/bin/python3
+
 # 3. CONFIGURAÇÃO DO COMPOSER
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 

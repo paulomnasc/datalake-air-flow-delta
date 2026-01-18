@@ -173,21 +173,25 @@ class GitServerController extends BaseController
                     // Remover prefixo s3Path/ e .git files
                     $relativePath = str_replace($s3Path . '/', '', $key);
                     
-                    if (strpos($relativePath, '.git') === false && !empty($relativePath)) {
-                        $lastModified = $object['LastModified'] ?? null;
-                        if ($lastModified instanceof \DateTimeInterface) {
-                            $lastModified = $lastModified->format('c');
-                        } elseif (is_object($lastModified)) {
-                            $lastModified = null;
-                        }
-                        $files[] = [
-                            'name' => basename($relativePath),
-                            'path' => $relativePath,
-                            's3Key' => $key,
-                            'size' => $object['Size'] ?? 0,
-                            'lastModified' => $lastModified
-                        ];
+                    $isGitInternal = preg_match('#(^|/)(\.git)(/|$)#', $relativePath);
+                    if ($isGitInternal || empty($relativePath)) {
+                        continue;
                     }
+
+                    $lastModified = $object['LastModified'] ?? null;
+                    if ($lastModified instanceof \DateTimeInterface) {
+                        $lastModified = $lastModified->format('c');
+                    } elseif (is_object($lastModified)) {
+                        $lastModified = null;
+                    }
+
+                    $files[] = [
+                        'name' => basename($relativePath),
+                        'path' => $relativePath,
+                        's3Key' => $key,
+                        'size' => $object['Size'] ?? 0,
+                        'lastModified' => $lastModified
+                    ];
                 }
             }
 
@@ -326,6 +330,61 @@ class GitServerController extends BaseController
     }
 
     /**
+     * Criar pasta no MinIO (usa objeto .gitkeep)
+     * POST /api/git-folder-create
+     */
+    public function createFolder()
+    {
+        $method = strtoupper($this->request->getMethod());
+        if ($method !== 'POST') {
+            return $this->response->setStatusCode(405)->setJSON(['error' => 'Method not allowed']);
+        }
+
+        $input = $this->request->getJSON();
+        $userBucket = $input->userBucket ?? null;
+        $owner = $input->owner ?? null;
+        $repo = $input->repo ?? null;
+        $path = $input->path ?? null;
+
+        $normalizedPath = trim(str_replace('\\', '/', $path ?? ''), '/');
+
+        if (!$userBucket || !$owner || !$repo || !$normalizedPath) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'error' => 'Missing required fields: userBucket, owner, repo, path'
+            ]);
+        }
+
+        if (strpos($normalizedPath, '..') !== false) {
+            return $this->response->setStatusCode(403)->setJSON([
+                'error' => 'Invalid folder path'
+            ]);
+        }
+
+        try {
+            $s3Key = "scripts/{$owner}/{$repo}/{$normalizedPath}/.gitkeep";
+            $this->s3Client->putObject([
+                'Bucket' => $userBucket,
+                'Key'    => $s3Key,
+                'Body'   => '',
+                'ACL'    => 'private'
+            ]);
+
+            return $this->response->setStatusCode(200)->setJSON([
+                'success' => true,
+                'message' => 'Folder created successfully',
+                'path' => $normalizedPath,
+                's3Key' => $s3Key
+            ]);
+
+        } catch (AwsException $e) {
+            return $this->response->setStatusCode(500)->setJSON([
+                'error' => 'Failed to create folder',
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
      * Obter todos os arquivos recursivamente (excluindo .git)
      */
     private function _getAllFiles($directory)
@@ -352,6 +411,32 @@ class GitServerController extends BaseController
         }
 
         return $files;
+    }
+
+    private function _listObjectsByPrefix(string $bucket, string $prefix): array
+    {
+        $keys = [];
+        $params = [
+            'Bucket' => $bucket,
+            'Prefix' => $prefix
+        ];
+
+        do {
+            $result = $this->s3Client->listObjectsV2($params);
+            if (isset($result['Contents'])) {
+                foreach ($result['Contents'] as $object) {
+                    $keys[] = $object['Key'];
+                }
+            }
+            $params['ContinuationToken'] = $result['NextContinuationToken'] ?? null;
+        } while (!empty($params['ContinuationToken']));
+
+        return $keys;
+    }
+
+    private function _formatCopySource(string $bucket, string $key): string
+    {
+        return $bucket . '/' . str_replace('%2F', '/', rawurlencode($key));
     }
 
     /**
@@ -435,6 +520,128 @@ class GitServerController extends BaseController
         } catch (AwsException $e) {
             return $this->response->setStatusCode(500)->setJSON([
                 'error' => 'Failed to delete file from MinIO',
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Renomear arquivo ou pasta
+     * POST /api/git-entry-rename
+     */
+    public function renameEntry()
+    {
+        $method = strtoupper($this->request->getMethod());
+        if ($method !== 'POST') {
+            return $this->response->setStatusCode(405)->setJSON(['error' => 'Method not allowed']);
+        }
+
+        $input = $this->request->getJSON();
+        $userBucket = $input->userBucket ?? null;
+        $owner = $input->owner ?? null;
+        $repo = $input->repo ?? null;
+        $oldPath = $input->oldPath ?? null;
+        $newPath = $input->newPath ?? null;
+        $isFile = filter_var($input->isFile ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        $oldPath = trim(str_replace('\\', '/', $oldPath ?? ''), '/');
+        $newPath = trim(str_replace('\\', '/', $newPath ?? ''), '/');
+
+        if (!$userBucket || !$owner || !$repo || !$oldPath || !$newPath) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'error' => 'Missing required fields: userBucket, owner, repo, oldPath, newPath'
+            ]);
+        }
+
+        if ($oldPath === $newPath) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'error' => 'New path must be different from old path'
+            ]);
+        }
+
+        if (strpos($oldPath, '..') !== false || strpos($newPath, '..') !== false) {
+            return $this->response->setStatusCode(403)->setJSON([
+                'error' => 'Invalid path'
+            ]);
+        }
+
+        $basePrefix = "scripts/{$owner}/{$repo}/";
+
+        try {
+            if ($isFile) {
+                $oldKey = $basePrefix . $oldPath;
+                $newKey = $basePrefix . $newPath;
+
+                $this->s3Client->copyObject([
+                    'Bucket' => $userBucket,
+                    'CopySource' => $this->_formatCopySource($userBucket, $oldKey),
+                    'Key' => $newKey,
+                    'ACL' => 'private'
+                ]);
+
+                $this->s3Client->deleteObject([
+                    'Bucket' => $userBucket,
+                    'Key' => $oldKey
+                ]);
+
+                return $this->response->setStatusCode(200)->setJSON([
+                    'success' => true,
+                    'message' => 'File renamed successfully',
+                    'oldPath' => $oldPath,
+                    'newPath' => $newPath
+                ]);
+            }
+
+            $oldPrefix = rtrim($oldPath, '/') . '/';
+            $newPrefix = rtrim($newPath, '/') . '/';
+            $sourcePrefix = $basePrefix . $oldPrefix;
+            $targetsPrefix = $basePrefix . $newPrefix;
+
+            $objects = $this->_listObjectsByPrefix($userBucket, $sourcePrefix);
+            if (empty($objects)) {
+                return $this->response->setStatusCode(404)->setJSON([
+                    'error' => 'Folder not found or empty'
+                ]);
+            }
+
+            $copied = 0;
+            $deleteQueue = [];
+
+            foreach ($objects as $objectKey) {
+                $relative = substr($objectKey, strlen($sourcePrefix));
+                $targetKey = $targetsPrefix . $relative;
+
+                $this->s3Client->copyObject([
+                    'Bucket' => $userBucket,
+                    'CopySource' => $this->_formatCopySource($userBucket, $objectKey),
+                    'Key' => $targetKey,
+                    'ACL' => 'private'
+                ]);
+
+                $deleteQueue[] = ['Key' => $objectKey];
+                $copied++;
+            }
+
+            if (!empty($deleteQueue)) {
+                $this->s3Client->deleteObjects([
+                    'Bucket' => $userBucket,
+                    'Delete' => [
+                        'Objects' => $deleteQueue,
+                        'Quiet' => true
+                    ]
+                ]);
+            }
+
+            return $this->response->setStatusCode(200)->setJSON([
+                'success' => true,
+                'message' => 'Folder renamed successfully',
+                'oldPath' => $oldPath,
+                'newPath' => $newPath,
+                'movedObjects' => $copied
+            ]);
+        } catch (AwsException $e) {
+            return $this->response->setStatusCode(500)->setJSON([
+                'error' => 'Failed to rename entry',
                 'message' => $e->getMessage()
             ]);
         }

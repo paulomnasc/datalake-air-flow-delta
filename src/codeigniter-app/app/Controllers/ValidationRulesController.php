@@ -269,44 +269,32 @@ class ValidationRulesController extends ResourceController
                 $localFilePath = $repoPath . '/' . $filename;
                 log_message('info', "Salvando conteúdo em: $localFilePath");
                 
+                // Tentar remover arquivo existente se pertencer a outro usuário
+                if (file_exists($localFilePath)) {
+                    @unlink($localFilePath);
+                }
+                
                 if (file_put_contents($localFilePath, $content) === false) {
                     log_message('error', "Falha ao salvar arquivo: $localFilePath");
                     return $this->failServerError('Não foi possível salvar o arquivo localmente');
                 }
                 
+                // Tentar definir permissões (suppressar erro se falhar)
+                @chmod($localFilePath, 0666);
+                
                 log_message('info', "Arquivo salvo com sucesso: $localFilePath");
             }
             
-            // Executar script de sincronização
-            $command = "cd " . escapeshellarg($repoPath) . " && " .
-                       "bash " . escapeshellarg($syncScript) . " " . 
-                       escapeshellarg($filename);
-            
-            log_message('info', "Executando deploy: $command");
-            
-            $output = [];
-            $returnCode = 0;
-            exec($command . " 2>&1", $output, $returnCode);
-            
-            $outputText = implode("\n", $output);
-            
-            if ($returnCode !== 0) {
-                log_message('error', "Deploy falhou com código $returnCode: $outputText");
-                return $this->respond([
-                    'success' => false,
-                    'error' => 'Falha ao sincronizar',
-                    'details' => $outputText,
-                    'return_code' => $returnCode
-                ], 500);
-            }
-            
-            log_message('info', "Deploy concluído com sucesso para $filename");
+            // Nota: O script de sincronização requer Docker-in-Docker
+            // Por enquanto, retornamos sucesso informando que o arquivo foi salvo
+            log_message('info', "Arquivo $filename salvo em $repoPath. Sincronização com Airflow requer execução manual do script.");
             
             return $this->respond([
                 'success' => true,
-                'message' => "✅ $filename sincronizado para Airflow!",
-                'output' => $outputText,
-                'next_step' => 'Aguarde 30 segundos e procure a DAG no Airflow Web UI'
+                'message' => "✅ $filename salvo em /datalake-root!",
+                'info' => 'Arquivo salvo no repositório Git. Para sincronizar com Airflow, execute o script sync_validators_to_airflow.sh no host.',
+                'file_path' => "$repoPath/$filename",
+                'next_step' => 'Execute: cd /datalake-root && bash sync_validators_to_airflow.sh ' . $filename
             ]);
             
         } catch (\Exception $e) {

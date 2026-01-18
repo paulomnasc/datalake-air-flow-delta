@@ -487,7 +487,7 @@ require VIEWPATH . '/header.php';
             <div class="code-editor-header">
             <h1>
                 <span>💻</span>
-                SQL Code Editor
+                Code Editor
             </h1>
             <div class="status-badge" id="statusBadge">
                 <span class="status-dot"></span>
@@ -551,6 +551,18 @@ require VIEWPATH . '/header.php';
             
             <!-- Main Editor Area -->
             <main class="main-editor">
+                <!-- Tab Navigation -->
+                <div class="editor-tabs" style="display: flex; gap: 4px; padding: 12px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <button class="editor-tab active" onclick="switchMainTab('sql')" data-tab="sql" style="flex: 0 1 auto; padding: 10px 20px; border: 1px solid #cbd5e1; background: #667eea; color: white; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
+                        💻 SQL Editor
+                    </button>
+                    <button class="editor-tab" onclick="switchMainTab('validation')" data-tab="validation" style="flex: 0 1 auto; padding: 10px 20px; border: 1px solid #cbd5e1; background: #e2e8f0; color: #475569; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
+                        🛡️ Validações
+                    </button>
+                </div>
+
+                <!-- SQL TAB PANEL -->
+                <div id="sql-panel" class="tab-panel active" style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
                 <div class="toolbar">
                     <button class="sidebar-toggle-btn" onclick="toggleEditorSidebar()">
                         📁 Arquivos
@@ -588,6 +600,52 @@ require VIEWPATH . '/header.php';
                 <div class="results-section">
                     <div id="results"></div>
                 </div>
+                </div>
+                <!-- FIM SQL TAB PANEL -->
+
+                <!-- VALIDATION TAB PANEL -->
+                <div id="validation-panel" class="tab-panel" style="display: none; flex-direction: column; flex: 1; overflow: hidden;">
+                    <div class="toolbar">
+                        <button class="sidebar-toggle-btn" onclick="toggleEditorSidebar()">
+                            📁 GitHub
+                        </button>
+                        <button class="btn btn-primary" onclick="testValidation()">
+                            ▶️ Testar
+                        </button>
+                        <button class="btn btn-primary" onclick="runPythonScript()">
+                            ⚡ Executar
+                        </button>
+                        <button class="btn btn-primary" onclick="saveValidation()">
+                            💾 Salvar
+                        </button>
+                        <button class="btn btn-success" onclick="deployValidator()" style="background: #10b981;">
+                            🚀 Deploy
+                        </button>
+                    </div>
+
+                    <div style="display: flex; gap: 0; flex: 1; overflow: hidden;">
+                        <div style="flex: 0 0 300px; border-right: 1px solid #e2e8f0; overflow-y: auto; padding: 16px; background: #f8fafc;">
+                            <h2 style="margin: 0 0 16px 0; font-size: 18px;">📚 Templates</h2>
+                            <div id="templatesList"></div>
+                        </div>
+
+                        <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                            <div style="padding: 16px; border-bottom: 1px solid #e2e8f0;">
+                                <h2 style="margin-bottom: 12px; font-size: 18px;">✏️ Editor Python</h2>
+                                <div id="editor-validation" style="height: 400px; border: 1px solid #e2e8f0; border-radius: 6px;"></div>
+                            </div>
+                            
+                            <div style="padding: 16px; background: #f8fafc; flex: 1; overflow: auto;">
+                                <h2 style="margin-bottom: 12px; font-size: 18px;">📊 Resultado</h2>
+                                <div id="testResults" style="padding: 16px; background: #fff; border-radius: 6px; min-height: 100px; font-size: 12px; color: #64748b;">
+                                    Teste uma validação para ver os resultados
+                                </div>
+                                <div id="editor-validation-output" style="height: 240px; border: 1px solid #e2e8f0; border-radius: 6px; margin-top: 12px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- FIM VALIDATION TAB PANEL -->
             </main>
         </div>
         </div>
@@ -601,10 +659,46 @@ require VIEWPATH . '/header.php';
     
     <script>
         let editor;
+        let editorValidation;
+        let currentTab = 'sql';
         // Reuse global userBucket from git-file-manager.js to avoid redeclaration
         userBucket = '<?php echo esc($userBucket ?? 'user-1'); ?>';
-        let currentResults = null; // Armazenar resultados atuais para download CSV
+        let currentResults = null;
         
+        // Console Monaco para saída Python
+        let editorOutput;
+        
+        // Switch between tabs
+        function switchMainTab(tab) {
+            console.log('📌 Switching to tab:', tab);
+            currentTab = tab;
+            
+            // Update buttons
+            document.querySelectorAll('.editor-tab').forEach(btn => {
+                if (btn.dataset.tab === tab) {
+                    btn.style.background = tab === 'sql' ? '#667eea' : '#10b981';
+                    btn.style.color = 'white';
+                } else {
+                    btn.style.background = '#e2e8f0';
+                    btn.style.color = '#475569';
+                }
+            });
+            
+            // Update panels
+            document.getElementById('sql-panel').style.display = tab === 'sql' ? 'flex' : 'none';
+            document.getElementById('validation-panel').style.display = tab === 'validation' ? 'flex' : 'none';
+            
+            // Inicializar editor de validação imediatamente
+            if (tab === 'validation' && !editorValidation) {
+                console.log('⏳ Inicializando editor de validação...');
+                // Aguardar um pouco para o DOM estar pronto
+                setTimeout(() => {
+                    initValidationEditor();
+                }, 50);
+            }
+        }
+        
+
         // toggleEditorSidebar() agora é global via git-file-manager.js
         
         // Fechar sidebar ao clicar no overlay
@@ -929,8 +1023,12 @@ LIMIT 10;`,
                 
                 // Quando um arquivo do Git é selecionado via componente
                 window.addEventListener('git-file-selected', (e) => {
+                    console.log('📄 git-file-selected event:', e.detail);
                     const { filepath, filename, content } = e.detail || {};
-                    if (!filepath || !filename) return;
+                    if (!filepath || !filename) {
+                        console.warn('⚠️ Arquivo sem filepath ou filename');
+                        return;
+                    }
 
                     const ext = filename.split('.').pop().toLowerCase();
                     const langMap = {
@@ -941,17 +1039,45 @@ LIMIT 10;`,
                     };
                     const language = langMap[ext] || 'plaintext';
 
-                    monaco.editor.setModelLanguage(editor.getModel(), language);
-                    editor.setValue(content || '');
+                    console.log('📌 currentTab:', currentTab, '| editorValidation:', editorValidation ? 'EXISTS' : 'NULL');
+
+                    // Carregar no editor apropriado baseado na aba ativa
+                    if (currentTab === 'sql' && editor) {
+                        console.log('→ Carregando em editor SQL');
+                        monaco.editor.setModelLanguage(editor.getModel(), language);
+                        editor.setValue(content || '');
+                        
+                        if (language === 'markdown') {
+                            showMarkdownPreview(content || '');
+                        } else {
+                            hideMarkdownPreview();
+                        }
+                    } else if (currentTab === 'validation') {
+                        console.log('→ Carregando em editor Validação');
+                        // Se editor não existe, inicializar agora
+                        if (!editorValidation) {
+                            console.log('⏳ EditorValidation não existe, inicializando...');
+                            initValidationEditor();
+                            // Tentar novamente após inicialização
+                            setTimeout(() => {
+                                if (editorValidation) {
+                                    console.log('✓ EditorValidation criado, carregando conteúdo');
+                                    monaco.editor.setModelLanguage(editorValidation.getModel(), language);
+                                    editorValidation.setValue(content || '');
+                                } else {
+                                    console.error('❌ EditorValidation ainda é null após inicialização');
+                                }
+                            }, 100);
+                        } else {
+                            console.log('✓ EditorValidation existe, carregando conteúdo');
+                            monaco.editor.setModelLanguage(editorValidation.getModel(), language);
+                            editorValidation.setValue(content || '');
+                        }
+                    }
+                    
                     currentGitFile = { path: filepath, name: filename };
                     const currentInfo = document.getElementById('currentFileInfo');
                     if (currentInfo) currentInfo.innerHTML = `📄 ${filename}`;
-
-                    if (language === 'markdown') {
-                        showMarkdownPreview(content || '');
-                    } else {
-                        hideMarkdownPreview();
-                    }
 
                     const status = document.getElementById('gitStatus');
                     if (status) status.innerText = `✓ ${filename} carregado do Git`;
@@ -965,6 +1091,358 @@ LIMIT 10;`,
         }, function(err) {
             console.error('❌ Erro ao carregar Monaco libraries:', err);
         });
+        
+        // ===== VALIDATION EDITOR =====
+        function initValidationEditor() {
+            if (editorValidation) {
+                console.log('✓ EditorValidation já existe');
+                // Criar console se ainda não existir
+                const outEl = document.getElementById('editor-validation-output');
+                if (outEl && !editorOutput && window.monaco) {
+                    editorOutput = monaco.editor.create(outEl, {
+                        value: 'Console pronto.\n',
+                        language: 'plaintext',
+                        theme: 'vs-dark',
+                        automaticLayout: true,
+                        readOnly: true,
+                        minimap: { enabled: false },
+                        fontSize: 13
+                    });
+                }
+                return;
+            }
+            
+            try {
+                console.log('🔧 Inicializando editorValidation...');
+                const container = document.getElementById('editor-validation');
+                if (!container) {
+                    console.error('❌ Container editor-validation não encontrado!');
+                    return;
+                }
+                
+                editorValidation = monaco.editor.create(container, {
+                    value: `def validate(df):
+    """Valide dados no medallion"""
+    return df
+`,
+                    language: 'python',
+                    theme: 'vs-dark',
+                    automaticLayout: true,
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    tabSize: 4,
+                });
+
+                // Criar o console Monaco para output
+                const outEl = document.getElementById('editor-validation-output');
+                if (outEl && window.monaco) {
+                    editorOutput = monaco.editor.create(outEl, {
+                        value: 'Console pronto.\n',
+                        language: 'plaintext',
+                        theme: 'vs-dark',
+                        automaticLayout: true,
+                        readOnly: true,
+                        minimap: { enabled: false },
+                        fontSize: 13
+                    });
+                }
+                
+                console.log('✓ EditorValidation criado com sucesso');
+                loadTemplates();
+            } catch (err) {
+                console.error('❌ Erro ao criar editorValidation:', err);
+            }
+        }
+        
+        const templates = {
+            empty: { 
+                name: 'Regra Vazia', 
+                code: `def validate(df):
+    return df
+` 
+            },
+            null_check: {
+                name: 'Verificar Nulos',
+                code: `def validate(df):
+    """Remove registros com valores nulos em colunas críticas"""
+    return df.dropna(subset=['critical_column'])
+`
+            },
+            duplicate_check: {
+                name: 'Remover Duplicatas',
+                code: `def validate(df):
+    """Remove registros duplicados"""
+    return df.drop_duplicates()
+`
+            },
+            type_check: {
+                name: 'Validar Tipos',
+                code: `def validate(df):
+    """Valida tipos de dados"""
+    try:
+        df['amount'] = df['amount'].astype('float64')
+        return df
+    except:
+        return df.iloc[0:0]  # Retorna vazio se falhar
+`
+            }
+        };
+        
+        function loadTemplates() {
+            const list = document.getElementById('templatesList');
+            if (!list) return;
+            list.innerHTML = '';
+            Object.entries(templates).forEach(([key, tmpl]) => {
+                const div = document.createElement('div');
+                div.style.cssText = 'background: #e0e7ff; padding: 12px; border-radius: 6px; cursor: pointer; margin-bottom: 8px;';
+                div.innerHTML = `<h3 style="margin: 0 0 4px 0; font-size: 14px; color: #10b981;">${tmpl.name}</h3>`;
+                div.onclick = () => {
+                    if (editorValidation) editorValidation.setValue(tmpl.code);
+                };
+                list.appendChild(div);
+            });
+        }
+        
+        async function testValidation() {
+            const code = editorValidation?.getValue() || '';
+            const resultsDiv = document.getElementById('testResults');
+            
+            if (!code.trim()) {
+                resultsDiv.innerHTML = '<div style="color: #dc2626;">❌ Editor vazio</div>';
+                return;
+            }
+            
+            if (!code.includes('def validate')) {
+                resultsDiv.innerHTML = '<div style="color: #dc2626;">❌ Função "def validate(df)" não encontrada</div>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div style="color: #10b981;">✓ Sintaxe OK!</div>';
+        }
+        
+        async function saveValidation() {
+            if (!editorValidation) {
+                alert('❌ Editor de validação não inicializado');
+                return;
+            }
+            
+            const code = editorValidation.getValue();
+            
+            if (!code.trim()) {
+                alert('❌ Editor vazio');
+                return;
+            }
+            
+            // Se há arquivo aberto do Git, salvar direto
+            if (currentGitFile && gitConfig) {
+                const status = document.getElementById('gitStatus');
+                
+                try {
+                    if (status) status.innerText = 'Salvando...';
+                    
+                    const response = await fetch('/api/git-file-save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userBucket: userBucket,
+                            owner: gitConfig.owner,
+                            repo: gitConfig.repo,
+                            file: currentGitFile.path,
+                            content: code
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error || 'Falha ao salvar');
+                    }
+                    
+                    if (status) status.innerText = '';
+                    alert(`✅ ${currentGitFile.name} salvo com sucesso!`);
+                    console.log('✅ Arquivo validação salvo no Git');
+                    
+                } catch (error) {
+                    if (status) status.innerText = '';
+                    alert('❌ Erro ao salvar: ' + error.message);
+                    console.error('Erro ao salvar validação:', error);
+                }
+                return;
+            }
+            
+            // Se não há arquivo aberto, solicitar nome do arquivo
+            const fileName = prompt('Nome do arquivo (ex: validador.py):', 'validador.py');
+            if (!fileName) return;
+            
+            if (!gitConfig) {
+                alert('❌ Conecte ao GitHub primeiro');
+                return;
+            }
+            
+            const status = document.getElementById('gitStatus');
+            
+            try {
+                if (status) status.innerText = `Criando ${fileName}...`;
+                
+                const response = await fetch('/api/git-file-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        file: fileName,
+                        content: code
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao criar');
+                }
+                
+                if (status) status.innerText = '';
+                alert(`✅ ${fileName} criado com sucesso!`);
+                console.log('✅ Novo arquivo validação criado');
+                
+                // Recarregar lista de arquivos
+                if (typeof loadGitFiles === 'function') {
+                    await loadGitFiles();
+                }
+                
+            } catch (error) {
+                if (status) status.innerText = '';
+                alert('❌ Erro ao criar: ' + error.message);
+                console.error('Erro ao criar validação:', error);
+            }
+        }
+        
+        async function runPythonScript() {
+            const code = editorValidation?.getValue() || '';
+            const resultsDiv = document.getElementById('testResults');
+
+            if (!code.trim()) {
+                resultsDiv.innerHTML = '<div style="color: #dc2626;">❌ Editor vazio</div>';
+                return;
+            }
+
+            try {
+                resultsDiv.innerHTML = '<div style="color: #f59e0b;">⏳ Enviando para servidor...</div>';
+                if (editorOutput) editorOutput.setValue('Executando no servidor...\n');
+
+                // Envia código Python para executar no backend com DuckDB
+                const response = await fetch('/code-editor/execute-python', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ 
+                        code: code,
+                        userBucket: userBucket
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorMsg = `Erro HTTP ${response.status}`;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorMsg = errorJson.error || errorJson.message || errorMsg;
+                    } catch (e) {
+                        errorMsg = errorText || errorMsg;
+                    }
+                    
+                    resultsDiv.innerHTML = `<div style="color: #dc2626;">❌ ${errorMsg}</div>`;
+                    if (editorOutput) editorOutput.setValue(`Erro: ${errorMsg}`);
+                    return;
+                }
+
+                const result = await response.json();
+
+                let outputText = '';
+                if (result.stderr && String(result.stderr).trim()) {
+                    outputText += 'STDERR:\n' + String(result.stderr).trim() + '\n\n';
+                }
+                outputText += 'STDOUT:\n' + String(result.stdout || '').trim() + '\n';
+                if (result.result !== undefined && result.result !== null) {
+                    outputText += '\n\nResultado da função:\n' + JSON.stringify(result.result, null, 2);
+                }
+
+                if (editorOutput) editorOutput.setValue(outputText || '');
+                if (result.success) {
+                    resultsDiv.innerHTML = '<div style="color: #10b981;">✅ Execução concluída</div>';
+                } else {
+                    let errorMsg = result.error || 'Erro ao executar';
+                    resultsDiv.innerHTML = `<div style="color: #dc2626;">❌ ${errorMsg}</div>`;
+                }
+            } catch (e) {
+                const msg = '❌ Erro ao executar: ' + e.message;
+                resultsDiv.innerHTML = `<div style="color: #dc2626;">${msg}</div>`;
+                if (editorOutput) editorOutput.setValue(msg + '\nVeja o console para detalhes.');
+                console.error('Erro ao executar Python:', e);
+            }
+        }
+        
+        async function deployValidator() {
+            const code = editorValidation?.getValue() || '';
+            
+            if (!code.trim()) {
+                alert('❌ Editor vazio - Escreva código antes de fazer deploy');
+                return;
+            }
+            
+            // Verificar se há arquivo aberto
+            let filename = '';
+            if (currentGitFile && currentGitFile.name) {
+                filename = currentGitFile.name;
+            } else {
+                filename = prompt('Nome do arquivo para deploy (ex: validador.py):', 'validador.py');
+                if (!filename) return;
+            }
+            
+            // Confirmar deploy
+            if (!confirm(`🚀 Sincronizar "${filename}" para Airflow?\n\nIsso copiará o arquivo para /opt/airflow/dags/ e reiniciará o detector de DAGs.`)) {
+                return;
+            }
+            
+            try {
+                const resultsDiv = document.getElementById('testResults');
+                if (resultsDiv) {
+                    resultsDiv.innerHTML = '<div style="color: #f59e0b;">⏳ Implantando...</div>';
+                }
+                
+                const response = await fetch('/api/validation-deploy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: filename,
+                        content: code
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Sucesso!\n\n${result.message}\n\n${result.next_step || ''}`);
+                    if (resultsDiv) {
+                        resultsDiv.innerHTML = `<div style="color: #10b981;">✅ ${result.message}</div>`;
+                    }
+                    console.log('✅ Deploy realizado:', result);
+                } else {
+                    alert(`❌ Erro ao sincronizar\n\n${result.error}\n\n${result.details || 'Verifique os logs.'}`);
+                    if (resultsDiv) {
+                        resultsDiv.innerHTML = `<div style="color: #dc2626;">❌ ${result.error}</div>`;
+                    }
+                    console.error('❌ Erro no deploy:', result);
+                }
+                
+            } catch (error) {
+                console.error('Deploy error:', error);
+                alert('❌ Erro ao sincronizar: ' + error.message);
+                const resultsDiv = document.getElementById('testResults');
+                if (resultsDiv) {
+                    resultsDiv.innerHTML = `<div style="color: #dc2626;">❌ Erro: ${error.message}</div>`;
+                }
+            }
+        }
         
         // Executar query
         async function executeQuery() {
@@ -1732,18 +2210,31 @@ ORDER BY departamento, rank;`
             const root = { children: {}, isFile: false };
             
             files.forEach(file => {
-                const parts = file.path.split('/');
+                const parts = file.path.split('/').filter(Boolean);
+
+                // Ignorar arquivo .gitkeep, mas manter a pasta como nó de pasta
+                let isGitkeepPlaceholder = false;
+                if (parts.length > 0 && parts[parts.length - 1] === '.gitkeep') {
+                    parts.pop();
+                    if (parts.length === 0) return; // nada a criar
+                    isGitkeepPlaceholder = true;
+                }
+
                 let current = root;
+                const accumulated = [];
                 
                 parts.forEach((part, index) => {
-                    if (!part) return;
+                    accumulated.push(part);
+                    const pathSoFar = accumulated.join('/');
+                    const isFile = isGitkeepPlaceholder ? false : (index === parts.length - 1);
                     
                     if (!current.children[part]) {
                         current.children[part] = {
                             name: part,
-                            fullPath: file.path,
-                            isFile: index === parts.length - 1,
-                            fileData: file,
+                            path: pathSoFar,
+                            fullPath: pathSoFar,
+                            isFile: isFile,
+                            fileData: isFile ? file : null,
                             children: {},
                             expanded: index < 2
                         };
@@ -1763,32 +2254,113 @@ ORDER BY departamento, rank;`
             
             entries.forEach(entry => {
                 const item = document.createElement('div');
+                item.dataset.path = entry.fullPath || entry.path || entry.name;
+                item.dataset.type = entry.isFile ? 'file' : 'folder';
                 
                 if (entry.isFile) {
                     item.className = 'tree-item file';
+                    item.draggable = true;
                     item.innerHTML = `
                         <span class="icon">📄</span>
                         <span class="label" title="${entry.name}">${entry.name}</span>
                     `;
-                    item.onclick = () => loadGitFileContent(entry.fileData);
+                    item.onclick = () => {
+                        setSelectedGitNode(entry, item);
+                        loadGitFileContent(entry.fileData);
+                    };
+                    
+                    // Drag handlers
+                    item.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', JSON.stringify({
+                            path: entry.fullPath || entry.path,
+                            name: entry.name,
+                            isFile: true
+                        }));
+                        item.classList.add('dragging');
+                    });
+                    
+                    item.addEventListener('dragend', () => {
+                        item.classList.remove('dragging');
+                    });
                 } else {
                     const hasChildren = Object.keys(entry.children).length > 0;
                     const childrenContainer = document.createElement('div');
                     childrenContainer.className = `tree-children ${entry.expanded ? 'expanded' : ''}`;
                     
                     item.className = 'tree-item folder';
+                    item.draggable = true;
                     item.innerHTML = `
                         <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasChildren ? '▶' : ''}</span>
                         <span class="icon">${entry.expanded ? '📂' : '📁'}</span>
                         <span class="label" title="${entry.name}">${entry.name}</span>
                     `;
                     
-                    if (hasChildren) {
-                        item.onclick = (e) => {
-                            e.stopPropagation();
+                    item.onclick = (e) => {
+                        e.stopPropagation();
+                        setSelectedGitNode(entry, item);
+                        
+                        // Limpar editor quando pasta é selecionada
+                        if (editor) {
+                            editor.setValue('');
+                        }
+                        currentGitFile = null;
+                        const currentInfo = document.getElementById('currentFileInfo');
+                        if (currentInfo) {
+                            currentInfo.innerHTML = `📁 ${entry.name} (pasta)`;
+                        }
+                        
+                        if (hasChildren) {
                             toggleGitFolder(item, childrenContainer, entry);
-                        };
-                    }
+                        }
+                    };
+                    
+                    // Drag handlers for folder
+                    item.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', JSON.stringify({
+                            path: entry.fullPath || entry.path,
+                            name: entry.name,
+                            isFile: false
+                        }));
+                        item.classList.add('dragging');
+                    });
+                    
+                    item.addEventListener('dragend', () => {
+                        item.classList.remove('dragging');
+                    });
+                    
+                    // Drop handlers - allow dropping files/folders into this folder
+                    item.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        item.classList.add('drag-over');
+                    });
+                    
+                    item.addEventListener('dragleave', () => {
+                        item.classList.remove('drag-over');
+                    });
+                    
+                    item.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        item.classList.remove('drag-over');
+                        
+                        const draggedData = JSON.parse(e.dataTransfer.getData('text/plain'));
+                        const targetFolderPath = entry.fullPath || entry.path;
+                        
+                        if (draggedData.path === targetFolderPath) {
+                            return; // Can't drop into itself
+                        }
+                        
+                        // Check if trying to drop parent into child
+                        if (targetFolderPath.startsWith(draggedData.path + '/')) {
+                            alert('❌ Não pode mover uma pasta para dentro de si mesma');
+                            return;
+                        }
+                        
+                        moveGitEntry(draggedData.path, targetFolderPath, draggedData.name, draggedData.isFile);
+                    });
                     
                     container.appendChild(item);
                     
@@ -1830,6 +2402,7 @@ ORDER BY departamento, rank;`
             }
             
             gitFileTree.innerHTML = '';
+            setSelectedGitNode(null, null);
             
             if (!files || files.length === 0) {
                 console.warn('⚠️ Nenhum arquivo para renderizar');
@@ -1845,6 +2418,44 @@ ORDER BY departamento, rank;`
         
         // Carregar conteúdo do arquivo no Monaco Editor
         let currentGitFile = null;
+        let selectedGitNode = null;
+        let selectedGitNodeElement = null;
+
+        function setSelectedGitNode(entry, element) {
+            if (selectedGitNodeElement) {
+                selectedGitNodeElement.classList.remove('selected');
+            }
+            selectedGitNode = entry;
+            selectedGitNodeElement = element;
+            if (element) {
+                element.classList.add('selected');
+            }
+            const renameInfo = document.getElementById('renameTargetInfo');
+            if (renameInfo) {
+                if (entry) {
+                    const label = entry.isFile ? 'Arquivo' : 'Pasta';
+                    const target = entry.fullPath || entry.path || entry.name;
+                    renameInfo.textContent = `${label}: ${target}`;
+                } else {
+                    renameInfo.textContent = 'Selecione um arquivo ou pasta.';
+                }
+            }
+
+            const renameInput = document.getElementById('renameItemName');
+            if (renameInput) {
+                renameInput.value = entry ? entry.name : '';
+            }
+        }
+
+        function normalizeGitPath(path) {
+            if (!path) return '';
+            return path
+                .replace(/\\/g, '/')
+                .replace(/\/+/g, '/')
+                .replace(/^\/+/, '')
+                .replace(/\/+$/, '');
+        }
+
         async function loadGitFileContent(file) {
             if (!gitConfig) {
                 alert('Repositório não conectado');
@@ -1873,24 +2484,35 @@ ORDER BY departamento, rank;`
                 };
                 const language = langMap[ext] || 'plaintext';
                 
-                // Atualizar Monaco Editor
-                if (editor) {
+                // Atualizar Monaco Editor conforme aba ativa
+                if (currentTab === 'sql' && editor) {
                     monaco.editor.setModelLanguage(editor.getModel(), language);
                     editor.setValue(result.content || '');
-                    currentGitFile = file;
-                    
-                    // Atualizar display de arquivo atual
-                    document.getElementById('currentFileInfo').innerHTML = `📄 ${file.name}`;
-                    
-                    // Se for Markdown, mostrar preview
+                } else {
+                    // Validação: garantir editorValidation inicializado
+                    if (!editorValidation) {
+                        initValidationEditor();
+                        await new Promise(res => setTimeout(res, 100));
+                    }
+                    if (editorValidation) {
+                        monaco.editor.setModelLanguage(editorValidation.getModel(), language);
+                        editorValidation.setValue(result.content || '');
+                    }
+                }
+                
+                currentGitFile = file;
+                const currentInfo = document.getElementById('currentFileInfo');
+                if (currentInfo) currentInfo.innerHTML = `📄 ${file.name}`;
+                
+                if (currentTab === 'sql') {
                     if (language === 'markdown') {
                         showMarkdownPreview(result.content);
                     } else {
                         hideMarkdownPreview();
                     }
-                    
-                    console.log(`✅ Arquivo carregado: ${file.name} (${language})`);
                 }
+                
+                console.log(`✅ Arquivo carregado: ${file.name} (${language}) -> tab: ${currentTab}`);
             } catch (error) {
                 console.error('Erro ao carregar arquivo:', error);
                 alert('Erro ao carregar arquivo: ' + error.message);
@@ -2043,6 +2665,260 @@ ORDER BY departamento, rank;`
                 // Exibir mensagem de erro com fade
                 const errorMsg = document.getElementById('git-error-message');
                 errorMsg.innerHTML = `❌ Erro ao criar: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
+            }
+        }
+        
+        async function createGitFolder() {
+            if (!gitConfig) {
+                alert('Conecte o GitHub primeiro');
+                return;
+            }
+
+            const folderInput = document.getElementById('newFolderName');
+            const folderName = folderInput ? folderInput.value.trim() : '';
+            if (!folderName) {
+                alert('Informe o nome da pasta');
+                return;
+            }
+
+            const parentPath = selectedGitNode && !selectedGitNode.isFile
+                ? normalizeGitPath(selectedGitNode.fullPath || selectedGitNode.path)
+                : '';
+            const targetPath = normalizeGitPath(parentPath ? `${parentPath}/${folderName}` : folderName);
+            if (!targetPath) {
+                alert('Caminho da pasta inválido');
+                return;
+            }
+
+            const status = document.getElementById('gitStatus');
+
+            try {
+                status.innerText = `Criando pasta ${targetPath}...`;
+                const response = await fetch('/api/git-folder-create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        path: targetPath
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao criar pasta');
+                }
+
+                const result = await response.json();
+                status.innerText = '';
+                console.log('✅ Pasta criada:', result);
+
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ Pasta ${targetPath} criada com sucesso`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
+
+                if (folderInput) folderInput.value = '';
+                await loadGitFiles();
+            } catch (error) {
+                status.innerText = '';
+                console.error('Erro ao criar pasta:', error);
+
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao criar pasta: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
+            }
+        }
+
+        async function moveGitEntry(sourcePath, targetFolderPath, itemName, isFile) {
+            if (!gitConfig) {
+                alert('Conecte o GitHub primeiro');
+                return;
+            }
+
+            const normalizedSource = normalizeGitPath(sourcePath);
+            const normalizedTarget = normalizeGitPath(targetFolderPath);
+            const newPath = normalizeGitPath(`${normalizedTarget}/${itemName}`);
+
+            if (normalizedSource === newPath) {
+                return; // Same location
+            }
+
+            const status = document.getElementById('gitStatus');
+
+            try {
+                status.innerText = `Movendo ${itemName}...`;
+                const response = await fetch('/api/git-entry-rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        oldPath: normalizedSource,
+                        newPath: newPath,
+                        isFile: isFile
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao mover');
+                }
+
+                const result = await response.json();
+                status.innerText = '';
+                console.log('✅ Item movido:', result);
+
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${itemName} movido para ${normalizedTarget}`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
+
+                if (currentGitFile && normalizeGitPath(currentGitFile.path) === normalizedSource) {
+                    currentGitFile.path = newPath;
+                    currentGitFile.name = itemName;
+                    const currentInfo = document.getElementById('currentFileInfo');
+                    if (currentInfo) currentInfo.innerHTML = `📄 ${itemName}`;
+                }
+
+                setSelectedGitNode(null, null);
+                await loadGitFiles();
+            } catch (error) {
+                status.innerText = '';
+                console.error('Erro ao mover:', error);
+
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao mover: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
+            }
+        }
+
+        async function renameGitEntry() {
+            if (!gitConfig) {
+                alert('Conecte o GitHub primeiro');
+                return;
+            }
+
+            if (!selectedGitNode) {
+                alert('Selecione um arquivo ou pasta para renomear');
+                return;
+            }
+
+            const renameInput = document.getElementById('renameItemName');
+            const newName = renameInput ? renameInput.value.trim() : '';
+            if (!newName) {
+                alert('Informe o novo nome');
+                return;
+            }
+
+            const currentPath = normalizeGitPath(selectedGitNode.fullPath || selectedGitNode.path || (selectedGitNode.fileData ? selectedGitNode.fileData.path : ''));
+            if (!currentPath) {
+                alert('Caminho selecionado inválido');
+                return;
+            }
+
+            const parentPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : '';
+            const newPath = normalizeGitPath(parentPath ? `${parentPath}/${newName}` : newName);
+            if (!newPath) {
+                alert('Novo caminho inválido');
+                return;
+            }
+
+            const status = document.getElementById('gitStatus');
+
+            try {
+                status.innerText = `Renomeando ${currentPath}...`;
+                const response = await fetch('/api/git-entry-rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        oldPath: currentPath,
+                        newPath: newPath,
+                        isFile: !!selectedGitNode.isFile
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao renomear');
+                }
+
+                const result = await response.json();
+                status.innerText = '';
+                console.log('✅ Item renomeado:', result);
+
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${currentPath} renomeado para ${newPath}`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
+
+                if (currentGitFile && normalizeGitPath(currentGitFile.path) === currentPath) {
+                    currentGitFile.path = newPath;
+                    currentGitFile.name = newName;
+                    const currentInfo = document.getElementById('currentFileInfo');
+                    if (currentInfo) currentInfo.innerHTML = `📄 ${newName}`;
+                }
+
+                if (renameInput) renameInput.value = '';
+                setSelectedGitNode(null, null);
+                await loadGitFiles();
+            } catch (error) {
+                status.innerText = '';
+                console.error('Erro ao renomear:', error);
+
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao renomear: ${error.message}`;
                 errorMsg.style.display = 'block';
                 setTimeout(() => {
                     errorMsg.style.opacity = '0';

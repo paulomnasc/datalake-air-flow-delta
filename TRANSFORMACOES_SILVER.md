@@ -140,6 +140,168 @@ customernumber,contactfirstname,creditlimit,email,DataQualityRulesPass,DataQuali
 
 ### Queries Úteis para Análise
 
+#### Como Verificar Quais Regras Foram Aplicadas e Seus Totais (Pass/Fail/Skip)
+
+**Colunas que armazenam os resultados das regras**:
+
+| Coluna | Tipo | Significado |
+|--------|------|-------------|
+| **DataQualityRulesPass** | int | Quantidade de regras que PASSARAM na linha (0-5) |
+| **DataQualityRulesFail** | int | Quantidade de regras que FALHARAM na linha (0-5) |
+| **DataQualityRulesSkip** | int | Quantidade de regras não aplicáveis à linha (0-5) |
+
+**Resumo das 5 Regras Aplicadas**:
+
+1. ✅ **Verificação de Valores Nulos** - Campos críticos (id, key, code, number) devem estar preenchidos
+2. ✅ **Validação de Tipos de Dados** - Números devem ser finitos (sem inf ou NaN)
+3. ✅ **Detecção de Duplicatas** - Identifica linhas duplicadas exatas
+4. ✅ **Validação de Ranges Numéricos** - Detecta outliers (>3 desvios padrão)
+5. ✅ **Validação de Padrões de String** - Valida formato de emails e telefones
+
+#### Python - Queries para Análise de Regras
+
+```python
+import pandas as pd
+
+df = pd.read_parquet('silver/customers/file.parquet')
+
+# ===== ANÁLISE GERAL DE QUALIDADE =====
+
+# 1. Resumo agregado total
+summary = df[['DataQualityRulesPass', 'DataQualityRulesFail', 'DataQualityRulesSkip']].sum()
+print(f"Total de PASSES: {summary['DataQualityRulesPass']}")
+print(f"Total de FALHAS: {summary['DataQualityRulesFail']}")
+print(f"Total de SKIPS: {summary['DataQualityRulesSkip']}")
+print(f"Taxa de aprovação: {(df['DataQualityEvaluationResult'] == 'Passed').sum() / len(df) * 100:.1f}%")
+
+# 2. Distribuição de PASSES por linha
+print("\nDistribuição de PASSES por linha:")
+print(df['DataQualityRulesPass'].value_counts().sort_index())
+
+# 3. Distribuição de FALHAS por linha
+print("\nDistribuição de FALHAS por linha:")
+print(df['DataQualityRulesFail'].value_counts().sort_index())
+
+# 4. Distribuição de SKIPS por linha
+print("\nDistribuição de SKIPS por linha:")
+print(df['DataQualityRulesSkip'].value_counts().sort_index())
+
+# 5. Filtrar apenas linhas confiáveis
+clean_data = df[df['DataQualityEvaluationResult'] == 'Passed']
+print(f"\nLinhas aprovadas: {len(clean_data)} de {len(df)}")
+
+# 6. Encontrar linhas com múltiplos problemas
+critical_issues = df[df['DataQualityRulesFail'] >= 3]
+print(f"Linhas críticas (3+ falhas): {len(critical_issues)}")
+
+# 7. Identificar problemas específicos
+null_issues = df[df['customernumber'].isna()]
+outliers = df[df['creditlimit'] > df['creditlimit'].mean() + 3*df['creditlimit'].std()]
+print(f"Linhas com valores nulos críticos: {len(null_issues)}")
+print(f"Linhas com outliers numéricos: {len(outliers)}")
+
+# 8. Histórico detalhado por resultado
+print("\nResumo por resultado:")
+print(df['DataQualityEvaluationResult'].value_counts())
+```
+
+#### SQL (Delta Lake / Spark SQL) - Análise por Regras
+
+**O que é SQL (Delta Lake / Spark SQL)?**
+
+- **SQL** = Linguagem padrão para consultar dados em bancos de dados
+- **Delta Lake** = Formato de armazenamento de dados que funciona com Spark (como Parquet, mas mais robusto)
+- **Spark SQL** = Mecanismo que permite usar SQL para analisar dados em larga escala
+
+**Quando usar SQL em vez de Python?**:
+- ✅ Dados muito grandes (bilhões de linhas) → SQL é mais rápido
+- ✅ Queries simples (filtros, agregações) → SQL é mais direto
+- ✅ Integração com Power BI, Tableau → SQL é nativo
+- ✅ Trabalhar com múltiplas tabelas ao mesmo tempo
+
+**Como executar estas queries**:
+1. No **PySpark** (Python + Spark):
+   ```python
+   spark.sql("""
+   SELECT SUM(DataQualityRulesPass) as total_passes
+   FROM silver.sua_tabela
+   """).show()
+   ```
+
+2. No **Databricks, Azure Synapse ou Presto**:
+   - Copie e cole direto na interface SQL
+
+3. No **DBeaver** (ferramenta SQL visual):
+   - Conecte ao banco → Execute a query
+
+```sql
+-- 1. Totais agregados de passes, fails e skips
+SELECT 
+    SUM(DataQualityRulesPass) as total_passes,
+    SUM(DataQualityRulesFail) as total_fails,
+    SUM(DataQualityRulesSkip) as total_skips,
+    COUNT(*) as total_linhas,
+    ROUND(SUM(CASE WHEN DataQualityEvaluationResult = 'Passed' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) as taxa_aprovacao_percent
+FROM silver.sua_tabela;
+
+-- 2. Distribuição de qualidade por linha
+SELECT 
+    DataQualityRulesPass,
+    COUNT(*) as quantidade_linhas
+FROM silver.sua_tabela
+GROUP BY DataQualityRulesPass
+ORDER BY DataQualityRulesPass;
+
+-- 3. Distribuição de falhas por linha
+SELECT 
+    DataQualityRulesFail,
+    COUNT(*) as quantidade_linhas
+FROM silver.sua_tabela
+GROUP BY DataQualityRulesFail
+ORDER BY DataQualityRulesFail;
+
+-- 4. Linhas críticas (com 3 ou mais falhas)
+SELECT 
+    *,
+    DataQualityRulesPass,
+    DataQualityRulesFail,
+    DataQualityRulesSkip
+FROM silver.sua_tabela
+WHERE DataQualityRulesFail >= 3
+ORDER BY DataQualityRulesFail DESC;
+
+-- 5. Taxa de aprovação por tipo
+SELECT 
+    DataQualityEvaluationResult,
+    COUNT(*) as total_linhas,
+    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM silver.sua_tabela), 2) as percentual
+FROM silver.sua_tabela
+GROUP BY DataQualityEvaluationResult;
+```
+
+#### Exemplo de Interpretação de Resultados
+
+```
+Total de passes:  450  (90 linhas com 5 passes = 450 regras atendidas)
+Total de fails:   12   (problemas identificados)
+Total de skips:   8    (regras não aplicáveis)
+
+Distribuição de PASSES:
+5 passes: 85 linhas ✅
+4 passes: 10 linhas ⚠️
+3 passes:  3 linhas ⚠️
+2 passes:  2 linhas ❌
+
+Distribuição de FALHAS:
+0 falhas: 85 linhas ✅
+1 falha:  12 linhas ⚠️
+2 falhas:  3 linhas ❌
+
+Taxa geral de aprovação: 85/100 = 85%
+```
+
+---
+
 ```python
 import pandas as pd
 

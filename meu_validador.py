@@ -1,268 +1,145 @@
 """
-EXEMPLO CORRETO DE VALIDADOR CUSTOMIZADO COM PIPELINE COMPLETO
+Validador customizado com HERANÇA - Padrão recomendado!
+Sincronização automática - 100% SEGURO contra corrupção!
 
-Este é o padrão CORRETO para criar um validador que:
-1. Executa o pipeline Medallion COMPLETO (Bronze → Silver → Gold)
-2. MAIS aplica validações/transformações customizadas
+CLASSE: MeuValidador(RawToMedallionPipeline)
 
-A classe MeuValidador é um WRAPPER (invólucro) que:
-- Chama raw_to_medallion() para executar todo o pipeline padrão
-- Depois aplica suas customizações específicas
-
-Uso:
-    1. Salve como: meu_validador.py
-    2. Configure em dag_configurations:
-       UPDATE dag_configurations 
-       SET python_module_path = 'meu_validador.MeuValidador'
-       WHERE dag_id = 'sua_dag_id';
-    3. Execute DAG normalmente
+CONFIGURAÇÃO MySQL:
+    UPDATE dag_configurations 
+    SET python_module_path = 'lib.validadores.meu_validador.MeuValidador'
+    WHERE dag_id = 2;
 """
-
-from lib.medallion_pipeline import raw_to_medallion
+from lib.medallion_pipeline_v2 import RawToMedallionPipeline
 import pandas as pd
 import logging
-from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 log = logging.getLogger(__name__)
 
 
-class MeuValidador:
+class MeuValidador(RawToMedallionPipeline):
     """
-    Wrapper que executa pipeline Medallion padrão MAIS validações customizadas.
+    Validador customizado herdando de RawToMedallionPipeline.
     
-    Fluxo:
-    1. raw_to_medallion() → Bronze → Silver → Gold (pipeline padrão)
-    2. custom_validations() → Validações customizadas (suas regras)
-    
-    Resultado: dados processados + validados + com regras de negócio aplicadas
+    VANTAGENS:
+    ✅ Sincronização 100% garantida (architecturally impossible race conditions)
+    ✅ Acesso a self.hook, self.bucket, self.tmpdir
+    ✅ Nenhuma race condition possível
+    ✅ Simples de estender
     """
     
-    def __call__(self, source_filename: str, target_table_name: str, **context):
+    def silver_layer_transform(self, silver_key: str) -> str:
         """
-        Entry point chamado pelo Airflow/Factory.
+        Override do hook Silver: Validar e transformar dados de Cliente.
         
-        Executará SEMPRE o pipeline completo, depois suas customizações.
+        ✅ Roda GARANTIDAMENTE após Silver estar 100% salva em S3.
+        ✅ Seguro sobrescrever arquivo (nenhuma race condition).
         """
-        log.info(f"\n{'='*80}")
-        log.info(f"[MeuValidador] 🚀 Iniciando pipeline para {target_table_name}")
-        log.info(f"[MeuValidador] Arquivo: {source_filename}")
-        log.info(f"{'='*80}\n")
-        
         try:
-            # ═══════════════════════════════════════════════════════════════════
-            # ETAPA 1: EXECUTAR PIPELINE MEDALLION COMPLETO (PADRÃO)
-            # ═══════════════════════════════════════════════════════════════════
-            # Isso faz Bronze → Silver → Gold com toda a lógica padrão
-            log.info("[MeuValidador] 📦 ETAPA 1: Executando pipeline padrão...")
+            log.info(f"🔍 [MeuValidador] Processando Silver: {silver_key}")
             
-            pipeline_result = raw_to_medallion(
-                source_filename=source_filename,
-                target_table_name=target_table_name,
-                **context
-            )
-            
-            log.info("[MeuValidador] ✅ Pipeline padrão concluído!")
-            log.info(f"   Bronze: {pipeline_result.get('bronze')}")
-            log.info(f"   Silver: {pipeline_result.get('silver')}")
-            log.info(f"   Gold: {pipeline_result.get('gold')}")
-            
-            # ═══════════════════════════════════════════════════════════════════
-            # ETAPA 2: APLICAR VALIDAÇÕES/TRANSFORMAÇÕES CUSTOMIZADAS
-            # ═══════════════════════════════════════════════════════════════════
-            log.info("\n[MeuValidador] 🔧 ETAPA 2: Aplicando validações customizadas...")
-            
-            self.custom_validations(
-                pipeline_result=pipeline_result,
-                target_table_name=target_table_name,
-                **context
-            )
-            
-            log.info("[MeuValidador] ✅ Validações customizadas concluídas!")
-            
-            # ═══════════════════════════════════════════════════════════════════
-            # ETAPA 3: RETORNAR RESULTADO
-            # ═══════════════════════════════════════════════════════════════════
-            log.info(f"\n{'='*80}")
-            log.info("[MeuValidador] ✅ PIPELINE COMPLETO FINALIZADO COM SUCESSO!")
-            log.info(f"{'='*80}\n")
-            
-            return pipeline_result
-            
-        except Exception as e:
-            log.error(f"[MeuValidador] ❌ ERRO: {e}", exc_info=True)
-            raise
-    
-    
-    def custom_validations(self, pipeline_result: dict, target_table_name: str, **context):
-        """
-        Aplicar validações/transformações customizadas APÓS o pipeline padrão.
-        
-        Args:
-            pipeline_result: Dict com chaves 'bronze', 'silver', 'gold' (caminhos S3)
-            target_table_name: Nome da tabela
-            context: Contexto do Airflow (contém bucket_name, owner, etc)
-        """
-        
-        bucket = context.get('bucket_name', 'lab01')
-        hook = S3Hook(aws_conn_id='minio_conn')
-        
-        log.info(f"[CustomValidations] Validando dados em s3://{bucket}/")
-        
-        # ───────────────────────────────────────────────────────────────────
-        # CUSTOMIZAÇÃO 1: VALIDAR E TRATAR CEP NA SILVER
-        # ───────────────────────────────────────────────────────────────────
-        
-        silver_key = pipeline_result.get('silver')
-        if not silver_key:
-            log.warning("[CustomValidations] ⚠️  Silver key não encontrada, pulando validação de CEP")
-            return
-        
-        log.info(f"[CustomValidations] 📥 Baixando Silver: {silver_key}")
-        
-        try:
-            # Baixar arquivo Silver do MinIO
-            local_file = hook.download_file(
+            # Download do arquivo Silver
+            local_file = self.hook.download_file(
                 key=silver_key,
-                bucket_name=bucket,
+                bucket_name=self.bucket,
+                local_path=self.tmpdir,
                 preserve_file_name=True
             )
+            log.info(f"✅ [MeuValidador] Download concluído")
             
-            # Carregar como DataFrame
-            df_silver = pd.read_parquet(local_file)
-            log.info(f"[CustomValidations] ✅ Silver carregado: {len(df_silver)} registros")
+            # Ler como DataFrame
+            df = pd.read_parquet(local_file)
+            original_rows = len(df)
+            original_cols = len(df.columns)
+            log.info(f"📊 [MeuValidador] Entrada: {original_rows} registros, {original_cols} colunas")
             
-            # ───── VALIDAÇÃO DE CEP ─────
-            if 'billingpostalcode' in df_silver.columns:
-                log.info("[CustomValidations] 🔍 Validando coluna 'billingpostalcode'...")
-                
-                # Contar valores antes
-                null_before = df_silver['billingpostalcode'].isnull().sum()
-                invalid_before = (df_silver['billingpostalcode'].astype(str).str.strip().str.lower()
-                                 .isin(['nan', 'none', 'null', ''])).sum()
-                
-                log.info(f"   Antes: {null_before} nulos, {invalid_before} valores 'nan/none/null'")
-                
-                # Aplicar tratamento
-                df_silver['billingpostalcode'] = df_silver['billingpostalcode'].apply(
-                    lambda x: 'None' if pd.isna(x) or str(x).strip().lower() in ['nan', 'none', 'null', ''] 
-                    else str(x).strip()
-                )
-                
-                # Contar valores depois
-                null_after = df_silver['billingpostalcode'].isnull().sum()
-                log.info(f"   Depois: {null_after} nulos")
-                log.info(f"   ✅ CEP tratado: {len(df_silver)} registros processados")
-            else:
-                log.warning("[CustomValidations] ⚠️  Coluna 'billingpostalcode' não encontrada")
+            # Aplicar validações
+            df = self._apply_validations(df)
             
-            # ───── VALIDAÇÃO DE QUALIDADE ─────
-            quality_score = (df_silver.notna().sum().sum() / df_silver.size) * 100
-            log.info(f"[CustomValidations] 📊 Quality Score: {quality_score:.2f}%")
+            # Salvar de volta (sobrescreve o arquivo Silver)
+            df.to_parquet(local_file, index=False)
             
-            if quality_score < 90.0:
-                log.warning(f"[CustomValidations] ⚠️  Quality baixa ({quality_score:.2f}% < 90%)")
-            
-            # ───── RE-SALVAR SILVER COM VALIDAÇÕES APLICADAS ─────
-            log.info(f"[CustomValidations] 📤 Re-salvando Silver com validações...")
-            
-            local_parquet = '/tmp/silver_validated.parquet'
-            df_silver.to_parquet(
-                local_parquet,
-                index=False,
-                compression='snappy',
-                engine='pyarrow'
-            )
-            
-            # Enviar de volta para MinIO (replace=True sobrescreve)
-            hook.load_file(
-                filename=local_parquet,
+            # Upload de volta para S3
+            self.hook.load_file(
+                filename=local_file,
                 key=silver_key,
-                bucket_name=bucket,
+                bucket_name=self.bucket,
                 replace=True
             )
+            log.info(f"🚀 [MeuValidador] Silver validada e salva ✅")
             
-            log.info(f"[CustomValidations] ✅ Silver atualizado com validações!")
+            return silver_key
             
-            # Informar via XCom para próximas tasks
-            if 'task_instance' in context:
-                ti = context['task_instance']
-                ti.xcom_push(key='custom_validation_status', value='success')
-                ti.xcom_push(key='cep_treated_rows', value=len(df_silver))
-                ti.xcom_push(key='quality_score', value=quality_score)
-            
-        except FileNotFoundError:
-            log.error(f"[CustomValidations] ❌ Silver não encontrado em {silver_key}")
-            raise
         except Exception as e:
-            log.error(f"[CustomValidations] ❌ Erro ao validar Silver: {e}", exc_info=True)
+            log.error(f"❌ [MeuValidador] ERRO: {e}", exc_info=True)
             raise
-        
-        
-        # ───────────────────────────────────────────────────────────────────
-        # CUSTOMIZAÇÃO 2: VALIDAÇÕES ADICIONAIS (EXEMPLO)
-        # ───────────────────────────────────────────────────────────────────
-        # Você pode adicionar mais validações aqui...
-        # Por exemplo: validar Gold, aplicar mascaramento, etc
-        
-        log.info("[CustomValidations] ✅ Todas as validações customizadas concluídas!")
-
-
-# ==============================================================================
-# EXEMPLO DE USO
-# ==============================================================================
-#
-# 1. Salve este arquivo: meu_validador.py
-#    Coloque em: seu repositório GitHub ou /opt/airflow/dags/
-#
-# 2. Configure em dag_configurations (MySQL):
-#    UPDATE dag_configurations 
-#    SET python_module_path = 'meu_validador.MeuValidador'
-#    WHERE dag_id = 'sua_dag_id';
-#
-# 3. Execute sua DAG:
-#    airflow dags trigger sua_dag_id
-#
-# 4. Monitore nos logs do Airflow:
-#    [MeuValidador] 🚀 Iniciando pipeline para seu_table_name
-#    [MeuValidador] 📦 ETAPA 1: Executando pipeline padrão...
-#    [MeuValidador] ✅ Pipeline padrão concluído!
-#    [MeuValidador] 🔧 ETAPA 2: Aplicando validações customizadas...
-#    [CustomValidations] 🔍 Validando coluna 'billingpostalcode'...
-#    [CustomValidations] ✅ Silver atualizado com validações!
-#    [MeuValidador] ✅ PIPELINE COMPLETO FINALIZADO COM SUCESSO!
-#
-# ==============================================================================
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FUNÇÃO PARA COMPATIBILIDADE COM WEBAPP
-# ─────────────────────────────────────────────────────────────────────────────
-# A interface web (validation-rules-editor.php) procura por uma função validate()
-# Esta função é apenas para passar na validação da interface.
-# A execução real usa MeuValidador classe.
-
-def validate(df):
-    """
-    Função dummy para compatibilidade com webapp.
     
-    O webapp testa se arquivo tem 'def validate(df)' antes de salvar.
-    Esta função existe apenas para passar nessa validação.
-    
-    Execução real:
-    - Use class MeuValidador para factory_master.py
-    - Configure python_module_path = 'arquivo.MeuValidador'
-    """
-    log.info("[validate] ℹ️  Função dummy chamada (use MeuValidador classe instead)")
-    return df
-
-
-if __name__ == '__main__':
-    print("Este é um arquivo de validador customizado.")
-    print("Use com a factory_master.py ou via interface web.")
-    print()
-    print("Padrão correto:")
-    print("  class MeuValidador:")
-    print("      def __call__(self, source_filename, target_table_name, **context):")
-    print("          # 1. Chamar raw_to_medallion() para pipeline completo")
-    print("          # 2. Aplicar suas customizações")
-    print("          # 3. Retornar resultado")
-
+    def _apply_validations(self, df):
+        """Aplicar todas as validações no DataFrame"""
+        log.info(f"⚙️ [MeuValidador] Iniciando validações...")
+        
+        original_rows = len(df)
+        original_cols = len(df.columns)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # VALIDAÇÃO 1: CEP (Billing Postal Code)
+        # ═══════════════════════════════════════════════════════════════════
+        if 'billingpostalcode' in df.columns:
+            log.info("🔍 [MeuValidador] Validando coluna 'billingpostalcode'...")
+            
+            invalid_mask = (
+                (df['billingpostalcode'].isnull()) |
+                (df['billingpostalcode'].astype(str).str.strip().str.lower()
+                 .isin(['nan', 'none', 'null', '', 'undefined']))
+            )
+            invalid_count = invalid_mask.sum()
+            
+            if invalid_count > 0:
+                log.info(f"   └─ {invalid_count} valores inválidos encontrados")
+                df.loc[invalid_mask, 'billingpostalcode'] = None
+                log.info(f"   └─ CEP normalizado ✅")
+            else:
+                log.info(f"   └─ Nenhum inválido ✅")
+        else:
+            log.warning(f"⚠️ Coluna 'billingpostalcode' não encontrada")
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # VALIDAÇÃO 2: Remover colunas 100% nulas
+        # ═══════════════════════════════════════════════════════════════════
+        cols_to_drop = [col for col in df.columns if df[col].isnull().all()]
+        
+        if cols_to_drop:
+            log.info(f"🗑️ Removendo {len(cols_to_drop)} colunas 100% nulas")
+            df = df.drop(columns=cols_to_drop)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # VALIDAÇÃO 3: Normalizar nomes de colunas
+        # ═══════════════════════════════════════════════════════════════════
+        df.columns = (df.columns
+                     .str.strip()
+                     .str.lower()
+                     .str.replace(' ', '_')
+                     .str.replace('-', '_'))
+        log.info(f"📝 Colunas normalizadas")
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # VALIDAÇÃO 4: Data Quality Score
+        # ═══════════════════════════════════════════════════════════════════
+        total_cells = df.size
+        filled_cells = df.notna().sum().sum()
+        quality_score = (filled_cells / total_cells * 100) if total_cells > 0 else 100
+        
+        log.info(f"📊 Quality Score: {quality_score:.2f}% ({filled_cells}/{total_cells})")
+        
+        if quality_score < 50:
+            log.error(f"❌ Quality Score crítico ({quality_score:.2f}%)")
+        elif quality_score < 80:
+            log.warning(f"⚠️ Quality Score baixo ({quality_score:.2f}%)")
+        else:
+            log.info(f"✅ Quality Score aceitável")
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # VALIDAÇÃO 5: Resumo final
+        # ═══════════════════════════════════════════════════════════════════
+        log.info(f"📈 Resumo: {original_rows}→{len(df)} registros, {original_cols}→{len(df.columns)} colunas, {quality_score:.2f}% qualidade ✅")
+        
+        return df

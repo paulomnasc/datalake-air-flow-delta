@@ -234,6 +234,20 @@ stderr_capture = io.StringIO()
 user_bucket = %s
 duckdb_path = "s3://{}/".format(user_bucket)
 
+# Configure MinIO/S3 credentials for PyArrow
+minio_endpoint = os.getenv('MINIO_ENDPOINT', '')
+minio_access_key = os.getenv('MINIO_ACCESS_KEY_ID', '')
+minio_secret_key = os.getenv('MINIO_SECRET_ACCESS_KEY', '')
+minio_use_path_style = os.getenv('MINIO_USE_PATH_STYLE_ENDPOINT', 'true').lower() == 'true'
+
+if minio_endpoint and minio_access_key and minio_secret_key:
+    os.environ['AWS_ACCESS_KEY_ID'] = minio_access_key
+    os.environ['AWS_SECRET_ACCESS_KEY'] = minio_secret_key
+    os.environ['AWS_ENDPOINT_URL_S3'] = minio_endpoint
+    os.environ['AWS_S3_ENDPOINT_URL'] = minio_endpoint  # Para pyarrow
+    if minio_use_path_style:
+        os.environ['AWS_S3_USE_PATH_STYLE'] = 'true'
+
 # Código do usuário
 user_code = %s
 
@@ -310,14 +324,20 @@ PYTHON
                     ]);
             }
 
-            // Propagar variáveis de ambiente relevantes para S3
+            // Propagar variáveis de ambiente relevantes para S3/MinIO
             $env = [
                 'AWS_ACCESS_KEY_ID' => getenv('AWS_ACCESS_KEY_ID') ?: '',
                 'AWS_SECRET_ACCESS_KEY' => getenv('AWS_SECRET_ACCESS_KEY') ?: '',
                 'AWS_REGION' => getenv('AWS_REGION') ?: '',
                 'S3_ENDPOINT' => getenv('S3_ENDPOINT') ?: '',
                 'S3_URL_STYLE' => getenv('S3_URL_STYLE') ?: '',
-                'AWS_S3_ALLOW_UNVERIFIED_SSL' => getenv('AWS_S3_ALLOW_UNVERIFIED_SSL') ?: ''
+                'AWS_S3_ALLOW_UNVERIFIED_SSL' => getenv('AWS_S3_ALLOW_UNVERIFIED_SSL') ?: '',
+                // MinIO variables
+                'MINIO_ENDPOINT' => getenv('MINIO_ENDPOINT') ?: '',
+                'MINIO_REGION' => getenv('MINIO_REGION') ?: '',
+                'MINIO_ACCESS_KEY_ID' => getenv('MINIO_ACCESS_KEY_ID') ?: '',
+                'MINIO_SECRET_ACCESS_KEY' => getenv('MINIO_SECRET_ACCESS_KEY') ?: '',
+                'MINIO_USE_PATH_STYLE_ENDPOINT' => getenv('MINIO_USE_PATH_STYLE_ENDPOINT') ?: ''
             ];
 
             $process = proc_open($pythonBinary . ' -', $descriptorspec, $pipes, null, $env);

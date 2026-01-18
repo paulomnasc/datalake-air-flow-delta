@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-venv \
     && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --break-system-packages --no-cache-dir duckdb pandas numpy
+    && pip3 install --break-system-packages --no-cache-dir duckdb pandas numpy pyarrow
 ENV PYTHON_BIN=/usr/bin/python3
 
 # 3. CONFIGURAÇÃO DO COMPOSER

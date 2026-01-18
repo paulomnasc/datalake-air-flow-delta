@@ -288,9 +288,29 @@ require VIEWPATH . '/header.php';
         }
         
         #editor-container {
-            flex: 1;
-            min-height: 300px;
+            height: 200px;
+            min-height: 150px;
+            max-height: 600px;
+            resize: vertical;
+            overflow: auto;
             border-bottom: 1px solid #e2e8f0;
+            position: relative;
+        }
+        
+        /* Estilo para o handle de resize do editor */
+        #editor-container::after {
+            content: '⋮';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #e2e8f0;
+            color: #64748b;
+            padding: 2px 8px;
+            border-radius: 4px 4px 0 0;
+            font-size: 14px;
+            cursor: ns-resize;
+            pointer-events: none;
         }
         
         .results-section {
@@ -298,6 +318,71 @@ require VIEWPATH . '/header.php';
             overflow: auto;
             padding: 20px;
             background: #f8fafc;
+        }
+        
+        /* Estilos customizados para DataTables */
+        .dataTables_wrapper {
+            padding: 0 !important;
+        }
+        
+        .dataTables_length,
+        .dataTables_filter {
+            margin-bottom: 12px;
+        }
+        
+        .dataTables_length label,
+        .dataTables_filter label {
+            font-size: 13px;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .dataTables_length select,
+        .dataTables_filter input {
+            padding: 6px 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 13px;
+            margin: 0 8px;
+        }
+        
+        .dataTables_info {
+            font-size: 13px;
+            color: #64748b;
+            padding-top: 12px;
+        }
+        
+        .dataTables_paginate {
+            padding-top: 12px;
+        }
+        
+        .dataTables_paginate .paginate_button {
+            padding: 6px 12px;
+            margin: 0 2px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: white;
+            color: #475569;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        
+        .dataTables_paginate .paginate_button:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+        
+        .dataTables_paginate .paginate_button.current {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .dataTables_paginate .paginate_button.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .editor-layout {
@@ -1563,7 +1648,7 @@ LIMIT 10;`,
                         ${rowCount} linha(s) · ${executionTime}ms
                     </div>
                 </div>
-                <table class="results-table">
+                <table id="sql-results-table" class="results-table display" style="width:100%">
                     <thead>
                         <tr>
                             ${columns.map(col => `<th>${col}</th>`).join('')}
@@ -1584,12 +1669,45 @@ LIMIT 10;`,
             
             html += '</tbody></table>';
             resultsDiv.innerHTML = html;
+            
+            // Inicializar DataTables com paginação de 10 registros
+            setTimeout(() => {
+                if ($.fn.DataTable.isDataTable('#sql-results-table')) {
+                    $('#sql-results-table').DataTable().destroy();
+                }
+                $('#sql-results-table').DataTable({
+                    pageLength: 10,
+                    lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                    language: {
+                        lengthMenu: "Mostrar _MENU_ registros por página",
+                        zeroRecords: "Nenhum registro encontrado",
+                        info: "Mostrando página _PAGE_ de _PAGES_",
+                        infoEmpty: "Nenhum registro disponível",
+                        infoFiltered: "(filtrado de _MAX_ registros no total)",
+                        search: "Buscar:",
+                        paginate: {
+                            first: "Primeira",
+                            last: "Última",
+                            next: "Próxima",
+                            previous: "Anterior"
+                        }
+                    },
+                    ordering: true,
+                    searching: true,
+                    dom: 'lfrtip'
+                });
+            }, 100);
         }
         
         // Exibir erro
         function showError(message) {
             const resultsDiv = document.getElementById('results');
             const csvBtn = document.getElementById('downloadCsvBtn');
+            
+            // Destruir DataTable se existir
+            if ($.fn.DataTable.isDataTable('#sql-results-table')) {
+                $('#sql-results-table').DataTable().destroy();
+            }
             
             resultsDiv.innerHTML = `
                 <div class="error-message">
@@ -1612,6 +1730,12 @@ LIMIT 10;`,
         function clearEditor() {
             if (confirm('Deseja limpar todo o conteúdo do editor?')) {
                 editor.setValue('');
+                
+                // Destruir DataTable se existir
+                if ($.fn.DataTable.isDataTable('#sql-results-table')) {
+                    $('#sql-results-table').DataTable().destroy();
+                }
+                
                 document.getElementById('results').innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">✨</div>

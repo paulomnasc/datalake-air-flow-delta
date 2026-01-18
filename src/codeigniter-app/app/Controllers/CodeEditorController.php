@@ -277,8 +277,8 @@ output = {
 print(json.dumps(output))
 PYTHON
 ,
-                json_encode($userBucket),
-                json_encode($code)
+                json_encode($userBucket, JSON_UNESCAPED_SLASHES),
+                json_encode($code, JSON_UNESCAPED_SLASHES)
             );
 
             // Executa Python via shell (deve estar instalado no servidor)

@@ -146,6 +146,7 @@ class RawToMedallionPipeline:
         """Inicializa tmpdir, S3 hook, Atlas, etc"""
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
         
+        # Cria diretório temporário único para armazenar arquivos intermediários do pipeline (downloads, conversões, etc.)
         self.tmpdir = tempfile.mkdtemp()
         self.hook = S3Hook(aws_conn_id='minio_conn')
         self.bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
@@ -199,10 +200,10 @@ class RawToMedallionPipeline:
         # Salvar como Parquet
         local_parquet = os.path.join(self.tmpdir, f"{basename_no_ext}_bronze.parquet")
         df_bronze.to_parquet(
-            local_parquet, 
-            index=False, 
-            compression='snappy', 
-            engine='pyarrow'
+            local_parquet,  # Caminho absoluto onde o arquivo Parquet será salvo localmente
+            index=False,  # Não inclui o índice do DataFrame no arquivo (economiza espaço)
+            compression='snappy',  # Algoritmo de compressão (Snappy = bom balanço entre velocidade e taxa de compressão)
+            engine='pyarrow'  # Engine PyArrow para escrita (mais rápido que Fastparquet, suporta mais tipos)
         )
         
         # Upload

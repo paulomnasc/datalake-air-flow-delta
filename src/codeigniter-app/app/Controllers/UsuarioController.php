@@ -10,6 +10,7 @@ use App\Models\TokenModel;
 use App\Models\UsuarioPerfilModel;
 use App\Helpers\MinioHelper;
 use App\Helpers\AirflowHelper;
+use App\Models\ActivityLogModel;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -58,6 +59,24 @@ class UsuarioController extends BaseController
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['email_usuario_logado'] = $usuario->email;
                 $_SESSION['usuario_logado'] = 1;
+                
+                // Registra evento de login
+                try {
+                    $logModel = new ActivityLogModel();
+                    $logModel->insert([
+                        'user_id'    => (int) $usuario->id,
+                        'method'     => strtoupper($this->request->getMethod()),
+                        'uri'        => $this->request->getUri()->getPath(),
+                        'controller' => 'UsuarioController',
+                        'action'     => 'logar',
+                        'route_alias'=> 'Usuario.logar',
+                        'ip_address' => $this->request->getIPAddress(),
+                        'user_agent' => ($this->request->getUserAgent() ? (method_exists($this->request->getUserAgent(), 'getAgent') ? $this->request->getUserAgent()->getAgent() : (string) $this->request->getUserAgent()) : ($_SERVER['HTTP_USER_AGENT'] ?? null)),
+                        'session_id' => (function_exists('session_id') ? session_id() : null),
+                    ]);
+                } catch (\Throwable $e) {
+                    log_message('warning', '[ActivityLog] Falha ao registrar login: ' . $e->getMessage());
+                }
                 
                 // Garante que o bucket do usuário existe no MinIO
                 $bucketResult = MinioHelper::createUserBucket($usuario->id);

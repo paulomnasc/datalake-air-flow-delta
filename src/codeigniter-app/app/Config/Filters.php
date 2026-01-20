@@ -35,6 +35,7 @@ class Filters extends BaseFilters
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
         'subscription'  => \App\Filters\SubscriptionFilter::class, // Filtro de controle de assinatura
+        'activitylog'   => \App\Filters\ActivityLogFilter::class,  // Filtro de log de atividades
     ];
 
     /**
@@ -78,6 +79,7 @@ class Filters extends BaseFilters
         'after' => [
             // 'honeypot',
             // 'secureheaders',
+            'activitylog', // Registra rotas executadas por usuários logados
         ],
     ];
 

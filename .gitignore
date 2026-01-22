@@ -22,6 +22,10 @@ writable/configs/*.yml
 # Ignorar dependências de projetos Node.js
 node_modules/
 
+# Ignorar dependências PHP Composer
+vendor/
+src/codeigniter-app/vendor/
+
 # Ignorar configurações específicas do sistema operacional
 .DS_Store
 Thumbs.db

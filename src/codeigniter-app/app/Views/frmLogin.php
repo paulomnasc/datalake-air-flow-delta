@@ -61,6 +61,13 @@ require VIEWPATH . '/header.php';
                     </div>
                 </form>
 
+                <div style="margin-top: 20px; text-align: center;">
+                    <p style="color: #666; margin-bottom: 10px;">— OU —</p>
+                    <a href="<?= route_to('auth.google.login') ?>" class="btn btn-danger btn-block" style="background-color: #ea4335; border-color: #ea4335; color: white; text-decoration: none;">
+                        <i class="fab fa-google"></i> Entrar com Google
+                    </a>
+                </div>
+
                 <!-- div class="social-auth-links text-center mb-3">
 
                     <!-- Funcionalidade do Google Auth 

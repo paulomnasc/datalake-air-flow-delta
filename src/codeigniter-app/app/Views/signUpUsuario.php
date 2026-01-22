@@ -50,13 +50,20 @@ require VIEWPATH . '/header.php';
                 </div>
                     
                 <div class="form-actions">
-                    <button type="submit" class="save-button" value="Atualizar" onclick="return validatePasswords()">Atualizar</button>
+                    <button type="submit" class="save-button" value="Atualizar" onclick="return validatePasswords()">Registrar</button>
                     <!-- button type="button" class="back-button" onclick="history.back();">Voltar</button -->
                 </div>
 
                 <div id="signup-success-message" class="alert alert-success" style="display:none;"></div>
 
             </form>
+
+            <div style="margin-top: 20px; text-align: center;">
+                <p style="color: #666; margin-bottom: 10px;">— OU —</p>
+                <a href="<?= route_to('auth.google.login') ?>" class="btn btn-danger" style="background-color: #ea4335; border-color: #ea4335; color: white; text-decoration: none; padding: 8px 20px; display: inline-block; border-radius: 4px;">
+                    <i class="fab fa-google"></i> Registrar com Google
+                </a>
+            </div>
 
         <script>
         function validatePasswords() {

@@ -21,7 +21,12 @@ class UsuarioModel extends Model
         'data_ultimo_pagamento',
         'data_vencimento_assinatura',
         'status_assinatura',
-        'data_inicio_trial'
+        'data_inicio_trial',
+        'google_id',
+        'google_token',
+        'google_refresh_token',
+        'auth_provider',
+        'auth_updated_at',
     ];
     
 

@@ -161,8 +161,10 @@ $routes->get('/test-subscription', 'TestSubscription::index'); // DEBUG - Teste 
 //Botão Donate$
 $routes->post('/donate', 'MarketPlaceController::donate');
 
-//Login com Google
-$routes->post('auth/google-login', 'AuthController::googleLogin');
+//Login com Google OAuth2
+$routes->get('/auth/google-login', 'AuthController::googleLoginRedirect', ['as'=>'auth.google.login']);
+$routes->get('/auth/google-callback', 'AuthController::googleCallback', ['as'=>'auth.google.callback']);
+$routes->post('auth/google-login', 'AuthController::googleLogin'); // Legacy endpoint
 
 
 //Misc.

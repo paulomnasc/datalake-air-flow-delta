@@ -17,7 +17,7 @@
         "ext-intl": "*",
         "ext-mbstring": "*",
         "aws/aws-sdk-php": "^3.0",
-        "google/apiclient": "^2.0",
+        "google/apiclient": "^2.15",
         "laminas/laminas-escaper": "^2.13",
         "psr/log": "^3.0",
         "symfony/process": "^7.4"

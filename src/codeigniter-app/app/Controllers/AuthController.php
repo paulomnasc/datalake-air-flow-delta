@@ -2,12 +2,152 @@
 
 namespace App\Controllers;
 
-use Google\Client as GoogleClient;
-use CodeIgniter\Controller;
+use CodeIgniter\HTTP\ResponseInterface;
+use App\Models\UsuarioModel;
+use App\Models\UsuarioPerfilModel;
+use App\Helpers\GoogleAuthHelper;
 use App\Helpers\MinioHelper;
+use App\Helpers\AirflowHelper;
+use App\Models\ActivityLogModel;
 
-class AuthController extends Controller
+/**
+ * AuthController
+ * Gerencia autenticação social (Google OAuth2)
+ */
+class AuthController extends BaseController
 {
+    /**
+     * Redireciona para login do Google
+     */
+    public function googleLoginRedirect()
+    {
+        try {
+            $authUrl = GoogleAuthHelper::getAuthUrl();
+            return redirect()->to($authUrl);
+        } catch (\Exception $e) {
+            log_message('error', '[GOOGLE_AUTH] Erro ao gerar URL de autenticação: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Erro ao iniciar autenticação Google'
+            ]);
+        }
+    }
+
+    /**
+     * Callback após autenticação Google
+     */
+    public function googleCallback()
+    {
+        $code = $this->request->getGet('code');
+        $state = $this->request->getGet('state');
+        $error = $this->request->getGet('error');
+
+        if ($error) {
+            log_message('warning', '[GOOGLE_AUTH] Erro do Google: ' . $error);
+            $_SESSION['error_message'] = 'Autenticação Google cancelada ou com erro.';
+            return redirect()->to('/loginUsuario');
+        }
+
+        if (!$code) {
+            $_SESSION['error_message'] = 'Código de autorização não recebido.';
+            return redirect()->to('/loginUsuario');
+        }
+
+        try {
+            // Processa callback e obtém dados do usuário
+            $result = GoogleAuthHelper::handleCallback($code);
+            
+            if (!$result['success']) {
+                log_message('error', '[GOOGLE_AUTH] ' . $result['message']);
+                $_SESSION['error_message'] = $result['message'];
+                return redirect()->to('/loginUsuario');
+            }
+
+            // Procura ou cria usuário
+            $usuario = GoogleAuthHelper::findOrCreateUser([
+                'google_id' => $result['google_id'],
+                'email' => $result['email'],
+                'nome' => $result['nome'],
+                'picture' => $result['picture'],
+            ]);
+
+            if (!$usuario) {
+                $_SESSION['error_message'] = 'Erro ao processar usuário.';
+                return redirect()->to('/loginUsuario');
+            }
+
+            // Salva token
+            GoogleAuthHelper::saveTokenData($usuario->id, $result['token']);
+
+            // Registra na sessão
+            $_SESSION['id_usuario_logado'] = $usuario->id;
+            $_SESSION['nome_usuario_logado'] = $usuario->nome;
+            $_SESSION['email_usuario_logado'] = $usuario->email;
+            $_SESSION['usuario_logado'] = 1;
+
+            // Busca perfis do usuário
+            $usuarioPerfilModel = new UsuarioPerfilModel();
+            $perfis = $usuarioPerfilModel->getPerfisUsuario($usuario->id);
+            $perfilDescricao = $perfis[0]->perfil_descricao ?? 'Teste';
+            $_SESSION['perfil_usuario_logado'] = $perfilDescricao;
+
+            // Registra login no activity log
+            try {
+                $logModel = new ActivityLogModel();
+                $logModel->insert([
+                    'user_id'    => (int) $usuario->id,
+                    'method'     => 'GET',
+                    'uri'        => '/auth/google-callback',
+                    'controller' => 'AuthController',
+                    'action'     => 'googleCallback',
+                    'route_alias'=> 'auth.google.callback',
+                    'ip_address' => $this->request->getIPAddress(),
+                    'user_agent' => ($this->request->getUserAgent() ? (method_exists($this->request->getUserAgent(), 'getAgent') ? $this->request->getUserAgent()->getAgent() : (string) $this->request->getUserAgent()) : ($_SERVER['HTTP_USER_AGENT'] ?? null)),
+                    'session_id' => (function_exists('session_id') ? session_id() : null),
+                ]);
+            } catch (\Throwable $e) {
+                log_message('warning', '[ActivityLog] Falha ao registrar Google login: ' . $e->getMessage());
+            }
+
+            // Garante bucket no MinIO
+            $bucketResult = MinioHelper::createUserBucket($usuario->id);
+            if ($bucketResult['success']) {
+                log_message('info', "Bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+            } else {
+                log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+            }
+
+            // Sincroniza com Airflow (sem senha, pois é OAuth)
+            if (AirflowHelper::isAirflowAvailable()) {
+                $senhaAleatoria = bin2hex(random_bytes(8));
+                $airflowResult = AirflowHelper::syncUserWithAirflow(
+                    $usuario->id,
+                    $usuario->email ?? "",
+                    explode(' ', $usuario->nome)[0] ?? 'User',
+                    (count(explode(' ', $usuario->nome)) > 1) ? implode(' ', array_slice(explode(' ', $usuario->nome), 1)) : $usuario->id,
+                    $senhaAleatoria
+                );
+                
+                if ($airflowResult['success']) {
+                    log_message('info', "[AIRFLOW_GOOGLE] {$airflowResult['message']}");
+                } else {
+                    log_message('warning', "[AIRFLOW_GOOGLE] {$airflowResult['message']}");
+                }
+            }
+
+            log_message('info', "[GOOGLE_AUTH] Usuário {$usuario->id} ({$usuario->email}) autenticado com sucesso");
+            
+            return redirect()->to('/');
+        } catch (\Exception $e) {
+            log_message('error', '[GOOGLE_AUTH] Exception: ' . $e->getMessage());
+            $_SESSION['error_message'] = 'Erro inesperado durante autenticação: ' . $e->getMessage();
+            return redirect()->to('/loginUsuario');
+        }
+    }
+
+    /**
+     * Método legado: googleLogin (para compatibilidade com token JWT do frontend)
+     */
     public function googleLogin()
     {
         // Recebe o token JWT enviado pelo frontend
@@ -17,7 +157,7 @@ class AuthController extends Controller
         $CLIENT_ID = '88249765816-a2bvvo2l4qtjsv1dj4lqmfniknodli0h.apps.googleusercontent.com';
         
         // Configura o cliente do Google com o ID do cliente para validação
-        $client = new GoogleClient(['client_id' => $CLIENT_ID]);
+        $client = new \Google\Client(['client_id' => $CLIENT_ID]);
         
         try {
             // Verifica o token recebido

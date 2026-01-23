@@ -2321,6 +2321,13 @@ ORDER BY departamento, rank;`
             status.innerText = 'Clonando repositório...';
             
             try {
+                // Ensure userBucket is valid
+                let safeBucket = userBucket;
+                if (!safeBucket || typeof safeBucket !== 'string' || safeBucket.trim() === '') {
+                    safeBucket = 'lab01'; // Fallback to default
+                    console.warn('⚠️ userBucket inválido, usando fallback:', safeBucket);
+                }
+                
                 // Chamada server-side para clonar no MinIO
                 const cloneResponse = await fetch('/api/git-clone', {
                     method: 'POST',
@@ -2328,7 +2335,7 @@ ORDER BY departamento, rank;`
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        userBucket: userBucket,
+                        userBucket: safeBucket,
                         username: gitConfig.username || gitConfig.owner,
                         // token opcional para repositórios públicos
                         token: gitConfig.token || undefined,
@@ -2339,10 +2346,18 @@ ORDER BY departamento, rank;`
                 });
 
                 if (!cloneResponse.ok) {
-                    const errorData = await cloneResponse.json();
-                    const errMsg = errorData.message || errorData.error || 'Clone failed on server';
-                    const debugInfo = errorData.debug ? ' [DEBUG: ' + JSON.stringify(errorData.debug) + ']' : '';
-                    throw new Error(errMsg + debugInfo);
+                    let errorData = {};
+                    try {
+                        errorData = await cloneResponse.json();
+                    } catch (e) {
+                        errorData = { error: `HTTP ${cloneResponse.status}` };
+                    }
+                    
+                    // Build comprehensive error message
+                    let errMsg = errorData.message || errorData.error || 'Clone failed on server';
+                    const missingFields = errorData.missingFields ? '\n\nMissing: ' + errorData.missingFields.join(', ') : '';
+                    const debugInfo = errorData.debug ? '\n[DEBUG: ' + JSON.stringify(errorData.debug) + ']' : '';
+                    throw new Error(`Git clone error (${cloneResponse.status}): ${errMsg}${missingFields}${debugInfo}`);
                 }
 
                 const cloneResult = await cloneResponse.json();

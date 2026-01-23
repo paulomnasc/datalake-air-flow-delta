@@ -96,14 +96,17 @@ class UsuarioController extends BaseController
                     log_message('warning', "Erro ao sincronizar funções no login: " . $e->getMessage());
                 }
                 
-                // Garante que o bucket do usuário existe no MinIO
-                $bucketResult = MinioHelper::createUserBucket($usuario->id);
-                
-                // Log do resultado (opcional - pode ser removido em produção)
+                // Garante que o bucket do usuário existe no MinIO; falha bloqueia o login
+                $bucketResult = MinioHelper::createUserBucket($usuario->id, $usuario->email ?? '');
                 if ($bucketResult['success']) {
                     log_message('info', "Bucket do usuário {$usuario->id}: {$bucketResult['message']}");
                 } else {
                     log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+                    $_SESSION['usuario_logado'] = 0;
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => 'Não foi possível provisionar seu bucket de trabalho. Tente novamente em instantes ou contate o suporte.'
+                    ]);
                 }
                 
                 // Sincroniza usuário com Airflow (cria ou atualiza credenciais)
@@ -221,13 +224,17 @@ class UsuarioController extends BaseController
                     log_message('warning', "Erro ao sincronizar funções no login: " . $e->getMessage());
                 }
                 
-                // Garante que o bucket do usuário existe no MinIO
-                $bucketResult = MinioHelper::createUserBucket($usuario->id);
-                
+                // Garante que o bucket do usuário existe no MinIO; falha bloqueia o login
+                $bucketResult = MinioHelper::createUserBucket($usuario->id, $usuario->email ?? '');
                 if ($bucketResult['success']) {
                     log_message('info', "Bucket do usuário {$usuario->id}: {$bucketResult['message']}");
                 } else {
                     log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+                    $_SESSION['usuario_logado'] = 0;
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => 'Não foi possível provisionar seu bucket de trabalho. Tente novamente em instantes ou contate o suporte.'
+                    ]);
                 }
                 
                 // Sincroniza usuário com Airflow (cria ou atualiza credenciais)

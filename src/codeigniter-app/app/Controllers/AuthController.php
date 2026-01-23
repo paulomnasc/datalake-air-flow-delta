@@ -109,12 +109,15 @@ class AuthController extends BaseController
                 log_message('warning', '[ActivityLog] Falha ao registrar Google login: ' . $e->getMessage());
             }
 
-            // Garante bucket no MinIO
-            $bucketResult = MinioHelper::createUserBucket($usuario->id);
+            // Garante bucket no MinIO; falha bloqueia o login via Google
+            $bucketResult = MinioHelper::createUserBucket($usuario->id, $usuario->email ?? '');
             if ($bucketResult['success']) {
                 log_message('info', "Bucket do usuário {$usuario->id}: {$bucketResult['message']}");
             } else {
                 log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+                $_SESSION['usuario_logado'] = 0;
+                $_SESSION['error_message'] = 'Não foi possível provisionar seu bucket de trabalho. Tente novamente em instantes ou contate o suporte.';
+                return redirect()->to('/loginUsuario');
             }
 
             // Sincroniza funções Python do usuário (garante que tem as funções padrão)

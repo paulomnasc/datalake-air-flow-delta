@@ -108,7 +108,16 @@ class SubscriptionFilter implements FilterInterface
             '/logout',
             '/Usuario/logOut',
             '/loginUsuario',
-            '/sigInUsuario'
+            '/sigInUsuario',
+            // Git API endpoints - permitir mesmo com assinatura expirada
+            '/api/git-clone',
+            '/api/git-files',
+            '/api/git-file-content',
+            '/api/git-file-save',
+            '/api/git-folder-create',
+            '/api/git-entry-rename',
+            '/api/git-file-delete',
+            '/api/git-push'
         ];
 
         if (!$acessoInfo['pode_acessar'] && !in_array($uri, $rotasPermitidas)) {

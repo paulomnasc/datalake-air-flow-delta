@@ -54,9 +54,26 @@ class GitServerController extends BaseController
         $repo = $input->repo ?? null;
         $branch = $input->branch ?? 'main';
 
-        if (!$userBucket || !$owner || !$repo) {
+        // If userBucket is not provided, try to get it from session
+        if (!$userBucket) {
+            $userBucket = SessionHelper::getUserBucket();
+        }
+
+        // Fallback to default bucket if still not available
+        if (!$userBucket) {
+            $userBucket = getenv('DEFAULT_USER_BUCKET') ?: 'lab01';
+        }
+
+        // Validate required fields with specific error messages
+        $missingFields = [];
+        if (!$owner) $missingFields[] = 'owner';
+        if (!$repo) $missingFields[] = 'repo';
+
+        if (!empty($missingFields)) {
             return $this->response->setStatusCode(400)->setJSON([
-                'error' => 'Missing required fields: userBucket, owner, repo'
+                'error' => 'Missing required fields',
+                'message' => 'Required fields missing: ' . implode(', ', $missingFields),
+                'missingFields' => $missingFields
             ]);
         }
 
@@ -70,10 +87,34 @@ class GitServerController extends BaseController
         @mkdir($tempRepoPath, 0755, true);
 
         // Clone do repositório (suporta público sem token)
+        // Sanitizar entrada para evitar Shell injection
+        $owner = preg_replace('/[^a-zA-Z0-9._-]/', '', $owner);
+        $repo = preg_replace('/[^a-zA-Z0-9._-]/', '', $repo);
+        $branch = preg_replace('/[^a-zA-Z0-9._\/-]/', '', $branch);
+        
+        // Verificar se git está disponível
+        exec('which git', $gitCheck, $gitCode);
+        if ($gitCode !== 0) {
+            log_message('error', 'Git not found in system PATH');
+            return $this->response->setStatusCode(400)->setJSON([
+                'error' => 'Git clone failed',
+                'message' => 'Git is not installed on the server',
+                'debug' => 'git command not found'
+            ]);
+        }
+
         $cloneUrl = $token
             ? "https://{$owner}:{$token}@github.com/{$owner}/{$repo}.git"
             : "https://github.com/{$owner}/{$repo}.git";
-        $cloneCommand = "git clone --depth 1 --branch {$branch} {$cloneUrl} {$tempRepoPath} 2>&1";
+        
+        // Use escapeshellarg for safety
+        $escapedUrl = escapeshellarg($cloneUrl);
+        $escapedPath = escapeshellarg($tempRepoPath);
+        $escapedBranch = escapeshellarg($branch);
+        
+        $cloneCommand = "git clone --depth 1 --branch {$escapedBranch} {$escapedUrl} {$escapedPath} 2>&1";
+        
+        log_message('info', "[GIT CLONE] Executing: git clone --depth 1 --branch {$branch} https://github.com/{$owner}/{$repo}.git {$tempRepoPath}");
         
         $output = [];
         $returnCode = 0;
@@ -81,10 +122,18 @@ class GitServerController extends BaseController
 
         if ($returnCode !== 0) {
             $errorMsg = implode("\n", $output);
+            log_message('error', "[GIT CLONE] Failed with code {$returnCode}: {$errorMsg}");
+            
             // Detectar erro comum de autenticação para mensagem amigável
-            $friendly = (stripos($errorMsg, 'Authentication failed') !== false || stripos($errorMsg, 'Invalid username or token') !== false)
-                ? 'GitHub authentication failed: invalid token or permissions.'
-                : null;
+            $friendly = null;
+            if (stripos($errorMsg, 'Authentication failed') !== false || stripos($errorMsg, 'Invalid username or token') !== false) {
+                $friendly = 'GitHub authentication failed: invalid token or permissions.';
+            } elseif (stripos($errorMsg, 'not found') !== false || stripos($errorMsg, 'does not appear to be') !== false) {
+                $friendly = 'Repository not found or is private.';
+            } elseif (stripos($errorMsg, 'Could not resolve') !== false || stripos($errorMsg, 'connection timed out') !== false) {
+                $friendly = 'Network error: cannot connect to GitHub.';
+            }
+            
             return $this->response->setStatusCode(400)->setJSON([
                 'error' => 'Git clone failed',
                 'message' => $friendly,
@@ -94,10 +143,12 @@ class GitServerController extends BaseController
 
         // Listar todos os arquivos clonados (excluir .git)
         $files = $this->_getAllFiles($tempRepoPath);
+        
+        // Log do resultado
         if (empty($files)) {
-            return $this->response->setStatusCode(400)->setJSON([
-                'error' => 'Repository cloned but no files found'
-            ]);
+            log_message('warning', "[GIT CLONE] Repository cloned but is empty - no files to upload");
+        } else {
+            log_message('info', "[GIT CLONE] Found " . count($files) . " files to upload");
         }
 
         // Fazer upload de CADA arquivo para MinIO (hierarquia: scripts/{owner}/{repo})

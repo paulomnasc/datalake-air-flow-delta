@@ -78,37 +78,45 @@ class UsuarioFuncionConfigurationModel extends Model
     /**
      * Sincroniza as funções de um usuário com todas as funções padrão ativas
      * Esta função é chamada quando um usuário é criado ou no login
+     * 
+     * IMPORTANTE: NÃO apaga funções custom (is_custom=1), apenas garante que
+     * o usuário tenha todas as funções CORE ativas
      */
     public function sincronizarComPadrao($usuarioId)
     {
         try {
             $funcionModel = new FuncionConfigurationModel();
             
-            // Busca todas as funções ativas
+            // Busca todas as funções CORE ativas (is_custom=0)
             $funcionsAtivas = $funcionModel->getAllAtivas();
             
             if (empty($funcionsAtivas)) {
-                log_message('warning', "Nenhuma função ativa encontrada para sincronizar com usuário {$usuarioId}");
+                log_message('warning', "Nenhuma função CORE ativa encontrada para sincronizar com usuário {$usuarioId}");
                 return false;
             }
             
-            // Limpa funções antigas do usuário
-            $this->limparFuncoesDoUsuario($usuarioId);
-            
-            // Insere todas as funções ativas para o usuário
             $db = \Config\Database::connect();
             $db->transStart();
             
             try {
+                // Para cada função CORE ativa, garantir que usuário tenha acesso
                 foreach ($funcionsAtivas as $funcao) {
-                    $this->insert([
-                        'usuario_id' => $usuarioId,
-                        'funcion_configuration_id' => $funcao->id
-                    ]);
+                    // Verificar se já existe
+                    $existe = $this->where('usuario_id', $usuarioId)
+                                   ->where('funcion_configuration_id', $funcao->id)
+                                   ->first();
+                    
+                    // Se não existe, inserir
+                    if (!$existe) {
+                        $this->insert([
+                            'usuario_id' => $usuarioId,
+                            'funcion_configuration_id' => $funcao->id
+                        ]);
+                    }
                 }
                 
                 $db->transCommit();
-                log_message('info', "Funções sincronizadas com sucesso para usuário {$usuarioId}. Total: " . count($funcionsAtivas));
+                log_message('info', "Funções CORE sincronizadas com sucesso para usuário {$usuarioId}. Total CORE: " . count($funcionsAtivas));
                 return true;
             } catch (\Exception $e) {
                 $db->transRollback();
@@ -122,11 +130,46 @@ class UsuarioFuncionConfigurationModel extends Model
     }
 
     /**
+     * Associa uma função custom ao seu criador
+     * Chamado automaticamente quando função custom é criada
+     */
+    public function associarCustomFunction($usuarioId, $funcionId)
+    {
+        // Verificar se já existe
+        $existe = $this->where('usuario_id', $usuarioId)
+                       ->where('funcion_configuration_id', $funcionId)
+                       ->first();
+        
+        if ($existe) {
+            return true; // Já associada
+        }
+
+        return $this->insert([
+            'usuario_id' => $usuarioId,
+            'funcion_configuration_id' => $funcionId
+        ]);
+    }
+
+    /**
      * Retorna as funções de um usuário formatadas para o select (agrupadas por grupo)
+     * Inclui CORE ativas + CUSTOM do usuário
      */
     public function getFuncoesFormatadas($usuarioId)
     {
         $funcionModel = new FuncionConfigurationModel();
-        return $funcionModel->getAgrupadasPorGrupoParaUsuario($usuarioId);
+        $funcoes = $funcionModel->getFuncoesDisponiveisParaUsuario($usuarioId);
+        
+        $agrupadas = [];
+        foreach ($funcoes as $funcao) {
+            // Custom sempre vai para grupo 'Custom'
+            $grupo = ($funcao->is_custom == 1) ? '⭐ Custom (Minhas Funções)' : ($funcao->grupo ?? 'Sem Grupo');
+            
+            if (!isset($agrupadas[$grupo])) {
+                $agrupadas[$grupo] = [];
+            }
+            $agrupadas[$grupo][] = $funcao;
+        }
+        
+        return $agrupadas;
     }
 }

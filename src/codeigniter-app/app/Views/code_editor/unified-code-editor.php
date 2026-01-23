@@ -1246,6 +1246,61 @@ LIMIT 10;`,
     return df
 ` 
             },
+            custom_simple: {
+                name: '⭐ Custom Simples (Recomendado)',
+                code: `from lib.medallion_pipeline_v2 import RawToMedallionPipeline
+import pandas as pd
+import logging
+
+log = logging.getLogger(__name__)
+
+class MeuValidador(RawToMedallionPipeline):
+    """Validador customizado - PARA DEPLOY"""
+    
+    def silver_layer_transform(self, silver_key: str) -> str:
+        """Validar dados após Silver"""
+        try:
+            log.info(f"🔍 Processando: {silver_key}")
+            
+            # Download
+            local_file = self.hook.download_file(
+                key=silver_key,
+                bucket_name=self.bucket,
+                local_path=self.tmpdir,
+                preserve_file_name=True
+            )
+            
+            # Ler
+            df = pd.read_parquet(local_file)
+            log.info(f"📊 {len(df)} registros")
+            
+            # Validações
+            df = self._apply_validations(df)
+            
+            # Salvar
+            df.to_parquet(local_file, index=False)
+            self.hook.load_file(
+                filename=local_file,
+                key=silver_key,
+                bucket_name=self.bucket,
+                replace=True
+            )
+            
+            return silver_key
+        except Exception as e:
+            log.error(f"❌ ERRO: {e}", exc_info=True)
+            raise
+    
+    def _apply_validations(self, df):
+        """Suas validações aqui"""
+        # Exemplo: remover colunas nulas
+        cols_to_drop = [col for col in df.columns if df[col].isnull().all()]
+        if cols_to_drop:
+            log.info(f"Removendo {len(cols_to_drop)} colunas nulas")
+            df = df.drop(columns=cols_to_drop)
+        return df
+`
+            },
             null_check: {
                 name: 'Verificar Nulos',
                 code: `def validate(df):
@@ -1297,12 +1352,16 @@ LIMIT 10;`,
                 return;
             }
             
-            if (!code.includes('def validate')) {
-                resultsDiv.innerHTML = '<div style="color: #dc2626;">❌ Função "def validate(df)" não encontrada</div>';
+            // Aceitar tanto função validate() quanto classe customizada
+            const hasFunction = code.includes('def validate');
+            const hasClass = /class\s+[A-Z][A-Za-z0-9_]*\s*[\(:]/.test(code);
+            
+            if (!hasFunction && !hasClass) {
+                resultsDiv.innerHTML = '<div style="color: #dc2626;">❌ Nenhuma função ou classe encontrada<br><br>Exemplos válidos:<br>def validate(df):<br>class MeuValidador(...):</div>';
                 return;
             }
             
-            resultsDiv.innerHTML = '<div style="color: #10b981;">✓ Sintaxe OK!</div>';
+            resultsDiv.innerHTML = '<div style="color: #10b981;">✓ Sintaxe OK! Pronto para deploy</div>';
         }
         
         async function saveValidation() {
@@ -1474,6 +1533,15 @@ LIMIT 10;`,
                 return;
             }
             
+            // Extrair nome da classe do código (aceita vários formatos)
+            const classMatch = code.match(/class\s+([A-Z][A-Za-z0-9_]*)\s*[\(:]/);
+            if (!classMatch) {
+                alert('❌ Não foi possível identificar o nome da classe.\n\nExemplos válidos:\nclass MeuValidador(BaseClass):\nclass MeuValidador:\nclass MeuValidador(RawToMedallionPipeline):');
+                return;
+            }
+            
+            const className = classMatch[1];
+            
             // Verificar se há arquivo aberto
             let filename = '';
             if (currentGitFile && currentGitFile.name) {
@@ -1483,18 +1551,33 @@ LIMIT 10;`,
                 if (!filename) return;
             }
             
+            // Extrair nome do módulo (sem .py)
+            const moduleName = filename.replace(/\.py$/, '');
+            const modulePath = `lib.validadores.${moduleName}.${className}`;
+            
             // Confirmar deploy
-            if (!confirm(`🚀 Sincronizar "${filename}" para Airflow?\n\nIsso copiará o arquivo para /opt/airflow/dags/ e reiniciará o detector de DAGs.`)) {
+            const confirmMsg = `🚀 Deploy Custom Function?\n\n` +
+                               `Arquivo: ${filename}\n` +
+                               `Classe: ${className}\n` +
+                               `Módulo: ${modulePath}\n\n` +
+                               `Isso irá:\n` +
+                               `1. Salvar o arquivo no Airflow\n` +
+                               `2. Registrar como função custom\n` +
+                               `3. Adicionar ao seu select de funções\n\n` +
+                               `Confirmar?`;
+            
+            if (!confirm(confirmMsg)) {
                 return;
             }
             
             try {
                 const resultsDiv = document.getElementById('testResults');
                 if (resultsDiv) {
-                    resultsDiv.innerHTML = '<div style="color: #f59e0b;">⏳ Implantando...</div>';
+                    resultsDiv.innerHTML = '<div style="color: #f59e0b;">⏳ Fazendo deploy...</div>';
                 }
                 
-                const response = await fetch('/api/validation-deploy', {
+                // 1. Deploy do arquivo Python para Airflow
+                const deployResponse = await fetch('/api/validation-deploy', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1503,25 +1586,60 @@ LIMIT 10;`,
                     })
                 });
                 
-                const result = await response.json();
+                const deployResult = await deployResponse.json();
                 
-                if (result.success) {
-                    alert(`✅ Sucesso!\n\n${result.message}\n\n${result.next_step || ''}`);
-                    if (resultsDiv) {
-                        resultsDiv.innerHTML = `<div style="color: #10b981;">✅ ${result.message}</div>`;
-                    }
-                    console.log('✅ Deploy realizado:', result);
-                } else {
-                    alert(`❌ Erro ao sincronizar\n\n${result.error}\n\n${result.details || 'Verifique os logs.'}`);
-                    if (resultsDiv) {
-                        resultsDiv.innerHTML = `<div style="color: #dc2626;">❌ ${result.error}</div>`;
-                    }
-                    console.error('❌ Erro no deploy:', result);
+                if (!deployResult.success) {
+                    throw new Error(deployResult.error || 'Falha ao fazer deploy do arquivo');
+                }
+                
+                console.log('✅ Arquivo salvo no Airflow:', deployResult);
+                
+                // 2. Registrar como custom function no banco
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || 
+                                  document.querySelector('input[name="csrf_test_name"]')?.value || '';
+                
+                const registerResponse = await fetch('/validation/deploy-custom', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken
+                    },
+                    body: JSON.stringify({
+                        module_path: modulePath,
+                        nome: className,
+                        descricao: `Custom function: ${className}`
+                    })
+                });
+                
+                const registerResult = await registerResponse.json();
+                
+                if (!registerResult.success) {
+                    throw new Error(registerResult.message || 'Falha ao registrar custom function');
+                }
+                
+                console.log('✅ Custom function registrada:', registerResult);
+                
+                // 3. Sucesso!
+                const successMsg = `✅ Deploy realizado com sucesso!\n\n` +
+                                   `📄 Arquivo: ${filename}\n` +
+                                   `🔧 Função: ${className}\n` +
+                                   `📦 Módulo: ${modulePath}\n\n` +
+                                   `Para usar:\n` +
+                                   `1. Vá em "Configurações"\n` +
+                                   `2. Escolha "${className}" no select\n` +
+                                   `3. Configure seu DAG\n\n` +
+                                   `A função já está disponível! 🎉`;
+                
+                alert(successMsg);
+                
+                if (resultsDiv) {
+                    resultsDiv.innerHTML = `<div style="color: #10b981;">✅ Deploy concluído! Função "${className}" registrada.</div>`;
                 }
                 
             } catch (error) {
                 console.error('Deploy error:', error);
-                alert('❌ Erro ao sincronizar: ' + error.message);
+                alert('❌ Erro ao fazer deploy: ' + error.message);
                 const resultsDiv = document.getElementById('testResults');
                 if (resultsDiv) {
                     resultsDiv.innerHTML = `<div style="color: #dc2626;">❌ Erro: ${error.message}</div>`;

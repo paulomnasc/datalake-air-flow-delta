@@ -14,7 +14,7 @@ class FuncionConfigurationModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
 
-    protected $allowedFields = ['nome', 'modulo_python', 'descricao', 'grupo', 'ordem', 'ativo'];
+    protected $allowedFields = ['nome', 'modulo_python', 'descricao', 'grupo', 'ordem', 'ativo', 'is_custom', 'owner_user_id'];
 
     protected $useTimestamps = true;
     protected $createdField  = 'criado_em';
@@ -27,10 +27,12 @@ class FuncionConfigurationModel extends Model
 
     /**
      * Busca todas as funções ativas, organizadas por grupo
+     * NOTA: Retorna apenas funções CORE (is_custom=0)
      */
     public function getAllAtivas()
     {
         return $this->where('ativo', 1)
+                    ->where('is_custom', 0)
                     ->orderBy('grupo', 'ASC')
                     ->orderBy('ordem', 'ASC')
                     ->findAll();
@@ -105,5 +107,54 @@ class FuncionConfigurationModel extends Model
         }
         
         return $agrupadas;
+    }
+
+    /**
+     * Busca funções disponíveis para um usuário (CORE ativas + CUSTOM do usuário)
+     * Usado para popular o select de funções Python
+     */
+    public function getFuncoesDisponiveisParaUsuario($usuarioId)
+    {
+        return $this->where('(is_custom = 0 AND ativo = 1) OR (is_custom = 1 AND owner_user_id = ' . (int)$usuarioId . ' AND ativo = 1)', null, false)
+                    ->orderBy('is_custom', 'ASC')  // Core primeiro
+                    ->orderBy('grupo', 'ASC')
+                    ->orderBy('ordem', 'ASC')
+                    ->findAll();
+    }
+
+    /**
+     * Cria uma função custom para um usuário
+     */
+    public function criarCustomFunction($usuarioId, $nome, $moduloPython, $descricao = null)
+    {
+        // Verificar se já existe custom com mesmo módulo para este usuário
+        $existe = $this->where('owner_user_id', $usuarioId)
+                       ->where('modulo_python', $moduloPython)
+                       ->first();
+        
+        if ($existe) {
+            return ['success' => false, 'message' => 'Você já possui uma função com este módulo Python', 'id' => $existe->id];
+        }
+
+        // Inserir nova função custom
+        $data = [
+            'nome' => $nome,
+            'modulo_python' => $moduloPython,
+            'descricao' => $descricao,
+            'grupo' => 'Custom',
+            'ordem' => 999,  // Custom sempre no final
+            'ativo' => 1,
+            'is_custom' => 1,
+            'owner_user_id' => $usuarioId
+        ];
+
+        $id = $this->insert($data);
+        
+        if ($id) {
+            log_message('info', "Função custom criada: {$moduloPython} para usuário {$usuarioId}");
+            return ['success' => true, 'message' => 'Função criada com sucesso', 'id' => $id];
+        }
+
+        return ['success' => false, 'message' => 'Erro ao criar função custom'];
     }
 }

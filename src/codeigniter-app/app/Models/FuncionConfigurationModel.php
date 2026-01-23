@@ -127,13 +127,21 @@ class FuncionConfigurationModel extends Model
      */
     public function criarCustomFunction($usuarioId, $nome, $moduloPython, $descricao = null)
     {
+        // Garantir unicidade de nome dentro do usuário (evita erro de UNIQUE no deploy)
+        $existeNome = $this->where('owner_user_id', $usuarioId)
+                           ->where('nome', $nome)
+                           ->first();
+        if ($existeNome) {
+            return ['success' => false, 'message' => 'Você já possui uma função com este nome', 'id' => $existeNome->id];
+        }
+
         // Verificar se já existe custom com mesmo módulo para este usuário
-        $existe = $this->where('owner_user_id', $usuarioId)
-                       ->where('modulo_python', $moduloPython)
-                       ->first();
+        $existeModulo = $this->where('owner_user_id', $usuarioId)
+                             ->where('modulo_python', $moduloPython)
+                             ->first();
         
-        if ($existe) {
-            return ['success' => false, 'message' => 'Você já possui uma função com este módulo Python', 'id' => $existe->id];
+        if ($existeModulo) {
+            return ['success' => false, 'message' => 'Você já possui uma função com este módulo Python', 'id' => $existeModulo->id];
         }
 
         // Inserir nova função custom

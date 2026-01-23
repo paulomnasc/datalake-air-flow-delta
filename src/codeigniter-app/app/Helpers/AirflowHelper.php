@@ -548,4 +548,58 @@ class AirflowHelper
         $prefix = substr($prefix, 0, 30);
         return "{$prefix}-{$userId}";
     }
+
+    /**
+     * Registra uma função custom no Airflow para que DAGs possam descobri-la
+     * 
+     * @param int $userId ID do usuário dono da função
+     * @param string $nome Nome amigável da função
+     * @param string $modulePath Caminho completo do módulo (ex: lib.validadores.meu_validador.MeuValidador)
+     * @return array ['success' => bool, 'message' => string]
+     */
+    public static function registerCustomFunctionWithAirflow(int $userId, string $nome, string $modulePath): array
+    {
+        try {
+            log_message('info', "[AirflowHelper] Registrando função custom no Airflow: {$modulePath} (dono: {$userId})");
+            
+            $airflowUrl = self::getAirflowBaseUrl() . '/api/v1/dags/sync_custom_functions/dagRuns';
+            
+            // Payload para trigger DAG que sincroniza funções custom
+            $payload = [
+                'dag_id' => 'sync_custom_functions',
+                'conf' => [
+                    'user_id' => $userId,
+                    'function_name' => $nome,
+                    'module_path' => $modulePath,
+                    'action' => 'register'
+                ]
+            ];
+
+            log_message('debug', "[AirflowHelper] Payload para trigger DAG: " . json_encode($payload));
+
+            // Trigger DAG no Airflow que vai sincronizar a função
+            $result = self::apiCall('POST', $airflowUrl, $payload);
+
+            if ($result['success']) {
+                log_message('info', "[AirflowHelper] ✅ Função custom registrada no Airflow: {$modulePath}");
+                return [
+                    'success' => true,
+                    'message' => "Função '{$nome}' registrada com sucesso no Airflow"
+                ];
+            } else {
+                // Falha ao triggar DAG, mas função já está no banco - não bloquear
+                log_message('warning', "[AirflowHelper] Falha ao registrar função no Airflow: " . $result['error']);
+                return [
+                    'success' => false,
+                    'message' => "Função criada no banco mas falha ao registrar no Airflow: " . $result['error']
+                ];
+            }
+        } catch (\Exception $e) {
+            log_message('error', "[AirflowHelper] Exception ao registrar função: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => "Erro ao registrar função no Airflow: " . $e->getMessage()
+            ];
+        }
+    }
 }

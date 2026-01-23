@@ -252,54 +252,46 @@ class ValidationRulesController extends ResourceController
                 return $this->failValidationError('Nome de arquivo inválido');
             }
             
-            // Caminho do repositório Git e script de sync
-            // Dentro do container, o diretório raiz está mapeado como /datalake-root
-            $repoPath = '/datalake-root';
-            $syncScript = $repoPath . '/sync_validators_to_airflow.sh';
-            
-            log_message('info', "Script path: $syncScript, exists: " . (file_exists($syncScript) ? 'yes' : 'no'));
-            
-            if (!file_exists($syncScript)) {
-                log_message('error', "Script de sincronização não encontrado: $syncScript");
-                return $this->failServerError('Script de sincronização não disponível em: ' . $syncScript);
+            // Se conteúdo foi fornecido, salvar o arquivo na pasta de validadores do Airflow
+            if (empty($content)) {
+                return $this->failValidationError('Conteúdo do arquivo é obrigatório');
             }
             
-            // Se conteúdo foi fornecido, salvar o arquivo no repositório local primeiro
-            if (!empty($content)) {
-                $localFilePath = $repoPath . '/' . $filename;
-                log_message('info', "Salvando conteúdo em: $localFilePath");
-                
-                // Tentar remover arquivo existente se pertencer a outro usuário
-                if (file_exists($localFilePath)) {
-                    @unlink($localFilePath);
-                }
-                
-                if (file_put_contents($localFilePath, $content) === false) {
-                    log_message('error', "Falha ao salvar arquivo: $localFilePath");
-                    return $this->failServerError('Não foi possível salvar o arquivo localmente');
-                }
-                
-                // Tentar definir permissões (suppressar erro se falhar)
-                @chmod($localFilePath, 0666);
-                
-                log_message('info', "Arquivo salvo com sucesso: $localFilePath");
+            // Caminho correto para validadores custom (dentro do container Docker)
+            // /root/datalake-air-flow-delta está montado como /datalake-root no container
+            $validadoresPath = '/datalake-root/src/dags/lib/validadores';
+
+            
+            // Verificar se diretório existe
+            if (!is_dir($validadoresPath)) {
+                log_message('error', "Diretório de validadores não existe: $validadoresPath");
+                return $this->failServerError("Diretório de validadores não encontrado: $validadoresPath");
             }
             
-            // Nota: O script de sincronização requer Docker-in-Docker
-            // Por enquanto, retornamos sucesso informando que o arquivo foi salvo
-            log_message('info', "Arquivo $filename salvo em $repoPath. Sincronização com Airflow requer execução manual do script.");
+            $filePath = $validadoresPath . '/' . $filename;
+            log_message('info', "Salvando validador em: $filePath");
+            
+            // Salvar arquivo Python
+            if (file_put_contents($filePath, $content) === false) {
+                log_message('error', "Falha ao salvar arquivo: $filePath");
+                return $this->failServerError('Não foi possível salvar o arquivo no servidor');
+            }
+            
+            // Definir permissões
+            @chmod($filePath, 0644);
+            
+            log_message('info', "✅ Validador salvo com sucesso: $filePath");
             
             return $this->respond([
                 'success' => true,
-                'message' => "✅ $filename salvo em /datalake-root!",
-                'info' => 'Arquivo salvo no repositório Git. Para sincronizar com Airflow, execute o script sync_validators_to_airflow.sh no host.',
-                'file_path' => "$repoPath/$filename",
-                'next_step' => 'Execute: cd /datalake-root && bash sync_validators_to_airflow.sh ' . $filename
+                'message' => "✅ {$filename} salvo com sucesso!",
+                'file_path' => $filePath,
+                'info' => 'Arquivo pronto para uso no Airflow'
             ]);
             
         } catch (\Exception $e) {
             log_message('error', 'Erro ao fazer deploy: ' . $e->getMessage());
-            return $this->failServerError('Erro ao sincronizar: ' . $e->getMessage());
+            return $this->failServerError('Erro ao salvar validador: ' . $e->getMessage());
         }
     }
 }

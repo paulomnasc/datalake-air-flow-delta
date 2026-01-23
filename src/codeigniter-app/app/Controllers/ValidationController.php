@@ -98,6 +98,19 @@ class ValidationController extends BaseController
             // Log de auditoria
             log_message('info', "Função custom criada: {$modulePath} (ID: {$result['id']}) por usuário {$usuarioId}");
 
+            // Sincronizar função com Airflow (para que DAGs possam usá-la)
+            try {
+                $airflowHelper = new \App\Helpers\AirflowHelper();
+                $syncResult = $airflowHelper::registerCustomFunctionWithAirflow($usuarioId, $nome, $modulePath);
+                if ($syncResult['success']) {
+                    log_message('info', "Função custom registrada no Airflow: {$modulePath}");
+                } else {
+                    log_message('warning', "Falha ao registrar função no Airflow: " . $syncResult['message']);
+                }
+            } catch (\Exception $e) {
+                log_message('warning', "Erro ao sincronizar função com Airflow: " . $e->getMessage());
+            }
+
             return $this->response->setJSON([
                 'success' => true,
                 'message' => 'Função custom criada com sucesso! Recarregue a página para vê-la no select.',

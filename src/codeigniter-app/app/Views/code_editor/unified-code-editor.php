@@ -1614,8 +1614,33 @@ class MeuValidador(RawToMedallionPipeline):
                 
                 const registerResult = await registerResponse.json();
                 
+                // Se houver duplicidade, é apenas um aviso (arquivo já foi salvo)
                 if (!registerResult.success) {
-                    throw new Error(registerResult.message || 'Falha ao registrar custom function');
+                    // Verifica se é erro de duplicidade (aviso) ou erro real
+                    const isDuplicate = registerResult.message && 
+                                       (registerResult.message.includes('Você já possui') || 
+                                        registerResult.message.includes('já existe'));
+                    
+                    if (isDuplicate) {
+                        // Avisar sobre duplicidade, mas considerar sucesso parcial
+                        console.warn('⚠️ Função já existe:', registerResult.message);
+                        
+                        const warningMsg = `⚠️ Aviso: Função já existe!\n\n` +
+                                         `📄 Arquivo: ${filename}\n` +
+                                         `🔧 Função: ${className}\n\n` +
+                                         `${registerResult.message}\n\n` +
+                                         `O arquivo foi salvo, mas a função custom já estava registrada.`;
+                        
+                        alert(warningMsg);
+                        
+                        if (resultsDiv) {
+                            resultsDiv.innerHTML = `<div style="color: #f59e0b;">⚠️ Aviso: ${registerResult.message}</div>`;
+                        }
+                        return; // Sair sem lançar erro
+                    } else {
+                        // Erro real
+                        throw new Error(registerResult.message || 'Falha ao registrar custom function');
+                    }
                 }
                 
                 console.log('✅ Custom function registrada:', registerResult);
@@ -1636,6 +1661,7 @@ class MeuValidador(RawToMedallionPipeline):
                 if (resultsDiv) {
                     resultsDiv.innerHTML = `<div style="color: #10b981;">✅ Deploy concluído! Função "${className}" registrada.</div>`;
                 }
+
                 
             } catch (error) {
                 console.error('Deploy error:', error);

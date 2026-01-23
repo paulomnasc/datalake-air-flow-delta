@@ -117,6 +117,24 @@ class AuthController extends BaseController
                 log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
             }
 
+            // Sincroniza funções Python do usuário (garante que tem as funções padrão)
+            try {
+                $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
+                $countFuncoes = $usuarioFuncionModel->contarFuncoesDoUsuario($usuario->id);
+                
+                if ($countFuncoes == 0) {
+                    // Se não tem funções configuradas, sincroniza com padrão
+                    $syncResult = $usuarioFuncionModel->sincronizarComPadrao($usuario->id);
+                    if ($syncResult) {
+                        log_message('info', "Funções Python sincronizadas para novo usuário Google Auth: {$usuario->id}");
+                    } else {
+                        log_message('warning', "Falha ao sincronizar funções Python para usuário Google Auth: {$usuario->id}");
+                    }
+                }
+            } catch (\Exception $e) {
+                log_message('warning', "Erro ao sincronizar funções no Google Auth: " . $e->getMessage());
+            }
+
             // Sincroniza com Airflow (sem senha, pois é OAuth)
             if (AirflowHelper::isAirflowAvailable()) {
                 $senhaAleatoria = bin2hex(random_bytes(8));

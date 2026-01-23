@@ -78,6 +78,24 @@ class UsuarioController extends BaseController
                     log_message('warning', '[ActivityLog] Falha ao registrar login: ' . $e->getMessage());
                 }
                 
+                // Sincroniza funções Python do usuário (garante que tem as funções padrão)
+                try {
+                    $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
+                    $countFuncoes = $usuarioFuncionModel->contarFuncoesDoUsuario($usuario->id);
+                    
+                    if ($countFuncoes == 0) {
+                        // Se não tem funções configuradas, sincroniza com padrão
+                        $syncResult = $usuarioFuncionModel->sincronizarComPadrao($usuario->id);
+                        if ($syncResult) {
+                            log_message('info', "Funções Python sincronizadas para usuário no login: {$usuario->id}");
+                        } else {
+                            log_message('warning', "Falha ao sincronizar funções Python para usuário no login: {$usuario->id}");
+                        }
+                    }
+                } catch (\Exception $e) {
+                    log_message('warning', "Erro ao sincronizar funções no login: " . $e->getMessage());
+                }
+                
                 // Garante que o bucket do usuário existe no MinIO
                 $bucketResult = MinioHelper::createUserBucket($usuario->id);
                 
@@ -184,6 +202,24 @@ class UsuarioController extends BaseController
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['email_usuario_logado'] = $usuario->email;
                 $_SESSION['usuario_logado'] = 1;
+                
+                // Sincroniza funções Python do usuário (garante que tem as funções padrão)
+                try {
+                    $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
+                    $countFuncoes = $usuarioFuncionModel->contarFuncoesDoUsuario($usuario->id);
+                    
+                    if ($countFuncoes == 0) {
+                        // Se não tem funções configuradas, sincroniza com padrão
+                        $syncResult = $usuarioFuncionModel->sincronizarComPadrao($usuario->id);
+                        if ($syncResult) {
+                            log_message('info', "Funções Python sincronizadas para usuário no login com confirmação de email: {$usuario->id}");
+                        } else {
+                            log_message('warning', "Falha ao sincronizar funções Python para usuário no login: {$usuario->id}");
+                        }
+                    }
+                } catch (\Exception $e) {
+                    log_message('warning', "Erro ao sincronizar funções no login: " . $e->getMessage());
+                }
                 
                 // Garante que o bucket do usuário existe no MinIO
                 $bucketResult = MinioHelper::createUserBucket($usuario->id);
@@ -432,6 +468,7 @@ class UsuarioController extends BaseController
         
         $model = new UsuarioModel();
         $usuarioPerfilModel = new UsuarioPerfilModel();
+        $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
         
         $db = \Config\Database::connect();
         $db->transStart();
@@ -441,6 +478,15 @@ class UsuarioController extends BaseController
             
             if ($idUsuario && !empty($perfis)) {
                 $usuarioPerfilModel->savePerfisUsuario($idUsuario, $perfis);
+            }
+            
+            // Sincronizar funções Python padrão do novo usuário
+            if ($idUsuario) {
+                $syncResult = $usuarioFuncionModel->sincronizarComPadrao($idUsuario);
+                if (!$syncResult) {
+                    log_message('warning', "Falha ao sincronizar funções padrão para novo usuário ID: {$idUsuario}");
+                    // Não lançamos exceção, apenas logamos o aviso
+                }
             }
             
             $db->transComplete();
@@ -478,6 +524,7 @@ class UsuarioController extends BaseController
         
         $model = new UsuarioModel();
         $usuarioPerfilModel = new UsuarioPerfilModel();
+        $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
         
         $db = \Config\Database::connect();
         $db->transStart();
@@ -494,6 +541,13 @@ class UsuarioController extends BaseController
                     // Salvar perfis do usuário
                     if (!empty($perfis)) {
                         $usuarioPerfilModel->savePerfisUsuario($idUsuario, $perfis);
+                    }
+                    
+                    // Sincronizar funções Python padrão do novo usuário
+                    $syncResult = $usuarioFuncionModel->sincronizarComPadrao($idUsuario);
+                    if (!$syncResult) {
+                        log_message('warning', "Falha ao sincronizar funções padrão para novo usuário ID: {$idUsuario}");
+                        // Não lançamos exceção, apenas logamos o aviso
                     }
                     
                     $db->transComplete();

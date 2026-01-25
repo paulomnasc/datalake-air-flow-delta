@@ -270,6 +270,15 @@ class ValidationRulesController extends ResourceController
             
             $filePath = $validadoresPath . '/' . $filename;
             log_message('info', "Salvando validador em: $filePath");
+
+            // Se existir e estiver protegido, remover antes de sobrescrever
+            if (file_exists($filePath) && !is_writable($filePath)) {
+                log_message('warning', "Arquivo existente sem permissão de escrita, removendo: $filePath");
+                if (!@unlink($filePath)) {
+                    log_message('error', "Não foi possível remover arquivo protegido: $filePath");
+                    return $this->failServerError('Não foi possível substituir o arquivo (permissão negada)');
+                }
+            }
             
             // Salvar arquivo Python
             if (file_put_contents($filePath, $content) === false) {
@@ -279,6 +288,8 @@ class ValidationRulesController extends ResourceController
             
             // Definir permissões
             @chmod($filePath, 0644);
+            @chown($filePath, 'www-data');
+            @chgrp($filePath, 'www-data');
             
             log_message('info', "✅ Validador salvo com sucesso: $filePath");
             

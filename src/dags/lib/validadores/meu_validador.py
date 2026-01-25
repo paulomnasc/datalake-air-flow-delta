@@ -1,14 +1,4 @@
-"""
-Validador customizado com HERANÇA - Padrão recomendado!
-Sincronização automática - 100% SEGURO contra corrupção!
 
-CLASSE: MeuValidador(RawToMedallionPipeline)
-
-CONFIGURAÇÃO MySQL:
-    UPDATE dag_configurations 
-    SET python_module_path = 'lib.validadores.meu_validador.MeuValidador'
-    WHERE dag_id = 2;
-"""
 from lib.medallion_pipeline_v2 import RawToMedallionPipeline
 import pandas as pd
 import logging
@@ -83,24 +73,24 @@ class MeuValidador(RawToMedallionPipeline):
         # ═══════════════════════════════════════════════════════════════════
         # VALIDAÇÃO 1: CEP (Billing Postal Code)
         # ═══════════════════════════════════════════════════════════════════
-        if 'billingpostalcode' in df.columns:
-            log.info("🔍 [MeuValidador] Validando coluna 'billingpostalcode'...")
+        if 'BillingPostalCode' in df.columns:
+            log.info("🔍 [MeuValidador] Validando coluna 'BillingPostalCode'...")
             
             invalid_mask = (
-                (df['billingpostalcode'].isnull()) |
-                (df['billingpostalcode'].astype(str).str.strip().str.lower()
+                (df['BillingPostalCode'].isnull()) |
+                (df['BillingPostalCode'].astype(str).str.strip().str.lower()
                  .isin(['nan', 'none', 'null', '', 'undefined']))
             )
             invalid_count = invalid_mask.sum()
             
             if invalid_count > 0:
                 log.info(f"   └─ {invalid_count} valores inválidos encontrados")
-                df.loc[invalid_mask, 'billingpostalcode'] = None
+                df.loc[invalid_mask, 'BillingPostalCode'] = None
                 log.info(f"   └─ CEP normalizado ✅")
             else:
                 log.info(f"   └─ Nenhum inválido ✅")
         else:
-            log.warning(f"⚠️ Coluna 'billingpostalcode' não encontrada")
+            log.warning(f"⚠️ Coluna 'BillingPostalCode' não encontrada")
         
         # ═══════════════════════════════════════════════════════════════════
         # VALIDAÇÃO 2: Remover colunas 100% nulas

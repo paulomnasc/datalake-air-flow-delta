@@ -255,42 +255,22 @@ $ownerPrefill = $ownerUsername ?: $owner;
                     <label for="python_module_path">Função Python de Transformação:</label>
                     <select name="python_module_path" id="python_module_path" required>
                         <option value="">-- Selecione o tipo de pipeline --</option>
-                        <optgroup label="⭐ Recomendado">
-                            <option value="lib.medallion_pipeline.raw_to_medallion" 
-                                <?php echo ($python_module_path === 'lib.medallion_pipeline.raw_to_medallion') ? 'selected' : ''; ?>>
-                                Pipeline Completo (Bronze + Silver + Gold)
-                            </option>
-                        </optgroup>
-                        <optgroup label="Ingestão de Fontes">
-                            <option value="lib.mysql_ingestion.mysql_to_medallion"
-                                <?php echo ($python_module_path === 'lib.mysql_ingestion.mysql_to_medallion') ? 'selected' : ''; ?>>
-                                MySQL → Medallion (Ingestão + Bronze + Silver + Gold)
-                            </option>
-                            <option value="lib.mysql_ingestion.ingest_mysql_to_raw"
-                                <?php echo ($python_module_path === 'lib.mysql_ingestion.ingest_mysql_to_raw') ? 'selected' : ''; ?>>
-                                MySQL → Raw (Apenas ingestão para CSV)
-                            </option>
-                        </optgroup>
-                        <optgroup label="Camadas Individuais">
-                            <option value="lib.bronze_layer.raw_to_bronze"
-                                <?php echo ($python_module_path === 'lib.bronze_layer.raw_to_bronze') ? 'selected' : ''; ?>>
-                                Bronze (Raw → Bronze CSV)
-                            </option>
-                            <option value="lib.silver_layer.bronze_to_silver"
-                                <?php echo ($python_module_path === 'lib.silver_layer.bronze_to_silver') ? 'selected' : ''; ?>>
-                                Silver (Bronze → Silver Parquet)
-                            </option>
-                            <option value="lib.gold_layer.silver_to_gold"
-                                <?php echo ($python_module_path === 'lib.gold_layer.silver_to_gold') ? 'selected' : ''; ?>>
-                                Gold (Silver → Gold Parquet Otimizado)
-                            </option>
-                        </optgroup>
-                        <optgroup label="Legado">
-                            <option value="lib.minio_tasks.transform_data_with_pandas"
-                                <?php echo ($python_module_path === 'lib.minio_tasks.transform_data_with_pandas') ? 'selected' : ''; ?>>
-                                ⚠️ Função Legada (não recomendado)
-                            </option>
-                        </optgroup>
+                        <?php 
+                        // Recupera as funções do usuário da base de dados
+                        $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
+                        $usuarioId = (int) \App\Helpers\SessionHelper::getUserId();
+                        $funcoesAgrupadas = $usuarioFuncionModel->getFuncoesFormatadas($usuarioId);
+                        
+                        foreach ($funcoesAgrupadas as $grupo => $funcoes): ?>
+                            <optgroup label="<?php echo htmlspecialchars($grupo); ?>">
+                                <?php foreach ($funcoes as $funcao): ?>
+                                    <option value="<?php echo htmlspecialchars($funcao->modulo_python); ?>" 
+                                            <?php echo ($python_module_path === $funcao->modulo_python) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($funcao->nome); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </optgroup>
+                        <?php endforeach; ?>
                     </select>
                     <small>Escolha o tipo de processamento: Pipeline Completo (recomendado), Ingestão de fontes (MySQL, etc) ou camadas individuais.</small>
                 </div>

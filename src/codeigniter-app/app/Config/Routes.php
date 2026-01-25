@@ -166,6 +166,11 @@ $routes->get('/auth/google-login', 'AuthController::googleLoginRedirect', ['as'=
 $routes->get('/auth/google-callback', 'AuthController::googleCallback', ['as'=>'auth.google.callback']);
 $routes->post('auth/google-login', 'AuthController::googleLogin'); // Legacy endpoint
 
+// Validações Custom Functions
+$routes->post('/validation/deploy-custom', 'ValidationController::deployCustom', ['as'=>'validation.deployCustom']);
+$routes->get('/validation/list-custom', 'ValidationController::listCustom', ['as'=>'validation.listCustom']);
+$routes->post('/validation/deactivate-custom/(:num)', 'ValidationController::deactivateCustom/$1', ['as'=>'validation.deactivateCustom']);
+$routes->delete('/validation/delete-custom/(:num)', 'ValidationController::deleteCustom/$1', ['as'=>'validation.deleteCustom']);
 
 //Misc.
 $routes->get('sitemap.xml', 'SitemapController::index');

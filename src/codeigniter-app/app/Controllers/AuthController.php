@@ -109,12 +109,33 @@ class AuthController extends BaseController
                 log_message('warning', '[ActivityLog] Falha ao registrar Google login: ' . $e->getMessage());
             }
 
-            // Garante bucket no MinIO
-            $bucketResult = MinioHelper::createUserBucket($usuario->id);
+            // Garante bucket no MinIO; falha bloqueia o login via Google
+            $bucketResult = MinioHelper::createUserBucket($usuario->id, $usuario->email ?? '');
             if ($bucketResult['success']) {
                 log_message('info', "Bucket do usuário {$usuario->id}: {$bucketResult['message']}");
             } else {
                 log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+                $_SESSION['usuario_logado'] = 0;
+                $_SESSION['error_message'] = 'Não foi possível provisionar seu bucket de trabalho. Tente novamente em instantes ou contate o suporte.';
+                return redirect()->to('/loginUsuario');
+            }
+
+            // Sincroniza funções Python do usuário (garante que tem as funções padrão)
+            try {
+                $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
+                $countFuncoes = $usuarioFuncionModel->contarFuncoesDoUsuario($usuario->id);
+                
+                if ($countFuncoes == 0) {
+                    // Se não tem funções configuradas, sincroniza com padrão
+                    $syncResult = $usuarioFuncionModel->sincronizarComPadrao($usuario->id);
+                    if ($syncResult) {
+                        log_message('info', "Funções Python sincronizadas para novo usuário Google Auth: {$usuario->id}");
+                    } else {
+                        log_message('warning', "Falha ao sincronizar funções Python para usuário Google Auth: {$usuario->id}");
+                    }
+                }
+            } catch (\Exception $e) {
+                log_message('warning', "Erro ao sincronizar funções no Google Auth: " . $e->getMessage());
             }
 
             // Sincroniza com Airflow (sem senha, pois é OAuth)
@@ -136,6 +157,13 @@ class AuthController extends BaseController
             }
 
             log_message('info', "[GOOGLE_AUTH] Usuário {$usuario->id} ({$usuario->email}) autenticado com sucesso");
+            
+            // Registra evento de login para GA4
+            $_SESSION['ga4_login_event'] = [
+                'method' => 'Google',
+                'user_id' => $usuario->id,
+                'email' => $usuario->email
+            ];
             
             return redirect()->to('/');
         } catch (\Exception $e) {

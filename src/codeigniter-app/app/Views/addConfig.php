@@ -479,35 +479,21 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     <label for="python_module_path">Função Python de Transformação:</label>
                     <select name="python_module_path" id="python_module_path" required onchange="validatePipelineSelection()">
                         <option value="">-- Selecione o tipo de pipeline --</option>
-                        <optgroup label="⭐ Recomendado para CSV/Parquet">
-                            <option value="lib.medallion_pipeline.raw_to_medallion">
-                                Pipeline Completo (Bronze + Silver + Gold) - RAW já existe
-                            </option>
-                        </optgroup>
-                        <optgroup label="🔥 Ingestão de Fontes SQL (MySQL, PostgreSQL)">
-                            <option value="lib.mysql_ingestion.mysql_to_medallion">
-                                ✅ MySQL → Medallion (Ingestão + Bronze + Silver + Gold)
-                            </option>
-                            <option value="lib.mysql_ingestion.ingest_mysql_to_raw">
-                                MySQL → Raw (Apenas ingestão para CSV)
-                            </option>
-                        </optgroup>
-                        <optgroup label="Camadas Individuais">
-                            <option value="lib.bronze_layer.raw_to_bronze">
-                                Bronze (Raw → Bronze CSV)
-                            </option>
-                            <option value="lib.silver_layer.bronze_to_silver">
-                                Silver (Bronze → Silver Parquet)
-                            </option>
-                            <option value="lib.gold_layer.silver_to_gold">
-                                Gold (Silver → Gold Parquet Otimizado)
-                            </option>
-                        </optgroup>
-                        <optgroup label="Legado">
-                            <option value="lib.minio_tasks.transform_data_with_pandas">
-                                ⚠️ Função Legada (não recomendado)
-                            </option>
-                        </optgroup>
+                        <?php 
+                        // Recupera as funções do usuário da base de dados
+                        $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
+                        $usuarioId = (int) \App\Helpers\SessionHelper::getUserId();
+                        $funcoesAgrupadas = $usuarioFuncionModel->getFuncoesFormatadas($usuarioId);
+                        
+                        foreach ($funcoesAgrupadas as $grupo => $funcoes): ?>
+                            <optgroup label="<?php echo htmlspecialchars($grupo); ?>">
+                                <?php foreach ($funcoes as $funcao): ?>
+                                    <option value="<?php echo htmlspecialchars($funcao->modulo_python); ?>">
+                                        <?php echo htmlspecialchars($funcao->nome); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </optgroup>
+                        <?php endforeach; ?>
                     </select>
                     <small id="pipeline_help_text">Escolha o tipo de processamento: Pipeline Completo (recomendado), Ingestão de fontes (MySQL, etc) ou camadas individuais.</small>
                     <div id="pipeline_warning" style="display: none; color: #d9534f; font-weight: bold; margin-top: 5px;"></div>

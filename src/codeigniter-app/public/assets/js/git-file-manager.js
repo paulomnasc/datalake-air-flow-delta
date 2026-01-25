@@ -212,12 +212,19 @@ async function connectGitHub() {
     status.innerText = 'Clonando repositório...';
     
     try {
+        // Ensure userBucket is valid
+        let safeBucket = userBucket;
+        if (!safeBucket || typeof safeBucket !== 'string' || safeBucket.trim() === '') {
+            safeBucket = 'lab01'; // Fallback to default
+            console.warn('⚠️ userBucket inválido, usando fallback:', safeBucket);
+        }
+        
         // Chamada server-side para clonar no MinIO
         const cloneResponse = await fetch('/api/git-clone', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                userBucket: userBucket,
+                userBucket: safeBucket,
                 username: gitConfig.username || gitConfig.owner,
                 token: gitConfig.token || undefined,
                 owner: gitConfig.owner,
@@ -227,8 +234,18 @@ async function connectGitHub() {
         });
 
         if (!cloneResponse.ok) {
-            const errorData = await cloneResponse.json();
-            throw new Error(errorData.message || errorData.error || 'Clone failed');
+            let errorData = {};
+            try {
+                errorData = await cloneResponse.json();
+            } catch (e) {
+                errorData = { error: `HTTP ${cloneResponse.status}` };
+            }
+            
+            // Build comprehensive error message
+            let errMsg = errorData.message || errorData.error || 'Clone failed on server';
+            const missingFields = errorData.missingFields ? '\nMissing: ' + errorData.missingFields.join(', ') : '';
+            const debugInfo = errorData.debug ? '\n[DEBUG: ' + JSON.stringify(errorData.debug) + ']' : '';
+            throw new Error(`Git clone error (${cloneResponse.status}): ${errMsg}${missingFields}${debugInfo}`);
         }
 
         const cloneResult = await cloneResponse.json();

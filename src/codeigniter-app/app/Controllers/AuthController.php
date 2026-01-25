@@ -158,6 +158,13 @@ class AuthController extends BaseController
 
             log_message('info', "[GOOGLE_AUTH] Usuário {$usuario->id} ({$usuario->email}) autenticado com sucesso");
             
+            // Registra evento de login para GA4
+            $_SESSION['ga4_login_event'] = [
+                'method' => 'Google',
+                'user_id' => $usuario->id,
+                'email' => $usuario->email
+            ];
+            
             return redirect()->to('/');
         } catch (\Exception $e) {
             log_message('error', '[GOOGLE_AUTH] Exception: ' . $e->getMessage());

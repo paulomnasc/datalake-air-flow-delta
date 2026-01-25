@@ -167,6 +167,18 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <!-- Google Analytics 4 - DEVE SER O PRIMEIRO SCRIPT -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-P312EQG53Y"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-P312EQG53Y', {
+        'cookie_flags': 'SameSite=None;Secure'
+      });
+    </script>
+    <!-- FIM Google Analytics 4 -->
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google-site-verification" content="SN_1k1RhCAE6F7CIT8Zlp2mKiGUKH4rM1ji7BXAcsJs" />
@@ -315,6 +327,24 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     
 </head>
 <body>
+
+    <?php if (isset($_SESSION['ga4_login_event'])): ?>
+    <!-- Disparo de evento GA4: Login -->
+    <script>
+      if (typeof gtag === 'function') {
+        gtag('event', 'login', {
+          'method': '<?= htmlspecialchars($_SESSION['ga4_login_event']['method'], ENT_QUOTES, 'UTF-8'); ?>',
+          'user_id': '<?= htmlspecialchars($_SESSION['ga4_login_event']['user_id'], ENT_QUOTES, 'UTF-8'); ?>'
+        });
+        console.log('✅ GA4: Login event sent - Method: <?= htmlspecialchars($_SESSION['ga4_login_event']['method'], ENT_QUOTES, 'UTF-8'); ?>');
+      } else {
+        console.error('❌ GA4: gtag function not available');
+      }
+    </script>
+    <?php 
+      unset($_SESSION['ga4_login_event']); // Limpa para não reenviar
+    endif; 
+    ?>
 
     <!-- INÍCIO DA SIDEBAR ------------------------------------------------------------------------ -->
         

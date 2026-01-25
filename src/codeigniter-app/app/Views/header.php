@@ -170,12 +170,17 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <!-- Google Analytics 4 - DEVE SER O PRIMEIRO SCRIPT -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-P312EQG53Y"></script>
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-P312EQG53Y', {
-        'cookie_flags': 'SameSite=None;Secure'
-      });
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            // Tag myflow.estudotabelas.com.br
+            gtag('config', 'G-P312EQG53Y', {
+                'cookie_flags': 'SameSite=None;Secure'
+        });
+        // Tag estudotabelas.com.br
+        gtag('config', 'G-SSKK91YY74', {
+            'cookie_flags': 'SameSite=None;Secure'
+        });
     </script>
     <!-- FIM Google Analytics 4 -->
     

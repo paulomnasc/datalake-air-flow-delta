@@ -589,8 +589,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"): 
                         ?>
                             <?php echo anchor("listPasta", "Pastas", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                            <?php echo anchor("dashboard", "🚀 Dashboard (Nova UX)", ['class' => 'nav-link px-4 px-lg-5 fw-bold text-primary']) ?>
                             <?php echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']) ?>
                         <?php elseif (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === "Anonimo"): ?>
+                            <?php echo anchor("dashboard", "🚀 Dashboard (Nova UX)", ['class' => 'nav-link px-4 px-lg-5 fw-bold text-primary']) ?>
                             <?php echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']) ?>
                         <?php endif; ?>
                     </div>

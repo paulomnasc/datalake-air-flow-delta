@@ -199,7 +199,16 @@ class DashboardController extends BaseController
             return redirect()->back()->with('error', 'Arquivo template não encontrado');
         }
 
-        // Fazer download
-        return $this->response->download($filePath, null);
+        // Definir headers para download
+        $this->response->setHeader('Content-Type', 'application/octet-stream');
+        $this->response->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+        $this->response->setHeader('Content-Length', filesize($filePath));
+        $this->response->setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+        $this->response->setHeader('Pragma', 'public');
+        
+        // Enviar arquivo
+        $this->response->setBody(file_get_contents($filePath));
+        
+        return $this->response;
     }
 }

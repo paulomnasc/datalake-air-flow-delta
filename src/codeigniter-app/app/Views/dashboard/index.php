@@ -972,8 +972,12 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     this.wizardData.selectFolder = false;
                     this.wizardData.showFileUpload = false;
                     
+                    // Gerar nome único com timestamp para evitar duplicação
+                    const timestamp = new Date().getTime();
+                    const uniqueName = templateConfig.pipelineName + '_' + timestamp;
+                    
                     // Preencher wizard com dados do template
-                    this.wizardData.pipelineName = templateConfig.pipelineName || '';
+                    this.wizardData.pipelineName = uniqueName;
                     this.wizardData.description = templateConfig.description || '';
                     this.wizardData.folder = templateConfig.folder || '';
                     this.wizardData.sourceType = templateConfig.sourceType || '';
@@ -1147,12 +1151,35 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             }, 500);
                         } else {
                             // Mostrar erro
-                            this.showMessage(mensagem, 'error');
+                            const errorMsg = result.mensagem || mensagem;
+                            
+                            // Verificar se é erro de duplicação e melhorar mensagem
+                            if (errorMsg.includes('Já existe um pipeline') || 
+                                (errorMsg.includes('Duplicate entry') && errorMsg.includes('dag_id'))) {
+                                this.showMessage(
+                                    'Nome do pipeline já está em uso. Por favor, volte ao Passo 1 e escolha outro nome.',
+                                    'error'
+                                );
+                            } else {
+                                this.showMessage(errorMsg, 'error');
+                            }
                         }
                     })
                     .catch(error => {
                         console.error('❌ Erro na requisição:', error);
-                        this.showMessage(error.message || 'Erro ao salvar as informações. Por favor, tente novamente.', 'error');
+                        
+                        // Verificar se é erro de duplicação de dag_id
+                        const errorMsg = error.message || 'Erro ao salvar as informações. Por favor, tente novamente.';
+                        
+                        if (errorMsg.includes('Já existe um pipeline') || 
+                            (errorMsg.includes('Duplicate entry') && errorMsg.includes('dag_id'))) {
+                            this.showMessage(
+                                'Nome do pipeline já está em uso. Por favor, volte ao Passo 1 e escolha outro nome.',
+                                'error'
+                            );
+                        } else {
+                            this.showMessage(errorMsg, 'error');
+                        }
                     });
                 },
 

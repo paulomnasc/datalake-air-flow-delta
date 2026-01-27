@@ -25,6 +25,8 @@ node_modules/
 # Ignorar dependências PHP Composer
 vendor/
 src/codeigniter-app/vendor/
+# Exceto o phpMailer que deve ser versionado
+!src/codeigniter-app/vendor/phpMailer/
 
 # Ignorar configurações específicas do sistema operacional
 .DS_Store

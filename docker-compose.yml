@@ -345,6 +345,7 @@ services:
       - NGINX_PORT_HTTP=${NGINX_PORT_HTTP}
       - NGINX_PORT_HTTPS=${NGINX_PORT_HTTPS}
       - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
+      - ENV_SUFFIX=${ENV_SUFFIX:-}
       # MinIO configuration used by the webapp (read by ConfigController::_initMinioClient())
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_REGION=us-east-1

@@ -6,6 +6,11 @@ class Home extends BaseController
 {
     public function index(): string
     {
+        // Se usuário estiver logado, redireciona para o dashboard
+        if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
+            return redirect()->to(base_url('dashboard'))->send();
+        }
+        
         // invoke  \Viesw\welcome_message.php
         
         //return view('welcome_message');

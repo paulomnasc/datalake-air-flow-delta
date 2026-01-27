@@ -574,6 +574,37 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 <?php endif; ?>
 
 
+                <?php 
+                // Verifica se os serviços estão bloqueados por assinatura expirada
+                $servicesBlocked = isset($_SESSION['subscription_services_blocked']) && $_SESSION['subscription_services_blocked'];
+                ?>
+
+                <li class="nav-item dropdown <?= $servicesBlocked ? 'disabled' : '' ?>">
+                    <?php if ($servicesBlocked): ?>
+                        <a class="nav-link dropdown-toggle" href="#" style="opacity: 0.5; cursor: not-allowed;" 
+                           title="Renovar assinatura para acessar os serviços" onclick="event.preventDefault(); alert('⚠️ Assinatura expirada!\n\nPara acessar os serviços, renove sua assinatura.')">
+                            SERVIÇOS 🔒
+                        </a>
+                    <?php else: ?>
+                        <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-bs-toggle="dropdown">
+                            SERVIÇOS
+                        </a>
+                        <div class="dropdown-menu">
+                            <?php if (isset($userHasPipelinesAccess) && $userHasPipelinesAccess): ?>
+                                <?php $airflowExternalUrl = getenv('AIRFLOW_EXTERNAL_URL') ?: 'http://localhost:8080'; ?>
+                                <a class="dropdown-item" href="<?= htmlspecialchars($airflowExternalUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">🔄 Pipelines ELT</a>
+                            <?php endif; ?>
+                            <!-- ?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
+                                <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->
+                            <!-- ?php endif; ?-->
+                            <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): ?>
+                                <!-- a class="dropdown-item" href="<! ?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a-->
+                                <a class="dropdown-item" href="<?= base_url('code-editor') ?>">💻 SQL Editor + Customizações</a>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                </li>
+
                 <!-- Dropdown -->
                 <?php
                         // Verifica se o perfil do usuário está logado e se ele NÃO é "Anonimo"
@@ -589,45 +620,20 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"): 
                         ?>
                             <?php echo anchor("listPasta", "Pastas", ['class' => 'nav-link px-4 px-lg-5']) ?>
-                            <?php echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                            <?php /* Dashboard e Fluxos removidos do menu - usar novo Dashboard principal
+                            echo anchor("dashboard", "🚀 Dashboard (Nova UX)", ['class' => 'nav-link px-4 px-lg-5 fw-bold text-primary']);
+                            echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']);
+                            */ ?>
                         <?php elseif (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === "Anonimo"): ?>
-                            <?php echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                            <?php /* Dashboard e Fluxos removidos do menu
+                            echo anchor("dashboard", "🚀 Dashboard (Nova UX)", ['class' => 'nav-link px-4 px-lg-5 fw-bold text-primary']);
+                            echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']);
+                            */ ?>
                         <?php endif; ?>
                     </div>
                 </li>
                 <!-- Fim Dropdown -->
                 <?php endif; ?>
-
-                <?php 
-                // Verifica se os serviços estão bloqueados por assinatura expirada
-                $servicesBlocked = isset($_SESSION['subscription_services_blocked']) && $_SESSION['subscription_services_blocked'];
-                ?>
-
-                <li class="nav-item dropdown <?= $servicesBlocked ? 'disabled' : '' ?>">
-                    <?php if ($servicesBlocked): ?>
-                        <a class="nav-link dropdown-toggle" href="#" style="opacity: 0.5; cursor: not-allowed;" 
-                           title="Renovar assinatura para acessar os serviços" onclick="event.preventDefault(); alert('⚠️ Assinatura expirada!\n\nPara acessar os serviços, renove sua assinatura.');">
-                            SERVIÇOS 🔒
-                        </a>
-                    <?php else: ?>
-                        <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-bs-toggle="dropdown">
-                            SERVIÇOS
-                        </a>
-                        <div class="dropdown-menu">
-                            <?php if (isset($userHasPipelinesAccess) && $userHasPipelinesAccess): ?>
-                                <?php $airflowExternalUrl = getenv('AIRFLOW_EXTERNAL_URL') ?: 'http://localhost:8080'; ?>
-                                <a class="dropdown-item" href="<?= htmlspecialchars($airflowExternalUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Pipelines ELT</a>
-                            <?php endif; ?>
-                            <!-- ?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
-                                <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->
-                            <!-- ?php endif; ?-->
-                            <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): ?>
-                                <!-- a class="dropdown-item" href="<! ?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a-->
-                                <a class="dropdown-item" href="<?= base_url('code-editor') ?>">💻 SQL Editor + Customizações</a>
-                            <?php endif; ?>
-                        </div>
-                    <?php endif; ?>
-                </li>
 
                 <?php echo anchor("politica","Política Privacidade", ['class' => 'nav-link px-4 px-lg-5'])  ?>
 

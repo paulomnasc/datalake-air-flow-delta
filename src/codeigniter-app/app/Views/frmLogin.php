@@ -141,7 +141,7 @@ require VIEWPATH . '/header.php';
                     success: function(result) {
                         if (result.status === 'success') {
                             $('#success-message').html(result.mensagem).show().delay(6000).fadeOut(function() {
-                                window.location.href = "<?php echo route_to('listPasta'); ?>"; // Redireciona para listPasta após exibir a mensagem
+                                window.location.href = "<?php echo base_url('dashboard'); ?>"; // Redireciona para novo dashboard
                             }); // Mostra a mensagem de sucesso
                         } else {
                             $('#error-message').html(result.mensagem).show().delay(6000).fadeOut(); // Mostra a mensagem de erro

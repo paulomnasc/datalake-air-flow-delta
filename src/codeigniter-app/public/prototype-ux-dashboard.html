@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyDataFlow - Protótipo UX Dashboard</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #4F46E5;
+            --success-color: #10B981;
+            --warning-color: #F59E0B;
+            --danger-color: #EF4444;
+        }
+
+        body {
+            background-color: #F9FAFB;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: var(--primary-color) !important;
+        }
+
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #7C3AED 100%);
+            color: white;
+            padding: 3rem 0;
+            border-radius: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .btn-cta {
+            background-color: white;
+            color: var(--primary-color);
+            font-weight: 600;
+            padding: 0.875rem 2rem;
+            border-radius: 0.5rem;
+            border: none;
+            font-size: 1.125rem;
+            transition: all 0.3s;
+        }
+
+        .btn-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            border-color: var(--primary-color);
+        }
+
+        .stat-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }
+
+        .stat-label {
+            color: #6B7280;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .quick-action-card {
+            background: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--primary-color);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .quick-action-card:hover {
+            background-color: #F3F4F6;
+            transform: translateX(5px);
+        }
+
+        .template-card {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+
+        .template-card:hover {
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .badge-difficulty {
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .wizard-container {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .wizard-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .wizard-step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+
+        .wizard-step-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #E5E7EB;
+            color: #6B7280;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 0.5rem;
+            font-weight: 700;
+            transition: all 0.3s;
+        }
+
+        .wizard-step.active .wizard-step-circle {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .wizard-step.completed .wizard-step-circle {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .wizard-step-label {
+            font-size: 0.875rem;
+            color: #6B7280;
+        }
+
+        .wizard-step.active .wizard-step-label {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .form-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .prototype-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #FEF3C7;
+            color: #92400E;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-diagram-3-fill"></i> MyDataFlow
+            </a>
+            <div class="ms-auto">
+                <span class="text-muted me-3">
+                    <i class="bi bi-person-circle"></i> Usuário Demo
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Badge Protótipo -->
+    <div class="prototype-badge">
+        <i class="bi bi-lightbulb-fill"></i> Protótipo UX - Apenas Visual
+    </div>
+
+    <!-- App Container -->
+    <div class="container-fluid px-4" x-data="dashboardApp()" x-init="init()">
+        
+        <!-- Dashboard View -->
+        <div x-show="currentView === 'dashboard'" x-transition>
+            
+            <!-- Hero Section -->
+            <div class="hero-section text-center">
+                <div class="container">
+                    <h1 class="display-5 fw-bold mb-3">
+                        Bem-vindo ao MyDataFlow! 👋
+                    </h1>
+                    <p class="lead mb-4">
+                        Crie pipelines de dados poderosos sem escrever código
+                    </p>
+                    <button @click="currentView = 'wizard'" class="btn btn-cta">
+                        <i class="bi bi-plus-circle"></i> Criar Meu Primeiro Pipeline
+                    </button>
+                    <div class="mt-3">
+                        <small class="text-white-50">ou escolha um template abaixo ↓</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="stat-card text-center" @click="alert('Aqui navegaria para lista de pipelines')">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-number" x-text="stats.pipelines.total">0</div>
+                        <div class="stat-label">Pipelines Criados</div>
+                        <button class="btn btn-sm btn-outline-primary mt-3">Ver Todos</button>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card text-center" @click="alert('Aqui navegaria para fontes de dados')">
+                        <div class="stat-icon">🗄️</div>
+                        <div class="stat-number" x-text="stats.datasources.total">0</div>
+                        <div class="stat-label">Fontes de Dados</div>
+                        <button class="btn btn-sm btn-outline-primary mt-3">Ver Todos</button>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card text-center" @click="alert('Aqui navegaria para logs')">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-number" x-text="stats.executions.total">0</div>
+                        <div class="stat-label">Execuções</div>
+                        <button class="btn btn-sm btn-outline-primary mt-3">Ver Logs</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <h3 class="mb-3"><i class="bi bi-rocket-takeoff"></i> Início Rápido</h3>
+                    
+                    <div class="quick-action-card" @click="currentView = 'wizard'; wizardData.currentStep = 2">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3" style="font-size: 2rem;">1️⃣</div>
+                            <div class="flex-grow-1">
+                                <h5 class="mb-1">Adicionar Fonte de Dados</h5>
+                                <p class="text-muted mb-0 small">Conecte um banco de dados, arquivo ou API</p>
+                            </div>
+                            <i class="bi bi-arrow-right"></i>
+                        </div>
+                    </div>
+
+                    <div class="quick-action-card" @click="currentView = 'wizard'">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3" style="font-size: 2rem;">2️⃣</div>
+                            <div class="flex-grow-1">
+                                <h5 class="mb-1">Criar Pipeline</h5>
+                                <p class="text-muted mb-0 small">Transforme e mova seus dados entre camadas</p>
+                            </div>
+                            <i class="bi bi-arrow-right"></i>
+                        </div>
+                    </div>
+
+                    <div class="quick-action-card" @click="scrollToTemplates()">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3" style="font-size: 2rem;">3️⃣</div>
+                            <div class="flex-grow-1">
+                                <h5 class="mb-1">Usar Template Pronto</h5>
+                                <p class="text-muted mb-0 small">Comece com exemplos pré-configurados</p>
+                            </div>
+                            <i class="bi bi-arrow-right"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="bi bi-info-circle"></i> Dica</h5>
+                            <p class="card-text small">
+                                <strong>Primeira vez aqui?</strong> Comece criando um pipeline simples 
+                                usando o template "CSV para Parquet". Leva menos de 5 minutos!
+                            </p>
+                            <button @click="useTemplate(1)" class="btn btn-sm btn-primary w-100">
+                                <i class="bi bi-play-fill"></i> Começar Agora
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Templates Gallery -->
+            <div id="templates-section">
+                <h3 class="mb-3"><i class="bi bi-collection"></i> Templates Populares</h3>
+                <div class="row">
+                    <template x-for="template in templates" :key="template.id">
+                        <div class="col-md-6 col-lg-3">
+                            <div class="template-card">
+                                <div class="text-center mb-3" style="font-size: 3rem;" x-text="template.icon"></div>
+                                <h5 x-text="template.name"></h5>
+                                <p class="text-muted small" x-text="template.description"></p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge-difficulty" 
+                                          :class="{
+                                              'bg-success': template.difficulty === 'Fácil',
+                                              'bg-warning': template.difficulty === 'Médio',
+                                              'bg-danger': template.difficulty === 'Avançado'
+                                          }"
+                                          x-text="template.difficulty">
+                                    </span>
+                                    <small class="text-muted"><i class="bi bi-list-ol"></i> <span x-text="template.steps"></span> passos</small>
+                                </div>
+                                <button @click="useTemplate(template.id)" class="btn btn-outline-primary btn-sm w-100 mt-3">
+                                    <i class="bi bi-box-arrow-in-right"></i> Usar Template
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wizard View -->
+        <div x-show="currentView === 'wizard'" x-transition>
+            <div class="wizard-container">
+                <!-- Breadcrumb -->
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="#" @click.prevent="currentView = 'dashboard'">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Criar Pipeline</li>
+                    </ol>
+                </nav>
+
+                <h2 class="mb-4">Criar Novo Pipeline</h2>
+
+                <!-- Steps Indicator -->
+                <div class="wizard-steps">
+                    <template x-for="(step, index) in wizardSteps" :key="index">
+                        <div class="wizard-step" 
+                             :class="{
+                                 'active': wizardData.currentStep === index + 1,
+                                 'completed': wizardData.currentStep > index + 1
+                             }">
+                            <div class="wizard-step-circle">
+                                <span x-show="wizardData.currentStep <= index + 1" x-text="index + 1"></span>
+                                <i x-show="wizardData.currentStep > index + 1" class="bi bi-check-lg"></i>
+                            </div>
+                            <div class="wizard-step-label" x-text="step.label"></div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Step Content -->
+                <div class="wizard-content">
+                    <!-- Step 1: Informações Básicas -->
+                    <div x-show="wizardData.currentStep === 1">
+                        <h4 class="mb-4">Informações Básicas</h4>
+                        <div class="form-section">
+                            <label class="form-label">Nome do Pipeline *</label>
+                            <input type="text" class="form-control" 
+                                   x-model="wizardData.pipelineName" 
+                                   placeholder="Ex: Importar Vendas Diárias">
+                        </div>
+                        <div class="form-section">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" rows="3" 
+                                      x-model="wizardData.description"
+                                      placeholder="Descreva o que este pipeline faz..."></textarea>
+                        </div>
+                        <div class="form-section">
+                            <label class="form-label">Pasta/Workspace *</label>
+                            <select class="form-select" x-model="wizardData.folder">
+                                <option value="">Selecione uma pasta...</option>
+                                <option value="vendas">Vendas</option>
+                                <option value="marketing">Marketing</option>
+                                <option value="financeiro">Financeiro</option>
+                                <option value="novo">+ Criar Nova Pasta</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Fonte de Dados -->
+                    <div x-show="wizardData.currentStep === 2">
+                        <h4 class="mb-4">Fonte de Dados</h4>
+                        <div class="form-section">
+                            <label class="form-label">Tipo de Fonte *</label>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="card h-100" style="cursor: pointer;" 
+                                         :class="wizardData.sourceType === 'database' ? 'border-primary' : ''"
+                                         @click="wizardData.sourceType = 'database'">
+                                        <div class="card-body text-center">
+                                            <div style="font-size: 3rem;">🗄️</div>
+                                            <h6>Banco de Dados</h6>
+                                            <small class="text-muted">MySQL, PostgreSQL, Oracle</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card h-100" style="cursor: pointer;"
+                                         :class="wizardData.sourceType === 'file' ? 'border-primary' : ''"
+                                         @click="wizardData.sourceType = 'file'">
+                                        <div class="card-body text-center">
+                                            <div style="font-size: 3rem;">📄</div>
+                                            <h6>Arquivo</h6>
+                                            <small class="text-muted">CSV, Excel, JSON, XML</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card h-100" style="cursor: pointer;"
+                                         :class="wizardData.sourceType === 'api' ? 'border-primary' : ''"
+                                         @click="wizardData.sourceType = 'api'">
+                                        <div class="card-body text-center">
+                                            <div style="font-size: 3rem;">🌐</div>
+                                            <h6>API REST</h6>
+                                            <small class="text-muted">HTTP/HTTPS, JSON, XML</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Configuração específica por tipo -->
+                        <div x-show="wizardData.sourceType === 'database'" class="mt-4">
+                            <h5>Configuração do Banco de Dados</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-section">
+                                        <label class="form-label">Tipo de Banco</label>
+                                        <select class="form-select" x-model="wizardData.dbType">
+                                            <option value="">Selecione...</option>
+                                            <option value="mysql">MySQL</option>
+                                            <option value="postgresql">PostgreSQL</option>
+                                            <option value="oracle">Oracle</option>
+                                            <option value="sqlserver">SQL Server</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-section">
+                                        <label class="form-label">Host</label>
+                                        <input type="text" class="form-control" placeholder="localhost ou IP">
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-plug"></i> Testar Conexão (simulado)
+                            </button>
+                        </div>
+
+                        <div x-show="wizardData.sourceType === 'file'" class="mt-4">
+                            <h5>Upload de Arquivo</h5>
+                            <div class="form-section">
+                                <input type="file" class="form-control">
+                                <small class="text-muted">Formatos aceitos: CSV, Excel, JSON, XML (máx 100MB)</small>
+                            </div>
+                        </div>
+
+                        <div x-show="wizardData.sourceType === 'api'" class="mt-4">
+                            <h5>Configuração da API</h5>
+                            <div class="form-section">
+                                <label class="form-label">URL do Endpoint</label>
+                                <input type="url" class="form-control" placeholder="https://api.exemplo.com/data">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Transformações -->
+                    <div x-show="wizardData.currentStep === 3">
+                        <h4 class="mb-4">Lógica de Transformação</h4>
+                        
+                        <div class="form-section">
+                            <label class="form-label">Função Python de Transformação: *</label>
+                            <select class="form-select mb-3" x-model="wizardData.pythonFunction">
+                                <option value="">-- Selecione o tipo de pipeline --</option>
+                                
+                                <optgroup label="🎯 Pipeline Completo (Recomendado)">
+                                    <option value="full_pipeline">Pipeline Completo Bronze → Silver → Gold</option>
+                                    <option value="full_pipeline_single">Pipeline Completo - Modo Single Table</option>
+                                </optgroup>
+                                
+                                <optgroup label="📥 Ingestão de Fontes">
+                                    <option value="mysql_to_bronze">MySQL → Bronze</option>
+                                    <option value="postgres_to_bronze">PostgreSQL → Bronze</option>
+                                    <option value="csv_to_bronze">CSV → Bronze</option>
+                                    <option value="api_to_bronze">API REST → Bronze</option>
+                                </optgroup>
+                                
+                                <optgroup label="🥉 Camada Bronze">
+                                    <option value="bronze_raw">Bronze - Dados Brutos</option>
+                                    <option value="bronze_parquet">Bronze - Conversão Parquet</option>
+                                </optgroup>
+                                
+                                <optgroup label="🥈 Camada Silver">
+                                    <option value="bronze_to_silver">Bronze → Silver (Limpeza e Validação)</option>
+                                    <option value="silver_dedup">Silver - Remoção de Duplicatas</option>
+                                </optgroup>
+                                
+                                <optgroup label="🥇 Camada Gold">
+                                    <option value="silver_to_gold">Silver → Gold (Agregações e Analytics)</option>
+                                    <option value="gold_analytics">Gold - Métricas de Negócio</option>
+                                </optgroup>
+                                
+                                <optgroup label="🔧 Funções Customizadas">
+                                    <option value="custom_1">Minha Função Customizada 1</option>
+                                    <option value="custom_2">Minha Função Customizada 2</option>
+                                </optgroup>
+                            </select>
+                            <small class="text-muted d-block mb-3">
+                                Escolha o tipo de processamento: Pipeline Completo (recomendado), Ingestão de fontes (MySQL, etc) ou camadas individuais.
+                            </small>
+                            
+                            <div class="alert alert-info" x-show="wizardData.pythonFunction === ''">
+                                <i class="bi bi-info-circle"></i> 
+                                <strong>Dica:</strong> Para iniciantes, recomendamos começar com "Pipeline Completo Bronze → Silver → Gold"
+                            </div>
+                            
+                            <div class="alert alert-success" x-show="wizardData.pythonFunction.includes('full_pipeline')">
+                                <i class="bi bi-check-circle"></i> 
+                                <strong>Recomendado!</strong> Pipeline completo processa automaticamente todas as camadas do Data Lake
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <label class="form-label">Argumentos Extras da Função (JSON)</label>
+                            <textarea 
+                                class="form-control font-monospace" 
+                                rows="8" 
+                                x-model="wizardData.transformArgs"
+                                placeholder='{"chave": "valor", "exemplo": true}'></textarea>
+                            <small class="text-muted">Deve ser um JSON válido. Use {} se não precisar de argumentos extras.</small>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Agendamento -->
+                    <div x-show="wizardData.currentStep === 4">
+                    <div x-show="wizardData.currentStep === 5">
+                        <h4 class="mb-4">Agendamento</h4>
+                        
+                        <div class="form-section">
+                            <label class="form-label">Frequência de Execução</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="schedule" 
+                                       x-model="wizardData.scheduleType" value="manual" checked>
+                                <label class="form-check-label">
+                                    <strong>Manual</strong> - Executar sob demanda
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="schedule" 
+                                       x-model="wizardData.scheduleType" value="scheduled">
+                                <label class="form-check-label">
+                                    <strong>Agendado</strong> - Executar automaticamente
+                                </label>
+                            </div>
+                        </div>
+
+                        <div x-show="wizardData.scheduleType === 'scheduled'" class="mt-3">
+                            <div class="form-section">
+                                <label class="form-label">Frequência</label>
+                                <select class="form-select" x-model="wizardData.frequency">
+                                    <option value="">Selecione...</option>
+                                    <option value="hourly">A cada hora</option>
+                                    <option value="daily">Diariamente</option>
+                                    <option value="weekly">Semanalmente</option>
+                                    <option value="monthly">Mensalmente</option>
+                                    <option value="custom">Personalizado (cron)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" x-model="wizardData.notifications">
+                                <label class="form-check-label">
+                                    Receber notificações por email em caso de falha
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 5: Revisão -->
+                    <div x-show="wizardData.currentStep === 5">
+                        <h4 class="mb-4">Revisar Pipeline</h4>
+                        
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">Resumo da Configuração</h6>
+                            </div>
+                            <div class="card-body">
+                                <dl class="row mb-0">
+                                    <dt class="col-sm-3">Nome:</dt>
+                                    <dd class="col-sm-9" x-text="wizardData.pipelineName || 'Não informado'"></dd>
+                                    
+                                    <dt class="col-sm-3">Pasta:</dt>
+                                    <dd class="col-sm-9" x-text="wizardData.folder || 'Não selecionada'"></dd>
+                                    
+                                    <dt class="col-sm-3">Fonte:</dt>
+                                    <dd class="col-sm-9" x-text="wizardData.sourceType || 'Não configurada'"></dd>
+                                    
+                                    <dt class="col-sm-3">Função Python:</dt>
+                                    <dd class="col-sm-9" x-text="wizardData.pythonFunction || 'Não selecionada'"></dd>
+                                    
+                                    <dt class="col-sm-3">Agendamento:</dt>
+                                    <dd class="col-sm-9" x-text="wizardData.scheduleType || 'Manual'"></dd>
+                                </dl>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i>
+                            <strong>Tudo pronto!</strong> Seu pipeline está configurado e pronto para ser criado.
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" x-model="wizardData.executeNow">
+                            <label class="form-check-label">
+                                <strong>Executar agora</strong> para testar o pipeline
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Buttons -->
+                <div class="d-flex justify-content-between mt-4 pt-4 border-top">
+                    <button class="btn btn-outline-secondary" 
+                            @click="currentView = 'dashboard'"
+                            x-show="wizardData.currentStep === 1">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button class="btn btn-outline-secondary" 
+                            @click="previousStep()"
+                            x-show="wizardData.currentStep > 1">
+                        <i class="bi bi-arrow-left"></i> Voltar
+                    </button>
+                    
+                    <div class="ms-auto">
+                        <button class="btn btn-outline-secondary me-2" @click="saveDraft()">
+                            <i class="bi bi-save"></i> Salvar Rascunho
+                        </button>
+                        <button class="btn btn-primary" 
+                                @click="nextStep()"
+                                x-show="wizardData.currentStep < 5">
+                            Próximo <i class="bi bi-arrow-right"></i>
+                        </button>
+                        <button class="btn btn-success" 
+                                @click="createPipeline()"
+                                x-show="wizardData.currentStep === 5">
+                            <i class="bi bi-check-circle"></i> Criar Pipeline
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Alpine.js App -->
+    <script>
+        function dashboardApp() {
+            return {
+                currentView: 'dashboard', // 'dashboard' or 'wizard'
+                stats: {
+                    pipelines: { total: 0, active: 0, failed: 0 },
+                    datasources: { total: 0, connected: 0 },
+                    executions: { today: 0, total: 0, success_rate: 0 }
+                },
+                templates: [
+                    {
+                        id: 1,
+                        name: 'CSV para Parquet',
+                        description: 'Converte arquivos CSV para formato Parquet otimizado',
+                        icon: '📄',
+                        difficulty: 'Fácil',
+                        steps: 3
+                    },
+                    {
+                        id: 2,
+                        name: 'MySQL para Delta Lake',
+                        description: 'Ingere dados de tabelas MySQL para camada Bronze',
+                        icon: '🗄️',
+                        difficulty: 'Médio',
+                        steps: 5
+                    },
+                    {
+                        id: 3,
+                        name: 'API REST para Bronze',
+                        description: 'Consome API REST e armazena dados brutos',
+                        icon: '🌐',
+                        difficulty: 'Médio',
+                        steps: 4
+                    },
+                    {
+                        id: 4,
+                        name: 'ETL Completo Bronze → Gold',
+                        description: 'Pipeline completo com todas as camadas do Data Lake',
+                        icon: '⭐',
+                        difficulty: 'Avançado',
+                        steps: 7
+                    }
+                ],
+                wizardSteps: [
+                    { label: 'Informações Básicas', value: 1 },
+                    { label: 'Fonte de Dados', value: 2 },
+                    { label: 'Transformações', value: 3 },
+                    { label: 'Agendamento', value: 4 },
+                    { label: 'Revisar', value: 5 }
+                ],
+                wizardData: {
+                    currentStep: 1,
+                    pipelineName: '',
+                    description: '',
+                    folder: '',
+                    sourceType: '',
+                    dbType: '',
+                    pythonFunction: '',
+                    transformArgs: '{}',
+                    scheduleType: 'manual',
+                    frequency: '',
+                    notifications: false,
+                    executeNow: false
+                },
+
+                init() {
+                    console.log('✅ Protótipo UX carregado com sucesso!');
+                    console.log('📌 Este é apenas um protótipo visual - nenhuma funcionalidade real está conectada');
+                },
+
+                useTemplate(templateId) {
+                    alert(`✨ Usando template ${templateId}\n\nEm produção, isso carregaria o wizard pré-preenchido com as configurações do template.`);
+                    this.currentView = 'wizard';
+                    this.wizardData.currentStep = 1;
+                },
+
+                scrollToTemplates() {
+                    document.getElementById('templates-section').scrollIntoView({ behavior: 'smooth' });
+                },
+
+                nextStep() {
+                    if (this.wizardData.currentStep < 5) {
+                        this.wizardData.currentStep++;
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                },
+
+                previousStep() {
+                    if (this.wizardData.currentStep > 1) {
+                        this.wizardData.currentStep--;
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                },
+
+                saveDraft() {
+                    alert('💾 Rascunho salvo!\n\n(Esta é uma simulação - em produção salvaria no banco de dados)');
+                },
+
+                createPipeline() {
+                    alert('🎉 Pipeline criado com sucesso!\n\n' + 
+                          `Nome: ${this.wizardData.pipelineName || 'Sem nome'}\n` +
+                          `Fonte: ${this.wizardData.sourceType || 'Não configurada'}\n` +
+                          `Camada: ${this.wizardData.targetLayer || 'Não selecionada'}\n\n` +
+                          '(Esta é uma simulação do protótipo - em produção criaria o pipeline real)');
+                    
+                    // Simular sucesso
+                    this.stats.pipelines.total++;
+                    this.currentView = 'dashboard';
+                    this.resetWizard();
+                },
+
+                resetWizard() {
+                    this.wizardData = {
+                        currentStep: 1,
+                        pipelineName: '',
+                        description: '',
+                        folder: '',
+                        sourceType: '',
+                        dbType: '',
+                        pythonFunction: '',
+                        transformArgs: '{}',
+                        scheduleType: 'manual',
+                        frequency: '',
+                        notifications: false,
+                        executeNow: false
+                    };
+                }
+            }
+        }
+    </script>
+</body>
+</html>

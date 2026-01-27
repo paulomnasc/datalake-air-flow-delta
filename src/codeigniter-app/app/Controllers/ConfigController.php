@@ -573,11 +573,22 @@ class ConfigController extends BaseController
                  throw new \Exception('Lógica de processamento de dados não implementada para o tipo: ' . $sourceTypeDescription);
             }
 
+            // Validar se dag_id já existe
+            $dagId = $postData['dag_id'] ?? null;
+            if (empty($dagId)) {
+                throw new \Exception('O nome do pipeline (dag_id) é obrigatório');
+            }
+            
+            $existingDag = $model->where('dag_id', $dagId)->first();
+            if ($existingDag) {
+                throw new \Exception('Já existe um pipeline com o nome "' . $dagId . '". Por favor, escolha outro nome.');
+            }
+
             // 3. Preparação dos Dados para Inserção (Mapeamento total)
             $dataToInsert = [
                 'id_pasta'        => (int)($postData['id_pasta'] ?? 0), // Garante INT
                 'id_source_type'  => (int)($postData['id_source_type'] ?? 0), // Garante INT
-                'dag_id'                => $postData['dag_id'],   
+                'dag_id'                => $dagId,   
                 'is_active'             => $postData['is_active'] ?? 1,
                 'owner'                 => $ownerUsername ?? ($postData['owner'] ?? 'airflow'),
                 'schedule_interval'     => $postData['schedule_interval'] ?? '0 0 * * *',

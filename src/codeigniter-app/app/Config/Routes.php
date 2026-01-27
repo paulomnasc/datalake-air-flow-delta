@@ -83,6 +83,13 @@ $routes->post('/config/getAvailableTables', 'ConfigController::getAvailableTable
 
 $routes->get('/playPorId/(:num)', 'ConfigController::playPorId/$1', ['as' => 'Config.playPorId']);
 
+// 🆕 NOVA UX - Dashboard com Wizard
+$routes->get('/dashboard', 'DashboardController::index', ['as'=>'dashboard']);//Nova interface UX
+$routes->get('/dashboard/stats', 'DashboardController::getStatsJson', ['as'=>'dashboard.stats']);//API de estatísticas
+$routes->post('/dashboard/createPipeline', 'DashboardController::createPipeline', ['as'=>'dashboard.createPipeline']);//Criar pipeline via wizard
+$routes->post('/dashboard/saveDraft', 'DashboardController::saveDraft', ['as'=>'dashboard.saveDraft']);//Salvar rascunho
+$routes->get('/dashboard/downloadTemplate/(:segment)/(:segment)', 'DashboardController::downloadTemplate/$1/$2', ['as'=>'dashboard.downloadTemplate']);//Download de template exemplo
+
 // Debug/Teste MinIO
 $routes->get('/test-minio/connection', 'TestMinioController::testConnection', ['as'=>'test.minio.connection']);
 $routes->get('/test-minio/upload', 'TestMinioController::testUpload', ['as'=>'test.minio.upload']);

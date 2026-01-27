@@ -400,7 +400,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                             <div x-show="!wizardData.multiUpload" id="single_upload_section">
                                                 <label class="form-label">Arquivo Selecionado:</label>
                                                 <input type="file" 
-                                                       name="source_upload_file" 
+                                                       name="source_filename" 
                                                        class="form-control" 
                                                        accept=".csv,.json" 
                                                        x-bind:required="wizardData.showFileUpload && !wizardData.multiUpload">
@@ -820,13 +820,6 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     const files = Array.from(event.target.files);
                     this.wizardData.selectedFiles = files;
                     console.log(`📦 ${files.length} arquivo(s) selecionado(s):`, files.map(f => f.name));
-                    
-                    // Resetar o input para permitir nova seleção
-                    if (this.$refs.multiFileInput) {
-                        setTimeout(() => {
-                            this.$refs.multiFileInput.value = '';
-                        }, 100);
-                    }
                 },
 
                 formatFileSize(bytes) {
@@ -878,13 +871,24 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     const formData = new FormData(form);
                     
                     console.log('📤 Enviando pipeline...');
+                    
+                    // Garantir valores padrão para campos opcionais
+                    if (!formData.get('schedule_interval')) {
+                        formData.set('schedule_interval', '0 0 * * *');
+                    }
+                    if (!formData.get('transform_args')) {
+                        formData.set('transform_args', '{}');
+                    }
+                    if (!formData.get('is_active')) {
+                        formData.set('is_active', '1');
+                    }
 
                     // Se houver arquivos selecionados via multi-upload, adicionar ao FormData
                     if (this.wizardData.multiUpload && this.wizardData.selectedFiles.length > 0) {
                         console.log('📦 Adicionando arquivos ao FormData:', this.wizardData.selectedFiles.length);
                         
                         // Remover campos de upload único e limpar array múltiplo
-                        formData.delete('source_upload_file');
+                        formData.delete('source_filename');
                         formData.delete('multiple_files[]');
                         
                         // Adicionar cada arquivo
@@ -898,18 +902,20 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     } else {
                         // Se não for multi-upload, remover campos de multi-upload
                         formData.delete('multiple_files[]');
-                        console.log('📄 Upload único - arquivo:', formData.get('source_upload_file')?.name || 'Nenhum');
+                        console.log('📄 Upload único - arquivo:', formData.get('source_filename')?.name || 'Nenhum');
                     }
 
                     // Log do FormData para debug
                     console.log('📋 Conteúdo do FormData:');
                     for (let pair of formData.entries()) {
                         if (pair[1] instanceof File) {
-                            console.log(`  ${pair[0]}: [File] ${pair[1].name}`);
+                            console.log(`  ${pair[0]}: [File] ${pair[1].name} (${this.formatFileSize(pair[1].size)})`);
                         } else {
                             console.log(`  ${pair[0]}: ${pair[1]}`);
                         }
                     }
+                    
+                    console.log('🌐 URL de destino:', form.action);
 
                     // Enviar via AJAX
                     fetch(form.action, {

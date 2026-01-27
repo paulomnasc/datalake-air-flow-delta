@@ -375,6 +375,22 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                     <div x-show="wizardData.currentStep === 2">
                                         <h4 class="mb-4">Fonte de Dados</h4>
                                         
+                                        <?php if (!empty($edit_data) && !empty($edit_data['source_filename'])): ?>
+                                            <!-- Informação de arquivo original em modo edição -->
+                                            <div class="alert alert-info mb-3">
+                                                <h6 class="mb-2"><i class="bi bi-info-circle"></i> Arquivo(s) Original(is):</h6>
+                                                <div class="small">
+                                                    <strong>Caminho:</strong> 
+                                                    <code><?= htmlspecialchars($edit_data['source_filename']) ?></code>
+                                                </div>
+                                                <div class="small mt-2 text-muted">
+                                                    <i class="bi bi-exclamation-triangle"></i>
+                                                    <strong>Nota:</strong> Para alterar os arquivos, faça upload de novo(s) arquivo(s) abaixo. 
+                                                    Os arquivos originais serão substituídos.
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+                                        
                                         <div class="form-section">
                                             <label class="form-label">Tipo de Fonte *</label>
                                             <select name="id_source_type" class="form-select" x-model="wizardData.sourceType" @change="handleSourceTypeChange()" x-bind:required="wizardData.currentStep === 2">

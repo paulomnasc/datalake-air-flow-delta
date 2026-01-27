@@ -348,6 +348,37 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         font-weight: 400;
     }
 
+    #youtubeBtn {
+        background: #FF0000;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+    }
+
+    #youtubeBtn:hover {
+        background: #cc0000;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(255,0,0,0.3);
+    }
+
+    #youtubeBtn i {
+        font-size: 20px;
+    }
+
+    .header-buttons {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
   </style>
 
   <!-- FIM ESTILO DA SIDEBAR -->
@@ -384,11 +415,19 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 </div>
             </div>
             
-            <!-- Botão para abrir a sidebar -->
-            <button id="openSidebarBtn" class="btn btn-light">
-                <i class="bi bi-person-circle"></i>
-                <span class="ms-2"><?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Visitante'; ?></span>
-            </button>
+            <div class="header-buttons">
+                <!-- Botão YouTube -->
+                <a id="youtubeBtn" href="https://www.youtube.com/@descomplicacienciadados" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-youtube"></i>
+                    <span>Videoaulas</span>
+                </a>
+                
+                <!-- Botão para abrir a sidebar -->
+                <button id="openSidebarBtn" class="btn btn-light">
+                    <i class="bi bi-person-circle"></i>
+                    <span class="ms-2"><?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Visitante'; ?></span>
+                </button>
+            </div>
         </div>
         <!-- Sidebar -->
         <div id="sidebar" class="sidebar-overlay">

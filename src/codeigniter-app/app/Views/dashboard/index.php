@@ -273,8 +273,8 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         <div class="row g-4">
                             <template x-for="template in templates" :key="template.id">
                                 <div class="col-md-6 col-lg-3">
-                                    <div class="card template-card h-100" @click="useTemplate(template.id)">
-                                        <div class="card-body">
+                                    <div class="card template-card h-100">
+                                        <div class="card-body" @click="useTemplate(template.id)" style="cursor: pointer;">
                                             <div class="template-icon" x-text="template.icon"></div>
                                             <h6 class="card-title" x-text="template.name"></h6>
                                             <p class="card-text text-muted small" x-text="template.description"></p>
@@ -285,6 +285,12 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                     <span x-text="template.steps"></span> passos
                                                 </small>
                                             </div>
+                                        </div>
+                                        <!-- Botão de Download (se disponível) -->
+                                        <div x-show="template.hasDownload" class="card-footer bg-light" @click.stop>
+                                            <a :href="template.downloadUrl" class="btn btn-sm btn-outline-success w-100" download>
+                                                <i class="bi bi-download"></i> Baixar Exemplo (Invoice.json)
+                                            </a>
                                         </div>
                                     </div>
                                 </div>
@@ -761,11 +767,13 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                 templates: [
                     {
                         id: 1,
-                        name: 'CSV para Parquet',
-                        description: 'Converte arquivos CSV para formato Parquet otimizado',
+                        name: 'JSON para Parquet',
+                        description: 'Converte arquivos JSON para formato Parquet otimizado',
                         icon: '📄',
                         difficulty: 'Fácil',
-                        steps: 3
+                        steps: 3,
+                        hasDownload: true,
+                        downloadUrl: '/dashboard/downloadTemplate/json/Invoice.json'
                     },
                     {
                         id: 2,
@@ -792,6 +800,57 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         steps: 7
                     }
                 ],
+                // Templates pré-configurados com dados prontos
+                templateConfigs: {
+                    1: { // JSON para Parquet - Pipeline Completo Bronze → Gold
+                        pipelineName: 'pipeline_json_completo',
+                        description: 'Pipeline completo: JSON → Bronze → Silver → Gold (Parquet otimizado)',
+                        folder: '',
+                        sourceType: '7', // JSON
+                        pythonFunction: 'lib.medallion_pipeline.raw_to_medallion',
+                        transformArgs: '{}',
+                        scheduleType: 'scheduled',
+                        frequency: '0 2 * * *', // 2h da manhã
+                        isActive: '1',
+                        requiresFile: true,
+                        fileHint: 'Baixe o arquivo Invoice.json de exemplo e faça upload para criar o pipeline completo'
+                    },
+                    2: { // MySQL - Pipeline Completo Bronze → Gold
+                        pipelineName: 'pipeline_mysql_completo',
+                        description: 'Pipeline completo: MySQL → Bronze → Silver → Gold (Delta Lake)',
+                        folder: '',
+                        sourceType: '8', // MySQL
+                        pythonFunction: 'lib.mysql_ingestion.mysql_to_medallion',
+                        transformArgs: '{}',
+                        scheduleType: 'scheduled',
+                        frequency: '0 3 * * *',
+                        isActive: '1'
+                    },
+                    3: { // API REST - Pipeline Completo Bronze → Gold
+                        pipelineName: 'pipeline_api_completo',
+                        description: 'Pipeline completo: API REST → Bronze → Silver → Gold',
+                        folder: '',
+                        sourceType: '7', // JSON
+                        pythonFunction: 'lib.medallion_pipeline.raw_to_medallion',
+                        transformArgs: '{"api_endpoint": "https://api.exemplo.com/dados"}',
+                        scheduleType: 'scheduled',
+                        frequency: '*/30 * * * *', // A cada 30 minutos
+                        isActive: '1'
+                    },
+                    4: { // CSV - Pipeline Completo Bronze → Gold
+                        pipelineName: 'pipeline_csv_completo',
+                        description: 'Pipeline completo: CSV → Bronze → Silver → Gold (ETL completo)',
+                        folder: '',
+                        sourceType: '6', // CSV
+                        pythonFunction: 'lib.medallion_pipeline.raw_to_medallion',
+                        transformArgs: '{}',
+                        scheduleType: 'scheduled',
+                        frequency: '0 1 * * *', // 1h da manhã
+                        isActive: '1',
+                        requiresFile: true,
+                        fileHint: 'Selecione arquivo(s) CSV para demonstrar o pipeline completo Bronze → Gold'
+                    }
+                },
                 wizardSteps: [
                     { label: 'Informações Básicas', value: 1 },
                     { label: 'Fonte de Dados', value: 2 },
@@ -890,9 +949,53 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                 },
 
                 useTemplate(templateId) {
-                    alert(`✨ Template ${templateId} selecionado!\n\nFuncionalidade em desenvolvimento.`);
+                    const templateConfig = this.templateConfigs[templateId];
+                    
+                    if (!templateConfig) {
+                        this.showMessage('Template não encontrado!', 'error');
+                        return;
+                    }
+                    
+                    console.log('📋 Carregando template:', templateId, templateConfig);
+                    
+                    // Resetar todos os dados do wizard
+                    this.wizardData.pipelineName = '';
+                    this.wizardData.description = '';
+                    this.wizardData.folder = '';
+                    this.wizardData.sourceType = '';
+                    this.wizardData.pythonFunction = '';
+                    this.wizardData.transformArgs = '{}';
+                    this.wizardData.scheduleType = 'manual';
+                    this.wizardData.frequency = '0 0 * * *';
+                    this.wizardData.selectedFiles = [];
+                    this.wizardData.multiUpload = false;
+                    this.wizardData.selectFolder = false;
+                    this.wizardData.showFileUpload = false;
+                    
+                    // Preencher wizard com dados do template
+                    this.wizardData.pipelineName = templateConfig.pipelineName || '';
+                    this.wizardData.description = templateConfig.description || '';
+                    this.wizardData.folder = templateConfig.folder || '';
+                    this.wizardData.sourceType = templateConfig.sourceType || '';
+                    this.wizardData.pythonFunction = templateConfig.pythonFunction || '';
+                    this.wizardData.transformArgs = templateConfig.transformArgs || '{}';
+                    this.wizardData.scheduleType = templateConfig.scheduleType || 'manual';
+                    this.wizardData.frequency = templateConfig.frequency || '0 0 * * *';
+                    
+                    // Ativar visualização de upload se necessário
+                    if (templateConfig.requiresFile) {
+                        this.wizardData.showFileUpload = true;
+                    }
+                    
+                    // Mudar para wizard
                     this.currentView = 'wizard';
                     this.wizardData.currentStep = 1;
+                    
+                    // Mostrar instrução
+                    setTimeout(() => {
+                        const hint = templateConfig.fileHint || 'Template carregado! Navegue pelos passos para revisar e configurar o pipeline.';
+                        this.showMessage(hint, 'info');
+                    }, 300);
                 },
 
                 scrollToTemplates() {
@@ -1063,13 +1166,18 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         document.body.appendChild(messageDiv);
                     }
 
-                    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
-                    const icon = type === 'success' ? 'check-circle' : 'exclamation-triangle';
+                    const alertTypes = {
+                        'success': { class: 'alert-success', icon: 'check-circle', title: 'Sucesso!' },
+                        'error': { class: 'alert-danger', icon: 'exclamation-triangle', title: 'Erro!' },
+                        'info': { class: 'alert-info', icon: 'info-circle', title: 'Informação' }
+                    };
+                    
+                    const config = alertTypes[type] || alertTypes['info'];
                     
                     messageDiv.innerHTML = `
-                        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-                            <i class="bi bi-${icon}"></i>
-                            <strong>${type === 'success' ? 'Sucesso!' : 'Erro!'}</strong> ${text}
+                        <div class="alert ${config.class} alert-dismissible fade show" role="alert">
+                            <i class="bi bi-${config.icon}"></i>
+                            <strong>${config.title}</strong> ${text}
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     `;

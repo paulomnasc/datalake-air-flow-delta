@@ -176,4 +176,30 @@ class DashboardController extends BaseController
             'message' => 'Rascunho salvo com sucesso'
         ]);
     }
+
+    /**
+     * Download de arquivo template de exemplo
+     */
+    public function downloadTemplate($type = 'json', $filename = 'Invoice.json')
+    {
+        // Validar tipo
+        $validTypes = ['json', 'csv'];
+        if (!in_array($type, $validTypes)) {
+            return redirect()->back()->with('error', 'Tipo de template inválido');
+        }
+
+        // Validar filename (apenas nome do arquivo, sem path traversal)
+        $filename = basename($filename);
+        
+        // Construir caminho do arquivo
+        $filePath = ROOTPATH . "src/codeigniter-app/assets/templates/{$type}/{$filename}";
+        
+        // Verificar se arquivo existe
+        if (!file_exists($filePath)) {
+            return redirect()->back()->with('error', 'Arquivo template não encontrado');
+        }
+
+        // Fazer download
+        return $this->response->download($filePath, null);
+    }
 }

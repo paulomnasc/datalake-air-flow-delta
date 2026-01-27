@@ -315,14 +315,37 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     }
 
     #head-bar {
-        background-image: url("/assets/img/head bg.png" );
-        background-color: #cccccc;
-        background-size: 100% 155px;
-        background-repeat: no-repeat;
-        border: 1px solid #333; /* Borda com cor sólida */
-        border-radius: 5px; /* Opcional: cantos arredondados */
-        width: 100%; /* Largura total do navegador */
-        height: 155px; /* Altura fixa */
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 0;
+        width: 100%;
+        height: 80px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+    }
+
+    #head-bar .logo-container {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    #head-bar .logo-container h1 {
+        color: white;
+        font-size: 24px;
+        font-weight: 600;
+        margin: 0;
+        letter-spacing: 0.5px;
+    }
+
+    #head-bar .logo-container .subtitle {
+        color: rgba(255,255,255,0.85);
+        font-size: 13px;
+        margin: 0;
+        font-weight: 400;
     }
 
   </style>
@@ -354,12 +377,18 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <!-- INÍCIO DA SIDEBAR ------------------------------------------------------------------------ -->
         
         <div id="head-bar" class="left">
+            <div class="logo-container">
+                <div>
+                    <h1>MyDataFlow</h1>
+                    <p class="subtitle">Plataforma de Pipelines de Dados</p>
+                </div>
+            </div>
+            
             <!-- Botão para abrir a sidebar -->
-            <button id="openSidebarBtn" class="btn btn-primary m-3">
-                <i class="bi bi-person"></i>
-                <!--?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Visitante'; ?-->
+            <button id="openSidebarBtn" class="btn btn-light">
+                <i class="bi bi-person-circle"></i>
+                <span class="ms-2"><?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Visitante'; ?></span>
             </button>
-            <img src="<?= base_url("/assets/img/logo.png" ); ?>" alt="" style="height: 130px; width:150px; float: right;" > </img>
         </div>
         <!-- Sidebar -->
         <div id="sidebar" class="sidebar-overlay">

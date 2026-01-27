@@ -288,7 +288,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                         </div>
                                         <!-- Botão de Download (se disponível) -->
                                         <div x-show="template.hasDownload" class="card-footer bg-light" @click.stop>
-                                            <a :href="template.downloadUrl" class="btn btn-sm btn-outline-success w-100" download>
+                                            <a :href="template.downloadUrl" class="btn btn-sm btn-outline-success w-100" download="Invoice.json">
                                                 <i class="bi bi-download"></i> Baixar Exemplo (Invoice.json)
                                             </a>
                                         </div>
@@ -773,7 +773,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         difficulty: 'Fácil',
                         steps: 3,
                         hasDownload: true,
-                        downloadUrl: '/dashboard/downloadTemplate/json/Invoice.json'
+                        downloadUrl: '<?= base_url("assets/templates/json/Invoice.json") ?>'
                     },
                     {
                         id: 2,

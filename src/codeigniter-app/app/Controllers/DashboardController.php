@@ -185,30 +185,34 @@ class DashboardController extends BaseController
         // Validar tipo
         $validTypes = ['json', 'csv'];
         if (!in_array($type, $validTypes)) {
-            return redirect()->back()->with('error', 'Tipo de template inválido');
+            log_message('error', 'Tipo de template inválido: ' . $type);
+            return $this->response->setStatusCode(400)->setBody('Tipo de template inválido');
         }
 
         // Validar filename (apenas nome do arquivo, sem path traversal)
         $filename = basename($filename);
         
-        // Construir caminho do arquivo
-        $filePath = ROOTPATH . "src/codeigniter-app/assets/templates/{$type}/{$filename}";
+        // Construir caminho do arquivo - usar FCPATH que aponta para public/
+        $filePath = FCPATH . "../src/codeigniter-app/assets/templates/{$type}/{$filename}";
+        $filePath = realpath($filePath); // Resolve o caminho absoluto
+        
+        log_message('info', 'Tentando fazer download de: ' . $filePath);
         
         // Verificar se arquivo existe
-        if (!file_exists($filePath)) {
-            return redirect()->back()->with('error', 'Arquivo template não encontrado');
+        if (!$filePath || !file_exists($filePath)) {
+            log_message('error', 'Arquivo template não encontrado: ' . $filePath);
+            return $this->response->setStatusCode(404)->setBody('Arquivo template não encontrado');
         }
 
+        log_message('info', 'Arquivo encontrado, preparando download');
+
         // Definir headers para download
-        $this->response->setHeader('Content-Type', 'application/octet-stream');
-        $this->response->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
-        $this->response->setHeader('Content-Length', filesize($filePath));
-        $this->response->setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
-        $this->response->setHeader('Pragma', 'public');
-        
-        // Enviar arquivo
-        $this->response->setBody(file_get_contents($filePath));
-        
-        return $this->response;
+        return $this->response
+            ->setHeader('Content-Type', 'application/json')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->setHeader('Content-Length', filesize($filePath))
+            ->setHeader('Cache-Control', 'no-cache, must-revalidate')
+            ->setHeader('Pragma', 'no-cache')
+            ->setBody(file_get_contents($filePath));
     }
 }

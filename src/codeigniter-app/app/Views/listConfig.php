@@ -207,15 +207,9 @@ function confirmDelete(id, descricao, deleteUrl, formId) {
                         // HTML da terceira coluna com botões de editar e excluir
                         var actionButtons = `
                             <div class="sidebyside-container">
-                                <form action="<?= site_url('updConfig'); ?>" method="post">
-                                    <input type="hidden" name="id" value="${item.id}">
-                                    <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"){
-                                        ?>
-                                    <button class="edit-button" type="submit">✏️</button>
-                                    <?php
-                                        }
-                                    ?>
-                                </form>
+                                <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"){ ?>
+                                    <a href="<?= base_url('dashboard?edit='); ?>${item.id}" class="edit-button" title="Editar">✏️</a>
+                                <?php } ?>
                                 <form id="deleteForm-${item.id}">
                                     <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"){
                                             ?>

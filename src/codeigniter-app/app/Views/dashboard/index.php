@@ -298,7 +298,8 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     <div class="card shadow-sm">
                         <div class="card-header bg-primary text-white">
                             <h4 class="mb-0">
-                                <i class="bi bi-magic"></i> Assistente de Criação de Pipeline
+                                <i class="bi bi-magic"></i> 
+                                <?= !empty($edit_data) ? 'Editar Pipeline' : 'Assistente de Criação de Pipeline' ?>
                             </h4>
                         </div>
                         <div class="card-body p-4">
@@ -320,10 +321,14 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             <!-- Wizard Content Form -->
                             <form id="wizardForm" 
                                   method="POST" 
-                                  action="<?= base_url('dashboard/createPipeline') ?>" 
+                                  action="<?= !empty($edit_data) ? base_url('updateConfig') : base_url('dashboard/createPipeline') ?>" 
                                   enctype="multipart/form-data"
                                   @submit.prevent="submitWizard($event)">
                                 <?= csrf_field() ?>
+                                
+                                <?php if (!empty($edit_data)): ?>
+                                    <input type="hidden" name="id" value="<?= $edit_data['id'] ?>">
+                                <?php endif; ?>
                                 
                                 <input type="hidden" name="owner" value="<?= $ownerUsername ?>">
 
@@ -648,9 +653,10 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                 <div class="d-flex justify-content-between mt-4 pt-4 border-top">
                                     <button type="button" 
                                             class="btn btn-outline-secondary" 
-                                            @click="currentView = 'dashboard'"
+                                            @click="isEditMode ? window.location.href='<?= base_url('listConfig') ?>' : currentView = 'dashboard'"
                                             x-show="wizardData.currentStep === 1">
-                                        <i class="bi bi-x-circle"></i> Cancelar
+                                        <i class="bi bi-x-circle"></i> 
+                                        <span x-text="isEditMode ? 'Voltar para Listagem' : 'Cancelar'"></span>
                                     </button>
                                     <button type="button"
                                             class="btn btn-outline-secondary" 
@@ -669,7 +675,8 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                         <button type="submit" 
                                                 class="btn btn-success" 
                                                 x-show="wizardData.currentStep === 5">
-                                            <i class="bi bi-check-circle"></i> Criar Pipeline
+                                            <i class="bi bi-check-circle"></i> 
+                                            <?= !empty($edit_data) ? 'Atualizar Pipeline' : 'Criar Pipeline' ?>
                                         </button>
                                     </div>
                                 </div>
@@ -734,6 +741,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
         function dashboardApp() {
             return {
                 currentView: 'dashboard',
+                isEditMode: <?= !empty($edit_data) ? 'true' : 'false' ?>,
                 templates: [
                     {
                         id: 1,
@@ -795,6 +803,25 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                 init() {
                     console.log('✅ Dashboard UX carregado com sucesso!');
                     console.log('Funções Python carregadas:', <?= json_encode($funcoes_python ?? []) ?>);
+                    
+                    // Se houver dados de edição, preencher o wizard e abrir em modo edição
+                    <?php if (!empty($edit_data)): ?>
+                    const editData = <?= json_encode($edit_data) ?>;
+                    console.log('📝 Modo edição ativado:', editData);
+                    
+                    // Preencher campos do wizard
+                    this.wizardData.pipelineName = editData.dag_id || '';
+                    this.wizardData.description = editData.description || '';
+                    this.wizardData.folder = editData.id_pasta ? editData.id_pasta.toString() : '';
+                    this.wizardData.sourceType = editData.id_source_type ? editData.id_source_type.toString() : '';
+                    this.wizardData.pythonFunction = editData.python_module_path || '';
+                    this.wizardData.transformArgs = editData.transform_args || '{}';
+                    this.wizardData.scheduleType = editData.schedule_interval === '@manual' || editData.schedule_interval === null ? 'manual' : 'scheduled';
+                    this.wizardData.frequency = editData.schedule_interval || '0 0 * * *';
+                    
+                    // Mudar para view do wizard
+                    this.currentView = 'wizard';
+                    <?php endif; ?>
                     
                     // Watcher para resetar arquivos quando trocar entre pasta/arquivos
                     this.$watch('wizardData.selectFolder', (value) => {

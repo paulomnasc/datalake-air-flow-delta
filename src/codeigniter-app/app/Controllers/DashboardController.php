@@ -51,11 +51,36 @@ class DashboardController extends BaseController
         
         log_message('debug', 'Funções Python carregadas: ' . print_r($funcoesAgrupadas, true));
 
+        // Verificar se é modo edição
+        $editId = $this->request->getGet('edit');
+        $editData = null;
+        
+        if ($editId) {
+            $config = $this->configModel->find($editId);
+            if ($config) {
+                // Converter para array se for objeto
+                if (is_object($config)) {
+                    $config = (array) $config;
+                }
+                
+                // Verificar se a config pertence ao usuário
+                $pasta = $this->pastaModel->find($config['id_pasta']);
+                if (is_object($pasta)) {
+                    $pasta = (array) $pasta;
+                }
+                
+                if ($pasta && $pasta['id_usuario'] == $userId) {
+                    $editData = $config;
+                }
+            }
+        }
+
         $data = [
             'stats' => $stats,
             'pastas' => $pastas,
             'source_types' => $sourceTypes,
-            'funcoes_python' => $funcoesAgrupadas
+            'funcoes_python' => $funcoesAgrupadas,
+            'edit_data' => $editData
         ];
 
         return view('dashboard/index', $data);

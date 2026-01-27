@@ -339,7 +339,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                    class="form-control" 
                                                    placeholder="Ex: pipeline_vendas_diario"
                                                    x-model="wizardData.pipelineName" 
-                                                   required>
+                                                   x-bind:required="wizardData.currentStep === 1">
                                             <small class="text-muted">Use apenas letras, números e underscore (_)</small>
                                         </div>
 
@@ -354,7 +354,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 
                                         <div class="form-section">
                                             <label class="form-label">Pasta/Workspace *</label>
-                                            <select name="id_pasta" class="form-select" x-model="wizardData.folder" required>
+                                            <select name="id_pasta" class="form-select" x-model="wizardData.folder" x-bind:required="wizardData.currentStep === 1">
                                                 <option value="">Selecione uma pasta...</option>
                                                 <?php if (!empty($pastas)): ?>
                                                     <?php foreach ($pastas as $pasta): ?>
@@ -372,7 +372,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                         
                                         <div class="form-section">
                                             <label class="form-label">Tipo de Fonte *</label>
-                                            <select name="id_source_type" class="form-select" x-model="wizardData.sourceType" @change="handleSourceTypeChange()" required>
+                                            <select name="id_source_type" class="form-select" x-model="wizardData.sourceType" @change="handleSourceTypeChange()" x-bind:required="wizardData.currentStep === 2">
                                                 <option value="">Selecione o tipo...</option>
                                                 <?php if (!empty($source_types)): ?>
                                                     <?php foreach ($source_types as $type): ?>
@@ -416,6 +416,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                     <ul class="mb-0 mt-2">
                                                         <li><strong>Arquivos Individuais:</strong> Deixe a opção abaixo desmarcada e selecione múltiplos arquivos (Ctrl+Click)</li>
                                                         <li><strong>Pasta Completa:</strong> Marque a opção abaixo para selecionar uma pasta inteira</li>
+                                                        <li><strong>Limite:</strong> O tamanho total não deve exceder 10 MB. Para arquivos maiores, processe em lotes menores.</li>
                                                     </ul>
                                                 </div>
                                                 
@@ -445,7 +446,10 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                 
                                                 <!-- Lista de Arquivos Selecionados -->
                                                 <div x-show="wizardData.selectedFiles.length > 0" class="mt-3">
-                                                    <h6>Arquivos Selecionados (<span x-text="wizardData.selectedFiles.length"></span>):</h6>
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <h6 class="mb-0">Arquivos Selecionados (<span x-text="wizardData.selectedFiles.length"></span>):</h6>
+                                                        <span class="badge bg-info" x-text="'Total: ' + formatFileSize(wizardData.selectedFiles.reduce((sum, f) => sum + f.size, 0))"></span>
+                                                    </div>
                                                     <ul class="list-group">
                                                         <template x-for="(file, index) in wizardData.selectedFiles" :key="index">
                                                             <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -454,6 +458,15 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                             </li>
                                                         </template>
                                                     </ul>
+                                                    
+                                                    <!-- Aviso de limite -->
+                                                    <div class="alert alert-warning mt-2 mb-0" x-show="wizardData.selectedFiles.reduce((sum, f) => sum + f.size, 0) > 10 * 1024 * 1024">
+                                                        <small>
+                                                            <i class="bi bi-exclamation-triangle"></i>
+                                                            <strong>Atenção:</strong> O tamanho total excede 10 MB. O upload pode falhar devido a limites do servidor.
+                                                            Considere processar em lotes menores.
+                                                        </small>
+                                                    </div>
                                                 </div>
                                                 
                                                 <!-- Configurações de Batch -->
@@ -515,7 +528,10 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                         
                                         <div class="form-section">
                                             <label class="form-label">Função Python de Transformação: *</label>
-                                            <select name="python_module_path" class="form-select" x-model="wizardData.pythonFunction" required>
+                                            <select name="python_module_path" 
+                                                    class="form-select" 
+                                                    x-model="wizardData.pythonFunction" 
+                                                    x-bind:required="wizardData.currentStep === 3">
                                                 <option value="">-- Selecione o tipo de pipeline --</option>
                                                 <?php if (!empty($funcoes_python)): ?>
                                                     <?php foreach ($funcoes_python as $grupo => $funcoes): ?>
@@ -887,6 +903,23 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     if (this.wizardData.multiUpload && this.wizardData.selectedFiles.length > 0) {
                         console.log('📦 Adicionando arquivos ao FormData:', this.wizardData.selectedFiles.length);
                         
+                        // Calcular tamanho total dos arquivos
+                        const totalSize = this.wizardData.selectedFiles.reduce((sum, file) => sum + file.size, 0);
+                        const totalMB = (totalSize / (1024 * 1024)).toFixed(2);
+                        
+                        console.log(`📊 Tamanho total: ${totalMB} MB`);
+                        
+                        // Verificar limite (nginx geralmente 10MB, mas pode ser menor)
+                        const maxSizeMB = 10; // Ajustar conforme configuração do nginx
+                        if (totalSize > maxSizeMB * 1024 * 1024) {
+                            this.showMessage(
+                                `O tamanho total dos arquivos (${totalMB} MB) excede o limite de ${maxSizeMB} MB. ` +
+                                `Reduza a quantidade de arquivos ou processe em lotes menores.`,
+                                'error'
+                            );
+                            return;
+                        }
+                        
                         // Remover campos de upload único e limpar array múltiplo
                         formData.delete('source_filename');
                         formData.delete('multiple_files[]');
@@ -925,13 +958,26 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     .then(response => {
                         console.log('📥 Resposta HTTP:', response.status, response.statusText);
                         
+                        // Tratamento específico para erro 413 (Request Entity Too Large)
+                        if (response.status === 413) {
+                            throw new Error('O tamanho total dos arquivos excede o limite do servidor (nginx). Reduza a quantidade de arquivos ou processe em lotes menores.');
+                        }
+                        
                         // Verificar se a resposta é JSON antes de parsear
                         const contentType = response.headers.get('content-type');
                         if (!contentType || !contentType.includes('application/json')) {
                             // Se não for JSON, tentar ler como texto para debug
                             return response.text().then(text => {
                                 console.error('❌ Resposta não é JSON:', text.substring(0, 500));
-                                throw new Error('Servidor retornou resposta inválida (não-JSON). Verifique o console.');
+                                
+                                // Mensagem mais específica baseada no status
+                                if (response.status >= 500) {
+                                    throw new Error('Erro interno do servidor. Verifique os logs ou tente novamente mais tarde.');
+                                } else if (response.status === 404) {
+                                    throw new Error('Rota não encontrada. Verifique a configuração do sistema.');
+                                } else {
+                                    throw new Error(`Servidor retornou erro ${response.status}. Verifique o console para mais detalhes.`);
+                                }
                             });
                         }
                         

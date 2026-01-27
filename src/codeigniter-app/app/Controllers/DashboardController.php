@@ -129,8 +129,9 @@ class DashboardController extends BaseController
      */
     public function createPipeline()
     {
-        // Reutilizar a lógica do ConfigController::insert
+        // Inicializar o ConfigController corretamente com request e response
         $configController = new \App\Controllers\ConfigController();
+        $configController->initController($this->request, $this->response, service('logger'));
         return $configController->insert();
     }
 

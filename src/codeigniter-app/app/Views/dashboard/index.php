@@ -318,7 +318,11 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             </div>
 
                             <!-- Wizard Content Form -->
-                            <form id="wizardForm" method="POST" action="<?= route_to('Config.insert') ?>">
+                            <form id="wizardForm" 
+                                  method="POST" 
+                                  action="<?= base_url('dashboard/createPipeline') ?>" 
+                                  enctype="multipart/form-data"
+                                  @submit.prevent="submitWizard($event)">
                                 <?= csrf_field() ?>
                                 
                                 <input type="hidden" name="owner" value="<?= $ownerUsername ?>">
@@ -368,17 +372,117 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                         
                                         <div class="form-section">
                                             <label class="form-label">Tipo de Fonte *</label>
-                                            <select name="source_type" class="form-select" x-model="wizardData.sourceType" required>
+                                            <select name="id_source_type" class="form-select" x-model="wizardData.sourceType" @change="handleSourceTypeChange()" required>
                                                 <option value="">Selecione o tipo...</option>
                                                 <?php if (!empty($source_types)): ?>
                                                     <?php foreach ($source_types as $type): ?>
-                                                        <option value="<?= is_object($type) ? $type->id : $type['id'] ?>"><?= htmlspecialchars(is_object($type) ? $type->description : $type['description']) ?></option>
+                                                        <option value="<?= is_object($type) ? $type->id : $type['id'] ?>" 
+                                                                data-description="<?= htmlspecialchars(is_object($type) ? $type->description : $type['description']) ?>">
+                                                            <?= htmlspecialchars(is_object($type) ? $type->description : $type['description']) ?>
+                                                        </option>
                                                     <?php endforeach; ?>
                                                 <?php endif; ?>
                                             </select>
                                         </div>
 
-                                        <div x-show="wizardData.sourceType === '1'" class="mt-3">
+                                        <!-- Upload de Arquivo CSV/JSON -->
+                                        <div x-show="wizardData.showFileUpload" class="mt-3">
+                                            <!-- Checkbox para ativar upload múltiplo -->
+                                            <div class="mb-3 d-flex align-items-start gap-2">
+                                                <input type="checkbox" id="enable_multi_upload" x-model="wizardData.multiUpload" class="form-check-input mt-1">
+                                                <label for="enable_multi_upload" class="form-check-label">📦 Upload Múltiplo de Arquivos (Batch Processing)</label>
+                                            </div>
+                                            <small class="text-muted d-block ms-4 mb-3">
+                                                <strong>Dica:</strong> Use para processar múltiplos arquivos CSV/JSON simultaneamente ou sequencialmente
+                                            </small>
+                                            
+                                            <!-- Upload Único (padrão) -->
+                                            <div x-show="!wizardData.multiUpload" id="single_upload_section">
+                                                <label class="form-label">Arquivo Selecionado:</label>
+                                                <input type="file" 
+                                                       name="source_upload_file" 
+                                                       class="form-control" 
+                                                       accept=".csv,.json" 
+                                                       x-bind:required="wizardData.showFileUpload && !wizardData.multiUpload">
+                                            </div>
+                                            
+                                            <!-- Upload Múltiplo -->
+                                            <div x-show="wizardData.multiUpload" id="multi_upload_section">
+                                                <label class="form-label">Arquivos de Origem (CSV/JSON):</label>
+                                                
+                                                <!-- Instruções -->
+                                                <div class="alert alert-info mb-3">
+                                                    <strong>📌 Como usar:</strong>
+                                                    <ul class="mb-0 mt-2">
+                                                        <li><strong>Arquivos Individuais:</strong> Deixe a opção abaixo desmarcada e selecione múltiplos arquivos (Ctrl+Click)</li>
+                                                        <li><strong>Pasta Completa:</strong> Marque a opção abaixo para selecionar uma pasta inteira</li>
+                                                    </ul>
+                                                </div>
+                                                
+                                                <!-- Opção de seleção de pasta -->
+                                                <div class="mb-3 d-flex align-items-start gap-2">
+                                                    <input type="checkbox" id="select_folder" x-model="wizardData.selectFolder" class="form-check-input mt-1">
+                                                    <label for="select_folder" class="form-check-label">📂 Selecionar Pasta Inteira</label>
+                                                </div>
+                                                
+                                                <!-- Área de Upload -->
+                                                <div class="border rounded p-4 text-center bg-light" style="cursor: pointer;" @click="$refs.multiFileInput.click()">
+                                                    <div style="font-size: 3rem;">📁</div>
+                                                    <p class="mb-0" x-text="wizardData.selectFolder ? 'Clique para selecionar uma pasta' : 'Clique para selecionar múltiplos arquivos'"></p>
+                                                    <small class="text-muted">Arquivos CSV ou JSON</small>
+                                                    <input 
+                                                        type="file" 
+                                                        x-ref="multiFileInput"
+                                                        name="multiple_files[]" 
+                                                        class="form-control"
+                                                        style="display: none;"
+                                                        @change="handleFileSelection($event)"
+                                                        :multiple="!wizardData.selectFolder"
+                                                        :accept="wizardData.selectFolder ? '' : '.csv,.json'"
+                                                        :webkitdirectory="wizardData.selectFolder || undefined"
+                                                        :directory="wizardData.selectFolder || undefined">
+                                                </div>
+                                                
+                                                <!-- Lista de Arquivos Selecionados -->
+                                                <div x-show="wizardData.selectedFiles.length > 0" class="mt-3">
+                                                    <h6>Arquivos Selecionados (<span x-text="wizardData.selectedFiles.length"></span>):</h6>
+                                                    <ul class="list-group">
+                                                        <template x-for="(file, index) in wizardData.selectedFiles" :key="index">
+                                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                                <span x-text="file.name"></span>
+                                                                <span class="badge bg-secondary" x-text="formatFileSize(file.size)"></span>
+                                                            </li>
+                                                        </template>
+                                                    </ul>
+                                                </div>
+                                                
+                                                <!-- Configurações de Batch -->
+                                                <div class="mt-3">
+                                                    <h6>Configurações de Processamento em Batch</h6>
+                                                    
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Modo de Processamento:</label>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="radio" name="batch_mode" value="parallel" checked>
+                                                            <label class="form-check-label">Paralelo (múltiplos arquivos simultaneamente)</label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="radio" name="batch_mode" value="sequential">
+                                                            <label class="form-check-label">Sequencial (um arquivo por vez)</label>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Máximo de Arquivos Paralelos:</label>
+                                                        <input type="number" class="form-control" name="max_parallel_files" value="4" min="1" max="16">
+                                                        <small class="text-muted">Entre 1 e 16 (padrão: 4)</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Configuração MySQL -->
+                                        <div x-show="wizardData.sourceType === '3'" class="mt-3">
                                             <h6>Configuração MySQL</h6>
                                             <div class="row g-3">
                                                 <div class="col-md-6">
@@ -565,6 +669,50 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
+    <!-- Mensagens de Feedback -->
+    <script>
+        // Verificar se há mensagem armazenada após redirecionamento
+        document.addEventListener('DOMContentLoaded', function() {
+            const storedMessage = localStorage.getItem('dashboard_message');
+            if (storedMessage) {
+                try {
+                    const msg = JSON.parse(storedMessage);
+                    localStorage.removeItem('dashboard_message');
+                    
+                    // Criar div de mensagem
+                    const messageDiv = document.createElement('div');
+                    messageDiv.id = 'dashboard-message';
+                    messageDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+                    
+                    const alertClass = msg.type === 'success' ? 'alert-success' : 'alert-danger';
+                    const icon = msg.type === 'success' ? 'check-circle' : 'exclamation-triangle';
+                    
+                    messageDiv.innerHTML = `
+                        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                            <i class="bi bi-${icon}"></i>
+                            <strong>${msg.type === 'success' ? 'Sucesso!' : 'Erro!'}</strong> ${msg.text}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    `;
+                    
+                    document.body.appendChild(messageDiv);
+                    
+                    // Fade out após 6 segundos
+                    setTimeout(() => {
+                        const alert = messageDiv.querySelector('.alert');
+                        if (alert) {
+                            alert.classList.remove('show');
+                            setTimeout(() => messageDiv.remove(), 300);
+                        }
+                    }, 6000);
+                } catch (e) {
+                    console.error('Erro ao processar mensagem:', e);
+                    localStorage.removeItem('dashboard_message');
+                }
+            }
+        });
+    </script>
+
     <!-- Alpine.js App Logic -->
     <script>
         function dashboardApp() {
@@ -617,6 +765,10 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     description: '',
                     folder: '',
                     sourceType: '',
+                    showFileUpload: false,
+                    multiUpload: false,
+                    selectFolder: false,
+                    selectedFiles: [],
                     dbType: '',
                     pythonFunction: '',
                     transformArgs: '{}',
@@ -626,6 +778,63 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 
                 init() {
                     console.log('✅ Dashboard UX carregado com sucesso!');
+                    console.log('Funções Python carregadas:', <?= json_encode($funcoes_python ?? []) ?>);
+                    
+                    // Watcher para resetar arquivos quando trocar entre pasta/arquivos
+                    this.$watch('wizardData.selectFolder', (value) => {
+                        console.log('🔄 Modo de seleção alterado para:', value ? 'Pasta' : 'Múltiplos Arquivos');
+                        // Limpar seleção anterior
+                        this.wizardData.selectedFiles = [];
+                        // Resetar input
+                        if (this.$refs.multiFileInput) {
+                            this.$refs.multiFileInput.value = '';
+                        }
+                    });
+                    
+                    // Watcher para resetar ao desativar multi-upload
+                    this.$watch('wizardData.multiUpload', (value) => {
+                        if (!value) {
+                            this.wizardData.selectedFiles = [];
+                            this.wizardData.selectFolder = false;
+                        }
+                    });
+                },
+
+                handleSourceTypeChange() {
+                    const select = document.querySelector('select[name="id_source_type"]');
+                    if (!select || !select.selectedOptions[0]) return;
+                    
+                    const description = select.selectedOptions[0].getAttribute('data-description') || '';
+                    const descLower = description.toLowerCase();
+                    
+                    // Mostrar upload se for CSV ou JSON
+                    this.wizardData.showFileUpload = descLower.includes('csv') || descLower.includes('json');
+                    
+                    // Reset upload settings
+                    this.wizardData.multiUpload = false;
+                    this.wizardData.selectFolder = false;
+                    this.wizardData.selectedFiles = [];
+                },
+
+                handleFileSelection(event) {
+                    const files = Array.from(event.target.files);
+                    this.wizardData.selectedFiles = files;
+                    console.log(`📦 ${files.length} arquivo(s) selecionado(s):`, files.map(f => f.name));
+                    
+                    // Resetar o input para permitir nova seleção
+                    if (this.$refs.multiFileInput) {
+                        setTimeout(() => {
+                            this.$refs.multiFileInput.value = '';
+                        }, 100);
+                    }
+                },
+
+                formatFileSize(bytes) {
+                    if (bytes === 0) return '0 Bytes';
+                    const k = 1024;
+                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
                 },
 
                 useTemplate(templateId) {
@@ -662,6 +871,122 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     const sourceTypes = <?= json_encode($source_types) ?>;
                     const source = sourceTypes.find(s => s.id == sourceTypeId);
                     return source ? source.description : 'Não configurada';
+                },
+
+                submitWizard(event) {
+                    const form = event.target;
+                    const formData = new FormData(form);
+                    
+                    console.log('📤 Enviando pipeline...');
+
+                    // Se houver arquivos selecionados via multi-upload, adicionar ao FormData
+                    if (this.wizardData.multiUpload && this.wizardData.selectedFiles.length > 0) {
+                        console.log('📦 Adicionando arquivos ao FormData:', this.wizardData.selectedFiles.length);
+                        
+                        // Remover campos de upload único e limpar array múltiplo
+                        formData.delete('source_upload_file');
+                        formData.delete('multiple_files[]');
+                        
+                        // Adicionar cada arquivo
+                        this.wizardData.selectedFiles.forEach((file, index) => {
+                            formData.append('multiple_files[]', file);
+                            console.log(`  ✓ Arquivo ${index + 1}: ${file.name} (${this.formatFileSize(file.size)})`);
+                        });
+                        
+                        // Marcar checkbox de multi-upload como selecionado
+                        formData.set('enable_multi_upload', '1');
+                    } else {
+                        // Se não for multi-upload, remover campos de multi-upload
+                        formData.delete('multiple_files[]');
+                        console.log('📄 Upload único - arquivo:', formData.get('source_upload_file')?.name || 'Nenhum');
+                    }
+
+                    // Log do FormData para debug
+                    console.log('📋 Conteúdo do FormData:');
+                    for (let pair of formData.entries()) {
+                        if (pair[1] instanceof File) {
+                            console.log(`  ${pair[0]}: [File] ${pair[1].name}`);
+                        } else {
+                            console.log(`  ${pair[0]}: ${pair[1]}`);
+                        }
+                    }
+
+                    // Enviar via AJAX
+                    fetch(form.action, {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => {
+                        console.log('📥 Resposta HTTP:', response.status, response.statusText);
+                        
+                        // Verificar se a resposta é JSON antes de parsear
+                        const contentType = response.headers.get('content-type');
+                        if (!contentType || !contentType.includes('application/json')) {
+                            // Se não for JSON, tentar ler como texto para debug
+                            return response.text().then(text => {
+                                console.error('❌ Resposta não é JSON:', text.substring(0, 500));
+                                throw new Error('Servidor retornou resposta inválida (não-JSON). Verifique o console.');
+                            });
+                        }
+                        
+                        return response.json();
+                    })
+                    .then(result => {
+                        console.log('✅ Resposta do servidor:', result);
+                        
+                        const mensagem = result.mensagem || result.message || 'Operação realizada com sucesso';
+                        
+                        if (result.status === 'success' || result.status === 'partial') {
+                            // Armazenar mensagem de sucesso na sessão via localStorage temporariamente
+                            localStorage.setItem('dashboard_message', JSON.stringify({
+                                type: 'success',
+                                text: mensagem
+                            }));
+                            
+                            // Redirecionar para o dashboard
+                            setTimeout(() => {
+                                window.location.href = '<?= base_url('dashboard') ?>';
+                            }, 500);
+                        } else {
+                            // Mostrar erro
+                            this.showMessage(mensagem, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('❌ Erro na requisição:', error);
+                        this.showMessage(error.message || 'Erro ao salvar as informações. Por favor, tente novamente.', 'error');
+                    });
+                },
+
+                showMessage(text, type) {
+                    // Criar div de mensagem se não existir
+                    let messageDiv = document.getElementById('dashboard-message');
+                    if (!messageDiv) {
+                        messageDiv = document.createElement('div');
+                        messageDiv.id = 'dashboard-message';
+                        messageDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+                        document.body.appendChild(messageDiv);
+                    }
+
+                    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+                    const icon = type === 'success' ? 'check-circle' : 'exclamation-triangle';
+                    
+                    messageDiv.innerHTML = `
+                        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                            <i class="bi bi-${icon}"></i>
+                            <strong>${type === 'success' ? 'Sucesso!' : 'Erro!'}</strong> ${text}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    `;
+                    
+                    // Fade out após 6 segundos
+                    setTimeout(() => {
+                        const alert = messageDiv.querySelector('.alert');
+                        if (alert) {
+                            alert.classList.remove('show');
+                            setTimeout(() => messageDiv.innerHTML = '', 300);
+                        }
+                    }, 6000);
                 }
             }
         }

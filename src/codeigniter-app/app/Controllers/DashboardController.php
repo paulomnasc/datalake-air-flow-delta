@@ -48,6 +48,8 @@ class DashboardController extends BaseController
         // Carregar funções Python disponíveis
         $usuarioFuncionModel = new UsuarioFuncionConfigurationModel();
         $funcoesAgrupadas = $usuarioFuncionModel->getFuncoesFormatadas($userId);
+        
+        log_message('debug', 'Funções Python carregadas: ' . print_r($funcoesAgrupadas, true));
 
         $data = [
             'stats' => $stats,

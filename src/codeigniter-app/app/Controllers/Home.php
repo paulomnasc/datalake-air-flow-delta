@@ -2,13 +2,15 @@
 
 namespace App\Controllers;
 
+use CodeIgniter\HTTP\RedirectResponse;
+
 class Home extends BaseController
 {
-    public function index(): string
+    public function index(): string|RedirectResponse
     {
         // Se usuário estiver logado, redireciona para o dashboard
         if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
-            return redirect()->to(base_url('dashboard'))->send();
+            return redirect()->to(base_url('dashboard'));
         }
         
         // invoke  \Viesw\welcome_message.php

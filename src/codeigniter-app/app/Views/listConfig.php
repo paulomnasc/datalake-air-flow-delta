@@ -54,9 +54,7 @@ require VIEWPATH.'/header.php';
             // COMENTAR ESSE IF PARA CADASTRAR UM QUADRO PARA O USUARIO ANONIMO QUANDO FOR IMPLANTAR SOLUÇÃO 
             /* if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"): 
             ?--> 
-                <form action="<?php echo site_url('addConfig'); ?>" method="post">
-                    <button type="submit" class="add-button">Incluir</button>
-                </form>
+                <a href="<?php echo site_url('dashboard'); ?>" class="add-button" style="display: inline-block; text-decoration: none; text-align: center; padding: 10px 20px;">Incluir</a>
             <!--?php
             endif; 
             ?-->

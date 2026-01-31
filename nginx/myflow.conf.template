@@ -1,3 +1,5 @@
+## Bloco removido: estudotabela.com.br não é servido neste ambiente
+
 # Bloco para airflow na porta airflow (variável da porta)
 server {
     listen ${AIRFLOW_WEBSERVER_PORT};

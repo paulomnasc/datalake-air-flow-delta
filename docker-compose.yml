@@ -11,9 +11,12 @@ services:
     ports:
       - "${NGINX_PORT_HTTP}:${NGINX_PORT_HTTP}"
       - "${NGINX_PORT_HTTPS}:${NGINX_PORT_HTTPS}"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/myflow.conf.template:/etc/nginx/templates/myflow.conf.template:ro
       - ./nginx/error-pages:/etc/nginx/error-pages:ro
+      - ./landing-page:/usr/share/nginx/html/landing-page:ro
       # SSL template (apenas para produção - comentar em dev)
       # - ./nginx/myflow-ssl.conf.template:/etc/nginx/templates/myflow-ssl.conf.template:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro

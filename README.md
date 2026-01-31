@@ -395,6 +395,7 @@ E sua stack estiver containerizada (Docker), siga os passos abaixo para aumentar
 
 | Serviço             | Endereço de Acesso                     | Porta | Usuário / Senha           | Banco de Dados     | Observações                          |
 |---------------------|----------------------------------------|-------|----------------------------|--------------------|--------------------------------------|
+| **Portainer**       | [http://localhost:9000](http://localhost:9000) | 9000  | `admin` / `kJ#212394Paulo` | —                  | Console web para monitoramento Docker |
 | **Airflow UI**      | [http://localhost:8085](http://localhost:8085) | 8085  | `admin` / `admin`          | —                  | Criado após `airflow db init` e `users create` |
 | **MinIO Console**   | [http://localhost:9001](http://localhost:9001) | 9001  | `admin` / `admin123`       | —                  | Interface web de armazenamento S3   |
 | **MinIO API S3**    | `http://localhost:9000`                | 9000  | `admin` / `admin123`       | —                  | Usado por boto3, S3Hook, etc.        |

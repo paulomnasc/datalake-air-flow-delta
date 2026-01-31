@@ -42,6 +42,9 @@ src/codeigniter-app/.env
 src/codeigniter-app/.env.local
 src/codeigniter-app/.env.production
 
+# Ignorar arquivo de configuração do nginx
+myflow.conf
+
 # Ignorar certificados locais
 certs/
 

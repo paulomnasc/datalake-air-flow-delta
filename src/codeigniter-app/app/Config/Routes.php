@@ -1,6 +1,10 @@
+
 <?php
 
 use CodeIgniter\Router\RouteCollection;
+
+// Curso - Módulo 1
+$routes->get('/curso/modulo1', 'CursoController::modulo1', ['as'=>'cursoModulo1']);
 
 /**
  * @var RouteCollection $routes

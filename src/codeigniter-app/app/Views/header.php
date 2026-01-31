@@ -639,7 +639,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             <a href="/" class="nav-link px-4 px-lg-5" title="Início">
                 <i class="fas fa-home" style="font-size: 28px; vertical-align: middle;"></i>
             </a>
-            <?php echo anchor("cursos", "CURSOS", ['class' => 'nav-link px-4 px-lg-5']) ?>
+            <?php echo anchor("curso/modulo1", "CURSOS", ['class' => 'nav-link px-4 px-lg-5']) ?>
 
 
             <div id="itens-menu-outros" class="navbar-nav ms-auto p-4 p-lg-0">

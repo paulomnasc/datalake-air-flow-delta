@@ -11,13 +11,12 @@ require VIEWPATH.'/header.php';
             <div class="card-body">
                 <ul class="tree">
                     <li>
-                        <strong>Módulo 1: Introdução ao Dataflow</strong>
+                        <strong>Módulo 1: Data Quality com MyDataflow</strong>
                         <ul>
-                            <li>Aula 1: Apresentação do Curso</li>
-                            <li>Aula 2: O que é Data Lake?</li>
-                            <li>Aula 3: Arquitetura do Projeto</li>
-                            <li>Aula 4: Primeiros Passos no Ambiente</li>
-                            <li>Aula 5: Exercício Prático</li>
+                            <li><a href="https://youtu.be/ug2PuC-5vMk" target="_blank" rel="noopener noreferrer">1. Aula 1            : Pré-requisitos do Curso</a></li>
+                            <li><a href="https://forms.gle/9AK13338fxS6q5DL6" target="_blank" rel="noopener noreferrer">1.1 Pré-requisito    : Dar feedback para continuar ...</a></li>
+                            <li>2. Aula 2            : Em construção ...</li>
+                            
                         </ul>
                     </li>
                 </ul>

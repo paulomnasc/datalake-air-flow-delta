@@ -425,7 +425,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             
             <div class="header-buttons">
                 <!-- Botão YouTube -->
-                <a id="youtubeBtn" href="https://www.youtube.com/@descomplicacienciadados" target="_blank" rel="noopener noreferrer">
+                <a id="youtubeBtn" href="/curso/modulo1">
                     <i class="fab fa-youtube"></i>
                     <span>Videoaulas</span>
                 </a>

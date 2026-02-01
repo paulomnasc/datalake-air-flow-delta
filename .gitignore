@@ -38,6 +38,9 @@ Thumbs.db
 # Ignorar variáveis de ambiente (não versionar segredos)
 .env
 .env.*
+.env*
+src/codeigniter-app/.env
+src/codeigniter-app/.env.local
 src/codeigniter-app/.env
 src/codeigniter-app/.env.local
 src/codeigniter-app/.env.production

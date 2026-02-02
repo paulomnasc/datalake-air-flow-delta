@@ -693,32 +693,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
                 <!-- Dropdown -->
                 <?php
-                        // Verifica se o perfil do usuário está logado e se ele NÃO é "Anonimo"
-                            if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): 
-                ?> 
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="navbardrop" data-bs-toggle="dropdown">
-                        CONFIGURAÇÕES
-                    </a>
-                    <div class="dropdown-menu">
-                        <?php
-                        // Verifica se o perfil do usuário está logado e se ele NÃO é "Anonimo"
-                            if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"): 
-                        ?>
-                            <?php echo anchor("listPasta", "Pastas", ['class' => 'nav-link px-4 px-lg-5']) ?>
-                            <?php /* Dashboard e Fluxos removidos do menu - usar novo Dashboard principal
-                            echo anchor("dashboard", "🚀 Dashboard (Nova UX)", ['class' => 'nav-link px-4 px-lg-5 fw-bold text-primary']);
-                            echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']);
-                            */ ?>
-                        <?php elseif (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === "Anonimo"): ?>
-                            <?php /* Dashboard e Fluxos removidos do menu
-                            echo anchor("dashboard", "🚀 Dashboard (Nova UX)", ['class' => 'nav-link px-4 px-lg-5 fw-bold text-primary']);
-                            echo anchor("listConfig", "Fluxos", ['class' => 'nav-link px-4 px-lg-5']);
-                            */ ?>
-                        <?php endif; ?>
-                    </div>
-                </li>
-                <!-- Fim Dropdown -->
+                    // Verifica se o perfil do usuário está logado e se ele NÃO é "Visitante"
+                    if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): 
+                ?>
+                    <?php echo anchor("listPasta", "Pastas", ['class' => 'nav-link px-4 px-lg-5']) ?>
                 <?php endif; ?>
 
                 <?php echo anchor("politica","Política Privacidade", ['class' => 'nav-link px-4 px-lg-5'])  ?>

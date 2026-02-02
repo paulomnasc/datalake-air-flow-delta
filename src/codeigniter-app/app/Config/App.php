@@ -45,16 +45,28 @@ class App extends BaseConfig
             $serverName = getenv('NGINX_SERVER_NAME') ?: 'localhost';
             $envSuffix = getenv('ENV_SUFFIX');
             
-            // PRODUÇÃO: ENV_SUFFIX vazio ou não definido = usa HTTPS
-            // TEST/DEV: ENV_SUFFIX = "test" ou outro valor = usa HTTP
-            if (empty($envSuffix)) {
+            // Detecta se é localhost/dev ou produção com domínio real
+            $isLocalhost = $serverName === 'localhost' || $serverName === '127.0.0.1';
+            $isProduction = empty($envSuffix) && !$isLocalhost;
+            
+            // PRODUÇÃO (domínio real + ENV_SUFFIX vazio): usa HTTPS via Nginx
+            // DEV/TEST (localhost OU ENV_SUFFIX definido): usa HTTP direto no CodeIgniter
+            if ($isProduction) {
                 // PRODUÇÃO: usa HTTPS com porta HTTPS do Nginx
                 $httpsPort = getenv('NGINX_PORT_HTTPS') ?: '443';
                 $this->baseURL = "https://{$serverName}:{$httpsPort}/";
             } else {
-                // TEST/DEV: usa HTTP com porta HTTP do Nginx
-                $httpPort = getenv('NGINX_PORT_HTTP') ?: '80';
-                $this->baseURL = "http://{$serverName}:{$httpPort}/";
+                // DEV/TEST/localhost: usa HTTP na porta do CodeIgniter (ou Nginx em teste)
+                // Se ENV_SUFFIX vazio (DEV local), usa CODEIGNITER_PORT (8088)
+                // Se ENV_SUFFIX definido (TEST), usa NGINX_PORT_HTTP (29080, etc)
+                if (empty($envSuffix)) {
+                    // DEV: porta direta do CodeIgniter
+                    $port = getenv('CODEIGNITER_PORT') ?: '8088';
+                } else {
+                    // TEST: porta do Nginx (que faz proxy para CodeIgniter)
+                    $port = getenv('NGINX_PORT_HTTP') ?: '80';
+                }
+                $this->baseURL = "http://{$serverName}:{$port}/";
             }
         }
     }

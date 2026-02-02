@@ -15,7 +15,7 @@ require VIEWPATH.'/header.php';
                         <ul>
                             <li><a href="https://youtu.be/ug2PuC-5vMk" target="_blank" rel="noopener noreferrer">1. Aula 1            : Pré-requisitos do Curso</a></li>
                             <li><a href="https://forms.gle/9AK13338fxS6q5DL6" target="_blank" rel="noopener noreferrer">1.1 Pré-requisito    : Dar feedback para continuar ...</a></li>
-                            <li>2. Aula 2            : Em construção ...</li>
+                            <li>2. Aula 2            : Implementando validação de campos nulos, normalizar nomes de colunas e data quality score</li>
                             
                         </ul>
                     </li>

@@ -15,7 +15,15 @@ require VIEWPATH.'/header.php';
                         <ul>
                             <li><a href="https://youtu.be/ug2PuC-5vMk" target="_blank" rel="noopener noreferrer">1. Aula 1            : Pré-requisitos do Curso</a></li>
                             <li><a href="https://forms.gle/9AK13338fxS6q5DL6" target="_blank" rel="noopener noreferrer">1.1 Pré-requisito    : Dar feedback para continuar ...</a></li>
-                            <li>2. Aula 2            : Implementando validação de campos nulos, normalizar nomes de colunas e data quality score</li>
+                            <li>
+                                <a href="https://youtu.be/gKBUjoUaEe0" target="_blank" rel="noopener noreferrer">2. Aula 2            : Implementando validação de campos nulos, normalizar nomes de colunas e data quality score</a>
+                                <ul>
+                                    <li><strong>Baixar recursos de aula aqui</strong></li>
+                                    <li><a href="/assets/curso/A2/DQ%20Custom%20Validators.pptx" download>DQ Custom Validators.pptx</a></li>
+                                    <li><a href="/assets/curso/A2/Invoice.json" download>Invoice.json</a></li>
+                                    <li><a href="/assets/curso/A2/meu_validador.py" download>meu_validador.py</a></li>
+                                </ul>
+                            </li>
                             
                         </ul>
                     </li>

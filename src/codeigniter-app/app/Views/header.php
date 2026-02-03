@@ -658,7 +658,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 $servicesBlocked = isset($_SESSION['subscription_services_blocked']) && $_SESSION['subscription_services_blocked'];
                 ?>
 
-                <?php echo anchor("curso/modulo1", "CURSOS", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
+                    <?php echo anchor("curso/modulo1", "CURSOS", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                <?php endif; ?>
                 
 
                 <li class="nav-item dropdown <?= $servicesBlocked ? 'disabled' : '' ?>">

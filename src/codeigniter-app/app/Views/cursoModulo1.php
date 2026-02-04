@@ -87,7 +87,11 @@ require VIEWPATH.'/header.php';
                                 </ul>
                             </li>
                             <li>
-                                <strong>Aula 10: Em construção - Criar um vídeo com explicação de conectar o PBI no Delta Lake</strong>
+                                <strong>
+                                    <a href="/docs/powerbi-conexao-duckdb-odbc.html" target="_blank" rel="noopener noreferrer">
+                                        Aula 10: Conectando o Power BI Desktop no Delta Lake
+                                    </a>
+                                </strong>
                             </li>
                         </ul>
                     </li>

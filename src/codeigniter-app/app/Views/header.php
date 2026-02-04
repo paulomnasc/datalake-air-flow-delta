@@ -664,7 +664,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <?php echo anchor("curso/modulo1", "CURSOS", ['class' => 'nav-link px-4 px-lg-5']) ?>
                 <?php endif; ?>
                 
-
+                <a href="https://github.com/paulomnasc/mydataflow-forum/discussions" class="nav-link px-4 px-lg-5" target="_blank" rel="noopener noreferrer">FORUM</a>
+                
+                
                 <li class="nav-item dropdown <?= $servicesBlocked ? 'disabled' : '' ?>">
 
 
@@ -709,7 +711,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 
                 <?php echo anchor("contactUs","Entre em contato", ['class' => 'nav-link px-4 px-lg-5'])  ?>
 
-                <?php echo anchor("sigInUsuario", "Registre-se", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado']) || (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === 'Visitante')): ?>
+                    <?php echo anchor("sigInUsuario", "Registre-se", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                <?php endif; ?>
+
                 
             </div>
 

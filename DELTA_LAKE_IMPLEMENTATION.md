@@ -1199,3 +1199,51 @@ http://localhost:9001 → lab01 → gold/{table}_delta/
 | 2024-11-24 | 1.1 | Bugs corrigidos: silver_key, Exception handling, logs |
 | 2024-11-24 | 1.2 | Documentação completa com dicionário de dados e features |
 | 2024-11-24 | 1.3 | Adicionado guia de Feature Engineering e casos de uso |
+
+---
+
+## Dúvidas frequentes sobre a implementação
+
+**Pergunta:**
+O documento diz: "Este documento descreve a implementação real de Delta Lake no projeto datalake-air-flow, usando `deltalake-python` integrado com Airflow, MinIO e arquitetura Medallion." Mas não encontrei o import de deltalake-python nas classes que estão em anexo ou em sua pasta.
+
+**Resposta:**
+O import do deltalake-python está presente, mas ocorre dentro das funções, não no topo do arquivo. Exemplo: Dentro das funções gold_to_delta e silver_to_gold_delta, há blocos como:
+
+```python
+try:
+    from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+    from deltalake import write_deltalake, DeltaTable
+    ...
+except ImportError as e:
+    ...
+```
+
+Ou seja, o deltalake-python é importado de forma dinâmica, dentro das funções, para permitir fallback ou tratamento de erro caso o pacote não esteja disponível (por exemplo, para rodar em ambientes sem Delta Lake).
+
+---
+
+**Pergunta:**
+O documento também diz: "Delta Lake foi implementado como a camada Gold do pipeline", mas ao olhar a estrutura de pastas no minio s3 existe uma pasta gold e uma delta, não deveria existir apenas uma pasta gold?
+
+**Resposta:**
+No documento e no código, há dois caminhos distintos:
+- gold/ — tradicionalmente usado para armazenar os dados Gold, geralmente em Parquet.
+- delta/ — usado para armazenar tabelas Delta Lake, que são uma evolução do Gold, com versionamento e ACID.
+
+No código anexo (gold_delta_layer.py), a função gold_to_delta salva os dados Delta Lake em delta/{target_table_name}/, enquanto a função silver_to_gold_delta salva em gold/{dag_id}/{target_table_name}_delta/.
+
+Por que isso acontece?
+- gold/ pode ser usado para Gold em Parquet (legado ou fallback).
+- delta/ pode ser usado para Gold em formato Delta Lake, separando fisicamente os formatos.
+- gold/{table}_delta/ (como no silver_to_gold_delta) é uma convenção para indicar que ali está a Gold em formato Delta Lake, mantendo a semântica da camada Gold, mas explicitando o formato.
+
+Ou seja:
+- Não é obrigatório ter apenas uma pasta gold/. Separar gold/ (Parquet) e gold/{table}_delta/ (Delta Lake) é uma prática para facilitar a transição e a compatibilidade.
+- A existência de delta/ pode ser um resquício de versões anteriores, testes, ou para uso com Spark/Thrift Server, como citado nos comentários do código.
+
+Resumo:
+- O ideal é padronizar: ou usar gold/{table}_delta/ para Delta Lake, ou migrar tudo para gold/ se só houver Delta Lake.
+- Ter ambas as pastas não é um erro, mas pode gerar confusão. O importante é documentar claramente qual pasta representa a camada Gold oficial do pipeline.
+
+---

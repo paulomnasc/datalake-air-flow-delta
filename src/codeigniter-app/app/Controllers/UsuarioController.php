@@ -809,41 +809,39 @@ class UsuarioController extends BaseController
     public function confirmEmail()
     {
         try {
-
-            //Recupera o token enviado pelo link clicado na caixa de e-mail do usuário
-
+            // Recupera o token enviado pelo link clicado na caixa de e-mail do usuário
             $token = $this->request->getGet('token');
             $dataToken = $this->verifyToken($token);
-            
             if ($dataToken) {
                 $model = new UsuarioModel();
-                
-                // A partir da tabela token, recupera o e-mail para obter o uruário
-
+                // A partir da tabela token, recupera o e-mail para obter o usuário
                 $list = $model->select('usuario.*')
                             ->where('usuario.email', $dataToken->email)
                             ->first();
-                
                 if ($list) {
-
                     $id = $list->id;
-                    
                     $usuario = $model->find($id);
-
                     $data['id'] = $usuario->id;
                     $data['nome'] = $usuario->nome;
                     $data['email'] = $usuario->email;
                     $data['senha'] = $usuario->senha;
                     $data['email_confirmado'] = 1;
-                    
                     // Processo de atualização da flag de email confirmado pelo usuário na tabela Usuario
-                   
-                    if ($model->update($id,$data)) {
-                        
+                    if ($model->update($id, $data)) {
+                        // Cria pasta padrão se não existir
+                        $pastaModel = new \App\Models\PastaModel();
+                        $pastaExistente = $pastaModel->where('id_usuario', $id)
+                                                    ->where('descricao', 'pasta-padrao')
+                                                    ->first();
+                        if (!$pastaExistente) {
+                            $pastaModel->insert([
+                                'descricao' => 'pasta-padrao',
+                                'id_usuario' => $id
+                            ]);
+                        }
                         // Realiza o login do usuário autorizado na plataforma
-
                         $this->logarUsuarioConfirmaEmail($usuario->email, $usuario->senha);
-                        return view("bemVindoNovoUsuario");    
+                        return view("bemVindoNovoUsuario");
                     } else {
                         log_message('error', 'Erro ao atualizar o registro: ' . $model->getLastQuery());
                         return view('email_confirmation_error', [

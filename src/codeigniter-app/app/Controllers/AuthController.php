@@ -76,6 +76,18 @@ class AuthController extends BaseController
                 return redirect()->to('/loginUsuario');
             }
 
+            // Garante que o usuário tenha a pasta padrão
+            $pastaModel = new \App\Models\PastaModel();
+            $pastaExistente = $pastaModel->where('id_usuario', $usuario->id)
+                                         ->where('descricao', 'pasta-padrao')
+                                         ->first();
+            if (!$pastaExistente) {
+                $pastaModel->insert([
+                    'descricao' => 'pasta-padrao',
+                    'id_usuario' => $usuario->id
+                ]);
+            }
+
             // Salva token
             GoogleAuthHelper::saveTokenData($usuario->id, $result['token']);
 

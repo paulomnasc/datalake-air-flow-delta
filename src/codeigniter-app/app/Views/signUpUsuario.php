@@ -10,20 +10,29 @@ require VIEWPATH . '/header.php';
 
         <div class="container">
             <h1>Registrar Usuario</h1>
-            <form method="post" id="meuFormulario" action="<?php echo route_to('Usuario.insertSigIn'); ?>">
-                  
 
+            <!-- Google Registration Button Highlighted -->
+            <div style="margin-bottom: 30px; text-align: center;">
+                <a href="<?= route_to('auth.google.login') ?>" class="btn btn-danger" style="background-color: #ea4335; border-color: #ea4335; color: white; text-decoration: none; padding: 14px 32px; display: inline-block; border-radius: 6px; font-size: 1.2em; font-weight: bold; box-shadow: 0 2px 8px rgba(234,67,53,0.15);">
+                    <i class="fab fa-google" style="font-size: 1.4em; vertical-align: middle;"></i> Registrar com Google
+                </a>
+                <p style="color: #222; margin-top: 12px; font-weight: 500;">Registre-se rapidamente com sua conta Google</p>
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+                <p style="color: #666; margin-bottom: 10px;">— OU —</p>
+                <!-- Removed Google button from here -->
+            </div>
+            <form method="post" id="meuFormulario" action="<?php echo route_to('Usuario.insertSigIn'); ?>">
+                <!-- ...existing code... -->
                 <div class="form-group">
                     <label for="nome">Nome:</label>
                     <input type="text" id="nome" name="nome" placeholder="nome" required>
                 </div>
 
-
                 <div class="form-group">
                     <label for="email">Email:</label>
                     <input type="email" id="email" name="email" placeholder="email" required>
                 </div>
-
 
                 <div class="form-group">
                     <label for="id_perfil">Perfis:</label>
@@ -37,8 +46,6 @@ require VIEWPATH . '/header.php';
                     <small style="display: block; margin-top: 5px; color: #666;">Segure Ctrl (Windows) ou Cmd (Mac) para selecionar múltiplos perfis</small>
                 </div>
 
-
-
                 <div class="form-group">
                     <label for="senha">Senha:</label>
                     <input type="password" id="senha" name="senha" placeholder="senha" required>
@@ -48,22 +55,14 @@ require VIEWPATH . '/header.php';
                     <label for="senha">Confirmar senha:</label>
                     <input type="password" id="repete-senha" name="senha" placeholder="senha" required>
                 </div>
-                    
                 <div class="form-actions">
                     <button type="submit" class="save-button" value="Atualizar" onclick="return validatePasswords()">Registrar</button>
                     <!-- button type="button" class="back-button" onclick="history.back();">Voltar</button -->
                 </div>
-
                 <div id="signup-success-message" class="alert alert-success" style="display:none;"></div>
-
             </form>
 
-            <div style="margin-top: 20px; text-align: center;">
-                <p style="color: #666; margin-bottom: 10px;">— OU —</p>
-                <a href="<?= route_to('auth.google.login') ?>" class="btn btn-danger" style="background-color: #ea4335; border-color: #ea4335; color: white; text-decoration: none; padding: 8px 20px; display: inline-block; border-radius: 4px;">
-                    <i class="fab fa-google"></i> Registrar com Google
-                </a>
-            </div>
+            
 
         <script>
         function validatePasswords() {

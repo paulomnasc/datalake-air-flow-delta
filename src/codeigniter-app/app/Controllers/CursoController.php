@@ -9,4 +9,9 @@ class CursoController extends BaseController
     {
         return view('cursoModulo1');
     }
+
+    public function progressMonitor()
+    {
+        return view('uc_progress_monitor');
+    }
 }

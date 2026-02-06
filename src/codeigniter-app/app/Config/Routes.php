@@ -6,6 +6,12 @@ use CodeIgniter\Router\RouteCollection;
 // Curso - Módulo 1
 $routes->get('/curso/modulo1', 'CursoController::modulo1', ['as'=>'cursoModulo1']);
 
+// 🆕 UC Progress Monitor - Tracking de Vídeo e Tarefas
+$routes->get('/curso/progress-monitor', 'CursoController::progressMonitor', ['as'=>'curso.progress-monitor']);
+$routes->post('/api/video-progress', 'Api\ProgressController::videoProgress', ['as'=>'api.video-progress']);
+$routes->post('/api/uc-progress', 'Api\ProgressController::ucProgress', ['as'=>'api.uc-progress']);
+$routes->get('/api/video-progress/(:segment)/(:segment)', 'Api\ProgressController::getVideoProgress/$1/$2', ['as'=>'api.video-progress.get']);
+
 /**
  * @var RouteCollection $routes
  */

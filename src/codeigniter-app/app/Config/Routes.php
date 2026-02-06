@@ -3,11 +3,17 @@
 
 use CodeIgniter\Router\RouteCollection;
 
-// Curso - Módulo 1
+// Curso - Módulo 1 (Legacy)
 $routes->get('/curso/modulo1', 'CursoController::modulo1', ['as'=>'cursoModulo1']);
 
 // 🆕 UC Progress Monitor - Tracking de Vídeo e Tarefas
 $routes->get('/curso/progress-monitor', 'CursoController::progressMonitor', ['as'=>'curso.progress-monitor']);
+
+// 🎓 Student Course Interface
+$routes->get('/cursos', 'CursoController::index', ['as'=>'cursos.index']);
+$routes->get('/curso/(:num)', 'CursoController::course/$1', ['as'=>'curso.show']);
+$routes->get('/modulo/(:num)', 'CursoController::module/$1', ['as'=>'modulo.show']);
+$routes->get('/video/(:num)', 'CursoController::video/$1', ['as'=>'video.player']);
 $routes->post('/api/video-progress', 'Api\ProgressController::videoProgress', ['as'=>'api.video-progress']);
 $routes->post('/api/uc-progress', 'Api\ProgressController::ucProgress', ['as'=>'api.uc-progress']);
 $routes->get('/api/video-progress/(:segment)/(:segment)', 'Api\ProgressController::getVideoProgress/$1/$2', ['as'=>'api.video-progress.get']);

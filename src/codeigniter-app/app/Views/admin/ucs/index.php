@@ -85,6 +85,12 @@ require VIEWPATH.'/header.php';
                                 <?php if($uc['task_description']): ?>
                                     <br><small style="color: #666;"><?php echo esc(substr($uc['task_description'], 0, 80)) . (strlen($uc['task_description']) > 80 ? '...' : ''); ?></small>
                                 <?php endif; ?>
+                                <?php if($uc['external_url']): ?>
+                                    <br>
+                                    <small style="display: inline-flex; align-items: center; gap: 5px; background: #e0e7ff; color: #4f46e5; padding: 3px 8px; border-radius: 3px; margin-top: 5px;">
+                                        🔗 Link externo configurado
+                                    </small>
+                                <?php endif; ?>
                             </td>
                             <?php if(!$video): ?>
                             <td>

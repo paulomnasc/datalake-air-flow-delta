@@ -178,6 +178,11 @@ require VIEWPATH.'/header.php';
         grid-template-columns: 1fr;
     }
 }
+
+.external-link-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
 </style>
 
 <div id="content">
@@ -289,6 +294,18 @@ require VIEWPATH.'/header.php';
                                 </div>
                             </div>
 
+                            <?php if($uc['external_url']): ?>
+                                <div style="margin-top: 15px;">
+                                    <a href="<?php echo esc($uc['external_url']); ?>" 
+                                       target="_blank"
+                                       class="external-link-button"
+                                       style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: white; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; transition: transform 0.2s, box-shadow 0.2s;">
+                                        🔗 Acessar Interface Externa
+                                        <span style="font-size: 12px;">↗</span>
+                                    </a>
+                                </div>
+                            <?php endif; ?>
+
                             <?php if(isset($_SESSION['id_usuario_logado'])): ?>
                                 <div class="task-checkbox">
                                     <label>
@@ -327,7 +344,9 @@ $(document).ready(function() {
                 completed: isCompleted ? 1 : 0,
                 video_id: <?php echo $video['id']; ?>
             },
+            dataType: 'json',
             success: function(result) {
+                console.log('[UCProgress] Resposta do servidor:', result);
                 if (result.status === 'success') {
                     if (isCompleted) {
                         $card.addClass('completed');
@@ -343,13 +362,31 @@ $(document).ready(function() {
                         $card.find('.task-checkbox span').text('Marcar como concluída');
                     }
                 } else {
-                    alert('❌ Erro ao atualizar progresso. Tente novamente.');
+                    console.error('[UCProgress] Erro do servidor:', result.message);
+                    alert('❌ Erro ao atualizar progresso: ' + (result.message || 'Tente novamente.'));
                     // Reverter checkbox
                     $(this).prop('checked', !isCompleted);
                 }
             }.bind(this),
-            error: function() {
-                alert('❌ Erro ao atualizar progresso.');
+            error: function(xhr, status, error) {
+                console.error('[UCProgress] Erro na requisição:', {
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    responseText: xhr.responseText,
+                    ajaxStatus: status,
+                    error: error
+                });
+                var errorMsg = 'Erro ao atualizar progresso';
+                if (xhr.status === 401) {
+                    errorMsg = 'Sessão expirada. Por favor, faça login novamente.';
+                } else if (xhr.status === 422) {
+                    errorMsg = 'Dados inválidos enviados.';
+                } else if (xhr.status === 500) {
+                    errorMsg = 'Erro no servidor. Tente novamente mais tarde.';
+                } else if (status === 'timeout') {
+                    errorMsg = 'Requisição expirou. Tente novamente.';
+                }
+                alert('❌ ' + errorMsg);
                 $(this).prop('checked', !isCompleted);
             }.bind(this)
         });

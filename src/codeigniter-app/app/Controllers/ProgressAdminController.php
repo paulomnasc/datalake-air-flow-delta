@@ -471,6 +471,7 @@ class ProgressAdminController extends BaseController
             'task_title' => $this->request->getPost('task_title'),
             'task_description' => $this->request->getPost('task_description'),
             'video_checkpoint' => $this->request->getPost('video_checkpoint'),
+            'external_url' => $this->request->getPost('external_url'),
             'xp_points' => $this->request->getPost('xp_points') ?? 100,
             'is_active' => $this->request->getPost('is_active') ?? 1,
             'order' => $this->request->getPost('order') ?? 0,
@@ -525,6 +526,7 @@ class ProgressAdminController extends BaseController
             'task_title' => $this->request->getPost('task_title'),
             'task_description' => $this->request->getPost('task_description'),
             'video_checkpoint' => $this->request->getPost('video_checkpoint'),
+            'external_url' => $this->request->getPost('external_url'),
             'xp_points' => $this->request->getPost('xp_points'),
             'is_active' => $this->request->getPost('is_active'),
             'order' => $this->request->getPost('order')

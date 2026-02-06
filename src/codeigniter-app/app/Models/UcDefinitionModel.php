@@ -18,8 +18,7 @@ class UcDefinitionModel extends Model
         'task_number',
         'task_title',
         'task_description',
-        'video_checkpoint',
-        'xp_points',
+        'video_checkpoint',        'external_url',        'xp_points',
         'is_active',
         'order',
         'created_by'

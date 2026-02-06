@@ -80,6 +80,13 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group">
+                <label for="external_url">🔗 URL ou Rota Externa (opcional):</label>
+                <input type="url" id="external_url" name="external_url" class="form-control" 
+                       placeholder="Ex: https://example.com/quiz ou /dashboard">
+                <small>Se preenchido, a tarefa exibirá um botão que redireciona para esta URL. Pode ser uma URL completa (https://...) ou uma rota interna (/pagina)</small>
+            </div>
+
+            <div class="form-group">
                 <label for="xp_points">Pontos de XP*:</label>
                 <input type="number" id="xp_points" name="xp_points" class="form-control" 
                        placeholder="Ex: 100" required min="0" value="100">
@@ -122,6 +129,7 @@ $(document).ready(function() {
             task_title: $('#task_title').val(),
             task_description: $('#task_description').val(),
             video_checkpoint: $('#video_checkpoint').val(),
+            external_url: $('#external_url').val(),
             xp_points: $('#xp_points').val(),
             order: $('#order').val(),
             is_active: $('#is_active').is(':checked') ? 1 : 0

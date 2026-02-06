@@ -3,6 +3,8 @@ namespace App\Controllers\Api;
 
 use CodeIgniter\RESTful\ResourceController;
 use CodeIgniter\API\ResponseTrait;
+use App\Models\VideoProgressModel;
+use App\Models\UcProgressModel;
 
 class ProgressController extends ResourceController
 {
@@ -14,43 +16,44 @@ class ProgressController extends ResourceController
      */
     public function videoProgress()
     {
-        $data = $this->request->getJSON(true);
-        
-        // Validação básica
-        $validation = \Config\Services::validation();
-        $validation->setRules([
-            'user_id'   => 'required',
-            'course_id' => 'required',
-            'lesson_id' => 'required',
-            'video_id'  => 'required',
-            'percent'   => 'required|numeric',
-            'completed' => 'required|in_list[0,1,true,false]',
-        ]);
-
-        if (!$validation->run($data)) {
-            return $this->failValidationErrors($validation->getErrors());
+        // Verificar se usuário está logado
+        if (!isset($_SESSION['id_usuario_logado'])) {
+            return $this->failUnauthorized('Usuário não autenticado');
         }
 
-        // TODO: Persistir no banco de dados
-        // Exemplo:
-        // $progressModel = new \App\Models\VideoProgressModel();
-        // $progressModel->save([
-        //     'user_id'    => $data['user_id'],
-        //     'course_id'  => $data['course_id'],
-        //     'lesson_id'  => $data['lesson_id'],
-        //     'video_id'   => $data['video_id'],
-        //     'percent'    => $data['percent'],
-        //     'completed'  => filter_var($data['completed'], FILTER_VALIDATE_BOOLEAN),
-        //     'timestamp'  => $data['timestamp'] ?? date('Y-m-d H:i:s')
-        // ]);
+        $userId = $_SESSION['id_usuario_logado'];
+        $data = $this->request->getPost();
+        
+        // Validação básica
+        if (!isset($data['video_id'])) {
+            return $this->failValidationErrors(['video_id' => 'video_id é obrigatório']);
+        }
 
-        log_message('info', '[VideoProgress] User: ' . $data['user_id'] . ' | Video: ' . $data['video_id'] . ' | Progress: ' . $data['percent'] . '%');
+        $videoData = [
+            'user_id' => $userId,
+            'video_id' => intval($data['video_id']),
+            'watched_seconds' => intval($data['watched_seconds'] ?? 0),
+            'total_seconds' => intval($data['total_seconds'] ?? 0),
+            'percent' => floatval($data['percent'] ?? 0),
+            'completed' => intval($data['completed'] ?? 0),
+            'last_position_seconds' => intval($data['watched_seconds'] ?? 0)
+        ];
 
-        return $this->respondCreated([
-            'success' => true,
-            'message' => 'Progresso salvo com sucesso',
-            'data' => $data
-        ]);
+        try {
+            $progressModel = new VideoProgressModel();
+            $progressModel->upsertProgress($videoData);
+
+            log_message('info', '[VideoProgress] User: ' . $userId . ' | Video: ' . $videoData['video_id'] . ' | Progress: ' . $videoData['percent'] . '%');
+
+            return $this->respondCreated([
+                'status' => 'success',
+                'message' => 'Progresso salvo com sucesso',
+                'data' => $videoData
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', '[VideoProgress Error] ' . $e->getMessage());
+            return $this->failServerError('Erro ao salvar progresso: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -59,33 +62,71 @@ class ProgressController extends ResourceController
      */
     public function ucProgress()
     {
-        $data = $this->request->getJSON(true);
-        
-        $validation = \Config\Services::validation();
-        $validation->setRules([
-            'userId'    => 'required',
-            'courseId'  => 'required',
-            'moduleId'  => 'required',
-            'activeTask' => 'required|numeric',
-            'progress'  => 'required|numeric',
-            'points'    => 'required|numeric',
-        ]);
+        try {
+            // Verificar se usuário está logado
+            if (!isset($_SESSION['id_usuario_logado'])) {
+                return $this->failUnauthorized('Usuário não autenticado');
+            }
 
-        if (!$validation->run($data)) {
-            return $this->failValidationErrors($validation->getErrors());
+            $userId = $_SESSION['id_usuario_logado'];
+            $data = $this->request->getPost();
+
+            // Debug logging
+            log_message('debug', '[UCProgress Request] Data: ' . json_encode($data) . ' | User: ' . $userId);
+
+            // Validação básica
+            if (!isset($data['uc_definition_id'])) {
+                log_message('error', '[UCProgress Error] Falta uc_definition_id');
+                return $this->failValidationErrors(['uc_definition_id' => 'uc_definition_id é obrigatório']);
+            }
+
+            $ucData = [
+                'user_id' => $userId,
+                'uc_definition_id' => intval($data['uc_definition_id']),
+                'completed' => intval($data['completed'] ?? 0),
+                'completed_at' => intval($data['completed'] ?? 0) ? date('Y-m-d H:i:s') : null,
+                'progress_percent' => 100,
+                'attempts' => 1
+            ];
+
+            log_message('debug', '[UCProgress Process] Data to save: ' . json_encode($ucData));
+
+            $ucProgressModel = new UcProgressModel();
+            
+            // Buscar se já existe
+            $existing = $ucProgressModel->where([
+                'user_id' => $userId,
+                'uc_definition_id' => $ucData['uc_definition_id']
+            ])->first();
+
+            if ($existing) {
+                // Atualizar
+                $result = $ucProgressModel->update($existing['id'], $ucData);
+                log_message('info', '[UCProgress Updated] ID: ' . $existing['id'] . ' | Result: ' . ($result ? 'success' : 'failed'));
+            } else {
+                // Criar novo
+                $result = $ucProgressModel->insert($ucData);
+                log_message('info', '[UCProgress Inserted] ID: ' . ($result ? 'generated' : 'failed'));
+            }
+
+            if (!$result) {
+                $errors = $ucProgressModel->errors();
+                log_message('error', '[UCProgress Model Errors] ' . json_encode($errors));
+                return $this->failServerError('Erro ao salvar progresso: ' . json_encode($errors));
+            }
+
+            log_message('info', '[UCProgress Success] User: ' . $userId . ' | UC: ' . $ucData['uc_definition_id'] . ' | Completed: ' . $ucData['completed']);
+
+            return $this->respond([
+                'status' => 'success',
+                'message' => 'Progresso da UC/Tarefa salvo com sucesso',
+                'data' => $ucData
+            ], 200);
+
+        } catch (\Exception $e) {
+            log_message('error', '[UCProgress Exception] ' . $e->getMessage() . ' | Line: ' . $e->getLine());
+            return $this->failServerError('Erro ao salvar progresso: ' . $e->getMessage());
         }
-
-        // TODO: Persistir no banco
-        // $ucProgressModel = new \App\Models\UcProgressModel();
-        // $ucProgressModel->save($data);
-
-        log_message('info', '[UCProgress] User: ' . $data['userId'] . ' | Module: ' . $data['moduleId'] . ' | Task: ' . $data['activeTask']);
-
-        return $this->respondCreated([
-            'success' => true,
-            'message' => 'Progresso UC salvo com sucesso',
-            'data' => $data
-        ]);
     }
 
     /**
@@ -98,18 +139,28 @@ class ProgressController extends ResourceController
             return $this->failValidationErrors('userId e videoId são obrigatórios');
         }
 
-        // TODO: Buscar do banco
-        // $progressModel = new \App\Models\VideoProgressModel();
-        // $progress = $progressModel->where(['user_id' => $userId, 'video_id' => $videoId])->first();
+        try {
+            $progressModel = new VideoProgressModel();
+            $progress = $progressModel->where([
+                'user_id' => $userId, 
+                'video_id' => intval($videoId)
+            ])->first();
 
-        return $this->respond([
-            'success' => true,
-            'data' => [
-                'user_id' => $userId,
-                'video_id' => $videoId,
-                'percent' => 0,
-                'completed' => false
-            ]
-        ]);
+            if ($progress) {
+                return $this->respond([
+                    'status' => 'success',
+                    'data' => $progress
+                ]);
+            }
+
+            return $this->respond([
+                'status' => 'success',
+                'data' => null
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', '[GetVideoProgress Error] ' . $e->getMessage());
+            return $this->failServerError('Erro ao buscar progresso: ' . $e->getMessage());
+        }
     }
 }
+

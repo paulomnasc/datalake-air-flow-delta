@@ -98,6 +98,7 @@ CREATE TABLE uc_definition (
     task_title VARCHAR(255) NOT NULL COMMENT 'Título da tarefa',
     task_description TEXT COMMENT 'Descrição da tarefa',
     video_checkpoint VARCHAR(20) COMMENT 'Timestamp no vídeo (ex: 02:15)',
+    external_url VARCHAR(500) COMMENT 'URL ou rota para interface externa',
     xp_points INT DEFAULT 100 COMMENT 'Pontos XP',
     is_active TINYINT(1) DEFAULT 1 COMMENT 'Status ativo',
     `order` INT DEFAULT 0 COMMENT 'Ordem de progressão',

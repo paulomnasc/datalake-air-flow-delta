@@ -12,12 +12,12 @@ class VideoProgressModel extends Model
     protected $useSoftDeletes = false;
     protected $allowedFields = [
         'user_id',
-        'course_id',
-        'lesson_id',
         'video_id',
         'percent',
+        'watched_seconds',
+        'total_seconds',
         'completed',
-        'timestamp'
+        'last_position_seconds'
     ];
 
     protected $useTimestamps = true;
@@ -25,12 +25,12 @@ class VideoProgressModel extends Model
     protected $updatedField = 'updated_at';
 
     protected $validationRules = [
-        'user_id' => 'required|max_length[100]',
-        'course_id' => 'required|max_length[50]',
-        'lesson_id' => 'required|max_length[50]',
-        'video_id' => 'required|max_length[50]',
-        'percent' => 'required|decimal',
-        'completed' => 'required|in_list[0,1]',
+        'user_id' => 'required|max_length[255]',
+        'video_id' => 'required|integer|is_not_unique[video.id]',
+        'percent' => 'permit_empty|decimal',
+        'watched_seconds' => 'permit_empty|integer',
+        'total_seconds' => 'permit_empty|integer',
+        'completed' => 'in_list[0,1]',
     ];
 
     protected $validationMessages = [
@@ -38,7 +38,8 @@ class VideoProgressModel extends Model
             'required' => 'O ID do usuário é obrigatório'
         ],
         'video_id' => [
-            'required' => 'O ID do vídeo é obrigatório'
+            'required' => 'O ID do vídeo é obrigatório',
+            'is_not_unique' => 'O vídeo selecionado não existe'
         ]
     ];
 
@@ -77,38 +78,50 @@ class VideoProgressModel extends Model
     /**
      * Busca todos os vídeos concluídos de um usuário
      */
-    public function getCompletedVideos(string $userId, string $courseId = null)
+    public function getCompletedVideos(string $userId)
     {
-        $builder = $this->where('user_id', $userId)
-                        ->where('completed', 1);
-
-        if ($courseId) {
-            $builder->where('course_id', $courseId);
-        }
-
-        return $builder->findAll();
+        return $this->where('user_id', $userId)
+                    ->where('completed', 1)
+                    ->findAll();
     }
 
     /**
-     * Calcula progresso geral do curso
+     * Busca progresso de vídeos de um módulo
      */
-    public function getCourseProgress(string $userId, string $courseId)
+    public function getModuleProgress(string $userId, int $moduleId)
     {
-        $total = $this->where([
-            'user_id' => $userId,
-            'course_id' => $courseId
-        ])->countAllResults();
+        $videoModel = new \App\Models\VideoModel();
+        $videos = $videoModel->where('module_id', $moduleId)->findAll();
+        
+        $videoIds = array_column($videos, 'id');
+        
+        if (empty($videoIds)) {
+            return [];
+        }
+        
+        return $this->where('user_id', $userId)
+                    ->whereIn('video_id', $videoIds)
+                    ->findAll();
+    }
 
-        $completed = $this->where([
-            'user_id' => $userId,
-            'course_id' => $courseId,
-            'completed' => 1
-        ])->countAllResults();
-
-        return [
-            'total' => $total,
-            'completed' => $completed,
-            'percent' => $total > 0 ? round(($completed / $total) * 100, 2) : 0
+    /**
+     * Atualiza posição atual do vídeo (para resume)
+     */
+    public function updatePosition(string $userId, int $videoId, int $seconds)
+    {
+        $existing = $this->getUserVideoProgress($userId, $videoId);
+        
+        $data = [
+            'last_position_seconds' => $seconds,
+            'watched_seconds' => $seconds
         ];
+        
+        if ($existing) {
+            return $this->update($existing['id'], $data);
+        }
+        
+        $data['user_id'] = $userId;
+        $data['video_id'] = $videoId;
+        return $this->insert($data);
     }
 }

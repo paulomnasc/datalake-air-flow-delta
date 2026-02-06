@@ -12,14 +12,11 @@ class UcProgressModel extends Model
     protected $useSoftDeletes = false;
     protected $allowedFields = [
         'user_id',
-        'course_id',
-        'module_id',
-        'active_task',
-        'progress',
-        'points',
-        'is_completed',
-        'completed_task_ids',
-        'timestamp'
+        'uc_definition_id',
+        'completed',
+        'completed_at',
+        'progress_percent',
+        'attempts'
     ];
 
     protected $useTimestamps = true;
@@ -27,20 +24,20 @@ class UcProgressModel extends Model
     protected $updatedField = 'updated_at';
 
     protected $validationRules = [
-        'user_id' => 'required|max_length[100]',
-        'course_id' => 'required|max_length[50]',
-        'module_id' => 'required|max_length[50]',
-        'active_task' => 'required|integer',
-        'progress' => 'required|decimal',
-        'points' => 'required|integer',
+        'user_id' => 'required|max_length[255]',
+        'uc_definition_id' => 'required|integer|is_not_unique[uc_definition.id]',
+        'completed' => 'in_list[0,1]',
+        'progress_percent' => 'permit_empty|decimal',
+        'attempts' => 'permit_empty|integer',
     ];
 
     protected $validationMessages = [
         'user_id' => [
             'required' => 'O ID do usuário é obrigatório'
         ],
-        'module_id' => [
-            'required' => 'O ID do módulo é obrigatório'
+        'uc_definition_id' => [
+            'required' => 'O ID da UC é obrigatório',
+            'is_not_unique' => 'A UC selecionada não existe'
         ]
     ];
 
@@ -49,14 +46,9 @@ class UcProgressModel extends Model
      */
     public function upsertProgress(array $data)
     {
-        // Converter completed_task_ids para JSON se for array
-        if (isset($data['completed_task_ids']) && is_array($data['completed_task_ids'])) {
-            $data['completed_task_ids'] = json_encode($data['completed_task_ids']);
-        }
-
         $existing = $this->where([
             'user_id' => $data['user_id'],
-            'module_id' => $data['module_id']
+            'uc_definition_id' => $data['uc_definition_id']
         ])->first();
 
         if ($existing) {
@@ -67,78 +59,114 @@ class UcProgressModel extends Model
     }
 
     /**
-     * Busca progresso de um usuário em um módulo específico
+     * Busca progresso de um usuário em uma UC específica
      */
-    public function getUserModuleProgress(string $userId, string $moduleId)
+    public function getUserUcProgress(string $userId, int $ucDefinitionId)
     {
-        $result = $this->where([
+        return $this->where([
             'user_id' => $userId,
-            'module_id' => $moduleId
+            'uc_definition_id' => $ucDefinitionId
         ])->first();
-
-        if ($result && isset($result['completed_task_ids'])) {
-            $result['completed_task_ids'] = json_decode($result['completed_task_ids'], true);
-        }
-
-        return $result;
     }
 
     /**
-     * Busca todos os módulos concluídos de um usuário
+     * Marca UC como completa
      */
-    public function getCompletedModules(string $userId, string $courseId = null)
+    public function completeUc(string $userId, int $ucDefinitionId)
     {
-        $builder = $this->where('user_id', $userId)
-                        ->where('is_completed', 1);
-
-        if ($courseId) {
-            $builder->where('course_id', $courseId);
-        }
-
-        return $builder->findAll();
-    }
-
-    /**
-     * Calcula progresso geral do curso baseado em UCs
-     */
-    public function getCourseProgress(string $userId, string $courseId)
-    {
-        $total = $this->where([
+        $data = [
             'user_id' => $userId,
-            'course_id' => $courseId
-        ])->countAllResults();
-
-        $completed = $this->where([
-            'user_id' => $userId,
-            'course_id' => $courseId,
-            'is_completed' => 1
-        ])->countAllResults();
-
-        $avgProgress = $this->selectAvg('progress', 'avg')
-                            ->where([
-                                'user_id' => $userId,
-                                'course_id' => $courseId
-                            ])
-                            ->first();
-
-        return [
-            'total_modules' => $total,
-            'completed_modules' => $completed,
-            'avg_progress' => round($avgProgress['avg'] ?? 0, 2),
-            'completion_rate' => $total > 0 ? round(($completed / $total) * 100, 2) : 0
+            'uc_definition_id' => $ucDefinitionId,
+            'completed' => 1,
+            'completed_at' => date('Y-m-d H:i:s'),
+            'progress_percent' => 100
         ];
+        
+        $existing = $this->getUserUcProgress($userId, $ucDefinitionId);
+        
+        if ($existing) {
+            $data['attempts'] = ($existing['attempts'] ?? 0) + 1;
+            return $this->update($existing['id'], $data);
+        }
+        
+        $data['attempts'] = 1;
+        return $this->insert($data);
     }
 
     /**
-     * Retorna ranking de pontos
+     * Busca todas as UCs completadas por um usuário em um vídeo
      */
-    public function getLeaderboard(string $courseId, int $limit = 10)
+    public function getCompletedUcsByVideo(string $userId, int $videoId)
     {
-        return $this->select('user_id, SUM(points) as total_points')
-                    ->where('course_id', $courseId)
-                    ->groupBy('user_id')
-                    ->orderBy('total_points', 'DESC')
-                    ->limit($limit)
+        $ucDefModel = new \App\Models\UcDefinitionModel();
+        $definitions = $ucDefModel->where('video_id', $videoId)->findAll();
+        
+        $ucDefIds = array_column($definitions, 'id');
+        
+        if (empty($ucDefIds)) {
+            return [];
+        }
+        
+        return $this->where('user_id', $userId)
+                    ->where('completed', 1)
+                    ->whereIn('uc_definition_id', $ucDefIds)
                     ->findAll();
+    }
+
+    /**
+     * Calcula total de XP ganho por um usuário
+     */
+    public function getTotalXp(string $userId)
+    {
+        $db = \Config\Database::connect();
+        $builder = $db->table('uc_progress up');
+        
+        $result = $builder->select('SUM(ud.xp_points) as total_xp')
+            ->join('uc_definition ud', 'up.uc_definition_id = ud.id')
+            ->where('up.user_id', $userId)
+            ->where('up.completed', 1)
+            ->get()
+            ->getRowArray();
+        
+        return $result['total_xp'] ?? 0;
+    }
+
+    /**
+     * Busca progresso de um usuário em um curso
+     */
+    public function getCourseProgress(string $userId, int $courseId)
+    {
+        $db = \Config\Database::connect();
+        $builder = $db->table('uc_progress up');
+        
+        // Total de UCs no curso
+        $totalBuilder = clone $builder;
+        $total = $totalBuilder->select('COUNT(DISTINCT ud.id) as total')
+            ->join('uc_definition ud', 'up.uc_definition_id = ud.id')
+            ->join('video v', 'ud.video_id = v.id')
+            ->join('module m', 'v.module_id = m.id')
+            ->where('m.course_id', $courseId)
+            ->get()
+            ->getRowArray();
+        
+        // UCs completadas
+        $completed = $builder->select('COUNT(DISTINCT ud.id) as completed')
+            ->join('uc_definition ud', 'up.uc_definition_id = ud.id')
+            ->join('video v', 'ud.video_id = v.id')
+            ->join('module m', 'v.module_id = m.id')
+            ->where('m.course_id', $courseId)
+            ->where('up.user_id', $userId)
+            ->where('up.completed', 1)
+            ->get()
+            ->getRowArray();
+        
+        $totalCount = $total['total'] ?? 0;
+        $completedCount = $completed['completed'] ?? 0;
+        
+        return [
+            'total_ucs' => $totalCount,
+            'completed_ucs' => $completedCount,
+            'completion_rate' => $totalCount > 0 ? round(($completedCount / $totalCount) * 100, 2) : 0
+        ];
     }
 }

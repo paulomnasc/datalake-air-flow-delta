@@ -495,9 +495,16 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         // Verifica se o perfil do usuário está logado e se ele é "Admin"
                         if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === "Admin"): 
                     ?>
-                    <li><p class="text-white">Administrar</p></li>
-                        <?php echo anchor("listPerfil", "Perfis", ['class' => 'nav-link px-4 px-lg-5']) ?>
-                        <?php echo anchor("listUsuario", "Usuários", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    <li><p class="text-white">📚 Admin - Cursos</p></li>
+                        <?php echo anchor("admin/courses", "🎓 Cursos", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("admin/modules", "📖 Módulos", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("admin/videos", "🎬 Vídeos", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("admin/ucs", "✅ UCs/Tarefas", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    
+                    <li><hr class="text-white" style="margin: 10px 0;"></li>
+                    <li><p class="text-white">👥 Admin - Sistema</p></li>
+                        <?php echo anchor("listPerfil", "🔐 Perfis", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("listUsuario", "👤 Usuários", ['class' => 'nav-link px-4 px-lg-5']) ?>
                     <?php
                     endif; 
                     ?>

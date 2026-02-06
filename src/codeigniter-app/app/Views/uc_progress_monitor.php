@@ -17,17 +17,8 @@ require VIEWPATH.'/header.php';
     body { margin: 0; background: #000814; }
     #content, #main-content { margin: 0; padding: 0 !important; }
     #head-bar, nav.navbar, .sidebyside-container { display: none; }
-        
-        /* Terminal Styles */
-        #terminal { background: #000; color: #22c55e; padding: 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 12px; overflow-y: auto; max-height: 100%; line-height: 1.5; }
-        .terminal-output { white-space: pre-wrap; word-wrap: break-word; }
-        .terminal-input { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
-        .terminal-prompt { color: #0ea5e9; font-weight: bold; }
-        .terminal-cmd { color: #f1f5f9; flex: 1; background: transparent; border: none; outline: none; font-family: 'Courier New', monospace; font-size: 12px; color: #22c55e; }
-        .terminal-cursor { display: inline-block; width: 8px; height: 14px; background: #22c55e; margin-left: 2px; animation: blink 1s infinite; }
-        @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
-        #video-player { position: absolute; inset: 0; }
-        #video-player iframe { width: 100%; height: 100%; }
+    #video-player { position: absolute; inset: 0; }
+    #video-player iframe { width: 100%; height: 100%; }
 </style>
 
 <main style="display: flex; height: calc(100vh - 60px); gap: 0; background: #000814; color: #e2e8f0;">
@@ -59,37 +50,12 @@ require VIEWPATH.'/header.php';
         </header>
 
         <!-- Workspace Central -->
-        <div style="flex: 1; padding: 24px; overflow: auto;">
-            <div style="max-width: 1024px; margin: 0 auto;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px;">
-                    <div>
-                        <h1 style="font-size: 24px; font-weight: bold; margin: 0;">Workspace: Pipeline Alpha</h1>
-                        <p style="color: #94a3b8; margin: 4px 0 0 0;">Ambiente de laboratório para engenharia de dados</p>
-                    </div>
-                    <div style="font-size: 12px; color: #64748b; background: #0f172a; padding: 4px 12px; border-radius: 4px; border: 1px solid #1e293b;">
-                        STATUS: AGUARDANDO AÇÃO
-                    </div>
-                </div>
-
-                <!-- Terminal/Console INTERATIVO - Google Cloud Shell -->
-                <div style="background: #000; border-radius: 12px; border: 1px solid #1e293b; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); margin-top: 24px; display: flex; flex-direction: column;">
-                    <div style="background: #0f172a; padding: 8px 16px; border-bottom: 1px solid #1e293b; display: flex; align-items: center; gap: 8px; justify-content: space-between;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <svg width="14" height="14" fill="none" stroke="#64748b" stroke-width="2" viewBox="0 0 24 24">
-                                <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
-                            </svg>
-                            <span style="font-size: 12px; font-family: monospace; color: #94a3b8;">gcloud shell — my-dataflow-project</span>
-                        </div>
-                        <button onclick="clearTerminal()" style="background: #334155; color: #94a3b8; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">Clear</button>
-                    </div>
-                    <div id="terminal" style="padding: 12px; font-family: 'Courier New', monospace; font-size: 12px; height: 280px; overflow-y: auto; color: #22c55e; flex: 1;">
-                        <div style="color: #94a3b8;">Welcome to Google Cloud Shell! Type 'help' for commands.</div>
-                        <div style="margin-top: 8px;"><span style="color: #0ea5e9; font-weight: bold;">user@cloudshell</span>:<span style="color: #f59e0b;">~/datalake-air-flow</span>$ </div>
-                    </div>
-                    <div style="padding: 8px 12px; background: #000; border-top: 1px solid #1e293b; display: flex; align-items: center; gap: 6px;">
-                        <span style="color: #0ea5e9; font-family: monospace; font-size: 12px; font-weight: bold;">$</span>
-                        <input id="terminal-input" type="text" placeholder="Type command and press Enter..." style="flex: 1; background: #000; border: none; outline: none; font-family: 'Courier New', monospace; font-size: 12px; color: #22c55e;" />
-                    </div>
+        <div style="flex: 1; padding: 24px; overflow: auto; display: flex; align-items: center; justify-content: center;">
+            <div style="max-width: 800px; width: 100%; text-align: center;">
+                <h1 style="font-size: 32px; font-weight: bold; margin: 0 0 16px 0; color: #818cf8;">Monitor de Progresso UC</h1>
+                <p style="color: #94a3b8; font-size: 18px; margin: 0;">Acompanhe seu aprendizado com vídeos e tarefas práticas</p>
+                <div style="margin-top: 32px; padding: 24px; background: #0f172a; border: 1px solid #1e293b; border-radius: 12px;">
+                    <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0;">👈 Assista ao vídeo e complete as tarefas na barra lateral para ganhar XP e avançar no módulo.</p>
                 </div>
             </div>
         </div>
@@ -248,10 +214,6 @@ function executeCurrentTask() {
     const task = tasks[appState.activeTask];
     appState.points += task.points;
     
-    // Simular output no terminal
-    const terminalDynamic = document.getElementById('terminal-dynamic');
-    terminalDynamic.innerHTML = `<p style="color: #22c55e; margin: 4px 0;">[SUCCESS] Tarefa "${task.title}" concluída!</p>`;
-    
     appState.activeTask++;
     appState.progress = Math.round((appState.activeTask / tasks.length) * 100);
     
@@ -340,73 +302,7 @@ function onPlayerStateChange(event) {
     }
 }
 
-// ===================== TERMINAL (Google Cloud Shell) =====================
-const terminalCommands = {
-    'help': 'Available commands: git pull, git status, npm install, docker-compose up, ls, cat, clear',
-    'git pull': 'From https://github.com/seu-user/datalake-air-flow\n   abc1234..def5678  main       -> origin/main\nAlready up to date.',
-    'git status': 'On branch main\nYour branch is up to date with \'origin/main\'.\nnothing to commit, working tree clean',
-    'npm install': 'npm WARN deprecated some-package@1.0.0\nadded 256 packages from 423 contributors in 12.34s',
-    'docker-compose up': 'Creating network "datalake-air-flow_airflow_net" with driver "bridge"\nCreating mysql-dev        ... done\nCreating postgres-dev     ... done\nCreating codeigniter-app  ... done\nAttaching to containers...',
-    'ls': 'app/              backup.sql         docker-compose.yml  docker-compose.override.yml\nassets/           docs/              Dockerfile         .gitignore\nsrc/              DEPLOY_GUIDE.md    .env                vendor/',
-    'cat .env': 'CI_ENVIRONMENT=development\nAPP_DEBUG=true\nAPP_URL=http://localhost:8088\nDB_HOST=mysql\nDB_USER=root\nDB_PASS=root\nDB_NAME=lista_revisao2',
-    'pwd': '/home/user/datalake-air-flow',
-    'php spark migrate': '[2026-02-06 14:30:00] Running Migrations:\n  - Migration_2026_02_06_000001_CreateVideoProgressTable\n  - Migration_2026_02_06_000002_CreateUcProgressTable\n✓ All migrations completed successfully'
-};
 
-function processTerminalCommand(cmd) {
-    const terminal = document.getElementById('terminal');
-    const input = document.getElementById('terminal-input');
-    
-    const commandLower = cmd.toLowerCase().trim();
-    let output = terminalCommands[commandLower] || `Command not found: ${cmd}. Type 'help' for available commands.`;
-    
-    // Adicionar comando
-    const cmdLine = document.createElement('div');
-    cmdLine.style.marginTop = '8px';
-    cmdLine.innerHTML = `<span style="color: #0ea5e9; font-weight: bold;">user@cloudshell</span>:<span style="color: #f59e0b;">~/datalake-air-flow</span>$ <span style="color: #22c55e;">${cmd}</span>`;
-    terminal.appendChild(cmdLine);
-    
-    // Simular delay de execução
-    setTimeout(() => {
-        const outputLine = document.createElement('div');
-        outputLine.style.color = '#f1f5f9';
-        outputLine.style.marginTop = '4px';
-        outputLine.style.whiteSpace = 'pre-wrap';
-        outputLine.textContent = output;
-        terminal.appendChild(outputLine);
-        
-        // Adicionar novo prompt
-        const newPrompt = document.createElement('div');
-        newPrompt.style.marginTop = '8px';
-        newPrompt.innerHTML = `<span style="color: #0ea5e9; font-weight: bold;">user@cloudshell</span>:<span style="color: #f59e0b;">~/datalake-air-flow</span>$ `;
-        terminal.appendChild(newPrompt);
-        
-        // Scroll para o fundo
-        terminal.scrollTop = terminal.scrollHeight;
-        input.value = '';
-        input.focus();
-    }, 500);
-}
-
-function clearTerminal() {
-    const terminal = document.getElementById('terminal');
-    terminal.innerHTML = '<div style="color: #94a3b8;">Terminal cleared.</div><div style="margin-top: 8px;"><span style="color: #0ea5e9; font-weight: bold;">user@cloudshell</span>:<span style="color: #f59e0b;">~/datalake-air-flow</span>$ </div>';
-}
-
-// Capturar Enter no terminal
-document.addEventListener('DOMContentLoaded', function() {
-    const terminalInput = document.getElementById('terminal-input');
-    if (terminalInput) {
-        terminalInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                const cmd = this.value.trim();
-                if (cmd) {
-                    processTerminalCommand(cmd);
-                }
-            }
-        });
-    }
-});
 
 </script>
 

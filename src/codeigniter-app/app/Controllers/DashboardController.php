@@ -242,19 +242,33 @@ class DashboardController extends BaseController
             : 0;
         
         // ========== 3. PROGRESSO DOS ALUNOS NO CURSO ==========
-        // Total de tarefas disponíveis
-        $totalTasks = $db->table('uc_definition')
-            ->where('is_active', 1)
-            ->countAllResults();
-        
-        // Total de tarefas concluídas
-        $completedTasks = $db->table('uc_progress')
-            ->where('completed', 1)
-            ->countAllResults();
-        
-        $courseProgressPercent = $totalTasks > 0
-            ? round(($completedTasks / $totalTasks) * 100, 2)
-            : 0;
+            // ========== 3. PROGRESSO GERAL DOS ALUNOS ==========
+            // Calcula a média de progresso dos alunos com status_assinatura 'trial' ou 'active'
+            $progressQuery = $db->query("
+                SELECT AVG(percentual) as media_progresso
+                FROM (
+                    SELECT 
+                        u.id,
+                        u.nome,
+                        u.status_assinatura,
+                        COUNT(DISTINCT uc.id) as total_tarefas,
+                        COUNT(DISTINCT CASE WHEN up.completed = 1 THEN up.uc_definition_id END) as tarefas_concluidas,
+                        CASE 
+                            WHEN COUNT(DISTINCT uc.id) = 0 THEN 0
+                            ELSE ROUND((COUNT(DISTINCT CASE WHEN up.completed = 1 THEN up.uc_definition_id END) / COUNT(DISTINCT uc.id)) * 100, 2)
+                        END as percentual
+                    FROM usuario u
+                    LEFT JOIN course c ON 1=1
+                    LEFT JOIN module m ON m.course_id = c.id AND m.is_active = 1
+                    LEFT JOIN video v ON v.module_id = m.id AND v.is_active = 1
+                    LEFT JOIN uc_definition uc ON uc.video_id = v.id AND uc.is_active = 1
+                    LEFT JOIN uc_progress up ON up.user_id = u.id AND up.uc_definition_id = uc.id
+                    WHERE u.status_assinatura IN ('trial', 'active')
+                    GROUP BY u.id
+                ) as sub
+            ");
+            $courseProgressPercent = $progressQuery->getRow()->media_progresso ?? 0;
+            $courseProgressPercent = round($courseProgressPercent, 2);
         
         // Estatísticas detalhadas de curso
         $courseStats = $db->query("
@@ -266,13 +280,26 @@ class DashboardController extends BaseController
                 COUNT(DISTINCT uc.id) as total_tasks,
                 COALESCE(SUM(uc.xp_points), 0) as total_xp_available,
                 COUNT(DISTINCT CASE WHEN up.completed = 1 THEN up.id END) as completed_tasks_count,
-                COALESCE(SUM(CASE WHEN up.completed = 1 THEN uc.xp_points ELSE 0 END), 0) as total_xp_earned
+                (
+                    SELECT AVG(xp_ganho) FROM (
+                        SELECT COALESCE(SUM(CASE WHEN up2.completed = 1 THEN uc2.xp_points ELSE 0 END), 0) as xp_ganho
+                        FROM usuario u2
+                        LEFT JOIN course c2 ON c2.is_active = 1
+                        LEFT JOIN module m2 ON m2.course_id = c2.id AND m2.is_active = 1
+                        LEFT JOIN video v2 ON v2.module_id = m2.id AND v2.is_active = 1
+                        LEFT JOIN uc_definition uc2 ON uc2.video_id = v2.id AND uc2.is_active = 1
+                        LEFT JOIN uc_progress up2 ON up2.user_id = u2.id AND up2.uc_definition_id = uc2.id
+                        WHERE u2.status_assinatura IN ('trial', 'active')
+                        GROUP BY u2.id
+                    ) as sub
+                ) as total_xp_earned
             FROM usuario u
             LEFT JOIN course c ON c.is_active = 1
             LEFT JOIN module m ON m.course_id = c.id AND m.is_active = 1
             LEFT JOIN video v ON v.module_id = m.id AND v.is_active = 1
             LEFT JOIN uc_definition uc ON uc.video_id = v.id AND uc.is_active = 1
             LEFT JOIN uc_progress up ON up.user_id = u.id AND up.uc_definition_id = uc.id
+            WHERE u.status_assinatura IN ('trial', 'active')
         ")->getRow();
         
         // ========== 4. ALUNOS ATIVOS NOS ÚLTIMOS 7 DIAS ==========
@@ -320,7 +347,22 @@ class DashboardController extends BaseController
                 COUNT(DISTINCT v.id) as video_count,
                 COUNT(DISTINCT uc.id) as task_count,
                 COALESCE(SUM(uc.xp_points), 0) as total_xp,
-                COUNT(DISTINCT CASE WHEN up.completed = 1 THEN up.id END) as completed_count,
+                (
+                    SELECT AVG(percentual) FROM (
+                        SELECT 
+                            u.id as aluno_id,
+                            CASE WHEN COUNT(DISTINCT uc2.id) = 0 THEN 0
+                                 ELSE ROUND((COUNT(DISTINCT CASE WHEN up2.completed = 1 THEN up2.uc_definition_id END) / COUNT(DISTINCT uc2.id)) * 100, 2)
+                            END as percentual
+                        FROM usuario u
+                        LEFT JOIN module m2 ON m2.course_id = c.id AND m2.is_active = 1
+                        LEFT JOIN video v2 ON v2.module_id = m2.id AND v2.is_active = 1
+                        LEFT JOIN uc_definition uc2 ON uc2.video_id = v2.id AND uc2.is_active = 1
+                        LEFT JOIN uc_progress up2 ON up2.user_id = u.id AND up2.uc_definition_id = uc2.id
+                        WHERE u.status_assinatura IN ('trial', 'active')
+                        GROUP BY u.id
+                    ) as sub
+                ) as media_progresso,
                 COALESCE(SUM(CASE WHEN up.completed = 1 THEN uc.xp_points ELSE 0 END), 0) as earned_xp
             FROM course c
             LEFT JOIN module m ON m.course_id = c.id AND m.is_active = 1
@@ -329,7 +371,7 @@ class DashboardController extends BaseController
             LEFT JOIN uc_progress up ON up.uc_definition_id = uc.id
             WHERE c.is_active = 1
             GROUP BY c.id
-            ORDER BY earned_xp DESC
+            ORDER BY media_progresso DESC
         ")->getResult();
         
         $data = [

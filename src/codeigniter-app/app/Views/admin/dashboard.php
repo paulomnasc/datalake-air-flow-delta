@@ -284,12 +284,12 @@ require VIEWPATH.'/header.php';
 
             <div class="stat-card info">
                 <div class="stat-icon">⭐</div>
-                <div class="stat-value" title="Soma dos pontos XP das tarefas concluídas.">
+                <div class="stat-value" title="Média de XP ganho por aluno (trial ou active)">
                     <?php echo number_format($total_xp_earned); ?>
                 </div>
                 <div class="stat-label">
-                    XP Total Ganho
-                    <span title="Fórmula: SUM(xp_points) WHERE tarefa concluída">🛈</span>
+                    XP Médio Ganho por Aluno
+                    <span title="Fórmula: AVG(SUM(xp_points) WHERE tarefa concluída por aluno)">🛈</span>
                 </div>
                 <div class="stat-secondary">
                     De <?php echo number_format($total_xp_available); ?> XP disponíveis
@@ -415,8 +415,8 @@ require VIEWPATH.'/header.php';
             <h2 class="section-title">📚 Progresso por Curso</h2>
             <?php if (!empty($courses_progress)): ?>
                 <?php foreach ($courses_progress as $course): 
-                    $progressPercent = $course->task_count > 0 
-                        ? round(($course->completed_count / $course->task_count) * 100, 2) 
+                    $progressPercent = isset($course->media_progresso) 
+                        ? round($course->media_progresso, 2) 
                         : 0;
                 ?>
                     <div style="margin-bottom: 32px;">

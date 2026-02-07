@@ -201,6 +201,9 @@ $routes->get('sitemap.xml', 'SitemapController::index');
 // ========== ADMIN PANEL - COURSE MANAGEMENT (Admin Only) ==========
 $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
     
+    // Dashboard
+    $routes->get('dashboard', 'DashboardController::admin', ['as' => 'admin.dashboard']);
+    
     // Courses
     $routes->get('courses', 'ProgressAdminController::indexCourses', ['as' => 'admin.courses.index']);
     $routes->post('courses/add', 'ProgressAdminController::addCourse', ['as' => 'admin.courses.add']);

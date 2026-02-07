@@ -215,4 +215,147 @@ class DashboardController extends BaseController
             ->setHeader('Pragma', 'no-cache')
             ->setBody(file_get_contents($filePath));
     }
+
+    /**
+     * Dashboard Administrativo
+     * Exibe estatísticas gerais do sistema para admins
+     */
+    public function admin()
+    {
+        $db = \Config\Database::connect();
+        
+        // ========== 1. TOTAL DE USUÁRIOS ==========
+        $totalUsers = $db->table('usuario')
+            ->countAllResults();
+        
+        // ========== 2. USUÁRIOS COM FLUXOS (DAG_CONFIGURATIONS) ==========
+        // Busca usuários que têm pelo menos 1 dag_configuration
+        $usersWithFlows = $db->query("
+            SELECT COUNT(DISTINCT u.id) as total
+            FROM usuario u
+            INNER JOIN pasta p ON p.id_usuario = u.id
+            INNER JOIN dag_configurations d ON d.id_pasta = p.id
+        ")->getRow()->total;
+        
+        $percentUsersWithFlows = $totalUsers > 0 
+            ? round(($usersWithFlows / $totalUsers) * 100, 2) 
+            : 0;
+        
+        // ========== 3. PROGRESSO DOS ALUNOS NO CURSO ==========
+        // Total de tarefas disponíveis
+        $totalTasks = $db->table('uc_definition')
+            ->where('is_active', 1)
+            ->countAllResults();
+        
+        // Total de tarefas concluídas
+        $completedTasks = $db->table('uc_progress')
+            ->where('completed', 1)
+            ->countAllResults();
+        
+        $courseProgressPercent = $totalTasks > 0
+            ? round(($completedTasks / $totalTasks) * 100, 2)
+            : 0;
+        
+        // Estatísticas detalhadas de curso
+        $courseStats = $db->query("
+            SELECT 
+                COUNT(DISTINCT u.id) as total_students,
+                COUNT(DISTINCT c.id) as total_courses,
+                COUNT(DISTINCT m.id) as total_modules,
+                COUNT(DISTINCT v.id) as total_videos,
+                COUNT(DISTINCT uc.id) as total_tasks,
+                COALESCE(SUM(uc.xp_points), 0) as total_xp_available,
+                COUNT(DISTINCT CASE WHEN up.completed = 1 THEN up.id END) as completed_tasks_count,
+                COALESCE(SUM(CASE WHEN up.completed = 1 THEN uc.xp_points ELSE 0 END), 0) as total_xp_earned
+            FROM usuario u
+            LEFT JOIN course c ON c.is_active = 1
+            LEFT JOIN module m ON m.course_id = c.id AND m.is_active = 1
+            LEFT JOIN video v ON v.module_id = m.id AND v.is_active = 1
+            LEFT JOIN uc_definition uc ON uc.video_id = v.id AND uc.is_active = 1
+            LEFT JOIN uc_progress up ON up.user_id = u.id AND up.uc_definition_id = uc.id
+        ")->getRow();
+        
+        // ========== 4. ALUNOS ATIVOS NOS ÚLTIMOS 7 DIAS ==========
+        $recentActivities = $db->query("
+            SELECT 
+                u.id as user_id,
+                u.nome as user_name,
+                u.email,
+                COUNT(al.id) as activity_count,
+                MAX(al.created_at) as last_activity
+            FROM usuario u
+            INNER JOIN activity_logs al ON al.user_id = u.id
+            WHERE al.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            GROUP BY u.id
+            ORDER BY last_activity DESC
+            LIMIT 20
+        ")->getResult();
+        
+        // Total de alunos ativos nos últimos 7 dias
+        $activeUsersLast7Days = count($recentActivities);
+        
+        // ========== 5. RANKING DE ALUNOS POR XP ==========
+        $topStudents = $db->query("
+            SELECT 
+                u.id,
+                u.nome,
+                u.email,
+                COALESCE(SUM(CASE WHEN up.completed = 1 THEN uc.xp_points ELSE 0 END), 0) as total_xp,
+                COUNT(DISTINCT CASE WHEN up.completed = 1 THEN up.uc_definition_id END) as tasks_completed
+            FROM usuario u
+            LEFT JOIN uc_progress up ON up.user_id = u.id
+            LEFT JOIN uc_definition uc ON uc.id = up.uc_definition_id
+            GROUP BY u.id
+            HAVING total_xp > 0
+            ORDER BY total_xp DESC
+            LIMIT 10
+        ")->getResult();
+        
+        // ========== 6. CURSOS COM MAIS PROGRESSO ==========
+        $coursesProgress = $db->query("
+            SELECT 
+                c.id,
+                c.name as course_name,
+                COUNT(DISTINCT m.id) as module_count,
+                COUNT(DISTINCT v.id) as video_count,
+                COUNT(DISTINCT uc.id) as task_count,
+                COALESCE(SUM(uc.xp_points), 0) as total_xp,
+                COUNT(DISTINCT CASE WHEN up.completed = 1 THEN up.id END) as completed_count,
+                COALESCE(SUM(CASE WHEN up.completed = 1 THEN uc.xp_points ELSE 0 END), 0) as earned_xp
+            FROM course c
+            LEFT JOIN module m ON m.course_id = c.id AND m.is_active = 1
+            LEFT JOIN video v ON v.module_id = m.id AND v.is_active = 1
+            LEFT JOIN uc_definition uc ON uc.video_id = v.id AND uc.is_active = 1
+            LEFT JOIN uc_progress up ON up.uc_definition_id = uc.id
+            WHERE c.is_active = 1
+            GROUP BY c.id
+            ORDER BY earned_xp DESC
+        ")->getResult();
+        
+        $data = [
+            // Estatísticas gerais
+            'total_users' => $totalUsers,
+            'users_with_flows' => $usersWithFlows,
+            'percent_users_with_flows' => $percentUsersWithFlows,
+            'active_users_last_7_days' => $activeUsersLast7Days,
+            
+            // Estatísticas de curso
+            'course_progress_percent' => $courseProgressPercent,
+            'total_students' => $courseStats->total_students ?? 0,
+            'total_courses' => $courseStats->total_courses ?? 0,
+            'total_modules' => $courseStats->total_modules ?? 0,
+            'total_videos' => $courseStats->total_videos ?? 0,
+            'total_tasks' => $courseStats->total_tasks ?? 0,
+            'total_xp_available' => $courseStats->total_xp_available ?? 0,
+            'completed_tasks_count' => $courseStats->completed_tasks_count ?? 0,
+            'total_xp_earned' => $courseStats->total_xp_earned ?? 0,
+            
+            // Dados detalhados
+            'recent_activities' => $recentActivities,
+            'top_students' => $topStudents,
+            'courses_progress' => $coursesProgress,
+        ];
+        
+        return view('admin/dashboard', $data);
+    }
 }

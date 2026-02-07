@@ -21,14 +21,15 @@ CREATE TABLE IF NOT EXISTS uc_progress (
     KEY idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Remove constraint se existir
 ALTER TABLE uc_progress ADD CONSTRAINT fk_uc_progress_definition 
 FOREIGN KEY (uc_definition_id) REFERENCES uc_definition(id) ON DELETE CASCADE;
 
 -- Índice composto para queries por aluno
-CREATE INDEX idx_user_created ON uc_progress(user_id, created_at DESC);
+-- CREATE INDEX idx_user_created ON uc_progress(user_id, created_at DESC);
 
 -- Índice para ordenar por data de conclusão
-CREATE INDEX idx_completed_at ON uc_progress(user_id, completed_at DESC);
+-- CREATE INDEX idx_completed_at ON uc_progress(user_id, completed_at DESC);
 
 -- Comentário da tabela
 ALTER TABLE uc_progress COMMENT='Rastreamento de progresso de alunos em Unidades de Competência. Cada linha é instância de um aluno completando uma UC específica.';

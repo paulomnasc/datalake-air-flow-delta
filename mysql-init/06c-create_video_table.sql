@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS video (
     duration_seconds INT UNSIGNED COMMENT 'Duração em segundos (ex: 425)',
     video_order INT DEFAULT 0 COMMENT 'Ordem de exibição dentro do módulo',
     is_active TINYINT(1) DEFAULT 1 COMMENT 'Se o vídeo está disponível',
-    created_by INT UNSIGNED COMMENT 'ID do admin que criou',
+    created_by tinyint unsigned COMMENT 'ID do admin que criou',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     

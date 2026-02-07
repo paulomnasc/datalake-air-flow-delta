@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS uc_definition (
     xp_points INT UNSIGNED DEFAULT 100 COMMENT 'Pontos ganhos ao completar (+100 XP)',
     is_active TINYINT(1) DEFAULT 1 COMMENT 'Se a UC está disponível para alunos',
     `order` INT DEFAULT 0 COMMENT 'Ordem de exibição/progressão das UCs',
-    created_by INT UNSIGNED COMMENT 'ID do admin que criou',
+    created_by tinyint unsigned COMMENT 'ID do admin que criou',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
@@ -28,5 +28,5 @@ COMMENT='Template/Definição de Unidades de Competência disponíveis por víde
 ALTER TABLE uc_definition ADD CONSTRAINT fk_uc_definition_video 
 FOREIGN KEY (video_id) REFERENCES video(id) ON DELETE CASCADE;
 
-ALTER TABLE uc_definition ADD CONSTRAINT fk_uc_definition_created_by 
-FOREIGN KEY (created_by) REFERENCES usuario(id) ON DELETE SET NULL;
+-- ALTER TABLE uc_definition ADD CONSTRAINT fk_uc_definition_created_by 
+-- FOREIGN KEY (created_by) REFERENCES usuario(id) ON DELETE SET NULL;

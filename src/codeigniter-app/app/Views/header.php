@@ -167,26 +167,28 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-KD72GH3P');</script>
-    <!-- End Google Tag Manager -->
-    
-    <!-- Google Analytics 4 - DEVE SER O PRIMEIRO SCRIPT -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-P312EQG53Y"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            // Tag myflow.estudotabelas.com.br
-            gtag('config', 'G-P312EQG53Y', {
+    <?php if (empty($_SESSION['is_admin'])): ?>
+        <!-- Google Tag Manager -->
+        <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-KD72GH3P');</script>
+        <!-- End Google Tag Manager -->
+        
+        <!-- Google Analytics 4 - DEVE SER O PRIMEIRO SCRIPT -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-P312EQG53Y"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                // Tag myflow.estudotabelas.com.br
+                gtag('config', 'G-P312EQG53Y', {
+                    'cookie_flags': 'SameSite=None;Secure'
+            });
+            // Tag estudotabelas.com.br
+            gtag('config', 'G-SSKK91YY74', {
                 'cookie_flags': 'SameSite=None;Secure'
-        });
-        // Tag estudotabelas.com.br
-        gtag('config', 'G-SSKK91YY74', {
-            'cookie_flags': 'SameSite=None;Secure'
-        });
-    </script>
-    <!-- FIM Google Analytics 4 -->
+            });
+        </script>
+        <!-- FIM Google Analytics 4 -->
+    <?php endif; ?>
     
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

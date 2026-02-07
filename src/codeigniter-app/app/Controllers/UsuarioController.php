@@ -38,6 +38,7 @@ class UsuarioController extends BaseController
         $_SESSION['perfil_usuario_logado'] = null;
         $_SESSION['email_usuario_logado'] = null;
         $_SESSION['usuario_logado'] = 0;
+        unset($_SESSION['is_admin']);
         return view('frmLogin');
     }
 
@@ -59,6 +60,7 @@ class UsuarioController extends BaseController
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['email_usuario_logado'] = $usuario->email;
                 $_SESSION['usuario_logado'] = 1;
+                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
                 
                 // Registra evento de login
                 try {
@@ -205,6 +207,7 @@ class UsuarioController extends BaseController
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['email_usuario_logado'] = $usuario->email;
                 $_SESSION['usuario_logado'] = 1;
+                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
                 
                 // Sincroniza funções Python do usuário (garante que tem as funções padrão)
                 try {
@@ -304,6 +307,7 @@ class UsuarioController extends BaseController
                 $_SESSION['nome_usuario_logado'] = $usuario->nome;
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['usuario_logado'] = 1;
+                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
                 
                 // Redireciona para a tela listQuadro após o login anônimo
                 return redirect()->route('listQuadro');
@@ -890,6 +894,7 @@ class UsuarioController extends BaseController
                 $_SESSION['nome_usuario_logado'] = $usuario->nome;
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['usuario_logado'] = 1;
+                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
                 
                 $db = \Config\Database::connect();
                 $db->transStart();   

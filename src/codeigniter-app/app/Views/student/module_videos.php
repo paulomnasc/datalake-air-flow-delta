@@ -106,6 +106,57 @@ require VIEWPATH.'/header.php';
     font-size: 12px;
     font-weight: bold;
 }
+
+.module-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.summary-card {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    text-align: center;
+    border-top: 4px solid #4f46e5;
+}
+
+.summary-card.completed {
+    border-top-color: #10b981;
+}
+
+.summary-value {
+    font-size: 32px;
+    font-weight: bold;
+    color: #333;
+    margin: 10px 0;
+}
+
+.summary-label {
+    font-size: 14px;
+    color: #666;
+    font-weight: 500;
+}
+
+.progress-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 15px auto;
+    font-size: 28px;
+    font-weight: bold;
+    color: white;
+    background: conic-gradient(#4f46e5 0%, #4f46e5 var(--progress), #e0e7ff var(--progress));
+}
+
+.progress-circle.completed {
+    background: conic-gradient(#10b981 0%, #10b981 100%);
+}
 </style>
 
 <div id="content">
@@ -123,6 +174,46 @@ require VIEWPATH.'/header.php';
                     <?php echo esc($module['description']); ?>
                 </p>
             <?php endif; ?>
+        </div>
+
+        <?php 
+        // Calcular estatísticas do módulo
+        $totalVideos = count($videos);
+        $totalTasks = 0;
+        $completedTasks = 0;
+        $totalXp = 0;
+        $completedXp = 0;
+        
+        foreach($videos as $video) {
+            $totalTasks += isset($video['uc_count']) ? $video['uc_count'] : 0;
+            $totalXp += isset($video['total_xp']) ? $video['total_xp'] : 0;
+            if(isset($video['uc_completed'])) {
+                $completedTasks += $video['uc_completed'];
+                $completedXp += isset($video['xp_earned']) ? $video['xp_earned'] : 0;
+            }
+        }
+        
+        $completionPercent = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0;
+        $isModuleCompleted = $completionPercent === 100;
+        ?>
+
+        <div class="module-summary">
+            <div class="summary-card <?php echo $isModuleCompleted ? 'completed' : ''; ?>">
+                <div class="summary-label">Progresso</div>
+                <div class="progress-circle" style="--progress: <?php echo $completionPercent; ?>%;" class="<?php echo $isModuleCompleted ? 'completed' : ''; ?>">
+                    <?php echo $completionPercent; ?>%
+                </div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Tarefas Concluídas</div>
+                <div class="summary-value"><?php echo $completedTasks; ?>/<?php echo $totalTasks; ?></div>
+                <small style="color: #999;"><?php echo $totalTasks; ?> tarefas totais</small>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">XP Ganho</div>
+                <div class="summary-value" style="color: #ffd700;"><?php echo $completedXp; ?>/<?php echo $totalXp; ?></div>
+                <small style="color: #999;">⭐ <?php echo $totalXp; ?> XP disponíveis</small>
+            </div>
         </div>
 
         <h2 style="color: #333; margin-bottom: 30px;">🎬 Vídeos do Módulo</h2>

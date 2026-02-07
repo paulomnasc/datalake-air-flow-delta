@@ -22,6 +22,27 @@ require VIEWPATH.'/header.php';
     text-decoration: none;
 }
 
+.back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #4f46e5;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    margin-bottom: 20px;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+}
+
+.back-button:hover {
+    background: #3730a3;
+    transform: translateX(-4px);
+}
+
 .video-layout {
     display: grid;
     grid-template-columns: 2fr 1fr;
@@ -183,14 +204,72 @@ require VIEWPATH.'/header.php';
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
 }
+
+.xp-earned-panel {
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+.xp-earned-panel h3 {
+    margin: 0 0 10px 0;
+    color: #333;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.xp-progress {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.xp-progress-bar {
+    flex: 1;
+    height: 20px;
+    background: rgba(0,0,0,0.1);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.xp-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ffd700, #ffaa00);
+    transition: width 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.xp-progress-value {
+    color: #333;
+    font-weight: bold;
+    min-width: 80px;
+    text-align: right;
+}
+
+.video-main.completed-video {
+    background: #c8e6c9 !important;
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.2);
+}
 </style>
 
 <div id="content">
     <div class="video-player-container">
-        <div class="breadcrumb">
-            <a href="<?php echo site_url('cursos'); ?>">Cursos</a> / 
-            <a href="<?php echo site_url('curso/' . $course['id']); ?>"><?php echo esc($course['name']); ?></a> /
-            <a href="<?php echo site_url('modulo/' . $module['id']); ?>">Módulo <?php echo esc($module['module_number']); ?></a>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div class="breadcrumb">
+                <a href="<?php echo site_url('cursos'); ?>">Cursos</a> / 
+                <a href="<?php echo site_url('curso/' . $course['id']); ?>"><?php echo esc($course['name']); ?></a> /
+                <a href="<?php echo site_url('modulo/' . $module['id']); ?>">Módulo <?php echo esc($module['module_number']); ?></a>
+            </div>
+            <a href="<?php echo site_url('modulo/' . $module['id']); ?>" class="back-button">
+                ← Voltar
+            </a>
         </div>
 
         <div class="video-layout">
@@ -252,11 +331,37 @@ require VIEWPATH.'/header.php';
                     ✅ Tarefas do Vídeo
                 </div>
 
+                <?php 
+                // Calcular XPs adquiridas
+                $earnedXp = 0;
+                $completedCount = 0;
+                foreach($ucs as $uc) {
+                    if(isset($uc['completed']) && $uc['completed']) {
+                        $earnedXp += $uc['xp_points'];
+                        $completedCount++;
+                    }
+                }
+                $xpPercentage = $totalXp > 0 ? round(($earnedXp / $totalXp) * 100) : 0;
+                $isCompleted = $xpPercentage === 100;
+                ?>
+
                 <?php if($totalXp > 0): ?>
-                    <div class="xp-total">
-                        ⭐ <?php echo $totalXp; ?> XP Disponíveis
+                    <div class="xp-earned-panel" id="xp-earned-panel">
+                        <h3>⭐ Seus XPs</h3>
+                        <div class="xp-progress">
+                            <div class="xp-progress-bar">
+                                <div class="xp-progress-fill" style="width: <?php echo $xpPercentage; ?>%;">
+                                    <?php if($xpPercentage > 5): ?><?php echo $xpPercentage; ?>%<?php endif; ?>
+                                </div>
+                            </div>
+                            <div class="xp-progress-value"><?php echo $earnedXp; ?>/<?php echo $totalXp; ?></div>
+                        </div>
                     </div>
                 <?php endif; ?>
+
+                <div class="xp-total">
+                    ⭐ <?php echo $totalXp; ?> XP Disponíveis
+                </div>
 
                 <?php if(empty($ucs)): ?>
                     <div style="text-align: center; padding: 40px 20px; color: #999;">
@@ -329,6 +434,9 @@ require VIEWPATH.'/header.php';
 
 <script>
 $(document).ready(function() {
+    // Inicializar painel de XPs e verificar se 100% completo
+    updateXpPanel();
+    
     // Tracking de progresso de UC
     $('.uc-checkbox').on('change', function() {
         var ucId = $(this).data('uc-id');
@@ -355,11 +463,17 @@ $(document).ready(function() {
                         
                         // Mostrar notificação de XP ganho
                         showXpNotification(xpPoints);
+                        
+                        // Atualizar painel de XPs e mudar cor se 100%
+                        updateXpPanel();
                     } else {
                         $card.removeClass('completed');
                         var taskNumber = $card.find('.uc-checkbox').closest('.task-card').index() + 1;
                         $card.find('.task-number').text(taskNumber);
                         $card.find('.task-checkbox span').text('Marcar como concluída');
+                        
+                        // Atualizar painel de XPs
+                        updateXpPanel();
                     }
                 } else {
                     console.error('[UCProgress] Erro do servidor:', result.message);
@@ -391,6 +505,39 @@ $(document).ready(function() {
             }.bind(this)
         });
     });
+
+    function updateXpPanel() {
+        // Calcular XPs adquiridos
+        var totalXp = 0;
+        var earnedXp = 0;
+        
+        $('.uc-checkbox').each(function() {
+            var xpPoints = $(this).data('xp');
+            totalXp += xpPoints;
+            
+            if($(this).is(':checked')) {
+                earnedXp += xpPoints;
+            }
+        });
+        
+        var xpPercentage = totalXp > 0 ? Math.round((earnedXp / totalXp) * 100) : 0;
+        
+        // Atualizar painel de XPs
+        var $panel = $('#xp-earned-panel');
+        if($panel.length > 0) {
+            $panel.find('.xp-progress-fill').css('width', xpPercentage + '%');
+            $panel.find('.xp-progress-fill').html(xpPercentage > 5 ? xpPercentage + '%' : '');
+            $panel.find('.xp-progress-value').text(earnedXp + '/' + totalXp);
+        }
+        
+        // Verificar se está 100% completo
+        var $videoMain = $('.video-main');
+        if(xpPercentage === 100 && totalXp > 0) {
+            $videoMain.addClass('completed-video');
+        } else {
+            $videoMain.removeClass('completed-video');
+        }
+    }
 
     function showXpNotification(xp) {
         var notification = $('<div>')

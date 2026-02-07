@@ -53,15 +53,21 @@ class CursoController extends BaseController
     {
         $courseModel = new CourseModel();
         $moduleModel = new ModuleModel();
-        
+        $videoModel = new VideoModel();
+
         $data['course'] = $courseModel->find($courseId);
-        
+
         if (!$data['course'] || !$data['course']['is_active']) {
             return redirect()->to('/cursos')->with('error', 'Curso não encontrado ou não disponível.');
         }
-        
-        $data['modules'] = $moduleModel->getModulesByCourse($courseId);
-        
+
+        $modules = $moduleModel->getModulesByCourse($courseId);
+        // Adiciona o campo video_count em cada módulo
+        foreach ($modules as &$module) {
+            $module['video_count'] = $videoModel->countByModule($module['id']);
+        }
+        $data['modules'] = $modules;
+
         return view('student/course_modules', $data);
     }
 

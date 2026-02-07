@@ -371,6 +371,71 @@ require VIEWPATH.'/header.php';
         <!-- Atividades Recentes -->
         <div class="content-section">
             <h2 class="section-title">🔥 Alunos Ativos (Últimos 7 Dias)</h2>
+            <!-- Gráfico de barras dos últimos 7 dias -->
+            <canvas id="activeUsersChart" height="80" style="margin-bottom:32px;"></canvas>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <script>
+                // Gera os dados para o gráfico a partir do PHP
+                <?php
+                // Inicializa array de datas e contagem
+                $days = [];
+                $counts = [];
+                $dateMap = [];
+                for ($i = 6; $i >= 0; $i--) {
+                    $date = (new DateTime("-$i days"))->format('Y-m-d');
+                    $days[] = (new DateTime("-$i days"))->format('d/m');
+                    $dateMap[$date] = 0;
+                }
+                // Conta quantos usuários únicos tiveram atividade em cada dia
+                if (!empty($recent_activities)) {
+                    foreach ($recent_activities as $activity) {
+                        $last = (new DateTime($activity->last_activity))->format('Y-m-d');
+                        if (isset($dateMap[$last])) {
+                            $dateMap[$last]++;
+                        }
+                    }
+                }
+                foreach ($dateMap as $count) {
+                    $counts[] = $count;
+                }
+                ?>
+                const ctx = document.getElementById('activeUsersChart').getContext('2d');
+                const activeUsersChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: <?php echo json_encode($days); ?>,
+                        datasets: [{
+                            label: 'Alunos ativos por dia',
+                            data: <?php echo json_encode($counts); ?>,
+                            backgroundColor: 'rgba(102, 126, 234, 0.7)',
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            borderWidth: 2,
+                            borderRadius: 6,
+                            maxBarThickness: 40
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.parsed.y + ' aluno(s) ativo(s)';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { stepSize: 1, precision: 0 }
+                            }
+                        }
+                    }
+                });
+            </script>
+            <!-- Lista de atividades recentes -->
             <?php if (!empty($recent_activities)): ?>
                 <div class="activity-list">
                     <?php foreach ($recent_activities as $activity): ?>
@@ -386,7 +451,6 @@ require VIEWPATH.'/header.php';
                                         $lastActivity = new DateTime($activity->last_activity);
                                         $now = new DateTime();
                                         $diff = $now->diff($lastActivity);
-                                        
                                         if ($diff->d > 0) {
                                             echo $diff->d . ' dia' . ($diff->d > 1 ? 's' : '') . ' atrás';
                                         } elseif ($diff->h > 0) {

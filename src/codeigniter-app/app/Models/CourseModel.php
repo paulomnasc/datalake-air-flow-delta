@@ -34,7 +34,7 @@ class CourseModel extends Model
 
     // Validation
     protected $validationRules = [
-        'course_id' => 'required|max_length[50]|is_unique[course.course_id,id,{id}]',
+        'course_id' => 'required|max_length[50]', // Remove is_unique para update
         'name' => 'required|max_length[255]',
         'color' => 'permit_empty|max_length[7]',
         'order' => 'permit_empty|integer',

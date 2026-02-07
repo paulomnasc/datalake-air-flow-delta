@@ -29,8 +29,20 @@ class CursoController extends BaseController
     public function index()
     {
         $courseModel = new CourseModel();
-        $data['courses'] = $courseModel->getActiveCourses();
-        
+        $moduleModel = new ModuleModel();
+        $videoModel = new VideoModel();
+
+        $courses = $courseModel->getActiveCourses();
+        foreach ($courses as &$course) {
+            $modules = $moduleModel->where('course_id', $course['id'])->where('is_active', 1)->findAll();
+            $course['module_count'] = count($modules);
+            $videoCount = 0;
+            foreach ($modules as $module) {
+                $videoCount += $videoModel->where('module_id', $module['id'])->where('is_active', 1)->countAllResults();
+            }
+            $course['video_count'] = $videoCount;
+        }
+        $data['courses'] = $courses;
         return view('student/courses_list', $data);
     }
 

@@ -166,6 +166,7 @@ require VIEWPATH.'/header.php';
                 <a href="<?php echo site_url('cursos'); ?>">Cursos</a> / 
                 <a href="<?php echo site_url('curso/' . $course['id']); ?>"><?php echo esc($course['name']); ?></a>
             </div>
+            <a href="<?php echo site_url('cursos'); ?>" style="display: inline-block; margin-bottom: 18px; color: #fff; background: #4f46e5; padding: 8px 18px; border-radius: 6px; font-weight: bold; text-decoration: none;">← Voltar para Cursos</a>
             <h1 style="margin: 0; font-size: 36px;">
                 Módulo <?php echo esc($module['module_number']); ?>: <?php echo esc($module['name']); ?>
             </h1>

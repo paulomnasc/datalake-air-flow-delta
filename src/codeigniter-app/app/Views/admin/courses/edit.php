@@ -13,11 +13,11 @@ require VIEWPATH.'/header.php';
             
             <div class="form-group">
                 <label for="course_id">ID do Curso (único)*:</label>
-                <input type="text" id="course_id" name="course_id" class="form-control" 
-                       value="<?php echo esc($course['course_id']); ?>" required 
-                       pattern="[a-z0-9\-]+" 
-                       title="Apenas letras minúsculas, números e hífen">
-                <small>Use apenas letras minúsculas, números e hífen</small>
+                  <input type="text" id="course_id" name="course_id" class="form-control" 
+                      value="<?php echo esc($course['course_id']); ?>" required 
+                      pattern="[a-z0-9\-]+" 
+                      title="Apenas letras minúsculas, números e hífen" readonly>
+                  <small>Este campo não pode ser alterado ao editar. Use apenas letras minúsculas, números e hífen ao criar.</small>
             </div>
 
             <div class="form-group">

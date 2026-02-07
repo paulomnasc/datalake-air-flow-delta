@@ -668,7 +668,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 ?>
 
                 <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                    <?php echo anchor("curso/modulo1", "CURSOS", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    <?php echo anchor("cursos", "CURSOS", ['class' => 'nav-link px-4 px-lg-5']) ?>
                 <?php endif; ?>
                 
                 <a href="https://github.com/paulomnasc/mydataflow-forum/discussions" class="nav-link px-4 px-lg-5" target="_blank" rel="noopener noreferrer">FORUM</a>

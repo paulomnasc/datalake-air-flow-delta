@@ -108,6 +108,11 @@ require VIEWPATH.'/header.php';
     <div class="courses-container">
         <h1 style="text-align: center; color: #333; margin-bottom: 40px;">
             📚 Meus Cursos
+            <?php if (!empty($courses)): ?>
+                <span style="font-size: 18px; color: #666; font-weight: normal; display: block; margin-top: 10px;">
+                    (<?php echo $courses[0]['module_count'] ?? 0; ?> módulos, <?php echo $courses[0]['video_count'] ?? 0; ?> vídeos)
+                </span>
+            <?php endif; ?>
         </h1>
 
         <?php if(empty($courses)): ?>
@@ -162,7 +167,7 @@ require VIEWPATH.'/header.php';
                     </div>
 
                     <button class="course-cta" onclick="event.stopPropagation(); window.location.href='<?php echo site_url('curso/' . $course['id']); ?>';">
-                        Começar Curso →
+                        Executar Curso →
                     </button>
                 </div>
             <?php endforeach; ?>

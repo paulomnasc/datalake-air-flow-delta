@@ -279,6 +279,20 @@ require VIEWPATH.'/header.php';
                                     <span><?php echo $video['total_xp']; ?> XP</span>
                                 </div>
                             <?php endif; ?>
+
+                            <?php if(isset($video['uc_completed']) && isset($video['uc_count']) && $video['uc_count'] > 0): ?>
+                                <div style="display: flex; align-items: center; gap: 8px; background: #e8f5e9; padding: 6px 12px; border-radius: 6px; font-weight: 600; color: #2e7d32;">
+                                    <span>✓</span>
+                                    <span><?php echo $video['uc_completed']; ?>/<?php echo $video['uc_count']; ?> tarefas</span>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if(isset($video['xp_earned']) && $video['xp_earned'] > 0): ?>
+                                <div style="display: flex; align-items: center; gap: 8px; background: #fff3e0; padding: 6px 12px; border-radius: 6px; font-weight: 600; color: #e65100;">
+                                    <span>🏆</span>
+                                    <span><?php echo $video['xp_earned']; ?> XP ganho</span>
+                                </div>
+                            <?php endif; ?>
                         </div>
 
                         <?php if($hasProgress): ?>

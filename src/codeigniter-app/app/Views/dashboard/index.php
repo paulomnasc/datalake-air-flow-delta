@@ -183,6 +183,13 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     <!-- Hero Section -->
                     <div class="hero-section">
                         <h1>🚀 Bem-vindo ao MyDataFlow</h1>
+                        <!-- Botão YouTube -->
+                        <?php if (isset($_SESSION['nome_usuario_logado'])): ?>
+                        <a id="youtubeBtn" href="/cursos">
+                            <i class="fab fa-youtube"></i>
+                            <span>Videoaulas</span>
+                        </a>
+                        <?php endif; ?>
                         <p>Crie pipelines de dados poderosos sem escrever código</p>
                         <button class="btn btn-light btn-lg mt-3" @click="currentView = 'wizard'">
                             <i class="bi bi-plus-circle"></i> Criar Novo Pipeline

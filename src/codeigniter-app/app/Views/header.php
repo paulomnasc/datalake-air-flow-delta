@@ -426,13 +426,6 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             </div>
             
             <div class="header-buttons">
-                <!-- Botão YouTube -->
-                <?php if (isset($_SESSION['nome_usuario_logado'])): ?>
-                <a id="youtubeBtn" href="/cursos">
-                    <i class="fab fa-youtube"></i>
-                    <span>Videoaulas</span>
-                </a>
-                <?php endif; ?>
                 
                 <!-- Botão para abrir a sidebar -->
                 <button id="openSidebarBtn" class="btn btn-light">
@@ -559,6 +552,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             </ul>
 
         </div>
+
+        <!-- Botão YouTube -->
+        <?php if (isset($_SESSION['nome_usuario_logado'])): ?>
+        <a id="youtubeBtn" href="/cursos">
+            <i class="fab fa-youtube"></i>
+            <span>Videoaulas</span>
+        </a>
+        <?php endif; ?>
+
 
     <!-- Fundo de overlay -->
     <div id="overlayBackground" class="overlay-background"></div>

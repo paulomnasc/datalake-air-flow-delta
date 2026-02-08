@@ -228,6 +228,13 @@ require VIEWPATH.'/header.php';
 }
 </style>
 
+<script>
+// Refresh automático a cada 10 segundos
+setTimeout(function() {
+    window.location.reload();
+}, 20000);
+</script>
+
 <div id="content">
     <div class="admin-dashboard">
         <div class="dashboard-header">

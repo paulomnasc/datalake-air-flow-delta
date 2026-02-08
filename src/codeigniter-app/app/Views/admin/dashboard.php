@@ -443,6 +443,18 @@ require VIEWPATH.'/header.php';
                             <div class="activity-user">
                                 <div class="activity-user-name"><?php echo esc($activity->user_name); ?></div>
                                 <div class="activity-user-email"><?php echo esc($activity->email); ?></div>
+                                <div class="activity-user-created">
+                                    <span style="font-size:12px;color:#999;">Criado em: 
+                                        <?php 
+                                            if (!empty($activity->criado_em)) {
+                                                $created = new DateTime($activity->criado_em);
+                                                echo $created->format('d/m/Y H:i');
+                                            } else {
+                                                echo 'N/A';
+                                            }
+                                        ?>
+                                    </span>
+                                </div>
                             </div>
                             <div class="activity-stats">
                                 <div class="activity-count"><?php echo $activity->activity_count; ?> ações</div>

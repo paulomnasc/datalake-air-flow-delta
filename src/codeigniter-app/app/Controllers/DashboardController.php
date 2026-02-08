@@ -308,6 +308,7 @@ class DashboardController extends BaseController
                 u.id as user_id,
                 u.nome as user_name,
                 u.email,
+                u.criado_em,
                 COUNT(al.id) as activity_count,
                 MAX(al.created_at) as last_activity
             FROM usuario u

@@ -104,21 +104,23 @@ class AuthController extends BaseController
             $_SESSION['perfil_usuario_logado'] = $perfilDescricao;
 
             // Registra login no activity log
-            try {
-                $logModel = new ActivityLogModel();
-                $logModel->insert([
-                    'user_id'    => (int) $usuario->id,
-                    'method'     => 'GET',
-                    'uri'        => '/auth/google-callback',
-                    'controller' => 'AuthController',
-                    'action'     => 'googleCallback',
-                    'route_alias'=> 'auth.google.callback',
-                    'ip_address' => $this->request->getIPAddress(),
-                    'user_agent' => ($this->request->getUserAgent() ? (method_exists($this->request->getUserAgent(), 'getAgent') ? $this->request->getUserAgent()->getAgent() : (string) $this->request->getUserAgent()) : ($_SERVER['HTTP_USER_AGENT'] ?? null)),
-                    'session_id' => (function_exists('session_id') ? session_id() : null),
-                ]);
-            } catch (\Throwable $e) {
-                log_message('warning', '[ActivityLog] Falha ao registrar Google login: ' . $e->getMessage());
+            if (empty($_SESSION['is_admin'])) {
+                try {
+                    $logModel = new ActivityLogModel();
+                    $logModel->insert([
+                        'user_id'    => (int) $usuario->id,
+                        'method'     => 'GET',
+                        'uri'        => '/auth/google-callback',
+                        'controller' => 'AuthController',
+                        'action'     => 'googleCallback',
+                        'route_alias'=> 'auth.google.callback',
+                        'ip_address' => $this->request->getIPAddress(),
+                        'user_agent' => ($this->request->getUserAgent() ? (method_exists($this->request->getUserAgent(), 'getAgent') ? $this->request->getUserAgent()->getAgent() : (string) $this->request->getUserAgent()) : ($_SERVER['HTTP_USER_AGENT'] ?? null)),
+                        'session_id' => (function_exists('session_id') ? session_id() : null),
+                    ]);
+                } catch (\Throwable $e) {
+                    log_message('warning', '[ActivityLog] Falha ao registrar login: ' . $e->getMessage());
+                }
             }
 
             // Garante bucket no MinIO; falha bloqueia o login via Google

@@ -36,6 +36,7 @@ class Filters extends BaseFilters
         'performance'   => PerformanceMetrics::class,
         'subscription'  => \App\Filters\SubscriptionFilter::class, // Filtro de controle de assinatura
         'activitylog'   => \App\Filters\ActivityLogFilter::class,  // Filtro de log de atividades
+        'adminauth'     => \App\Filters\AdminAuthFilter::class,    // Filtro de autenticação Admin
     ];
 
     /**

@@ -167,26 +167,28 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-KD72GH3P');</script>
-    <!-- End Google Tag Manager -->
-    
-    <!-- Google Analytics 4 - DEVE SER O PRIMEIRO SCRIPT -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-P312EQG53Y"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            // Tag myflow.estudotabelas.com.br
-            gtag('config', 'G-P312EQG53Y', {
+    <?php if (empty($_SESSION['is_admin'])): ?>
+        <!-- Google Tag Manager -->
+        <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-KD72GH3P');</script>
+        <!-- End Google Tag Manager -->
+        
+        <!-- Google Analytics 4 - DEVE SER O PRIMEIRO SCRIPT -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-P312EQG53Y"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                // Tag myflow.estudotabelas.com.br
+                gtag('config', 'G-P312EQG53Y', {
+                    'cookie_flags': 'SameSite=None;Secure'
+            });
+            // Tag estudotabelas.com.br
+            gtag('config', 'G-SSKK91YY74', {
                 'cookie_flags': 'SameSite=None;Secure'
-        });
-        // Tag estudotabelas.com.br
-        gtag('config', 'G-SSKK91YY74', {
-            'cookie_flags': 'SameSite=None;Secure'
-        });
-    </script>
-    <!-- FIM Google Analytics 4 -->
+            });
+        </script>
+        <!-- FIM Google Analytics 4 -->
+    <?php endif; ?>
     
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -424,13 +426,6 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             </div>
             
             <div class="header-buttons">
-                <!-- Botão YouTube -->
-                <?php if (isset($_SESSION['nome_usuario_logado'])): ?>
-                <a id="youtubeBtn" href="/curso/modulo1">
-                    <i class="fab fa-youtube"></i>
-                    <span>Videoaulas</span>
-                </a>
-                <?php endif; ?>
                 
                 <!-- Botão para abrir a sidebar -->
                 <button id="openSidebarBtn" class="btn btn-light">
@@ -495,14 +490,39 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         // Verifica se o perfil do usuário está logado e se ele é "Admin"
                         if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === "Admin"): 
                     ?>
-                    <li><p class="text-white">Administrar</p></li>
-                        <?php echo anchor("listPerfil", "Perfis", ['class' => 'nav-link px-4 px-lg-5']) ?>
-                        <?php echo anchor("listUsuario", "Usuários", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    
+                    <li><p class="text-white">📊 Admin - Dashboard</p></li>
+                    <li>
+                        <?php echo anchor("admin/dashboard", "📈 Dashboard Geral", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    </li>
+
+                    <li><hr class="text-white" style="margin: 10px 0;"></li>
+                    
+                    <li><p class="text-white">📚 Admin - Cursos</p></li>
+                    <li>
+                        <?php echo anchor("admin/courses", "🎓 Cursos", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    </li>
+                    <li>
+                        <?php echo anchor("admin/modules", "📖 Módulos", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    </li>
+                    <li>
+                        <?php echo anchor("admin/videos", "🎬 Vídeos", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    </li>
+                    <li>
+                        <?php echo anchor("admin/ucs", "✅ UCs/Tarefas", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    </li>
+                    
+                    <li><hr class="text-white" style="margin: 10px 0;"></li>
+                    <li><p class="text-white">👥 Admin - Sistema</p></li>
+                    <li>
+                        <?php echo anchor("listPerfil", "🔐 Perfis", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    </li>
+                    <li>
+                        <?php echo anchor("listUsuario", "👤 Usuários", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    </li>
                     <?php
                     endif; 
                     ?>
-
-                </li>    
 
                 <li>
                     <hr class="text-white" style="margin: 10px 0;">
@@ -532,6 +552,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             </ul>
 
         </div>
+
+        <!-- Botão YouTube -->
+        <?php if (isset($_SESSION['nome_usuario_logado'])): ?>
+        <a id="youtubeBtn" href="/cursos">
+            <i class="fab fa-youtube"></i>
+            <span>Videoaulas</span>
+        </a>
+        <?php endif; ?>
+
 
     <!-- Fundo de overlay -->
     <div id="overlayBackground" class="overlay-background"></div>
@@ -661,7 +690,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 ?>
 
                 <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                    <?php echo anchor("curso/modulo1", "CURSOS", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    <?php echo anchor("cursos", "CURSOS", ['class' => 'nav-link px-4 px-lg-5']) ?>
                 <?php endif; ?>
                 
                 <a href="https://github.com/paulomnasc/mydataflow-forum/discussions" class="nav-link px-4 px-lg-5" target="_blank" rel="noopener noreferrer">FORUM</a>

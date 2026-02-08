@@ -20,8 +20,14 @@ class ActivityLogFilter implements FilterInterface
         $session = session();
         $nomeUsuario = $session->get('nome_usuario_logado') ?? ($_SESSION['nome_usuario_logado'] ?? null);
         $userId = $session->get('id_usuario_logado') ?? ($_SESSION['id_usuario_logado'] ?? null);
+        $perfilUsuario = $session->get('perfil_usuario_logado') ?? ($_SESSION['perfil_usuario_logado'] ?? null);
 
         if (empty($nomeUsuario)) {
+            return;
+        }
+
+        // Não grava log se perfil for Admin
+        if ($perfilUsuario === 'Admin') {
             return;
         }
 

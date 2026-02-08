@@ -3,8 +3,20 @@
 
 use CodeIgniter\Router\RouteCollection;
 
-// Curso - Módulo 1
+// Curso - Módulo 1 (Legacy)
 $routes->get('/curso/modulo1', 'CursoController::modulo1', ['as'=>'cursoModulo1']);
+
+// 🆕 UC Progress Monitor - Tracking de Vídeo e Tarefas
+$routes->get('/curso/progress-monitor', 'CursoController::progressMonitor', ['as'=>'curso.progress-monitor']);
+
+// 🎓 Student Course Interface
+$routes->get('/cursos', 'CursoController::index', ['as'=>'cursos.index']);
+$routes->get('/curso/(:num)', 'CursoController::course/$1', ['as'=>'curso.show']);
+$routes->get('/modulo/(:num)', 'CursoController::module/$1', ['as'=>'modulo.show']);
+$routes->get('/video/(:num)', 'CursoController::video/$1', ['as'=>'video.player']);
+$routes->post('/api/video-progress', 'Api\ProgressController::videoProgress', ['as'=>'api.video-progress']);
+$routes->post('/api/uc-progress', 'Api\ProgressController::ucProgress', ['as'=>'api.uc-progress']);
+$routes->get('/api/video-progress/(:segment)/(:segment)', 'Api\ProgressController::getVideoProgress/$1/$2', ['as'=>'api.video-progress.get']);
 
 /**
  * @var RouteCollection $routes
@@ -185,3 +197,48 @@ $routes->delete('/validation/delete-custom/(:num)', 'ValidationController::delet
 
 //Misc.
 $routes->get('sitemap.xml', 'SitemapController::index');
+
+// ========== ADMIN PANEL - COURSE MANAGEMENT (Admin Only) ==========
+$routes->group('admin', ['filter' => 'adminauth'], function($routes) {
+    
+    // Dashboard
+    $routes->get('dashboard', 'DashboardController::admin', ['as' => 'admin.dashboard']);
+    
+    // Courses
+    $routes->get('courses', 'ProgressAdminController::indexCourses', ['as' => 'admin.courses.index']);
+    $routes->post('courses/add', 'ProgressAdminController::addCourse', ['as' => 'admin.courses.add']);
+    $routes->post('courses/insert', 'ProgressAdminController::insertCourse', ['as' => 'admin.courses.insert']);
+    $routes->post('courses/edit', 'ProgressAdminController::editCourse', ['as' => 'admin.courses.edit']);
+    $routes->post('courses/update', 'ProgressAdminController::updateCourse', ['as' => 'admin.courses.update']);
+    $routes->delete('courses/delete/(:num)', 'ProgressAdminController::deleteCourse/$1', ['as' => 'admin.courses.delete']);
+    
+    // Modules
+    $routes->get('modules', 'ProgressAdminController::indexModules', ['as' => 'admin.modules.index']);
+    $routes->get('modules/course/(:num)', 'ProgressAdminController::indexModules/$1', ['as' => 'admin.modules.by-course']);
+    $routes->post('modules/add', 'ProgressAdminController::addModule', ['as' => 'admin.modules.add']);
+    $routes->post('modules/add/(:num)', 'ProgressAdminController::addModule/$1', ['as' => 'admin.modules.add-with-course']);
+    $routes->post('modules/insert', 'ProgressAdminController::insertModule', ['as' => 'admin.modules.insert']);
+    $routes->post('modules/edit', 'ProgressAdminController::editModule', ['as' => 'admin.modules.edit']);
+    $routes->post('modules/update', 'ProgressAdminController::updateModule', ['as' => 'admin.modules.update']);
+    $routes->delete('modules/delete/(:num)', 'ProgressAdminController::deleteModule/$1', ['as' => 'admin.modules.delete']);
+    
+    // Videos
+    $routes->get('videos', 'ProgressAdminController::indexVideos', ['as' => 'admin.videos.index']);
+    $routes->get('videos/module/(:num)', 'ProgressAdminController::indexVideos/$1', ['as' => 'admin.videos.by-module']);
+    $routes->post('videos/add', 'ProgressAdminController::addVideo', ['as' => 'admin.videos.add']);
+    $routes->post('videos/add/(:num)', 'ProgressAdminController::addVideo/$1', ['as' => 'admin.videos.add-with-module']);
+    $routes->post('videos/insert', 'ProgressAdminController::insertVideo', ['as' => 'admin.videos.insert']);
+    $routes->post('videos/edit', 'ProgressAdminController::editVideo', ['as' => 'admin.videos.edit']);
+    $routes->post('videos/update', 'ProgressAdminController::updateVideo', ['as' => 'admin.videos.update']);
+    $routes->delete('videos/delete/(:num)', 'ProgressAdminController::deleteVideo/$1', ['as' => 'admin.videos.delete']);
+    
+    // UCs/Tasks
+    $routes->get('ucs', 'ProgressAdminController::indexUCs', ['as' => 'admin.ucs.index']);
+    $routes->get('ucs/video/(:num)', 'ProgressAdminController::indexUCs/$1', ['as' => 'admin.ucs.by-video']);
+    $routes->post('ucs/add', 'ProgressAdminController::addUC', ['as' => 'admin.ucs.add']);
+    $routes->post('ucs/add/(:num)', 'ProgressAdminController::addUC/$1', ['as' => 'admin.ucs.add-with-video']);
+    $routes->post('ucs/insert', 'ProgressAdminController::insertUC', ['as' => 'admin.ucs.insert']);
+    $routes->post('ucs/edit', 'ProgressAdminController::editUC', ['as' => 'admin.ucs.edit']);
+    $routes->post('ucs/update', 'ProgressAdminController::updateUC', ['as' => 'admin.ucs.update']);
+    $routes->delete('ucs/delete/(:num)', 'ProgressAdminController::deleteUC/$1', ['as' => 'admin.ucs.delete']);
+});

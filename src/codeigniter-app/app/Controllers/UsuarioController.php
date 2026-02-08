@@ -38,6 +38,7 @@ class UsuarioController extends BaseController
         $_SESSION['perfil_usuario_logado'] = null;
         $_SESSION['email_usuario_logado'] = null;
         $_SESSION['usuario_logado'] = 0;
+        unset($_SESSION['is_admin']);
         return view('frmLogin');
     }
 
@@ -59,23 +60,26 @@ class UsuarioController extends BaseController
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['email_usuario_logado'] = $usuario->email;
                 $_SESSION['usuario_logado'] = 1;
+                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
                 
                 // Registra evento de login
-                try {
-                    $logModel = new ActivityLogModel();
-                    $logModel->insert([
-                        'user_id'    => (int) $usuario->id,
-                        'method'     => strtoupper($this->request->getMethod()),
-                        'uri'        => $this->request->getUri()->getPath(),
-                        'controller' => 'UsuarioController',
-                        'action'     => 'logar',
-                        'route_alias'=> 'Usuario.logar',
-                        'ip_address' => $this->request->getIPAddress(),
-                        'user_agent' => ($this->request->getUserAgent() ? (method_exists($this->request->getUserAgent(), 'getAgent') ? $this->request->getUserAgent()->getAgent() : (string) $this->request->getUserAgent()) : ($_SERVER['HTTP_USER_AGENT'] ?? null)),
-                        'session_id' => (function_exists('session_id') ? session_id() : null),
-                    ]);
-                } catch (\Throwable $e) {
-                    log_message('warning', '[ActivityLog] Falha ao registrar login: ' . $e->getMessage());
+                if (empty($_SESSION['is_admin'])) {
+                    try {
+                        $logModel = new ActivityLogModel();
+                        $logModel->insert([
+                            'user_id'    => (int) $usuario->id,
+                            'method'     => strtoupper($this->request->getMethod()),
+                            'uri'        => $this->request->getUri()->getPath(),
+                            'controller' => 'UsuarioController',
+                            'action'     => 'logar',
+                            'route_alias'=> 'Usuario.logar',
+                            'ip_address' => $this->request->getIPAddress(),
+                            'user_agent' => ($this->request->getUserAgent() ? (method_exists($this->request->getUserAgent(), 'getAgent') ? $this->request->getUserAgent()->getAgent() : (string) $this->request->getUserAgent()) : ($_SERVER['HTTP_USER_AGENT'] ?? null)),
+                            'session_id' => (function_exists('session_id') ? session_id() : null),
+                        ]);
+                    } catch (\Throwable $e) {
+                        log_message('warning', '[ActivityLog] Falha ao registrar login: ' . $e->getMessage());
+                    }
                 }
                 
                 // Sincroniza funções Python do usuário (garante que tem as funções padrão)
@@ -205,6 +209,7 @@ class UsuarioController extends BaseController
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['email_usuario_logado'] = $usuario->email;
                 $_SESSION['usuario_logado'] = 1;
+                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
                 
                 // Sincroniza funções Python do usuário (garante que tem as funções padrão)
                 try {
@@ -304,6 +309,7 @@ class UsuarioController extends BaseController
                 $_SESSION['nome_usuario_logado'] = $usuario->nome;
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['usuario_logado'] = 1;
+                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
                 
                 // Redireciona para a tela listQuadro após o login anônimo
                 return redirect()->route('listQuadro');
@@ -890,6 +896,7 @@ class UsuarioController extends BaseController
                 $_SESSION['nome_usuario_logado'] = $usuario->nome;
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['usuario_logado'] = 1;
+                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
                 
                 $db = \Config\Database::connect();
                 $db->transStart();   

@@ -31,8 +31,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && pip3 install --break-system-packages --no-cache-dir duckdb pandas numpy pyarrow
 ENV PYTHON_BIN=/usr/bin/python3
 
+
 # 3. CONFIGURAÇÃO DO COMPOSER
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# 3.1 Instalação do Stripe SDK
+WORKDIR /var/www/html
+RUN composer require stripe/stripe-php
 
 # 4. CONFIGURAÇÃO DO VIRTUAL HOST DO APACHE
 COPY ./.docker/000-default.conf /etc/apache2/sites-available/000-default.conf

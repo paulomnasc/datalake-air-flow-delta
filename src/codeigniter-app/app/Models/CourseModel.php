@@ -20,7 +20,8 @@ class CourseModel extends Model
         'color',
         'order',
         'is_active',
-        'created_by'
+        'created_by',
+        'stripe_price_id'
     ];
 
     protected bool $allowEmptyInserts = false;
@@ -38,7 +39,8 @@ class CourseModel extends Model
         'name' => 'required|max_length[255]',
         'color' => 'permit_empty|max_length[7]',
         'order' => 'permit_empty|integer',
-        'is_active' => 'in_list[0,1]'
+        'is_active' => 'in_list[0,1]',
+        'stripe_price_id' => 'permit_empty|max_length[255]'
     ];
 
     protected $validationMessages = [

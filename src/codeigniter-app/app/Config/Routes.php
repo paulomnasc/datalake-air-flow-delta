@@ -3,6 +3,14 @@
 
 use CodeIgniter\Router\RouteCollection;
 
+// Stripe Payment - Pagamento único para acesso ao curso
+$routes->post('/stripe/create-checkout-session', 'StripeController::createSession', ['as'=>'stripe.createSession']);
+$routes->get('/stripe/success', 'StripeController::success', ['as'=>'stripe.success']);
+$routes->get('/stripe/cancel', 'StripeController::cancel', ['as'=>'stripe.cancel']);
+// Stripe Webhook - Recebe notificações automáticas da Stripe
+$routes->post('/stripe/webhook', 'StripeController::webhook', ['as'=>'stripe.webhook']);
+
+
 // Curso - Módulo 1 (Legacy)
 $routes->get('/curso/modulo1', 'CursoController::modulo1', ['as'=>'cursoModulo1']);
 

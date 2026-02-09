@@ -1,3 +1,19 @@
+## 🛠️ Adicionando Stripe Price ID ao Banco
+
+Para integrar o Stripe com cada curso, adicione o campo stripe_price_id na tabela course:
+
+```sql
+ALTER TABLE course
+ADD COLUMN stripe_price_id VARCHAR(255) NULL AFTER created_by;
+```
+
+Depois, preencha o campo com o ID do preço Stripe para cada curso:
+
+```sql
+UPDATE course SET stripe_price_id = 'price_abc123' WHERE id = 1;
+UPDATE course SET stripe_price_id = 'price_def456' WHERE id = 2;
+-- Repita para cada curso conforme necessário
+```
 # 🔐 Sistema de Controle de Assinatura - Guia Completo
 
 ## 📋 Visão Geral

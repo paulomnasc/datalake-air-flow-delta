@@ -166,9 +166,26 @@ require VIEWPATH.'/header.php';
                         <?php endif; ?>
                     </div>
 
-                    <button class="course-cta" onclick="event.stopPropagation(); window.location.href='<?php echo site_url('curso/' . $course['id']); ?>';">
-                        Executar Curso →
-                    </button>
+                    <?php
+                    // Simulação: verifica se o usuário já comprou o curso
+                    $hasAccess = $course['has_access'] ?? false;
+                    $priceId = $course['stripe_price_id'] ?? 'price_xxx'; // Substitua pelo real
+                    $userEmail = $_SESSION['user_email'] ?? '';
+                    $stripePublicKey = getenv('STRIPE_PUBLIC_KEY');
+                    ?>
+                    <?php if ($hasAccess): ?>
+                        <button class="course-cta" onclick="event.stopPropagation(); window.location.href='<?php echo site_url('curso/' . $course['id']); ?>';">
+                            Executar Curso →
+                        </button>
+                    <?php else: ?>
+                        <div style="margin-top: 16px;">
+                            <?php if ($priceId !== 'price_xxx'): ?>
+                                <?php include VIEWPATH . '/stripe/payment_button.php'; ?>
+                            <?php else: ?>
+                                <div class="alert alert-warning">Pagamento indisponível para este curso.</div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php endforeach; ?>
         <?php endif; ?>

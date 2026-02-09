@@ -152,6 +152,8 @@ class CursoController extends BaseController
         $data['module'] = $moduleModel->find($data['video']['module_id']);
         $data['course'] = $courseModel->find($data['module']['course_id']);
         $data['ucs'] = $ucModel->getUCsByVideo($videoId);
+        // Adiciona lista de vídeos do módulo para navegação sequencial
+        $data['module']['videos'] = $videoModel->getVideosByModule($data['module']['id']);
         
         // Buscar progresso do usuário se estiver logado
         if (isset($_SESSION['id_usuario_logado'])) {

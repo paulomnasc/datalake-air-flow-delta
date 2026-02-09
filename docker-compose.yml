@@ -18,7 +18,7 @@ services:
       - ./nginx/error-pages:/etc/nginx/error-pages:ro
       - ./landing-page:/usr/share/nginx/html/landing-page:ro
       # SSL template (apenas para produção - comentar em dev)
-      # - ./nginx/myflow-ssl.conf.template:/etc/nginx/templates/myflow-ssl.conf.template:ro
+      - ./nginx/myflow-ssl.conf.template:/etc/nginx/templates/myflow-ssl.conf.template:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - nginx_logs:/var/log/nginx
     environment:

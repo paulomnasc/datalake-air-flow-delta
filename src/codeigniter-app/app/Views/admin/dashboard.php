@@ -228,6 +228,13 @@ require VIEWPATH.'/header.php';
 }
 </style>
 
+<script>
+// Refresh automático a cada 10 segundos
+setTimeout(function() {
+    window.location.reload();
+}, 20000);
+</script>
+
 <div id="content">
     <div class="admin-dashboard">
         <div class="dashboard-header">
@@ -319,6 +326,74 @@ require VIEWPATH.'/header.php';
                     <div style="color: #666; margin-top: 8px;">Alunos Totais</div>
                 </div>
             </div>
+        </div>
+
+        <!-- Ranking de Alunos -->
+        <!-- Alunos que retornaram após cadastro -->
+        <div class="content-section">
+            <h2 class="section-title">🔄 Alunos que Retornaram Após Cadastro</h2>
+            <?php if (!empty($returning_students)): ?>
+                <table class="ranking-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">#</th>
+                            <th>Aluno</th>
+                            <th>Email</th>
+                            <th style="text-align: center;">Retornos</th>
+                            <th style="text-align: right;">Último Retorno</th>
+                            <th style="text-align: right;">Criado em</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($returning_students as $index => $student): 
+                            $rank = $index + 1;
+                            $rankClass = $rank <= 3 ? "rank-{$rank}" : "rank-other";
+                        ?>
+                            <tr>
+                                <td>
+                                    <span class="rank-badge <?php echo $rankClass; ?>"><?php echo $rank; ?></span>
+                                </td>
+                                <td style="font-weight: 600;"><?php echo esc($student->user_name); ?></td>
+                                <td style="color: #666;"><?php echo esc($student->email); ?></td>
+                                <td style="text-align: center;">
+                                    <span style="background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 12px; font-weight: 600;">
+                                        <?php echo $student->return_count; ?>
+                                    </span>
+                                </td>
+                                <td style="text-align: right;">
+                                    <span style="font-size: 14px; color: #667eea;">
+                                        <?php 
+                                            if (!empty($student->last_return)) {
+                                                $lastReturn = new DateTime($student->last_return);
+                                                echo $lastReturn->format('d/m/Y H:i');
+                                            } else {
+                                                echo 'N/A';
+                                            }
+                                        ?>
+                                    </span>
+                                </td>
+                                <td style="text-align: right;">
+                                    <span style="font-size: 14px; color: #999;">
+                                        <?php 
+                                            if (!empty($student->criado_em)) {
+                                                $created = new DateTime($student->criado_em);
+                                                echo $created->format('d/m/Y H:i');
+                                            } else {
+                                                echo 'N/A';
+                                            }
+                                        ?>
+                                    </span>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php else: ?>
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔄</div>
+                    <p>Nenhum aluno retornou após cadastro ainda</p>
+                </div>
+            <?php endif; ?>
         </div>
 
         <!-- Ranking de Alunos -->

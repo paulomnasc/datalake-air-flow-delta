@@ -323,6 +323,24 @@ class DashboardController extends BaseController
         $activeUsersLast7Days = count($recentActivities);
         
         // ========== 5. RANKING DE ALUNOS POR XP ==========
+                // ========== 4.1. ALUNOS QUE RETORNARAM APÓS CADASTRO ==========
+                $returningStudents = $db->query("
+                    SELECT 
+                        u.id as user_id,
+                        u.nome as user_name,
+                        u.email,
+                        u.criado_em,
+                        COUNT(ac.id) as return_count,
+                        MAX(ac.created_at) as last_return
+                    FROM activity_logs ac
+                    INNER JOIN usuario u ON u.id = ac.user_id
+                    WHERE ac.user_id NOT IN (146, 176, 201)
+                        AND ac.route_alias = 'Usuario.logar'
+                        AND DATE_FORMAT(u.criado_em, '%Y-%m-%d') < DATE_FORMAT(ac.created_at, '%Y-%m-%d')
+                    GROUP BY u.id
+                    ORDER BY return_count DESC, last_return DESC
+                    LIMIT 20
+                ")->getResult();
         $topStudents = $db->query("
             SELECT 
                 u.id,
@@ -395,6 +413,7 @@ class DashboardController extends BaseController
             
             // Dados detalhados
             'recent_activities' => $recentActivities,
+            'returning_students' => $returningStudents,
             'top_students' => $topStudents,
             'courses_progress' => $coursesProgress,
         ];

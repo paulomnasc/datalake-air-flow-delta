@@ -323,6 +323,32 @@ require VIEWPATH.'/header.php';
                         </div>
                     <?php endif; ?>
                 </div>
+                <!-- Botão Próxima aula -->
+                <?php
+                // Recuperar lista de vídeos do módulo e posição do vídeo atual
+                if (isset($module['videos']) && is_array($module['videos'])) {
+                    $videosList = $module['videos'];
+                    $currentIndex = null;
+                    foreach ($videosList as $idx => $v) {
+                        if ($v['id'] == $video['id']) {
+                            $currentIndex = $idx;
+                            break;
+                        }
+                    }
+                    $isLast = ($currentIndex !== null && $currentIndex === count($videosList) - 1);
+                    $nextVideo = (!$isLast && $currentIndex !== null) ? $videosList[$currentIndex + 1] : null;
+                } else {
+                    $isLast = true;
+                    $nextVideo = null;
+                }
+                ?>
+                <div style="margin-top: 28px; text-align: right;">
+                <?php if(!$isLast && $nextVideo): ?>
+                    <a href="<?php echo site_url('video/' . $nextVideo['id']); ?>" class="btn-proxima-aula" style="background: #4f46e5; color: #fff; padding: 12px 28px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 18px;">Próxima aula &rarr;</a>
+                <?php else: ?>
+                    <button class="btn-proxima-aula" style="background: #ccc; color: #fff; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 18px;" disabled>Última aula</button>
+                <?php endif; ?>
+                </div>
             </div>
 
             <!-- Sidebar de Tarefas -->

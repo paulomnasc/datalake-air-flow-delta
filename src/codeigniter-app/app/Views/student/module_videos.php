@@ -230,27 +230,25 @@ require VIEWPATH.'/header.php';
                 $thumbnailUrl = $video['thumbnail_url'] ?? 'https://img.youtube.com/vi/' . $video['youtube_id'] . '/maxresdefault.jpg';
                 $hasProgress = isset($video['percent']) && $video['percent'] > 0;
                 $isCompleted = isset($video['completed']) && $video['completed'];
+                $isLast = ($index === count($videos) - 1);
+                $nextVideo = !$isLast ? $videos[$index + 1] : null;
             ?>
                 <div class="video-card" onclick="window.location.href='<?php echo site_url('video/' . $video['id']); ?>';" style="position: relative;">
                     <img src="<?php echo esc($thumbnailUrl); ?>" 
                          alt="Thumbnail" 
                          class="video-thumbnail">
-                    
                     <?php if($isCompleted): ?>
                         <div class="video-badge">✓ Concluído</div>
                     <?php endif; ?>
-
                     <div class="video-content">
                         <h3 class="video-title">
                             <?php echo ($index + 1); ?>. <?php echo esc($video['title']); ?>
                         </h3>
-
                         <?php if($video['description']): ?>
                             <p class="video-description">
                                 <?php echo esc(substr($video['description'], 0, 150)); ?><?php echo strlen($video['description']) > 150 ? '...' : ''; ?>
                             </p>
                         <?php endif; ?>
-
                         <div class="video-meta">
                             <?php if($video['duration_seconds']): 
                                 $minutes = floor($video['duration_seconds'] / 60);
@@ -261,33 +259,28 @@ require VIEWPATH.'/header.php';
                                     <span><?php echo sprintf('%d:%02d', $minutes, $seconds); ?></span>
                                 </div>
                             <?php endif; ?>
-                            
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span>🎬</span>
                                 <span><?php echo esc($video['video_id']); ?></span>
                             </div>
-
                             <?php if(isset($video['uc_count']) && $video['uc_count'] > 0): ?>
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <span>✅</span>
                                     <span><?php echo $video['uc_count']; ?> tarefas</span>
                                 </div>
                             <?php endif; ?>
-
                             <?php if(isset($video['total_xp']) && $video['total_xp'] > 0): ?>
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <span>⭐</span>
                                     <span><?php echo $video['total_xp']; ?> XP</span>
                                 </div>
                             <?php endif; ?>
-
                             <?php if(isset($video['uc_completed']) && isset($video['uc_count']) && $video['uc_count'] > 0): ?>
                                 <div style="display: flex; align-items: center; gap: 8px; background: #e8f5e9; padding: 6px 12px; border-radius: 6px; font-weight: 600; color: #2e7d32;">
                                     <span>✓</span>
                                     <span><?php echo $video['uc_completed']; ?>/<?php echo $video['uc_count']; ?> tarefas</span>
                                 </div>
                             <?php endif; ?>
-
                             <?php if(isset($video['xp_earned']) && $video['xp_earned'] > 0): ?>
                                 <div style="display: flex; align-items: center; gap: 8px; background: #fff3e0; padding: 6px 12px; border-radius: 6px; font-weight: 600; color: #e65100;">
                                     <span>🏆</span>
@@ -295,7 +288,6 @@ require VIEWPATH.'/header.php';
                                 </div>
                             <?php endif; ?>
                         </div>
-
                         <?php if($hasProgress): ?>
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width: <?php echo $video['percent']; ?>%;"></div>
@@ -304,6 +296,14 @@ require VIEWPATH.'/header.php';
                                 <?php echo round($video['percent']); ?>% concluído
                             </small>
                         <?php endif; ?>
+                        <!-- Botão Próxima aula -->
+                        <div style="margin-top: 18px; text-align: right;">
+                        <?php if(!$isLast): ?>
+                            <a href="<?php echo site_url('video/' . $nextVideo['id']); ?>" class="btn-proxima-aula" style="background: #4f46e5; color: #fff; padding: 10px 24px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 16px;">Próxima aula &rarr;</a>
+                        <?php else: ?>
+                            <button class="btn-proxima-aula" style="background: #ccc; color: #fff; padding: 10px 24px; border-radius: 6px; font-weight: bold; font-size: 16px;" disabled>Última aula</button>
+                        <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             <?php endforeach; ?>

@@ -21,6 +21,27 @@ class StripeController extends Controller
         return $this->response->setJSON(['url' => $session->url]);
     }
 
+
+    public function webhook()
+    {
+        $payload = file_get_contents('php://input');
+        $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
+        $secret = getenv('STRIPE_WEBHOOK_SECRET');
+        \Stripe\Stripe::setApiKey(getenv('STRIPE_SECRET_KEY'));
+        try {
+            $event = \Stripe\Webhook::constructEvent($payload, $sig_header, $secret);
+        } catch (\Exception $e) {
+            http_response_code(400);
+            exit();
+        }
+        if ($event->type === 'checkout.session.completed') {
+            $session = $event->data->object;
+            // Liberar acesso ao curso para o usuário
+        }
+        http_response_code(200);
+    }
+
+
     public function success()
     {
         return view('stripe/success');

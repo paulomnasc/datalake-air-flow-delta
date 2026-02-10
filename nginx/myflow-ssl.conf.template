@@ -1,6 +1,6 @@
 # VirtualHost HTTPS para produção
 server {
-    listen 443 ssl;
+    listen ${NGINX_PORT_HTTPS} ssl;
     server_name ${NGINX_SERVER_NAME};
 
     # Certificados SSL

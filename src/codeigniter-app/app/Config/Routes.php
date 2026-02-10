@@ -1,4 +1,3 @@
-
 <?php
 
 use CodeIgniter\Router\RouteCollection;
@@ -242,3 +241,7 @@ $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
     $routes->post('ucs/update', 'ProgressAdminController::updateUC', ['as' => 'admin.ucs.update']);
     $routes->delete('ucs/delete/(:num)', 'ProgressAdminController::deleteUC/$1', ['as' => 'admin.ucs.delete']);
 });
+
+$routes->get('admin/pagamento-inicial', 'PagamentoInicialAdminController::index');
+$routes->post('admin/pagamento-inicial/autorizar/(:num)', 'PagamentoInicialAdminController::autorizar/$1');
+$routes->get('subscription/initial-payment', 'SubscriptionController::initialPayment');

@@ -27,6 +27,7 @@ class UsuarioModel extends Model
         'google_refresh_token',
         'auth_provider',
         'auth_updated_at',
+           'pagamento_inicial',
     ];
     
 

@@ -85,29 +85,12 @@ class SubscriptionController extends BaseController
             'cotacao_mensagem' => $cotacaoMensagem
         ];
 
-        // Formata a data de vencimento para exibição
-        if ($data['data_vencimento']) {
-            try {
-                $dataVenc = new \DateTime($data['data_vencimento']);
-                $data['data_vencimento_formatada'] = $dataVenc->format('d/m/Y');
-            } catch (\Exception $e) {
-                $data['data_vencimento_formatada'] = 'Data inválida';
-            }
-        } else {
-            $data['data_vencimento_formatada'] = 'Não definida';
-        }
-
-        // Calcula o próximo vencimento se renovar agora
-        $data['proximo_vencimento'] = SubscriptionHelper::calcularRenovacao($usuario->data_vencimento_assinatura);
-        try {
-            $proximaData = new \DateTime($data['proximo_vencimento']);
-            $data['proximo_vencimento_formatado'] = $proximaData->format('d/m/Y');
-        } catch (\Exception $e) {
-            $data['proximo_vencimento_formatado'] = 'Data inválida';
-        }
-
-        // Limpa mensagem de bloqueio da sessão
-        unset($_SESSION['subscription_blocked_message']);
+        // Adiciona variáveis faltantes para a view
+        $data['dias_restantes'] = 0;
+        $data['data_vencimento_formatada'] = '-';
+        $data['proximo_vencimento_formatado'] = '-';
+        $data['data_ultimo_pagamento'] = '';
+        $data['cotacao_mensagem'] = $cotacaoMensagem;
 
         return view('subscription/renew', $data);
     }
@@ -356,5 +339,69 @@ class SubscriptionController extends BaseController
         }
 
         return strtoupper(str_pad(dechex($result), 4, '0', STR_PAD_LEFT));
+    }
+
+    public function initialPayment()
+    {
+        // Reaproveita lógica do pixPayment para cotação e QR Code
+        $userId = $_SESSION['id_usuario_logado'] ?? null;
+        if (!$userId) {
+            return redirect()->to('/loginUsuario');
+        }
+        $usuarioModel = new UsuarioModel();
+        $usuario = $usuarioModel->find($userId);
+        // Valor inicial
+        $valorUsd = 2.00;
+        $pixKey = '032.067.407-03'; // Chave PIX
+        $cotacao = null;
+        $valorBrl = null;
+        $cotacaoMensagem = null;
+        // Busca cotação USD -> BRL
+        try {
+            $client = \Config\Services::curlrequest(['timeout' => 5]);
+            $response = $client->get('https://api.exchangerate.host/latest?base=USD&symbols=BRL');
+            if ($response->getStatusCode() === 200) {
+                $body = json_decode($response->getBody(), true);
+                if (!empty($body['rates']['BRL'])) {
+                    $cotacao = (float) $body['rates']['BRL'];
+                    $valorBrl = round($valorUsd * $cotacao, 2);
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('warning', '[PIX] Falha ao buscar cotação USD->BRL: ' . $e->getMessage());
+        }
+        if (!$valorBrl) {
+            $cotacao = $cotacao ?? 5.38;
+            $valorBrl = round($valorUsd * $cotacao, 2);
+            $cotacaoMensagem = 'Não foi possível obter a cotação em tempo real. Usando taxa padrão.';
+        }
+        // Monta payload BR Code do PIX e URL do QR Code
+        $pixPayload = $this->buildPixPayload(
+            $pixKey,
+            $valorBrl,
+            'DATALAKE',
+            'CURITIBA',
+            'SUBSCRIP'
+        );
+        $qrCodeUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=' . urlencode($pixPayload);
+        // Prepara dados para a view
+        $data = [
+            'usuario_nome' => $usuario->nome ?? 'Usuário',
+            'usuario_email' => $usuario->email ?? '',
+            'status_assinatura' => $usuario->status_assinatura ?? 'trial',
+            'mensagem_bloqueio' => 'Para acessar o curso completo, realize o pagamento inicial de USD 2,00.',
+            'valor_usd' => $valorUsd,
+            'cotacao_usd_brl' => $cotacao,
+            'valor_brl' => $valorBrl,
+            'cotacao_mensagem' => $cotacaoMensagem,
+            'qr_code_url' => $qrCodeUrl,
+            'pix_key' => $pixKey
+        ];
+        // Adiciona variáveis faltantes para a view
+        $data['dias_restantes'] = 0;
+        $data['data_vencimento_formatada'] = '-';
+        $data['proximo_vencimento_formatado'] = '-';
+        $data['data_ultimo_pagamento'] = '';
+        return view('subscription/renew', $data);
     }
 }

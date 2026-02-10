@@ -51,5 +51,22 @@ class StripeController extends Controller
     {
         return view('stripe/cancel');
     }
+
+        // Método para testar envio de dados fake para Stripe
+        public function testStripeCharge()
+        {
+            \Stripe\Stripe::setApiKey(getenv('STRIPE_SECRET_KEY'));
+            try {
+                $charge = \Stripe\Charge::create([
+                    'amount' => 1000, // valor em centavos (R$10,00)
+                    'currency' => 'brl',
+                    'source' => 'tok_visa', // cartão de teste
+                    'description' => 'Teste de cobrança Stripe',
+                ]);
+                return $this->response->setJSON(['status' => 'success', 'charge' => $charge]);
+            } catch (\Exception $e) {
+                return $this->response->setJSON(['status' => 'error', 'message' => $e->getMessage()]);
+            }
+        }
     }
 }

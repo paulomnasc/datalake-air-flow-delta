@@ -92,7 +92,7 @@ Este documento descreve o plano de desenvolvimento e implantação da integraç�
 - [x] Produtos e planos configurados
 - [x] Chaves API obtidas
 - [x] Webhooks configurados
-- [ ] SDK Stripe instalado
+- [x] SDK Stripe instalado
 - [ ] Endpoints implementados
 - [ ] Botão Stripe no frontend
 - [ ] Testes realizados
@@ -131,8 +131,53 @@ UPDATE course SET stripe_price_id = 'price_1SywOjHgSga95kBkwvpUsR38' WHERE id = 
 ```
 
 Substitua <ID_DO_CURSO> pelo id do curso correto.
-# Integração Stripe.com para Assinaturas
 
+---
 
+## Teste de Cobrança Fake Stripe
 
-**Desenvolvido para MyFlow Lab - Founder's Club**
+### Objetivo
+Permite testar o envio de dados fake para a Stripe usando o ambiente de testes.
+
+### Método disponível
+No controller `StripeController`, foi adicionado o método:
+
+```php
+public function testStripeCharge()
+{
+    \Stripe\Stripe::setApiKey(getenv('STRIPE_SECRET_KEY'));
+    try {
+        $charge = \Stripe\Charge::create([
+            'amount' => 1000, // valor em centavos (R$10,00)
+            'currency' => 'brl',
+            'source' => 'tok_visa', // cartão de teste
+            'description' => 'Teste de cobrança Stripe',
+        ]);
+        return $this->response->setJSON(['status' => 'success', 'charge' => $charge]);
+    } catch (\Exception $e) {
+        return $this->response->setJSON(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+}
+```
+
+### Como executar o teste
+
+1. Adicione a rota no arquivo de rotas:
+
+```php
+$routes->get('/stripe/testStripeCharge', 'StripeController::testStripeCharge');
+```
+
+2. Acesse a URL no navegador ou via ferramenta como Postman:
+
+```
+http://localhost:8000/stripe/testStripeCharge
+```
+
+3. O método irá enviar uma cobrança fake para a Stripe e retornar o resultado em JSON.
+
+- Use a chave secreta de teste da Stripe (`sk_test_...`) no seu .env.
+- O cartão de teste utilizado é o `tok_visa` (4242 4242 4242 4242).
+
+### Observação
+Esse teste não gera cobranças reais e pode ser usado para validar a integração.

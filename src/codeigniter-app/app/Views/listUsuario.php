@@ -96,7 +96,7 @@ require VIEWPATH.'/header.php';
                         columnDefs: [
                             {
                                 targets: [0], // Índice da coluna que queremos ocultar (4ª coluna, começando do 0)
-                                visible: false // Torna a coluna invisível
+                                visible: true // Torna a coluna invisível
                             }
                         ],
                         language: {

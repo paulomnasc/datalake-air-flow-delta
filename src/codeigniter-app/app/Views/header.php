@@ -290,17 +290,19 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <style>
     /* Estilo da Sidebar */
     .sidebar-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      height: 100%;
-      width: 250px;
-      background-color: #343a40; /* Cor do fundo */
-      color: white;
-      padding: 15px;
-      transform: translateX(-100%); /* Inicialmente oculta */
-      transition: transform 0.3s ease; /* Animação suave */
-      z-index: 1050; /* Sobrepõe o conteúdo */
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 250px;
+    background-color: #343a40; /* Cor do fundo */
+    color: white;
+    padding: 15px;
+    transform: translateX(-100%); /* Inicialmente oculta */
+    transition: transform 0.3s ease; /* Animação suave */
+    z-index: 1050; /* Sobrepõe o conteúdo */
+    overflow-y: auto;
+    max-height: 100vh;
     }
     .sidebar-overlay.active {
       transform: translateX(0); /* Mostra a sidebar */
@@ -494,6 +496,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <li><p class="text-white">📊 Admin - Dashboard</p></li>
                     <li>
                         <?php echo anchor("admin/dashboard", "📈 Dashboard Geral", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    </li>
+                    <li>
+                        <?php echo anchor("admin/pagamento-inicial", "💵 Confirmar Pagamento Inicial", ['class' => 'nav-link px-4 px-lg-5']) ?>
                     </li>
 
                     <li><hr class="text-white" style="margin: 10px 0;"></li>

@@ -52,6 +52,23 @@ class SubscriptionFilter implements FilterInterface
             return;
         }
 
+        // BLOQUEIO DE ACESSO A MÓDULOS SUPERIORES SEM PAGAMENTO INICIAL
+        $uri = $request->getUri()->getPath();
+        // Permite acesso ao primeiro módulo, página de pagamento inicial e rotas administrativas
+        $rotasPermitidasPagamento = [
+            '/curso/modulo/1',
+            '/subscription/initial-payment',
+            '/admin/pagamento-inicial',
+            '/admin/pagamento-inicial/autorizar',
+        ];
+        if ((empty($usuario->pagamento_inicial) || $usuario->pagamento_inicial != 1)
+            && !in_array($uri, $rotasPermitidasPagamento)
+            && preg_match('/\/curso\/modulo\/(\d+)/', $uri, $matches)
+            && intval($matches[1]) > 1) {
+            // Redireciona para página de pagamento inicial
+            return redirect()->to('/subscription/initial-payment');
+        }
+
         // Atualiza o status da assinatura se necessário
         $statusAtual = $usuario->status_assinatura ?? 'trial';
         $dataVencimento = $usuario->data_vencimento_assinatura ?? null;

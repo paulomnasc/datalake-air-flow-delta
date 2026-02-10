@@ -88,9 +88,7 @@ require VIEWPATH . '/header.php';
                 <div class="card bg-light mb-4">
                     <div class="card-body text-center">
                         <h5>💰 Pague via PIX</h5>
-                        Chave pix Cpf: 032.067.407-03
-                        Nome: Cristiane Bomfim Lemos do Nascimento
-                        Envie o comprovante para admin@estudotabela.com.br
+                        
                         <!-- p class="text-muted">Escaneie o QR Code abaixo com o app do seu banco</p-->
                         
                         <!-- ÁREA PARA INSERIR O QR CODE 
@@ -101,6 +99,12 @@ require VIEWPATH . '/header.php';
                         <!-- Instruções -->
                         <div class="alert alert-warning mt-3" role="alert">
                             <h6>📌 Instruções:</h6>
+                            <div class="mb-2">
+                                <strong>Chave pix Cpf:</strong> 032.067.407-03<br>
+                                <strong>Nome:</strong> Cristiane Bomfim Lemos do Nascimento<br>
+                                <strong>Enviar o comprovante para:</strong> admin@estudotabela.com.br<br>
+                                <span class="text-muted">A partir do envio estaremos liberando o acesso em até 24 horas do recebimento do comprovante.</span>
+                            </div>
                             <ol class="text-start mb-0">
                                 <li>Abra o aplicativo do seu banco</li>
                                 <li>Selecione a opção PIX</li>
@@ -154,7 +158,7 @@ require VIEWPATH . '/header.php';
 <script>
 function confirmarPagamento() {
     // Confirma com o usuário
-    if (!confirm('Você confirma que realizou o pagamento de USD 7,00?')) {
+    if (!confirm('Você confirma que realizou o pagamento ?')) {
         return;
     }
 
@@ -175,8 +179,11 @@ function confirmarPagamento() {
     .then(data => {
         if (data.status === 'success') {
             // Exibe mensagem de sucesso
-            alert('✅ ' + data.message + '\nNovo vencimento: ' + data.novo_vencimento);
+            //alert('✅ ' + data.message + '\nNovo vencimento: ' + data.novo_vencimento);
             
+            alert('✅ ' + '\nAssim que confirmarmos o pagamento, seu acesso será liberado');
+                    
+
             // Recarrega a página
             window.location.reload();
         } else {

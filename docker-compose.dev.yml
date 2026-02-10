@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-dev
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - ./mysql-init:/docker-entrypoint-initdb.d
+      - mysql_data:/var/lib/mysql
+    networks:
+      - airflow_net
+
+  postgres:
+    image: postgres:13
+    container_name: postgres-dev
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - airflow_net
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio-dev
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - /var/oled/minio_data:/data
+    networks:
+      - airflow_net
+
+  airflow-webserver:
+    build: .
+    container_name: airflow-webserver-dev
+    restart: always
+    depends_on:
+      - postgres
+    environment:
+      - ENV_SUFFIX=dev
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8080
+      - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:8080
+      - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
+      - AIRFLOW__WEBSERVER__FILTER_BY_OWNER=True
+      - AIRFLOW__WEBSERVER__OWNER_MODE=user
+      - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth
+      - MINIO_BUCKET=lab01
+      - ENABLE_ATLAS=false
+    volumes:
+      - ./src/dags:/opt/airflow/dags
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts:/usr/local/bin/scripts:ro
+      - ./ddb:/opt/duckdb
+    ports:
+      - "${AIRFLOW_WEBSERVER_PORT:-8080}:8080"
+    command: airflow webserver
+    user: root
+    networks:
+      - airflow_net
+
+  codeigniter-app:
+    build:
+      context: ./src/codeigniter-app
+      dockerfile: Dockerfile.webapp
+      args:
+        HOST_UID: ${UID:-1000}
+        HOST_GID: ${GID:-1000}
+        DOCKER_GID: 1001
+    container_name: codeigniter-app-dev
+    restart: always
+    depends_on:
+      - mysql
+      - minio
+      - airflow-webserver
+    volumes:
+      - ./src/codeigniter-app:/var/www/html
+      - .:/datalake-root
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "${CODEIGNITER_PORT:-8088}:80"
+      - "${CODEIGNITER_XDEBUG_PORT:-9003}:9003"
+    environment:
+      - CI_ENVIRONMENT=development
+      - CODEIGNITER_PORT=${CODEIGNITER_PORT:-8088}
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_REGION=us-east-1
+      - MINIO_VERSION=latest
+      - MINIO_USE_PATH_STYLE_ENDPOINT=true
+      - MINIO_ACCESS_KEY_ID=admin
+      - MINIO_SECRET_ACCESS_KEY=admin123
+      - MINIO_BUCKET_RAW=lab01
+      - AIRFLOW_EXTERNAL_URL=http://localhost:${AIRFLOW_WEBSERVER_PORT:-8080}
+      - AIRFLOW_HOST=airflow-webserver-dev
+      - AIRFLOW_PORT=8080
+      - AIRFLOW_ADMIN_USERNAME=admin
+      - AIRFLOW_ADMIN_PASSWORD=admin
+    networks:
+      - airflow_net
+
+networks:
+  airflow_net:
+    driver: bridge
+
+volumes:
+  pg_data:
+  mysql_data:

@@ -1,3 +1,7 @@
+<?php
+// Garante timezone correto para todas as funções de data/hora neste arquivo
+date_default_timezone_set('America/Sao_Paulo');
+?>
 <!-- Modal de Termos de Uso -->
 <div id="termsModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
     <div style="background:#fff; width:90vw; max-width:600px; max-height:80vh; border-radius:8px; overflow:hidden; display:flex; flex-direction:column;">
@@ -428,7 +432,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             </div>
             
             <div class="header-buttons">
-                
+                <!-- Exibe o timezone atual do servidor -->
+                <span id="server-timezone" style="margin-right: 16px; font-size: 0.95em; color: #333; background: #f3f3f3; border-radius: 4px; padding: 4px 10px; display: flex; align-items: center; gap: 4px;">
+                    <i class="bi bi-clock-history" style="font-size: 1.1em;"></i>
+                    <?php
+                        $tz = new DateTimeZone('America/Sao_Paulo');
+                        $dt = new DateTime('now', $tz);
+                        echo 'America/Sao_Paulo · ' . $dt->format('H:i') . 'h';
+                    ?>
+                </span>
                 <!-- Botão para abrir a sidebar -->
                 <button id="openSidebarBtn" class="btn btn-light">
                     <i class="bi bi-person-circle"></i>

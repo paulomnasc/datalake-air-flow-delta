@@ -101,7 +101,7 @@ require VIEWPATH . '/header.php';
                             <h6>📌 Instruções:</h6>
                             <div class="mb-2">
                                 <strong>Chave pix Cpf:</strong> 032.067.407-03<br>
-                                <strong>Nome:</strong> Cristiane Bomfim Lemos do Nascimento<br>
+                                <strong>Nome:</strong> Cristiane B**** L**** do Nascimento<br>
                                 <strong>Enviar o comprovante para:</strong> admin@estudotabela.com.br<br>
                                 <span class="text-muted">A partir do envio estaremos liberando o acesso em até 24 horas do recebimento do comprovante.</span>
                             </div>

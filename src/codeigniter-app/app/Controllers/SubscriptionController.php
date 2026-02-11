@@ -2,6 +2,8 @@
 
 namespace App\Controllers;
 
+require_once FCPATH . 'vendor/autoload.php';
+
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\UsuarioModel;
@@ -185,21 +187,42 @@ class SubscriptionController extends BaseController
             $_SESSION['subscription_expiry_date'] = $resultado['novo_vencimento'];
             $_SESSION['subscription_last_payment'] = date('Y-m-d');
             $_SESSION['subscription_services_blocked'] = false; // Desbloqueia serviços
-            
+
             // Reativar usuário no Airflow
             $usuario = $usuarioModel->find($userId);
             if ($usuario) {
                 $airflowResult = AirflowHelper::setUserActiveStatus(
-                    $userId, 
-                    $usuario->email ?? '', 
+                    $userId,
+                    $usuario->email ?? '',
                     true
                 );
-                
+
                 if ($airflowResult['success']) {
                     log_message('info', "[SUBSCRIPTION] Usuário {$userId} reativado no Airflow após renovação");
                 } else {
                     log_message('warning', "[SUBSCRIPTION] Falha ao reativar usuário {$userId} no Airflow: {$airflowResult['message']}");
                 }
+            }
+
+            // Envia email para admin@estudotabela.com.br
+            try {
+                $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+                $mail->isSMTP();
+                $mail->Host = getenv('smtp_host');
+                $mail->SMTPAuth = true;
+                $mail->Username = getenv('smtp_username');
+                $mail->Password = getenv('smtp_password');
+                $mail->SMTPSecure = getenv('smtp_secure');
+                $mail->Port = getenv('smtp_port');
+                $mail->CharSet = 'UTF-8';
+                $mail->setFrom(getenv('smtp_username'), 'Sistema MyDataFlow');
+                $mail->addAddress('admin@estudotabela.com.br');
+                $mail->Subject = 'Confirmação de pagamento MyDataFlow - Cursos';
+                $mail->Body = "Boa tarde, sou o aluno {$usuario->nome} e informo que já realizei o PIX para liberação do meu curso.\n\nDados do aluno:\nNome: {$usuario->nome}\nE-mail: {$usuario->email}";
+                $mail->isHTML(false);
+                $mail->send();
+            } catch (\Exception $e) {
+                log_message('error', '[SUBSCRIPTION] Falha ao enviar email para admin: ' . $e->getMessage());
             }
 
             return $this->response->setJSON([

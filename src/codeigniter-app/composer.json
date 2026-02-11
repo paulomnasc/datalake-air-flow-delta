@@ -20,6 +20,7 @@
         "google/apiclient": "^2.15",
         "guzzlehttp/guzzle": "^7.0",
         "laminas/laminas-escaper": "^2.13",
+        "phpmailer/phpmailer": "^7.0",
         "psr/log": "^3.0",
         "symfony/process": "^7.4"
     },
@@ -74,12 +75,7 @@
     "scripts": {
         "test": "phpunit"
     },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "./vendor/google/apiclient"
-        }
-    ]
+    "repositories": []
 
     
 }

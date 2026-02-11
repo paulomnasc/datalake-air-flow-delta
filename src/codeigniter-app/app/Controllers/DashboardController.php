@@ -334,12 +334,10 @@ class DashboardController extends BaseController
                         MAX(ac.created_at) as last_return
                     FROM activity_logs ac
                     INNER JOIN usuario u ON u.id = ac.user_id
-                    WHERE ac.user_id NOT IN (146, 176, 201)
-                        AND ac.route_alias = 'Usuario.logar'
+                    WHERE ac.user_id NOT IN (146, 176)
                         AND DATE_FORMAT(u.criado_em, '%Y-%m-%d') < DATE_FORMAT(ac.created_at, '%Y-%m-%d')
                     GROUP BY u.id
                     ORDER BY return_count DESC, last_return DESC
-                    LIMIT 20
                 ")->getResult();
         $topStudents = $db->query("
             SELECT 

@@ -2,6 +2,22 @@
 -- CONSULTAS PARA ACOMPANHAR PROGRESSO DOS ALUNOS NOS CURSOS
 -- ==========================================
 
+-- ALUNOS QUE RETORNARAM PROGRESSO PARA A PLATAFORMA APÓS O CADASTRO
+SELECT 
+    u.id AS user_id,
+    u.nome AS user_name,
+    u.email,
+    u.criado_em,
+    COUNT(ac.id) AS return_count,
+    MAX(ac.created_at) AS last_return
+FROM activity_logs ac
+INNER JOIN usuario u ON u.id = ac.user_id
+WHERE ac.user_id NOT IN (146, 176)
+  -- AND ac.route_alias = 'Usuario.logar'
+  AND DATE_FORMAT(u.criado_em, '%Y-%m-%d') < DATE_FORMAT(ac.created_at, '%Y-%m-%d')
+GROUP BY u.id
+ORDER BY return_count DESC, last_return DESC;
+
 -- 1. VISÃO GERAL: PROGRESSO DE TODOS OS ALUNOS POR CURSO
 SELECT 
     u.id as usuario_id,

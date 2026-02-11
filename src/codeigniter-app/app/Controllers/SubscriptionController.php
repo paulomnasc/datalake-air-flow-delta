@@ -402,7 +402,7 @@ class SubscriptionController extends BaseController
             'usuario_nome' => $usuario->nome ?? 'Usuário',
             'usuario_email' => $usuario->email ?? '',
             'status_assinatura' => $usuario->status_assinatura ?? 'trial',
-            'mensagem_bloqueio' => 'Para acessar o curso completo, realize o pagamento inicial de USD 2,00.',
+            'mensagem_bloqueio' => 'Para acessar o curso completo, realize o pagamento de BRL: R$ ' . $valorBrl . '.',
             'valor_usd' => $valorUsd,
             'cotacao_usd_brl' => $cotacao,
             'valor_brl' => $valorBrl,

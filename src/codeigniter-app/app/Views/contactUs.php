@@ -22,8 +22,7 @@ require VIEWPATH . '/header.php';
                             Seu contato é muito importante  para nós. Para agilizar crie um assunto claro e conciso explicitando sua necessidade que 
                             entraremos em contato com a maior brevidade possível. 
 
-                            <a href="https://htmlcodex.com/contact-form">Download Now</a>.</p>
-                        <div class="d-flex align-items-center mb-3">
+                            <div class="d-flex align-items-center mb-3">
                             <div class="d-flex align-items-center justify-content-center flex-shrink-0 bg-primary" style="width: 50px; height: 50px;">
                                 <i class="fa fa-map-marker-alt text-white"></i>
                             </div>
@@ -45,10 +44,7 @@ require VIEWPATH . '/header.php';
                             <div class="d-flex align-items-center justify-content-center flex-shrink-0 bg-primary" style="width: 50px; height: 50px;">
                                 <i class="fa fa-envelope-open text-white"></i>
                             </div>
-                            <div class="ms-3">
-                                <h5 class="text-primary">Email</h5>
-                                <p class="mb-0">paulomnasc@gmail.com</p>
-                            </div>
+                            
                         </div>
                     </div>
                     <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.3s">

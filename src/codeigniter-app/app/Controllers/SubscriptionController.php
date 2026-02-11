@@ -204,23 +204,13 @@ class SubscriptionController extends BaseController
                 }
             }
 
-            // Envia email para admin@estudotabela.com.br
+            // Envia email usando o método que já funciona: MarketPlaceController::sendMailNoSecurity
             try {
-                $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
-                $mail->isSMTP();
-                $mail->Host = getenv('smtp_host');
-                $mail->SMTPAuth = true;
-                $mail->Username = getenv('smtp_username');
-                $mail->Password = getenv('smtp_password');
-                $mail->SMTPSecure = getenv('smtp_secure');
-                $mail->Port = getenv('smtp_port');
-                $mail->CharSet = 'UTF-8';
-                $mail->setFrom(getenv('smtp_username'), 'Sistema MyDataFlow');
-                $mail->addAddress('admin@estudotabela.com.br');
-                $mail->Subject = 'Confirmação de pagamento MyDataFlow - Cursos';
-                $mail->Body = "Boa tarde, sou o aluno {$usuario->nome} e informo que já realizei o PIX para liberação do meu curso.\n\nDados do aluno:\nNome: {$usuario->nome}\nE-mail: {$usuario->email}";
-                $mail->isHTML(false);
-                $mail->send();
+                $marketplace = new \App\Controllers\MarketPlaceController();
+                $email = $usuario->email ?? 'no-reply@mydataflow.com';
+                $assunto = 'Confirmação de pagamento MyDataFlow - Cursos';
+                $mensagem = "Boa tarde, sou o aluno {$usuario->nome} e informo que já realizei o PIX para liberação do meu curso.\n\nDados do aluno:\nNome: {$usuario->nome}\nE-mail: {$usuario->email}";
+                $marketplace->sendMailCustom($email, $assunto, $mensagem);
             } catch (\Exception $e) {
                 log_message('error', '[SUBSCRIPTION] Falha ao enviar email para admin: ' . $e->getMessage());
             }

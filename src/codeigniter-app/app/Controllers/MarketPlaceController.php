@@ -11,8 +11,50 @@ require 'vendor/phpMailer/PHPMailer.php';
 require 'vendor/phpMailer/Exception.php'; 
 require 'vendor/phpMailer/SMTP.php';
 
-class MarketPlaceController extends BaseController
-{
+class MarketPlaceController extends BaseController {
+    /**
+     * Envia e-mail customizado sem depender de request
+     */
+    public function sendMailCustom($email, $assunto, $mensagem)
+    {
+        $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+        try {
+            $to = getenv('smtp_username');
+            $from = $email;
+            $subject = $assunto;
+            $message = $mensagem;
+            $smtpHost = getenv('smtp_host');
+            $smtpPort = getenv('smtp_port');
+            $username = getenv('smtp_username');
+            $password = getenv('smtp_password');
+            $mail->isSMTP();
+            $mail->Host = $smtpHost;
+            $mail->SMTPAuth = true;
+            $mail->Username = $username;
+            $mail->Password = $password;
+            $mail->SMTPSecure = 'tls';
+            $mail->Port = $smtpPort;
+            $mail->SMTPOptions = array(
+                'ssl' => array(
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                    'allow_self_signed' => true
+                )
+            );
+            $mail->CharSet = 'UTF-8';
+            $mail->setFrom($from, $from);
+            $mail->addAddress($to);
+            $mail->Subject = $subject;
+            $mail->Body = $message;
+            $mail->isHTML(true);
+            $mail->send();
+            return true;
+        } catch (\Exception $e) {
+            log_message('error', '[MARKETPLACE] Falha ao enviar email custom: ' . $e->getMessage());
+            return false;
+        }
+    }
+
     public function index()
     {
         //

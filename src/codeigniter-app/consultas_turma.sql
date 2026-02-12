@@ -21,7 +21,7 @@ ORDER BY return_count DESC, last_return DESC;
 -- 1. VISÃO GERAL: PROGRESSO DE TODOS OS ALUNOS POR CURSO
 SELECT 
     u.id as usuario_id,
-    u.name as nome_aluno,
+    u.nome as nome_aluno,
     u.email,
     c.id as curso_id,
     c.name as nome_curso,
@@ -47,9 +47,9 @@ LEFT JOIN module m ON m.course_id = c.id AND m.is_active = 1
 LEFT JOIN video v ON v.module_id = m.id AND v.is_active = 1
 LEFT JOIN uc_definition uc ON uc.video_id = v.id AND uc.is_active = 1
 LEFT JOIN uc_progress up ON up.user_id = u.id AND up.uc_definition_id = uc.id
-WHERE u.deleted_at IS NULL AND c.is_active = 1
+WHERE c.is_active = 1
 GROUP BY u.id, c.id
-ORDER BY u.name, c.name;
+ORDER BY u.nome, c.name;
 
 -- 2. PROGRESSO DETALHADO POR ALUNO
 SELECT 

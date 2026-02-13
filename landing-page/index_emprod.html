@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-KD72GH3P');</script>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Aprenda Engenharia de Dados na prática com o MyFlow Lab.">
+    <title>Descomplicando Dados + MyFlow Lab</title>
+    <style>
+        :root {
+            --primary: #667eea;
+            --secondary: #764ba2;
+            --dark: #1a202c;
+            --light: #f7fafc;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--light);
+            color: var(--dark);
+            line-height: 1.6;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 80px 20px;
+            text-align: center;
+        }
+
+        .hero h1 { font-size: 2.5rem; margin-bottom: 20px; }
+        .hero p { font-size: 1.2rem; max-width: 700px; margin: 0 auto 30px; opacity: 0.9; }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px; }
+
+        /* Estilo da Vitrine de Aulas */
+        .vitrine-section { margin-top: -50px; }
+        
+        .curriculum-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding: 30px;
+            margin-bottom: 40px;
+        }
+
+        .module-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #edf2f7;
+            transition: background 0.3s;
+        }
+
+        .module-item:hover { background: #f8fafc; }
+
+        .module-status {
+            width: 24px;
+            height: 24px;
+            margin-right: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .module-info h3 { font-size: 1.1rem; color: #2d3748; }
+        .module-info p { font-size: 0.9rem; color: #718096; }
+
+        .badge-free {
+            background: #48bb78;
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 10px;
+            text-transform: uppercase;
+        }
+
+        .cta-container { text-align: center; margin: 40px 0; }
+
+        .cta-button {
+            background: #48bb78;
+            color: white;
+            padding: 20px 40px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.2rem;
+            display: inline-block;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.4);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(72, 187, 120, 0.6);
+        }
+
+        .lab-preview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 40px;
+        }
+
+        .feature-box {
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .footer { text-align: center; padding: 40px; color: #a0aec0; font-size: 0.9rem; }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 1.8rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>Domine Engenharia de Dados na Prática</h1>
+        <p>Aprenda a construir pipelines reais e gerencie seu próprio Datalake usando o laboratório MyFlow.</p>
+        <a href="https://myflow.estudotabela.com.br:28443/sigInUsuario" class="cta-button">🚀 Começar Jornada Gratuita</a>
+    </div>
+
+    <div class="container vitrine-section">
+        <div class="curriculum-card">
+            <h2 style="margin-bottom: 20px; color: var(--secondary)">📖 Vitrine do Curso</h2>
+            
+            <div class="module-item">
+                <div class="module-status">🔓</div>
+                <div class="module-info">
+                    <h3>Módulo 1: Fundamentos e Cloud Storage <span class="badge-free">Livre</span></h3>
+                    <p>O que é um Data Lake e como configurar seu S3.</p>
+                </div>
+            </div>
+
+            <div class="module-item">
+                <div class="module-status">🔒</div>
+                <div class="module-info">
+                    <h3>Módulo 2: Arquitetura Medalhão</h3>
+                    <p>Implementando as camadas Bronze, Silver e Gold.</p>
+                </div>
+            </div>
+
+            <div class="module-item">
+                <div class="module-status">🔒</div>
+                <div class="module-info">
+                    <h3>Módulo 3: Data Quality Avançado</h3>
+                    <p>Como customizar regras de qualidade dentro do MyFlow Lab.</p>
+                </div>
+            </div>
+
+            <div class="module-item">
+                <div class="module-status">🔒</div>
+                <div class="module-info">
+                    <h3>Módulo 4: Analytics e BI</h3>
+                    <p>Conectando seus dados processados a dashboards inteligentes.</p>
+                </div>
+            </div>
+        </div>
+
+        <h2 style="text-align: center; margin: 40px 0 20px;">Por que usar o MyFlow Lab?</h2>
+        <div class="lab-preview">
+            <div class="feature-box">
+                <div style="font-size: 2rem; margin-bottom: 10px;">⚡</div>
+                <h3>Sem Configuração</h3>
+                <p>Não perca horas configurando Spark ou Hadoop. Foque na lógica dos dados.</p>
+            </div>
+            <div class="feature-box">
+                <div style="font-size: 2rem; margin-bottom: 10px;">🛠️</div>
+                <h3>Mão na Massa</h3>
+                <p>O laboratório simula um ambiente corporativo real para você praticar.</p>
+            </div>
+            <div class="feature-box">
+                <div style="font-size: 2rem; margin-bottom: 10px;">📊</div>
+                <h3>Visibilidade Total</h3>
+                <p>Acompanhe o processamento de cada linha de dado com logs detalhados.</p>
+            </div>
+        </div>
+
+        <div class="cta-container">
+            <p style="margin-bottom: 20px; font-weight: bold;">Junte-se a outros alunos e comece a criar seus pipelines hoje.</p>
+            <a href="https://myflow.estudotabela.com.br:28443/sigInUsuario" class="cta-button">🎯 Quero Criar minha Conta</a>
+            <p style="margin-top: 15px; font-size: 0.9rem;">
+                Já é aluno? <a href="https://myflow.estudotabela.com.br:28443/loginUsuario" style="color: var(--primary); font-weight: bold;">Fazer Login</a>
+            </p>
+        </div>
+    </div>
+
+    <div class="footer">
+        &copy; 2025 MyFlow Lab - Descomplicando a Engenharia de Dados.
+    </div>
+</body>
+</html>

@@ -113,6 +113,25 @@ require VIEWPATH . '/header.php';
         
         .sidebar-section {
             margin-bottom: 24px;
+            overflow-x: auto;
+            overflow-y: visible;
+        }
+        
+        .sidebar-section::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .sidebar-section::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        
+        .sidebar-section::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+        
+        .sidebar-section::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
         }
         
         .sidebar-section h3 {
@@ -186,15 +205,19 @@ require VIEWPATH . '/header.php';
         }
         
         .tree-item .expand-icon {
-            width: 12px;
+            width: 16px;
+            height: 16px;
             margin-right: 4px;
             flex-shrink: 0;
-            transition: transform 0.2s;
-            color: #94a3b8;
-        }
-        
-        .tree-item .expand-icon.expanded {
-            transform: rotate(90deg);
+            transition: all 0.2s;
+            color: white;
+            background: black;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
         }
         
         .tree-children {
@@ -215,6 +238,72 @@ require VIEWPATH . '/header.php';
             white-space: nowrap;
         }
         
+        .tree-item-checkbox {
+            width: 16px;
+            height: 16px;
+            margin-right: 6px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        
+        .file-tree-controls {
+            padding: 8px 12px;
+            background: #1e293b;
+            border-top: 1px solid #334155;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .file-tree-controls .btn-control {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex: 1;
+            min-width: fit-content;
+        }
+        
+        .file-tree-controls .btn-select-all {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .file-tree-controls .btn-select-all:hover {
+            background: #2563eb;
+        }
+        
+        .file-tree-controls .btn-clear {
+            background: #64748b;
+            color: white;
+        }
+        
+        .file-tree-controls .btn-clear:hover {
+            background: #475569;
+        }
+        
+        .file-tree-controls .btn-delete {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .file-tree-controls .btn-delete:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+        }
+        
+        .file-tree-controls .btn-delete:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
         .main-editor {
             display: flex;
             flex-direction: column;
@@ -230,6 +319,27 @@ require VIEWPATH . '/header.php';
             display: flex;
             gap: 12px;
             align-items: center;
+            overflow-x: auto;
+            overflow-y: hidden;
+            flex-wrap: nowrap;
+            white-space: nowrap;
+        }
+        
+        .toolbar::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .toolbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        
+        .toolbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        .toolbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
         
         .btn {
@@ -517,6 +627,20 @@ require VIEWPATH . '/header.php';
                 <div id="tab-files" class="sidebar-tab-content active">
                     <div class="sidebar-section">
                         <h3>📁 Arquivos Parquet</h3>
+                        
+                        <!-- Controles de seleção múltipla -->
+                        <div class="file-tree-controls">
+                            <button class="btn-control btn-select-all" onclick="selectAllFiles()" title="Selecionar todos os arquivos e pastas">
+                                ✓ Todos
+                            </button>
+                            <button class="btn-control btn-clear" onclick="clearSelection()" title="Limpar seleção">
+                                ✗ Limpar
+                            </button>
+                            <button class="btn-control btn-delete" id="deleteSelectedBtn" onclick="deleteSelectedFiles()" disabled title="Deletar itens selecionados">
+                                🗑️ Deletar
+                            </button>
+                        </div>
+                        
                         <ul class="file-tree" id="fileTree"></ul>
                     </div>
                     
@@ -658,6 +782,9 @@ require VIEWPATH . '/header.php';
             }
         }
         
+        // State para controlar seleção de arquivos
+        let selectedFiles = new Set();
+        
         function buildFileTree(paths) {
             const root = { children: {}, isFile: false };
             
@@ -666,13 +793,18 @@ require VIEWPATH . '/header.php';
                 const parts = cleanPath.split('/');
                 let current = root;
                 
+                // Constrói o caminho incremental para pastas
+                let accumulatedPath = 's3://';
+                
                 parts.forEach((part, index) => {
                     if (!part) return;
+                    
+                    accumulatedPath += (index === 0 ? '' : '/') + part;
                     
                     if (!current.children[part]) {
                         current.children[part] = {
                             name: part,
-                            fullPath: path,
+                            fullPath: index === parts.length - 1 ? path : accumulatedPath + '/',
                             isFile: index === parts.length - 1,
                             children: {},
                             expanded: index < 2
@@ -694,13 +826,24 @@ require VIEWPATH . '/header.php';
             entries.forEach(entry => {
                 const item = document.createElement('div');
                 
+                // ID único para o checkbox
+                const itemId = 'item_' + btoa(entry.fullPath).replace(/=/g, '');
+                
+                // Verifica se é bucket (level 0) ou camada protegida (bronze, silver, gold, delta, raw)
+                const protectedLayers = ['bronze', 'silver', 'gold', 'delta', 'raw'];
+                const isBucket = level === 0;
+                const isProtectedLayer = level === 1 && protectedLayers.includes(entry.name.toLowerCase());
+                const showCheckbox = !isBucket && !isProtectedLayer;
+                
                 if (entry.isFile) {
                     item.className = 'tree-item file';
                     item.innerHTML = `
+                        ${showCheckbox ? `<input type="checkbox" class="tree-item-checkbox" id="${itemId}" 
+                               data-path="${entry.fullPath}" data-is-folder="false"
+                               onchange="updateDeleteButton()">` : '<span style="width: 16px; margin-right: 6px; display: inline-block;"></span>'}
                         <span class="icon">📄</span>
-                        <span class="label" title="${entry.name}">${entry.name}</span>
+                        <span class="label" title="${entry.name}" onclick="insertQueryFromFile('${entry.fullPath}')" style="cursor: pointer;">${entry.name}</span>
                     `;
-                    item.onclick = () => insertQueryFromFile(entry.fullPath);
                 } else {
                     const hasChildren = Object.keys(entry.children).length > 0;
                     const childrenContainer = document.createElement('div');
@@ -708,17 +851,19 @@ require VIEWPATH . '/header.php';
                     
                     item.className = 'tree-item folder';
                     item.innerHTML = `
-                        <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasChildren ? '▶' : ''}</span>
+                        ${showCheckbox ? `<input type="checkbox" class="tree-item-checkbox" id="${itemId}" 
+                               data-path="${entry.fullPath}" data-is-folder="true"
+                               onchange="updateDeleteButton()">` : '<span style="width: 16px; margin-right: 6px; display: inline-block;"></span>'}
+                        <span class="expand-icon" 
+                              onclick="toggleFolder(this, '${itemId}')" 
+                              style="cursor: pointer;">${hasChildren ? (entry.expanded ? '−' : '+') : ''}</span>
                         <span class="icon">${entry.expanded ? '📂' : '📁'}</span>
                         <span class="label" title="${entry.name}">${entry.name}</span>
                     `;
                     
-                    if (hasChildren) {
-                        item.onclick = (e) => {
-                            e.stopPropagation();
-                            toggleFolder(item, childrenContainer, entry);
-                        };
-                    }
+                    // Armazena referência ao container de filhos no elemento
+                    item.dataset.childrenContainerId = itemId + '_children';
+                    childrenContainer.id = itemId + '_children';
                     
                     container.appendChild(item);
                     
@@ -733,19 +878,114 @@ require VIEWPATH . '/header.php';
             });
         }
         
-        function toggleFolder(folderItem, childrenContainer, entry) {
-            const expandIcon = folderItem.querySelector('.expand-icon');
-            const icon = folderItem.querySelector('.icon');
+        function toggleFolder(expandIconElement, itemId) {
+            const item = expandIconElement.closest('.tree-item');
+            const childrenContainerId = item.dataset.childrenContainerId;
+            const childrenContainer = document.getElementById(childrenContainerId);
+            
+            if (!childrenContainer) return;
+            
+            const icon = item.querySelector('.icon');
             const isExpanded = childrenContainer.classList.toggle('expanded');
             
             if (isExpanded) {
-                expandIcon.classList.add('expanded');
+                expandIconElement.textContent = '−';
                 icon.textContent = '📂';
-                entry.expanded = true;
             } else {
-                expandIcon.classList.remove('expanded');
+                expandIconElement.textContent = '+';
                 icon.textContent = '📁';
-                entry.expanded = false;
+            }
+        }
+        
+        function selectAllFiles() {
+            const checkboxes = document.querySelectorAll('.tree-item-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = true;
+            });
+            updateDeleteButton();
+        }
+        
+        function clearSelection() {
+            const checkboxes = document.querySelectorAll('.tree-item-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = false;
+            });
+            updateDeleteButton();
+        }
+        
+        function updateDeleteButton() {
+            const checkboxes = document.querySelectorAll('.tree-item-checkbox:checked');
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
+            
+            if (checkboxes.length > 0) {
+                deleteBtn.disabled = false;
+                deleteBtn.title = `Deletar ${checkboxes.length} item(s) selecionado(s)`;
+            } else {
+                deleteBtn.disabled = true;
+                deleteBtn.title = 'Nenhum item selecionado';
+            }
+        }
+        
+        async function deleteSelectedFiles() {
+            const checkboxes = document.querySelectorAll('.tree-item-checkbox:checked');
+            
+            if (checkboxes.length === 0) {
+                alert('Nenhum item selecionado para deletar.');
+                return;
+            }
+            
+            // Confirma antes de deletar
+            const confirmMsg = `Deseja realmente deletar ${checkboxes.length} item(s) selecionado(s)?\n\nEsta ação não pode ser desfeita.`;
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            // Coleta os itens selecionados
+            const items = [];
+            checkboxes.forEach(cb => {
+                items.push({
+                    path: cb.dataset.path,
+                    isFolder: cb.dataset.isFolder === 'true'
+                });
+            });
+            
+            // Desabilita o botão durante a operação
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
+            const originalText = deleteBtn.innerHTML;
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = '⏳ Deletando...';
+            
+            try {
+                const response = await fetch('/code-editor/delete-files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ ${result.message}`);
+                    // Recarrega a lista de arquivos
+                    await loadParquetFiles();
+                    clearSelection();
+                } else {
+                    let errorMsg = `⚠️ ${result.message}`;
+                    if (result.errors && result.errors.length > 0) {
+                        errorMsg += '\n\nErros:\n';
+                        result.errors.forEach(err => {
+                            errorMsg += `- ${err.path}: ${err.message}\n`;
+                        });
+                    }
+                    alert(errorMsg);
+                }
+            } catch (error) {
+                console.error('Erro ao deletar arquivos:', error);
+                alert('❌ Erro ao deletar arquivos: ' + error.message);
+            } finally {
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = originalText;
+                updateDeleteButton();
             }
         }
         

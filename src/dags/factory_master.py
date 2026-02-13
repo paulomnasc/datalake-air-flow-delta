@@ -292,7 +292,7 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     Cria e retorna um objeto Airflow DAG com base nos dados de configuração e define a sequência de tarefas.
     """
     
-    dag_id = dag_config['dag_id']
+    dag_id = dag_config['dag_id'] or 'default'
     dag_metadata = dag_config['dag_metadata']
     task_config = dag_config['task_config']
     
@@ -388,7 +388,8 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
             # Preparar kwargs
             op_kwargs_dict = {
                 'source_filename': file_path,  # Caminho completo do arquivo individual
-                'target_table_name': file_name_no_ext,  # Nome da tabela baseado no arquivo
+                'target_table_name': task_config.get('target_table_name', file_name_no_ext),  # Usa configuração do banco
+                'delta_table_name': file_name_no_ext,  # Nome individual para tabela Delta (evita conflito de schema)
                 'dag_id': dag_id,  # ID da DAG para organizar camadas
                 'owner': dag_metadata.get('owner', 'airflow'),
                 'bucket_name': bucket_name,  # Passa o bucket correto
@@ -540,7 +541,7 @@ def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
     Cria uma DAG que processa múltiplas tabelas em paralelo usando Dynamic Task Mapping.
     Disponível a partir do Airflow 2.3+.
     """
-    dag_id = dag_config['dag_id']
+    dag_id = dag_config['dag_id'] or 'default'
     dag_metadata = dag_config['dag_metadata']
     task_config = dag_config['task_config']
     config_id = dag_config.get('id')
@@ -763,7 +764,9 @@ def create_sync_delta_to_postgres_dag(owner: str, bucket: str) -> DAG:
         verify_postgres_tables
     )
     
-    dag_id = f"sync_delta_dw_{owner}"
+    # Sanitiza owner para criar dag_id válido (remove espaços, acentos, caracteres especiais)
+    sanitized_owner = build_owner_role(owner) if owner else 'unknown'
+    dag_id = f"sync_delta_dw_{sanitized_owner}"
     
     default_args = {
         'owner': owner,
@@ -847,10 +850,12 @@ try:
     # Cria uma DAG de sync para cada usuário
     for owner, bucket in users_with_buckets.items():
         try:
-            dag_id = f"sync_delta_dw_{owner}"
+            # Sanitiza owner para garantir dag_id válido
+            sanitized_owner = build_owner_role(owner) if owner else 'unknown'
+            dag_id = f"sync_delta_dw_{sanitized_owner}"
             sync_dag = create_sync_delta_to_postgres_dag(owner, bucket)
             globals()[dag_id] = sync_dag
-            log.info(f"✅ DAG de sync criada: {dag_id} (bucket: {bucket})")
+            log.info(f"✅ DAG de sync criada: {dag_id} (bucket: {bucket}, owner original: {owner})")
         except Exception as e:
             log.error(f"❌ Falha ao criar DAG de sync para {owner}: {e}")
             continue

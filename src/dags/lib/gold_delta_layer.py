@@ -49,10 +49,10 @@ def gold_to_delta(source_filename: str, target_table_name: str, **kwargs):
     # Determina chaves
     src_key = source_filename.lstrip('/')
     
-    # Delta Lake usa diretório raiz sem dag_id (para Thrift Server)
-    # Caminho: s3://lab01/delta/{target_table_name}/
+    # Delta: estrutura delta/{target_table_name}/ (no mesmo nível de gold/, silver/, bronze/)
     delta_path = f"s3://{bucket}/delta/{target_table_name}/"
 
+    log.info("[DELTA] source_filename: %s", source_filename)
     log.info("[DELTA] Processando: s3://%s/%s → %s", bucket, src_key, delta_path)
 
     tmpdir = None
@@ -184,8 +184,11 @@ def gold_to_delta(source_filename: str, target_table_name: str, **kwargs):
             log.debug("[DELTA] Diretório temporário removido.")
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# FUNÇÃO NÃO UTILIZADA - Mantida para referência futura
+# ═══════════════════════════════════════════════════════════════════════════════
+"""
 def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs):
-    """
     Camada Gold com Delta Lake: Dados agregados com versionamento e ACID.
     
     Diferenças vs Parquet:
@@ -198,7 +201,7 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
     Args:
         source_filename: Caminho do arquivo Silver (Parquet)
         target_table_name: Nome da tabela Gold
-    """
+    
     log.info(f"[GOLD-DELTA] Iniciando agregação Delta Lake para: {target_table_name}")
     log.info(f"[GOLD-DELTA] Arquivo origem: {source_filename}")
     
@@ -370,6 +373,7 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
             import shutil
             shutil.rmtree(tmpdir)
             log.debug("[GOLD-DELTA] Diretório temporário removido.")
+"""
 
 
 def _apply_analytical_intelligence(df, table_name):

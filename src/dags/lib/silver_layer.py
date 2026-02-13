@@ -32,19 +32,17 @@ def bronze_to_silver(source_filename: str, target_table_name: str, **kwargs):
 
     # Determina chave Bronze e Silver
     src_key = source_filename.lstrip('/')
-    dag_id = kwargs.get('dag_id', 'default')
+    dag_id = kwargs.get('dag_id') or 'default'
     
     # Detectar se é pasta (termina com /)
     is_folder = src_key.endswith('/')
     
-    # Se source_filename aponta para Raw, ajusta para Bronze
+    # Se source_filename aponta para Raw, converte para Bronze mantendo apenas o basename
     if src_key.startswith('raw/'):
-        # Extrai dag_id de raw/{dag_id}/...
-        parts = src_key.split('/')
-        if len(parts) >= 2:
-            dag_id = parts[1]
-        # Substitui raw/ por bronze/
-        src_key = src_key.replace('raw/', f'bronze/{dag_id}/', 1)
+        # Extrair apenas o filename: raw/dag_id/file.ext -> bronze/{target_table_name}/file.parquet
+        basename = os.path.basename(src_key)
+        src_key = f"bronze/{target_table_name}/{os.path.splitext(basename)[0]}.parquet"
+        is_folder = False
     
     log.info("[SILVER] Pasta detectada: %s", "Sim" if is_folder else "Não")
 
@@ -185,8 +183,9 @@ def bronze_to_silver(source_filename: str, target_table_name: str, **kwargs):
             log.info("[SILVER]   - Linhas aprovadas: %d", quality_metrics['rows_passed'])
             log.info("[SILVER]   - Linhas reprovadas: %d", quality_metrics['rows_failed'])
             
-            # Salvar como Parquet
-            silver_key = f"silver/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
+            # Silver: estrutura silver/{target_table_name}/{timestamp_hash}.parquet
+            basename_no_ext = os.path.splitext(os.path.basename(bronze_key))[0]
+            silver_key = f"silver/{target_table_name}/{basename_no_ext}.parquet"
             silver_local = os.path.join(tmpdir, f"{basename_no_ext}.parquet")
             df.to_parquet(silver_local, index=False, compression='snappy')
             log.info("[SILVER] Parquet criado: %s", silver_local)

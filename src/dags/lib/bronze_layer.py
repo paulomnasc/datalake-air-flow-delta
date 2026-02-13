@@ -29,7 +29,7 @@ def raw_to_bronze(source_filename: str, target_table_name: str, **kwargs):
     # Bucket isolado por usuário: kwargs -> env -> fallback
     bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
     hook = S3Hook(aws_conn_id='minio_conn')
-    dag_id = kwargs.get('dag_id', 'default')
+    dag_id = kwargs.get('dag_id') or 'default'
 
     def _read_json_to_df(path: str):
         """Carrega JSON de forma robusta (lista, objeto, NDJSON)."""
@@ -96,9 +96,8 @@ def raw_to_bronze(source_filename: str, target_table_name: str, **kwargs):
                 basename = os.path.basename(file_key)
                 basename_no_ext = os.path.splitext(basename)[0]
                 
-                # Bronze: manter apenas o basename do arquivo Raw em Parquet
-                # Estrutura: bronze/{dag_id}/{target_table_name}/{basename_no_ext}.parquet
-                bronze_key = f"bronze/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
+                # Bronze: estrutura bronze/{target_table_name}/{timestamp_hash}.parquet
+                bronze_key = f"bronze/{target_table_name}/{basename_no_ext}.parquet"
                 
                 # Download
                 local_file = hook.download_file(key=file_key, bucket_name=bucket, local_path=tmpdir, preserve_file_name=True)

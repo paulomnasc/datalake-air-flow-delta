@@ -336,6 +336,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                   method="POST" 
                                   action="<?= !empty($edit_data) ? base_url('updateConfig') : base_url('dashboard/createPipeline') ?>" 
                                   enctype="multipart/form-data"
+                                  novalidate
                                   @submit.prevent="submitWizard($event)">
                                 <?= csrf_field() ?>
                                 
@@ -356,8 +357,8 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                    name="dag_id" 
                                                    class="form-control" 
                                                    placeholder="Ex: pipeline_vendas_diario"
-                                                   x-model="wizardData.pipelineName" 
-                                                   x-bind:required="wizardData.currentStep === 1">
+                                                   x-model="wizardData.pipelineName"
+                                                   required>
                                             <small class="text-muted">Use apenas letras, números e underscore (_)</small>
                                         </div>
 
@@ -372,7 +373,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 
                                         <div class="form-section">
                                             <label class="form-label">Pasta/Workspace *</label>
-                                            <select name="id_pasta" class="form-select" x-model="wizardData.folder" x-bind:required="wizardData.currentStep === 1">
+                                            <select name="id_pasta" class="form-select" x-model="wizardData.folder" required>
                                                 <option value="">Selecione uma pasta...</option>
                                                 <?php if (!empty($pastas)): ?>
                                                     <?php foreach ($pastas as $pasta): ?>
@@ -406,7 +407,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                         
                                         <div class="form-section">
                                             <label class="form-label">Tipo de Fonte *</label>
-                                            <select name="id_source_type" class="form-select" x-model="wizardData.sourceType" @change="handleSourceTypeChange()" x-bind:required="wizardData.currentStep === 2">
+                                            <select name="id_source_type" class="form-select" x-model="wizardData.sourceType" @change="handleSourceTypeChange()" required>
                                                 <option value="">Selecione o tipo...</option>
                                                 <?php if (!empty($source_types)): ?>
                                                     <?php foreach ($source_types as $type): ?>
@@ -417,6 +418,21 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                     <?php endforeach; ?>
                                                 <?php endif; ?>
                                             </select>
+                                        </div>
+
+                                        <div class="form-section">
+                                            <label class="form-label">Nome da Tabela Destino *</label>
+                                            <input type="text" 
+                                                   name="target_table_name" 
+                                                   class="form-control" 
+                                                   placeholder="Ex: clientes, vendas, produtos"
+                                                   x-model="wizardData.targetTableName" 
+                                                   pattern="[a-zA-Z0-9_]+"
+                                                   required>
+                                            <small class="text-muted">
+                                                <i class="bi bi-info-circle"></i> 
+                                                Nome usado para organizar os dados em Bronze/Silver/Gold. Use apenas letras, números e underscore (_)
+                                            </small>
                                         </div>
 
                                         <!-- Upload de Arquivo CSV/JSON -->
@@ -564,8 +580,8 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                             <label class="form-label">Função Python de Transformação: *</label>
                                             <select name="python_module_path" 
                                                     class="form-select" 
-                                                    x-model="wizardData.pythonFunction" 
-                                                    x-bind:required="wizardData.currentStep === 3">
+                                                    x-model="wizardData.pythonFunction"
+                                                    required>
                                                 <option value="">-- Selecione o tipo de pipeline --</option>
                                                 <?php if (!empty($funcoes_python)): ?>
                                                     <?php foreach ($funcoes_python as $grupo => $funcoes): ?>
@@ -661,6 +677,9 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                     
                                                     <dt class="col-sm-3">Tipo de Fonte:</dt>
                                                     <dd class="col-sm-9" x-text="getSourceTypeName(wizardData.sourceType) || 'Não configurada'"></dd>
+                                                    
+                                                    <dt class="col-sm-3">Tabela Destino:</dt>
+                                                    <dd class="col-sm-9" x-text="wizardData.targetTableName || 'Não informada'"></dd>
                                                     
                                                     <dt class="col-sm-3">Função Python:</dt>
                                                     <dd class="col-sm-9" x-text="wizardData.pythonFunction || 'Não selecionada'"></dd>
@@ -871,6 +890,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     description: '',
                     folder: '',
                     sourceType: '',
+                    targetTableName: '',
                     showFileUpload: false,
                     multiUpload: false,
                     selectFolder: false,
@@ -896,6 +916,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     this.wizardData.description = editData.description || '';
                     this.wizardData.folder = editData.id_pasta ? editData.id_pasta.toString() : '';
                     this.wizardData.sourceType = editData.id_source_type ? editData.id_source_type.toString() : '';
+                    this.wizardData.targetTableName = editData.target_table_name || '';
                     this.wizardData.pythonFunction = editData.python_module_path || '';
                     this.wizardData.transformArgs = editData.transform_args || '{}';
                     this.wizardData.scheduleType = editData.schedule_interval === '@manual' || editData.schedule_interval === null ? 'manual' : 'scheduled';
@@ -970,6 +991,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     this.wizardData.description = '';
                     this.wizardData.folder = '';
                     this.wizardData.sourceType = '';
+                    this.wizardData.targetTableName = '';
                     this.wizardData.pythonFunction = '';
                     this.wizardData.transformArgs = '{}';
                     this.wizardData.scheduleType = 'manual';
@@ -984,14 +1006,15 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     const uniqueName = templateConfig.pipelineName + '_' + timestamp;
                     
                     // Preencher wizard com dados do template
-                    this.wizardData.pipelineName = uniqueName;
-                    this.wizardData.description = templateConfig.description || '';
+                    // REMOVIDO: Preenchimento automático de dag_id e description
+                    // this.wizardData.pipelineName = uniqueName;
+                    // this.wizardData.description = templateConfig.description || '';
                     this.wizardData.folder = templateConfig.folder || '';
                     this.wizardData.sourceType = templateConfig.sourceType || '';
                     this.wizardData.pythonFunction = templateConfig.pythonFunction || '';
                     this.wizardData.transformArgs = templateConfig.transformArgs || '{}';
                     this.wizardData.scheduleType = templateConfig.scheduleType || 'manual';
-                    this.wizardData.frequency = templateConfig.frequency || '0 0 * * *';
+                    this.wizardData.frequency = templateConfig.frequency || '';
                     
                     // Ativar visualização de upload se necessário
                     if (templateConfig.requiresFile) {
@@ -1044,6 +1067,37 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     const formData = new FormData(form);
                     
                     console.log('📤 Enviando pipeline...');
+                    
+                    // Validar campos obrigatórios ANTES de enviar
+                    if (!formData.get('dag_id') || formData.get('dag_id').trim() === '') {
+                        this.showMessage('Nome do Pipeline é obrigatório!', 'error');
+                        this.wizardData.currentStep = 1;
+                        return;
+                    }
+                    
+                    if (!formData.get('id_pasta') || formData.get('id_pasta').trim() === '') {
+                        this.showMessage('Pasta/Workspace é obrigatório!', 'error');
+                        this.wizardData.currentStep = 1;
+                        return;
+                    }
+                    
+                    if (!formData.get('id_source_type') || formData.get('id_source_type').trim() === '') {
+                        this.showMessage('Tipo de Fonte é obrigatório!', 'error');
+                        this.wizardData.currentStep = 2;
+                        return;
+                    }
+                    
+                    if (!formData.get('target_table_name') || formData.get('target_table_name').trim() === '') {
+                        this.showMessage('Nome da Tabela Destino é obrigatório!', 'error');
+                        this.wizardData.currentStep = 2;
+                        return;
+                    }
+                    
+                    if (!formData.get('python_module_path') || formData.get('python_module_path').trim() === '') {
+                        this.showMessage('Função Python de Transformação é obrigatória!', 'error');
+                        this.wizardData.currentStep = 3;
+                        return;
+                    }
                     
                     // Garantir valores padrão para campos opcionais
                     if (!formData.get('schedule_interval')) {
@@ -1103,6 +1157,14 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         } else {
                             console.log(`  ${pair[0]}: ${pair[1]}`);
                         }
+                    }
+                    
+                    // VERIFICAÇÃO CRÍTICA
+                    if (!formData.get('target_table_name')) {
+                        console.error('❌ ERRO: target_table_name NÃO está no FormData!');
+                        console.log('wizardData.targetTableName:', this.wizardData.targetTableName);
+                    } else {
+                        console.log('✅ target_table_name confirmado:', formData.get('target_table_name'));
                     }
                     
                     console.log('🌐 URL de destino:', form.action);

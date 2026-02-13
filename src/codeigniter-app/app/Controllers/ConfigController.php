@@ -461,6 +461,10 @@ class ConfigController extends BaseController
 
                 $dagId = $postData['dag_id'] ?? 'default_dag';
                 
+                // Extrair target_table_name do nome do arquivo original (sem extensão)
+                $originalFileName = $uploadedFile->getClientName();
+                $targetTableName = $postData['target_table_name'] ?? pathinfo($originalFileName, PATHINFO_FILENAME);
+                
                 // Prioriza bucket do usuário logado (alinhado com username), depois config, depois fallback
                 $bucket = SessionHelper::getUserBucket() ?: ($this->bucketName ?: 'lab01');
                 
@@ -499,9 +503,12 @@ class ConfigController extends BaseController
                 
                 log_message('info', "Verificação de armazenamento OK: {$storageCheck['message']}");
 
-                // Gera nome único para o arquivo no MinIO
-                $newName = $uploadedFile->getRandomName(); // CI gera um nome único
-                $targetMinioPath = "raw/{$dagId}/{$newName}";
+                // Gera nome único para o arquivo no MinIO com timestamp
+                $timestamp = date('YmdHis');
+                $hash = substr(md5($uploadedFile->getClientName() . microtime()), 0, 8);
+                $extension = $uploadedFile->getClientExtension();
+                $newName = "{$timestamp}_{$hash}.{$extension}";
+                $targetMinioPath = "raw/{$targetTableName}/{$newName}";
 
                 // Realiza o upload usando o S3Client inicializado em __construct
                 if (!$this->minioClient) {
@@ -750,9 +757,13 @@ class ConfigController extends BaseController
                 }
                 
                 log_message('info', "Verificação de armazenamento OK: {$storageCheck['message']}");
+                
+                // Extrair target_table_name do nome do arquivo original (sem extensão)
+                $originalFileName = $uploadedFile->getClientName();
+                $targetTableName = $postData['target_table_name'] ?? pathinfo($originalFileName, PATHINFO_FILENAME);
 
                 $newName = $uploadedFile->getRandomName();
-                $targetMinioPath = "raw/{$dagId}/{$newName}";
+                $targetMinioPath = "raw/{$targetTableName}/{$newName}";
 
                 try {
                     $this->minioClient->putObject([
@@ -1195,16 +1206,22 @@ class ConfigController extends BaseController
             // Log de entrada para debug
             error_log('=== Upload Múltiplo Iniciado ===');
             error_log('POST data: ' . json_encode($this->request->getPost()));
+            error_log('target_table_name recebido: ' . ($this->request->getPost('target_table_name') ?? 'NULL/VAZIO'));
             
             // Validar dados básicos
             $dagId = $this->request->getPost('dag_id');
+            $targetTableName = $this->request->getPost('target_table_name');
             $batchMode = $this->request->getPost('batch_mode') ?? 'parallel';
             $maxParallel = (int)($this->request->getPost('max_parallel_files') ?? 4);
             
-            log_message('info', "DAG ID: {$dagId}, Batch Mode: {$batchMode}, Max Parallel: {$maxParallel}");
+            log_message('info', "DAG ID: {$dagId}, Target Table: {$targetTableName}, Batch Mode: {$batchMode}, Max Parallel: {$maxParallel}");
             
             if (!$dagId) {
                 throw new \Exception('dag_id é obrigatório');
+            }
+            
+            if (!$targetTableName) {
+                throw new \Exception('target_table_name é obrigatório para organizar os arquivos nas camadas do Data Lake');
             }
             
             // Verificar se MinIO está inicializado
@@ -1273,7 +1290,15 @@ class ConfigController extends BaseController
             foreach ($files as $index => $file) {
                 try {
                     $fileName = $file->getName(); // Nome original do arquivo
-                    $s3Key = "raw/{$dagId}/{$fileName}"; // SEM timestamp - nome original
+                    
+                    // Gerar nome único para evitar sobrescrita
+                    $fileTimestamp = date('YmdHis');
+                    $hash = substr(md5($fileName . microtime()), 0, 8);
+                    $extension = pathinfo($fileName, PATHINFO_EXTENSION);
+                    $uniqueFileName = "{$fileTimestamp}_{$hash}.{$extension}";
+                    
+                    // Estrutura: raw/{target_table_name}/{timestamp}_{hash}.ext
+                    $s3Key = "raw/{$targetTableName}/{$uniqueFileName}";
                     
                     log_message('info', "Fazendo upload do arquivo: {$fileName} para {$s3Key}");
                     log_message('info', "Arquivo temp: {$file->getTempName()}, Tamanho: {$file->getSize()}, MIME: {$file->getMimeType()}");
@@ -1351,12 +1376,11 @@ class ConfigController extends BaseController
                 throw new \Exception('Tipo de fonte de dados não encontrado');
             }
             
-            // Criar lista de todos os arquivos em JSON para salvar no source_filename
-            // MELHOR ABORDAGEM: Salvar apenas o PATH da pasta
-            // O Airflow listará dinamicamente todos os arquivos dentro
-            $folderPath = "raw/{$dagId}/";
+            // Criar lista de pastas únicas para batch processing
+            // Todos os arquivos vão para a mesma pasta: raw/{target_table_name}/
+            $sourceFilenameValue = "raw/{$targetTableName}/";
             
-            // Criar UMA configuração que processa TODOS os arquivos da pasta
+            // Criar UMA configuração que processa TODOS os arquivos das pastas
             // Alinhar owner com username do Airflow para access_control
             $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                 \App\Helpers\SessionHelper::getUserEmail(), 
@@ -1365,12 +1389,12 @@ class ConfigController extends BaseController
 
             $dataToInsert = [
                 'dag_id' => $dagId,
-                'description' => $postData['description'] ?? "Batch processing - pasta com " . count($uploadedFiles) . " arquivo(s)",
+                'description' => $postData['description'] ?? "Batch processing - " . count($uploadedFiles) . " arquivo(s) → {$targetTableName}",
                 'schedule_interval' => $postData['schedule_interval'] ?? '@daily',
                 'owner' => $ownerUsername ?: ($postData['owner'] ?? 'airflow'),
                 'start_date' => $postData['start_date'] ?? date('Y-m-d'),
                 'id_source_type' => $sourceTypeId,
-                'source_filename' => $folderPath, // APENAS O PATH DA PASTA!
+                'source_filename' => $sourceFilenameValue, // PATH DA(S) PASTA(S)!
                 'target_table_name' => $postData['target_table_name'] ?? $dagId,
                 'python_module_path' => $postData['python_module_path'] ?? 'spark.medallion_pipeline',
                 'transform_args' => $postData['transform_args'] ?? null,
@@ -1425,9 +1449,9 @@ class ConfigController extends BaseController
             return $this->response->setJSON([
                 'status' => count($errors) > 0 ? 'partial' : 'success',
                 'mensagem' => sprintf(
-                    'DAG criada com sucesso! %d arquivo(s) enviado(s) para raw/%s/ e serão processados em modo %s%s',
+                    'DAG criada com sucesso! %d arquivo(s) enviado(s) para %s e serão processados em modo %s%s',
                     count($uploadedFiles),
-                    $dagId,
+                    count($uniqueFolders) > 1 ? count($uniqueFolders) . " pasta(s) raw" : $uniqueFolders[0],
                     $batchMode === 'parallel' ? 'paralelo' : 'sequencial',
                     count($errors) > 0 ? sprintf(' (%d arquivo(s) falharam)', count($errors)) : ''
                 ),
@@ -1698,11 +1722,12 @@ class ConfigController extends BaseController
             }
             
             $dagId = $existingConfig->dag_id;
+            $targetTableName = $existingConfig->target_table_name ?? $existingConfig->dag_id;
             $postData = $this->request->getPost();
             $batchMode = $postData['batch_mode'] ?? 'parallel';
             $maxParallel = (int)($postData['max_parallel_files'] ?? 4);
             
-            log_message('info', "DAG ID: {$dagId}, Batch Mode: {$batchMode}, Max Parallel: {$maxParallel}");
+            log_message('info', "Update DAG ID: {$dagId}, Target Table: {$targetTableName}, Batch Mode: {$batchMode}, Max Parallel: {$maxParallel}");
             
             // Verificar se MinIO está inicializado
             if (!$this->minioClient) {
@@ -1770,7 +1795,15 @@ class ConfigController extends BaseController
             foreach ($files as $index => $file) {
                 try {
                     $fileName = $file->getName(); // Nome original do arquivo
-                    $s3Key = "raw/{$dagId}/{$fileName}"; // SEM timestamp - nome original
+                    
+                    // Gerar nome único para evitar sobrescrita
+                    $fileTimestamp = date('YmdHis');
+                    $hash = substr(md5($fileName . microtime()), 0, 8);
+                    $extension = pathinfo($fileName, PATHINFO_EXTENSION);
+                    $uniqueFileName = "{$fileTimestamp}_{$hash}.{$extension}";
+                    
+                    // Estrutura: raw/{target_table_name}/{timestamp}_{hash}.ext
+                    $s3Key = "raw/{$targetTableName}/{$uniqueFileName}";
                     
                     log_message('info', "Fazendo upload do arquivo: {$fileName} para {$s3Key}");
                     log_message('info', "Arquivo temp: {$file->getTempName()}, Tamanho: {$file->getSize()}, MIME: {$file->getMimeType()}");
@@ -1834,13 +1867,25 @@ class ConfigController extends BaseController
                 }
             }
             
-            // Atualizar APENAS o source_filename com o caminho da pasta (sem criar nova configuração)
-            // O Airflow listará dinamicamente todos os arquivos dentro
-            $folderPath = "raw/{$dagId}/";
+            // Criar lista de pastas únicas para batch processing
+            // Como agora cada arquivo vai para sua própria pasta (raw/nome_arquivo/),
+            // precisamos salvar todas as pastas envolvidas
+            $uniqueFolders = [];
+            foreach ($uploadedFiles as $fileInfo) {
+                $fileName = basename($fileInfo['s3_key']);
+                $fileNameNoExt = pathinfo($fileName, PATHINFO_FILENAME);
+                $folderPath = "raw/{$fileNameNoExt}/";
+                if (!in_array($folderPath, $uniqueFolders)) {
+                    $uniqueFolders[] = $folderPath;
+                }
+            }
+            
+            // Se houver múltiplas pastas, salvar como JSON; se apenas uma, usar string simples
+            $sourceFilenameValue = count($uniqueFolders) === 1 ? $uniqueFolders[0] : json_encode($uniqueFolders);
             
             // Dados para atualização
             $dataToUpdate = [
-                'source_filename' => $folderPath, // Atualizar apenas este campo
+                'source_filename' => $sourceFilenameValue, // Atualizar com path(s) da(s) pasta(s)
                 'max_parallel_tasks' => $maxParallel
             ];
             
@@ -1880,9 +1925,9 @@ class ConfigController extends BaseController
             return $this->response->setJSON([
                 'status' => count($errors) > 0 ? 'partial' : 'success',
                 'mensagem' => sprintf(
-                    'DAG atualizada com sucesso! %d arquivo(s) enviado(s) para raw/%s/ e serão processados em modo %s%s',
+                    'DAG atualizada com sucesso! %d arquivo(s) enviado(s) para %s e serão processados em modo %s%s',
                     count($uploadedFiles),
-                    $dagId,
+                    count($uniqueFolders) > 1 ? count($uniqueFolders) . " pasta(s) raw" : $uniqueFolders[0],
                     $batchMode === 'parallel' ? 'paralelo' : 'sequencial',
                     count($errors) > 0 ? sprintf(' (%d arquivo(s) falharam)', count($errors)) : ''
                 ),
@@ -1892,7 +1937,7 @@ class ConfigController extends BaseController
                 'errors' => $errors,
                 'batch_mode' => $batchMode,
                 'dag_id' => $dagId,
-                'folder_path' => $folderPath
+                'folder_paths' => $uniqueFolders // Múltiplas pastas agora
             ]);
             
         } catch (\Exception $e) {

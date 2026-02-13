@@ -386,6 +386,128 @@ PYTHON
         }
     }
     
+    /**
+     * Deleta arquivos ou pastas do MinIO com seleção múltipla
+     * 
+     * POST /code-editor/delete-files
+     * 
+     * Params:
+     *   - items (array): Array de objetos com {path, isFolder}
+     *     - path (string): Caminho completo do arquivo/pasta (ex: 's3://user-1/bronze/dados/')
+     *     - isFolder (bool): Se é uma pasta ou arquivo
+     * 
+     * Response:
+     *   - success (bool): True se todas as exclusões foram bem-sucedidas
+     *   - message (string): Mensagem de resultado
+     *   - deleted_count (int): Total de objetos deletados
+     *   - errors (array): Array de erros, se houver
+     */
+    public function deleteFiles()
+    {
+        $json = $this->request->getJSON(true);
+        $items = $json['items'] ?? [];
+        
+        if (empty($items)) {
+            return $this->response
+                ->setStatusCode(400)
+                ->setJSON([
+                    'success' => false,
+                    'message' => 'Nenhum item especificado para deletar.',
+                    'deleted_count' => 0,
+                    'errors' => []
+                ]);
+        }
+        
+        // Obtém bucket do usuário da sessão para validação de segurança
+        $userBucket = \App\Helpers\SessionHelper::getUserBucket();
+        if (!$userBucket) {
+            return $this->response
+                ->setStatusCode(403)
+                ->setJSON([
+                    'success' => false,
+                    'message' => 'Usuário não autenticado.',
+                    'deleted_count' => 0,
+                    'errors' => []
+                ]);
+        }
+        
+        $totalDeleted = 0;
+        $allErrors = [];
+        
+        foreach ($items as $item) {
+            $path = $item['path'] ?? '';
+            $isFolder = $item['isFolder'] ?? false;
+            
+            // Extrai bucket e key do caminho s3://bucket/key
+            if (strpos($path, 's3://') === 0) {
+                $cleanPath = substr($path, 5); // Remove 's3://'
+                $parts = explode('/', $cleanPath, 2);
+                $bucket = $parts[0] ?? '';
+                $key = $parts[1] ?? '';
+            } else {
+                $bucket = $userBucket;
+                $key = $path;
+            }
+            
+            // Validação de segurança: apenas permite deletar do bucket do usuário
+            if ($bucket !== $userBucket) {
+                $allErrors[] = [
+                    'path' => $path,
+                    'message' => 'Acesso negado: você só pode deletar arquivos do seu próprio bucket.'
+                ];
+                continue;
+            }
+            
+            // Validação: não permite deletar o bucket inteiro ou camadas inteiras (bronze, silver, gold, delta, raw)
+            $protectedFolders = ['bronze/', 'silver/', 'gold/', 'delta/', 'raw/', 'bronze', 'silver', 'gold', 'delta', 'raw'];
+            if (empty($key) || $key === '/' || in_array($key, $protectedFolders) || in_array(rtrim($key, '/'), $protectedFolders)) {
+                $allErrors[] = [
+                    'path' => $path,
+                    'message' => 'Não é permitido deletar o bucket inteiro ou camadas inteiras do datalake.'
+                ];
+                continue;
+            }
+            
+            // Deleta pasta ou arquivo
+            if ($isFolder) {
+                $result = \App\Helpers\MinioHelper::deleteFolder($bucket, $key);
+            } else {
+                $result = \App\Helpers\MinioHelper::deleteObject($bucket, $key);
+            }
+            
+            if ($result['success']) {
+                $totalDeleted += $result['deleted_count'] ?? 1;
+            } else {
+                $allErrors[] = [
+                    'path' => $path,
+                    'message' => $result['message']
+                ];
+            }
+            
+            // Se houver erros específicos no resultado, adiciona também
+            if (isset($result['errors']) && is_array($result['errors'])) {
+                foreach ($result['errors'] as $error) {
+                    $allErrors[] = [
+                        'path' => $path,
+                        'message' => $error['Message'] ?? 'Erro desconhecido'
+                    ];
+                }
+            }
+        }
+        
+        $success = count($allErrors) === 0;
+        $message = $success 
+            ? "{$totalDeleted} item(s) deletado(s) com sucesso."
+            : "{$totalDeleted} item(s) deletado(s). " . count($allErrors) . " erro(s) encontrado(s).";
+        
+        return $this->response->setJSON([
+            'success' => $success,
+            'message' => $message,
+            'deleted_count' => $totalDeleted,
+            'errors' => $allErrors
+        ]);
+    }
+    
     // Todos os outros métodos (execute, listTables, getSchema, etc)
     // são herdados do QueryBuilderController
     // Nenhuma duplicação de código!

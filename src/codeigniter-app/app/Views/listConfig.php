@@ -27,7 +27,7 @@ require VIEWPATH.'/header.php';
             <div class="container">
             <h4 style="text-align: center;">Listagem de Fluxos (Pipelines)</h4>
 
-                <input type="text" id="filtro-nome" placeholder="Filtrar por descrição">
+                <input type="text" id="filtro-nome" placeholder="Filtrar por DAG ID">
             <img src="../assets/img/lupa.jpg" >
             
             <br><br>
@@ -64,7 +64,7 @@ require VIEWPATH.'/header.php';
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>description</th>
+                            <th>DAG ID</th>
                             <th>Ações</th>
                         </tr>
                         
@@ -222,7 +222,7 @@ function confirmDelete(id, descricao, deleteUrl, formId) {
 
                         table.row.add([
                             item.id,
-                            item.description,
+                            item.dag_id,
                             actionButtons // Terceira coluna com os botões
                         ]);
                     });

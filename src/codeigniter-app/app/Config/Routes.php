@@ -133,6 +133,7 @@ $routes->post('/code-editor/execute-python', 'CodeEditorController::executePytho
 $routes->post('/code-editor/tables', 'CodeEditorController::listTables', ['as'=>'code-editor.tables']);
 $routes->post('/code-editor/schema', 'CodeEditorController::getSchema', ['as'=>'code-editor.schema']);
 $routes->post('/code-editor/files', 'CodeEditorController::listParquetFiles', ['as'=>'code-editor.files']);
+$routes->post('/code-editor/delete-files', 'CodeEditorController::deleteFiles', ['as'=>'code-editor.delete-files']);
 $routes->get('/test-git-sidebar', 'CodeEditorController::testGitSidebar', ['as'=>'test-git-sidebar']);
 
 // Validation Rules API endpoints

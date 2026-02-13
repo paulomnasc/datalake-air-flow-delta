@@ -32,15 +32,16 @@ def silver_to_gold(source_filename: str, target_table_name: str, **kwargs):
 
     # Determina chave Silver e Gold
     src_key = source_filename.lstrip('/')
-    dag_id = kwargs.get('dag_id', 'default')
+    dag_id = kwargs.get('dag_id') or 'default'
     
     # Detectar se é pasta (termina com /)
     is_folder = src_key.endswith('/')
     
-    # Se source_filename aponta para Silver, preenche src_key corretamente
+    # Se não aponta para silver/, assumir que é bronze/ e construir caminho silver correto
     if not src_key.startswith('silver/'):
-        src_key = f"silver/{dag_id}/{target_table_name}/"
-        is_folder = True
+        basename = os.path.basename(src_key)
+        src_key = f"silver/{target_table_name}/{os.path.splitext(basename)[0]}.parquet"
+        is_folder = False
     
     log.info("[GOLD] Pasta detectada: %s", "Sim" if is_folder else "Não")
 
@@ -88,8 +89,9 @@ def silver_to_gold(source_filename: str, target_table_name: str, **kwargs):
             
             log.info("[GOLD] Aplicando otimizações finais...")
             
-            # Salvar como Parquet otimizado
-            gold_key = f"gold/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
+            # Gold: replicar estrutura do Silver, apenas trocar silver/ por gold/
+            basename_no_ext = os.path.splitext(os.path.basename(silver_key))[0]
+            gold_key = silver_key.replace('silver/', 'gold/', 1)
             gold_local = os.path.join(tmpdir, f"{basename_no_ext}_gold.parquet")
             df.to_parquet(gold_local, index=False, compression='snappy', engine='pyarrow')
             log.info("[GOLD] Parquet otimizado criado: %s", gold_local)

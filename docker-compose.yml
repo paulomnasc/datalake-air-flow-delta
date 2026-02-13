@@ -83,6 +83,7 @@ services:
   postgres:
     image: postgres:13
     container_name: postgres${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    restart: always
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -100,6 +101,7 @@ services:
   postgres-bi:
     image: postgres:13
     container_name: postgres-bi${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    restart: always
     environment:
       POSTGRES_USER: pbi_user
       POSTGRES_PASSWORD: pbi_password
@@ -223,6 +225,8 @@ services:
 
   minio:
     image: minio/minio:latest
+    container_name: minio${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    restart: always
     environment:
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: admin123

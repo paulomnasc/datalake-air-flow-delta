@@ -150,7 +150,11 @@ class RawToMedallionPipeline:
         self.tmpdir = tempfile.mkdtemp()
         self.hook = S3Hook(aws_conn_id='minio_conn')
         self.bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
-        self.dag_id = kwargs.get('dag_id', 'default')
+        self.dag_id = kwargs.get('dag_id') or 'default'
+        
+        # ✅ CRITICAL: Atualizar context com valores validados para garantir propagação
+        self.context['dag_id'] = self.dag_id
+        self.context['bucket_name'] = self.bucket
         
         log.info(f"[SETUP] Tmpdir: {self.tmpdir}")
         log.info(f"[SETUP] Bucket: {self.bucket}")
@@ -181,7 +185,8 @@ class RawToMedallionPipeline:
         basename = os.path.basename(src_key)
         basename_no_ext = os.path.splitext(basename)[0]
         
-        bronze_key = f"bronze/{self.dag_id}/{self.target_table_name}/{basename_no_ext}.parquet"
+        # Bronze: estrutura bronze/{target_table_name}/{timestamp_hash}.parquet
+        bronze_key = f"bronze/{self.target_table_name}/{basename_no_ext}.parquet"
         
         log.info(f"[BRONZE] Baixando: s3://{self.bucket}/{src_key}")
         
@@ -283,11 +288,13 @@ class RawToMedallionPipeline:
         bronze_key = self.results.get('bronze')
         
         log.info(f"[SILVER] Processando: {bronze_key}")
+        log.info(f"[SILVER] DAG ID no contexto: {self.context.get('dag_id')}")
         
         # Chamar Silver padrão da lib
         silver_result = bronze_to_silver(
             bronze_key, 
             self.target_table_name, 
+            dag_id=self.dag_id,
             **self.context
         )
         
@@ -379,11 +386,13 @@ class RawToMedallionPipeline:
         silver_key = self.results.get('silver')
         
         log.info(f"[GOLD] Processando: {silver_key}")
+        log.info(f"[GOLD] DAG ID no contexto: {self.context.get('dag_id')}")
         
         # Chamar Gold padrão da lib
         gold_result = silver_to_gold(
             source_filename=silver_key,
             target_table_name=self.target_table_name,
+            dag_id=self.dag_id,
             **self.context
         )
         
@@ -470,10 +479,12 @@ class RawToMedallionPipeline:
             gold_key = self.results.get('gold')
             
             log.info(f"[DELTA] Processando: {gold_key}")
+            log.info(f"[DELTA] DAG ID no contexto: {self.context.get('dag_id')}")
             
             delta_result = gold_to_delta(
                 source_filename=gold_key,
                 target_table_name=self.target_table_name,
+                dag_id=self.dag_id,
                 **self.context
             )
             

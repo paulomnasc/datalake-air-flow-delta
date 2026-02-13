@@ -350,4 +350,184 @@ class MinioHelper
             return '0 B';
         }
     }
+
+    /**
+     * Deleta um único objeto do MinIO
+     * 
+     * @param string $bucketName Nome do bucket
+     * @param string $key Caminho/Key do objeto
+     * @return array ['success' => bool, 'message' => string]
+     */
+    public static function deleteObject(string $bucketName, string $key): array
+    {
+        try {
+            $client = self::getClient();
+            log_message('debug', "[MinioHelper] deleteObject: Bucket={$bucketName}, Key={$key}");
+            
+            $client->deleteObject([
+                'Bucket' => $bucketName,
+                'Key' => $key
+            ]);
+            
+            log_message('debug', "[MinioHelper] deleteObject: Objeto '{$key}' deletado com sucesso.");
+            return [
+                'success' => true,
+                'message' => "Objeto '{$key}' deletado com sucesso."
+            ];
+        } catch (AwsException $e) {
+            log_message('error', "[MinioHelper] deleteObject: Exception: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Erro ao deletar objeto: ' . $e->getMessage()
+            ];
+        } catch (\Exception $e) {
+            log_message('error', "[MinioHelper] deleteObject: Exception (getClient): " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Erro ao inicializar cliente MinIO: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Deleta múltiplos objetos do MinIO (batch delete)
+     * 
+     * @param string $bucketName Nome do bucket
+     * @param array $keys Array de caminhos/keys dos objetos
+     * @return array ['success' => bool, 'message' => string, 'deleted_count' => int, 'errors' => array]
+     */
+    public static function deleteObjects(string $bucketName, array $keys): array
+    {
+        try {
+            if (empty($keys)) {
+                return [
+                    'success' => false,
+                    'message' => 'Nenhum objeto especificado para deletar.',
+                    'deleted_count' => 0,
+                    'errors' => []
+                ];
+            }
+            
+            $client = self::getClient();
+            log_message('debug', "[MinioHelper] deleteObjects: Bucket={$bucketName}, Keys=" . json_encode($keys));
+            
+            // Formata keys para o formato esperado pela AWS SDK
+            $objects = array_map(function($key) {
+                return ['Key' => $key];
+            }, $keys);
+            
+            $result = $client->deleteObjects([
+                'Bucket' => $bucketName,
+                'Delete' => [
+                    'Objects' => $objects
+                ]
+            ]);
+            
+            $deleted = $result['Deleted'] ?? [];
+            $errors = $result['Errors'] ?? [];
+            $deletedCount = count($deleted);
+            
+            log_message('debug', "[MinioHelper] deleteObjects: {$deletedCount} objetos deletados.");
+            
+            if (count($errors) > 0) {
+                log_message('warning', "[MinioHelper] deleteObjects: Erros encontrados: " . json_encode($errors));
+            }
+            
+            return [
+                'success' => count($errors) === 0,
+                'message' => "{$deletedCount} objeto(s) deletado(s) com sucesso." . 
+                            (count($errors) > 0 ? " {count($errors)} erro(s) encontrado(s)." : ""),
+                'deleted_count' => $deletedCount,
+                'errors' => $errors
+            ];
+        } catch (AwsException $e) {
+            log_message('error', "[MinioHelper] deleteObjects: Exception: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Erro ao deletar objetos: ' . $e->getMessage(),
+                'deleted_count' => 0,
+                'errors' => []
+            ];
+        } catch (\Exception $e) {
+            log_message('error', "[MinioHelper] deleteObjects: Exception (getClient): " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Erro ao inicializar cliente MinIO: ' . $e->getMessage(),
+                'deleted_count' => 0,
+                'errors' => []
+            ];
+        }
+    }
+
+    /**
+     * Deleta uma pasta inteira (prefix) do MinIO
+     * Lista todos os objetos com o prefix e deleta em batch
+     * 
+     * @param string $bucketName Nome do bucket
+     * @param string $prefix Prefixo/pasta a deletar (ex: 'bronze/dados/')
+     * @return array ['success' => bool, 'message' => string, 'deleted_count' => int]
+     */
+    public static function deleteFolder(string $bucketName, string $prefix): array
+    {
+        try {
+            $client = self::getClient();
+            
+            // Garante que o prefix termine com /
+            if (!empty($prefix) && substr($prefix, -1) !== '/') {
+                $prefix .= '/';
+            }
+            
+            log_message('debug', "[MinioHelper] deleteFolder: Bucket={$bucketName}, Prefix={$prefix}");
+            
+            // Lista todos os objetos com o prefix
+            $objects = [];
+            $paginator = $client->getPaginator('ListObjects', [
+                'Bucket' => $bucketName,
+                'Prefix' => $prefix
+            ]);
+            
+            foreach ($paginator as $result) {
+                if (isset($result['Contents'])) {
+                    foreach ($result['Contents'] as $object) {
+                        $objects[] = $object['Key'];
+                    }
+                }
+            }
+            
+            if (empty($objects)) {
+                log_message('debug', "[MinioHelper] deleteFolder: Nenhum objeto encontrado com prefix '{$prefix}'.");
+                return [
+                    'success' => true,
+                    'message' => "Pasta '{$prefix}' não contém objetos ou não existe.",
+                    'deleted_count' => 0
+                ];
+            }
+            
+            log_message('debug', "[MinioHelper] deleteFolder: Encontrados " . count($objects) . " objetos para deletar.");
+            
+            // Deleta em batch
+            $deleteResult = self::deleteObjects($bucketName, $objects);
+            
+            return [
+                'success' => $deleteResult['success'],
+                'message' => "Pasta '{$prefix}' deletada. " . $deleteResult['message'],
+                'deleted_count' => $deleteResult['deleted_count'],
+                'errors' => $deleteResult['errors'] ?? []
+            ];
+        } catch (AwsException $e) {
+            log_message('error', "[MinioHelper] deleteFolder: Exception: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Erro ao deletar pasta: ' . $e->getMessage(),
+                'deleted_count' => 0
+            ];
+        } catch (\Exception $e) {
+            log_message('error', "[MinioHelper] deleteFolder: Exception (getClient): " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Erro ao inicializar cliente MinIO: ' . $e->getMessage(),
+                'deleted_count' => 0
+            ];
+        }
+    }
 }

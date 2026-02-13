@@ -76,12 +76,13 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     basename = os.path.basename(src_key)
     basename_no_ext = os.path.splitext(basename)[0]
     
-    # Definir chaves de todas as camadas
-    dag_id = kwargs.get('dag_id', 'default')
-    # Bronze em Parquet (boa prática: formato colunar otimizado)
-    bronze_key = f"bronze/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
-    silver_key = f"silver/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
-    gold_key = f"gold/{dag_id}/{target_table_name}/{basename_no_ext}.parquet"
+    # Definir chaves de todas as camadas - estrutura documentada
+    dag_id = kwargs.get('dag_id') or 'default'
+    
+    # Estrutura: {layer}/{target_table_name}/{timestamp_hash}.parquet
+    bronze_key = f"bronze/{target_table_name}/{basename_no_ext}.parquet"
+    silver_key = f"silver/{target_table_name}/{basename_no_ext}.parquet"
+    gold_key = f"gold/{target_table_name}/{basename_no_ext}.parquet"
     
     tmpdir = None
     results = {}
@@ -348,7 +349,10 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             raise
         
         # ==================== CAMADA DELTA (TRANSACIONAL - PARA THRIFT SERVER) ====================
-        log.info("[DELTA] Processando: s3://%s/%s → Delta Lake (delta/%s/)", bucket, gold_key, target_table_name)
+        # Usar delta_table_name se fornecido (para múltiplos arquivos com schemas diferentes)
+        # Caso contrário, usar target_table_name (comportamento padrão)
+        delta_name = kwargs.get('delta_table_name', target_table_name)
+        log.info("[DELTA] Processando: s3://%s/%s → Delta Lake (delta/%s/)", bucket, gold_key, delta_name)
         
         # Converter Gold em tabela Delta para Thrift Server
         try:
@@ -357,7 +361,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
             
             delta_result = gold_to_delta(
                 source_filename=gold_key,
-                target_table_name=target_table_name,
+                target_table_name=delta_name,  # Usa delta_table_name se disponível
                 **kwargs
             )
             

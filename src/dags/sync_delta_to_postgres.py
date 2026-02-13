@@ -13,8 +13,8 @@ import re
 import os
 
 # Configurações
-ENV_SUFFIX = os.environ.get('ENV_SUFFIX', '')
-POSTGRES_HOST = f'postgres-bi-{ENV_SUFFIX}' if ENV_SUFFIX else 'postgres-bi'
+# Container name é fixo independente de ENV_SUFFIX no docker-compose
+POSTGRES_HOST = 'postgres-bi'
 POSTGRES_PORT = 5432
 POSTGRES_DB = 'datalake_bi'
 POSTGRES_USER = 'pbi_user'

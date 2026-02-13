@@ -294,7 +294,6 @@ class RawToMedallionPipeline:
         silver_result = bronze_to_silver(
             bronze_key, 
             self.target_table_name, 
-            dag_id=self.dag_id,
             **self.context
         )
         
@@ -392,7 +391,6 @@ class RawToMedallionPipeline:
         gold_result = silver_to_gold(
             source_filename=silver_key,
             target_table_name=self.target_table_name,
-            dag_id=self.dag_id,
             **self.context
         )
         
@@ -484,7 +482,6 @@ class RawToMedallionPipeline:
             delta_result = gold_to_delta(
                 source_filename=gold_key,
                 target_table_name=self.target_table_name,
-                dag_id=self.dag_id,
                 **self.context
             )
             

@@ -1,9 +1,4 @@
-<?php
-if (! defined('VIEWPATH')) {
-    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR.'Views');
-}
-require VIEWPATH.'/header.php';
-?>
+
 
 <style>
 .admin-dashboard {
@@ -611,4 +606,4 @@ setTimeout(function() {
     </div>
 </div>
 
-<?php require VIEWPATH.'/footer.php'; ?>
+

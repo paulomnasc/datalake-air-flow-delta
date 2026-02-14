@@ -418,4 +418,48 @@ class DashboardController extends BaseController
         
         return view('admin/dashboard', $data);
     }
+
+    // ...existing code...
+    /**
+     * Download CSV dos alunos que retornaram após cadastro
+     */
+    public function downloadReturningStudentsCsv()
+    {
+        $db = \Config\Database::connect();
+        $returningStudents = $db->query("
+            SELECT 
+                u.id as user_id,
+                u.nome as user_name,
+                u.email,
+                u.criado_em,
+                COUNT(ac.id) as return_count,
+                MAX(ac.created_at) as last_return
+            FROM activity_logs ac
+            INNER JOIN usuario u ON u.id = ac.user_id
+            WHERE ac.user_id NOT IN (146, 176)
+                AND DATE_FORMAT(u.criado_em, '%Y-%m-%d') < DATE_FORMAT(ac.created_at, '%Y-%m-%d')
+            GROUP BY u.id
+            ORDER BY return_count DESC, last_return DESC
+        ")->getResult();
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="alunos_retornaram_apos_cadastro.csv"');
+
+        $output = fopen('php://output', 'w');
+        // Cabeçalho
+        fputcsv($output, ['#', 'Aluno', 'Email', 'Retornos', 'Último Retorno', 'Criado em']);
+        $rank = 1;
+        foreach ($returningStudents as $student) {
+            fputcsv($output, [
+                $rank++, 
+                $student->user_name, 
+                $student->email, 
+                $student->return_count, 
+                $student->last_return, 
+                $student->criado_em
+            ]);
+        }
+        fclose($output);
+        exit;
+    }
 }

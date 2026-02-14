@@ -331,7 +331,10 @@ setTimeout(function() {
         <!-- Ranking de Alunos -->
         <!-- Alunos que retornaram após cadastro -->
         <div class="content-section">
-            <h2 class="section-title">🔄 Alunos que Retornaram Após Cadastro</h2>
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <h2 class="section-title" style="margin-bottom: 0;">🔄 Alunos que Retornaram Após Cadastro</h2>
+                <a href="<?php echo site_url('admin/downloadReturningStudentsCsv'); ?>" class="btn btn-sm btn-primary" style="margin-left: 16px; background: #667eea; color: #fff; padding: 8px 18px; border-radius: 6px; text-decoration: none; font-weight: 500;">⬇️ Download CSV</a>
+            </div>
             <?php if (!empty($returning_students)): ?>
                 <div style="max-height: 400px; overflow-y: auto;">
                     <table class="ranking-table">

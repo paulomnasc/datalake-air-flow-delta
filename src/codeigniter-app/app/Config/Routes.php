@@ -203,6 +203,7 @@ $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
     
     // Dashboard
     $routes->get('dashboard', 'DashboardController::admin', ['as' => 'admin.dashboard']);
+    $routes->get('downloadReturningStudentsCsv', 'DashboardController::downloadReturningStudentsCsv', ['as' => 'admin.downloadReturningStudentsCsv']);
     
     // Courses
     $routes->get('courses', 'ProgressAdminController::indexCourses', ['as' => 'admin.courses.index']);

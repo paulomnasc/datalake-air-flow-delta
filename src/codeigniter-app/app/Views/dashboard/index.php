@@ -422,62 +422,78 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 
                                         <!-- Campos específicos para API REST -->
                                         <div class="form-section mt-3" x-show="getSourceTypeName(wizardData.sourceType).toLowerCase().includes('api')">
-                                            <h6>Configuração da API REST</h6>
-                                            <div class="alert alert-info" style="font-size:1em;">
-                                                <strong>Exemplo de preenchimento para <b>transform_args</b>:</strong>
-                                                <pre style="background:#f8f9fa; border-radius:6px; padding:12px; margin-top:10px; font-size:0.98em;">
+                                                                                        <h6>Configuração da API REST</h6>
+                                                                                        <div class="alert alert-info" style="font-size:1em;">
+                                                                                                <strong>Exemplo de preenchimento para <b>transform_args</b>:</strong>
+                                                                                                <pre style="background:#f8f9fa; border-radius:6px; padding:12px; margin-top:10px; font-size:0.98em;">
 {
-  "api_endpoint": "https://api.exemplo.com/endpoint",
-  "api_method": "GET",
-  "api_headers": {
-    "Authorization": "Bearer <sua API_KEY aqui>",
-    "Content-Type": "application/json"
-  },
-  "api_params": {
-    "param1": "valor1",
-    "param2": "valor2"
-  },
-  "api_payload": {
-    "campo": "valor"
-  },
-  "api_auth": "Bearer <seu token aqui>"
+    "api_endpoint": "https://api.exemplo.com/endpoint",
+    "api_method": "GET",
+    "api_headers": {
+        "Authorization": "Bearer <sua API_KEY aqui>",
+        "Content-Type": "application/json"
+    },
+    "api_params": {
+        "param1": "valor1",
+        "param2": "valor2"
+    },
+    "api_payload": {
+        "campo": "valor"
+    },
+    "api_auth": "Bearer <seu token aqui>"
 }
-                                                </pre>
-                                                <ul style="margin-bottom:0;">
-                                                    <li>Preencha <b>api_endpoint</b> com a URL da sua API.</li>
-                                                    <li>Em <b>api_headers</b>, coloque suas chaves, tokens ou outros headers necessários.</li>
-                                                    <li>Use <b>&lt;sua API_KEY aqui&gt;</b> ou <b>&lt;seu token aqui&gt;</b> para indicar onde inserir suas credenciais.</li>
-                                                    <li>Os campos <b>api_params</b> e <b>api_payload</b> são opcionais e dependem da sua API.</li>
-                                                </ul>
-                                                <span class="text-muted">Copie e personalize o exemplo acima no campo <b>transform_args</b> abaixo.</span>
-                                            </div>
-                                        </div
-                                        </div> <!-- Closing div for API REST configuration -->
+                                                                                                </pre>
+                                                                                                <ul style="margin-bottom:0;">
+                                                                                                        <li>Preencha <b>api_endpoint</b> com a URL da sua API.</li>
+                                                                                                        <li>Em <b>api_headers</b>, coloque suas chaves, tokens ou outros headers necessários.</li>
+                                                                                                        <li>Use <b>&lt;sua API_KEY aqui&gt;</b> ou <b>&lt;seu token aqui&gt;</b> para indicar onde inserir suas credenciais.</li>
+                                                                                                        <li>Os campos <b>api_params</b> e <b>api_payload</b> são opcionais e dependem da sua API.</li>
+                                                                                                </ul>
+                                                                                                <span class="text-muted">Copie e personalize o exemplo acima no campo <b>transform_args</b> abaixo.</span>
+                                                                                        </div>
+                                                                                </div>
 
                                         <div class="form-section">
-                                            <label class="form-label">Nome da Tabela Destino *</label>
-                                                                                                                                    <textarea name="transform_args" 
-                                                                                                                                                        class="form-control font-monospace" 
-                                                                                                                                                        rows="8" 
-                                                                                                                                                        x-model="wizardData.transformArgs"
-                                                                                                                                                        placeholder='{
-                                                "api_endpoint": "https://api.exemplo.com/endpoint",
-                                                "api_method": "GET",
-                                                "api_headers": { "Authorization": "Bearer <sua API_KEY aqui>" },
-                                                "api_params": { "chave": "valor" }
-                                            }'></textarea>
-                                                                                                                                    <small class="text-muted">Deve ser um JSON válido. Use {} se não precisar de argumentos extras. Veja o exemplo acima para APIs REST.</small>
-                                            <input type="text" 
-                                                   name="target_table_name" 
-                                                   class="form-control" 
-                                                   placeholder="Ex: clientes, vendas, produtos"
-                                                   x-model="wizardData.targetTableName" 
-                                                   pattern="[a-zA-Z0-9_]+"
-                                                   required>
-                                            <small class="text-muted">
-                                                <i class="bi bi-info-circle"></i> 
-                                                Nome usado para organizar os dados em Bronze/Silver/Gold. Use apenas letras, números e underscore (_)
-                                            </small>
+                                            <label class="form-label">Argumentos Extras da Função (JSON)</label>
+                                            <textarea name="transform_args" 
+                                                      class="form-control font-monospace" 
+                                                      rows="8" 
+                                                      x-model="wizardData.transformArgs"
+                                                      placeholder='{"api_endpoint": "https://api.exemplo.com/endpoint", "api_method": "GET", "api_headers": { "Authorization": "Bearer <sua API_KEY aqui>" }, "api_params": { "chave": "valor" }}'></textarea>
+                                            <small class="text-muted">Deve ser um JSON válido. Use {} se não precisar de argumentos extras. Veja o exemplo acima para APIs REST.</small>
+
+                                            <template x-if="getSourceTypeName(wizardData.sourceType).toLowerCase().includes('api')">
+                                                <div>
+                                                    <label class="form-label">Nome da Tabela Destino *</label>
+                                                    <input type="text" 
+                                                           name="target_table_name" 
+                                                           class="form-control" 
+                                                           placeholder="Ex: cotacao_voos, api_resultados, etc"
+                                                           x-model="wizardData.targetTableName" 
+                                                           pattern="[a-zA-Z0-9_]+"
+                                                           required>
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-info-circle"></i> 
+                                                        Nome usado para organizar os dados em Bronze/Silver/Gold. Use apenas letras, números e underscore (_)
+                                                    </small>
+                                                </div>
+                                            </template>
+                                            <template x-if="!getSourceTypeName(wizardData.sourceType).toLowerCase().includes('api')">
+                                                <div>
+                                                    <label class="form-label">Nome da Tabela Destino *</label>
+                                                    <input type="text" 
+                                                           name="target_table_name" 
+                                                           class="form-control" 
+                                                           placeholder="Ex: clientes, vendas, produtos"
+                                                           x-model="wizardData.targetTableName" 
+                                                           pattern="[a-zA-Z0-9_]+"
+                                                           required>
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-info-circle"></i> 
+                                                        Nome usado para organizar os dados em Bronze/Silver/Gold. Use apenas letras, números e underscore (_)
+                                                    </small>
+                                                </div>
+                                            </template>
                                         </div>
 
                                         <!-- Upload de Arquivo CSV/JSON -->
@@ -1110,6 +1126,18 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                 submitWizard(event) {
                     const form = event.target;
                     const formData = new FormData(form);
+
+                    // Corrigir: para API REST, garantir source_filename = target_table_name
+                    const sourceTypeName = this.getSourceTypeName(this.wizardData.sourceType).toLowerCase();
+                    if (sourceTypeName.includes('api')) {
+                        // Remove qualquer arquivo do campo source_filename
+                        formData.delete('source_filename');
+                        // Garante que source_filename seja igual ao target_table_name
+                        const targetTable = formData.get('target_table_name') || this.wizardData.targetTableName;
+                        if (targetTable) {
+                            formData.set('source_filename', targetTable);
+                        }
+                    }
                     
                     console.log('📤 Enviando pipeline...');
                     

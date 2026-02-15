@@ -21,6 +21,25 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     """
     log.info(f"[MEDALLION] Iniciando pipeline completo para: {target_table_name}")
     log.info(f"[MEDALLION] Arquivo origem: {source_filename}")
+
+    # Verificação de existência do arquivo no MinIO para tipos de fonte arquivo
+    source_type = str(kwargs.get('source_type', '')).lower()
+    if not source_type:
+        # Tenta inferir pelo nome do arquivo
+        if source_filename and (source_filename.endswith('.csv') or source_filename.endswith('.json') or source_filename.endswith('.parquet')):
+            source_type = 'arquivo'
+    if source_type in ['api', 'api rest', 'rest', 'rest api']:
+        # Para API REST, espera-se que source_filename seja uma chave S3 válida gerada pelo ingest_api_to_raw
+        # Não faz verificação extra aqui, pois erro será lançado se não existir
+        pass
+    else:
+        # Para arquivos, verifica se o arquivo existe no MinIO antes de tentar baixar
+        from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+        bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
+        hook = S3Hook(aws_conn_id='minio_conn')
+        src_key = source_filename.lstrip('/')
+        if not hook.check_for_key(src_key, bucket):
+            raise FileNotFoundError(f"[MEDALLION] Arquivo de origem não encontrado no MinIO: s3://{bucket}/{src_key}")
     
     try:
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook

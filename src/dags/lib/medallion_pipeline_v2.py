@@ -550,7 +550,14 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> 
         api_params = kwargs.get('api_params') or {}
         api_payload = kwargs.get('api_payload') or {}
         dag_id = kwargs.get('dag_id') or 'default'
-        return ingest_api_to_raw(
+        # Remove todos os argumentos já passados explicitamente
+        kwargs_clean = dict(kwargs)
+        for k in [
+            'api_endpoint', 'api_method', 'api_headers', 'api_params', 'api_payload',
+            'target_table_name', 'dag_id'
+        ]:
+            kwargs_clean.pop(k, None)
+        ingest_result = ingest_api_to_raw(
             api_endpoint=api_endpoint,
             api_method=api_method,
             api_headers=api_headers,
@@ -558,8 +565,15 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> 
             api_payload=api_payload,
             target_table_name=target_table_name,
             dag_id=dag_id,
-            **kwargs
+            **kwargs_clean
         )
+        # Pega o caminho do arquivo salvo na camada raw
+        source_filename_api = ingest_result.get('key')
+        if not source_filename_api:
+            raise ValueError("[RAW_TO_MEDALLION] ingest_api_to_raw não retornou o campo 'key' com o caminho do arquivo raw gerado.")
+        # Chama pipeline padrão com o arquivo gerado
+        pipeline = RawToMedallionPipeline()
+        return pipeline(source_filename=source_filename_api, target_table_name=target_table_name, **kwargs)
     elif source_type in ['mysql', 'sql', 'banco', 'database']:
         log.info("[RAW_TO_MEDALLION] Delegando para ingest_mysql_to_raw (MySQL)")
         from lib.mysql_ingestion import ingest_mysql_to_raw

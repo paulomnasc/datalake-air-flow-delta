@@ -515,24 +515,72 @@ class RawToMedallionPipeline:
 # WRAPPER PARA BACKWARD COMPATIBILITY
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> Dict:
     """
-    ✅ COMPATIBILIDADE: Função wrapper que mantém a interface antiga.
-    
-    Usa a nova classe RawToMedallionPipeline internamente.
-    
-    Código antigo continua funcionando:
-    
-    result = raw_to_medallion(
-        source_filename='raw/dados/arquivo.csv',
-        target_table_name='minha_tabela',
-        bucket_name='lab01'
-    )
+    Função wrapper inteligente: roteia automaticamente para a função de ingestão correta conforme o tipo de fonte.
+    Suporta: API REST, MySQL, arquivos (CSV/JSON/Parquet).
     """
-    log.info("[RAW_TO_MEDALLION] Usando função wrapper (nova implementação)")
-    
-    pipeline = RawToMedallionPipeline()
-    return pipeline(source_filename=source_filename, target_table_name=target_table_name, **kwargs)
+    log.info("[RAW_TO_MEDALLION] Wrapper inteligente: roteando conforme tipo de fonte")
+
+    # Detecta tipo de fonte
+    source_type = kwargs.get('source_type') or kwargs.get('fonte') or kwargs.get('tipo_fonte')
+    # Também aceita string (ex: 'api', 'mysql', 'arquivo', 'csv', 'json')
+    if not source_type:
+        # Tenta inferir pelo nome dos campos
+        if kwargs.get('api_endpoint'):
+            source_type = 'api'
+        elif kwargs.get('mysql_conn_id') or kwargs.get('sql_connection_id'):
+            source_type = 'mysql'
+        elif source_filename and (source_filename.endswith('.csv') or source_filename.endswith('.json') or source_filename.endswith('.parquet')):
+            source_type = 'arquivo'
+        else:
+            source_type = 'arquivo'  # fallback
+
+    source_type = str(source_type).lower()
+
+    if source_type in ['api', 'api rest', 'rest', 'rest api']:
+        log.info("[RAW_TO_MEDALLION] Delegando para ingest_api_to_raw (API REST)")
+        from lib.api_ingestion import ingest_api_to_raw
+        api_endpoint = kwargs.get('api_endpoint')
+        if not api_endpoint:
+            raise ValueError("[RAW_TO_MEDALLION] Parâmetro obrigatório 'api_endpoint' ausente para fonte API REST.")
+        api_method = kwargs.get('api_method', 'GET')
+        api_headers = kwargs.get('api_headers') or {}
+        api_params = kwargs.get('api_params') or {}
+        api_payload = kwargs.get('api_payload') or {}
+        dag_id = kwargs.get('dag_id') or 'default'
+        return ingest_api_to_raw(
+            api_endpoint=api_endpoint,
+            api_method=api_method,
+            api_headers=api_headers,
+            api_params=api_params,
+            api_payload=api_payload,
+            target_table_name=target_table_name,
+            dag_id=dag_id,
+            **kwargs
+        )
+    elif source_type in ['mysql', 'sql', 'banco', 'database']:
+        log.info("[RAW_TO_MEDALLION] Delegando para ingest_mysql_to_raw (MySQL)")
+        from lib.mysql_ingestion import ingest_mysql_to_raw
+        mysql_conn_id = kwargs.get('mysql_conn_id') or kwargs.get('sql_connection_id')
+        if not mysql_conn_id:
+            raise ValueError("[RAW_TO_MEDALLION] Parâmetro obrigatório 'mysql_conn_id' ou 'sql_connection_id' ausente para fonte MySQL.")
+        table_name = kwargs.get('table_name') or target_table_name
+        query = kwargs.get('query') or None
+        dag_id = kwargs.get('dag_id') or 'default'
+        return ingest_mysql_to_raw(
+            mysql_conn_id=mysql_conn_id,
+            table_name=table_name,
+            query=query,
+            target_table_name=target_table_name,
+            dag_id=dag_id,
+            **kwargs
+        )
+    else:
+        log.info("[RAW_TO_MEDALLION] Delegando para pipeline padrão (arquivos)")
+        pipeline = RawToMedallionPipeline()
+        return pipeline(source_filename=source_filename, target_table_name=target_table_name, **kwargs)
 
 
 def batch_raw_to_medallion(batch_id: str, files: list, max_parallel: int = 4, **context) -> Dict:

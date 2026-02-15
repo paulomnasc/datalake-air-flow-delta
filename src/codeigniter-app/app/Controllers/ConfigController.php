@@ -576,6 +576,12 @@ class ConfigController extends BaseController
                 $postData['sql_user'] = $postData['sql_user'] ?? null;
                 $postData['sql_password'] = $postData['sql_password'] ?? null;
                 
+            } else if (str_contains($sourceTypeDescription, 'api')) {
+                // API REST: não exige upload nem campos SQL, apenas salva o endpoint/config no transform_args
+                // O campo source_filename pode ser usado para identificar a fonte, mas não é obrigatório
+                $sourceLocation = $postData['source_filename'] ?? null;
+                // Nenhuma validação extra obrigatória aqui, pois os campos relevantes vão em transform_args
+                // (endpoint, headers, params, etc.)
             } else {
                  throw new \Exception('Lógica de processamento de dados não implementada para o tipo: ' . $sourceTypeDescription);
             }

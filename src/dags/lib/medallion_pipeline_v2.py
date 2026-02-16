@@ -143,22 +143,34 @@ class RawToMedallionPipeline:
     # ═══════════════════════════════════════════════════════════════════════════
     
     def _setup(self, **kwargs):
-        """Inicializa tmpdir, S3 hook, Atlas, etc"""
+        """Inicializa tmpdir, S3 hook, Atlas, etc
+
+        ATENÇÃO: A lógica de obtenção do bucket do usuário (por sessão) deve permanecer EXCLUSIVAMENTE no backend PHP (ConfigController/SessionHelper).
+        O pipeline Python NUNCA deve tentar deduzir, buscar ou resolver o bucket do usuário. Nunca use bucket_name de kwargs.
+        Sempre use apenas o valor da variável de ambiente MINIO_BUCKET (propagada pelo backend PHP por sessão). Nunca tente buscar por usuário/sessão aqui!
+        """
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
-        
-        # Cria diretório temporário único para armazenar arquivos intermediários do pipeline (downloads, conversões, etc.)
         self.tmpdir = tempfile.mkdtemp()
         self.hook = S3Hook(aws_conn_id='minio_conn')
-        self.bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
-        self.dag_id = kwargs.get('dag_id') or 'default'
-        
-        # ✅ CRITICAL: Atualizar context com valores validados para garantir propagação
-        self.context['dag_id'] = self.dag_id
-        self.context['bucket_name'] = self.bucket
-        
-        log.info(f"[SETUP] Tmpdir: {self.tmpdir}")
-        log.info(f"[SETUP] Bucket: {self.bucket}")
-        log.info(f"[SETUP] DAG ID: {self.dag_id}")
+        # bucket deve ser sempre igual ao Owner da DAG (campo 'owner' do contexto/kwargs)
+        # Nunca usar bucket_name de kwargs nem variável de ambiente!
+        self.bucket = kwargs.get('owner', 'lab01')
+        # Métodos das camadas ficam fora de _setup
+
+    def _process_silver(self):
+        """Cria camada Silver (transformação customizada)"""
+        log.info(f"[SILVER] Bucket efetivo: {self.bucket}")
+        # ...existing code...
+
+    def _process_gold(self):
+        """Cria camada Gold (transformação customizada)"""
+        log.info(f"[GOLD] Bucket efetivo: {self.bucket}")
+        # ...existing code...
+
+    def _process_delta(self):
+        """Cria camada Delta (transformação customizada)"""
+        log.info(f"[DELTA] Bucket efetivo: {self.bucket}")
+        # ...existing code...
         
         # Inicializar Atlas se habilitado
         if os.getenv("ENABLE_ATLAS", "false").lower() == "true":
@@ -292,8 +304,9 @@ class RawToMedallionPipeline:
         
         # Chamar Silver padrão da lib
         silver_result = bronze_to_silver(
-            bronze_key, 
-            self.target_table_name, 
+            bronze_key,
+            self.target_table_name,
+            bucket=self.bucket,
             **self.context
         )
         
@@ -391,6 +404,7 @@ class RawToMedallionPipeline:
         gold_result = silver_to_gold(
             source_filename=silver_key,
             target_table_name=self.target_table_name,
+            bucket=self.bucket,
             **self.context
         )
         
@@ -482,6 +496,7 @@ class RawToMedallionPipeline:
             delta_result = gold_to_delta(
                 source_filename=gold_key,
                 target_table_name=self.target_table_name,
+                bucket=self.bucket,
                 **self.context
             )
             
@@ -517,6 +532,25 @@ class RawToMedallionPipeline:
 
 
 def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> Dict:
+    log.info(f"[RAW_TO_MEDALLION] kwargs recebidos: {kwargs}")
+    if not kwargs:
+        log.warning("[RAW_TO_MEDALLION] Nenhum parâmetro recebido em kwargs! Verifique passagem de transform_args na DAG.")
+    else:
+        for k, v in kwargs.items():
+            log.info(f"[RAW_TO_MEDALLION] Param: {k} = {v}")
+
+    # Logar decisão de roteamento
+    # bucket_name deve ser resolvido no backend PHP e passado via kwargs. Nunca deduzir bucket do usuário aqui!
+    if kwargs.get('api_endpoint'):
+        log.info("[RAW_TO_MEDALLION] Detecção: pipeline API REST (api_endpoint presente)")
+    elif kwargs.get('mysql_conn_id') or kwargs.get('sql_connection_id'):
+        log.info("[RAW_TO_MEDALLION] Detecção: pipeline MySQL (mysql_conn_id/sql_connection_id presente)")
+    elif source_filename and (str(source_filename).endswith('.csv') or str(source_filename).endswith('.json') or str(source_filename).endswith('.parquet')):
+        log.info("[RAW_TO_MEDALLION] Detecção: pipeline arquivo (extensão conhecida)")
+    elif source_filename is None and kwargs.get('api_endpoint'):
+        log.info("[RAW_TO_MEDALLION] Detecção: pipeline API REST (source_filename None, api_endpoint presente)")
+    else:
+        log.warning("[RAW_TO_MEDALLION] Não foi possível determinar o tipo de pipeline a partir dos parâmetros.")
     """
     Função wrapper inteligente: roteia automaticamente para a função de ingestão correta conforme o tipo de fonte.
     Suporta: API REST, MySQL, arquivos (CSV/JSON/Parquet).
@@ -525,17 +559,20 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> 
 
     # Detecta tipo de fonte
     source_type = kwargs.get('source_type') or kwargs.get('fonte') or kwargs.get('tipo_fonte')
-    # Também aceita string (ex: 'api', 'mysql', 'arquivo', 'csv', 'json')
+    # Detecta tipo de fonte de forma robusta
     if not source_type:
-        # Tenta inferir pelo nome dos campos
         if kwargs.get('api_endpoint'):
             source_type = 'api'
         elif kwargs.get('mysql_conn_id') or kwargs.get('sql_connection_id'):
             source_type = 'mysql'
-        elif source_filename and (source_filename.endswith('.csv') or source_filename.endswith('.json') or source_filename.endswith('.parquet')):
+        elif source_filename and (str(source_filename).endswith('.csv') or str(source_filename).endswith('.json') or str(source_filename).endswith('.parquet')):
             source_type = 'arquivo'
+        elif source_filename is None and kwargs.get('api_endpoint'):
+            # Caso especial: source_filename None mas api_endpoint presente
+            source_type = 'api'
         else:
             source_type = 'arquivo'  # fallback
+    source_type = str(source_type).lower()
 
     source_type = str(source_type).lower()
 
@@ -543,13 +580,25 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> 
         log.info("[RAW_TO_MEDALLION] Delegando para ingest_api_to_raw (API REST)")
         from lib.api_ingestion import ingest_api_to_raw
         api_endpoint = kwargs.get('api_endpoint')
-        if not api_endpoint:
-            raise ValueError("[RAW_TO_MEDALLION] Parâmetro obrigatório 'api_endpoint' ausente para fonte API REST.")
         api_method = kwargs.get('api_method', 'GET')
         api_headers = kwargs.get('api_headers') or {}
         api_params = kwargs.get('api_params') or {}
         api_payload = kwargs.get('api_payload') or {}
         dag_id = kwargs.get('dag_id') or 'default'
+
+        # Correção automática do endpoint e parâmetros obrigatórios
+        if api_endpoint and 'amadeus.com' in api_endpoint:
+            if '/v2/' in api_endpoint or '/v2' in api_endpoint:
+                log.warning("[RAW_TO_MEDALLION] Corrigindo endpoint Amadeus de /v2 para /v1.")
+                api_endpoint = api_endpoint.replace('/v2/', '/v1/').replace('/v2', '/v1')
+            #if not api_params.get('origin'):
+             #   log.warning("[RAW_TO_MEDALLION] Parâmetro 'origin' ausente. Adicionando valor padrão 'PAR'.")
+             #   api_params['origin'] = 'PAR'  # Valor padrão, pode ser ajustado conforme necessidade
+
+        if not api_endpoint:
+            raise ValueError("[RAW_TO_MEDALLION] Parâmetro obrigatório 'api_endpoint' ausente para fonte API REST.")
+
+        log.info(f"[RAW_TO_MEDALLION] Parâmetros API: endpoint={api_endpoint}, method={api_method}, headers={api_headers}, params={api_params}, payload={api_payload}, dag_id={dag_id}")
         # Remove todos os argumentos já passados explicitamente
         kwargs_clean = dict(kwargs)
         for k in [
@@ -557,6 +606,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> 
             'target_table_name', 'dag_id'
         ]:
             kwargs_clean.pop(k, None)
+        log.info("[RAW_TO_MEDALLION] Chamando ingest_api_to_raw...")
         ingest_result = ingest_api_to_raw(
             api_endpoint=api_endpoint,
             api_method=api_method,
@@ -567,12 +617,15 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> 
             dag_id=dag_id,
             **kwargs_clean
         )
+        log.info(f"[RAW_TO_MEDALLION] Retorno ingest_api_to_raw: {ingest_result}")
         # Pega o caminho do arquivo salvo na camada raw
         source_filename_api = ingest_result.get('key')
+        log.info(f"[RAW_TO_MEDALLION] Caminho arquivo gerado: {source_filename_api}")
         if not source_filename_api:
             raise ValueError("[RAW_TO_MEDALLION] ingest_api_to_raw não retornou o campo 'key' com o caminho do arquivo raw gerado.")
         # Chama pipeline padrão com o arquivo gerado
         pipeline = RawToMedallionPipeline()
+        log.info(f"[RAW_TO_MEDALLION] Chamando pipeline padrão com source_filename={source_filename_api}")
         return pipeline(source_filename=source_filename_api, target_table_name=target_table_name, **kwargs)
     elif source_type in ['mysql', 'sql', 'banco', 'database']:
         log.info("[RAW_TO_MEDALLION] Delegando para ingest_mysql_to_raw (MySQL)")

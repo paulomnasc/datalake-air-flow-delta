@@ -114,35 +114,27 @@ def get_callable_executor(callable_obj, **op_kwargs):
     # Verificar se é uma classe
     if inspect.isclass(callable_obj):
         log.info(f"[FACTORY] Detectada classe: {callable_obj.__name__}")
-        
-        # É classe - precisa instanciar
         def executor(**context):
-            # Mesclar op_kwargs com context (context tem prioridade)
             merged_kwargs = {**op_kwargs, **context}
-            
+            log.info(f"[FACTORY] [EXECUTOR] kwargs recebidos: {op_kwargs}")
+            log.info(f"[FACTORY] [EXECUTOR] context recebido: {context}")
+            log.info(f"[FACTORY] [EXECUTOR] merged_kwargs: {merged_kwargs}")
             log.info(f"[FACTORY] Instanciando {callable_obj.__name__}...")
             instance = callable_obj()
-            
             log.info(f"[FACTORY] Executando como função com kwargs")
-            # Chamar a instância como função (requer __call__ definido)
             result = instance(**merged_kwargs)
-            
             return result
-        
         return executor
     else:
-        # É função - chamar diretamente
         log.info(f"[FACTORY] Detectada função: {callable_obj.__name__}")
-        
         def executor(**context):
-            # Mesclar op_kwargs com context
             merged_kwargs = {**op_kwargs, **context}
-            
+            log.info(f"[FACTORY] [EXECUTOR] kwargs recebidos: {op_kwargs}")
+            log.info(f"[FACTORY] [EXECUTOR] context recebido: {context}")
+            log.info(f"[FACTORY] [EXECUTOR] merged_kwargs: {merged_kwargs}")
             log.info(f"[FACTORY] Executando função {callable_obj.__name__} com kwargs")
             result = callable_obj(**merged_kwargs)
-            
             return result
-        
         return executor
 
 def fetch_dag_configurations(mysql_conn_id: str) -> List[tuple]:
@@ -343,7 +335,15 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
 
     # 3. Criar a Tarefa Principal (ETL/ELT - PythonOperator)
     python_module_path = task_config.get('python_module_path')
+    import json
     transform_args = task_config.get('transform_args', {})
+    if isinstance(transform_args, str):
+        try:
+            transform_args = json.loads(transform_args)
+        except Exception:
+            log.warning(f"[FACTORY] Não foi possível desserializar transform_args: {transform_args}")
+            transform_args = {}
+    log.info(f"[FACTORY] transform_args desserializado: {transform_args}")
     source_filename = task_config.get('source_filename')
 
     # Bucket isolado por usuário: task_config/transform_args > dag_metadata > owner > env
@@ -406,6 +406,7 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
                 task_id=task_id,
                 python_callable=executor_func,
                 provide_context=True,
+                op_kwargs=op_kwargs_dict,
                 dag=dag,
             )
             tasks.append(task)
@@ -428,31 +429,30 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         except (ImportError, AttributeError, ValueError) as e:
             raise AirflowException(f"❌ Erro ao importar callable '{python_module_path}' para a DAG {dag_id}: {e}")
 
-        op_kwargs_dict = {
+        # Garante que transform_args seja deserializado e passado como kwargs
+        op_kwargs_dict = dict(transform_args) if transform_args else {}
+        op_kwargs_dict.update({
             'source_filename': task_config.get('source_filename'),
             'target_table_name': task_config.get('target_table_name'),
             'dag_id': dag_id,  # ID da DAG para organizar camadas
             'owner': dag_metadata.get('owner', 'airflow'),
-            'bucket_name': bucket_name,
-            **transform_args
-        }
-        
+            'bucket_name': bucket_name
+        })
+
         task_id_name = f"etl_process_for_{task_config.get('target_table_name', 'data')}"
         log.debug(f"DEBUG: Criando PythonOperator '{task_id_name}' com op_kwargs: {op_kwargs_dict}")
-        
-        # Adicionar source_filename ao op_kwargs_dict
-        op_kwargs_dict['source_filename'] = task_config.get('source_filename')
-        
+
         # Obter executor (suporta tanto função quanto classe)
         executor_func = get_callable_executor(
             callable_obj,
             **op_kwargs_dict
         )
-        
+
         task_etl = PythonOperator(
             task_id=task_id_name,
             python_callable=executor_func,
             provide_context=True,
+            op_kwargs=op_kwargs_dict,
             dag=dag,
         )
     

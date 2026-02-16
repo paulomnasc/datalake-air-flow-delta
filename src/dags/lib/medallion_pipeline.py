@@ -21,6 +21,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     """
     log.info(f"[MEDALLION] Iniciando pipeline completo para: {target_table_name}")
     log.info(f"[MEDALLION] Arquivo origem: {source_filename}")
+    if source_filename is None:
+        raise ValueError("[MEDALLION] source_filename não pode ser None. Verifique a etapa anterior de ingestão.")
 
     # Verificação de existência do arquivo no MinIO para tipos de fonte arquivo
     source_type = str(kwargs.get('source_type', '')).lower()
@@ -37,6 +39,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
         bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
         hook = S3Hook(aws_conn_id='minio_conn')
+        if source_filename is None:
+            raise ValueError("[MEDALLION] source_filename não pode ser None para fontes do tipo arquivo.")
         src_key = source_filename.lstrip('/')
         if not hook.check_for_key(src_key, bucket):
             raise FileNotFoundError(f"[MEDALLION] Arquivo de origem não encontrado no MinIO: s3://{bucket}/{src_key}")
@@ -91,6 +95,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     
     hook = S3Hook(aws_conn_id='minio_conn')
 
+    if source_filename is None:
+        raise ValueError("[MEDALLION] source_filename não pode ser None. Verifique a etapa anterior de ingestão.")
     src_key = source_filename.lstrip('/')
     basename = os.path.basename(src_key)
     basename_no_ext = os.path.splitext(basename)[0]

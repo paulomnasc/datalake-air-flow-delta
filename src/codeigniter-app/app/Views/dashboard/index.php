@@ -1127,16 +1127,11 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     const form = event.target;
                     const formData = new FormData(form);
 
-                    // Corrigir: para API REST, garantir source_filename = target_table_name
+                    // Corrigir: para API REST, garantir que source_filename NÃO seja enviado
                     const sourceTypeName = this.getSourceTypeName(this.wizardData.sourceType).toLowerCase();
                     if (sourceTypeName.includes('api')) {
-                        // Remove qualquer arquivo do campo source_filename
+                        // Remove qualquer valor do campo source_filename (garante que não será enviado)
                         formData.delete('source_filename');
-                        // Garante que source_filename seja igual ao target_table_name
-                        const targetTable = formData.get('target_table_name') || this.wizardData.targetTableName;
-                        if (targetTable) {
-                            formData.set('source_filename', targetTable);
-                        }
                     }
                     
                     console.log('📤 Enviando pipeline...');

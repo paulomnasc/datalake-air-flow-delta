@@ -1452,12 +1452,15 @@ class ConfigController extends BaseController
                 throw new \Exception('Todos os arquivos falharam no upload. Verifique os logs para mais detalhes.');
             }
             
+            // Inicializa $uniqueFolders e $folderPath para evitar erro de variável indefinida
+            $uniqueFolders = isset($uniqueFolders) ? $uniqueFolders : [];
+            $folderPath = isset($uniqueFolders[0]) ? $uniqueFolders[0] : $sourceFilenameValue;
             return $this->response->setJSON([
                 'status' => count($errors) > 0 ? 'partial' : 'success',
                 'mensagem' => sprintf(
                     'DAG criada com sucesso! %d arquivo(s) enviado(s) para %s e serão processados em modo %s%s',
                     count($uploadedFiles),
-                    count($uniqueFolders) > 1 ? count($uniqueFolders) . " pasta(s) raw" : $uniqueFolders[0],
+                    count($uniqueFolders) > 1 ? count($uniqueFolders) . " pasta(s) raw" : $folderPath,
                     $batchMode === 'parallel' ? 'paralelo' : 'sequencial',
                     count($errors) > 0 ? sprintf(' (%d arquivo(s) falharam)', count($errors)) : ''
                 ),
@@ -1928,12 +1931,15 @@ class ConfigController extends BaseController
                 throw new \Exception('Todos os arquivos falharam no upload. Verifique os logs para mais detalhes.');
             }
             
+            if (!isset($uniqueFolders)) {
+                $uniqueFolders = [];
+            }
             return $this->response->setJSON([
                 'status' => count($errors) > 0 ? 'partial' : 'success',
                 'mensagem' => sprintf(
                     'DAG atualizada com sucesso! %d arquivo(s) enviado(s) para %s e serão processados em modo %s%s',
                     count($uploadedFiles),
-                    count($uniqueFolders) > 1 ? count($uniqueFolders) . " pasta(s) raw" : $uniqueFolders[0],
+                    count($uniqueFolders) > 1 ? count($uniqueFolders) . " pasta(s) raw" : (isset($uniqueFolders[0]) ? $uniqueFolders[0] : 'raw/'),
                     $batchMode === 'parallel' ? 'paralelo' : 'sequencial',
                     count($errors) > 0 ? sprintf(' (%d arquivo(s) falharam)', count($errors)) : ''
                 ),
@@ -1943,7 +1949,7 @@ class ConfigController extends BaseController
                 'errors' => $errors,
                 'batch_mode' => $batchMode,
                 'dag_id' => $dagId,
-                'folder_paths' => $uniqueFolders // Múltiplas pastas agora
+                'folder_paths' => $uniqueFolders
             ]);
             
         } catch (\Exception $e) {

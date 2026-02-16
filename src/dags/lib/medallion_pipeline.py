@@ -71,7 +71,10 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 if len(df.columns) == 1 and df.dtypes.iloc[0] == 'object':
                     col = df.columns[0]
                     try:
-                        normalized = pd.json_normalize(df[col].apply(lambda x: json.loads(x) if isinstance(x, str) else x))
+                        # Convert Series to list for json_normalize
+                        normalized = pd.json_normalize([
+                            json.loads(x) if isinstance(x, str) else x for x in df[col]
+                        ])
                         if not normalized.empty:
                             return normalized
                     except Exception:
@@ -105,9 +108,9 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     dag_id = kwargs.get('dag_id') or 'default'
     
     # Estrutura: {layer}/{target_table_name}/{timestamp_hash}.parquet
-    bronze_key = f"bronze/{target_table_name}/{basename_no_ext}.parquet"
-    silver_key = f"silver/{target_table_name}/{basename_no_ext}.parquet"
-    gold_key = f"gold/{target_table_name}/{basename_no_ext}.parquet"
+    bronze_key = f"bronze/{basename_no_ext}/{basename_no_ext}.parquet"
+    silver_key = f"silver/{basename_no_ext}/{basename_no_ext}.parquet"
+    gold_key = f"gold/{basename_no_ext}/{basename_no_ext}.parquet"
     
     tmpdir = None
     results = {}
@@ -181,7 +184,6 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         try:
             import pandas as pd
             file_ext = os.path.splitext(local_file)[1].lower()
-            
             # Ler arquivo original (suporta CSV, JSON)
             if file_ext == '.csv':
                 df_bronze = pd.read_csv(local_file)
@@ -194,13 +196,13 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 log.info("[BRONZE] ✅ Salvo em: s3://%s/%s", bucket, bronze_key)
                 results['bronze'] = bronze_key
                 df_bronze = None
-            
             # Salvar como Parquet se conseguiu ler
             if df_bronze is not None:
+                # Adicionar coluna com nome original do arquivo
+                df_bronze['source_filename'] = basename
                 local_parquet = os.path.join(tmpdir, f"{basename_no_ext}_bronze.parquet")
                 df_bronze.to_parquet(local_parquet, index=False, compression='snappy', engine='pyarrow')
                 log.info("[BRONZE] Convertido para Parquet: %d linhas", len(df_bronze))
-                
                 hook.load_file(filename=local_parquet, key=bronze_key, bucket_name=bucket, replace=True)
                 log.info("[BRONZE] ✅ Salvo em Parquet: s3://%s/%s", bucket, bronze_key)
                 results['bronze'] = bronze_key
@@ -229,7 +231,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                     layer="bronze",
                     table=bronze_table,
                     db=db_name,
-                    columns=None,  # Criar tabela sem colunas primeiro
+                    columns=[],  # Criar tabela sem colunas primeiro
                     owner=owner
                 )
                 log.info("[ATLAS] ✓ Tabela Bronze registrada: %s", f"{db_name}.{bronze_table}@cluster")
@@ -313,7 +315,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                     layer="silver",
                     table=silver_table,
                     db=db_name,
-                    columns=None,  # Criar tabela sem colunas primeiro
+                    columns=[],  # Criar tabela sem colunas primeiro
                     owner=owner
                 )
                 log.info("[ATLAS] ✓ Tabela Silver registrada: %s", f"{db_name}.{silver_table}@cluster")
@@ -361,7 +363,13 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 **kwargs
             )
             
-            gold_key_result = gold_result.get('key') or (gold_result.get('keys')[0] if gold_result.get('keys') else None)
+            gold_keys = gold_result.get('keys')
+            gold_key_result = gold_result.get('key')
+            if not gold_key_result and gold_keys:
+                if isinstance(gold_keys, list) and len(gold_keys) > 0:
+                    gold_key_result = gold_keys[0]
+                else:
+                    gold_key_result = None
             results['gold'] = gold_key_result
             results['gold_format'] = 'parquet'
             log.info("[GOLD] ✅ Gold Parquet salvo em: %s", results['gold'])
@@ -383,13 +391,13 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         try:
             from lib.gold_delta_layer import gold_to_delta
             log.info("[DELTA] Importação gold_to_delta OK...")
-            
+            if gold_key is None:
+                raise ValueError("[DELTA] gold_key está None. Não é possível criar camada Delta sem arquivo Gold válido.")
             delta_result = gold_to_delta(
                 source_filename=gold_key,
                 target_table_name=delta_name,  # Usa delta_table_name se disponível
                 **kwargs
             )
-            
             results['delta'] = delta_result.get('delta')
             results['delta_format'] = 'delta'
             results['delta_version'] = delta_result.get('version', 0)
@@ -413,7 +421,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                         layer="gold",
                         table=gold_table,
                         db=db_name,
-                        columns=None,  # Criar tabela sem colunas primeiro
+                        columns=[],  # Criar tabela sem colunas primeiro
                         owner=owner
                     )
                     log.info("[ATLAS] ✓ Tabela Gold registrada: %s", f"{db_name}.{gold_table}@cluster")

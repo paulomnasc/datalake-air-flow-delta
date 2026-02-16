@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 import os
 import tempfile
 import json
@@ -11,11 +12,11 @@ log = logging.getLogger(__name__)
 def ingest_api_to_raw(
     api_endpoint: str,
     api_method: str = "GET",
-    api_headers: dict = None,
-    api_params: dict = None,
-    api_payload: dict = None,
-    target_table_name: str = None,
-    dag_id: str = None,
+    api_headers: Optional[dict] = None,
+    api_params: Optional[dict] = None,
+    api_payload: Optional[dict] = None,
+    target_table_name: Optional[str] = None,
+    dag_id: Optional[str] = None,
     **kwargs
 ):
     """

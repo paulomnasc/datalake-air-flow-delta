@@ -160,6 +160,17 @@ CREATE TABLE `dag_configurations` (
   CONSTRAINT `fk_source_type` FOREIGN KEY (`id_source_type`) REFERENCES `source_types` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- Nova tabela para múltiplos nomes de arquivos originais por configuração de DAG
+CREATE TABLE `config_multiplefilenames` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `dag_configuration_id` int NOT NULL,
+  `original_filename` varchar(512) NOT NULL,
+  `uploaded_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_config_multiplefilenames_dagconfig` FOREIGN KEY (`dag_configuration_id`)
+    REFERENCES `dag_configurations`(`id`)
+    ON DELETE CASCADE,
+  PRIMARY KEY (`id`)
+);
 
 -- lista_revisao2.dag_table_selections definição
 

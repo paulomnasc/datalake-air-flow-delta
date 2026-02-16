@@ -50,8 +50,8 @@ def gold_to_delta(source_filename: str, target_table_name: str, **kwargs):
     # Determina chaves
     src_key = source_filename.lstrip('/')
     
-    # Delta: estrutura delta/{target_table_name}/ (no mesmo nível de gold/, silver/, bronze/)
-    delta_path = f"s3://{bucket}/delta/{target_table_name}/"
+    # Delta: estrutura gold/{target_table_name}_delta/ conforme documentação
+    delta_path = f"s3://{bucket}/gold/{target_table_name}_delta/"
 
     log.info("[DELTA] source_filename: %s", source_filename)
     log.info("[DELTA] Processando: s3://%s/%s → %s", bucket, src_key, delta_path)
@@ -84,9 +84,10 @@ def gold_to_delta(source_filename: str, target_table_name: str, **kwargs):
         if quality_cols:
             log.info(f"[DELTA] Removendo {len(quality_cols)} colunas de qualidade/auditoria")
             df = df.drop(columns=quality_cols, errors='ignore')
-        
+        # Adicionar coluna com nome original do arquivo, se não existir
+        if 'source_filename' not in df.columns:
+            df['source_filename'] = os.path.basename(source_filename)
         log.info("[DELTA] Shape final: %d linhas × %d colunas", len(df), len(df.columns))
-        
         # Adicionar metadados Delta Lake
         df['_delta_created_at'] = pd.Timestamp.now(tz='UTC')
         df['_delta_version'] = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -232,10 +233,9 @@ def silver_to_gold_delta(source_filename: str, target_table_name: str, **kwargs)
     src_key = source_filename.lstrip('/')
     basename = os.path.basename(src_key)
     basename_no_ext = os.path.splitext(basename)[0]
-    dag_id = kwargs.get('dag_id', 'default')
-    
     # Delta Lake usa diretório ao invés de arquivo único
-    gold_delta_path = f"s3://{bucket}/gold/{dag_id}/{target_table_name}_delta/"
+    # Padronizar para gold/{table}_delta/ (sem dag_id)
+    gold_delta_path = f"s3://{bucket}/gold/{basename_no_ext}_delta/"
 
     log.info("[GOLD-DELTA] Processando: s3://%s/%s → %s", bucket, src_key, gold_delta_path)
 

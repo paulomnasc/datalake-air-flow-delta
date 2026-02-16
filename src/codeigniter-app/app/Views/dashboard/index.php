@@ -334,7 +334,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             <!-- Wizard Content Form -->
                             <form id="wizardForm" 
                                   method="POST" 
-                                  action="<?= !empty($edit_data) ? base_url('updateConfig') : base_url('dashboard/createPipeline') ?>" 
+                                  action="<?= !empty($edit_data) ? base_url('updateConfig') : base_url('insertConfig') ?>" 
                                   enctype="multipart/form-data"
                                   novalidate
                                   @submit.prevent="submitWizard($event)">
@@ -810,15 +810,12 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                 try {
                     const msg = JSON.parse(storedMessage);
                     localStorage.removeItem('dashboard_message');
-                    
                     // Criar div de mensagem
                     const messageDiv = document.createElement('div');
                     messageDiv.id = 'dashboard-message';
                     messageDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
-                    
                     const alertClass = msg.type === 'success' ? 'alert-success' : 'alert-danger';
                     const icon = msg.type === 'success' ? 'check-circle' : 'exclamation-triangle';
-                    
                     messageDiv.innerHTML = `
                         <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
                             <i class="bi bi-${icon}"></i>
@@ -826,15 +823,13 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     `;
-                    
                     document.body.appendChild(messageDiv);
-                    
                     // Fade out após 6 segundos
-                    setTimeout(() => {
+                    setTimeout(function() {
                         const alert = messageDiv.querySelector('.alert');
                         if (alert) {
                             alert.classList.remove('show');
-                            setTimeout(() => messageDiv.remove(), 300);
+                            setTimeout(function() { messageDiv.remove(); }, 300);
                         }
                     }, 6000);
                 } catch (e) {

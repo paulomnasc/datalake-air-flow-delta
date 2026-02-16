@@ -503,11 +503,12 @@ class ConfigController extends BaseController
                 
                 log_message('info', "Verificação de armazenamento OK: {$storageCheck['message']}");
 
-                // Gera nome único para o arquivo no MinIO com timestamp
+                // Preserva o nome original do arquivo no MinIO para rastreabilidade
+                $originalFileName = $uploadedFile->getClientName();
+                // Opcional: adicionar timestamp/hash antes do nome original para evitar colisão
                 $timestamp = date('YmdHis');
-                $hash = substr(md5($uploadedFile->getClientName() . microtime()), 0, 8);
-                $extension = $uploadedFile->getClientExtension();
-                $newName = "{$timestamp}_{$hash}.{$extension}";
+                $hash = substr(md5($originalFileName . microtime()), 0, 8);
+                $newName = "{$timestamp}_{$hash}_{$originalFileName}";
                 $targetMinioPath = "raw/{$targetTableName}/{$newName}";
 
                 // Realiza o upload usando o S3Client inicializado em __construct
@@ -1296,16 +1297,14 @@ class ConfigController extends BaseController
             foreach ($files as $index => $file) {
                 try {
                     $fileName = $file->getName(); // Nome original do arquivo
-                    
-                    // Gerar nome único para evitar sobrescrita
+                    // Gerar nome único para evitar sobrescrita, mas PRESERVAR nome original
                     $fileTimestamp = date('YmdHis');
                     $hash = substr(md5($fileName . microtime()), 0, 8);
-                    $extension = pathinfo($fileName, PATHINFO_EXTENSION);
-                    $uniqueFileName = "{$fileTimestamp}_{$hash}.{$extension}";
-                    
-                    // Estrutura: raw/{target_table_name}/{timestamp}_{hash}.ext
+                    // Novo padrão: {timestamp}_{hash}_{originalFileName}
+                    $uniqueFileName = "{$fileTimestamp}_{$hash}_{$fileName}";
+                    // Estrutura: raw/{target_table_name}/{timestamp}_{hash}_{originalFileName}
                     $s3Key = "raw/{$targetTableName}/{$uniqueFileName}";
-                    
+
                     log_message('info', "Fazendo upload do arquivo: {$fileName} para {$s3Key}");
                     log_message('info', "Arquivo temp: {$file->getTempName()}, Tamanho: {$file->getSize()}, MIME: {$file->getMimeType()}");
 
@@ -1350,7 +1349,7 @@ class ConfigController extends BaseController
                         's3_key' => $s3Key,
                         'size' => $file->getSize()
                     ];
-                    
+
                     log_message('info', "✅ Upload bem-sucedido: {$fileName}");
 
                 } catch (AwsException $e) {

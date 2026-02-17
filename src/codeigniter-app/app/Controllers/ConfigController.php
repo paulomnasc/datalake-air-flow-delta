@@ -503,11 +503,12 @@ class ConfigController extends BaseController
                 
                 log_message('info', "Verificação de armazenamento OK: {$storageCheck['message']}");
 
-                // Gera nome único para o arquivo no MinIO com timestamp
+                // Preserva o nome original do arquivo no MinIO para rastreabilidade
+                $originalFileName = $uploadedFile->getClientName();
+                // Opcional: adicionar timestamp/hash antes do nome original para evitar colisão
                 $timestamp = date('YmdHis');
-                $hash = substr(md5($uploadedFile->getClientName() . microtime()), 0, 8);
-                $extension = $uploadedFile->getClientExtension();
-                $newName = "{$timestamp}_{$hash}.{$extension}";
+                $hash = substr(md5($originalFileName . microtime()), 0, 8);
+                $newName = "{$timestamp}_{$hash}_{$originalFileName}";
                 $targetMinioPath = "raw/{$targetTableName}/{$newName}";
 
                 // Realiza o upload usando o S3Client inicializado em __construct
@@ -576,6 +577,12 @@ class ConfigController extends BaseController
                 $postData['sql_user'] = $postData['sql_user'] ?? null;
                 $postData['sql_password'] = $postData['sql_password'] ?? null;
                 
+            } else if (str_contains($sourceTypeDescription, 'api')) {
+                // API REST: não exige upload nem campos SQL, apenas salva o endpoint/config no transform_args
+                // O campo source_filename pode ser usado para identificar a fonte, mas não é obrigatório
+                $sourceLocation = $postData['source_filename'] ?? null;
+                // Nenhuma validação extra obrigatória aqui, pois os campos relevantes vão em transform_args
+                // (endpoint, headers, params, etc.)
             } else {
                  throw new \Exception('Lógica de processamento de dados não implementada para o tipo: ' . $sourceTypeDescription);
             }
@@ -1290,16 +1297,14 @@ class ConfigController extends BaseController
             foreach ($files as $index => $file) {
                 try {
                     $fileName = $file->getName(); // Nome original do arquivo
-                    
-                    // Gerar nome único para evitar sobrescrita
+                    // Gerar nome único para evitar sobrescrita, mas PRESERVAR nome original
                     $fileTimestamp = date('YmdHis');
                     $hash = substr(md5($fileName . microtime()), 0, 8);
-                    $extension = pathinfo($fileName, PATHINFO_EXTENSION);
-                    $uniqueFileName = "{$fileTimestamp}_{$hash}.{$extension}";
-                    
-                    // Estrutura: raw/{target_table_name}/{timestamp}_{hash}.ext
+                    // Novo padrão: {timestamp}_{hash}_{originalFileName}
+                    $uniqueFileName = "{$fileTimestamp}_{$hash}_{$fileName}";
+                    // Estrutura: raw/{target_table_name}/{timestamp}_{hash}_{originalFileName}
                     $s3Key = "raw/{$targetTableName}/{$uniqueFileName}";
-                    
+
                     log_message('info', "Fazendo upload do arquivo: {$fileName} para {$s3Key}");
                     log_message('info', "Arquivo temp: {$file->getTempName()}, Tamanho: {$file->getSize()}, MIME: {$file->getMimeType()}");
 
@@ -1344,7 +1349,7 @@ class ConfigController extends BaseController
                         's3_key' => $s3Key,
                         'size' => $file->getSize()
                     ];
-                    
+
                     log_message('info', "✅ Upload bem-sucedido: {$fileName}");
 
                 } catch (AwsException $e) {
@@ -1446,12 +1451,15 @@ class ConfigController extends BaseController
                 throw new \Exception('Todos os arquivos falharam no upload. Verifique os logs para mais detalhes.');
             }
             
+            // Inicializa $uniqueFolders e $folderPath para evitar erro de variável indefinida
+            $uniqueFolders = isset($uniqueFolders) ? $uniqueFolders : [];
+            $folderPath = isset($uniqueFolders[0]) ? $uniqueFolders[0] : $sourceFilenameValue;
             return $this->response->setJSON([
                 'status' => count($errors) > 0 ? 'partial' : 'success',
                 'mensagem' => sprintf(
                     'DAG criada com sucesso! %d arquivo(s) enviado(s) para %s e serão processados em modo %s%s',
                     count($uploadedFiles),
-                    count($uniqueFolders) > 1 ? count($uniqueFolders) . " pasta(s) raw" : $uniqueFolders[0],
+                    count($uniqueFolders) > 1 ? count($uniqueFolders) . " pasta(s) raw" : $folderPath,
                     $batchMode === 'parallel' ? 'paralelo' : 'sequencial',
                     count($errors) > 0 ? sprintf(' (%d arquivo(s) falharam)', count($errors)) : ''
                 ),
@@ -1922,12 +1930,15 @@ class ConfigController extends BaseController
                 throw new \Exception('Todos os arquivos falharam no upload. Verifique os logs para mais detalhes.');
             }
             
+            if (!isset($uniqueFolders)) {
+                $uniqueFolders = [];
+            }
             return $this->response->setJSON([
                 'status' => count($errors) > 0 ? 'partial' : 'success',
                 'mensagem' => sprintf(
                     'DAG atualizada com sucesso! %d arquivo(s) enviado(s) para %s e serão processados em modo %s%s',
                     count($uploadedFiles),
-                    count($uniqueFolders) > 1 ? count($uniqueFolders) . " pasta(s) raw" : $uniqueFolders[0],
+                    count($uniqueFolders) > 1 ? count($uniqueFolders) . " pasta(s) raw" : (isset($uniqueFolders[0]) ? $uniqueFolders[0] : 'raw/'),
                     $batchMode === 'parallel' ? 'paralelo' : 'sequencial',
                     count($errors) > 0 ? sprintf(' (%d arquivo(s) falharam)', count($errors)) : ''
                 ),
@@ -1937,7 +1948,7 @@ class ConfigController extends BaseController
                 'errors' => $errors,
                 'batch_mode' => $batchMode,
                 'dag_id' => $dagId,
-                'folder_paths' => $uniqueFolders // Múltiplas pastas agora
+                'folder_paths' => $uniqueFolders
             ]);
             
         } catch (\Exception $e) {

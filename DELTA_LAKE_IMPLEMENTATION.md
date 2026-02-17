@@ -51,7 +51,7 @@ MySQL/Fontes → Raw (CSV) → Bronze (CSV) → Silver (Parquet + Quality) → G
 ### No MinIO (S3)
 
 ```
-s3://lab01/
+s3://<owner da dag>/
 ├── raw/{dag_id}/{timestamp}_{hash}.csv
 ├── bronze/{table}/{timestamp}_{hash}.csv
 ├── silver/{table}/{timestamp}_{hash}.parquet
@@ -1204,6 +1204,41 @@ http://localhost:9001 → lab01 → gold/{table}_delta/
 
 ## Dúvidas frequentes sobre a implementação
 
+## 🔎 Rastreamento por nome de arquivo (source_filename)
+
+Para garantir rastreabilidade total, cada linha da tabela Delta Lake possui a coluna `source_filename`, que preserva o nome original do arquivo de origem (mesmo em uploads múltiplos ou merges). Isso permite identificar a origem de cada registro em todas as camadas (Bronze, Silver, Gold, Delta).
+
+**Exemplo de consulta por nome de arquivo:**
+
+```python
+from deltalake import DeltaTable
+
+dt = DeltaTable("s3://lab01/gold/orders_delta/", storage_options=storage_options)
+df = dt.to_pandas()
+
+# Filtrar registros de um arquivo específico
+df_filtrado = df[df['source_filename'] == 'silver/orders/20251124_abc123.parquet']
+print(df_filtrado)
+
+# Consultar todos os arquivos de origem presentes
+print(df['source_filename'].unique())
+
+# Agrupar por arquivo de origem
+df.groupby('source_filename').size()
+```
+
+**SQL (DuckDB, Trino, Spark):**
+```sql
+SELECT * FROM orders_delta WHERE source_filename = 'silver/orders/20251124_abc123.parquet';
+SELECT source_filename, COUNT(*) FROM orders_delta GROUP BY source_filename;
+```
+
+**Resumo:**
+- A coluna `source_filename` é preservada em todas as etapas do pipeline.
+- Permite rastreabilidade, auditoria e análise por arquivo de origem.
+- Consultas, filtros e agrupamentos podem ser feitos facilmente.
+
+---
 **Pergunta:**
 O documento diz: "Este documento descreve a implementação real de Delta Lake no projeto datalake-air-flow, usando `deltalake-python` integrado com Airflow, MinIO e arquitetura Medallion." Mas não encontrei o import de deltalake-python nas classes que estão em anexo ou em sua pasta.
 

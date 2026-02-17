@@ -21,6 +21,29 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     """
     log.info(f"[MEDALLION] Iniciando pipeline completo para: {target_table_name}")
     log.info(f"[MEDALLION] Arquivo origem: {source_filename}")
+    if source_filename is None:
+        raise ValueError("[MEDALLION] source_filename não pode ser None. Verifique a etapa anterior de ingestão.")
+
+    # Verificação de existência do arquivo no MinIO para tipos de fonte arquivo
+    source_type = str(kwargs.get('source_type', '')).lower()
+    if not source_type:
+        # Tenta inferir pelo nome do arquivo
+        if source_filename and (source_filename.endswith('.csv') or source_filename.endswith('.json') or source_filename.endswith('.parquet')):
+            source_type = 'arquivo'
+    if source_type in ['api', 'api rest', 'rest', 'rest api']:
+        # Para API REST, espera-se que source_filename seja uma chave S3 válida gerada pelo ingest_api_to_raw
+        # Não faz verificação extra aqui, pois erro será lançado se não existir
+        pass
+    else:
+        # Para arquivos, verifica se o arquivo existe no MinIO antes de tentar baixar
+        from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+        bucket = kwargs.get('bucket_name') or os.environ.get("MINIO_BUCKET", "lab01")
+        hook = S3Hook(aws_conn_id='minio_conn')
+        if source_filename is None:
+            raise ValueError("[MEDALLION] source_filename não pode ser None para fontes do tipo arquivo.")
+        src_key = source_filename.lstrip('/')
+        if not hook.check_for_key(src_key, bucket):
+            raise FileNotFoundError(f"[MEDALLION] Arquivo de origem não encontrado no MinIO: s3://{bucket}/{src_key}")
     
     try:
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
@@ -48,7 +71,10 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 if len(df.columns) == 1 and df.dtypes.iloc[0] == 'object':
                     col = df.columns[0]
                     try:
-                        normalized = pd.json_normalize(df[col].apply(lambda x: json.loads(x) if isinstance(x, str) else x))
+                        # Convert Series to list for json_normalize
+                        normalized = pd.json_normalize([
+                            json.loads(x) if isinstance(x, str) else x for x in df[col]
+                        ])
                         if not normalized.empty:
                             return normalized
                     except Exception:
@@ -72,6 +98,8 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     
     hook = S3Hook(aws_conn_id='minio_conn')
 
+    if source_filename is None:
+        raise ValueError("[MEDALLION] source_filename não pode ser None. Verifique a etapa anterior de ingestão.")
     src_key = source_filename.lstrip('/')
     basename = os.path.basename(src_key)
     basename_no_ext = os.path.splitext(basename)[0]
@@ -80,9 +108,9 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
     dag_id = kwargs.get('dag_id') or 'default'
     
     # Estrutura: {layer}/{target_table_name}/{timestamp_hash}.parquet
-    bronze_key = f"bronze/{target_table_name}/{basename_no_ext}.parquet"
-    silver_key = f"silver/{target_table_name}/{basename_no_ext}.parquet"
-    gold_key = f"gold/{target_table_name}/{basename_no_ext}.parquet"
+    bronze_key = f"bronze/{basename_no_ext}/{basename_no_ext}.parquet"
+    silver_key = f"silver/{basename_no_ext}/{basename_no_ext}.parquet"
+    gold_key = f"gold/{basename_no_ext}/{basename_no_ext}.parquet"
     
     tmpdir = None
     results = {}
@@ -156,7 +184,6 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         try:
             import pandas as pd
             file_ext = os.path.splitext(local_file)[1].lower()
-            
             # Ler arquivo original (suporta CSV, JSON)
             if file_ext == '.csv':
                 df_bronze = pd.read_csv(local_file)
@@ -169,13 +196,13 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 log.info("[BRONZE] ✅ Salvo em: s3://%s/%s", bucket, bronze_key)
                 results['bronze'] = bronze_key
                 df_bronze = None
-            
             # Salvar como Parquet se conseguiu ler
             if df_bronze is not None:
+                # Adicionar coluna com nome original do arquivo
+                df_bronze['source_filename'] = basename
                 local_parquet = os.path.join(tmpdir, f"{basename_no_ext}_bronze.parquet")
                 df_bronze.to_parquet(local_parquet, index=False, compression='snappy', engine='pyarrow')
                 log.info("[BRONZE] Convertido para Parquet: %d linhas", len(df_bronze))
-                
                 hook.load_file(filename=local_parquet, key=bronze_key, bucket_name=bucket, replace=True)
                 log.info("[BRONZE] ✅ Salvo em Parquet: s3://%s/%s", bucket, bronze_key)
                 results['bronze'] = bronze_key
@@ -204,7 +231,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                     layer="bronze",
                     table=bronze_table,
                     db=db_name,
-                    columns=None,  # Criar tabela sem colunas primeiro
+                    columns=[],  # Criar tabela sem colunas primeiro
                     owner=owner
                 )
                 log.info("[ATLAS] ✓ Tabela Bronze registrada: %s", f"{db_name}.{bronze_table}@cluster")
@@ -288,7 +315,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                     layer="silver",
                     table=silver_table,
                     db=db_name,
-                    columns=None,  # Criar tabela sem colunas primeiro
+                    columns=[],  # Criar tabela sem colunas primeiro
                     owner=owner
                 )
                 log.info("[ATLAS] ✓ Tabela Silver registrada: %s", f"{db_name}.{silver_table}@cluster")
@@ -336,7 +363,13 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                 **kwargs
             )
             
-            gold_key_result = gold_result.get('key') or (gold_result.get('keys')[0] if gold_result.get('keys') else None)
+            gold_keys = gold_result.get('keys')
+            gold_key_result = gold_result.get('key')
+            if not gold_key_result and gold_keys:
+                if isinstance(gold_keys, list) and len(gold_keys) > 0:
+                    gold_key_result = gold_keys[0]
+                else:
+                    gold_key_result = None
             results['gold'] = gold_key_result
             results['gold_format'] = 'parquet'
             log.info("[GOLD] ✅ Gold Parquet salvo em: %s", results['gold'])
@@ -358,13 +391,13 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
         try:
             from lib.gold_delta_layer import gold_to_delta
             log.info("[DELTA] Importação gold_to_delta OK...")
-            
+            if gold_key is None:
+                raise ValueError("[DELTA] gold_key está None. Não é possível criar camada Delta sem arquivo Gold válido.")
             delta_result = gold_to_delta(
                 source_filename=gold_key,
                 target_table_name=delta_name,  # Usa delta_table_name se disponível
                 **kwargs
             )
-            
             results['delta'] = delta_result.get('delta')
             results['delta_format'] = 'delta'
             results['delta_version'] = delta_result.get('version', 0)
@@ -388,7 +421,7 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs):
                         layer="gold",
                         table=gold_table,
                         db=db_name,
-                        columns=None,  # Criar tabela sem colunas primeiro
+                        columns=[],  # Criar tabela sem colunas primeiro
                         owner=owner
                     )
                     log.info("[ATLAS] ✓ Tabela Gold registrada: %s", f"{db_name}.{gold_table}@cluster")

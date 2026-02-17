@@ -56,33 +56,47 @@ require VIEWPATH . '/header.php';
                     <input type="password" id="repete-senha" name="senha" placeholder="senha" required>
                 </div>
                 <div class="form-actions">
-                    <button type="submit" class="save-button" value="Atualizar" onclick="return validatePasswords()">Registrar</button>
+                    <button type="submit" class="save-button" value="Atualizar">Registrar</button>
                     <!-- button type="button" class="back-button" onclick="history.back();">Voltar</button -->
                 </div>
                 <div id="signup-success-message" class="alert alert-success" style="display:none;"></div>
+                <div id="error-message" class="alert alert-danger" style="display:none; text-align:center; max-width: 500px; margin: 30px auto 0 auto; font-size: 1.1em;"></div>
             </form>
 
             
 
         <script>
-        function validatePasswords() {
-            
+        function validateSignUpForm() {
+            var errors = [];
+            var nome = document.getElementById("nome").value.trim();
+            var email = document.getElementById("email").value.trim();
             var senha = document.getElementById("senha").value;
             var repeteSenha = document.getElementById("repete-senha").value;
+            var perfis = document.getElementById("id_perfil");
+            var selectedPerfis = Array.from(perfis.selectedOptions).map(opt => opt.value);
 
-            if (senha !== repeteSenha) {
-                alert("As senhas não coincidem");
-                document.getElementById("error-message").innerHTML = "As senhas não coincidem";
-                return false;
-            }
-            return true;
+            if (!nome) errors.push("• O campo <b>Nome</b> é obrigatório.");
+            if (!email) errors.push("• O campo <b>Email</b> é obrigatório.");
+            if (!senha) errors.push("• O campo <b>Senha</b> é obrigatório.");
+            if (!repeteSenha) errors.push("• O campo <b>Confirmar senha</b> é obrigatório.");
+            if (senha && repeteSenha && senha !== repeteSenha) errors.push("• As senhas não coincidem.");
+            if (selectedPerfis.length === 0) errors.push("• Selecione pelo menos um <b>Perfil</b>.");
+
+            return errors;
         }
-        </script>
-        <script>
+
+        $(document).ready(function() {
             $('#meuFormulario').submit(function(event) {
                 event.preventDefault();
-                if (!validatePasswords()) {
+                var errors = validateSignUpForm();
+                if (errors.length > 0) {
+                    var html = '<ul style="text-align:left; margin:0 auto; display:inline-block;">' + errors.map(function(e){return '<li>'+e+'</li>';}).join('') + '</ul>';
+                    $('#error-message').html(html).fadeIn();
+                    $('html,body').animate({scrollTop: $('#error-message').offset().top - 100}, 300);
+                    setTimeout(function(){ $('#error-message').fadeOut(); }, 8000);
                     return false;
+                } else {
+                    $('#error-message').hide();
                 }
                 var formData = $(this).serialize();
                 $.ajax({
@@ -93,11 +107,10 @@ require VIEWPATH . '/header.php';
                         if (result.status === 'success') {
                             $('#signup-success-message').html(result.mensagem).show().delay(13000).fadeOut(function() {
                                 if (result.redirect) {
-                                    window.location.href = result.redirect; // Redireciona para a URL fornecida
+                                    window.location.href = result.redirect;
                                 }
                             });
                         } else {
-                            console.log(result.mensagem);
                             $('#error-message').html(result.mensagem).show().delay(6000).fadeOut();
                         }
                     },
@@ -107,6 +120,7 @@ require VIEWPATH . '/header.php';
                     }
                 });
             });
+        });
         </script>
 
         </div>

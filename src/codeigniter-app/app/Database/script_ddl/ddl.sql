@@ -116,6 +116,18 @@ CREATE TABLE dag_configurations (
     
     -- 4. Parâmetros de Processamento
     python_module_path VARCHAR(255) COMMENT 'Caminho do módulo Python a ser chamado',
+    -- ...existing code...
+    -- Nova tabela para múltiplos nomes de arquivos originais por configuração de DAG
+    CREATE TABLE config_multiplefilenames (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      dag_configuration_id INT NOT NULL,
+      original_filename VARCHAR(512) NOT NULL,
+      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      -- FK para dag_configurations com delete cascade
+      CONSTRAINT fk_config_multiplefilenames_dagconfig FOREIGN KEY (dag_configuration_id)
+        REFERENCES dag_configurations(id)
+        ON DELETE CASCADE
+    );
     transform_args JSON COMMENT 'Parâmetros extras para a função Python (JSON)',
 
     -- 🛑 CAMPOS SSH TUNNELING 🛑

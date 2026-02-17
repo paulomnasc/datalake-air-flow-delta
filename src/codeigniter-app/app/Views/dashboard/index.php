@@ -334,7 +334,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             <!-- Wizard Content Form -->
                             <form id="wizardForm" 
                                   method="POST" 
-                                  action="<?= !empty($edit_data) ? base_url('updateConfig') : base_url('dashboard/createPipeline') ?>" 
+                                  action="<?= !empty($edit_data) ? base_url('updateConfig') : base_url('insertConfig') ?>" 
                                   enctype="multipart/form-data"
                                   novalidate
                                   @submit.prevent="submitWizard($event)">
@@ -420,19 +420,80 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                             </select>
                                         </div>
 
+                                        <!-- Campos específicos para API REST -->
+                                        <div class="form-section mt-3" x-show="getSourceTypeName(wizardData.sourceType).toLowerCase().includes('api')">
+                                                                                        <h6>Configuração da API REST</h6>
+                                                                                        <div class="alert alert-info" style="font-size:1em;">
+                                                                                                <strong>Exemplo de preenchimento para <b>transform_args</b>:</strong>
+                                                                                                <pre style="background:#f8f9fa; border-radius:6px; padding:12px; margin-top:10px; font-size:0.98em;">
+{
+    "api_endpoint": "https://api.exemplo.com/endpoint",
+    "api_method": "GET",
+    "api_headers": {
+        "Authorization": "Bearer <sua API_KEY aqui>",
+        "Content-Type": "application/json"
+    },
+    "api_params": {
+        "param1": "valor1",
+        "param2": "valor2"
+    },
+    "api_payload": {
+        "campo": "valor"
+    },
+    "api_auth": "Bearer <seu token aqui>"
+}
+                                                                                                </pre>
+                                                                                                <ul style="margin-bottom:0;">
+                                                                                                        <li>Preencha <b>api_endpoint</b> com a URL da sua API.</li>
+                                                                                                        <li>Em <b>api_headers</b>, coloque suas chaves, tokens ou outros headers necessários.</li>
+                                                                                                        <li>Use <b>&lt;sua API_KEY aqui&gt;</b> ou <b>&lt;seu token aqui&gt;</b> para indicar onde inserir suas credenciais.</li>
+                                                                                                        <li>Os campos <b>api_params</b> e <b>api_payload</b> são opcionais e dependem da sua API.</li>
+                                                                                                </ul>
+                                                                                                <span class="text-muted">Copie e personalize o exemplo acima no campo <b>transform_args</b> abaixo.</span>
+                                                                                        </div>
+                                                                                </div>
+
                                         <div class="form-section">
-                                            <label class="form-label">Nome da Tabela Destino *</label>
-                                            <input type="text" 
-                                                   name="target_table_name" 
-                                                   class="form-control" 
-                                                   placeholder="Ex: clientes, vendas, produtos"
-                                                   x-model="wizardData.targetTableName" 
-                                                   pattern="[a-zA-Z0-9_]+"
-                                                   required>
-                                            <small class="text-muted">
-                                                <i class="bi bi-info-circle"></i> 
-                                                Nome usado para organizar os dados em Bronze/Silver/Gold. Use apenas letras, números e underscore (_)
-                                            </small>
+                                            <label class="form-label">Argumentos Extras da Função (JSON)</label>
+                                            <textarea name="transform_args" 
+                                                      class="form-control font-monospace" 
+                                                      rows="8" 
+                                                      x-model="wizardData.transformArgs"
+                                                      placeholder='{"api_endpoint": "https://api.exemplo.com/endpoint", "api_method": "GET", "api_headers": { "Authorization": "Bearer <sua API_KEY aqui>" }, "api_params": { "chave": "valor" }}'></textarea>
+                                            <small class="text-muted">Deve ser um JSON válido. Use {} se não precisar de argumentos extras. Veja o exemplo acima para APIs REST.</small>
+
+                                            <template x-if="getSourceTypeName(wizardData.sourceType).toLowerCase().includes('api')">
+                                                <div>
+                                                    <label class="form-label">Nome da Tabela Destino *</label>
+                                                    <input type="text" 
+                                                           name="target_table_name" 
+                                                           class="form-control" 
+                                                           placeholder="Ex: cotacao_voos, api_resultados, etc"
+                                                           x-model="wizardData.targetTableName" 
+                                                           pattern="[a-zA-Z0-9_]+"
+                                                           required>
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-info-circle"></i> 
+                                                        Nome usado para organizar os dados em Bronze/Silver/Gold. Use apenas letras, números e underscore (_)
+                                                    </small>
+                                                </div>
+                                            </template>
+                                            <template x-if="!getSourceTypeName(wizardData.sourceType).toLowerCase().includes('api')">
+                                                <div>
+                                                    <label class="form-label">Nome da Tabela Destino *</label>
+                                                    <input type="text" 
+                                                           name="target_table_name" 
+                                                           class="form-control" 
+                                                           placeholder="Ex: clientes, vendas, produtos"
+                                                           x-model="wizardData.targetTableName" 
+                                                           pattern="[a-zA-Z0-9_]+"
+                                                           required>
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-info-circle"></i> 
+                                                        Nome usado para organizar os dados em Bronze/Silver/Gold. Use apenas letras, números e underscore (_)
+                                                    </small>
+                                                </div>
+                                            </template>
                                         </div>
 
                                         <!-- Upload de Arquivo CSV/JSON -->
@@ -749,15 +810,12 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                 try {
                     const msg = JSON.parse(storedMessage);
                     localStorage.removeItem('dashboard_message');
-                    
                     // Criar div de mensagem
                     const messageDiv = document.createElement('div');
                     messageDiv.id = 'dashboard-message';
                     messageDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
-                    
                     const alertClass = msg.type === 'success' ? 'alert-success' : 'alert-danger';
                     const icon = msg.type === 'success' ? 'check-circle' : 'exclamation-triangle';
-                    
                     messageDiv.innerHTML = `
                         <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
                             <i class="bi bi-${icon}"></i>
@@ -765,15 +823,13 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     `;
-                    
                     document.body.appendChild(messageDiv);
-                    
                     // Fade out após 6 segundos
-                    setTimeout(() => {
+                    setTimeout(function() {
                         const alert = messageDiv.querySelector('.alert');
                         if (alert) {
                             alert.classList.remove('show');
-                            setTimeout(() => messageDiv.remove(), 300);
+                            setTimeout(function() { messageDiv.remove(); }, 300);
                         }
                     }, 6000);
                 } catch (e) {
@@ -1065,6 +1121,13 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                 submitWizard(event) {
                     const form = event.target;
                     const formData = new FormData(form);
+
+                    // Corrigir: para API REST, garantir que source_filename NÃO seja enviado
+                    const sourceTypeName = this.getSourceTypeName(this.wizardData.sourceType).toLowerCase();
+                    if (sourceTypeName.includes('api')) {
+                        // Remove qualquer valor do campo source_filename (garante que não será enviado)
+                        formData.delete('source_filename');
+                    }
                     
                     console.log('📤 Enviando pipeline...');
                     

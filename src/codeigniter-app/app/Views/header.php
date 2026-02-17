@@ -438,7 +438,8 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <?php
                         $tz = new DateTimeZone('America/Sao_Paulo');
                         $dt = new DateTime('now', $tz);
-                        echo 'America/Sao_Paulo · ' . $dt->format('H:i') . 'h';
+                        echo $dt->format('H:i') . 'h';
+                        //echo 'America/Sao_Paulo · ' . $dt->format('H:i') . 'h';
                     ?>
                 </span>
                 <!-- Botão para abrir a sidebar -->

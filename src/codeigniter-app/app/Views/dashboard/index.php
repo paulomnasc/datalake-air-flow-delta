@@ -454,13 +454,64 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                                                 </div>
 
                                         <div class="form-section">
-                                            <label class="form-label">Argumentos Extras da Função (JSON)</label>
-                                            <textarea name="transform_args" 
-                                                      class="form-control font-monospace" 
-                                                      rows="8" 
-                                                      x-model="wizardData.transformArgs"
-                                                      placeholder='{"api_endpoint": "https://api.exemplo.com/endpoint", "api_method": "GET", "api_headers": { "Authorization": "Bearer <sua API_KEY aqui>" }, "api_params": { "chave": "valor" }}'></textarea>
+                                            <label class="form-label">Argumentos JSON</label>
+                                            <div id="monaco-transform-args-container" style="height: 220px; border: 1px solid #ced4da; border-radius: 0.375rem; margin-bottom: 0.5rem;"></div>
+                                            <input type="hidden" name="transform_args" x-model="wizardData.transformArgs" id="transform_args_hidden" />
                                             <small class="text-muted">Deve ser um JSON válido. Use {} se não precisar de argumentos extras. Veja o exemplo acima para APIs REST.</small>
+                                            <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+                                            <script>
+                                            document.addEventListener('DOMContentLoaded', function() {
+                                                if (document.getElementById('monaco-transform-args-container')) {
+                                                    require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+                                                    require(['vs/editor/editor.main'], function () {
+                                                        if (window.monacoTransformArgsEditor) {
+                                                            window.monacoTransformArgsEditor.dispose();
+                                                        }
+                                                        var initialValue = document.getElementById('transform_args_hidden').value || '{}';
+                                                        // Sempre formatar o JSON ao carregar
+                                                        try {
+                                                            if (initialValue && initialValue.trim() !== '') {
+                                                                initialValue = JSON.stringify(JSON.parse(initialValue), null, 2);
+                                                            }
+                                                        } catch (e) {
+                                                            // Se não for JSON válido, mantém como está
+                                                        }
+                                                        window.monacoTransformArgsEditor = monaco.editor.create(document.getElementById('monaco-transform-args-container'), {
+                                                            value: initialValue,
+                                                            language: 'json',
+                                                            theme: 'vs',
+                                                            fontSize: 15,
+                                                            minimap: { enabled: false },
+                                                            automaticLayout: true,
+                                                            scrollBeyondLastLine: false,
+                                                            wordWrap: 'on',
+                                                            formatOnPaste: true,
+                                                            formatOnType: true,
+                                                        });
+                                                        window.monacoTransformArgsEditor.onDidChangeModelContent(function () {
+                                                            const value = window.monacoTransformArgsEditor.getValue();
+                                                            document.getElementById('transform_args_hidden').value = value;
+                                                            if (window.Alpine && window.Alpine.store && window.Alpine.store('wizardData')) {
+                                                                window.Alpine.store('wizardData').transformArgs = value;
+                                                            }
+                                                        });
+                                                        window.monacoTransformArgsEditor.onDidBlurEditorWidget(function () {
+                                                            try {
+                                                                const val = window.monacoTransformArgsEditor.getValue();
+                                                                if (val.trim()) {
+                                                                    const formatted = JSON.stringify(JSON.parse(val), null, 2);
+                                                                    window.monacoTransformArgsEditor.setValue(formatted);
+                                                                    document.getElementById('transform_args_hidden').value = formatted;
+                                                                    if (window.Alpine && window.Alpine.store && window.Alpine.store('wizardData')) {
+                                                                        window.Alpine.store('wizardData').transformArgs = formatted;
+                                                                    }
+                                                                }
+                                                            } catch (e) {}
+                                                        });
+                                                    });
+                                                }
+                                            });
+                                            </script>
 
                                             <template x-if="getSourceTypeName(wizardData.sourceType).toLowerCase().includes('api')">
                                                 <div>
@@ -661,7 +712,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                             </small>
                                         </div>
 
-                                        <div class="form-section">
+                                        <!--div class="form-section">
                                             <label class="form-label">Argumentos Extras da Função (JSON)</label>
                                             <textarea name="transform_args" 
                                                       class="form-control font-monospace" 
@@ -669,7 +720,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                       x-model="wizardData.transformArgs"
                                                       placeholder='{"chave": "valor", "exemplo": true}'></textarea>
                                             <small class="text-muted">Deve ser um JSON válido. Use {} se não precisar de argumentos extras.</small>
-                                        </div>
+                                        </div-->
                                     </div>
 
                                     <!-- Step 4: Agendamento -->

@@ -14,6 +14,7 @@ tests/
 copia/
 data/.minio.sys/
 __pycache__/
+venv/
 
 # Ignorar arquivos de configuração de batch gerados automaticamente
 src/dags/configs/*.yml
@@ -44,6 +45,7 @@ src/codeigniter-app/.env.local
 src/codeigniter-app/.env
 src/codeigniter-app/.env.local
 src/codeigniter-app/.env.production
+scripts/api-ga4/*.json
 
 # Ignorar arquivo de configuração do nginx
 myflow.conf

@@ -468,6 +468,14 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                             window.monacoTransformArgsEditor.dispose();
                                                         }
                                                         var initialValue = document.getElementById('transform_args_hidden').value || '{}';
+                                                        // Sempre formatar o JSON ao carregar
+                                                        try {
+                                                            if (initialValue && initialValue.trim() !== '') {
+                                                                initialValue = JSON.stringify(JSON.parse(initialValue), null, 2);
+                                                            }
+                                                        } catch (e) {
+                                                            // Se não for JSON válido, mantém como está
+                                                        }
                                                         window.monacoTransformArgsEditor = monaco.editor.create(document.getElementById('monaco-transform-args-container'), {
                                                             value: initialValue,
                                                             language: 'json',

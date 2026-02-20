@@ -1,9 +1,11 @@
-// Keycloak OIDC Auth
-$routes->get('/auth/keycloak-login', 'AuthController::keycloakLogin');
-$routes->get('/auth/keycloak-callback', 'AuthController::keycloakCallback');
 <?php
 
 use CodeIgniter\Router\RouteCollection;
+
+// Keycloak OIDC Auth
+$routes->get('/auth/keycloak-login', 'AuthController::keycloakLogin');
+$routes->get('/auth/keycloak-callback', 'AuthController::keycloakCallback');
+
 
 // Curso - Módulo 1 (Legacy)
 $routes->get('/curso/modulo1', 'CursoController::modulo1', ['as'=>'cursoModulo1']);

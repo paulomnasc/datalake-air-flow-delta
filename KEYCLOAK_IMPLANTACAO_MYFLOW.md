@@ -1,3 +1,39 @@
+# Histórico de Troubleshooting SSO Keycloak (adicionado por GitHub Copilot)
+## Solução definitiva (20/02/2026)
+
+- O backend (PHP/CodeIgniter) deve usar KEYCLOAK_PROVIDER_URL=http://keycloak:8080/realms/MyFlow para comunicação interna.
+- O navegador (frontend/redirecionamento) deve usar http://localhost:8181/realms/MyFlow.
+- O erro DNS_PROBE_FINISHED_NXDOMAIN ocorre quando o navegador é redirecionado para keycloak:8080, que só existe na rede Docker.
+- Ajuste o .env do backend para KEYCLOAK_PROVIDER_URL=http://keycloak:8080/realms/MyFlow.
+- Garanta que o setRedirectURL use um endereço acessível pelo navegador (ex: localhost:8181).
+
+## Diagnóstico realizado em 20/02/2026
+
+### Sintoma
+Erro persistente ao autenticar via Keycloak OIDC:
+```
+{
+    "status": "error",
+    "mensagem": "Erro ao iniciar autenticação Keycloak",
+    "detalhe": "Curl error: (7) Failed to connect to localhost port 8181 after 0 ms: Could not connect to server"
+}
+```
+
+### Passos já realizados
+- Separação de variáveis de ambiente para cada app (CodeIgniter/Airflow) no .env
+- Ajuste do AuthController para usar KEYCLOAK_CLIENT_ID_CODEIGNITER e KEYCLOAK_CLIENT_SECRET_CODEIGNITER
+- Verificação de rede Docker: containers codeigniter-app e keycloak estão na mesma rede e comunicam via keycloak:8080
+- Teste de curl do codeigniter-app para keycloak:8080 retornando 200 OK
+
+### Diagnóstico
+- O erro indica que, em algum ponto, o backend ainda tenta acessar Keycloak via localhost:8181, não via keycloak:8080.
+- Isso pode ocorrer se:
+  - O .env não está sendo carregado corretamente pelo PHP/CodeIgniter.
+  - O processo PHP-FPM/Apache não está lendo o .env atualizado (precisa reiniciar container).
+  - O OpenIDConnectClient está recebendo valor default ('http://localhost:8181/realms/MyFlow') por getenv vazio.
+
+### Próximos passos automáticos
+- Adicionar log temporário no AuthController para registrar o valor real de getenv('KEYCLOAK_REALM_URL') e garantir que está correto no ambiente de execução.
 # Implantação de Keycloak para Autenticação Centralizada (MyFlow)
 
 ## 1. Instalar o Keycloak via Docker Compose

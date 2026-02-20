@@ -39,6 +39,7 @@ class UsuarioController extends BaseController
         $_SESSION['email_usuario_logado'] = null;
         $_SESSION['usuario_logado'] = 0;
         unset($_SESSION['is_admin']);
+        session_destroy();
         return view('frmLogin');
     }
 

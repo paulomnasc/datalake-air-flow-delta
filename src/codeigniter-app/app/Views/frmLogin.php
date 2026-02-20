@@ -66,6 +66,9 @@ require VIEWPATH . '/header.php';
                     <a href="<?= route_to('auth.google.login') ?>" class="btn btn-danger btn-block" style="background-color: #ea4335; border-color: #ea4335; color: white; text-decoration: none;">
                         <i class="fab fa-google"></i> Entrar com Google
                     </a>
+                    <a href="<?= base_url('auth/keycloak-login') ?>" class="btn btn-primary btn-block" style="margin-top: 10px; background-color: #4e54c8; border-color: #4e54c8; color: white; text-decoration: none;">
+                        <i class="fab fa-keycdn"></i> Entrar com Keycloak
+                    </a>
                 </div>
 
                 <!-- div class="social-auth-links text-center mb-3">

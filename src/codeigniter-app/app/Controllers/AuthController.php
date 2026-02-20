@@ -9,6 +9,7 @@ use App\Helpers\GoogleAuthHelper;
 use App\Helpers\MinioHelper;
 use App\Helpers\AirflowHelper;
 use App\Models\ActivityLogModel;
+use App\Helpers\KeycloakAuthHelper;
 
 /**
  * AuthController
@@ -171,15 +172,13 @@ class AuthController extends BaseController
             }
 
             log_message('info', "[GOOGLE_AUTH] Usuário {$usuario->id} ({$usuario->email}) autenticado com sucesso");
-            
             // Registra evento de login para GA4
             $_SESSION['ga4_login_event'] = [
                 'method' => 'Google',
                 'user_id' => $usuario->id,
                 'email' => $usuario->email
             ];
-            
-            return redirect()->to('/');
+            return redirect()->to('/dashboard');
         } catch (\Exception $e) {
             log_message('error', '[GOOGLE_AUTH] Exception: ' . $e->getMessage());
             $_SESSION['error_message'] = 'Erro inesperado durante autenticação: ' . $e->getMessage();
@@ -242,6 +241,176 @@ class AuthController extends BaseController
                 'success' => false,
                 'message' => 'Erro de autenticação: ' . $e->getMessage()
             ]);
+        }
+    }
+
+    /**
+     * Login via Keycloak OIDC
+     */
+    public function keycloakLogin()
+    {
+        try {
+            $clientId = getenv('KEYCLOAK_CLIENT_ID_CODEIGNITER') ?: 'codeigniter-app';
+            // Força redirect_uri absoluto igual ao cadastrado no Keycloak
+            $redirectUri = 'http://localhost:8088/auth/keycloak-callback';
+            $state = bin2hex(random_bytes(16));
+            $nonce = bin2hex(random_bytes(16));
+            $authUrl = 'http://localhost:8181/realms/master/protocol/openid-connect/auth?'.http_build_query([
+                'response_type' => 'code',
+                'client_id' => $clientId,
+                'redirect_uri' => $redirectUri,
+                'scope' => 'openid email profile',
+                'state' => $state,
+                'nonce' => $nonce
+            ]);
+            $_SESSION['oidc_state'] = $state;
+            $_SESSION['oidc_nonce'] = $nonce;
+            return redirect()->to($authUrl);
+        } catch (\Exception $ex) {
+            log_message('error', '[KEYCLOAK_OIDC] Erro ao gerar URL de autenticação: ' . $ex->getMessage());
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Erro ao iniciar autenticação Keycloak',
+                'detalhe' => $ex->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Callback do Keycloak OIDC
+     */
+    public function keycloakCallback()
+    {
+        $code = $this->request->getGet('code');
+        $error = $this->request->getGet('error');
+        if ($error) {
+            $_SESSION['error_message'] = 'Erro na autenticação Keycloak: ' . $error;
+            return redirect()->to('/loginUsuario');
+        }
+        if (!$code) {
+            $_SESSION['error_message'] = 'Código de autorização não recebido.';
+            return redirect()->to('/loginUsuario');
+        }
+        $redirectUri = 'http://localhost:8088/auth/keycloak-callback';
+        try {
+            $result = \App\Helpers\KeycloakAuthHelper::authenticate($code, $redirectUri);
+            $user = $result['user'];
+            // Procura ou cria usuário local
+            $usuarioModel = new \App\Models\UsuarioModel();
+            $usuario = $usuarioModel->where('email', $user['email'])->first();
+            if (!$usuario) {
+                // Cria usuário básico se não existir
+                $usuarioId = $usuarioModel->insert([
+                    'email' => $user['email'],
+                    'nome'  => $user['name'] ?? $user['preferred_username'] ?? $user['email'],
+                    'auth_provider' => 'keycloak',
+                    'email_confirmado' => 1,
+                ]);
+                $usuario = $usuarioModel->find($usuarioId);
+            }
+
+            // Garante que o usuário tenha a pasta padrão
+            $pastaModel = new \App\Models\PastaModel();
+            $pastaExistente = $pastaModel->where('id_usuario', $usuario->id)
+                                         ->where('descricao', 'pasta-padrao')
+                                         ->first();
+            if (!$pastaExistente) {
+                $pastaModel->insert([
+                    'descricao' => 'pasta-padrao',
+                    'id_usuario' => $usuario->id
+                ]);
+            }
+
+            // Cria sessão
+            $_SESSION['id_usuario_logado'] = $usuario->id;
+            $_SESSION['nome_usuario_logado'] = $usuario->nome;
+            $_SESSION['email_usuario_logado'] = $usuario->email;
+            $_SESSION['usuario_logado'] = 1;
+
+            // Busca perfis do usuário
+            $usuarioPerfilModel = new \App\Models\UsuarioPerfilModel();
+            $perfis = $usuarioPerfilModel->getPerfisUsuario($usuario->id);
+            $perfilDescricao = $perfis[0]->perfil_descricao ?? 'Keycloak';
+            $_SESSION['perfil_usuario_logado'] = $perfilDescricao;
+
+            // Registra login no activity log
+            if (empty($_SESSION['is_admin'])) {
+                try {
+                    $logModel = new \App\Models\ActivityLogModel();
+                    $logModel->insert([
+                        'user_id'    => (int) $usuario->id,
+                        'method'     => 'GET',
+                        'uri'        => '/auth/keycloak-callback',
+                        'controller' => 'AuthController',
+                        'action'     => 'keycloakCallback',
+                        'route_alias'=> 'auth.keycloak.callback',
+                        'ip_address' => $this->request->getIPAddress(),
+                        'user_agent' => ($this->request->getUserAgent() ? (method_exists($this->request->getUserAgent(), 'getAgent') ? $this->request->getUserAgent()->getAgent() : (string) $this->request->getUserAgent()) : ($_SERVER['HTTP_USER_AGENT'] ?? null)),
+                        'session_id' => (function_exists('session_id') ? session_id() : null),
+                    ]);
+                } catch (\Throwable $e) {
+                    log_message('warning', '[ActivityLog] Falha ao registrar login: ' . $e->getMessage());
+                }
+            }
+
+            // Garante bucket no MinIO; falha bloqueia o login via Keycloak
+            $bucketResult = \App\Helpers\MinioHelper::createUserBucket($usuario->id, $usuario->email ?? '');
+            if ($bucketResult['success']) {
+                log_message('info', "Bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+            } else {
+                log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+                $_SESSION['usuario_logado'] = 0;
+                $_SESSION['error_message'] = 'Não foi possível provisionar seu bucket de trabalho. Tente novamente em instantes ou contate o suporte.';
+                return redirect()->to('/loginUsuario');
+            }
+
+            // Sincroniza funções Python do usuário (garante que tem as funções padrão)
+            try {
+                $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
+                $countFuncoes = $usuarioFuncionModel->contarFuncoesDoUsuario($usuario->id);
+                if ($countFuncoes == 0) {
+                    // Se não tem funções configuradas, sincroniza com padrão
+                    $syncResult = $usuarioFuncionModel->sincronizarComPadrao($usuario->id);
+                    if ($syncResult) {
+                        log_message('info', "Funções Python sincronizadas para novo usuário Keycloak: {$usuario->id}");
+                    } else {
+                        log_message('warning', "Falha ao sincronizar funções Python para usuário Keycloak: {$usuario->id}");
+                    }
+                }
+            } catch (\Exception $e) {
+                log_message('warning', "Erro ao sincronizar funções no Keycloak: " . $e->getMessage());
+            }
+
+            // Sincroniza com Airflow (sem senha, pois é OIDC)
+            if (\App\Helpers\AirflowHelper::isAirflowAvailable()) {
+                $senhaAleatoria = bin2hex(random_bytes(8));
+                $airflowResult = \App\Helpers\AirflowHelper::syncUserWithAirflow(
+                    $usuario->id,
+                    $usuario->email ?? "",
+                    explode(' ', $usuario->nome)[0] ?? 'User',
+                    (count(explode(' ', $usuario->nome)) > 1) ? implode(' ', array_slice(explode(' ', $usuario->nome), 1)) : $usuario->id,
+                    $senhaAleatoria
+                );
+                if ($airflowResult['success']) {
+                    log_message('info', "[AIRFLOW_KEYCLOAK] {$airflowResult['message']}");
+                } else {
+                    log_message('warning', "[AIRFLOW_KEYCLOAK] {$airflowResult['message']}");
+                }
+            }
+
+            log_message('info', "[KEYCLOAK_OIDC] Usuário {$usuario->id} ({$usuario->email}) autenticado com sucesso");
+            // Registra evento de login para GA4
+            $_SESSION['ga4_login_event'] = [
+                'method' => 'Keycloak',
+                'user_id' => $usuario->id,
+                'email' => $usuario->email
+            ];
+
+            return redirect()->to('/dashboard');
+        } catch (\Exception $e) {
+            log_message('error', '[KEYCLOAK_OIDC] Exception: ' . $e->getMessage());
+            $_SESSION['error_message'] = 'Erro inesperado durante autenticação Keycloak: ' . $e->getMessage();
+            return redirect()->to('/loginUsuario');
         }
     }
 }

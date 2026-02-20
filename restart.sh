@@ -22,8 +22,9 @@ echo "   - Spark SQL (desativado)"
 docker compose -f $COMPOSE_FILE build --no-cache airflow-webserver airflow-scheduler codeigniter-app
 
 echo ""
-echo "3. 🚀 Iniciando serviços base (Postgres, MySQL, Redis, MinIO)..."
 docker compose -f $COMPOSE_FILE up -d postgres mysql redis minio
+echo "3. 🚀 Iniciando serviços base (Postgres, MySQL, Redis, MinIO, Keycloak)..."
+docker compose -f $COMPOSE_FILE up -d postgres mysql redis minio keycloak
 
 echo ""
 echo "4. ⏳ Aguardando bancos de dados (15s)..."
@@ -66,6 +67,7 @@ echo "    Execute manualmente se necessário: docker compose --profile atlas up 
 
 echo ""
 echo "=========================================================="
+echo "   • Keycloak:           http://localhost:8181 (admin/admin)"
 echo "✅ STACK INICIALIZADA COM SUCESSO!"
 echo "=========================================================="
 echo ""

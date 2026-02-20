@@ -2,6 +2,24 @@
 version: '3.8'
 
 services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.1
+    container_name: keycloak${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    command: start-dev
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=kJ#212394
+      - KC_DB=mysql
+      - KC_DB_URL_HOST=mysql
+      - KC_DB_URL_PORT=3306
+      - KC_DB_URL_DATABASE=${MYSQL_DATABASE}
+      - KC_DB_USERNAME=root
+      - KC_DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    ports:
+      - "8181:8080"
+    restart: unless-stopped
+    networks:
+      - airflow_net
 
   # 🌐 Nginx Reverse Proxy (Gateway para webapp)
   nginx:

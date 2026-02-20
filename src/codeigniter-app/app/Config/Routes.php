@@ -1,3 +1,6 @@
+// Keycloak OIDC Auth
+$routes->get('/auth/keycloak-login', 'AuthController::keycloakLogin');
+$routes->get('/auth/keycloak-callback', 'AuthController::keycloakCallback');
 <?php
 
 use CodeIgniter\Router\RouteCollection;

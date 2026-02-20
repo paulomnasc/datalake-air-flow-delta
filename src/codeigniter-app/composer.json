@@ -19,6 +19,7 @@
         "aws/aws-sdk-php": "^3.0",
         "google/apiclient": "^2.15",
         "guzzlehttp/guzzle": "^7.0",
+        "jumbojett/openid-connect-php": "^1.0",
         "laminas/laminas-escaper": "^2.13",
         "phpmailer/phpmailer": "^7.0",
         "psr/log": "^3.0",

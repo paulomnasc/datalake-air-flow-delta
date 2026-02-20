@@ -9,9 +9,10 @@ echo "1. 🛠️ Construindo as imagens customizadas (Airflow, CodeIgniter, Duck
 # Inclui DuckDB pgwire e imagens com build local
 docker compose -f $COMPOSE_FILE build --no-cache
 
-echo "2. 🗄️ Iniciando serviços de infraestrutura (Postgres, MySQL, MinIO)..."
-# Inicia os BDs e o MinIO em modo detached
 docker compose -f $COMPOSE_FILE up -d postgres mysql minio
+echo "2. 🗄️ Iniciando serviços de infraestrutura (Postgres, MySQL, MinIO, Keycloak)..."
+# Inicia os BDs, MinIO e Keycloak em modo detached
+docker compose -f $COMPOSE_FILE up -d postgres mysql minio keycloak
 
 echo "Aguardando 10 segundos para o PostgreSQL e MySQL iniciarem..."
 sleep 10
@@ -58,7 +59,7 @@ echo "   - Airflow Webserver (DAGs): http://localhost:8085"
 echo "   - CodeIgniter App (Front-end): http://localhost:8088"
 echo "   - MinIO Console: http://localhost:9001"
 echo "   - DuckDB ODBC (cliente): configure DSN/local"
-echo "   - Spark Master UI: http://localhost:8080"
+#echo "   - Keycloak: http://localhost:8181 (admin/admin)"
 #echo "   - Apache Atlas (Catálogo): http://localhost:21000 (admin/admin)"
 #echo "   - Jupyter Notebook (Lab Atlas): http://localhost:8888 (token: tavares1234)"
 echo "--------------------------------------------------------"

@@ -1,6 +1,28 @@
 -- ==========================================
 -- CONSULTAS PARA ACOMPANHAR PROGRESSO DOS ALUNOS NOS CURSOS
 -- ==========================================
+--  PERCENTUAL DE VIDEOS ASSISTIDOS POR ALUNO
+SELECT
+    u.id AS usuario_id,
+    u.nome AS nome_aluno,
+    u.email,
+    c.id AS curso_id,
+    c.name AS nome_curso,
+    m.id AS modulo_id,
+    m.name AS nome_modulo,
+    v.id AS video_id,
+    v.title AS titulo_video,
+    vp.percent AS percentual_assistido
+FROM usuario u
+JOIN video_progress vp ON vp.user_id = u.id
+JOIN video v ON v.id = vp.video_id
+JOIN module m ON m.id = v.module_id
+JOIN course c ON c.id = m.course_id
+WHERE c.is_active = 1
+  AND v.is_active = 1
+  AND m.is_active = 1
+  AND u.id = 267
+ORDER BY u.nome, c.name, m.name, v.title;
 
 -- ALUNOS QUE RETORNARAM PROGRESSO PARA A PLATAFORMA APÓS O CADASTRO
 SELECT 

@@ -42,6 +42,25 @@ class UcProgressModel extends Model
     ];
 
     /**
+     * Calcula XP ganho por um usuário em um curso
+     */
+    public function getCourseXp($userId, $courseId)
+    {
+        $db = \Config\Database::connect();
+        $builder = $db->table('uc_progress up');
+        $result = $builder->select('SUM(ud.xp_points) as total_xp')
+            ->join('uc_definition ud', 'up.uc_definition_id = ud.id')
+            ->join('video v', 'ud.video_id = v.id')
+            ->join('module m', 'v.module_id = m.id')
+            ->where('m.course_id', $courseId)
+            ->where('up.user_id', $userId)
+            ->where('up.completed', 1)
+            ->get()
+            ->getRowArray();
+        return $result['total_xp'] ?? 0;
+    }
+
+    /**
      * Insere ou atualiza progresso do UC
      */
     public function upsertProgress(array $data)

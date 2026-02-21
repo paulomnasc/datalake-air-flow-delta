@@ -465,10 +465,26 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             <?php if (!empty($airflowUsername)): ?>
             <li>
                 <div class="bg-light text-dark p-2 rounded mb-2">
-                    <small>Seu usuário no Airflow (senha = mesma da WebApp)</small>
-                    <div class="d-flex align-items-center">
+                    <small>Seu usuário no Airflow</small>
+                    <div class="d-flex align-items-center mb-1">
                         <span id="airflow-username-text" class="fw-bold me-2"><?= htmlspecialchars($airflowUsername, ENT_QUOTES, 'UTF-8'); ?></span>
-                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyAirflowUsername()">Copiar</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyAirflowUsername()">Copiar usuário</button>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span id="airflow-password-text" class="fw-bold me-2">
+                            <?php
+                            $senhaUsuario = '';
+                            if (isset($_SESSION['id_usuario_logado'])) {
+                                $usuarioModel = new \App\Models\UsuarioModel();
+                                $usuario = $usuarioModel->find($_SESSION['id_usuario_logado']);
+                                if ($usuario && isset($usuario->senha)) {
+                                    $senhaUsuario = $usuario->senha;
+                                }
+                            }
+                            echo htmlspecialchars($senhaUsuario, ENT_QUOTES, 'UTF-8');
+                            ?>
+                        </span>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyAirflowPassword()">Copiar senha</button>
                     </div>
                     <?php if (!empty($airflowRoles)): ?>
                     <div class="mt-2">
@@ -620,26 +636,43 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             alert('Erro: Usuário Airflow não encontrado');
             return;
         }
-        
         const text = (el.textContent || el.innerText || '').trim();
-        console.log('Texto a copiar:', text);
-        
         if (!text) {
             alert('Erro: Username vazio');
             return;
         }
-
-        // Tentar usar a Clipboard API (preferível)
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(() => {
                 alert('✓ Usuário copiado: ' + text);
             }).catch((err) => {
                 console.error('Erro ao copiar:', err);
-                // Fallback para o método antigo
                 copyToClipboardFallback(text);
             });
         } else {
-            // Fallback para navegadores antigos
+            copyToClipboardFallback(text);
+        }
+    }
+
+    function copyAirflowPassword() {
+        const el = document.getElementById('airflow-password-text');
+        if (!el) {
+            console.error('Elemento airflow-password-text não encontrado');
+            alert('Erro: Senha Airflow não encontrada');
+            return;
+        }
+        const text = (el.textContent || el.innerText || '').trim();
+        if (!text) {
+            alert('Erro: Senha vazia');
+            return;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✓ Senha copiada: ' + text);
+            }).catch((err) => {
+                console.error('Erro ao copiar:', err);
+                copyToClipboardFallback(text);
+            });
+        } else {
             copyToClipboardFallback(text);
         }
     }

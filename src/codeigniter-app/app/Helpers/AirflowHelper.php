@@ -46,13 +46,13 @@ class AirflowHelper
             $lastName = substr(trim($lastName ?? ''), 0, 50) ?: "User";
             $email = filter_var($email, FILTER_SANITIZE_EMAIL) ?: "user-{$userId}@system.local";
             
-            // Se não forneceu password, gerar uma aleatória
-            if (empty($password)) {
-                log_message('warning', "[AirflowHelper] Senha vazia recebida! Gerando senha aleatória.");
-                $password = bin2hex(random_bytes(8));
-            } else {
-                log_message('info', "[AirflowHelper] Senha recebida com sucesso (tamanho: " . strlen($password) . " caracteres)");
-            }
+                // Se não forneceu password, usar o username como senha
+                if (empty($password)) {
+                    log_message('warning', "[AirflowHelper] Senha vazia recebida! Usando username como senha.");
+                    $password = $username;
+                } else {
+                    log_message('info', "[AirflowHelper] Senha recebida com sucesso (tamanho: " . strlen($password) . " caracteres)");
+                }
             
             log_message('debug', "[AirflowHelper] Sincronizando usuário via API: {$username}");
 

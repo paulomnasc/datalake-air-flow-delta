@@ -143,6 +143,20 @@ require VIEWPATH.'/header.php';
                         </div>
                     </div>
 
+                    <!-- Card XP acumulado -->
+                    <?php if(isset($course['total_xp'])): ?>
+                    <div style="display: flex; align-items: center; margin-bottom: 18px; margin-top: 10px;">
+                        <img src="/assets/img/estrela.jpg" alt="Engenheiro com estrela" style="width: 70px; height: 70px; margin-right: 18px;">
+                        <div>
+                            <div style="font-size: 18px; font-weight: bold; color: #2a2a2a;">XP acumulado</div>
+                            <div style="font-size: 28px; color: #ff9800; font-weight: bold; margin-top: 4px;">
+                                <?php echo $course['total_xp']; ?> XP
+                            </div>
+                            <div style="font-size: 14px; color: #555; margin-top: 4px;">Continue evoluindo 🚀</div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
                     <?php if($course['description']): ?>
                         <p class="course-description">
                             <?php echo esc($course['description']); ?>

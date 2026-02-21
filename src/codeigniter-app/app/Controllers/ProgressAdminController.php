@@ -28,6 +28,16 @@ class ProgressAdminController extends BaseController
 
         $model = new CourseModel();
         $data['courses'] = $model->orderBy('order', 'ASC')->findAll();
+
+        // Busca XP acumulado do aluno logado
+        $userId = $_SESSION['id_usuario_logado'] ?? null;
+        $xp = 0;
+        if ($userId) {
+            $ucProgressModel = new \App\Models\UcProgressModel();
+            $xp = $ucProgressModel->getTotalXp($userId);
+        }
+        $data['xp_acumulado'] = $xp;
+
         return view('admin/courses/index', $data);
     }
 

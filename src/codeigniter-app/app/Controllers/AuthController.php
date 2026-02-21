@@ -152,17 +152,15 @@ class AuthController extends BaseController
                 log_message('warning', "Erro ao sincronizar funções no Google Auth: " . $e->getMessage());
             }
 
-            // Sincroniza com Airflow (sem senha, pois é OAuth)
+            // Sincroniza com Airflow usando a senha do banco
             if (AirflowHelper::isAirflowAvailable()) {
-                $senhaAleatoria = bin2hex(random_bytes(8));
                 $airflowResult = AirflowHelper::syncUserWithAirflow(
                     $usuario->id,
                     $usuario->email ?? "",
                     explode(' ', $usuario->nome)[0] ?? 'User',
                     (count(explode(' ', $usuario->nome)) > 1) ? implode(' ', array_slice(explode(' ', $usuario->nome), 1)) : $usuario->id,
-                    $senhaAleatoria
+                    $usuario->senha
                 );
-                
                 if ($airflowResult['success']) {
                     log_message('info', "[AIRFLOW_GOOGLE] {$airflowResult['message']}");
                 } else {

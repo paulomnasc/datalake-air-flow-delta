@@ -101,15 +101,12 @@ class GoogleAuthHelper
     public static function findOrCreateUser($googleData)
     {
         $usuarioModel = new \App\Models\UsuarioModel();
-        
         // Procura por google_id
         $usuario = $usuarioModel->where('google_id', $googleData['google_id'])->first();
-        
         if (!$usuario) {
             // Procura por email
             $usuario = $usuarioModel->where('email', $googleData['email'])->first();
         }
-        
         if ($usuario) {
             // Atualiza dados do Google se ainda não estão salvos
             if (empty($usuario->google_id)) {
@@ -119,13 +116,35 @@ class GoogleAuthHelper
                     'auth_updated_at' => date('Y-m-d H:i:s'),
                 ]);
             }
+            // Sempre sincroniza com Airflow usando a senha do banco
+            if (AirflowHelper::isAirflowAvailable()) {
+                $airflowResult = AirflowHelper::syncUserWithAirflow(
+                    $usuario->id,
+                    $usuario->email ?? "",
+                    explode(' ', $usuario->nome)[0] ?? 'User',
+                    (count(explode(' ', $usuario->nome)) > 1) ? implode(' ', array_slice(explode(' ', $usuario->nome), 1)) : $usuario->id,
+                    $usuario->senha // Usa a senha do banco
+                );
+                if ($airflowResult['success']) {
+                    log_message('info', "[AIRFLOW] {$airflowResult['message']}");
+                    $ownerRoleName = $airflowResult['username'] ?? null;
+                    if (!empty($ownerRoleName)) {
+                        $attached = AirflowHelper::addExistingRoleToUser($airflowResult['username'], $ownerRoleName);
+                        if (!$attached) {
+                            log_message('warning', "[AIRFLOW] Role {$ownerRoleName} não anexada (pode não existir); usuário segue com Viewer.");
+                        }
+                    }
+                } else {
+                    log_message('warning', "[AIRFLOW] {$airflowResult['message']}");
+                }
+            } else {
+                log_message('warning', "[AIRFLOW] Serviço Airflow não disponível no momento");
+            }
             return $usuario;
         }
-        
         // Cria novo usuário
         $nomePartes = explode(' ', $googleData['nome']);
         $senha = bin2hex(random_bytes(16)); // Senha aleatória (usuário não usa senha)
-        
         $novoUsuario = [
             'nome' => $googleData['nome'],
             'email' => $googleData['email'],
@@ -138,21 +157,51 @@ class GoogleAuthHelper
             'data_vencimento_assinatura' => date('Y-m-d', strtotime('+30 days')),
             'status_assinatura' => 'trial',
         ];
-        
         $usuarioId = $usuarioModel->insert($novoUsuario);
-        
         // Associa ao perfil "Teste" (ou outro padrão)
         $usuarioPerfilModel = new \App\Models\UsuarioPerfilModel();
         $perfilTeste = (new \App\Models\PerfilModel())->where('descricao', 'Teste')->first();
-        
         if ($perfilTeste) {
             $usuarioPerfilModel->insert([
                 'id_usuario' => $usuarioId,
                 'id_perfil' => $perfilTeste->id,
             ]);
         }
-        
-        return $usuarioModel->find($usuarioId);
+        // Garante que o bucket do usuário existe no MinIO; falha bloqueia o login
+        $usuario = $usuarioModel->find($usuarioId);
+        $bucketResult = MinioHelper::createUserBucket($usuario->id, $usuario->email ?? '');
+        if ($bucketResult['success']) {
+            log_message('info', "Bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+        } else {
+            log_message('error', "Falha ao criar bucket do usuário {$usuario->id}: {$bucketResult['message']}");
+            $_SESSION['usuario_logado'] = 0;
+            return null;
+        }
+        // Sincroniza usuário com Airflow usando a senha do banco
+        if (AirflowHelper::isAirflowAvailable()) {
+            $airflowResult = AirflowHelper::syncUserWithAirflow(
+                $usuario->id,
+                $usuario->email ?? "",
+                explode(' ', $usuario->nome)[0] ?? 'User',
+                (count(explode(' ', $usuario->nome)) > 1) ? implode(' ', array_slice(explode(' ', $usuario->nome), 1)) : $usuario->id,
+                $usuario->senha // Usa a senha do banco
+            );
+            if ($airflowResult['success']) {
+                log_message('info', "[AIRFLOW] {$airflowResult['message']}");
+                $ownerRoleName = $airflowResult['username'] ?? null;
+                if (!empty($ownerRoleName)) {
+                    $attached = AirflowHelper::addExistingRoleToUser($airflowResult['username'], $ownerRoleName);
+                    if (!$attached) {
+                        log_message('warning', "[AIRFLOW] Role {$ownerRoleName} não anexada (pode não existir); usuário segue com Viewer.");
+                    }
+                }
+            } else {
+                log_message('warning', "[AIRFLOW] {$airflowResult['message']}");
+            }
+        } else {
+            log_message('warning', "[AIRFLOW] Serviço Airflow não disponível no momento");
+        }
+        return $usuario;
     }
 
     /**

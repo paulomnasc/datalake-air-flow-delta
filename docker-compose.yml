@@ -159,21 +159,23 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8080
-      - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:8080
+      - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=28083
+      - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:28083
       - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
       - AIRFLOW__WEBSERVER__FILTER_BY_OWNER=True
       - AIRFLOW__WEBSERVER__OWNER_MODE=user
       - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth
       - MINIO_BUCKET=lab01
       - ENABLE_ATLAS=false
+      - AIRFLOW_ADMIN_USERNAME=admin
+      - AIRFLOW_ADMIN_PASSWORD=kJ#212394
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
     ports:
-      - "${AIRFLOW_WEBSERVER_PORT}:8080"
+      - "28083:28083"
     command: airflow webserver
     user: root
     extra_hosts:
@@ -365,9 +367,9 @@ services:
       - AIRFLOW_EXTERNAL_URL=http://${NGINX_SERVER_NAME}:${AIRFLOW_WEBSERVER_PORT}
       # Airflow internal connection (API sync)
       - AIRFLOW_HOST=airflow-webserver${ENV_SUFFIX:+-${ENV_SUFFIX}}
-      - AIRFLOW_PORT=8080
+      - AIRFLOW_PORT=28083
       - AIRFLOW_ADMIN_USERNAME=admin
-      - AIRFLOW_ADMIN_PASSWORD=admin
+      - AIRFLOW_ADMIN_PASSWORD=kJ#212394
       # ... (demais variáveis de ambiente)
     extra_hosts:
       - "host.docker.internal:host-gateway"

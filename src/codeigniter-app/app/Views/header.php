@@ -471,8 +471,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyAirflowUsername()">Copiar usuário</button>
                     </div>
                     <div class="d-flex align-items-center">
-                        <span id="airflow-password-text" class="fw-bold me-2">
-                            <?php
+                        <?php
                             $senhaUsuario = '';
                             if (isset($_SESSION['id_usuario_logado'])) {
                                 $usuarioModel = new \App\Models\UsuarioModel();
@@ -481,10 +480,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                     $senhaUsuario = $usuario->senha;
                                 }
                             }
-                            echo htmlspecialchars($senhaUsuario, ENT_QUOTES, 'UTF-8');
-                            ?>
-                        </span>
-                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyAirflowPassword()">Copiar senha</button>
+                        ?>
+                        <span id="airflow-password-text" class="fw-bold me-2">*****</span>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyAirflowPassword()" data-password="<?= htmlspecialchars($senhaUsuario, ENT_QUOTES, 'UTF-8'); ?>">Copiar senha</button>
                     </div>
                     <?php if (!empty($airflowRoles)): ?>
                     <div class="mt-2">
@@ -654,26 +652,25 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     }
 
     function copyAirflowPassword() {
-        const el = document.getElementById('airflow-password-text');
-        if (!el) {
-            console.error('Elemento airflow-password-text não encontrado');
-            alert('Erro: Senha Airflow não encontrada');
+        const btn = document.querySelector('button[onclick="copyAirflowPassword()"]');
+        if (!btn) {
+            alert('Erro: Botão de copiar senha não encontrado');
             return;
         }
-        const text = (el.textContent || el.innerText || '').trim();
-        if (!text) {
+        const senha = btn.getAttribute('data-password');
+        if (!senha) {
             alert('Erro: Senha vazia');
             return;
         }
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(() => {
-                alert('✓ Senha copiada: ' + text);
+            navigator.clipboard.writeText(senha).then(() => {
+                alert('✓ Senha copiada: ' + senha);
             }).catch((err) => {
                 console.error('Erro ao copiar:', err);
-                copyToClipboardFallback(text);
+                copyToClipboardFallback(senha);
             });
         } else {
-            copyToClipboardFallback(text);
+            copyToClipboardFallback(senha);
         }
     }
     

@@ -313,84 +313,133 @@ class ConfigController extends BaseController
         return $list;
     }
 
-    public function findById(int $id )  {
-        
-        $model = new ConfigModel();
-        $Config = $model->find($id);
-        return $Config;
-    }
-
-    
-    public function upload()
+    public function findById(int $id)
     {
+        // Instancia os Models
+        $model = new ConfigModel();
+        $sourceTypeModel = new SourceTypeModel();
+        $postData = $this->request->getPost();
+
+        $sourceTypeID = (int)($postData['id_source_type'] ?? 0);
+        $pastaID = (int)($postData['id_pasta'] ?? 0);
+        $idSourceType = $postData['id_source_type'] ?? null;
+        $sourceFilenameDB = $this->request->getPost('source_filename');
+
         try {
-            // Verificar limite de tamanho ANTES de processar o arquivo
-            // Usar o mesmo limite do MINIO_USER_STORAGE_LIMIT (.env)
-            $maxFileSize = 10 * 1024 * 1024; // 10 MB em bytes (10485760)
-            $file = $this->request->getFile('arquivo');
-            
-            // Verificar se o arquivo foi enviado
-            if (!$file) {
-                return $this->response->setJSON([
-                    'status' => 'error',
-                    'mensagem' => 'Nenhum arquivo foi enviado.'
-                ]);
-            }
-            
-            // Verificar erro de upload (incluindo tamanho excedido)
-            $error = $file->getError();
-            if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
-                $maxAllowed = ini_get('upload_max_filesize');
-                return $this->response->setJSON([
-                    'status' => 'error',
-                    'mensagem' => "❌ Tamanho do arquivo excede o limite permitido de {$maxAllowed}. Por favor, envie um arquivo menor."
-                ]);
-            }
-            
-            // Verificar tamanho do arquivo em bytes
-            $fileSize = $file->getSize();
-            if ($fileSize > $maxFileSize) {
-                $maxSizeMB = round($maxFileSize / (1024 * 1024), 2);
-                $fileSizeMB = round($fileSize / (1024 * 1024), 2);
-                return $this->response->setJSON([
-                    'status' => 'error',
-                    'mensagem' => "❌ Arquivo muito grande! Tamanho: {$fileSizeMB} MB. Limite máximo: {$maxSizeMB} MB."
-                ]);
+            if (!$sourceTypeID) {
+                throw new \Exception('O tipo de fonte de dados é obrigatório.');
             }
 
-            if ($file->isValid() && !$file->hasMoved()) {
+            $sourceTypeConfig = $sourceTypeModel->find($sourceTypeID);
+            if (!$sourceTypeConfig) {
+                throw new \Exception('Tipo de fonte de dados não encontrado.');
+            }
 
-                $folder = 'uploads/' . $_SESSION['id_usuario_logado'] . '/';
+            $sourceTypeDescription = strtolower($sourceTypeConfig['description']);
+            $sourceLocation = null;
+            $isMultiUpload = $this->request->getPost('enable_multi_upload') === '1';
 
-                $file->move(FCPATH  . $folder);
+            // Se for upload múltiplo
+            if ($isMultiUpload && (str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json'))) {
+                return $this->uploadMultipleFiles();
+            } elseif (str_contains($sourceTypeDescription, 'sql')) {
+                $dagId = $postData['dag_id'] ?? 'default_dag';
+                $bucket = SessionHelper::getUserBucket() ?: ($this->bucketName ?: 'lab01');
+                $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
+                    \App\Helpers\SessionHelper::getUserEmail(),
+                    (int)\App\Helpers\SessionHelper::getUserId()
+                );
 
-                // Obtém o caminho completo do arquivo movido
-                $filePath = FCPATH  . $folder . $file->getName();
-
-                $caminho_formatado = str_replace('\\', '/', $filePath);
-
-                $_SESSION['caminho_formatado'] = $caminho_formatado;
-                $conteudo = file_get_contents($caminho_formatado);
-                $_SESSION['conteudo_arquivo'] = $conteudo;        
-                
-            } else {
-                // Trate o erro do arquivo aqui, caso não seja válido ou já tenha sido movido
-                $errorMsg = 'Erro ao processar o arquivo.';
-                if ($file->getError() !== 0) {
-                    $errorMsg .= ' Código de erro: ' . $file->getErrorString();
+                $bucketCheck = \App\Helpers\MinioHelper::ensureBucketExists($bucket);
+                if (!$bucketCheck['success']) {
+                    log_message('error', "Falha ao criar/verificar bucket: {$bucketCheck['message']}");
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => "Erro ao preparar armazenamento: {$bucketCheck['message']}"
+                    ]);
                 }
-                return $this->response->setJSON([
-                    'status' => 'error',
-                    'mensagem' => $errorMsg
-                ]);
+
+                // Recebe lista de tabelas selecionadas
+                $selectedTables = $postData['selected_tables'] ?? [];
+                if (!is_array($selectedTables) || count($selectedTables) === 0) {
+                    throw new \Exception('Nenhuma tabela SQL selecionada para extração.');
+                }
+
+                $uploadedFiles = [];
+                foreach ($selectedTables as $tableName) {
+                    $sqlHost = $postData['sql_host'] ?? '';
+                    $sqlPort = $postData['sql_port'] ?? 3306;
+                    $sqlDatabase = $postData['sql_database_name'] ?? '';
+                    $sqlUser = $postData['sql_user'] ?? '';
+                    $sqlPassword = $postData['sql_password'] ?? '';
+
+                    $dsn = "mysql:host={$sqlHost};port={$sqlPort};dbname={$sqlDatabase}";
+
+                    try {
+                        $pdo = new \PDO($dsn, $sqlUser, $sqlPassword);
+                        $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+                        $stmt = $pdo->query("SELECT * FROM `{$tableName}`");
+                        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+                        if (count($rows) === 0) {
+                            continue; // Tabela vazia
+                        }
+
+                        // Gerar CSV temporário
+                        $timestamp = date('YmdHis');
+                        $hash = substr(md5($tableName . microtime()), 0, 8);
+                        $csvName = "{$timestamp}_{$hash}_{$tableName}.csv";
+                        $tmpCsvPath = sys_get_temp_dir() . "/" . $csvName;
+
+                        $fp = fopen($tmpCsvPath, 'w');
+                        fputcsv($fp, array_keys($rows[0]));
+                        foreach ($rows as $row) {
+                            fputcsv($fp, $row);
+                        }
+                        fclose($fp);
+
+                        // Upload para MinIO
+                        $targetMinioPath = "raw/{$dagId}/{$csvName}";
+                        if (!$this->minioClient) {
+                            throw new \Exception('Cliente MinIO não inicializado. Verifique configurações.');
+                        }
+
+                        $this->minioClient->putObject([
+                            'Bucket' => $bucket,
+                            'Key' => $targetMinioPath,
+                            'SourceFile' => $tmpCsvPath,
+                            'ContentType' => 'text/csv',
+                        ]);
+
+                        log_message('info', "Upload SQL CSV: {$tableName} para {$targetMinioPath}");
+                        $uploadedFiles[] = $targetMinioPath;
+
+                        unlink($tmpCsvPath);
+                    } catch (\Exception $e) {
+                        log_message('error', "Erro ao extrair/upload tabela {$tableName}: " . $e->getMessage());
+                    }
+                }
+
+                if (count($uploadedFiles) === 0) {
+                    throw new \Exception('Falha ao extrair/uploadar tabelas SQL.');
+                }
+
+                $sourceLocation = json_encode($uploadedFiles);
             }
-            
+
+            // Aqui entra o processamento do arquivo
+            $filePath = FCPATH . $folder . $file->getName();
+            $caminho_formatado = str_replace('\\', '/', $filePath);
+
+            $_SESSION['caminho_formatado'] = $caminho_formatado;
+            $_SESSION['conteudo_arquivo'] = file_get_contents($caminho_formatado);
+
             return $this->response->setJSON([
                 'status' => 'success',
                 'mensagem' => 'O arquivo ' . $file->getName() . ' foi enviado com sucesso.',
                 'uploadedFile' => base_url($folder . $file->getName())
             ]);
-            
 
         } catch (\Exception $e) {
             return $this->response->setJSON([

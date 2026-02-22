@@ -512,6 +512,54 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                 }
                                             });
                                             </script>
+                                                                                <label class="form-label">Argumentos JSON</label>
+                                                                                <div id="monaco-transform-args-container" style="height: 220px; border: 1px solid #ced4da; border-radius: 0.375rem; margin-bottom: 0.5rem;"></div>
+                                                                                <input type="hidden" name="transform_args" x-model="wizardData.transformArgs" id="transform_args_hidden" />
+                                                                                <small class="text-muted">Deve ser um JSON válido. Use {} se não precisar de argumentos extras. Veja o exemplo acima para APIs REST.</small>
+                                                                                <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+                                                                                <script>
+                                                                                document.addEventListener('DOMContentLoaded', function() {
+                                                                                    if (document.getElementById('monaco-transform-args-container')) {
+                                                                                        require(['vs/editor/editor.main'], function () {/* ...existing code... */});
+                                                                                    }
+                                                                                });
+                                                                                </script>
+                                                                                <!-- SQL Connection UI for SQL sources -->
+                                                                                <div x-show="getSourceTypeName(wizardData.sourceType).toLowerCase().includes('sql')" class="mt-3">
+                                                                                    <h6>Configuração SQL</h6>
+                                                                                    <div class="row g-3">
+                                                                                        <div class="col-md-6">
+                                                                                            <label class="form-label">ID da Conexão Airflow</label>
+                                                                                            <input type="text" name="sql_connection_id" class="form-control" placeholder="Ex: mysql_northwind" x-model="wizardData.sqlConnectionId">
+                                                                                        </div>
+                                                                                        <div class="col-md-6">
+                                                                                            <label class="form-label">Host</label>
+                                                                                            <input type="text" name="db_host" class="form-control" placeholder="localhost" x-model="wizardData.dbHost">
+                                                                                        </div>
+                                                                                        <div class="col-md-6">
+                                                                                            <label class="form-label">Porta</label>
+                                                                                            <input type="number" name="db_port" class="form-control" placeholder="3306" x-model="wizardData.dbPort">
+                                                                                        </div>
+                                                                                        <div class="col-md-6">
+                                                                                            <label class="form-label">Database</label>
+                                                                                            <input type="text" name="db_database" class="form-control" placeholder="nome_banco" x-model="wizardData.dbDatabase">
+                                                                                        </div>
+                                                                                        <div class="col-md-6">
+                                                                                            <label class="form-label">Usuário</label>
+                                                                                            <input type="text" name="db_user" class="form-control" placeholder="usuario" x-model="wizardData.dbUser">
+                                                                                        </div>
+                                                                                        <div class="col-md-12">
+                                                                                            <label class="form-label">Senha</label>
+                                                                                            <input type="password" name="db_password" class="form-control" x-model="wizardData.dbPassword">
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div class="mt-3">
+                                                                                        <button type="button" class="btn btn-primary" @click="connectAndListTables()">Conectar e Listar Tabelas</button>
+                                                                                        <div id="connection_status" style="display:none; margin-top:10px;"></div>
+                                                                                        <div id="tables-loading" style="display:none; margin-top:10px;">Carregando tabelas...</div>
+                                                                                        <div id="tables-container" style="margin-top:10px;"></div>
+                                                                                    </div>
+                                                                                </div>
 
                                             <template x-if="getSourceTypeName(wizardData.sourceType).toLowerCase().includes('api')">
                                                 <div>
@@ -1408,4 +1456,80 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 </body>
 </html>
 
+    <script>
+        function connectAndListTables() {
+            const connectionId = document.querySelector('input[name="sql_connection_id"]').value;
+            const host = document.querySelector('input[name="db_host"]').value;
+            const port = document.querySelector('input[name="db_port"]').value || 3306;
+            const databaseName = document.querySelector('input[name="db_database"]').value;
+            const user = document.querySelector('input[name="db_user"]').value;
+            const password = document.querySelector('input[name="db_password"]').value;
+            const statusDiv = document.getElementById('connection_status');
+            const loadingDiv = document.getElementById('tables-loading');
+            const containerDiv = document.getElementById('tables-container');
+            if (!connectionId || !host || !databaseName || !user) {
+                statusDiv.innerHTML = '<span style="color: red;">❌ Preencha todos os campos obrigatórios (Connection ID, Host, Database, User)</span>';
+                statusDiv.style.display = 'block';
+                return;
+            }
+            loadingDiv.style.display = 'block';
+            containerDiv.innerHTML = '';
+            statusDiv.style.display = 'none';
+            const formData = new URLSearchParams();
+            formData.append('connection_id', connectionId);
+            formData.append('host', host);
+            formData.append('port', port);
+            formData.append('database_name', databaseName);
+            formData.append('user', user);
+            formData.append('password', password);
+            fetch('<?= base_url('config/getAvailableTables') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData.toString()
+            })
+            .then(response => response.json())
+            .then(result => {
+                loadingDiv.style.display = 'none';
+                if (result.status === 'success' && result.tables) {
+                    if (result.tables.length === 0) {
+                        containerDiv.innerHTML = '<p style="color: orange;">⚠️ Nenhuma tabela encontrada</p>';
+                    } else {
+                        renderTableCheckboxes(result.tables);
+                        statusDiv.innerHTML = `<span style="color: green;">✅ ${result.tables.length} tabelas encontradas</span>`;
+                        statusDiv.style.display = 'block';
+                    }
+                } else {
+                    const errorMsg = result.mensagem || result.message || 'Erro desconhecido';
+                    statusDiv.innerHTML = `<span style="color: red;">❌ ${errorMsg}</span>`;
+                    statusDiv.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                loadingDiv.style.display = 'none';
+                statusDiv.innerHTML = `<span style="color: red;">❌ Erro de requisição: ${error.message}</span>`;
+                statusDiv.style.display = 'block';
+            });
+        }
+        function renderTableCheckboxes(tables) {
+            const container = document.getElementById('tables-container');
+            let html = '<div class="tables-selection">';
+            html += '<div style="margin-bottom: 10px;"><button type="button" onclick="selectAllTables(true)" class="btn btn-sm">✓ Selecionar Todas</button> ';
+            html += '<button type="button" onclick="selectAllTables(false)" class="btn btn-sm">✗ Desmarcar Todas</button></div>';
+            html += '<div class="tables-grid">';
+            tables.forEach(table => {
+                const tableName = table.table_name;
+                const rowCount = table.row_count ? `(${table.row_count.toLocaleString()} rows)` : '';
+                const tableSize = table.table_size_mb ? `${table.table_size_mb} MB` : '';
+                html += `<div class="table-checkbox-item"><input type="checkbox" id="table_${tableName}" name="selected_tables[]" value="${tableName}" class="table-checkbox"><label for="table_${tableName}"><strong>${tableName}</strong> <small>${rowCount} ${tableSize}</small></label></div>`;
+            });
+            html += '</div></div>';
+            container.innerHTML = html;
+        }
+        function selectAllTables(select) {
+            const checkboxes = document.querySelectorAll('.table-checkbox');
+            checkboxes.forEach(cb => cb.checked = select);
+        }
+    </script>
 <?php require VIEWPATH . '/footer.php'; ?>

@@ -333,11 +333,17 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 
                             <!-- Wizard Content Form -->
                             <form id="wizardForm" 
-                                  method="POST" 
-                                  action="<?= !empty($edit_data) ? base_url('updateConfig') : base_url('insertConfig') ?>" 
-                                  enctype="multipart/form-data"
-                                  novalidate
-                                  @submit.prevent="submitWizard($event)">
+                                                                    method="POST" 
+                                                                    action="<?= !empty($edit_data) ? base_url('updateConfig') : base_url('insertConfig') ?>" 
+                                                                    enctype="multipart/form-data"
+                                                                    novalidate
+                                                                    @submit.prevent="submitWizard($event)">
+                                                                <!-- Garantir campos SQL sempre presentes no POST -->
+                                                                <input type="hidden" name="sql_host" value="">
+                                                                <input type="hidden" name="sql_port" value="">
+                                                                <input type="hidden" name="sql_database_name" value="">
+                                                                <input type="hidden" name="sql_user" value="">
+                                                                <input type="hidden" name="sql_password" value="">
                                 <?= csrf_field() ?>
                                 
                                 <?php if (!empty($edit_data)): ?>
@@ -524,7 +530,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                                                     }
                                                                                 });
                                                                                 </script -->
-                                                                                <!-- SQL Connection UI for SQL sources -->
+                                                                                <!-- SQL Connection UI for SQL sources (apenas para SQL) -->
                                                                                 <div x-show="getSourceTypeName(wizardData.sourceType).toLowerCase().includes('sql')" class="mt-3">
                                                                                     <h6>Configuração SQL</h6>
                                                                                     <div class="row g-3">
@@ -534,23 +540,23 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                                                         </div>
                                                                                         <div class="col-md-6">
                                                                                             <label class="form-label">Host</label>
-                                                                                            <input type="text" name="db_host" class="form-control" placeholder="localhost" x-model="wizardData.dbHost">
+                                                                                            <input type="text" name="sql_host" class="form-control" placeholder="localhost" x-model="wizardData.dbHost">
                                                                                         </div>
                                                                                         <div class="col-md-6">
                                                                                             <label class="form-label">Porta</label>
-                                                                                            <input type="number" name="db_port" class="form-control" placeholder="3306" x-model="wizardData.dbPort">
+                                                                                            <input type="number" name="sql_port" class="form-control" placeholder="3306" x-model="wizardData.dbPort">
                                                                                         </div>
                                                                                         <div class="col-md-6">
                                                                                             <label class="form-label">Database</label>
-                                                                                            <input type="text" name="db_database" class="form-control" placeholder="nome_banco" x-model="wizardData.dbDatabase">
+                                                                                            <input type="text" name="sql_database_name" class="form-control" placeholder="nome_banco" x-model="wizardData.dbDatabase">
                                                                                         </div>
                                                                                         <div class="col-md-6">
                                                                                             <label class="form-label">Usuário</label>
-                                                                                            <input type="text" name="db_user" class="form-control" placeholder="usuario" x-model="wizardData.dbUser">
+                                                                                            <input type="text" name="sql_user" class="form-control" placeholder="usuario" x-model="wizardData.dbUser">
                                                                                         </div>
                                                                                         <div class="col-md-12">
                                                                                             <label class="form-label">Senha</label>
-                                                                                            <input type="password" name="db_password" class="form-control" x-model="wizardData.dbPassword">
+                                                                                            <input type="password" name="sql_password" class="form-control" x-model="wizardData.dbPassword">
                                                                                         </div>
                                                                                     </div>
                                                                                     <div class="mt-3">
@@ -595,8 +601,8 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                             </template>
                                         </div>
 
-                                        <!-- Upload de Arquivo CSV/JSON -->
-                                        <div x-show="wizardData.showFileUpload" class="mt-3">
+                                        <!-- Upload de Arquivo CSV/JSON (apenas para fontes arquivo) -->
+                                        <div x-show="wizardData.showFileUpload && !getSourceTypeName(wizardData.sourceType).toLowerCase().includes('sql') && !getSourceTypeName(wizardData.sourceType).toLowerCase().includes('api')" class="mt-3">
                                             <!-- Checkbox para ativar upload múltiplo -->
                                             <div class="mb-3 d-flex align-items-start gap-2">
                                                 <input type="checkbox" id="enable_multi_upload" x-model="wizardData.multiUpload" class="form-check-input mt-1">
@@ -1210,39 +1216,35 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     const form = event.target;
                     const formData = new FormData(form);
 
-                    // Garantir que campos SQL estejam presentes no FormData com nomes corretos
-                    // (SPA usa dbUser/dbPassword, backend espera sql_user/sql_password)
-                    if (this.getSourceTypeName(this.wizardData.sourceType).toLowerCase().includes('sql')) {
-                        if (this.wizardData.dbUser) {
-                            formData.set('sql_user', this.wizardData.dbUser);
+                    // Sincronizar campos SQL do wizardData para os inputs do form (garante que o backend sempre receba)
+                    const sqlFields = [
+                        { name: 'sql_host', value: this.wizardData.dbHost },
+                        { name: 'sql_port', value: this.wizardData.dbPort },
+                        { name: 'sql_database_name', value: this.wizardData.dbDatabase },
+                        { name: 'sql_user', value: this.wizardData.dbUser },
+                        { name: 'sql_password', value: this.wizardData.dbPassword },
+                        { name: 'sql_connection_id', value: this.wizardData.sqlConnectionId }
+                    ];
+                    sqlFields.forEach(f => {
+                        if (form.querySelector(`[name='${f.name}']`)) {
+                            form.querySelector(`[name='${f.name}']`).value = f.value || '';
                         }
-                        if (this.wizardData.dbPassword) {
-                            formData.set('sql_password', this.wizardData.dbPassword);
-                        }
-                        if (this.wizardData.dbHost) {
-                            formData.set('sql_host', this.wizardData.dbHost);
-                        }
-                        if (this.wizardData.dbPort) {
-                            formData.set('sql_port', this.wizardData.dbPort);
-                        }
-                        if (this.wizardData.dbDatabase) {
-                            formData.set('sql_database_name', this.wizardData.dbDatabase);
-                        }
+                        formData.set(f.name, f.value || '');
+                    });
 
-                        // --- PATCH: Garantir selected_tables[] sempre como array ---
-                        // Se multi-table está ativado, garantir envio correto
-                        const isMultiTable = document.getElementById('is_multi_table')?.checked;
-                        if (isMultiTable) {
-                            // Limpa qualquer selected_tables[] existente
-                            formData.delete('selected_tables[]');
-                            // Busca todos os checkboxes marcados
-                            const checked = document.querySelectorAll('input[name="selected_tables[]"]:checked');
-                            checked.forEach(cb => {
-                                formData.append('selected_tables[]', cb.value);
-                            });
-                            // Log para debug
-                            console.log('✅ selected_tables[] enviado:', Array.from(checked).map(cb => cb.value));
-                        }
+                    // --- PATCH: Garantir selected_tables[] sempre como array ---
+                    // Se multi-table está ativado, garantir envio correto
+                    const isMultiTable = document.getElementById('is_multi_table')?.checked;
+                    if (isMultiTable) {
+                        // Limpa qualquer selected_tables[] existente
+                        formData.delete('selected_tables[]');
+                        // Busca todos os checkboxes marcados
+                        const checked = document.querySelectorAll('input[name="selected_tables[]"]:checked');
+                        checked.forEach(cb => {
+                            formData.append('selected_tables[]', cb.value);
+                        });
+                        // Log para debug
+                        console.log('✅ selected_tables[] enviado:', Array.from(checked).map(cb => cb.value));
                     }
 
                     // Corrigir: para API REST, garantir que source_filename NÃO seja enviado
@@ -1255,33 +1257,40 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     console.log('📤 Enviando pipeline...');
                     
                     // Validar campos obrigatórios ANTES de enviar
+                    let debugMsg = '';
                     if (!formData.get('dag_id') || formData.get('dag_id').trim() === '') {
-                        this.showMessage('Nome do Pipeline é obrigatório!', 'error');
+                        debugMsg = 'Nome do Pipeline é obrigatório!';
+                        this.showMessage(debugMsg, 'error');
                         this.wizardData.currentStep = 1;
+                        window.__lastWizardSubmitError = debugMsg;
                         return;
                     }
-                    
                     if (!formData.get('id_pasta') || formData.get('id_pasta').trim() === '') {
-                        this.showMessage('Pasta/Workspace é obrigatório!', 'error');
+                        debugMsg = 'Pasta/Workspace é obrigatório!';
+                        this.showMessage(debugMsg, 'error');
                         this.wizardData.currentStep = 1;
+                        window.__lastWizardSubmitError = debugMsg;
                         return;
                     }
-                    
                     if (!formData.get('id_source_type') || formData.get('id_source_type').trim() === '') {
-                        this.showMessage('Tipo de Fonte é obrigatório!', 'error');
+                        debugMsg = 'Tipo de Fonte é obrigatório!';
+                        this.showMessage(debugMsg, 'error');
                         this.wizardData.currentStep = 2;
+                        window.__lastWizardSubmitError = debugMsg;
                         return;
                     }
-                    
                     if (!formData.get('target_table_name') || formData.get('target_table_name').trim() === '') {
-                        this.showMessage('Nome da Tabela Destino é obrigatório!', 'error');
+                        debugMsg = 'Nome da Tabela Destino é obrigatório!';
+                        this.showMessage(debugMsg, 'error');
                         this.wizardData.currentStep = 2;
+                        window.__lastWizardSubmitError = debugMsg;
                         return;
                     }
-                    
                     if (!formData.get('python_module_path') || formData.get('python_module_path').trim() === '') {
-                        this.showMessage('Função Python de Transformação é obrigatória!', 'error');
+                        debugMsg = 'Função Python de Transformação é obrigatória!';
+                        this.showMessage(debugMsg, 'error');
                         this.wizardData.currentStep = 3;
+                        window.__lastWizardSubmitError = debugMsg;
                         return;
                     }
                     
@@ -1299,34 +1308,26 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     // Se houver arquivos selecionados via multi-upload, adicionar ao FormData
                     if (this.wizardData.multiUpload && this.wizardData.selectedFiles.length > 0) {
                         console.log('📦 Adicionando arquivos ao FormData:', this.wizardData.selectedFiles.length);
-                        
                         // Calcular tamanho total dos arquivos
                         const totalSize = this.wizardData.selectedFiles.reduce((sum, file) => sum + file.size, 0);
                         const totalMB = (totalSize / (1024 * 1024)).toFixed(2);
-                        
                         console.log(`📊 Tamanho total: ${totalMB} MB`);
-                        
                         // Verificar limite (nginx geralmente 10MB, mas pode ser menor)
                         const maxSizeMB = 10; // Ajustar conforme configuração do nginx
                         if (totalSize > maxSizeMB * 1024 * 1024) {
-                            this.showMessage(
-                                `O tamanho total dos arquivos (${totalMB} MB) excede o limite de ${maxSizeMB} MB. ` +
-                                `Reduza a quantidade de arquivos ou processe em lotes menores.`,
-                                'error'
-                            );
+                            const msg = `O tamanho total dos arquivos (${totalMB} MB) excede o limite de ${maxSizeMB} MB. Reduza a quantidade de arquivos ou processe em lotes menores.`;
+                            this.showMessage(msg, 'error');
+                            window.__lastWizardSubmitError = msg;
                             return;
                         }
-                        
                         // Remover campos de upload único e limpar array múltiplo
                         formData.delete('source_filename');
                         formData.delete('multiple_files[]');
-                        
                         // Adicionar cada arquivo
                         this.wizardData.selectedFiles.forEach((file, index) => {
                             formData.append('multiple_files[]', file);
                             console.log(`  ✓ Arquivo ${index + 1}: ${file.name} (${this.formatFileSize(file.size)})`);
                         });
-                        
                         // Marcar checkbox de multi-upload como selecionado
                         formData.set('enable_multi_upload', '1');
                     } else {
@@ -1362,19 +1363,21 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     })
                     .then(response => {
                         console.log('📥 Resposta HTTP:', response.status, response.statusText);
-                        
                         // Tratamento específico para erro 413 (Request Entity Too Large)
                         if (response.status === 413) {
-                            throw new Error('O tamanho total dos arquivos excede o limite do servidor (nginx). Reduza a quantidade de arquivos ou processe em lotes menores.');
+                            const msg = 'O tamanho total dos arquivos excede o limite do servidor (nginx). Reduza a quantidade de arquivos ou processe em lotes menores.';
+                            this.showMessage(msg, 'error');
+                            window.__lastWizardSubmitError = msg;
+                            throw new Error(msg);
                         }
-                        
                         // Verificar se a resposta é JSON antes de parsear
                         const contentType = response.headers.get('content-type');
                         if (!contentType || !contentType.includes('application/json')) {
                             // Se não for JSON, tentar ler como texto para debug
                             return response.text().then(text => {
-                                console.error('❌ Resposta não é JSON:', text.substring(0, 500));
-                                
+                                const msg = `❌ Resposta não é JSON: ${text.substring(0, 500)}`;
+                                this.showMessage(msg, 'error');
+                                window.__lastWizardSubmitError = msg;
                                 // Mensagem mais específica baseada no status
                                 if (response.status >= 500) {
                                     throw new Error('Erro interno do servidor. Verifique os logs ou tente novamente mais tarde.');
@@ -1385,7 +1388,6 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                 }
                             });
                         }
-                        
                         return response.json();
                     })
                     .then(result => {

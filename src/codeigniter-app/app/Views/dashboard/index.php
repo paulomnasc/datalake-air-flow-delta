@@ -333,11 +333,17 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 
                             <!-- Wizard Content Form -->
                             <form id="wizardForm" 
-                                  method="POST" 
-                                  action="<?= !empty($edit_data) ? base_url('updateConfig') : base_url('insertConfig') ?>" 
-                                  enctype="multipart/form-data"
-                                  novalidate
-                                  @submit.prevent="submitWizard($event)">
+                                                                    method="POST" 
+                                                                    action="<?= !empty($edit_data) ? base_url('updateConfig') : base_url('insertConfig') ?>" 
+                                                                    enctype="multipart/form-data"
+                                                                    novalidate
+                                                                    @submit.prevent="submitWizard($event)">
+                                                                <!-- Garantir campos SQL sempre presentes no POST -->
+                                                                <input type="hidden" name="sql_host" value="">
+                                                                <input type="hidden" name="sql_port" value="">
+                                                                <input type="hidden" name="sql_database_name" value="">
+                                                                <input type="hidden" name="sql_user" value="">
+                                                                <input type="hidden" name="sql_password" value="">
                                 <?= csrf_field() ?>
                                 
                                 <?php if (!empty($edit_data)): ?>
@@ -512,6 +518,54 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                 }
                                             });
                                             </script>
+                                                                                <!-- label class="form-label">Argumentos JSON 2</label>
+                                                                                <div id="monaco-transform-args-container" style="height: 220px; border: 1px solid #ced4da; border-radius: 0.375rem; margin-bottom: 0.5rem;"></div>
+                                                                                <input type="hidden" name="transform_args" x-model="wizardData.transformArgs" id="transform_args_hidden" />
+                                                                                <small class="text-muted">Deve ser um JSON válido. Use {} se não precisar de argumentos extras. Veja o exemplo acima para APIs REST.</small>
+                                                                                <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+                                                                                <script>
+                                                                                document.addEventListener('DOMContentLoaded', function() {
+                                                                                    if (document.getElementById('monaco-transform-args-container')) {
+                                                                                        require(['vs/editor/editor.main'], function () {/* ...existing code... */});
+                                                                                    }
+                                                                                });
+                                                                                </script -->
+                                                                                <!-- SQL Connection UI for SQL sources (apenas para SQL) -->
+                                                                                <div x-show="getSourceTypeName(wizardData.sourceType).toLowerCase().includes('sql')" class="mt-3">
+                                                                                    <h6>Configuração SQL</h6>
+                                                                                    <div class="row g-3">
+                                                                                        <div class="col-md-6">
+                                                                                            <label class="form-label">ID da Conexão Airflow</label>
+                                                                                            <input type="text" name="sql_connection_id" class="form-control" placeholder="Ex: mysql_northwind" x-model="wizardData.sqlConnectionId">
+                                                                                        </div>
+                                                                                        <div class="col-md-6">
+                                                                                            <label class="form-label">Host</label>
+                                                                                            <input type="text" name="sql_host" class="form-control" placeholder="localhost" x-model="wizardData.dbHost">
+                                                                                        </div>
+                                                                                        <div class="col-md-6">
+                                                                                            <label class="form-label">Porta</label>
+                                                                                            <input type="number" name="sql_port" class="form-control" placeholder="3306" x-model="wizardData.dbPort">
+                                                                                        </div>
+                                                                                        <div class="col-md-6">
+                                                                                            <label class="form-label">Database</label>
+                                                                                            <input type="text" name="sql_database_name" class="form-control" placeholder="nome_banco" x-model="wizardData.dbDatabase">
+                                                                                        </div>
+                                                                                        <div class="col-md-6">
+                                                                                            <label class="form-label">Usuário</label>
+                                                                                            <input type="text" name="sql_user" class="form-control" placeholder="usuario" x-model="wizardData.dbUser">
+                                                                                        </div>
+                                                                                        <div class="col-md-12">
+                                                                                            <label class="form-label">Senha</label>
+                                                                                            <input type="password" name="sql_password" class="form-control" x-model="wizardData.dbPassword">
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div class="mt-3">
+                                                                                        <button type="button" class="btn btn-primary" @click="connectAndListTables(wizardData)">Conectar e Listar Tabelas</button>
+                                                                                        <div id="connection_status" style="display:none; margin-top:10px;"></div>
+                                                                                        <div id="tables-loading" style="display:none; margin-top:10px;">Carregando tabelas...</div>
+                                                                                        <div id="tables-container" style="margin-top:10px;"></div>
+                                                                                    </div>
+                                                                                </div>
 
                                             <template x-if="getSourceTypeName(wizardData.sourceType).toLowerCase().includes('api')">
                                                 <div>
@@ -547,8 +601,8 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                             </template>
                                         </div>
 
-                                        <!-- Upload de Arquivo CSV/JSON -->
-                                        <div x-show="wizardData.showFileUpload" class="mt-3">
+                                        <!-- Upload de Arquivo CSV/JSON (apenas para fontes arquivo) -->
+                                        <div x-show="wizardData.showFileUpload && !getSourceTypeName(wizardData.sourceType).toLowerCase().includes('sql') && !getSourceTypeName(wizardData.sourceType).toLowerCase().includes('api')" class="mt-3">
                                             <!-- Checkbox para ativar upload múltiplo -->
                                             <div class="mb-3 d-flex align-items-start gap-2">
                                                 <input type="checkbox" id="enable_multi_upload" x-model="wizardData.multiUpload" class="form-check-input mt-1">
@@ -657,31 +711,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                         </div>
 
                                         <!-- Configuração MySQL -->
-                                        <div x-show="wizardData.sourceType === '3'" class="mt-3">
-                                            <h6>Configuração MySQL</h6>
-                                            <div class="row g-3">
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Host</label>
-                                                    <input type="text" name="db_host" class="form-control" placeholder="localhost">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Porta</label>
-                                                    <input type="number" name="db_port" class="form-control" placeholder="3306">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Database</label>
-                                                    <input type="text" name="db_database" class="form-control" placeholder="nome_banco">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Usuário</label>
-                                                    <input type="text" name="db_user" class="form-control" placeholder="usuario">
-                                                </div>
-                                                <div class="col-md-12">
-                                                    <label class="form-label">Senha</label>
-                                                    <input type="password" name="db_password" class="form-control">
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <!-- Removido bloco duplicado de Configuração MySQL -->
                                     </div>
 
                                     <!-- Step 3: Transformações -->
@@ -1006,7 +1036,13 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     pythonFunction: '',
                     transformArgs: '{}',
                     scheduleType: 'manual',
-                    frequency: ''
+                    frequency: '',
+                    // Campos MySQL
+                    dbHost: '',
+                    dbPort: '',
+                    dbDatabase: '',
+                    dbUser: '',
+                    dbPassword: ''
                 },
 
                 init() {
@@ -1028,6 +1064,13 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     this.wizardData.transformArgs = editData.transform_args || '{}';
                     this.wizardData.scheduleType = editData.schedule_interval === '@manual' || editData.schedule_interval === null ? 'manual' : 'scheduled';
                     this.wizardData.frequency = editData.schedule_interval || '0 0 * * *';
+                    // Preencher campos MySQL se existirem
+                    this.wizardData.dbHost = editData.sql_host || editData.db_host || '';
+                    this.wizardData.dbPort = editData.sql_port || editData.db_port || '';
+                    this.wizardData.dbDatabase = editData.sql_database_name || editData.db_database || '';
+                    this.wizardData.dbUser = editData.sql_user || editData.db_user || '';
+                    this.wizardData.dbPassword = editData.sql_password || editData.db_password || '';
+                    this.wizardData.sqlConnectionId = editData.sql_connection_id || '';
                     
                     // Mudar para view do wizard
                     this.currentView = 'wizard';
@@ -1173,6 +1216,37 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     const form = event.target;
                     const formData = new FormData(form);
 
+                    // Sincronizar campos SQL do wizardData para os inputs do form (garante que o backend sempre receba)
+                    const sqlFields = [
+                        { name: 'sql_host', value: this.wizardData.dbHost },
+                        { name: 'sql_port', value: this.wizardData.dbPort },
+                        { name: 'sql_database_name', value: this.wizardData.dbDatabase },
+                        { name: 'sql_user', value: this.wizardData.dbUser },
+                        { name: 'sql_password', value: this.wizardData.dbPassword },
+                        { name: 'sql_connection_id', value: this.wizardData.sqlConnectionId }
+                    ];
+                    sqlFields.forEach(f => {
+                        if (form.querySelector(`[name='${f.name}']`)) {
+                            form.querySelector(`[name='${f.name}']`).value = f.value || '';
+                        }
+                        formData.set(f.name, f.value || '');
+                    });
+
+                    // --- PATCH: Garantir selected_tables[] sempre como array ---
+                    // Se multi-table está ativado, garantir envio correto
+                    const isMultiTable = document.getElementById('is_multi_table')?.checked;
+                    if (isMultiTable) {
+                        // Limpa qualquer selected_tables[] existente
+                        formData.delete('selected_tables[]');
+                        // Busca todos os checkboxes marcados
+                        const checked = document.querySelectorAll('input[name="selected_tables[]"]:checked');
+                        checked.forEach(cb => {
+                            formData.append('selected_tables[]', cb.value);
+                        });
+                        // Log para debug
+                        console.log('✅ selected_tables[] enviado:', Array.from(checked).map(cb => cb.value));
+                    }
+
                     // Corrigir: para API REST, garantir que source_filename NÃO seja enviado
                     const sourceTypeName = this.getSourceTypeName(this.wizardData.sourceType).toLowerCase();
                     if (sourceTypeName.includes('api')) {
@@ -1183,33 +1257,40 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     console.log('📤 Enviando pipeline...');
                     
                     // Validar campos obrigatórios ANTES de enviar
+                    let debugMsg = '';
                     if (!formData.get('dag_id') || formData.get('dag_id').trim() === '') {
-                        this.showMessage('Nome do Pipeline é obrigatório!', 'error');
+                        debugMsg = 'Nome do Pipeline é obrigatório!';
+                        this.showMessage(debugMsg, 'error');
                         this.wizardData.currentStep = 1;
+                        window.__lastWizardSubmitError = debugMsg;
                         return;
                     }
-                    
                     if (!formData.get('id_pasta') || formData.get('id_pasta').trim() === '') {
-                        this.showMessage('Pasta/Workspace é obrigatório!', 'error');
+                        debugMsg = 'Pasta/Workspace é obrigatório!';
+                        this.showMessage(debugMsg, 'error');
                         this.wizardData.currentStep = 1;
+                        window.__lastWizardSubmitError = debugMsg;
                         return;
                     }
-                    
                     if (!formData.get('id_source_type') || formData.get('id_source_type').trim() === '') {
-                        this.showMessage('Tipo de Fonte é obrigatório!', 'error');
+                        debugMsg = 'Tipo de Fonte é obrigatório!';
+                        this.showMessage(debugMsg, 'error');
                         this.wizardData.currentStep = 2;
+                        window.__lastWizardSubmitError = debugMsg;
                         return;
                     }
-                    
                     if (!formData.get('target_table_name') || formData.get('target_table_name').trim() === '') {
-                        this.showMessage('Nome da Tabela Destino é obrigatório!', 'error');
+                        debugMsg = 'Nome da Tabela Destino é obrigatório!';
+                        this.showMessage(debugMsg, 'error');
                         this.wizardData.currentStep = 2;
+                        window.__lastWizardSubmitError = debugMsg;
                         return;
                     }
-                    
                     if (!formData.get('python_module_path') || formData.get('python_module_path').trim() === '') {
-                        this.showMessage('Função Python de Transformação é obrigatória!', 'error');
+                        debugMsg = 'Função Python de Transformação é obrigatória!';
+                        this.showMessage(debugMsg, 'error');
                         this.wizardData.currentStep = 3;
+                        window.__lastWizardSubmitError = debugMsg;
                         return;
                     }
                     
@@ -1227,34 +1308,26 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     // Se houver arquivos selecionados via multi-upload, adicionar ao FormData
                     if (this.wizardData.multiUpload && this.wizardData.selectedFiles.length > 0) {
                         console.log('📦 Adicionando arquivos ao FormData:', this.wizardData.selectedFiles.length);
-                        
                         // Calcular tamanho total dos arquivos
                         const totalSize = this.wizardData.selectedFiles.reduce((sum, file) => sum + file.size, 0);
                         const totalMB = (totalSize / (1024 * 1024)).toFixed(2);
-                        
                         console.log(`📊 Tamanho total: ${totalMB} MB`);
-                        
                         // Verificar limite (nginx geralmente 10MB, mas pode ser menor)
                         const maxSizeMB = 10; // Ajustar conforme configuração do nginx
                         if (totalSize > maxSizeMB * 1024 * 1024) {
-                            this.showMessage(
-                                `O tamanho total dos arquivos (${totalMB} MB) excede o limite de ${maxSizeMB} MB. ` +
-                                `Reduza a quantidade de arquivos ou processe em lotes menores.`,
-                                'error'
-                            );
+                            const msg = `O tamanho total dos arquivos (${totalMB} MB) excede o limite de ${maxSizeMB} MB. Reduza a quantidade de arquivos ou processe em lotes menores.`;
+                            this.showMessage(msg, 'error');
+                            window.__lastWizardSubmitError = msg;
                             return;
                         }
-                        
                         // Remover campos de upload único e limpar array múltiplo
                         formData.delete('source_filename');
                         formData.delete('multiple_files[]');
-                        
                         // Adicionar cada arquivo
                         this.wizardData.selectedFiles.forEach((file, index) => {
                             formData.append('multiple_files[]', file);
                             console.log(`  ✓ Arquivo ${index + 1}: ${file.name} (${this.formatFileSize(file.size)})`);
                         });
-                        
                         // Marcar checkbox de multi-upload como selecionado
                         formData.set('enable_multi_upload', '1');
                     } else {
@@ -1290,19 +1363,21 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     })
                     .then(response => {
                         console.log('📥 Resposta HTTP:', response.status, response.statusText);
-                        
                         // Tratamento específico para erro 413 (Request Entity Too Large)
                         if (response.status === 413) {
-                            throw new Error('O tamanho total dos arquivos excede o limite do servidor (nginx). Reduza a quantidade de arquivos ou processe em lotes menores.');
+                            const msg = 'O tamanho total dos arquivos excede o limite do servidor (nginx). Reduza a quantidade de arquivos ou processe em lotes menores.';
+                            this.showMessage(msg, 'error');
+                            window.__lastWizardSubmitError = msg;
+                            throw new Error(msg);
                         }
-                        
                         // Verificar se a resposta é JSON antes de parsear
                         const contentType = response.headers.get('content-type');
                         if (!contentType || !contentType.includes('application/json')) {
                             // Se não for JSON, tentar ler como texto para debug
                             return response.text().then(text => {
-                                console.error('❌ Resposta não é JSON:', text.substring(0, 500));
-                                
+                                const msg = `❌ Resposta não é JSON: ${text.substring(0, 500)}`;
+                                this.showMessage(msg, 'error');
+                                window.__lastWizardSubmitError = msg;
                                 // Mensagem mais específica baseada no status
                                 if (response.status >= 500) {
                                     throw new Error('Erro interno do servidor. Verifique os logs ou tente novamente mais tarde.');
@@ -1313,30 +1388,40 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                 }
                             });
                         }
-                        
                         return response.json();
                     })
                     .then(result => {
                         console.log('✅ Resposta do servidor:', result);
-                        
-                        const mensagem = result.mensagem || result.message || 'Operação realizada com sucesso';
-                        
+                        let mensagem = result.mensagem || result.message || 'Operação realizada com sucesso';
                         if (result.status === 'success' || result.status === 'partial') {
+                            // Se houver arquivos salvos, exibir lista (snake_case)
+                            if (result.uploaded_files && Array.isArray(result.uploaded_files) && result.uploaded_files.length > 0) {
+                                mensagem += '<br><b>Arquivos salvos no bucket:</b><ul style="margin-top:8px">';
+                                result.uploaded_files.forEach(f => {
+                                    if (typeof f === 'string') {
+                                        mensagem += `<li><code>${f}</code></li>`;
+                                    } else if (f.s3_key) {
+                                        mensagem += `<li><code>${f.s3_key}</code></li>`;
+                                    } else if (f.source_path) {
+                                        mensagem += `<li><code>${f.source_path}</code></li>`;
+                                    } else {
+                                        mensagem += `<li><code>${JSON.stringify(f)}</code></li>`;
+                                    }
+                                });
+                                mensagem += '</ul>';
+                            }
                             // Armazenar mensagem de sucesso na sessão via localStorage temporariamente
                             localStorage.setItem('dashboard_message', JSON.stringify({
                                 type: 'success',
                                 text: mensagem
                             }));
-                            
                             // Redirecionar para o dashboard
                             setTimeout(() => {
                                 window.location.href = '<?= base_url('dashboard') ?>';
-                            }, 500);
+                            }, 2000);
                         } else {
                             // Mostrar erro
                             const errorMsg = result.mensagem || mensagem;
-                            
-                            // Verificar se é erro de duplicação e melhorar mensagem
                             if (errorMsg.includes('Já existe um pipeline') || 
                                 (errorMsg.includes('Duplicate entry') && errorMsg.includes('dag_id'))) {
                                 this.showMessage(
@@ -1408,4 +1493,80 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 </body>
 </html>
 
+    <script>
+        function connectAndListTables(wizardData) {
+            const connectionId = wizardData.sqlConnectionId;
+            const host = wizardData.dbHost;
+            const port = wizardData.dbPort || 3306;
+            const databaseName = wizardData.dbDatabase;
+            const user = wizardData.dbUser;
+            const password = wizardData.dbPassword;
+            const statusDiv = document.getElementById('connection_status');
+            const loadingDiv = document.getElementById('tables-loading');
+            const containerDiv = document.getElementById('tables-container');
+            if (!connectionId || !host || !databaseName || !user) {
+                statusDiv.innerHTML = '<span style="color: red;">❌ Preencha todos os campos obrigatórios (Connection ID, Host, Database, User)</span>';
+                statusDiv.style.display = 'block';
+                return;
+            }
+            loadingDiv.style.display = 'block';
+            containerDiv.innerHTML = '';
+            statusDiv.style.display = 'none';
+            const formData = new URLSearchParams();
+            formData.append('connection_id', connectionId);
+            formData.append('host', host);
+            formData.append('port', port);
+            formData.append('database_name', databaseName);
+            formData.append('user', user);
+            formData.append('password', password);
+            fetch('<?= base_url('config/getAvailableTables') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData.toString()
+            })
+            .then(response => response.json())
+            .then(result => {
+                loadingDiv.style.display = 'none';
+                if (result.status === 'success' && result.tables) {
+                    if (result.tables.length === 0) {
+                        containerDiv.innerHTML = '<p style="color: orange;">⚠️ Nenhuma tabela encontrada</p>';
+                    } else {
+                        renderTableCheckboxes(result.tables);
+                        statusDiv.innerHTML = `<span style="color: green;">✅ ${result.tables.length} tabelas encontradas</span>`;
+                        statusDiv.style.display = 'block';
+                    }
+                } else {
+                    const errorMsg = result.mensagem || result.message || 'Erro desconhecido';
+                    statusDiv.innerHTML = `<span style="color: red;">❌ ${errorMsg}</span>`;
+                    statusDiv.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                loadingDiv.style.display = 'none';
+                statusDiv.innerHTML = `<span style="color: red;">❌ Erro de requisição: ${error.message}</span>`;
+                statusDiv.style.display = 'block';
+            });
+        }
+        function renderTableCheckboxes(tables) {
+            const container = document.getElementById('tables-container');
+            let html = '<div class="tables-selection">';
+            html += '<div style="margin-bottom: 10px;"><button type="button" onclick="selectAllTables(true)" class="btn btn-sm">✓ Selecionar Todas</button> ';
+            html += '<button type="button" onclick="selectAllTables(false)" class="btn btn-sm">✗ Desmarcar Todas</button></div>';
+            html += '<div class="tables-grid">';
+            tables.forEach(table => {
+                const tableName = table.table_name;
+                const rowCount = table.row_count ? `(${table.row_count.toLocaleString()} rows)` : '';
+                const tableSize = table.table_size_mb ? `${table.table_size_mb} MB` : '';
+                html += `<div class="table-checkbox-item"><input type="checkbox" id="table_${tableName}" name="selected_tables[]" value="${tableName}" class="table-checkbox"><label for="table_${tableName}"><strong>${tableName}</strong> <small>${rowCount} ${tableSize}</small></label></div>`;
+            });
+            html += '</div></div>';
+            container.innerHTML = html;
+        }
+        function selectAllTables(select) {
+            const checkboxes = document.querySelectorAll('.table-checkbox');
+            checkboxes.forEach(cb => cb.checked = select);
+        }
+    </script>
 <?php require VIEWPATH . '/footer.php'; ?>

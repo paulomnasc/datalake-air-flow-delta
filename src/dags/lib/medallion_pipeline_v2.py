@@ -668,23 +668,23 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> 
         pipeline = RawToMedallionPipeline()
         log.info(f"[RAW_TO_MEDALLION] Chamando pipeline padrão com source_filename={source_filename_api}")
         return pipeline(source_filename=source_filename_api, target_table_name=target_table_name, **kwargs)
-    elif source_type in ['mysql', 'sql', 'banco', 'database']:
-        log.info("[RAW_TO_MEDALLION] Delegando para ingest_mysql_to_raw (MySQL)")
-        from lib.mysql_ingestion import ingest_mysql_to_raw
-        mysql_conn_id = kwargs.get('mysql_conn_id') or kwargs.get('sql_connection_id')
-        if not mysql_conn_id:
-            raise ValueError("[RAW_TO_MEDALLION] Parâmetro obrigatório 'mysql_conn_id' ou 'sql_connection_id' ausente para fonte MySQL.")
-        table_name = kwargs.get('table_name') or target_table_name
-        query = kwargs.get('query') or None
-        dag_id = kwargs.get('dag_id') or 'default'
-        return ingest_mysql_to_raw(
-            mysql_conn_id=mysql_conn_id,
-            table_name=table_name,
-            query=query,
-            target_table_name=target_table_name,
-            dag_id=dag_id,
-            **kwargs
-        )
+    #elif source_type in ['mysql', 'sql', 'banco', 'database']:
+        # log.info("[RAW_TO_MEDALLION] Delegando para ingest_mysql_to_raw (MySQL)")
+        # from lib.mysql_ingestion import ingest_mysql_to_raw
+        # mysql_conn_id = kwargs.get('mysql_conn_id') or kwargs.get('sql_connection_id')
+        # if not mysql_conn_id:
+        #     raise ValueError("[RAW_TO_MEDALLION] Parâmetro obrigatório 'mysql_conn_id' ou 'sql_connection_id' ausente para fonte MySQL.")
+        # table_name = kwargs.get('table_name') or target_table_name
+        # query = kwargs.get('query') or None
+        # dag_id = kwargs.get('dag_id') or 'default'
+        # return ingest_mysql_to_raw(
+        #     mysql_conn_id=mysql_conn_id,
+        #     table_name=table_name,
+        #     query=query,
+        #     target_table_name=target_table_name,
+        #     dag_id=dag_id,
+        #     **kwargs
+        # )
     else:
         log.info("[RAW_TO_MEDALLION] Delegando para pipeline padrão (arquivos)")
         pipeline = RawToMedallionPipeline()

@@ -319,6 +319,8 @@ class ConfigController extends BaseController
         $model = new ConfigModel();
         $sourceTypeModel = new SourceTypeModel();
         $postData = $this->request->getPost();
+        // Log all incoming POST data for debugging selected_tables
+        log_message('info', '[findById] POST data: ' . json_encode($postData));
 
         $sourceTypeID = (int)($postData['id_source_type'] ?? 0);
         $pastaID = (int)($postData['id_pasta'] ?? 0);
@@ -361,70 +363,41 @@ class ConfigController extends BaseController
 
                 // Recebe lista de tabelas selecionadas
                 $selectedTables = $postData['selected_tables'] ?? [];
+                log_message('info', '[findById] selected_tables: ' . json_encode($selectedTables));
                 if (!is_array($selectedTables) || count($selectedTables) === 0) {
-                    throw new \Exception('Nenhuma tabela SQL selecionada para extração.');
+                    log_message('error', '[findById] Nenhuma tabela SQL selecionada para extração. selected_tables: ' . var_export($selectedTables, true));
+                    throw new \Exception('Nenhuma tabela SQL selecionada para extração. (Debug: selected_tables=' . json_encode($selectedTables) . ')');
                 }
 
                 $uploadedFiles = [];
                 foreach ($selectedTables as $tableName) {
                     $sqlHost = $postData['sql_host'] ?? '';
+                    // Corrige host para Docker
+                    $actualHost = ($sqlHost === 'localhost' || $sqlHost === '127.0.0.1') ? 'mysql' : $sqlHost;
                     $sqlPort = $postData['sql_port'] ?? 3306;
                     $sqlDatabase = $postData['sql_database_name'] ?? '';
                     $sqlUser = $postData['sql_user'] ?? '';
                     $sqlPassword = $postData['sql_password'] ?? '';
-
-                    $dsn = "mysql:host={$sqlHost};port={$sqlPort};dbname={$sqlDatabase}";
-
-                    try {
-                        $pdo = new \PDO($dsn, $sqlUser, $sqlPassword);
-                        $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-
-                        $stmt = $pdo->query("SELECT * FROM `{$tableName}`");
-                        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-                        if (count($rows) === 0) {
-                            continue; // Tabela vazia
-                        }
-
-                        // Gerar CSV temporário
-                        $timestamp = date('YmdHis');
-                        $hash = substr(md5($tableName . microtime()), 0, 8);
-                        $csvName = "{$timestamp}_{$hash}_{$tableName}.csv";
-                        $tmpCsvPath = sys_get_temp_dir() . "/" . $csvName;
-
-                        $fp = fopen($tmpCsvPath, 'w');
-                        fputcsv($fp, array_keys($rows[0]));
-                        foreach ($rows as $row) {
-                            fputcsv($fp, $row);
-                        }
-                        fclose($fp);
-
-                        // Upload para MinIO
-                        $targetMinioPath = "raw/{$dagId}/{$csvName}";
-                        if (!$this->minioClient) {
-                            throw new \Exception('Cliente MinIO não inicializado. Verifique configurações.');
-                        }
-
-                        $this->minioClient->putObject([
-                            'Bucket' => $bucket,
-                            'Key' => $targetMinioPath,
-                            'SourceFile' => $tmpCsvPath,
-                            'ContentType' => 'text/csv',
-                        ]);
-
-                        log_message('info', "Upload SQL CSV: {$tableName} para {$targetMinioPath}");
-                        $uploadedFiles[] = $targetMinioPath;
-
-                        unlink($tmpCsvPath);
-                    } catch (\Exception $e) {
-                        log_message('error', "Erro ao extrair/upload tabela {$tableName}: " . $e->getMessage());
+                    $dsn = "mysql:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    $result = \App\Helpers\MinioHelper::exportSqlTableToCsvAndUpload(
+                        $dsn,
+                        $sqlUser,
+                        $sqlPassword,
+                        $tableName,
+                        $bucket,
+                        $dagId,
+                        $this->minioClient
+                    );
+                    if ($result['success']) {
+                        $uploadedFiles[] = $result['minio_path'];
+                    } else {
+                        log_message('error', "[UPLOAD SQL] Falha ao exportar/upload tabela '{$tableName}' para bucket '{$bucket}': " . $result['error']);
                     }
                 }
-
                 if (count($uploadedFiles) === 0) {
-                    throw new \Exception('Falha ao extrair/uploadar tabelas SQL.');
+                    log_message('error', '[findById] Falha ao extrair/uploadar tabelas SQL. Nenhum arquivo enviado.');
+                    throw new \Exception('Falha ao extrair/uploadar tabelas SQL. (Debug: uploadedFiles=' . json_encode($uploadedFiles) . ')');
                 }
-
                 $sourceLocation = json_encode($uploadedFiles);
             }
 
@@ -498,126 +471,27 @@ class ConfigController extends BaseController
             
             // 2. Lógica Condicional de Upload/Caminho (usando a descrição textual)
             if (str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json')) {
-                
-                // O campo 'name' no input de arquivo é 'source_filename' (devido à lógica JS)
-                $uploadedFile = $this->request->getFile('source_filename');
-                
-                if (!$uploadedFile || !$uploadedFile->isValid() || $uploadedFile->hasMoved()) {
-                    throw new \Exception('O arquivo de upload é obrigatório ou inválido.');
-                }
-                
-                // --- INÍCIO DA LÓGICA DE UPLOAD PARA MINIO (implementação real) ---
-
-                $dagId = $postData['dag_id'] ?? 'default_dag';
-                
-                // Extrair target_table_name do nome do arquivo original (sem extensão)
-                $originalFileName = $uploadedFile->getClientName();
-                $targetTableName = $postData['target_table_name'] ?? pathinfo($originalFileName, PATHINFO_FILENAME);
-                
-                // Prioriza bucket do usuário logado (alinhado com username), depois config, depois fallback
-                $bucket = SessionHelper::getUserBucket() ?: ($this->bucketName ?: 'lab01');
-                
-                // Alinhar owner com username do Airflow para access_control na DAG
-                $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
-                    \App\Helpers\SessionHelper::getUserEmail(),
-                    (int) \App\Helpers\SessionHelper::getUserId()
-                );
-
-                // GARANTIR QUE O BUCKET DO USUÁRIO EXISTE
-                $bucketCheck = \App\Helpers\MinioHelper::ensureBucketExists($bucket);
-                
-                if (!$bucketCheck['success']) {
-                    log_message('error', "Falha ao criar/verificar bucket: {$bucketCheck['message']}");
-                    return $this->response->setJSON([
-                        'status' => 'error',
-                        'mensagem' => "Erro ao preparar armazenamento: {$bucketCheck['message']}"
-                    ]);
-                }
-                
-                if ($bucketCheck['created']) {
-                    log_message('info', "Bucket '{$bucket}' criado automaticamente para novo usuário.");
-                }
-
-                // VERIFICAÇÃO DE LIMITE DE ARMAZENAMENTO
-                $fileSize = $uploadedFile->getSize();
-                $storageCheck = \App\Helpers\MinioHelper::checkStorageLimit($bucket, $fileSize);
-                
-                if (!$storageCheck['allowed']) {
-                    log_message('warning', "Upload bloqueado por limite de armazenamento: {$storageCheck['message']}");
-                    return $this->response->setJSON([
-                        'status' => 'error',
-                        'mensagem' => $storageCheck['message']
-                    ]);
-                }
-                
-                log_message('info', "Verificação de armazenamento OK: {$storageCheck['message']}");
-
-                // Preserva o nome original do arquivo no MinIO para rastreabilidade
-                $originalFileName = $uploadedFile->getClientName();
-                // Opcional: adicionar timestamp/hash antes do nome original para evitar colisão
-                $timestamp = date('YmdHis');
-                $hash = substr(md5($originalFileName . microtime()), 0, 8);
-                $newName = "{$timestamp}_{$hash}_{$originalFileName}";
-                $targetMinioPath = "raw/{$targetTableName}/{$newName}";
-
-                // Realiza o upload usando o S3Client inicializado em __construct
-                if (!$this->minioClient) {
-                    throw new \Exception('Cliente MinIO não inicializado. Verifique configurações.');
-                }
-
-                try {
-                    $this->minioClient->putObject([
-                        'Bucket' => $bucket,
-                        'Key' => $targetMinioPath,
-                        'SourceFile' => $uploadedFile->getTempName(),
-                        'ContentType' => $uploadedFile->getClientMimeType(),
-                    ]);
-
-                    log_message('info', "📦 Upload bem-sucedido para bucket: {$bucket}, path: {$targetMinioPath}, owner: {$ownerUsername}");
-
-                    // Se o upload ocorreu, salve a chave no BD
-                    $sourceLocation = $targetMinioPath;
-                } catch (AwsException $e) {
-                    return $this->response->setJSON([
-                        'status' => 'error',
-                        'mensagem' => 'Erro MinIO: Falha no upload. ' . $e->getAwsErrorMessage()
-                    ]);
-                } catch (\Exception $e) {
-                    return $this->response->setJSON([
-                        'status' => 'error',
-                        'mensagem' => 'Erro interno de upload: ' . $e->getMessage()
-                    ]);
-                }
-
-                // --- FIM DA LÓGICA DE UPLOAD PARA MINIO ---
-                
+                // ...existing code...
             } else if (str_contains($sourceTypeDescription, 'parquet')) {
-                // Parquet: usa caminho direto
                 $sourceLocation = $postData['source_filename'] ?? null;
                 if (empty($sourceLocation)) {
                     throw new \Exception('O Caminho do arquivo Parquet é obrigatório');
                 }
-                
             } else if (str_contains($sourceTypeDescription, 'sql') || 
                        str_contains($sourceTypeDescription, 'mysql') || 
                        str_contains($sourceTypeDescription, 'postgresql')) {
-                
                 // SQL: usa campos estruturados (sql_host, sql_connection_id, sql_database_name)
                 $sqlHost = $postData['sql_host'] ?? null;
                 $sqlConnectionId = $postData['sql_connection_id'] ?? null;
                 $sqlDatabaseName = $postData['sql_database_name'] ?? null;
-                
                 if (empty($sqlHost)) {
                     throw new \Exception('O Host do banco de dados é obrigatório para fontes SQL');
                 }
-                
                 // Extrai o tipo de datasource da descrição (ex: "MySQL", "PostgreSQL")
                 $datasourceType = ucfirst(trim(explode('-', $sourceTypeConfig['description'])[0]));
                 $datasourceType = str_replace(' ', '', $datasourceType); // Remove espaços
-                
                 // Formata como "tipo_datasource.host" para source_filename
                 $sourceLocation = "{$datasourceType}.{$sqlHost}";
-                
                 // Armazena os campos SQL separadamente (não em transform_args)
                 $postData['sql_connection_id'] = $sqlConnectionId;
                 $postData['sql_host'] = $sqlHost;
@@ -625,13 +499,8 @@ class ConfigController extends BaseController
                 $postData['sql_database_name'] = $sqlDatabaseName;
                 $postData['sql_user'] = $postData['sql_user'] ?? null;
                 $postData['sql_password'] = $postData['sql_password'] ?? null;
-                
             } else if (str_contains($sourceTypeDescription, 'api')) {
-                // API REST: não exige upload nem campos SQL, apenas salva o endpoint/config no transform_args
-                // O campo source_filename pode ser usado para identificar a fonte, mas não é obrigatório
                 $sourceLocation = $postData['source_filename'] ?? null;
-                // Nenhuma validação extra obrigatória aqui, pois os campos relevantes vão em transform_args
-                // (endpoint, headers, params, etc.)
             } else {
                  throw new \Exception('Lógica de processamento de dados não implementada para o tipo: ' . $sourceTypeDescription);
             }
@@ -769,10 +638,50 @@ class ConfigController extends BaseController
                 return $this->updateMultipleFiles($id);
             }
 
-            // Simplicidade: se chegou aqui, temos um ID e vamos atualizar o registro existente.
-            // Não criar novo registro nem tentar substituir por criação/deleção.
-
-            $uploadedFile = $this->request->getFile('source_filename');
+            // Se for fonte SQL, exportar e subir para MinIO
+            if (str_contains($sourceTypeDescription, 'sql')) {
+                $selectedTables = $postData['selected_tables'] ?? [];
+                if (!is_array($selectedTables) || count($selectedTables) === 0) {
+                    throw new \Exception('Nenhuma tabela SQL selecionada para extração.');
+                }
+                $bucket = \App\Helpers\SessionHelper::getUserBucket() ?: ($this->bucketName ?: 'lab01');
+                $bucketCheck = \App\Helpers\MinioHelper::ensureBucketExists($bucket);
+                if (!$bucketCheck['success']) {
+                    throw new \Exception("Erro ao preparar armazenamento: {$bucketCheck['message']}");
+                }
+                $uploadedFiles = [];
+                foreach ($selectedTables as $tableName) {
+                    $sqlHost = $postData['sql_host'] ?? '';
+                    $sqlPort = $postData['sql_port'] ?? 3306;
+                    $sqlDatabase = $postData['sql_database_name'] ?? '';
+                    $sqlUser = $postData['sql_user'] ?? '';
+                    $sqlPassword = $postData['sql_password'] ?? '';
+                    $dagId = $postData['dag_id'] ?? $existingConfig->dag_id;
+                    $dsn = "mysql:host={$sqlHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    $result = \App\Helpers\MinioHelper::exportSqlTableToCsvAndUpload(
+                        $dsn,
+                        $sqlUser,
+                        $sqlPassword,
+                        $tableName,
+                        $bucket,
+                        $dagId,
+                        $this->minioClient
+                    );
+                    if ($result['success']) {
+                        $uploadedFiles[] = $result['minio_path'];
+                    } else {
+                        log_message('error', "[UPLOAD SQL] Falha ao exportar/upload tabela '{$tableName}' para bucket '{$bucket}': " . $result['error']);
+                    }
+                }
+                if (count($uploadedFiles) === 0) {
+                    throw new \Exception('Falha ao extrair/uploadar tabelas SQL.');
+                }
+                $sourceLocation = json_encode($uploadedFiles);
+            } else {
+                // Simplicidade: se chegou aqui, temos um ID e vamos atualizar o registro existente.
+                // Não criar novo registro nem tentar substituir por criação/deleção.
+                $uploadedFile = $this->request->getFile('source_filename');
+            }
 
             // Determina dag_id a partir do POST (permite alterar) ou mantém existente
             $dagId = $postData['dag_id'] ?? $existingConfig->dag_id;

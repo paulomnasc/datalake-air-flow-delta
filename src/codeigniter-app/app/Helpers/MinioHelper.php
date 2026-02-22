@@ -530,4 +530,63 @@ class MinioHelper
             ];
         }
     }
+
+
+        /**
+     * Exporta uma tabela SQL para CSV e faz upload para o MinIO
+     *
+     * @param string $dsn DSN de conexão PDO
+     * @param string $user Usuário do banco
+     * @param string $password Senha do banco
+     * @param string $tableName Nome da tabela a exportar
+     * @param string $bucket Nome do bucket MinIO
+     * @param string $dagId Identificador da DAG (para path)
+     * @param object|null $minioClient Cliente MinIO (opcional, se não usar helper)
+     * @return array ['success' => bool, 'minio_path' => string, 'error' => string]
+     */
+    public static function exportSqlTableToCsvAndUpload($dsn, $user, $password, $tableName, $bucket, $dagId, $minioClient = null)
+    {
+        try {
+            if (empty($user) || empty($password)) {
+                log_message('error', "[MinioHelper] exportSqlTableToCsvAndUpload: Usuário ou senha do banco não informados!");
+                return ['success' => false, 'minio_path' => '', 'error' => 'Usuário ou senha do banco não informados'];
+            }
+            $pdo = new \PDO($dsn, $user, $password);
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            $stmt = $pdo->query("SELECT * FROM `{$tableName}`");
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            if (count($rows) === 0) {
+                log_message('warning', "[MinioHelper] Tabela '{$tableName}' está vazia. Nenhum CSV será gerado.");
+                return ['success' => false, 'minio_path' => '', 'error' => 'Tabela vazia'];
+            }
+            $timestamp = date('YmdHis');
+            $hash = substr(md5($tableName . microtime()), 0, 8);
+            $csvName = "{$timestamp}_{$hash}_{$tableName}.csv";
+            $tmpCsvPath = sys_get_temp_dir() . "/" . $csvName;
+            $fp = fopen($tmpCsvPath, 'w');
+            fputcsv($fp, array_keys($rows[0]));
+            foreach ($rows as $row) {
+                fputcsv($fp, $row);
+            }
+            fclose($fp);
+            $targetMinioPath = "raw/{$dagId}/{$csvName}";
+            if (!$minioClient) {
+                $minioClient = self::getClient();
+            }
+            log_message('info', "[MinioHelper] Enviando CSV '{$csvName}' para bucket '{$bucket}' em '{$targetMinioPath}'");
+            $minioClient->putObject([
+                'Bucket' => $bucket,
+                'Key' => $targetMinioPath,
+                'SourceFile' => $tmpCsvPath,
+                'ContentType' => 'text/csv',
+            ]);
+            unlink($tmpCsvPath);
+            log_message('info', "[MinioHelper] Upload concluído: tabela '{$tableName}' → '{$targetMinioPath}'");
+            return ['success' => true, 'minio_path' => $targetMinioPath, 'error' => ''];
+        } catch (\Exception $e) {
+            log_message('error', "[MinioHelper] Falha ao exportar/upload tabela '{$tableName}' para bucket '{$bucket}': " . $e->getMessage());
+            return ['success' => false, 'minio_path' => '', 'error' => $e->getMessage()];
+        }
+    }
+
 }

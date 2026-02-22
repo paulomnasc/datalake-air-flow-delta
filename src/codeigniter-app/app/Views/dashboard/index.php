@@ -1210,6 +1210,41 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     const form = event.target;
                     const formData = new FormData(form);
 
+                    // Garantir que campos SQL estejam presentes no FormData com nomes corretos
+                    // (SPA usa dbUser/dbPassword, backend espera sql_user/sql_password)
+                    if (this.getSourceTypeName(this.wizardData.sourceType).toLowerCase().includes('sql')) {
+                        if (this.wizardData.dbUser) {
+                            formData.set('sql_user', this.wizardData.dbUser);
+                        }
+                        if (this.wizardData.dbPassword) {
+                            formData.set('sql_password', this.wizardData.dbPassword);
+                        }
+                        if (this.wizardData.dbHost) {
+                            formData.set('sql_host', this.wizardData.dbHost);
+                        }
+                        if (this.wizardData.dbPort) {
+                            formData.set('sql_port', this.wizardData.dbPort);
+                        }
+                        if (this.wizardData.dbDatabase) {
+                            formData.set('sql_database_name', this.wizardData.dbDatabase);
+                        }
+
+                        // --- PATCH: Garantir selected_tables[] sempre como array ---
+                        // Se multi-table está ativado, garantir envio correto
+                        const isMultiTable = document.getElementById('is_multi_table')?.checked;
+                        if (isMultiTable) {
+                            // Limpa qualquer selected_tables[] existente
+                            formData.delete('selected_tables[]');
+                            // Busca todos os checkboxes marcados
+                            const checked = document.querySelectorAll('input[name="selected_tables[]"]:checked');
+                            checked.forEach(cb => {
+                                formData.append('selected_tables[]', cb.value);
+                            });
+                            // Log para debug
+                            console.log('✅ selected_tables[] enviado:', Array.from(checked).map(cb => cb.value));
+                        }
+                    }
+
                     // Corrigir: para API REST, garantir que source_filename NÃO seja enviado
                     const sourceTypeName = this.getSourceTypeName(this.wizardData.sourceType).toLowerCase();
                     if (sourceTypeName.includes('api')) {
@@ -1355,25 +1390,36 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     })
                     .then(result => {
                         console.log('✅ Resposta do servidor:', result);
-                        
-                        const mensagem = result.mensagem || result.message || 'Operação realizada com sucesso';
-                        
+                        let mensagem = result.mensagem || result.message || 'Operação realizada com sucesso';
                         if (result.status === 'success' || result.status === 'partial') {
+                            // Se houver arquivos salvos, exibir lista (snake_case)
+                            if (result.uploaded_files && Array.isArray(result.uploaded_files) && result.uploaded_files.length > 0) {
+                                mensagem += '<br><b>Arquivos salvos no bucket:</b><ul style="margin-top:8px">';
+                                result.uploaded_files.forEach(f => {
+                                    if (typeof f === 'string') {
+                                        mensagem += `<li><code>${f}</code></li>`;
+                                    } else if (f.s3_key) {
+                                        mensagem += `<li><code>${f.s3_key}</code></li>`;
+                                    } else if (f.source_path) {
+                                        mensagem += `<li><code>${f.source_path}</code></li>`;
+                                    } else {
+                                        mensagem += `<li><code>${JSON.stringify(f)}</code></li>`;
+                                    }
+                                });
+                                mensagem += '</ul>';
+                            }
                             // Armazenar mensagem de sucesso na sessão via localStorage temporariamente
                             localStorage.setItem('dashboard_message', JSON.stringify({
                                 type: 'success',
                                 text: mensagem
                             }));
-                            
                             // Redirecionar para o dashboard
                             setTimeout(() => {
                                 window.location.href = '<?= base_url('dashboard') ?>';
-                            }, 500);
+                            }, 2000);
                         } else {
                             // Mostrar erro
                             const errorMsg = result.mensagem || mensagem;
-                            
-                            // Verificar se é erro de duplicação e melhorar mensagem
                             if (errorMsg.includes('Já existe um pipeline') || 
                                 (errorMsg.includes('Duplicate entry') && errorMsg.includes('dag_id'))) {
                                 this.showMessage(

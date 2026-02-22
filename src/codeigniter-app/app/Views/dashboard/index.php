@@ -554,7 +554,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                                                         </div>
                                                                                     </div>
                                                                                     <div class="mt-3">
-                                                                                        <button type="button" class="btn btn-primary" @click="connectAndListTables()">Conectar e Listar Tabelas</button>
+                                                                                        <button type="button" class="btn btn-primary" @click="connectAndListTables(wizardData)">Conectar e Listar Tabelas</button>
                                                                                         <div id="connection_status" style="display:none; margin-top:10px;"></div>
                                                                                         <div id="tables-loading" style="display:none; margin-top:10px;">Carregando tabelas...</div>
                                                                                         <div id="tables-container" style="margin-top:10px;"></div>
@@ -705,31 +705,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                         </div>
 
                                         <!-- Configuração MySQL -->
-                                        <div x-show="wizardData.sourceType === '3'" class="mt-3">
-                                            <h6>Configuração MySQL</h6>
-                                            <div class="row g-3">
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Host</label>
-                                                    <input type="text" name="db_host" class="form-control" placeholder="localhost">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Porta</label>
-                                                    <input type="number" name="db_port" class="form-control" placeholder="3306">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Database</label>
-                                                    <input type="text" name="db_database" class="form-control" placeholder="nome_banco">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label">Usuário</label>
-                                                    <input type="text" name="db_user" class="form-control" placeholder="usuario">
-                                                </div>
-                                                <div class="col-md-12">
-                                                    <label class="form-label">Senha</label>
-                                                    <input type="password" name="db_password" class="form-control">
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <!-- Removido bloco duplicado de Configuração MySQL -->
                                     </div>
 
                                     <!-- Step 3: Transformações -->
@@ -1083,11 +1059,12 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     this.wizardData.scheduleType = editData.schedule_interval === '@manual' || editData.schedule_interval === null ? 'manual' : 'scheduled';
                     this.wizardData.frequency = editData.schedule_interval || '0 0 * * *';
                     // Preencher campos MySQL se existirem
-                    this.wizardData.dbHost = editData.db_host || '';
-                    this.wizardData.dbPort = editData.db_port || '';
-                    this.wizardData.dbDatabase = editData.db_database || '';
-                    this.wizardData.dbUser = editData.db_user || '';
-                    this.wizardData.dbPassword = editData.db_password || '';
+                    this.wizardData.dbHost = editData.sql_host || editData.db_host || '';
+                    this.wizardData.dbPort = editData.sql_port || editData.db_port || '';
+                    this.wizardData.dbDatabase = editData.sql_database_name || editData.db_database || '';
+                    this.wizardData.dbUser = editData.sql_user || editData.db_user || '';
+                    this.wizardData.dbPassword = editData.sql_password || editData.db_password || '';
+                    this.wizardData.sqlConnectionId = editData.sql_connection_id || '';
                     
                     // Mudar para view do wizard
                     this.currentView = 'wizard';
@@ -1469,13 +1446,13 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 </html>
 
     <script>
-        function connectAndListTables() {
-            const connectionId = document.querySelector('input[name="sql_connection_id"]').value;
-            const host = document.querySelector('input[name="db_host"]').value;
-            const port = document.querySelector('input[name="db_port"]').value || 3306;
-            const databaseName = document.querySelector('input[name="db_database"]').value;
-            const user = document.querySelector('input[name="db_user"]').value;
-            const password = document.querySelector('input[name="db_password"]').value;
+        function connectAndListTables(wizardData) {
+            const connectionId = wizardData.sqlConnectionId;
+            const host = wizardData.dbHost;
+            const port = wizardData.dbPort || 3306;
+            const databaseName = wizardData.dbDatabase;
+            const user = wizardData.dbUser;
+            const password = wizardData.dbPassword;
             const statusDiv = document.getElementById('connection_status');
             const loadingDiv = document.getElementById('tables-loading');
             const containerDiv = document.getElementById('tables-container');

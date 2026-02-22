@@ -512,7 +512,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                 }
                                             });
                                             </script>
-                                                                                <label class="form-label">Argumentos JSON</label>
+                                                                                <!-- label class="form-label">Argumentos JSON 2</label>
                                                                                 <div id="monaco-transform-args-container" style="height: 220px; border: 1px solid #ced4da; border-radius: 0.375rem; margin-bottom: 0.5rem;"></div>
                                                                                 <input type="hidden" name="transform_args" x-model="wizardData.transformArgs" id="transform_args_hidden" />
                                                                                 <small class="text-muted">Deve ser um JSON válido. Use {} se não precisar de argumentos extras. Veja o exemplo acima para APIs REST.</small>
@@ -523,7 +523,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                                                         require(['vs/editor/editor.main'], function () {/* ...existing code... */});
                                                                                     }
                                                                                 });
-                                                                                </script>
+                                                                                </script -->
                                                                                 <!-- SQL Connection UI for SQL sources -->
                                                                                 <div x-show="getSourceTypeName(wizardData.sourceType).toLowerCase().includes('sql')" class="mt-3">
                                                                                     <h6>Configuração SQL</h6>
@@ -1054,7 +1054,13 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     pythonFunction: '',
                     transformArgs: '{}',
                     scheduleType: 'manual',
-                    frequency: ''
+                    frequency: '',
+                    // Campos MySQL
+                    dbHost: '',
+                    dbPort: '',
+                    dbDatabase: '',
+                    dbUser: '',
+                    dbPassword: ''
                 },
 
                 init() {
@@ -1076,6 +1082,12 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     this.wizardData.transformArgs = editData.transform_args || '{}';
                     this.wizardData.scheduleType = editData.schedule_interval === '@manual' || editData.schedule_interval === null ? 'manual' : 'scheduled';
                     this.wizardData.frequency = editData.schedule_interval || '0 0 * * *';
+                    // Preencher campos MySQL se existirem
+                    this.wizardData.dbHost = editData.db_host || '';
+                    this.wizardData.dbPort = editData.db_port || '';
+                    this.wizardData.dbDatabase = editData.db_database || '';
+                    this.wizardData.dbUser = editData.db_user || '';
+                    this.wizardData.dbPassword = editData.db_password || '';
                     
                     // Mudar para view do wizard
                     this.currentView = 'wizard';

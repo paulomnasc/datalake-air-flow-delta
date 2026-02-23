@@ -77,7 +77,7 @@ require VIEWPATH . '/header.php';
                     <?php if (!empty($cotacao_mensagem)): ?>
                         <small class="text-warning d-block">⚠️ <?= htmlspecialchars($cotacao_mensagem, ENT_QUOTES, 'UTF-8'); ?></small>
                     <?php endif; ?>
-                    <p><strong>Como Founder Member, este valor está travado para você!</strong></p>
+                    <!-- p><strong>Como Founder Member, este valor está travado para você!</strong></p>
                     <p class="mb-0">
                         <strong>Ao renovar agora:</strong> Sua assinatura será válida até 
                         <strong><?= $proximo_vencimento_formatado ?></strong>

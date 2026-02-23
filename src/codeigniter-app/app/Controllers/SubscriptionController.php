@@ -364,7 +364,7 @@ class SubscriptionController extends BaseController
         $usuarioModel = new UsuarioModel();
         $usuario = $usuarioModel->find($userId);
         // Valor inicial
-        $valorUsd = 2.00;
+        $valorUsd = getenv('INITIAL_PAYMENT_USD') ?: 2.00;
         $pixKey = '032.067.407-03'; // Chave PIX
         $cotacao = null;
         $valorBrl = null;

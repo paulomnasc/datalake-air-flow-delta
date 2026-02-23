@@ -72,7 +72,7 @@ require VIEWPATH . '/header.php';
                 <!-- Informações de Renovação -->
                 <div class="alert alert-info" role="alert">
                     <h5 class="alert-heading">📋 Informações da Renovação</h5>
-                    <p><strong>Valor:</strong> USD <?= number_format($valor_usd, 2); ?> (sete dólares americanos) por mês</p>
+                    <p><strong>Valor:</strong> USD <?= number_format($valor_usd, 2); ?> (dólares americanos)<?= isset($texto_periodicidade) ? $texto_periodicidade : '' ?></p>
                     <p class="mb-1"><strong>Conversão câmbio do dia:</strong> USD <?= number_format($valor_usd, 2); ?> × BRL <?= number_format($cotacao_usd_brl, 4); ?> = <strong>R$ <?= number_format($valor_brl, 2, ',', '.'); ?></strong></p>
                     <?php if (!empty($cotacao_mensagem)): ?>
                         <small class="text-warning d-block">⚠️ <?= htmlspecialchars($cotacao_mensagem, ENT_QUOTES, 'UTF-8'); ?></small>

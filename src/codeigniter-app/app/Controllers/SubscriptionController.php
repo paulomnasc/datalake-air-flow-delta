@@ -94,6 +94,9 @@ class SubscriptionController extends BaseController
         $data['data_ultimo_pagamento'] = '';
         $data['cotacao_mensagem'] = $cotacaoMensagem;
 
+        // Define texto de periodicidade para assinatura
+        $data['texto_periodicidade'] = ' mensais';
+
         return view('subscription/renew', $data);
     }
 
@@ -415,6 +418,8 @@ class SubscriptionController extends BaseController
         $data['data_vencimento_formatada'] = '-';
         $data['proximo_vencimento_formatado'] = '-';
         $data['data_ultimo_pagamento'] = '';
+        // Define texto de periodicidade para pagamento único de curso
+        $data['texto_periodicidade'] = ' (cota única)';
         return view('subscription/renew', $data);
     }
 }

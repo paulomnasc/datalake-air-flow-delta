@@ -11,6 +11,9 @@ use App\Models\UcProgressModel;
 
 class CursoController extends BaseController
 {
+
+    
+
     public function modulo1()
     {
         return view('cursoModulo1');
@@ -91,7 +94,7 @@ class CursoController extends BaseController
         if (!$data['module'] || !$data['module']['is_active']) {
             return redirect()->to('/cursos')->with('error', 'Módulo não encontrado ou não disponível.');
         }
-
+        $data['texto_periodicidade'] = ' taxa única';
         // Validação extra: bloqueia acesso ao módulo 2+ caso pagamento_inicial não esteja autorizado
         if ($userId && intval($data['module']['order'] ?? 1) > 1) {
             $usuarioModel = new \App\Models\UsuarioModel();

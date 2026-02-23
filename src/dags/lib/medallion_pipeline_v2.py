@@ -31,6 +31,7 @@ log = logging.getLogger(__name__)
 
 
 class RawToMedallionPipeline:
+        
     """
     ✅ NOVA: Classe base com Template Method Pattern
     
@@ -59,6 +60,24 @@ class RawToMedallionPipeline:
         self.dag_id = 'default'
         self.target_table_name = None
         self.source_filename = None
+
+    def list_raw_files(self, **kwargs):
+        """
+        Lista todos os arquivos no bucket do usuário na pasta 'raw'.
+        Retorna uma lista de keys encontrados.
+        Garante que self.hook está inicializado.
+        """
+        if self.hook is None:
+            log.info("[LIST_RAW] Inicializando hook via _setup...")
+            self._setup(**kwargs)
+        prefix = 'raw/'
+        log.info(f"[LIST_RAW] Listando arquivos em s3://{self.bucket}/{prefix}")
+        files = self.hook.list_keys(bucket_name=self.bucket, prefix=prefix)
+        if not files:
+            log.warning(f"[LIST_RAW] Nenhum arquivo encontrado em s3://{self.bucket}/{prefix}")
+            return []
+        log.info(f"[LIST_RAW] {len(files)} arquivos encontrados: {files}")
+        return files
         
     def __call__(self, source_filename: str, target_table_name: str, **kwargs) -> Dict:
         """
@@ -147,14 +166,16 @@ class RawToMedallionPipeline:
 
         ATENÇÃO: A lógica de obtenção do bucket do usuário (por sessão) deve permanecer EXCLUSIVAMENTE no backend PHP (ConfigController/SessionHelper).
         O pipeline Python NUNCA deve tentar deduzir, buscar ou resolver o bucket do usuário. Nunca use bucket_name de kwargs.
-        Sempre use apenas o valor da variável de ambiente MINIO_BUCKET (propagada pelo backend PHP por sessão). Nunca tente buscar por usuário/sessão aqui!
+        Sempre use apenas o valor da variável de owner dag como identificador do bucket (propagada pelo backend PHP por sessão). Nunca tente buscar por usuário/sessão aqui!
         """
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
         self.tmpdir = tempfile.mkdtemp()
         self.hook = S3Hook(aws_conn_id='minio_conn')
         # bucket deve ser sempre igual ao Owner da DAG (campo 'owner' do contexto/kwargs)
         # Nunca usar bucket_name de kwargs nem variável de ambiente!
-        self.bucket = kwargs.get('owner', 'lab01')
+        if 'owner' not in kwargs or not kwargs['owner']:
+            raise ValueError("O parâmetro 'owner' deve ser informado para determinar o bucket do usuário.")
+        self.bucket = kwargs['owner']
         # Métodos das camadas ficam fora de _setup
 
     def _process_silver(self):
@@ -193,46 +214,44 @@ class RawToMedallionPipeline:
         """Cria camada Bronze (conversão para Parquet)"""
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
         
-        src_key = self.source_filename.lstrip('/')
-        basename = os.path.basename(src_key)
-        basename_no_ext = os.path.splitext(basename)[0]
-        
-        # Bronze: estrutura bronze/{target_table_name}/{timestamp_hash}.parquet
-        bronze_key = f"bronze/{self.target_table_name}/{basename_no_ext}.parquet"
-        
-        log.info(f"[BRONZE] Baixando: s3://{self.bucket}/{src_key}")
-        
-        # Download
-        local_file = self.hook.download_file(
-            key=src_key, 
-            bucket_name=self.bucket, 
-            local_path=self.tmpdir, 
-            preserve_file_name=True
-        )
-        
-        # Ler arquivo
-        file_ext = os.path.splitext(local_file)[1].lower()
-        df_bronze = self._read_file(local_file, file_ext)
-        
-        # Salvar como Parquet
-        local_parquet = os.path.join(self.tmpdir, f"{basename_no_ext}_bronze.parquet")
-        df_bronze.to_parquet(
-            local_parquet,  # Caminho absoluto onde o arquivo Parquet será salvo localmente
-            index=False,  # Não inclui o índice do DataFrame no arquivo (economiza espaço)
-            compression='snappy',  # Algoritmo de compressão (Snappy = bom balanço entre velocidade e taxa de compressão)
-            engine='pyarrow'  # Engine PyArrow para escrita (mais rápido que Fastparquet, suporta mais tipos)
-        )
-        
-        # Upload
-        self.hook.load_file(
-            filename=local_parquet, 
-            key=bronze_key, 
-            bucket_name=self.bucket, 
-            replace=True
-        )
-        
-        self.results['bronze'] = bronze_key
-        log.info(f"[BRONZE] ✅ Salvo: s3://{self.bucket}/{bronze_key}")
+        # Refatorado: busca todos arquivos em raw usando list_raw_files
+        src_files = self.list_raw_files()
+        if not src_files:
+            log.warning(f"[BRONZE] Nenhum arquivo encontrado em s3://{self.bucket}/raw")
+            self.results['bronze'] = []
+            return
+
+        bronze_keys = []
+        for src_key in src_files:
+            basename = os.path.basename(src_key)
+            basename_no_ext = os.path.splitext(basename)[0]
+            bronze_key = f"bronze/{self.target_table_name}/{basename_no_ext}.parquet"
+            log.info(f"[BRONZE] Baixando: s3://{self.bucket}/{src_key}")
+            local_file = self.hook.download_file(
+                key=src_key,
+                bucket_name=self.bucket,
+                local_path=self.tmpdir,
+                preserve_file_name=True
+            )
+            file_ext = os.path.splitext(local_file)[1].lower()
+            df_bronze = self._read_file(local_file, file_ext)
+            local_parquet = os.path.join(self.tmpdir, f"{basename_no_ext}_bronze.parquet")
+            df_bronze.to_parquet(
+                local_parquet,
+                index=False,
+                compression='snappy',
+                engine='pyarrow'
+            )
+            self.hook.load_file(
+                filename=local_parquet,
+                key=bronze_key,
+                bucket_name=self.bucket,
+                replace=True
+            )
+            bronze_keys.append(bronze_key)
+            log.info(f"[BRONZE] ✅ Salvo: s3://{self.bucket}/{bronze_key}")
+
+        self.results['bronze'] = bronze_keys if len(bronze_keys) > 1 else bronze_keys[0]
     
     def _read_file(self, local_file: str, file_ext: str) -> pd.DataFrame:
         """Lê arquivo (CSV, JSON, Parquet) para DataFrame"""
@@ -337,39 +356,39 @@ class RawToMedallionPipeline:
         3. Re-salvar resultado
         """
         from lib.silver_layer import bronze_to_silver
-        
-        bronze_key = self.results.get('bronze')
-        
-        log.info(f"[SILVER] Processando: {bronze_key}")
-        log.info(f"[SILVER] DAG ID no contexto: {self.context.get('dag_id')}")
-        
-        # Chamar Silver padrão da lib
-        silver_result = bronze_to_silver(
-            bronze_key,
-            self.target_table_name,
-            bucket=self.bucket,
-            **self.context
-        )
-        
-        # bronze_to_silver retorna {"layer": "silver", "keys": [...]} (plural)
-        silver_keys = silver_result.get('keys', [])
-        if not silver_keys:
-            raise ValueError("Silver retornou nenhuma chave")
-        
-        # Pegar primeira chave (normalmente há apenas uma)
-        silver_key = silver_keys[0] if isinstance(silver_keys, list) else silver_keys
-        
-        log.info(f"[SILVER] ✅ Silver padrão: {silver_key}")
-        
-        # ════════════════════════════════════════════════════
-        # HOOK: Transformações customizadas na Silver
-        # ════════════════════════════════════════════════════
-        # Subclasses podem override este método
-        
-        silver_key = self.silver_layer_transform(silver_key)
-        
-        self.results['silver'] = silver_key
-        log.info(f"[SILVER] ✅ Salvo com transformações: {silver_key}")
+
+        bronze_keys = self.results.get('bronze')
+        if not bronze_keys:
+            log.warning("[SILVER] Nenhum bronze_key encontrado para processar.")
+            self.results['silver'] = []
+            return
+
+        # Garante lista
+        if isinstance(bronze_keys, str):
+            bronze_keys = [bronze_keys]
+
+        silver_keys_all = []
+        for bronze_key in bronze_keys:
+            log.info(f"[SILVER] Processando: {bronze_key}")
+            log.info(f"[SILVER] DAG ID no contexto: {self.context.get('dag_id')}")
+            silver_result = bronze_to_silver(
+                bronze_key,
+                self.target_table_name,
+                bucket=self.bucket,
+                **self.context
+            )
+            silver_keys = silver_result.get('keys', [])
+            if not silver_keys:
+                log.warning(f"[SILVER] Nenhuma chave retornada para bronze {bronze_key}")
+                continue
+            # Aplica hook de transformação para cada silver_key
+            for silver_key in silver_keys:
+                log.info(f"[SILVER] ✅ Silver padrão: {silver_key}")
+                silver_key_transformed = self.silver_layer_transform(silver_key)
+                silver_keys_all.append(silver_key_transformed)
+                log.info(f"[SILVER] ✅ Salvo com transformações: {silver_key_transformed}")
+
+        self.results['silver'] = silver_keys_all if len(silver_keys_all) > 1 else (silver_keys_all[0] if silver_keys_all else [])
     
     def silver_layer_transform(self, silver_key: str) -> str:
         """
@@ -435,40 +454,38 @@ class RawToMedallionPipeline:
         3. Re-salvar resultado
         """
         from lib.gold_layer import silver_to_gold
-        
-        silver_key = self.results.get('silver')
-        
-        log.info(f"[GOLD] Processando: {silver_key}")
-        log.info(f"[GOLD] DAG ID no contexto: {self.context.get('dag_id')}")
-        
-        # Chamar Gold padrão da lib
-        gold_result = silver_to_gold(
-            source_filename=silver_key,
-            target_table_name=self.target_table_name,
-            bucket=self.bucket,
-            **self.context
-        )
-        
-        # silver_to_gold retorna {"layer": "gold", "keys": [...]} (plural)
-        gold_keys = gold_result.get('keys', [])
-        if not gold_keys:
-            raise ValueError("Gold retornou nenhuma chave")
-        
-        # Pegar primeira chave (normalmente há apenas uma)
-        gold_key = gold_keys[0] if isinstance(gold_keys, list) else gold_keys
-        
-        log.info(f"[GOLD] ✅ Gold padrão: {gold_key}")
-        
-        # ════════════════════════════════════════════════════
-        # HOOK: Transformações customizadas na Gold
-        # ════════════════════════════════════════════════════
-        # Subclasses podem override este método
-        
-        gold_key = self.gold_layer_transform(gold_key)
-        
-        self.results['gold'] = gold_key
+
+        silver_keys = self.results.get('silver')
+        if not silver_keys:
+            log.warning("[GOLD] Nenhum silver_key encontrado para processar.")
+            self.results['gold'] = []
+            return
+
+        if isinstance(silver_keys, str):
+            silver_keys = [silver_keys]
+
+        gold_keys_all = []
+        for silver_key in silver_keys:
+            log.info(f"[GOLD] Processando: {silver_key}")
+            log.info(f"[GOLD] DAG ID no contexto: {self.context.get('dag_id')}")
+            gold_result = silver_to_gold(
+                source_filename=silver_key,
+                target_table_name=self.target_table_name,
+                bucket=self.bucket,
+                **self.context
+            )
+            gold_keys = gold_result.get('keys', [])
+            if not gold_keys:
+                log.warning(f"[GOLD] Nenhuma chave retornada para silver {silver_key}")
+                continue
+            for gold_key in gold_keys:
+                log.info(f"[GOLD] ✅ Gold padrão: {gold_key}")
+                gold_key_transformed = self.gold_layer_transform(gold_key)
+                gold_keys_all.append(gold_key_transformed)
+                log.info(f"[GOLD] ✅ Salvo com transformações: {gold_key_transformed}")
+
+        self.results['gold'] = gold_keys_all if len(gold_keys_all) > 1 else (gold_keys_all[0] if gold_keys_all else [])
         self.results['gold_format'] = 'parquet'
-        log.info(f"[GOLD] ✅ Salvo com transformações: {gold_key}")
     
     def gold_layer_transform(self, gold_key: str) -> str:
         """
@@ -528,28 +545,43 @@ class RawToMedallionPipeline:
         """Cria camada Delta (para Thrift Server)"""
         try:
             from lib.gold_delta_layer import gold_to_delta
-            
-            gold_key = self.results.get('gold')
-            
-            log.info(f"[DELTA] Processando: {gold_key}")
-            log.info(f"[DELTA] DAG ID no contexto: {self.context.get('dag_id')}")
-            
-            delta_result = gold_to_delta(
-                source_filename=gold_key,
-                target_table_name=self.target_table_name,
-                bucket=self.bucket,
-                **self.context
-            )
-            
-            self.results['delta'] = delta_result.get('delta')
-            self.results['delta_format'] = 'delta'
-            self.results['delta_version'] = delta_result.get('version', 0)
-            
-            log.info(f"[DELTA] ✅ Delta: {self.results['delta']}")
-            
+
+            gold_keys = self.results.get('gold')
+            if not gold_keys:
+                log.warning("[DELTA] Nenhum gold_key encontrado para processar.")
+                self.results['delta'] = []
+                self.results['delta_format'] = 'none'
+                return
+
+            if isinstance(gold_keys, str):
+                gold_keys = [gold_keys]
+
+            delta_results = []
+            for gold_key in gold_keys:
+                log.info(f"[DELTA] Processando: {gold_key}")
+                log.info(f"[DELTA] DAG ID no contexto: {self.context.get('dag_id')}")
+                try:
+                    delta_result = gold_to_delta(
+                        source_filename=gold_key,
+                        target_table_name=self.target_table_name,
+                        bucket=self.bucket,
+                        **self.context
+                    )
+                    delta_results.append(delta_result)
+                    log.info(f"[DELTA] ✅ Delta: {delta_result.get('delta')}")
+                except Exception as e:
+                    log.warning(f"[DELTA] ⚠️ Delta falhou para gold {gold_key}: {e}")
+
+            # Salva todos os resultados
+            if delta_results:
+                self.results['delta'] = [d.get('delta') for d in delta_results]
+                self.results['delta_format'] = 'delta'
+                self.results['delta_version'] = [d.get('version', 0) for d in delta_results]
+            else:
+                self.results['delta'] = []
+                self.results['delta_format'] = 'none'
         except Exception as e:
             log.warning(f"[DELTA] ⚠️ Delta falhou, usando fallback: {e}")
-            # Fallback não-Delta (opcional)
             self.results['delta_format'] = 'none'
     
     # ═══════════════════════════════════════════════════════════════════════════

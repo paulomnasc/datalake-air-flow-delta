@@ -400,8 +400,15 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                             <div class="alert alert-info mb-3">
                                                 <h6 class="mb-2"><i class="bi bi-info-circle"></i> Arquivo(s) Original(is):</h6>
                                                 <div class="small">
-                                                    <strong>Caminho:</strong> 
-                                                    <code><?= htmlspecialchars($edit_data['source_filename']) ?></code>
+                                                    <strong>Caminho:</strong>
+                                                    <?php
+                                                        $sourceFiles = explode(',', $edit_data['source_filename']);
+                                                        echo '<ul style="margin-bottom:0;">';
+                                                        foreach ($sourceFiles as $file) {
+                                                            echo '<li><code>' . htmlspecialchars(trim($file)) . '</code></li>';
+                                                        }
+                                                        echo '</ul>';
+                                                    ?>
                                                 </div>
                                                 <div class="small mt-2 text-muted">
                                                     <i class="bi bi-exclamation-triangle"></i>

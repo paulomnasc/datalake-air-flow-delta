@@ -168,6 +168,22 @@ Agora: Sidebar completa, isomorphic-git, persistência ✓
 
 ## 📖 Documentação por Camada
 
+
+### Considerações para auditoria de processamento dos dados
+
+Para garantir rastreabilidade e auditoria em cada etapa do pipeline Medallion (bronze, silver, gold, delta), o sistema registra no log:
+
+1. **Total de arquivos a serem processados** na etapa.
+2. **Na entrada de cada arquivo**: nome do arquivo, nome do processo (bronze, silver, gold, delta), e quantidade de registros originais.
+3. **Na finalização de cada arquivo**: nome do arquivo e total de registros processados (ou total acumulado no caso do Delta).
+No caso do Delta Lake, cada arquivo processado pode ser adicionado à mesma tabela Delta, que acumula registros de múltiplos arquivos. Por isso, ao final de cada processamento, o log pode mostrar:
+
+O nome do arquivo processado.
+O total de registros processados naquele arquivo.
+E, opcionalmente, o total de registros acumulados na tabela Delta (somando todos os arquivos já inseridos).
+
+Esse padrão de logging permite auditoria detalhada, facilita troubleshooting e garante transparência no fluxo de dados.
+
 ### 1️⃣ Camada Silver (Qualidade e Transformações)
 
 **Arquivo**: [`TRANSFORMACOES_SILVER.md`](./TRANSFORMACOES_SILVER.md)

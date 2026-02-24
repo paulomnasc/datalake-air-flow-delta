@@ -12,21 +12,20 @@ from psycopg2 import sql
 import re
 import os
 
-# Configurações
-# Container name é fixo independente de ENV_SUFFIX no docker-compose
-POSTGRES_HOST = 'postgres-bi'
-POSTGRES_PORT = 5432
-POSTGRES_DB = 'datalake_bi'
-POSTGRES_USER = 'pbi_user'
-POSTGRES_PASSWORD = 'pbi_password'
 
-MINIO_ENDPOINT = 'minio:9000'
-MINIO_ACCESS_KEY = 'admin'
-MINIO_SECRET_KEY = 'admin123'
+# Configurações dinâmicas: obtém do ambiente (.env ou docker-compose)
+POSTGRES_HOST = os.environ.get('POSTGRES_HOST', 'postgres-bi')
+POSTGRES_PORT = int(os.environ.get('POSTGRES_PORT', 5432))
+POSTGRES_DB = os.environ.get('POSTGRES_DB', 'datalake_bi')
+POSTGRES_USER = os.environ.get('POSTGRES_USER', 'pbi_user')
+POSTGRES_PASSWORD = os.environ.get('POSTGRES_PASSWORD', 'pbi_password')
+
+MINIO_ENDPOINT = os.environ.get('MINIO_ENDPOINT', 'minio:9000')
+MINIO_ACCESS_KEY = os.environ.get('MINIO_ACCESS_KEY', 'admin')
+MINIO_SECRET_KEY = os.environ.get('MINIO_SECRET_KEY', 'admin123')
 # MINIO_BUCKET será obtido dinamicamente: kwargs -> env -> fallback 'lab01'
 
 default_args = {
-    'owner': 'airflow',
     'depends_on_past': False,
     'email_on_failure': False,
     'email_on_retry': False,
@@ -65,32 +64,39 @@ def sync_delta_to_postgres(**context):
     # 3. Variável de ambiente
     # 4. Fallback lab01
     
-    dag_run = context.get('dag_run')
+    # ===== OBTENÇÃO ROBUSTA DO BUCKET (padrão medallion_pipeline_v2.py) =====
     bucket = None
+    bucket_source = None
+    # 1. Prioridade: parâmetro 'owner' explícito (como no Medallion)
+    # ===== OBTENÇÃO ROBUSTA DO OWNER/BUCKET (padrão medallion_pipeline_v2.py) =====
+    owner = None
+    # 1. owner explícito no contexto (como no Medallion)
+    if 'owner' in context and context['owner']:
+        owner = context['owner']
+    elif 'params' in context and context['params'] and 'owner' in context['params'] and context['params']['owner']:
+        owner = context['params']['owner']
+    # 2. dag_run.conf (usado em triggers manuais/webapp)
+    elif 'dag_run' in context and context['dag_run'] and getattr(context['dag_run'], 'conf', None):
+        conf = context['dag_run'].conf
+        owner = conf.get('owner') or conf.get('bucket_name') or conf.get('bucket')
     
-    # 1. Tenta obter de dag_run.conf (quando disparada pela webapp ou trigger manual)
-    if dag_run and dag_run.conf:
-        bucket = dag_run.conf.get('bucket_name') or dag_run.conf.get('bucket')
+    if not owner:
+        raise ValueError("O parâmetro 'owner' (bucket do usuário) deve ser o owner da dag.")
     
-    # 2. Tenta params da DAG
-    if not bucket:
-        bucket = context.get('params', {}).get('bucket_name')
     
-    # 3. Variável de ambiente
-    if not bucket:
-        bucket = os.environ.get("MINIO_BUCKET")
-    
-    # 4. Fallback
-    if not bucket:
-        bucket = "lab01"
-    
+    bucket = owner
+    bucket_source = 'owner (context/params/conf/env/fallback)'
+    import logging
+    log = logging.getLogger("airflow.task")
     print(f"\n🗂️  Usando bucket: {bucket}")
-    print(f"   Fonte: {'dag_run.conf' if dag_run and dag_run.conf and dag_run.conf.get('bucket_name') else 'params/env/fallback'}")
+    print(f"   Fonte: {bucket_source}")
+    print("\n================ AUDITORIA DELTA → POSTGRESQL ================" )
+    print(f"[AUDIT] Início da sincronização Delta → PostgreSQL | Data: {datetime.now().isoformat()}")
+    log.info(f"[AUDIT] Início da sincronização Delta → PostgreSQL | Bucket: {bucket} | Fonte: {bucket_source} | Data: {datetime.now().isoformat()}")
     
     # Construir paths dinamicamente
     search_globs = [
-        f's3://{bucket}/delta/*/*.parquet',
-        f's3://{bucket}/delta/*/*/*.parquet',
+    f's3://{bucket}/gold/*_delta/*.parquet',
     ]
     
     duckdb_con = None
@@ -117,7 +123,7 @@ def sync_delta_to_postgres(**context):
             try:
                 print(f"  🔍 Procurando em: {search_path}")
                 rows = duckdb_con.execute(f"""
-                    SELECT DISTINCT regexp_extract(filename, '.*/delta/([^/]+)/.*', 1) AS folder
+                    SELECT DISTINCT regexp_extract(filename, '.*/gold/([^/]+)_delta/.*', 1) AS folder
                     FROM read_parquet('{search_path}', filename=true)
                     WHERE folder IS NOT NULL AND folder <> ''
                 """).fetchall()
@@ -131,6 +137,8 @@ def sync_delta_to_postgres(**context):
             return
         
         print(f"\n📂 Pastas: {', '.join(sorted(folders))}")
+        print(f"[AUDIT] Total de tabelas Delta encontradas: {len(folders)}")
+        log.info(f"[AUDIT] Total de tabelas Delta encontradas: {len(folders)}")
         
         # Conecta PostgreSQL
         print("\n🔗 Conectando a PostgreSQL...")
@@ -147,59 +155,81 @@ def sync_delta_to_postgres(**context):
         # Para cada pasta, insere em PostgreSQL
         print(f"\n💾 Inserindo tabelas em PostgreSQL...")
         results = []
-        
+        print(f"[AUDIT] Início da escrita PostgreSQL para {len(folders)} tabelas Delta")
+        log.info(f"[AUDIT] Início da escrita PostgreSQL para {len(folders)} tabelas Delta")
         for folder in sorted(folders):
             safe_name = re.sub(r"[^a-zA-Z0-9_]+", "_", folder)
             table_name = f"delta_{safe_name}"
-            delta_path = f"s3://{bucket}/delta/{folder}/"
-            
+            delta_path = f"s3://{bucket}/gold/{folder}_delta/"
             print(f"  📥 {table_name} ← {folder}")
-            
             try:
-                # Ler APENAS o arquivo mais recente da versão Delta
-                # Delta Lake armazena múltiplas versões: 0-uuid.parquet, 1-uuid.parquet, ...
-                # Precisamos ler APENAS a última versão
                 print(f"     Descobrindo versão mais recente...")
-                
-                # Listar arquivos únicos e pegar o com número mais alto
                 files = duckdb_con.execute(f"""
                     SELECT DISTINCT filename FROM read_parquet('{delta_path}*.parquet', filename=true)
                     ORDER BY filename DESC
                     LIMIT 1
                 """).fetchall()
-                
                 if not files:
                     print(f"    ⚠️  Nenhum arquivo encontrado")
+                    print(f"[AUDIT] {table_name}: FALHA - Nenhum arquivo Delta encontrado")
+                    log.info(f"[AUDIT] {table_name}: FALHA - Nenhum arquivo Delta encontrado")
                     results.append({'table': table_name, 'status': 'FAILED', 'count': 0})
                     continue
-                
-                # Pegar o arquivo mais recente
                 latest_file = files[0][0]
                 print(f"     Usando: {latest_file.split('/')[-1]}")
-                
-                # Ler APENAS esse arquivo
-                result = duckdb_con.execute(f"""
-                    SELECT * FROM read_parquet('{latest_file}')
-                """).fetchall()
-                
-                columns = [desc[0] for desc in duckdb_con.description] if duckdb_con.description else []
-                
+                # Lê todos os registros do Delta (originais)
+                df_delta = duckdb_con.execute(f"SELECT * FROM read_parquet('{latest_file}')").fetchdf()
+                # Substitui 'NaT', 'None' (string), np.nan, pd.NaT por None em todas as colunas
+                import pandas as pd
+                import numpy as np
+                def clean_value(x):
+                    if x is None or x is pd.NaT or x is np.nan:
+                        return None
+                    if isinstance(x, float) and pd.isna(x):
+                        return None
+                    if str(x) in ("NaT", "None", "nan", "<NA>"):
+                        return None
+                    return x
+                for col in df_delta.columns:
+                    df_delta[col] = df_delta[col].apply(clean_value)
+                columns = list(df_delta.columns)
+                count_delta = len(df_delta)
+                # Detecta tipos reais das colunas via DuckDB
+                duck_types = {}
+                duck_type_exprs = []
+                for col in columns:
+                    duck_type_exprs.append("typeof('" + col + "') as " + col)
+                duck_type_sql = ", ".join(duck_type_exprs)
+                duck_type_query = "SELECT " + duck_type_sql + " FROM read_parquet('" + latest_file + "') LIMIT 1"
+                duck_type_rows = duckdb_con.execute(duck_type_query).fetchone()
+                for col, dtype in zip(columns, duck_type_rows):
+                    duck_types[col] = dtype
                 if not columns:
                     print(f"    ⚠️  Nenhuma coluna encontrada")
+                    print(f"[AUDIT] {table_name}: FALHA - Nenhuma coluna encontrada")
+                    log.info(f"[AUDIT] {table_name}: FALHA - Nenhuma coluna encontrada")
                     results.append({'table': table_name, 'status': 'FAILED', 'count': 0})
                     continue
-                
-                count = len(result)
-                
-                if count == 0:
+                if count_delta == 0:
                     print(f"    ⚠️  Nenhum registro encontrado")
+                    print(f"[AUDIT] {table_name}: FALHA - Nenhum registro encontrado no Delta")
+                    log.info(f"[AUDIT] {table_name}: FALHA - Nenhum registro encontrado no Delta")
                     results.append({'table': table_name, 'status': 'FAILED', 'count': 0})
                     continue
-                
-                print(f"     ✓ Encontrado {count} registros únicos")
-                
-                # DROP + CREATE
-                col_defs = ", ".join([f'"{col}" TEXT' for col in columns])
+                print(f"     ✓ Encontrado {count_delta} registros originais no Delta")
+                print(f"[AUDIT] {table_name}: {count_delta} registros originais lidos do Delta")
+                log.info(f"[AUDIT] {table_name}: {count_delta} registros originais lidos do Delta")
+                # Cria tabela no Postgres
+                # Usa tipos reais detectados para criar tabela
+                def map_duck_to_pg(dtype):
+                    if dtype in ('timestamp', 'TIMESTAMP'): return 'TIMESTAMP'
+                    if dtype in ('varchar', 'VARCHAR', 'string', 'STRING'): return 'TEXT'
+                    if dtype in ('integer', 'INTEGER', 'int', 'INT'): return 'INTEGER'
+                    if dtype in ('double', 'DOUBLE', 'float', 'FLOAT'): return 'DOUBLE PRECISION'
+                    if dtype in ('boolean', 'BOOLEAN'): return 'BOOLEAN'
+                    if dtype in ('date', 'DATE'): return 'DATE'
+                    return 'TEXT'
+                col_defs = ", ".join([f'"{col}" {map_duck_to_pg(duck_types[col])}' for col in columns])
                 pg_cursor.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
                 pg_cursor.execute(f"""
                     CREATE TABLE {table_name} (
@@ -207,35 +237,93 @@ def sync_delta_to_postgres(**context):
                     )
                 """)
                 print(f"     ✓ Tabela criada em PostgreSQL")
-                
                 # Insere dados
-                if result:
+                count_inserted = 0
+                if not df_delta.empty:
                     placeholders = ", ".join(["%s"] * len(columns))
                     insert_sql = f"""
-                        INSERT INTO {table_name} ({", ".join([f'"{col}"' for col in columns])})
+                        INSERT INTO {table_name} ({', '.join([f'"{col}"' for col in columns])})
                         VALUES ({placeholders})
                     """
-                    
                     batch_size = 100
-                    for i in range(0, len(result), batch_size):
-                        batch = result[i:i+batch_size]
+                    data = df_delta.values.tolist()
+                    for i in range(0, len(data), batch_size):
+                        batch = data[i:i+batch_size]
                         for row in batch:
-                            pg_cursor.execute(insert_sql, row)
-                    
-                    print(f"     ✓ {count} registros inseridos")
-                
+                            valid_row = []
+                            skip_row = False
+                            for col, val in zip(columns, row):
+                                dtype = duck_types[col]
+                                try:
+                                    if dtype in ('timestamp', 'TIMESTAMP'):
+                                        if val is None or val == '':
+                                            valid_row.append(None)
+                                        else:
+                                            valid_row.append(str(val))
+                                    elif dtype in ('integer', 'INTEGER', 'int', 'INT'):
+                                        if val is None or val == '':
+                                            valid_row.append(None)
+                                        else:
+                                            valid_row.append(int(val))
+                                    elif dtype in ('double', 'DOUBLE', 'float', 'FLOAT'):
+                                        if val is None or val == '':
+                                            valid_row.append(None)
+                                        else:
+                                            valid_row.append(float(val))
+                                    elif dtype in ('boolean', 'BOOLEAN'):
+                                        if val is None or val == '':
+                                            valid_row.append(None)
+                                        else:
+                                            valid_row.append(bool(val))
+                                    elif dtype in ('date', 'DATE'):
+                                        if val is None or val == '':
+                                            valid_row.append(None)
+                                        else:
+                                            valid_row.append(str(val))
+                                    else:
+                                        valid_row.append(str(val) if val is not None else None)
+                                except Exception as e:
+                                    skip_row = True
+                                    print(f"[AUDIT] ERRO ao converter valor: coluna={col}, valor={val}, tipo={dtype}, erro={e}")
+                                    log.info(f"[AUDIT] ERRO ao converter valor: coluna={col}, valor={val}, tipo={dtype}, erro={e}")
+                                    break
+                            if skip_row:
+                                print(f"[AUDIT] Registro ignorado por erro de conversão: {row}")
+                                log.info(f"[AUDIT] Registro ignorado por erro de conversão: {row}")
+                                continue
+                            try:
+                                pg_cursor.execute(insert_sql, valid_row)
+                                count_inserted += 1
+                            except Exception as e:
+                                error_msg = str(e)
+                                print(f"[AUDIT] ERRO ao inserir registro: {valid_row}")
+                                log.info(f"[AUDIT] ERRO ao inserir registro: {valid_row}")
+                                log.info(f"[AUDIT] Exception: {error_msg}")
+                                pg_conn.rollback()
+                                print(f"[AUDIT] ROLLBACK realizado após erro de inserção.")
+                                log.info(f"[AUDIT] ROLLBACK realizado após erro de inserção.")
+                                continue
+                    print(f"     ✓ {count_inserted} registros inseridos no PostgreSQL")
+                    print(f"[AUDIT] {table_name}: {count_inserted} registros inseridos no PostgreSQL")
+                    log.info(f"[AUDIT] {table_name}: {count_inserted} registros inseridos no PostgreSQL")
                 pg_conn.commit()
-                
-                print(f"  ✅ {table_name}: {count} registros (sem duplicatas)")
-                results.append({'table': table_name, 'status': 'OK', 'count': count})
-                    
+                print(f"  ✅ {table_name}: {count_inserted} registros processados (Delta → PostgreSQL)")
+                print(f"[AUDIT] {table_name}: {count_delta} registros originais no Delta | {count_inserted} inseridos no PostgreSQL")
+                log.info(f"[AUDIT] {table_name}: {count_delta} registros originais no Delta | {count_inserted} inseridos no PostgreSQL")
+                results.append({'table': table_name, 'status': 'OK', 'count_delta': count_delta, 'count_postgres': count_inserted})
             except Exception as e:
                 error_msg = str(e)[:150]
                 print(f"  ❌ {table_name}: {error_msg}")
-                results.append({'table': table_name, 'status': 'FAILED', 'count': 0})
-        
+                print(f"[AUDIT] {table_name}: FALHA - {error_msg}")
+                log.info(f"[AUDIT] {table_name}: FALHA - {error_msg}")
+                results.append({'table': table_name, 'status': 'FAILED', 'count_delta': 0, 'count_postgres': 0})
         success = sum(1 for r in results if r['status'] == 'OK')
         print(f"\n✅ Sincronização: {success}/{len(results)} OK")
+        print(f"[AUDIT] Tabelas sincronizadas com sucesso: {success}/{len(results)}")
+        print(f"[AUDIT] Fim da sincronização Delta → PostgreSQL | Data: {datetime.now().isoformat()}")
+        log.info(f"[AUDIT] Tabelas sincronizadas com sucesso: {success}/{len(results)}")
+        log.info(f"[AUDIT] Fim da sincronização Delta → PostgreSQL | Data: {datetime.now().isoformat()}")
+        print("============================================================\n")
         context['task_instance'].xcom_push(key='sync_results', value=results)
         
     except Exception as e:

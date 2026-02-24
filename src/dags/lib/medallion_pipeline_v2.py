@@ -218,6 +218,7 @@ class RawToMedallionPipeline:
         
         # Busca apenas arquivos da subpasta raw/{target_table_name}/
         src_files = self.list_raw_files(subdir=self.target_table_name)
+        log.info(f"[BRONZE][AUDIT] Total de arquivos a serem processados: {len(src_files)}")
         if not src_files:
             log.warning(f"[BRONZE] Nenhum arquivo encontrado em s3://{self.bucket}/raw/{self.target_table_name}/")
             self.results['bronze'] = None
@@ -225,11 +226,11 @@ class RawToMedallionPipeline:
 
         bronze_keys_all = []
         bronze_key = None
-        for src_key in src_files:
+        for idx, src_key in enumerate(src_files):
             basename = os.path.basename(src_key)
             basename_no_ext = os.path.splitext(basename)[0]
             bronze_key = f"bronze/{self.target_table_name}/{basename_no_ext}.parquet"
-            log.info(f"[BRONZE] Baixando: s3://{self.bucket}/{src_key}")
+            log.info(f"[BRONZE][AUDIT] ({idx+1}/{len(src_files)}) Processo: bronze | Arquivo: {src_key}")
             local_file = self.hook.download_file(
                 key=src_key,
                 bucket_name=self.bucket,
@@ -238,6 +239,7 @@ class RawToMedallionPipeline:
             )
             file_ext = os.path.splitext(local_file)[1].lower()
             df_bronze = self._read_file(local_file, file_ext)
+            log.info(f"[BRONZE][AUDIT] Arquivo original: {src_key} | Registros originais: {len(df_bronze)}")
             local_parquet = os.path.join(self.tmpdir, f"{basename_no_ext}_bronze.parquet")
             df_bronze.to_parquet(
                 local_parquet,
@@ -251,7 +253,7 @@ class RawToMedallionPipeline:
                 bucket_name=self.bucket,
                 replace=True
             )
-            log.info(f"[BRONZE] ✅ Salvo: s3://{self.bucket}/{bronze_key}")
+            log.info(f"[BRONZE][AUDIT] ✅ Finalizado: {bronze_key} | Registros processados: {len(df_bronze)}")
             bronze_keys_all.append(bronze_key)
 
         self.results['bronze'] = bronze_key
@@ -362,6 +364,7 @@ class RawToMedallionPipeline:
         from lib.silver_layer import bronze_to_silver
 
         bronze_keys = self.results.get('_bronze_all') or self.results.get('bronze')
+        log.info(f"[SILVER][AUDIT] Total de arquivos a serem processados: {len(bronze_keys) if bronze_keys else 0}")
         if not bronze_keys:
             log.warning("[SILVER] Nenhum bronze_key encontrado para processar.")
             self.results['silver'] = None
@@ -372,9 +375,17 @@ class RawToMedallionPipeline:
 
         silver_keys_all = []
         silver_key_final = None
-        for bronze_key in bronze_keys:
-            log.info(f"[SILVER] Processando: {bronze_key}")
-            log.info(f"[SILVER] DAG ID no contexto: {self.context.get('dag_id')}")
+        for idx, bronze_key in enumerate(bronze_keys):
+            log.info(f"[SILVER][AUDIT] ({idx+1}/{len(bronze_keys)}) Processo: silver | Arquivo: {bronze_key}")
+            # Baixar bronze para contar registros
+            local_file = self.hook.download_file(
+                key=bronze_key,
+                bucket_name=self.bucket,
+                local_path=self.tmpdir,
+                preserve_file_name=True
+            )
+            df_bronze = pd.read_parquet(local_file)
+            log.info(f"[SILVER][AUDIT] Arquivo original: {bronze_key} | Registros originais: {len(df_bronze)}")
             silver_result = bronze_to_silver(
                 bronze_key,
                 self.target_table_name,
@@ -386,9 +397,17 @@ class RawToMedallionPipeline:
                 log.warning(f"[SILVER] Nenhuma chave retornada para bronze {bronze_key}")
                 continue
             for silver_key in silver_keys:
-                log.info(f"[SILVER] ✅ Silver padrão: {silver_key}")
+                log.info(f"[SILVER][AUDIT] ✅ Silver padrão: {silver_key}")
+                # Baixar silver para contar registros
+                local_silver = self.hook.download_file(
+                    key=silver_key,
+                    bucket_name=self.bucket,
+                    local_path=self.tmpdir,
+                    preserve_file_name=True
+                )
+                df_silver = pd.read_parquet(local_silver)
+                log.info(f"[SILVER][AUDIT] ✅ Finalizado: {silver_key} | Registros processados: {len(df_silver)}")
                 silver_key_final = self.silver_layer_transform(silver_key)
-                log.info(f"[SILVER] ✅ Salvo com transformações: {silver_key_final}")
                 silver_keys_all.append(silver_key_final)
 
         self.results['silver'] = silver_key_final
@@ -460,6 +479,7 @@ class RawToMedallionPipeline:
         from lib.gold_layer import silver_to_gold
 
         silver_keys = self.results.get('_silver_all') or self.results.get('silver')
+        log.info(f"[GOLD][AUDIT] Total de arquivos a serem processados: {len(silver_keys) if silver_keys else 0}")
         if not silver_keys:
             log.warning("[GOLD] Nenhum silver_key encontrado para processar.")
             self.results['gold'] = None
@@ -470,9 +490,17 @@ class RawToMedallionPipeline:
 
         gold_keys_all = []
         gold_key_final = None
-        for silver_key in silver_keys:
-            log.info(f"[GOLD] Processando: {silver_key}")
-            log.info(f"[GOLD] DAG ID no contexto: {self.context.get('dag_id')}")
+        for idx, silver_key in enumerate(silver_keys):
+            log.info(f"[GOLD][AUDIT] ({idx+1}/{len(silver_keys)}) Processo: gold | Arquivo: {silver_key}")
+            # Baixar silver para contar registros
+            local_file = self.hook.download_file(
+                key=silver_key,
+                bucket_name=self.bucket,
+                local_path=self.tmpdir,
+                preserve_file_name=True
+            )
+            df_silver = pd.read_parquet(local_file)
+            log.info(f"[GOLD][AUDIT] Arquivo original: {silver_key} | Registros originais: {len(df_silver)}")
             gold_result = silver_to_gold(
                 source_filename=silver_key,
                 target_table_name=self.target_table_name,
@@ -484,9 +512,17 @@ class RawToMedallionPipeline:
                 log.warning(f"[GOLD] Nenhuma chave retornada para silver {silver_key}")
                 continue
             for gold_key in gold_keys:
-                log.info(f"[GOLD] ✅ Gold padrão: {gold_key}")
+                log.info(f"[GOLD][AUDIT] ✅ Gold padrão: {gold_key}")
+                # Baixar gold para contar registros
+                local_gold = self.hook.download_file(
+                    key=gold_key,
+                    bucket_name=self.bucket,
+                    local_path=self.tmpdir,
+                    preserve_file_name=True
+                )
+                df_gold = pd.read_parquet(local_gold)
+                log.info(f"[GOLD][AUDIT] ✅ Finalizado: {gold_key} | Registros processados: {len(df_gold)}")
                 gold_key_final = self.gold_layer_transform(gold_key)
-                log.info(f"[GOLD] ✅ Salvo com transformações: {gold_key_final}")
                 gold_keys_all.append(gold_key_final)
 
         self.results['gold'] = gold_key_final
@@ -566,17 +602,29 @@ class RawToMedallionPipeline:
             delta_keys_all = []
             delta_key_final = None
             processed_files = set()
-            for gold_key in gold_keys:
-                log.info(f"[DELTA] Processando: {gold_key}")
-                log.info(f"[DELTA] DAG ID no contexto: {self.context.get('dag_id')}")
-                # Evitar repetição: processa apenas arquivos únicos
+            log.info(f"[DELTA][AUDIT] Total de arquivos a serem processados: {len(gold_keys) if gold_keys else 0}")
+            for idx, gold_key in enumerate(gold_keys):
+                log.info(f"[DELTA][AUDIT] ({idx+1}/{len(gold_keys)}) Processo: delta | Arquivo: {gold_key}")
                 if gold_key in processed_files:
                     log.warning(f"[DELTA] Arquivo já processado: {gold_key}")
                     continue
                 processed_files.add(gold_key)
+                # Extrair nome base da tabela/parquet
+                import os
+                table_name = os.path.splitext(os.path.basename(gold_key))[0]
+                # Baixar gold para contar registros
+                local_gold = self.hook.download_file(
+                    key=gold_key,
+                    bucket_name=self.bucket,
+                    local_path=self.tmpdir,
+                    preserve_file_name=True
+                )
+                import pandas as pd
+                df_gold = pd.read_parquet(local_gold)
+                log.info(f"[DELTA][AUDIT] Arquivo original: {gold_key} | Registros originais: {len(df_gold)}")
                 delta_result = gold_to_delta(
                     gold_key,
-                    self.target_table_name,
+                    table_name,
                     bucket=self.bucket,
                     **self.context
                 )
@@ -584,6 +632,20 @@ class RawToMedallionPipeline:
                 if not delta_path:
                     log.warning(f"[DELTA] Nenhum caminho Delta retornado para {gold_key}")
                     continue
+                # Após escrita Delta, tentar ler quantidade de registros Delta
+                try:
+                    from deltalake import DeltaTable
+                    storage_options = {
+                        "AWS_ACCESS_KEY_ID": "minioadmin",
+                        "AWS_SECRET_ACCESS_KEY": "minioadmin",
+                        "AWS_ENDPOINT_URL": "http://minio:9000",
+                        "AWS_REGION": "us-east-1"
+                    }
+                    dt = DeltaTable(delta_path, storage_options=storage_options)
+                    df_delta = dt.to_pandas()
+                    log.info(f"[DELTA][AUDIT] ✅ Finalizado: {delta_path} | Registros processados (total Delta): {len(df_delta)}")
+                except Exception as e:
+                    log.warning(f"[DELTA][AUDIT] Não foi possível ler Delta para auditoria: {e}")
                 delta_keys_all.append(delta_path)
                 delta_key_final = delta_path
 

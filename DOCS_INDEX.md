@@ -337,6 +337,35 @@ above_avg = df[df['creditLimit'] > df['creditLimit_by_country_mean']]
 
 ---
 
+### 🔄 Sincronização Delta Lake → PostgreSQL (BI)
+
+Após o processamento da camada Gold (Delta Lake), a sincronização das tabelas Delta para o banco PostgreSQL é realizada pelo script Python [`src/dags/sync_delta_to_postgres.py`], e não de forma automática pelo pipeline.
+
+**Fluxo:**
+1. Para cada pasta em `delta/{uid}_{nome_tabela}/`, o script identifica a tabela Delta.
+2. O arquivo Parquet mais recente é lido e processado.
+3. A tabela correspondente é criada no PostgreSQL com nome `delta_{nome_tabela}` (apenas o nome lógico, sem UID).
+4. Todos os registros são inseridos na tabela, sobrescrevendo versões anteriores (DROP TABLE + CREATE TABLE).
+5. O processo é auditado e registrado em log.
+
+**Características:**
+- Tabelas no PostgreSQL são sempre recriadas do zero a cada sincronização.
+- Não há atualização incremental: cada execução sobrescreve a tabela.
+- Permite múltiplas tabelas simultâneas para BI.
+- Suporte nativo a tipos de dados, schema dinâmico e auditoria.
+
+**Quando ler:**
+- Para entender como conectar Power BI ao datalake via PostgreSQL.
+- Para saber como funciona a atualização das tabelas BI.
+- Para troubleshooting de sincronização Delta → PostgreSQL.
+
+**Documentação Técnica:**
+- [`DELTA_LAKE_IMPLEMENTATION.md`](./DELTA_LAKE_IMPLEMENTATION.md) (detalhes da camada Gold)
+- [`MIGRACAO_DUCKDB_POSTGRESQL.md`](./MIGRACAO_DUCKDB_POSTGRESQL.md) (guia de conexão BI)
+- Código: [`src/dags/sync_delta_to_postgres.py`]
+
+---
+
 ## 📊 Resumo de Colunas por Camada
 
 ### Bronze

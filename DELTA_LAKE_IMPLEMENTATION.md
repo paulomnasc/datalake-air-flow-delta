@@ -123,6 +123,25 @@ write_deltalake(
 )
 ```
 
+# ===============================================================
+# Dúvidas Frequentes - Delta Lake e Postgres
+# ===============================================================
+
+## 1. Como é definido o nome da tabela no Postgres?
+O nome da tabela no Postgres é derivado diretamente do parâmetro `target_table_name` passado para a função `gold_to_delta`. 
+- Se você passar `target_table_name="usuario"`, a pasta será `delta/usuario/` e a tabela no Postgres será `delta_usuario`.
+- Se você passar `target_table_name="20260222193644_573a6878_usuario"`, a pasta será `delta/20260222193644_573a6878_usuario/` e a tabela no Postgres será `delta_20260222193644_573a6878_usuario`.
+
+## 2. Os arquivos Delta são incrementais ou completos?
+O comportamento depende do modo de gravação:
+- Se a tabela Delta já existe, o modo é `append` (novos dados são adicionados, não sobrescreve os anteriores).
+- Se não existe, o modo é `overwrite` (cria uma nova tabela Delta, sobrescrevendo qualquer dado anterior).
+
+Portanto, os arquivos Delta podem ser incrementais (append) ou completos (overwrite), conforme o fluxo implementado. O Delta Lake suporta versionamento e merge automático, então cada arquivo pode conter apenas novos registros ou o resultado de um merge, dependendo de como o `gold_to_delta` é chamado.
+
+# ===============================================================
+
+
 #### 📊 Exemplo Real
 
 ```

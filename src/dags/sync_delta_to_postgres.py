@@ -106,18 +106,9 @@ def sync_delta_to_postgres(**context):
     # ===== OBTENÇÃO ROBUSTA DO OWNER/BUCKET (padrão medallion_pipeline_v2.py) =====
     owner = None
     # 1. owner explícito no contexto (como no Medallion)
-    if 'owner' in context and context['owner']:
-        owner = context['owner']
-    elif 'params' in context and context['params'] and 'owner' in context['params'] and context['params']['owner']:
-        owner = context['params']['owner']
-    # 2. dag_run.conf (usado em triggers manuais/webapp)
-    elif 'dag_run' in context and context['dag_run'] and getattr(context['dag_run'], 'conf', None):
-        conf = context['dag_run'].conf
-        owner = conf.get('owner') or conf.get('bucket_name') or conf.get('bucket')
-    
+    owner = context['dag'].owner
     if not owner:
         raise ValueError("O parâmetro 'owner' (bucket do usuário) deve ser o owner da dag.")
-    
     
     bucket = owner
     bucket_source = 'owner (context/params/conf/env/fallback)'

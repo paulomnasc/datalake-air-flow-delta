@@ -97,7 +97,7 @@
         <div id="tabelas" class="card">
             <h2>3. Selecionar Tabelas</h2>
             <div class="step-box">
-                <p>Após conectar, você verá a lista de tabelas disponíveis no schema <strong>public</strong>:</p>
+                <p>Após conectar, você verá a lista de tabelas disponíveis no schema <strong>public</strong>, por exemplo :</p>
                 <ul style="margin-left: 20px; margin-top: 10px;">
                     <li><span class="path-text">delta_artist</span></li>
                     <li><span class="path-text">delta_invoice</span></li>
@@ -113,6 +113,18 @@
             <h2>4. Escolher Modo de Conectividade</h2>
             <div class="step-box">
                 <p>Antes de carregar os dados, escolha entre <strong>Import</strong> ou <strong>DirectQuery</strong>:</p>
+
+                <!-- Pré-requisito para Import -->
+                <div class="alert-warning" style="margin-top: 20px;">
+                    <h3>🔧 Pré-requisito para conexão Import (PostgreSQL)</h3>
+                    <ol style="margin-left: 20px;">
+                        <li>Baixe o instalador oficial: <a href="https://github.com/npgsql/npgsql/releases/tag/v4.0.10" target="_blank">Release 4.0.10 do Npgsql no GitHub</a>.</li>
+                        <li>Procure por <strong>Npgsql-4.0.10.msi</strong>.</li>
+                        <li>Instalação Customizada: Durante a instalação, quando aparecer a lista de itens, clique no ícone ao lado de <strong>"Npgsql GAC Installation"</strong> e selecione <strong>"Will be installed on local hard drive"</strong>.</li>
+                        <li>Sem isso, o Power BI continuará dizendo que o driver não existe.</li>
+                        <li>Reinicie o Power BI (e se possível o PC): O Windows precisa atualizar a tabela de drivers globais.</li>
+                    </ol>
+                </div>
 
                 <div class="alert-info" style="margin-top: 20px;">
                     <h3 style="margin-top: 0;">📊 Import (Importar - Padrão)</h3>

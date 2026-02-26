@@ -238,16 +238,12 @@ def sync_delta_to_postgres(**context):
                     df_delta[col] = df_delta[col].apply(clean_value)
                 columns = list(df_delta.columns)
                 count_delta = len(df_delta)
-                # Detecta tipos reais das colunas via DuckDB
+                # Detecta tipos reais das colunas via DuckDB (DESCRIBE)
                 duck_types = {}
-                duck_type_exprs = []
-                for col in columns:
-                    duck_type_exprs.append("typeof('" + col + "') as " + col)
-                duck_type_sql = ", ".join(duck_type_exprs)
-                duck_type_query = "SELECT " + duck_type_sql + " FROM read_parquet('" + latest_file + "') LIMIT 1"
-                duck_type_rows = duckdb_con.execute(duck_type_query).fetchone()
-                for col, dtype in zip(columns, duck_type_rows):
-                    duck_types[col] = dtype
+                describe_rows = duckdb_con.execute(f"DESCRIBE SELECT * FROM read_parquet('{latest_file}')").fetchall()
+                for row in describe_rows:
+                    colname, coltype = row[0], row[1]
+                    duck_types[colname] = coltype
                 if not columns:
                     print(f"    ⚠️  Nenhuma coluna encontrada")
                     print(f"[AUDIT] {table_name}: FALHA - Nenhuma coluna encontrada")
@@ -263,15 +259,43 @@ def sync_delta_to_postgres(**context):
                 print(f"     ✓ Encontrado {count_delta} registros originais no Delta")
                 print(f"[AUDIT] {table_name}: {count_delta} registros originais lidos do Delta")
                 log.info(f"[AUDIT] {table_name}: {count_delta} registros originais lidos do Delta")
+                # Diagnóstico: imprime tipos detectados
+                print("\n[AUDIT] Tipos detectados por DuckDB:")
+                for col in columns:
+                    print(f"  - {col}: {duck_types[col]}")
+
                 # Cria tabela no Postgres
                 # Usa tipos reais detectados para criar tabela
                 def map_duck_to_pg(dtype):
-                    if dtype in ('timestamp', 'TIMESTAMP'): return 'TIMESTAMP'
-                    if dtype in ('varchar', 'VARCHAR', 'string', 'STRING'): return 'TEXT'
-                    if dtype in ('integer', 'INTEGER', 'int', 'INT'): return 'INTEGER'
-                    if dtype in ('double', 'DOUBLE', 'float', 'FLOAT'): return 'DOUBLE PRECISION'
-                    if dtype in ('boolean', 'BOOLEAN'): return 'BOOLEAN'
-                    if dtype in ('date', 'DATE'): return 'DATE'
+                    # Normaliza para minúsculas
+                    dtype = str(dtype).lower()
+                    if 'timestamp' in dtype or 'datetime' in dtype:
+                        return 'TIMESTAMP'
+                    if 'date' == dtype:
+                        return 'DATE'
+                    if 'time' == dtype:
+                        return 'TIME'
+                    if 'varchar' in dtype or 'string' in dtype or 'text' in dtype:
+                        return 'TEXT'
+                    if 'integer' in dtype or 'int' == dtype or 'int4' in dtype:
+                        return 'INTEGER'
+                    if 'bigint' in dtype or 'int8' in dtype:
+                        return 'BIGINT'
+                    if 'smallint' in dtype or 'int2' in dtype:
+                        return 'SMALLINT'
+                    if 'double' in dtype or 'float' in dtype or 'float8' in dtype or 'real' in dtype:
+                        return 'DOUBLE PRECISION'
+                    if 'float4' in dtype:
+                        return 'REAL'
+                    if 'numeric' in dtype or 'decimal' in dtype:
+                        return 'NUMERIC'
+                    if 'boolean' in dtype or 'bool' == dtype:
+                        return 'BOOLEAN'
+                    if 'uuid' in dtype:
+                        return 'UUID'
+                    if 'json' in dtype or 'jsonb' in dtype:
+                        return 'JSONB'
+                    # Default fallback
                     return 'TEXT'
                 col_defs = ", ".join([f'"{col}" {map_duck_to_pg(duck_types[col])}' for col in columns])
                 pg_cursor.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
@@ -299,31 +323,33 @@ def sync_delta_to_postgres(**context):
                             for col, val in zip(columns, row):
                                 dtype = duck_types[col]
                                 try:
-                                    if dtype in ('timestamp', 'TIMESTAMP'):
-                                        if val is None or val == '':
-                                            valid_row.append(None)
-                                        else:
-                                            valid_row.append(str(val))
-                                    elif dtype in ('integer', 'INTEGER', 'int', 'INT'):
-                                        if val is None or val == '':
-                                            valid_row.append(None)
-                                        else:
-                                            valid_row.append(int(val))
-                                    elif dtype in ('double', 'DOUBLE', 'float', 'FLOAT'):
-                                        if val is None or val == '':
-                                            valid_row.append(None)
-                                        else:
-                                            valid_row.append(float(val))
-                                    elif dtype in ('boolean', 'BOOLEAN'):
-                                        if val is None or val == '':
-                                            valid_row.append(None)
-                                        else:
-                                            valid_row.append(bool(val))
-                                    elif dtype in ('date', 'DATE'):
-                                        if val is None or val == '':
-                                            valid_row.append(None)
-                                        else:
-                                            valid_row.append(str(val))
+                                    dtype_norm = str(dtype).lower()
+                                    if 'timestamp' in dtype_norm or 'datetime' in dtype_norm:
+                                        valid_row.append(str(val) if val not in [None, ''] else None)
+                                    elif 'date' == dtype_norm:
+                                        valid_row.append(str(val) if val not in [None, ''] else None)
+                                    elif 'time' == dtype_norm:
+                                        valid_row.append(str(val) if val not in [None, ''] else None)
+                                    elif 'varchar' in dtype_norm or 'string' in dtype_norm or 'text' in dtype_norm:
+                                        valid_row.append(str(val) if val is not None else None)
+                                    elif 'integer' in dtype_norm or 'int' == dtype_norm or 'int4' in dtype_norm:
+                                        valid_row.append(int(val) if val not in [None, ''] else None)
+                                    elif 'bigint' in dtype_norm or 'int8' in dtype_norm:
+                                        valid_row.append(int(val) if val not in [None, ''] else None)
+                                    elif 'smallint' in dtype_norm or 'int2' in dtype_norm:
+                                        valid_row.append(int(val) if val not in [None, ''] else None)
+                                    elif 'double' in dtype_norm or 'float' in dtype_norm or 'float8' in dtype_norm or 'real' in dtype_norm:
+                                        valid_row.append(float(val) if val not in [None, ''] else None)
+                                    elif 'float4' in dtype_norm:
+                                        valid_row.append(float(val) if val not in [None, ''] else None)
+                                    elif 'numeric' in dtype_norm or 'decimal' in dtype_norm:
+                                        valid_row.append(float(val) if val not in [None, ''] else None)
+                                    elif 'boolean' in dtype_norm or 'bool' == dtype_norm:
+                                        valid_row.append(bool(val) if val not in [None, ''] else None)
+                                    elif 'uuid' in dtype_norm:
+                                        valid_row.append(str(val) if val is not None else None)
+                                    elif 'json' in dtype_norm or 'jsonb' in dtype_norm:
+                                        valid_row.append(str(val) if val is not None else None)
                                     else:
                                         valid_row.append(str(val) if val is not None else None)
                                 except Exception as e:

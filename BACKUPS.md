@@ -1,3 +1,45 @@
+Para atualizar o arquivo ~/.my.cnf com a senha correta, execute:
+
+```bash
+echo -e '[client]\nuser=backup_lista_revisao2\npassword=kJ#212394\nhost=localhost\nport=23306' > ~/.my.cnf && chmod 600 ~/.my.cnf
+```
+# Como criar/recriar o usuário de backup do MySQL
+
+Se o usuário de backup for apagado ou precisar ser recriado, utilize os comandos abaixo no MySQL (ajuste conforme necessário para seu ambiente):
+
+```sql
+-- Cria ou atualiza o usuário de backup para acesso local
+CREATE USER IF NOT EXISTS 'backup_lista_revisao2'@'localhost' IDENTIFIED BY 'kJ#212394';
+ALTER USER 'backup_lista_revisao2'@'localhost' IDENTIFIED BY 'kJ#212394';
+GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON lista_revisao2.* TO 'backup_lista_revisao2'@'localhost';
+GRANT PROCESS ON *.* TO 'backup_lista_revisao2'@'localhost';
+FLUSH PRIVILEGES;
+
+-- Cria ou atualiza o usuário de backup para o host Docker (172.18.0.1)
+CREATE USER IF NOT EXISTS 'backup_lista_revisao2'@'172.18.0.1' IDENTIFIED BY 'kJ#212394';
+ALTER USER 'backup_lista_revisao2'@'172.18.0.1' IDENTIFIED BY 'kJ#212394';
+GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON lista_revisao2.* TO 'backup_lista_revisao2'@'172.18.0.1';
+GRANT PROCESS ON *.* TO 'backup_lista_revisao2'@'172.18.0.1';
+FLUSH PRIVILEGES;
+```
+```
+
+> Lembre-se de atualizar a senha no arquivo ~/.my.cnf do usuário que executa o backup:
+
+```
+
+# Para atualizar ~/.my.cnf com a nova senha:
+echo -e '[client]\nuser=backup_lista_revisao2\npassword=NOVASENHA\nhost=localhost\nport=23306' > ~/.my.cnf && chmod 600 ~/.my.cnf
+
+cat /root/.my.cnf && echo && mysql --defaults-file=/root/.my.cnf -e 'SHOW GRANTS FOR backup_lista_revisao2@"localhost";'
+
+
+[client]
+user=backup_lista_revisao2
+password=kJ#212394
+host=localhost
+port=23306
+```
 # Solução de Backup Automático - MySQL → Google Drive
 
 ## 📋 Visão Geral

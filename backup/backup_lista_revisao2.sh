@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Backup config
 DB_NAME="lista_revisao2"
-DB_HOST="localhost"
+DB_HOST="172.18.0.1"
 DB_PORT="23306"
 DB_USER="${MYSQL_USER:-backup_lista_revisao2}"
 BACKUP_DATE="$(date +%Y%m%d_%H%M%S)"
@@ -17,7 +17,7 @@ mkdir -p "$DUMP_DIR"
 
 # Connect via TCP to Docker MySQL (port 23306)
 # Password from ~/.my.cnf [client] section or MYSQL_PWD env var
-mysqldump --protocol=TCP -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" \
+mysqldump --protocol=TCP -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"kJ#212394" \
   --single-transaction --quick --routines --triggers --events \
   "$DB_NAME" > "$DUMP_FILE"
 

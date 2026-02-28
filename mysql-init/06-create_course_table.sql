@@ -1,5 +1,3 @@
--- 📚 Tabela de Cursos
--- Estrutura principal de cursos oferecidos na plataforma
 
 CREATE TABLE IF NOT EXISTS course (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -10,7 +8,7 @@ CREATE TABLE IF NOT EXISTS course (
     color VARCHAR(7) DEFAULT '#4f46e5' COMMENT 'Cor hexadecimal para UI',
     `order` INT DEFAULT 0 COMMENT 'Ordem de exibição',
     is_active TINYINT(1) DEFAULT 1 COMMENT 'Se o curso está disponível',
-    created_by tinyint unsigned COMMENT 'ID do admin que criou (FK usuario)',
+    created_by int unsigned COMMENT 'ID do admin que criou (FK usuario)',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     

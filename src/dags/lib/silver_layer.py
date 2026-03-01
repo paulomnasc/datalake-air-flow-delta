@@ -179,10 +179,46 @@ def bronze_to_silver(source_filename: str, target_table_name: str, **kwargs):
             
             df, quality_metrics = validate_dataframe(df, target_table_name)
             
+            # Logar registros reprovados com critérios detalhados
+            failed_rows = df[df['DataQualityEvaluationResult'] == 'Failed']
+            for idx, row in failed_rows.iterrows():
+                motivos = []
+                # Critério: Campos nulos
+                nulos = [col for col in df.columns if pd.isna(row[col]) and not col.startswith('DataQuality')]
+                if nulos:
+                    motivos.append(f"Campos nulos: {nulos}")
+                # Critério: Tipos inválidos
+                tipos_invalidos = [col for col in df.columns if 'type' in col.lower() and pd.isna(row[col])]
+                if tipos_invalidos:
+                    motivos.append(f"Tipos inválidos: {tipos_invalidos}")
+                # Critério: Datas inválidas
+                datas_invalidas = [col for col in df.columns if 'date' in col.lower() and pd.isna(row[col])]
+                if datas_invalidas:
+                    motivos.append(f"Datas inválidas/ausentes: {datas_invalidas}")
+                # Critério: JSON inválido
+                json_invalidos = [col for col in df.columns if 'json' in col.lower() and pd.isna(row[col])]
+                if json_invalidos:
+                    motivos.append(f"JSON inválido/ausente: {json_invalidos}")
+                # Critério: Booleanos inválidos
+                bool_invalidos = [col for col in df.columns if ('bool' in col.lower() or 'flag' in col.lower()) and pd.isna(row[col])]
+                if bool_invalidos:
+                    motivos.append(f"Booleanos inválidos/ausentes: {bool_invalidos}")
+                # Critério: Duplicatas
+                if row['DataQualityRulesFail'] > 1:
+                    motivos.append("Duplicatas ou múltiplos critérios de reprovação")
+                log.warning(f"[SILVER][FAIL] Registro reprovado (índice {idx}): {row.to_dict()} | Motivos: {motivos}")
+            
             log.info("[SILVER] ✓ Validação de qualidade concluída:")
             log.info("[SILVER]   - Taxa de aprovação: %.1f%%", quality_metrics['pass_rate'])
             log.info("[SILVER]   - Linhas aprovadas: %d", quality_metrics['rows_passed'])
             log.info("[SILVER]   - Linhas reprovadas: %d", quality_metrics['rows_failed'])
+            
+            # Logar IDs aprovados antes de salvar Parquet
+            if 'id' in df.columns:
+                ids_aprovados = df[df['DataQualityEvaluationResult'] == 'Passed']['id'].tolist()
+                log.info(f"[SILVER] IDs aprovados para Parquet: {ids_aprovados}")
+            else:
+                log.info("[SILVER] Coluna 'id' não encontrada para log de aprovados.")
             
             # Silver: estrutura silver/{target_table_name}/{timestamp_hash}.parquet
             basename_no_ext = os.path.splitext(os.path.basename(bronze_key))[0]

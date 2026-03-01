@@ -226,7 +226,12 @@ def sync_delta_to_postgres(**context):
                         return None
                     return x
                 for col in df_delta.columns:
-                    df_delta[col] = df_delta[col].apply(clean_value)
+                    # Corrige NaN, 'NaT' (string), None, pd.NaT para None em todas as colunas
+                    df_delta[col] = df_delta[col].apply(
+                        lambda x: None if (
+                            x is None or x is pd.NaT or (isinstance(x, float) and pd.isna(x)) or str(x).strip() in ("NaT", "None", "nan", "<NA>")
+                        ) else x
+                    )
                 columns = list(df_delta.columns)
                 count_delta = len(df_delta)
                 # Detecta tipos reais das colunas via DuckDB (DESCRIBE)
@@ -306,6 +311,8 @@ def sync_delta_to_postgres(**context):
                     """
                     batch_size = 100
                     data = df_delta.values.tolist()
+                    import csv
+                    failed_inserts = []
                     for i in range(0, len(data), batch_size):
                         batch = data[i:i+batch_size]
                         for row in batch:
@@ -313,41 +320,46 @@ def sync_delta_to_postgres(**context):
                             skip_row = False
                             for col, val in zip(columns, row):
                                 dtype = duck_types[col]
-                                try:
-                                    dtype_norm = str(dtype).lower()
-                                    if 'timestamp' in dtype_norm or 'datetime' in dtype_norm:
-                                        valid_row.append(str(val) if val not in [None, ''] else None)
-                                    elif 'date' == dtype_norm:
-                                        valid_row.append(str(val) if val not in [None, ''] else None)
-                                    elif 'time' == dtype_norm:
-                                        valid_row.append(str(val) if val not in [None, ''] else None)
-                                    elif 'varchar' in dtype_norm or 'string' in dtype_norm or 'text' in dtype_norm:
-                                        valid_row.append(str(val) if val is not None else None)
-                                    elif 'integer' in dtype_norm or 'int' == dtype_norm or 'int4' in dtype_norm:
-                                        valid_row.append(int(val) if val not in [None, ''] else None)
-                                    elif 'bigint' in dtype_norm or 'int8' in dtype_norm:
-                                        valid_row.append(int(val) if val not in [None, ''] else None)
-                                    elif 'smallint' in dtype_norm or 'int2' in dtype_norm:
-                                        valid_row.append(int(val) if val not in [None, ''] else None)
-                                    elif 'double' in dtype_norm or 'float' in dtype_norm or 'float8' in dtype_norm or 'real' in dtype_norm:
-                                        valid_row.append(float(val) if val not in [None, ''] else None)
-                                    elif 'float4' in dtype_norm:
-                                        valid_row.append(float(val) if val not in [None, ''] else None)
-                                    elif 'numeric' in dtype_norm or 'decimal' in dtype_norm:
-                                        valid_row.append(float(val) if val not in [None, ''] else None)
-                                    elif 'boolean' in dtype_norm or 'bool' == dtype_norm:
-                                        valid_row.append(bool(val) if val not in [None, ''] else None)
-                                    elif 'uuid' in dtype_norm:
-                                        valid_row.append(str(val) if val is not None else None)
-                                    elif 'json' in dtype_norm or 'jsonb' in dtype_norm:
-                                        valid_row.append(str(val) if val is not None else None)
-                                    else:
-                                        valid_row.append(str(val) if val is not None else None)
-                                except Exception as e:
-                                    skip_row = True
-                                    print(f"[AUDIT] ERRO ao converter valor: coluna={col}, valor={val}, tipo={dtype}, erro={e}")
-                                    log.info(f"[AUDIT] ERRO ao converter valor: coluna={col}, valor={val}, tipo={dtype}, erro={e}")
-                                    break
+                                dtype_norm = str(dtype).lower()
+                                # Trata 'NaT' (string), None, pd.NaT, np.nan como None
+                                if val is None or (isinstance(val, float) and pd.isna(val)) or str(val).strip() in ("NaT", "None", "nan", "<NA>"):
+                                    valid_row.append(None)
+                                else:
+                                    try:
+                                        if 'timestamp' in dtype_norm or 'datetime' in dtype_norm:
+                                            valid_row.append(str(val) if val not in [None, ''] else None)
+                                        elif 'date' == dtype_norm:
+                                            valid_row.append(str(val) if val not in [None, ''] else None)
+                                        elif 'time' == dtype_norm:
+                                            valid_row.append(str(val) if val not in [None, ''] else None)
+                                        elif 'varchar' in dtype_norm or 'string' in dtype_norm or 'text' in dtype_norm:
+                                            valid_row.append(str(val) if val is not None else None)
+                                        elif 'integer' in dtype_norm or 'int' == dtype_norm or 'int4' in dtype_norm:
+                                            valid_row.append(int(val) if val not in [None, ''] else None)
+                                        elif 'bigint' in dtype_norm or 'int8' in dtype_norm:
+                                            valid_row.append(int(val) if val not in [None, ''] else None)
+                                        elif 'smallint' in dtype_norm or 'int2' in dtype_norm:
+                                            valid_row.append(int(val) if val not in [None, ''] else None)
+                                        elif 'double' in dtype_norm or 'float' in dtype_norm or 'float8' in dtype_norm or 'real' in dtype_norm:
+                                            valid_row.append(float(val) if val not in [None, ''] else None)
+                                        elif 'float4' in dtype_norm:
+                                            valid_row.append(float(val) if val not in [None, ''] else None)
+                                        elif 'numeric' in dtype_norm or 'decimal' in dtype_norm:
+                                            valid_row.append(float(val) if val not in [None, ''] else None)
+                                        elif 'boolean' in dtype_norm or 'bool' == dtype_norm:
+                                            valid_row.append(bool(val) if val not in [None, ''] else None)
+                                        elif 'uuid' in dtype_norm:
+                                            valid_row.append(str(val) if val is not None else None)
+                                        elif 'json' in dtype_norm or 'jsonb' in dtype_norm:
+                                            valid_row.append(str(val) if val is not None else None)
+                                        else:
+                                            valid_row.append(str(val) if val is not None else None)
+                                    except Exception as e:
+                                        skip_row = True
+                                        print(f"[AUDIT] ERRO ao converter valor: coluna={col}, valor={val}, tipo={dtype}, erro={e}")
+                                        log.info(f"[AUDIT] ERRO ao converter valor: coluna={col}, valor={val}, tipo={dtype}, erro={e}")
+                                        failed_inserts.append({'row': row, 'error': f'Conversão: coluna={col}, valor={val}, tipo={dtype}, erro={e}'})
+                                        break
                             if skip_row:
                                 print(f"[AUDIT] Registro ignorado por erro de conversão: {row}")
                                 log.info(f"[AUDIT] Registro ignorado por erro de conversão: {row}")
@@ -363,7 +375,34 @@ def sync_delta_to_postgres(**context):
                                 pg_conn.rollback()
                                 print(f"[AUDIT] ROLLBACK realizado após erro de inserção.")
                                 log.info(f"[AUDIT] ROLLBACK realizado após erro de inserção.")
+                                failed_inserts.append({'row': valid_row, 'error': error_msg})
                                 continue
+                    # Salva registros que falharam em um arquivo CSV e envia para MinIO
+                    if failed_inserts:
+                        failed_path = f"/tmp/failed_inserts_{table_name}.csv"
+                        with open(failed_path, "w", newline="") as f:
+                            writer = csv.writer(f)
+                            writer.writerow(["row", "error"])
+                            for item in failed_inserts:
+                                writer.writerow([item['row'], item['error']])
+                        print(f"[AUDIT] Registros com falha salvos em: {failed_path}")
+                        # Envia para MinIO na pasta logs do bucket do usuário
+                        try:
+                            import boto3
+                            from botocore.client import Config
+                            minio_client = boto3.client(
+                                's3',
+                                endpoint_url=f'http://{MINIO_ENDPOINT}',
+                                aws_access_key_id=MINIO_ACCESS_KEY,
+                                aws_secret_access_key=MINIO_SECRET_KEY,
+                                config=Config(signature_version='s3v4'),
+                                region_name='us-east-1'
+                            )
+                            minio_key = f"logs/failed_inserts_{table_name}.csv"
+                            minio_client.upload_file(failed_path, bucket, minio_key)
+                            print(f"[AUDIT] Arquivo de falhas enviado para MinIO: s3://{bucket}/{minio_key}")
+                        except Exception as e:
+                            print(f"[AUDIT] Falha ao enviar arquivo para MinIO: {e}")
                     print(f"     ✓ {count_inserted} registros inseridos no PostgreSQL")
                     print(f"[AUDIT] {table_name}: {count_inserted} registros inseridos no PostgreSQL")
                     log.info(f"[AUDIT] {table_name}: {count_inserted} registros inseridos no PostgreSQL")

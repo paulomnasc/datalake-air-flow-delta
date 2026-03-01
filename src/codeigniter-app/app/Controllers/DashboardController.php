@@ -313,7 +313,7 @@ class DashboardController extends BaseController
                 MAX(al.created_at) as last_activity
             FROM usuario u
             INNER JOIN activity_logs al ON al.user_id = u.id
-            WHERE al.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            WHERE al.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) and u.id not in (146, 176)
             GROUP BY u.id
             ORDER BY last_activity DESC
             LIMIT 20

@@ -1,38 +1,3 @@
-def clean_postgres_table_names():
-    """Padroniza e limpa os nomes das tabelas no PostgreSQL, removendo prefixos, UID/hash e caracteres especiais."""
-    import psycopg2
-    import re
-    print("\n🔄 Limpando nomes das tabelas no PostgreSQL...")
-    try:
-        conn = psycopg2.connect(
-            host=POSTGRES_HOST,
-            port=POSTGRES_PORT,
-            database=POSTGRES_DB,
-            user=POSTGRES_USER,
-            password=POSTGRES_PASSWORD
-        )
-        cursor = conn.cursor()
-        cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
-        all_tables = [row[0] for row in cursor.fetchall()]
-        for tbl in all_tables:
-            nome_logico = re.sub(r'^delta_', '', tbl)
-            nome_logico = re.sub(r'_[0-9a-fA-F]{8,}$', '', nome_logico)  # Remove UID/hash final
-            nome_logico = re.sub(r'[^a-zA-Z0-9]+', '_', nome_logico)  # Limpa caracteres especiais
-            nome_logico = nome_logico.strip('_').lower()
-            if nome_logico and nome_logico != tbl:
-                try:
-                    cursor.execute(f"DROP TABLE IF EXISTS {nome_logico} CASCADE;")
-                    cursor.execute(f"ALTER TABLE {tbl} RENAME TO {nome_logico};")
-                    print(f"  ✅ {tbl} → {nome_logico}")
-                except Exception as e:
-                    print(f"  ⚠️  Falha ao renomear {tbl} → {nome_logico}: {e}")
-        conn.commit()
-        cursor.close()
-        conn.close()
-        print("[AUDIT] Limpeza de nomes de tabelas concluída.")
-    except Exception as e:
-        print(f"❌ ERRO ao limpar nomes das tabelas: {e}")
-
 """
 DAG para sincronizar Delta Lake → PostgreSQL para Power BI.
 Lê tabelas Delta do MinIO e insere em PostgreSQL.
@@ -443,7 +408,7 @@ def sync_delta_to_postgres(**context):
         context['task_instance'].xcom_push(key='sync_results', value=results)
 
         # Chama limpeza dos nomes das tabelas após sincronização
-        clean_postgres_table_names()
+        # clean_postgres_table_names()
         
     except Exception as e:
         print(f"\n❌ ERRO: {str(e)}")

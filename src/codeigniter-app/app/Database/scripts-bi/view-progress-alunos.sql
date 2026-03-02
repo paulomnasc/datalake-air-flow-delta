@@ -4,6 +4,7 @@ SELECT
     u.nome AS nome_aluno,
     u.email,
     c.id AS curso_id,
+    u.pagamento_inicial,
     c.name AS nome_curso,
     c.description AS descricao_curso,
     COUNT(DISTINCT m.id) AS total_modulos,
@@ -35,5 +36,6 @@ WHERE c.is_active = 1
   AND u.id NOT IN (146, 176, 201)
 GROUP BY 
     u.id, u.nome, u.email, 
-    c.id, c.name, c.description
+    c.id, c.name, c.description,
+    u.pagamento_inicial
 ORDER BY u.nome, c.name;

@@ -800,6 +800,21 @@ class ConfigController extends BaseController
                 throw new \Exception($errorMessage);
             }
 
+            // 5. Se houver seleções de tabelas no post, salvar
+            if (isset($postData['selected_tables']) && is_array($postData['selected_tables'])) {
+                $tableSelectionModel = new \App\Models\TableSelectionModel();
+                $selections = [];
+                
+                foreach ($postData['selected_tables'] as $tableName) {
+                    $selections[] = [
+                        'table_name' => $tableName,
+                        'is_selected' => true
+                    ];
+                }
+                
+                $tableSelectionModel->saveTableSelections((int)$id, $selections);
+            }
+
             // 🔄 Reserializar DAG após atualizar config para refletir mudanças de datasource
             $this->reserializeDAG($dagId);
 
@@ -1964,6 +1979,21 @@ class ConfigController extends BaseController
             log_message('error', "[ConfigController] Falha ao reserializar DAG {$dagId}: " . $e->getMessage());
             // Não lança exceção; permite que a atualização seja bem-sucedida mesmo se reserializar falhar
         }
+    }
+
+    /**
+     * Retorna as tabelas selecionadas para uma configuração específica.
+     * Usado pela interface de edição para marcar os checkboxes.
+     */
+    public function getTableSelections($id)
+    {
+        $tableSelectionModel = new \App\Models\TableSelectionModel();
+        $selections = $tableSelectionModel->getSelectedTableNames((int)$id);
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'selections' => $selections
+        ]);
     }
 
 }

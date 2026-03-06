@@ -80,6 +80,18 @@ class TableSelectionModel extends Model
     }
 
     /**
+     * Busca apenas nomes das tabelas selecionadas
+     */
+    public function getSelectedTableNames(int $dagConfigId): array
+    {
+        $rows = $this->where('id_dag_config', $dagConfigId)
+                    ->where('is_selected', 1)
+                    ->orderBy('table_name', 'ASC')
+                    ->findAll();
+        return array_map(function($row) { return $row->table_name; }, $rows);
+    }
+
+    /**
      * Atualiza o status de seleção de uma tabela específica
      */
     public function toggleSelection(int $dagConfigId, string $tableName, bool $isSelected): bool

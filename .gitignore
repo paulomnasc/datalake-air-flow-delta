@@ -10,7 +10,7 @@ writable/
 uploads/
 uploads/backup/
 lixo/
-tests/
+!src/codeigniter-app/tests/app/Controllers/ConfigControllerTest.php
 copia/
 data/.minio.sys/
 __pycache__/

@@ -73,7 +73,7 @@ class ConfigControllerTest extends CIUnitTestCase
             'owner'              => 'tester',
             'description'        => 'Pipeline created during test',
             'schedule_interval'  => '@daily',
-            'python_module_path' => 'spark.medallion_pipeline',
+            'python_module_path' => 'lib.medallion_pipeline_v2.raw_to_medallion',
             'source_filename'    => 'http://api.example.com/data'
         ];
 
@@ -114,13 +114,14 @@ class ConfigControllerTest extends CIUnitTestCase
             'python_module_path' => 'old.path'
         ]);
 
-        // 2. Tentar atualizar via POST
+        // 2. Tentar atualizar via POST incluindo seleção de tabelas
         $updateData = [
             'id'                 => $configId,
             'dag_id'             => $updatedDagId,
             'id_pasta'           => $this->pastaId,
             'id_source_type'     => $this->sourceTypeId,
-            'python_module_path' => 'new.path'
+            'python_module_path' => 'new.path',
+            'selected_tables'    => ['users', 'products']
         ];
 
         $result = $this->withSession([
@@ -137,6 +138,52 @@ class ConfigControllerTest extends CIUnitTestCase
             'dag_id'             => $updatedDagId,
             'python_module_path' => 'new.path'
         ]);
+
+        // 4. Verificar se salvou as tabelas
+        $this->seeInDatabase('dag_table_selections', [
+            'id_dag_config' => $configId,
+            'table_name'    => 'users',
+            'is_selected'   => 1
+        ]);
+        $this->seeInDatabase('dag_table_selections', [
+            'id_dag_config' => $configId,
+            'table_name'    => 'products',
+            'is_selected'   => 1
+        ]);
+    }
+
+    /**
+     * Teste de busca de seleções de tabelas
+     */
+    public function test_get_table_selections()
+    {
+        // 1. Criar uma config e algumas seleções
+        $configModel = new ConfigModel();
+        $configId = $configModel->insert([
+            'dag_id'         => 'dag_selection_' . uniqid(),
+            'id_pasta'       => $this->pastaId,
+            'id_source_type' => $this->sourceTypeId
+        ]);
+
+        $tableSelectionModel = new \App\Models\TableSelectionModel();
+        $tableSelectionModel->saveTableSelections($configId, [
+            ['table_name' => 'table1', 'is_selected' => true],
+            ['table_name' => 'table2', 'is_selected' => true]
+        ]);
+
+        // 2. Chamar o endpoint
+        $result = $this->withSession([
+            'id_usuario_logado' => $this->usuarioId,
+            'usuario_logado'    => 1,
+            'perfil_usuario_logado' => 'Admin'
+        ])->call('get', "getTableSelections/{$configId}");
+
+        $result->assertStatus(200);
+        $json = json_decode(strip_tags($result->getBody()), true);
+
+        $this->assertEquals('success', $json['status']);
+        $this->assertContains('table1', $json['selections']);
+        $this->assertContains('table2', $json['selections']);
     }
 
     /**

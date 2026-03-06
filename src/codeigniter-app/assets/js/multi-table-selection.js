@@ -83,7 +83,7 @@ function renderTablesList(tables) {
     html += '<div class="selection-summary">';
     html += '<span id="selected-count">0 tabelas selecionadas</span>';
     html += '</div>';
-    
+    html += '<input type="hidden" id="selected-tables-hidden" name="selected_tables" value="[]">';
     container.innerHTML = html;
 }
 
@@ -97,6 +97,11 @@ function updateTableSelection(tableName, isSelected) {
         selectedTables.delete(tableName);
     }
     updateSelectionSummary();
+    // Atualiza campo hidden para envio no form
+    var hiddenInput = document.getElementById('selected-tables-hidden');
+    if (hiddenInput) {
+        hiddenInput.value = JSON.stringify(Array.from(selectedTables));
+    }
 }
 
 /**

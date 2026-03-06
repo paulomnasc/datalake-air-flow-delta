@@ -6,7 +6,7 @@ writable/
 uploads/
 uploads/backup/
 lixo/
-tests/
+!tests/app/Controllers/ConfigControllerTest.php
 copia/
 
 # Ignorar dependências de projetos Node.js

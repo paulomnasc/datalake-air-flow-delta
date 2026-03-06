@@ -202,12 +202,12 @@ class Database extends Config
      */
     public array $tests = [
         'DSN'         => '',
-        'hostname'    => '127.0.0.1',
-        'username'    => '',
-        'password'    => '',
-        'database'    => ':memory:',
-        'DBDriver'    => 'SQLite3',
-        'DBPrefix'    => 'db_',  // Needed to ensure we're working correctly with prefixes live. DO NOT REMOVE FOR CI DEVS
+        'hostname'    => 'mysql',
+        'username'    => 'root',
+        'password'    => 'root',
+        'database'    => 'lista_revisao2',
+        'DBDriver'    => 'MySQLi',
+        'DBPrefix'    => '',
         'pConnect'    => false,
         'DBDebug'     => true,
         'charset'     => 'utf8',

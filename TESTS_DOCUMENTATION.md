@@ -51,6 +51,29 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)/src/dags:$(pwd)/src/dags/lib
 
 ---
 
+## 3. Teste de Pipeline Medallion (v2)
+
+Este teste valida a orquestração de camadas (Bronze, Silver, Gold, Delta) da nova arquitetura de pipeline.
+
+### Arquivo: `test_pipeline_v2.py`
+**Caminho:** `src/dags/tests/test_pipeline_v2.py`
+
+#### O que é testado:
+- **Orquestração de Camadas:** Garante uma sequência de execução garantida e sincronizada de todas as etapas do pipeline Medallion.
+- **Parametrização via CLI:** Permite testar o comportamento do pipeline para uma `dag_id` específica fornecida pelo terminal.
+
+#### Como Executar:
+Você pode passar o ID da DAG e o proprietário (bucket) diretamente no comando:
+```bash
+# Definir o PYTHONPATH
+export PYTHONPATH=$PYTHONPATH:$(pwd)/src/dags:$(pwd)/src/dags/lib
+
+# Executar para uma DAG específica
+./venv/bin/python3 src/dags/tests/test_pipeline_v2.py --dag_id test_dag_001 --owner lab01
+```
+
+---
+
 ## Requisitos para os Testes
 - **Backend:** Servidor PHP 8.1+ e banco de dados de teste configurado em `app/Config/Database.php`.
 - **Python:** Ambiente virtual configurado com as dependências instaladas (`pandas`, `apache-airflow-providers-mysql`, etc.).

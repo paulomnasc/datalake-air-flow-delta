@@ -105,6 +105,8 @@ $routes->get('/dashboard/stats', 'DashboardController::getStatsJson', ['as'=>'da
 $routes->post('/dashboard/createPipeline', 'DashboardController::createPipeline', ['as'=>'dashboard.createPipeline']);//Criar pipeline via wizard
 $routes->post('/dashboard/saveDraft', 'DashboardController::saveDraft', ['as'=>'dashboard.saveDraft']);//Salvar rascunho
 $routes->get('/dashboard/downloadTemplate/(:segment)/(:segment)', 'DashboardController::downloadTemplate/$1/$2', ['as'=>'dashboard.downloadTemplate']);//Download de template exemplo
+$routes->get('/wizard/create-pipeline', 'DashboardController::wizardCreatePipeline', ['as'=>'wizard.create-pipeline']);
+$routes->get('/wizard/monaco-iframe', 'DashboardController::wizardMonacoIframe', ['as'=>'wizard.monaco-iframe']);
 
 // Debug/Teste MinIO
 $routes->get('/test-minio/connection', 'TestMinioController::testConnection', ['as'=>'test.minio.connection']);

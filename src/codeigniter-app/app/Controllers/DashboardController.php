@@ -25,6 +25,14 @@ class DashboardController extends BaseController
     }
 
     /**
+     * Renderiza o Monaco Editor isolado em iframe
+     */
+    public function wizardMonacoIframe()
+    {
+        return view('wizard/monaco-iframe');
+    }
+
+    /**
      * Dashboard principal com nova UX
      */
     public function index()
@@ -498,5 +506,58 @@ class DashboardController extends BaseController
         }
         fclose($output);
         exit;
+    }
+
+    /**
+     * Exibe o wizard de criação de pipeline em view dedicada
+     */
+    public function wizardCreatePipeline()
+    {
+        // Verificar se usuário está logado
+        if (!isset($_SESSION['id_usuario_logado'])) {
+            return redirect()->to(route_to('Usuario.login'));
+        }
+
+        $userId = (int) SessionHelper::getUserId();
+
+        // Carregar pastas para o wizard
+        $pastas = $this->pastaModel->listToCombo($userId);
+        // Carregar tipos de fonte
+        $sourceTypes = $this->sourceTypeModel->listToCombo();
+        // Carregar funções Python disponíveis
+        $usuarioFuncionModel = new UsuarioFuncionConfigurationModel();
+        $funcoesAgrupadas = $usuarioFuncionModel->getFuncoesFormatadas($userId);
+
+        // Definir username do dono
+        $ownerUsername = isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : '';
+
+        // Carregar dados para edição se id for passado
+        $editId = $this->request->getGet('id');
+        $editData = null;
+        if ($editId) {
+            $config = $this->configModel->find($editId);
+            if ($config) {
+                if (is_object($config)) {
+                    $config = (array) $config;
+                }
+                // Verificar se a config pertence ao usuário
+                $pasta = $this->pastaModel->find($config['id_pasta']);
+                if (is_object($pasta)) {
+                    $pasta = (array) $pasta;
+                }
+                if ($pasta && $pasta['id_usuario'] == $userId) {
+                    $editData = $config;
+                }
+            }
+        }
+
+        $data = [
+            'pastas' => $pastas,
+            'source_types' => $sourceTypes,
+            'funcoes_python' => $funcoesAgrupadas,
+            'ownerUsername' => $ownerUsername,
+            'edit_data' => $editData,
+        ];
+        return view('wizard/create-pipeline', $data);
     }
 }

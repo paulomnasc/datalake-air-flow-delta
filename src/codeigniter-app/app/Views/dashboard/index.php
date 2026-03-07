@@ -282,7 +282,6 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                     <tr>
                                         <th style="width: 60px;">#</th>
                                         <th>Aluno</th>
-                                        <th>Email</th>
                                         <th class="text-center">Tarefas</th>
                                         <th class="text-end">XP Total</th>
                                     </tr>
@@ -300,7 +299,6 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                 </span>
                                             </td>
                                             <td style="font-weight: 600;"><?php echo esc($student->nome); ?></td>
-                                            <td class="text-muted"><?php echo esc($student->email); ?></td>
                                             <td class="text-center">
                                                 <span class="badge" style="background:#e8f5e9;color:#2e7d32;font-size:14px;padding:4px 12px;border-radius:12px;font-weight:600;">
                                                     <?php echo $student->tasks_completed; ?> ✓

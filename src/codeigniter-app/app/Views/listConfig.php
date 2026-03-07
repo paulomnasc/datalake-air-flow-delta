@@ -206,7 +206,7 @@ function confirmDelete(id, descricao, deleteUrl, formId) {
                         var actionButtons = `
                             <div class="sidebyside-container">
                                 <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"){ ?>
-                                    <a href="<?= base_url('dashboard?edit='); ?>${item.id}" class="edit-button" title="Editar">✏️</a>
+                                    <a href="<?= base_url('wizard/create-pipeline?id='); ?>${item.id}" class="edit-button" title="Editar">✏️</a>
                                 <?php } ?>
                                 <form id="deleteForm-${item.id}">
                                     <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Anonimo"){

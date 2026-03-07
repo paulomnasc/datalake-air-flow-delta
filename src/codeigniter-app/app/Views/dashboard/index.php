@@ -194,6 +194,17 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         <button class="btn btn-light btn-lg mt-3" @click="currentView = 'wizard'">
                             <i class="bi bi-plus-circle"></i> Criar Novo Pipeline
                         </button>
+                        <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            var btn = document.querySelector('.btn.btn-light.btn-lg.mt-3');
+                            if (btn) {
+                                btn.addEventListener('click', function(e) {
+                                    e.preventDefault();
+                                    window.location.href = '/wizard/create-pipeline';
+                                });
+                            }
+                        });
+                        </script>
                     </div>
 
                     <?php if (false): // SEÇÃO COMENTADA — Alunos que Retornaram Após Cadastro ?>

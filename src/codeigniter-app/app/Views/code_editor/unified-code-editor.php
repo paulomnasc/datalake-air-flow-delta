@@ -682,7 +682,7 @@ require VIEWPATH . '/header.php';
             <div class="code-editor-header">
             <h1>
                 <span>💻</span>
-                Code Editor
+                Code Editor X
             </h1>
             <div class="status-badge" id="statusBadge">
                 <span class="status-dot"></span>
@@ -936,6 +936,7 @@ require VIEWPATH . '/header.php';
         // Carregar arquivos Parquet
         async function loadParquetFiles() {
             try {
+                //alert('Carregando arquivos Parquet...'); // Alerta para indicar início do carregamento
                 const response = await fetch('/code-editor/files', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -963,6 +964,11 @@ require VIEWPATH . '/header.php';
         
         // State para controlar seleção de arquivos
         let selectedFiles = new Set();
+
+        // Chama loadParquetFiles() após DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', function() {
+            loadParquetFiles();
+        });
         
         function buildFileTree(paths) {
             const root = { children: {}, isFile: false };

@@ -75,12 +75,49 @@ class DashboardController extends BaseController
             }
         }
 
+        // Alunos que retornaram após o dia do cadastro
+        $db = \Config\Database::connect();
+        $returningStudents = $db->query("
+            SELECT 
+                u.id as user_id,
+                u.nome as user_name,
+                u.email,
+                u.criado_em,
+                COUNT(ac.id) as return_count,
+                MAX(ac.created_at) as last_return
+            FROM activity_logs ac
+            INNER JOIN usuario u ON u.id = ac.user_id
+            WHERE ac.user_id NOT IN (146, 176)
+                AND DATE_FORMAT(u.criado_em, '%Y-%m-%d') < DATE_FORMAT(ac.created_at, '%Y-%m-%d')
+            GROUP BY u.id
+            ORDER BY return_count DESC, last_return DESC
+        ")->getResult();
+
+        // Top 10 alunos por XP
+        $topStudents = $db->query("
+            SELECT 
+                u.id,
+                u.nome,
+                u.email,
+                COALESCE(SUM(CASE WHEN up.completed = 1 THEN uc.xp_points ELSE 0 END), 0) as total_xp,
+                COUNT(DISTINCT CASE WHEN up.completed = 1 THEN up.uc_definition_id END) as tasks_completed
+            FROM usuario u
+            LEFT JOIN uc_progress up ON up.user_id = u.id
+            LEFT JOIN uc_definition uc ON uc.id = up.uc_definition_id
+            GROUP BY u.id
+            HAVING total_xp > 0
+            ORDER BY total_xp DESC
+            LIMIT 10
+        ")->getResult();
+
         $data = [
             'stats' => $stats,
             'pastas' => $pastas,
             'source_types' => $sourceTypes,
             'funcoes_python' => $funcoesAgrupadas,
-            'edit_data' => $editData
+            'edit_data' => $editData,
+            'returning_students' => $returningStudents,
+            'top_students' => $topStudents,
         ];
 
         return view('dashboard/index', $data);

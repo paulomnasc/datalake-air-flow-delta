@@ -196,6 +196,134 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         </button>
                     </div>
 
+                    <?php if (false): // SEÇÃO COMENTADA — Alunos que Retornaram Após Cadastro ?>
+                    <?php if (!empty($returning_students)): ?>
+                    <div class="card shadow-sm mb-4" style="border-radius: 12px; overflow: hidden;">
+                        <div class="card-header d-flex align-items-center justify-content-between" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1rem 1.5rem;">
+                            <h5 class="mb-0 text-white">🔄 Alunos que Retornaram Após Cadastro</h5>
+                            <a href="<?php echo site_url('admin/downloadReturningStudentsCsv'); ?>" class="btn btn-sm btn-light" style="font-weight: 500;">
+                                ⬇️ Download CSV
+                            </a>
+                        </div>
+                        <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th style="width: 60px;">#</th>
+                                        <th>Aluno</th>
+                                        <th>Email</th>
+                                        <th class="text-center">Retornos</th>
+                                        <th class="text-end">Último Retorno</th>
+                                        <th class="text-end">Criado em</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($returning_students as $index => $student):
+                                        $rank = $index + 1;
+                                        $rankColors = [1 => '#ffd700', 2 => '#c0c0c0', 3 => '#cd7f32'];
+                                        $rankColor = $rankColors[$rank] ?? '#667eea';
+                                    ?>
+                                        <tr>
+                                            <td>
+                                                <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:<?php echo $rankColor; ?>;color:white;font-weight:bold;font-size:14px;">
+                                                    <?php echo $rank; ?>
+                                                </span>
+                                            </td>
+                                            <td style="font-weight: 600;"><?php echo esc($student->user_name); ?></td>
+                                            <td class="text-muted"><?php echo esc($student->email); ?></td>
+                                            <td class="text-center">
+                                                <span class="badge" style="background:#e8f5e9;color:#2e7d32;font-size:14px;padding:4px 12px;border-radius:12px;font-weight:600;">
+                                                    <?php echo $student->return_count; ?>
+                                                </span>
+                                            </td>
+                                            <td class="text-end" style="color:#667eea;font-size:14px;">
+                                                <?php
+                                                    if (!empty($student->last_return)) {
+                                                        $lastReturn = new DateTime($student->last_return);
+                                                        echo $lastReturn->format('d/m/Y H:i');
+                                                    } else {
+                                                        echo 'N/A';
+                                                    }
+                                                ?>
+                                            </td>
+                                            <td class="text-end text-muted" style="font-size:14px;">
+                                                <?php
+                                                    if (!empty($student->criado_em)) {
+                                                        $created = new DateTime($student->criado_em);
+                                                        echo $created->format('d/m/Y H:i');
+                                                    } else {
+                                                        echo 'N/A';
+                                                    }
+                                                ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <?php else: ?>
+                    <div class="card shadow-sm mb-4 text-center p-5" style="border-radius: 12px; color:#999;">
+                        <div style="font-size:64px;margin-bottom:16px;">🔄</div>
+                        <p>Nenhum aluno retornou após cadastro ainda</p>
+                    </div>
+                    <?php endif; ?>
+                    <?php endif; // FIM SEÇÃO COMENTADA ?>
+
+                    <!-- Top 10 Alunos por XP -->
+                    <?php if (!empty($top_students)): ?>
+                    <div class="card shadow-sm mb-4" style="border-radius: 12px; overflow: hidden;">
+                        <div class="card-header d-flex align-items-center justify-content-between" style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); padding: 1rem 1.5rem;">
+                            <h5 class="mb-0 text-white">🏆 Top 10 Alunos por XP - Entre para nossa comunidade !!!</h5>
+                        </div>
+                        <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th style="width: 60px;">#</th>
+                                        <th>Aluno</th>
+                                        <th>Email</th>
+                                        <th class="text-center">Tarefas</th>
+                                        <th class="text-end">XP Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($top_students as $index => $student):
+                                        $rank = $index + 1;
+                                        $rankColors = [1 => '#ffd700', 2 => '#c0c0c0', 3 => '#cd7f32'];
+                                        $rankColor = $rankColors[$rank] ?? '#667eea';
+                                    ?>
+                                        <tr>
+                                            <td>
+                                                <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:<?php echo $rankColor; ?>;color:white;font-weight:bold;font-size:14px;">
+                                                    <?php echo $rank; ?>
+                                                </span>
+                                            </td>
+                                            <td style="font-weight: 600;"><?php echo esc($student->nome); ?></td>
+                                            <td class="text-muted"><?php echo esc($student->email); ?></td>
+                                            <td class="text-center">
+                                                <span class="badge" style="background:#e8f5e9;color:#2e7d32;font-size:14px;padding:4px 12px;border-radius:12px;font-weight:600;">
+                                                    <?php echo $student->tasks_completed; ?> ✓
+                                                </span>
+                                            </td>
+                                            <td class="text-end">
+                                                <span style="font-size:16px;font-weight:bold;color:#fda085;">
+                                                    <?php echo number_format($student->total_xp); ?> XP
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <?php else: ?>
+                    <div class="card shadow-sm mb-4 text-center p-5" style="border-radius: 12px; color:#999;">
+                        <div style="font-size:64px;margin-bottom:16px;">📊</div>
+                        <p>Nenhum aluno com XP ainda</p>
+                    </div>
+                    <?php endif; ?>
+
                     <!-- Stats Cards -->
                     <div class="row g-4 mb-4">
                         <div class="col-md-3">
@@ -304,6 +432,8 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             </template>
                         </div>
                     </div>
+
+                </div>
                 </div>
 
                 <!-- WIZARD VIEW -->
@@ -1325,7 +1455,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             const msg = `O tamanho total dos arquivos (${totalMB} MB) excede o limite de ${maxSizeMB} MB. Reduza a quantidade de arquivos ou processe em lotes menores.`;
                             this.showMessage(msg, 'error');
                             window.__lastWizardSubmitError = msg;
-                            return;
+                            throw new Error(msg);
                         }
                         // Remover campos de upload único e limpar array múltiplo
                         formData.delete('source_filename');

@@ -389,7 +389,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             <h4 class="mb-3">⚡ Início Rápido</h4>
                         </div>
                         <div class="col-md-4">
-                            <div class="quick-action" @click="currentView = 'wizard'">
+                            <div class="quick-action" id="novo-pipeline-action">
                                 <div class="quick-action-icon">🎯</div>
                                 <h5>Novo Pipeline</h5>
                                 <p class="text-muted mb-0">Assistente passo a passo</p>
@@ -412,6 +412,17 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     </div>
 
                     <!-- Templates Section -->
+                                        <script>
+                                            document.addEventListener('DOMContentLoaded', function() {
+                                                var novoPipeline = document.getElementById('novo-pipeline-action');
+                                                if (novoPipeline) {
+                                                    novoPipeline.addEventListener('click', function(e) {
+                                                        e.preventDefault();
+                                                        window.location.href = '/wizard/create-pipeline';
+                                                    });
+                                                }
+                                            });
+                                        </script>
                     <div id="templates-section">
                         <h4 class="mb-4">📚 Templates Populares</h4>
                         <div class="row g-4">

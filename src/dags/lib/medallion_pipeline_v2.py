@@ -31,7 +31,6 @@ log = logging.getLogger(__name__)
 
 
 class RawToMedallionPipeline:
-        
     """
     ✅ NOVA: Classe base com Template Method Pattern
     
@@ -60,6 +59,28 @@ class RawToMedallionPipeline:
         self.dag_id = 'default'
         self.target_table_name = None
         self.source_filename = None
+
+
+    def read_pasta_s3(self, subdir, file_ext=".csv"):
+        """
+        Lê todos os arquivos de uma pasta no S3/MinIO (subdir) com a extensão especificada,
+        concatena em um único DataFrame.
+        Suporta: .csv, .json, .parquet
+        """
+        files = self.list_raw_files(subdir=subdir)
+        dfs = []
+        for key in files:
+            if key.endswith(file_ext):
+                local_path = self.hook.download_file(key, self.tmpdir)
+                if file_ext == ".csv":
+                    dfs.append(pd.read_csv(local_path))
+                elif file_ext == ".json":
+                    dfs.append(self._read_json_robust(local_path))
+                elif file_ext == ".parquet":
+                    dfs.append(pd.read_parquet(local_path))
+        if dfs:
+            return pd.concat(dfs, ignore_index=True)
+        return pd.DataFrame()
 
     def list_raw_files(self, subdir=None, **kwargs):
         """
@@ -260,7 +281,11 @@ class RawToMedallionPipeline:
         self.results['_bronze_all'] = bronze_keys_all
     
     def _read_file(self, local_file: str, file_ext: str) -> pd.DataFrame:
-        """Lê arquivo (CSV, JSON, Parquet) para DataFrame"""
+        """Lê arquivo (CSV, JSON, Parquet) para DataFrame ou múltiplos arquivos se Pasta_S3"""
+        # Suporte ao novo tipo Pasta_S3
+        if file_ext == 'Pasta_S3':
+            ext = getattr(self, 'pasta_s3_ext', '.csv')
+            return self.read_pasta_s3(local_file, ext)
         if file_ext == '.csv':
             return pd.read_csv(local_file)
         elif file_ext == '.json':
@@ -720,7 +745,13 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> 
             source_type = 'arquivo'  # fallback
     source_type = str(source_type).lower()
 
-    source_type = str(source_type).lower()
+    # Novo tipo: Pasta_S3
+    if source_type == 'pasta_s3':
+        subdir = kwargs.get('subdir') or source_filename or ''
+        file_ext = kwargs.get('file_ext', '.csv')
+        pipeline = RawToMedallionPipeline()
+        pipeline.pasta_s3_ext = file_ext
+        return pipeline(source_filename=subdir, target_table_name=target_table_name, file_ext='Pasta_S3', **kwargs)
 
     if source_type in ['api', 'api rest', 'rest', 'rest api']:
         log.info("[RAW_TO_MEDALLION] Delegando para ingest_api_to_raw (API REST)")

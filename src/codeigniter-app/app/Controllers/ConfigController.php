@@ -519,6 +519,15 @@ class ConfigController extends BaseController
                     throw new \Exception('Falha ao extrair/uploadar tabelas SQL.');
                 }
                 $sourceLocation = json_encode($uploadedFiles);
+            } else if (str_contains($sourceTypeDescription, 'pasta_s3')) {
+                // Pasta S3: espera subdir e file_ext no POST
+                $subdir = $postData['subdir'] ?? $postData['target_table_name'] ?? null;
+                $fileExt = $postData['file_ext'] ?? '.csv';
+                if (empty($subdir)) {
+                    throw new \Exception('O subdiretório (subdir) da Pasta S3 é obrigatório.');
+                }
+                // Salva como JSON para source_filename
+                $sourceLocation = json_encode(['subdir' => $subdir, 'file_ext' => $fileExt]);
             } else if (str_contains($sourceTypeDescription, 'api')) {
                 $sourceLocation = $postData['source_filename'] ?? null;
             } else {
@@ -697,6 +706,14 @@ class ConfigController extends BaseController
                     throw new \Exception('Falha ao extrair/uploadar tabelas SQL.');
                 }
                 $sourceLocation = json_encode($uploadedFiles);
+            } else if (str_contains($sourceTypeDescription, 'pasta_s3')) {
+                // Pasta S3: espera subdir e file_ext no POST
+                $subdir = $postData['subdir'] ?? $postData['target_table_name'] ?? null;
+                $fileExt = $postData['file_ext'] ?? '.csv';
+                if (empty($subdir)) {
+                    throw new \Exception('O subdiretório (subdir) da Pasta S3 é obrigatório.');
+                }
+                $sourceLocation = json_encode(['subdir' => $subdir, 'file_ext' => $fileExt]);
             } else {
                 // Simplicidade: se chegou aqui, temos um ID e vamos atualizar o registro existente.
                 // Não criar novo registro nem tentar substituir por criação/deleção.

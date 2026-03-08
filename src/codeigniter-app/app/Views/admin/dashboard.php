@@ -227,7 +227,7 @@
 // Refresh automático a cada 10 segundos
 setTimeout(function() {
     window.location.reload();
-}, 20000);
+}, 40000);
 </script>
 
 <div id="content">
@@ -330,9 +330,13 @@ setTimeout(function() {
                 <h2 class="section-title" style="margin-bottom: 0;">🔄 Alunos que Retornaram Após Cadastro</h2>
                 <a href="<?php echo site_url('admin/downloadReturningStudentsCsv'); ?>" class="btn btn-sm btn-primary" style="margin-left: 16px; background: #667eea; color: #fff; padding: 8px 18px; border-radius: 6px; text-decoration: none; font-weight: 500;">⬇️ Download CSV</a>
             </div>
+            <!-- DataTables CSS/JS -->
+            <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+            <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+            <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
             <?php if (!empty($returning_students)): ?>
                 <div style="max-height: 400px; overflow-y: auto;">
-                    <table class="ranking-table">
+                    <table class="ranking-table" id="returningStudentsTable">
                         <thead>
                             <tr>
                                 <th style="width: 60px;">#</th>
@@ -387,6 +391,35 @@ setTimeout(function() {
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                    <script>
+                    $(document).ready(function() {
+                        $('#returningStudentsTable').DataTable({
+                            language: {
+                                "sEmptyTable": "Nenhum registro encontrado",
+                                "sInfo": "Mostrando de _START_ até _END_ de _TOTAL_ registros",
+                                "sInfoEmpty": "Mostrando 0 até 0 de 0 registros",
+                                "sInfoFiltered": "(Filtrados de _MAX_ registros)",
+                                "sInfoPostFix": "",
+                                "sInfoThousands": ".",
+                                "sLengthMenu": "_MENU_ resultados por página",
+                                "sLoadingRecords": "Carregando...",
+                                "sProcessing": "Processando...",
+                                "sZeroRecords": "Nenhum registro encontrado",
+                                "sSearch": "Pesquisar",
+                                "oPaginate": {
+                                    "sNext": "Próximo",
+                                    "sPrevious": "Anterior",
+                                    "sFirst": "Primeiro",
+                                    "sLast": "Último"
+                                },
+                                "oAria": {
+                                    "sSortAscending": ": Ordenar colunas de forma ascendente",
+                                    "sSortDescending": ": Ordenar colunas de forma descendente"
+                                }
+                            }
+                        });
+                    });
+                    </script>
                 </div>
             <?php else: ?>
                 <div class="empty-state">

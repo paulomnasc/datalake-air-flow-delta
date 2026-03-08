@@ -1129,6 +1129,10 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         // Remove qualquer valor do campo source_filename (garante que não será enviado)
                         formData.delete('source_filename');
                     }
+                        // PATCH: Forçar is_multi_table para fontes SQL
+                        if (sourceTypeName.includes('sql')) {
+                            formData.set('is_multi_table', '1');
+                        }
                     
                     console.log('📤 Enviando pipeline...');
                     

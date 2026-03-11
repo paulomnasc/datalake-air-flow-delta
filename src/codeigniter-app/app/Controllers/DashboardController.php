@@ -459,6 +459,7 @@ class DashboardController extends BaseController
             'returning_students' => $returningStudents,
             'top_students' => $topStudents,
             'courses_progress' => $coursesProgress,
+            'student_progress' => $this->getStudentProgressData(),
         ];
         
         return view('admin/dashboard', $data);
@@ -502,6 +503,75 @@ class DashboardController extends BaseController
                 $student->return_count, 
                 $student->last_return, 
                 $student->criado_em
+            ]);
+        }
+        fclose($output);
+        exit;
+    }
+
+    /**
+     * Retorna os dados de progresso dos alunos
+     */
+    private function getStudentProgressData()
+    {
+        $db = \Config\Database::connect();
+        return $db->query("
+            SELECT 
+                u.id as user_id,
+                u.nome as user_name,
+                u.email,
+                -- Video Progress: média do percentual de vídeos assistidos (considerando apenas vídeos que o aluno começou)
+                COALESCE((
+                    SELECT AVG(vp.percent) 
+                    FROM video_progress vp 
+                    JOIN video v ON v.id = vp.video_id
+                    WHERE vp.user_id = u.id AND v.is_active = 1
+                ), 0) as video_progress,
+                -- UC Progress: percentual de tarefas concluídas em relação ao total de tarefas ativas
+                (
+                    SELECT COUNT(up.id) 
+                    FROM uc_progress up 
+                    JOIN uc_definition ud ON ud.id = up.uc_definition_id 
+                    WHERE up.user_id = u.id AND up.completed = 1 AND ud.is_active = 1
+                ) as tasks_completed,
+                (SELECT COUNT(id) FROM uc_definition WHERE is_active = 1) as total_tasks_available,
+                -- Last Login: data da última ação registrada no log
+                (SELECT MAX(created_at) FROM activity_logs WHERE user_id = u.id) as last_login
+            FROM usuario u
+            WHERE u.status_assinatura IN ('trial', 'active')
+               OR EXISTS (SELECT 1 FROM video_progress WHERE user_id = u.id)
+            GROUP BY u.id
+            ORDER BY video_progress DESC, tasks_completed DESC
+        ")->getResult();
+    }
+
+    /**
+     * Download CSV do progresso detalhado dos alunos
+     */
+    public function downloadStudentProgressCsv()
+    {
+        $students = $this->getStudentProgressData();
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="progresso_alunos.csv"');
+
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['#', 'Aluno', 'Email', 'Progresso Vídeos (%)', 'Tarefas Concluídas', 'Total Tarefas', 'Último Login']);
+
+        $rank = 1;
+        foreach ($students as $student) {
+            $taskProgress = $student->total_tasks_available > 0 
+                ? round(($student->tasks_completed / $student->total_tasks_available) * 100, 2) 
+                : 0;
+            
+            fputcsv($output, [
+                $rank++,
+                $student->user_name,
+                $student->email,
+                round($student->video_progress, 2),
+                $student->tasks_completed,
+                $student->total_tasks_available,
+                $student->last_login ?? 'N/A'
             ]);
         }
         fclose($output);

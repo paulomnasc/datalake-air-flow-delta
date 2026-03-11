@@ -429,6 +429,97 @@ setTimeout(function() {
             <?php endif; ?>
         </div>
 
+        <!-- Detalhes de Progresso por Aluno (SOLICITADO) -->
+        <div class="content-section">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+                <h2 class="section-title" style="margin-bottom: 0;">📊 Detalhes de Progresso por Aluno</h2>
+                <a href="<?php echo site_url('admin/downloadStudentProgressCsv'); ?>" class="btn btn-sm btn-success" style="background: #28a745; color: #fff; padding: 8px 18px; border-radius: 6px; text-decoration: none; font-weight: 500;">⬇️ Exportar CSV</a>
+            </div>
+            
+            <?php if (!empty($student_progress)): ?>
+                <div class="table-responsive">
+                    <table class="ranking-table" id="studentProgressTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">#</th>
+                                <th>Aluno</th>
+                                <th>Progresso Vídeos</th>
+                                <th>Progresso Tarefas</th>
+                                <th style="text-align: right;">Último Login</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($student_progress as $index => $student): 
+                                $rank = $index + 1;
+                                $videoPercent = round($student->video_progress, 1);
+                                $taskPercent = $student->total_tasks_available > 0 
+                                    ? round(($student->tasks_completed / $student->total_tasks_available) * 100, 1) 
+                                    : 0;
+                            ?>
+                                <tr>
+                                    <td>
+                                        <span class="rank-badge rank-other" style="width: 28px; height: 28px; font-size: 12px;"><?php echo $rank; ?></span>
+                                    </td>
+                                    <td>
+                                        <div style="font-weight: 600; color: #333;"><?php echo esc($student->user_name); ?></div>
+                                        <div style="font-size: 12px; color: #999;"><?php echo esc($student->email); ?></div>
+                                    </td>
+                                    <td style="width: 250px;">
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <div class="progress-bar-container" style="flex: 1; height: 6px;">
+                                                <div class="progress-bar-fill" style="width: <?php echo $videoPercent; ?>%; background: linear-gradient(90deg, #4facfe, #00f2fe);"></div>
+                                            </div>
+                                            <span style="font-weight: 600; font-size: 13px; min-width: 45px;"><?php echo $videoPercent; ?>%</span>
+                                        </div>
+                                    </td>
+                                    <td style="width: 250px;">
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <div class="progress-bar-container" style="flex: 1; height: 6px;">
+                                                <div class="progress-bar-fill" style="width: <?php echo $taskPercent; ?>%; background: linear-gradient(90deg, #11998e, #38ef7d);"></div>
+                                            </div>
+                                            <span style="font-weight: 600; font-size: 13px; min-width: 45px;"><?php echo $student->tasks_completed; ?>/<?php echo $student->total_tasks_available; ?></span>
+                                        </div>
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <span style="font-size: 13px; color: #666;">
+                                            <?php 
+                                                if (!empty($student->last_login)) {
+                                                    $lastLogin = new DateTime($student->last_login);
+                                                    echo $lastLogin->format('d/m/Y H:i');
+                                                } else {
+                                                    echo '<i style="color:#ccc;">Nunca</i>';
+                                                }
+                                            ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <script>
+                $(document).ready(function() {
+                    if (!$.fn.DataTable.isDataTable('#studentProgressTable')) {
+                        $('#studentProgressTable').DataTable({
+                            order: [[2, 'desc'], [3, 'desc']], // Ordenar por progresso de vídeo depois tarefas
+                            language: {
+                                "sEmptyTable": "Nenhum aluno encontrado",
+                                "sInfo": "Mostrando _START_ até _END_ de _TOTAL_ alunos",
+                                "sSearch": "Buscar aluno:",
+                                "oPaginate": { "sNext": "Próximo", "sPrevious": "Anterior" }
+                            }
+                        });
+                    }
+                });
+                </script>
+            <?php else: ?>
+                <div class="empty-state">
+                    <div class="empty-state-icon">👥</div>
+                    <p>Nenhum dado de progresso disponível</p>
+                </div>
+            <?php endif; ?>
+        </div>
+
         <!-- Ranking de Alunos -->
         <div class="content-section">
             <h2 class="section-title">🏆 Top 10 Alunos por XP</h2>

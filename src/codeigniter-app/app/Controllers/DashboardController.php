@@ -520,9 +520,9 @@ class DashboardController extends BaseController
                 u.id as user_id,
                 u.nome as user_name,
                 u.email,
-                -- Video Progress: média do percentual de vídeos assistidos (considerando apenas vídeos que o aluno começou)
+                -- Video Progress: soma dos percentuais dividido pelo total de vídeos ativos (progresso real no curso)
                 COALESCE((
-                    SELECT AVG(vp.percent) 
+                    SELECT SUM(vp.percent) / (SELECT COUNT(*) FROM video WHERE is_active = 1)
                     FROM video_progress vp 
                     JOIN video v ON v.id = vp.video_id
                     WHERE vp.user_id = u.id AND v.is_active = 1

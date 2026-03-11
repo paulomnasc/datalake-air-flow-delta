@@ -535,6 +535,24 @@ class DashboardController extends BaseController
                     WHERE up.user_id = u.id AND up.completed = 1 AND ud.is_active = 1
                 ) as tasks_completed,
                 (SELECT COUNT(id) FROM uc_definition WHERE is_active = 1) as total_tasks_available,
+                -- Last Content: Último vídeo/módulo assistido
+                (
+                    SELECT CONCAT(m2.name, ' / ', v2.title)
+                    FROM video_progress vp2
+                    JOIN video v2 ON v2.id = vp2.video_id
+                    JOIN module m2 ON m2.id = v2.module_id
+                    WHERE vp2.user_id = u.id
+                    ORDER BY vp2.updated_at DESC
+                    LIMIT 1
+                ) as last_content,
+                -- Last URI: URI do registro mais recente no activity_logs
+                (
+                    SELECT uri 
+                    FROM activity_logs 
+                    WHERE user_id = u.id 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                ) as last_uri,
                 -- Last Login: data da última ação registrada no log
                 (SELECT MAX(created_at) FROM activity_logs WHERE user_id = u.id) as last_login
             FROM usuario u
@@ -556,7 +574,7 @@ class DashboardController extends BaseController
         header('Content-Disposition: attachment; filename="progresso_alunos.csv"');
 
         $output = fopen('php://output', 'w');
-        fputcsv($output, ['#', 'Aluno', 'Email', 'Progresso Vídeos (%)', 'Tarefas Concluídas', 'Total Tarefas', 'Último Login']);
+        fputcsv($output, ['#', 'Aluno', 'Email', 'Progresso Vídeos (%)', 'Tarefas Concluídas', 'Total Tarefas', 'Último Conteúdo', 'Última URI', 'Último Login']);
 
         $rank = 1;
         foreach ($students as $student) {
@@ -571,6 +589,8 @@ class DashboardController extends BaseController
                 round($student->video_progress, 2),
                 $student->tasks_completed,
                 $student->total_tasks_available,
+                $student->last_content ?? 'N/A',
+                $student->last_uri ?? 'N/A',
                 $student->last_login ?? 'N/A'
             ]);
         }

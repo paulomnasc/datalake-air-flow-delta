@@ -445,6 +445,8 @@ setTimeout(function() {
                                 <th>Aluno</th>
                                 <th>Progresso Vídeos</th>
                                 <th>Progresso Tarefas</th>
+                                <th>Último Vídeo/Módulo</th>
+                                <th>Última URI</th>
                                 <th style="text-align: right;">Último Login</th>
                             </tr>
                         </thead>
@@ -478,6 +480,16 @@ setTimeout(function() {
                                                 <div class="progress-bar-fill" style="width: <?php echo $taskPercent; ?>%; background: linear-gradient(90deg, #11998e, #38ef7d);"></div>
                                             </div>
                                             <span style="font-weight: 600; font-size: 13px; min-width: 45px;"><?php echo $student->tasks_completed; ?>/<?php echo $student->total_tasks_available; ?></span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div style="font-size: 13px; color: #555; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo esc($student->last_content); ?>">
+                                            <?php echo $student->last_content ? esc($student->last_content) : '<i style="color:#ccc;">Nenhum</i>'; ?>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div style="font-size: 12px; color: #666; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo esc($student->last_uri); ?>">
+                                            <?php echo $student->last_uri ? esc($student->last_uri) : '<i style="color:#ccc;">-</i>'; ?>
                                         </div>
                                     </td>
                                     <td style="text-align: right;">

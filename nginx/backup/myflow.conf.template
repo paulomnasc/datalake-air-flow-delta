@@ -37,5 +37,33 @@ server {
 }
 
 # VirtualHost HTTPS (apenas se SSL habilitado)
-## Bloco HTTPS removido em ambientes sem SSL
+
+server {
+    listen ${NGINX_PORT_HTTPS} ssl;
+    server_name ${NGINX_SERVER_NAME};
+
+    ssl_certificate ${NGINX_SSL_CERT};
+    ssl_certificate_key ${NGINX_SSL_KEY};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    access_log /var/log/nginx/myflow_ssl_access.log;
+    error_log /var/log/nginx/myflow_ssl_error.log;
+
+    client_max_body_size 200M;
+
+    location / {
+        proxy_pass http://codeigniter-app:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
 # Para habilitar HTTPS, use o template myflow-ssl.conf.template e ajuste o docker-compose.yml conforme documentação.

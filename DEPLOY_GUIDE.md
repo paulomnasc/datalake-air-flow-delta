@@ -1,4 +1,4 @@
-# 🚀 Guia de Implantação - Teste vs Produção
+analisa o an# 🚀 Guia de Implantação - Teste vs Produção
 
 > **Contexto deste servidor:** aqui rodam **apenas dois ambientes** do projeto `datalake-air-flow-teste`:
 > - **TEST** (homologação) → use `.env-test` (portas 29xxx, `ENV_SUFFIX=test`)

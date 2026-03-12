@@ -554,7 +554,14 @@ class DashboardController extends BaseController
                     LIMIT 1
                 ) as last_uri,
                 -- Last Login: data da última ação registrada no log
-                (SELECT MAX(created_at) FROM activity_logs WHERE user_id = u.id) as last_login
+                (SELECT MAX(created_at) FROM activity_logs WHERE user_id = u.id) as last_login,
+                -- XP Earned: soma dos pontos XP das tarefas concluídas
+                COALESCE((
+                    SELECT SUM(ud2.xp_points)
+                    FROM uc_progress up2
+                    JOIN uc_definition ud2 ON ud2.id = up2.uc_definition_id
+                    WHERE up2.user_id = u.id AND up2.completed = 1 AND ud2.is_active = 1
+                ), 0) as xp_earned
             FROM usuario u
             WHERE u.status_assinatura IN ('trial', 'active')
                OR EXISTS (SELECT 1 FROM video_progress WHERE user_id = u.id)
@@ -574,7 +581,7 @@ class DashboardController extends BaseController
         header('Content-Disposition: attachment; filename="progresso_alunos.csv"');
 
         $output = fopen('php://output', 'w');
-        fputcsv($output, ['#', 'Aluno', 'Email', 'Progresso Vídeos (%)', 'Tarefas Concluídas', 'Total Tarefas', 'Último Conteúdo', 'Última URI', 'Último Login']);
+        fputcsv($output, ['#', 'Aluno', 'Email', 'XP Obtido', 'Progresso Vídeos (%)', 'Tarefas Concluídas', 'Total Tarefas', 'Último Conteúdo', 'Última URI', 'Último Login']);
 
         $rank = 1;
         foreach ($students as $student) {
@@ -586,6 +593,7 @@ class DashboardController extends BaseController
                 $rank++,
                 $student->user_name,
                 $student->email,
+                $student->xp_earned,
                 round($student->video_progress, 2),
                 $student->tasks_completed,
                 $student->total_tasks_available,

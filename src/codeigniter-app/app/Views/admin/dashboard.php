@@ -445,6 +445,7 @@ setTimeout(function() {
                                 <th>Aluno</th>
                                 <th>Progresso Vídeos</th>
                                 <th>Progresso Tarefas</th>
+                                <th>XP Obtido</th>
                                 <th>Último Vídeo/Módulo</th>
                                 <th>Última URI</th>
                                 <th style="text-align: right;">Último Login</th>
@@ -481,6 +482,11 @@ setTimeout(function() {
                                             </div>
                                             <span style="font-weight: 600; font-size: 13px; min-width: 45px;"><?php echo $student->tasks_completed; ?>/<?php echo $student->total_tasks_available; ?></span>
                                         </div>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <span style="font-weight: bold; color: #ffd700; background: #333; padding: 4px 10px; border-radius: 6px; font-size: 13px;">
+                                            <?php echo number_format($student->xp_earned); ?> XP
+                                        </span>
                                     </td>
                                     <td>
                                         <div style="font-size: 13px; color: #555; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo esc($student->last_content); ?>">

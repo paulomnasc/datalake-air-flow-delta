@@ -168,8 +168,57 @@ class CursoController extends BaseController
         $data['module'] = $moduleModel->find($data['video']['module_id']);
         $data['course'] = $courseModel->find($data['module']['course_id']);
         $data['ucs'] = $ucModel->getUCsByVideo($videoId);
-        // Adiciona lista de vídeos do módulo para navegação sequencial
-        $data['module']['videos'] = $videoModel->getVideosByModule($data['module']['id']);
+        
+        $userId = $_SESSION['id_usuario_logado'] ?? null;
+        
+        // --- Validação de Pagamento (Segurança) ---
+        // Bloqueia acesso ao vídeo caso o módulo seja 2+ e pagamento_inicial não esteja autorizado
+        if ($userId && intval($data['module']['order'] ?? 1) > 1) {
+            $usuarioModel = new \App\Models\UsuarioModel();
+            $usuario = $usuarioModel->find($userId);
+            if (empty($usuario->pagamento_inicial) || $usuario->pagamento_inicial != 1) {
+                return redirect()->to('/subscription/initial-payment');
+            }
+        }
+        // ------------------------------------------
+
+        // --- Cálculo da Navegação Sequencial (Próxima Aula) ---
+        $nextVideo = null;
+        
+        // 1. Tentar buscar o próximo vídeo dentro do mesmo módulo
+        $moduleVideos = $videoModel->getVideosByModule($data['module']['id']);
+        $currentIndex = null;
+        foreach ($moduleVideos as $idx => $v) {
+            if ($v['id'] == $videoId) {
+                $currentIndex = $idx;
+                break;
+            }
+        }
+        
+        if ($currentIndex !== null && isset($moduleVideos[$currentIndex + 1])) {
+            // Existe próximo vídeo no mesmo módulo
+            $nextVideo = $moduleVideos[$currentIndex + 1];
+        } else {
+            // É o último vídeo do módulo, tentar o primeiro vídeo do próximo módulo
+            $modules = $moduleModel->getModulesByCourse($data['course']['id']);
+            $currentModuleIndex = null;
+            foreach ($modules as $idx => $m) {
+                if ($m['id'] == $data['module']['id']) {
+                    $currentModuleIndex = $idx;
+                    break;
+                }
+            }
+            
+            if ($currentModuleIndex !== null && isset($modules[$currentModuleIndex + 1])) {
+                $nextModule = $modules[$currentModuleIndex + 1];
+                $nextModuleVideos = $videoModel->getVideosByModule($nextModule['id']);
+                if (!empty($nextModuleVideos)) {
+                    $nextVideo = $nextModuleVideos[0];
+                }
+            }
+        }
+        $data['next_video'] = $nextVideo;
+        // ------------------------------------------------------
         
         // Buscar progresso do usuário se estiver logado
         if (isset($_SESSION['id_usuario_logado'])) {

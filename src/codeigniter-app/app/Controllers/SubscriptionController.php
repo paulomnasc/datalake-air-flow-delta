@@ -97,6 +97,15 @@ class SubscriptionController extends BaseController
         // Define texto de periodicidade para assinatura
         $data['texto_periodicidade'] = ' mensais';
 
+        // Gera o payload do PIX no backend para maior confiabilidade
+        $data['pix_payload'] = $this->buildPixPayload(
+            '03206740703', // Chave CPF de Cristiane (somente números)
+            $valorBrl,
+            'CRISTIANE B L NASCIMENTO',
+            'SAO PAULO',
+            'RENOVACAO'
+        );
+
         return view('subscription/renew', $data);
     }
 
@@ -280,7 +289,7 @@ class SubscriptionController extends BaseController
             $pixKey,
             $valorBrl,
             'DATALAKE',
-            'CURITIBA',
+            'SAMAMBAIA',
             'SUBSCRIP'
         );
 
@@ -306,10 +315,15 @@ class SubscriptionController extends BaseController
      */
     private function buildPixPayload(string $pixKey, float $amountBrl, string $merchantName, string $merchantCity, string $txid): string
     {
+        // Limpar a chave PIX (remover pontos, traços, espaços, etc)
+        $pixKey = preg_replace('/[^a-zA-Z0-9]/', '', $pixKey);
+
         $merchantAccountInfo = $this->emvField('00', 'BR.GOV.BCB.PIX') .
             $this->emvField('01', $pixKey);
 
-        $additionalDataField = $this->emvField('05', substr($txid, 0, 25));
+        // TXID deve ser limitado a 25 caracteres para PIX Estático (ou usar ***)
+        $txidClean = preg_replace('/[^a-zA-Z0-9]/', '', $txid);
+        $additionalDataField = $this->emvField('05', substr($txidClean ?: '***', 0, 25));
 
         $payload = '000201';
         $payload .= '26' . $this->emvLength($merchantAccountInfo) . $merchantAccountInfo;
@@ -393,10 +407,10 @@ class SubscriptionController extends BaseController
         }
         // Monta payload BR Code do PIX e URL do QR Code
         $pixPayload = $this->buildPixPayload(
-            $pixKey,
+            '03206740703', 
             $valorBrl,
-            'DATALAKE',
-            'CURITIBA',
+            'CRISTIANE B L NASCIMENTO',
+            'SAMAMBAIA',
             'SUBSCRIP'
         );
         $qrCodeUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=' . urlencode($pixPayload);
@@ -411,7 +425,8 @@ class SubscriptionController extends BaseController
             'valor_brl' => $valorBrl,
             'cotacao_mensagem' => $cotacaoMensagem,
             'qr_code_url' => $qrCodeUrl,
-            'pix_key' => $pixKey
+            'pix_key' => $pixKey,
+            'pix_payload' => $pixPayload
         ];
         // Adiciona variáveis faltantes para a view
         $data['dias_restantes'] = 0;

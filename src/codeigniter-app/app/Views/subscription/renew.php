@@ -5,6 +5,24 @@ if (! defined('VIEWPATH')) {
 require VIEWPATH . '/header.php';
 ?>
 
+<!-- Bibliotecas para PIX e QR Code -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style>
+    #qrcode img, #qrcode canvas {
+        width: 256px !important;
+        height: 256px !important;
+        display: block;
+        margin: 0 auto;
+    }
+    #qrcode-container {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+
+
 <div id="content">
     <div class="container mt-5">
         
@@ -84,34 +102,39 @@ require VIEWPATH . '/header.php';
                     </p>
                 </div>
 
-                <!-- Área do QR Code -->
-                <div class="card bg-light mb-4">
-                    <div class="card-body text-center">
-                        <h5>💰 Pague via PIX</h5>
-                        
-                        <!-- p class="text-muted">Escaneie o QR Code abaixo com o app do seu banco</p-->
-                        
-                        <!-- ÁREA PARA INSERIR O QR CODE 
-                        <div id="qrcode-area" class="my-4 p-3 bg-white border rounded d-inline-block" style="width: 320px; height: 320px;">
-                            <img src="<?= base_url('assets/img/qr-pix-mydataflow.png'); ?>" alt="QR Code PIX" width="300" height="300" style="width: 300px; height: 300px; max-width: 100%; max-height: 100%; display: block; margin: 0 auto;">
-                        </div>
-                        -->
-                        <!-- Instruções -->
-                        <div class="alert alert-warning mt-3" role="alert">
-                            <h6>📌 Instruções:</h6>
-                            <div class="mb-2">
-                                <strong>Chave pix Cpf:</strong> 032.067.407-03<br>
-                                <strong>Nome:</strong> Cristiane B**** L**** do Nascimento<br>
-                                <strong>Enviar o comprovante para:</strong> admin@estudotabela.com.br<br>
-                                <span class="text-muted">A partir do envio estaremos liberando o acesso em até 24 horas do recebimento do comprovante.</span>
+                        <!-- Área do QR Code Dinâmico -->
+                        <div class="my-4 text-center">
+                            <div id="qrcode-container" class="p-4 bg-white border rounded d-inline-block shadow" style="min-width: 290px; min-height: 290px;">
+                                <div id="qrcode" class="d-flex justify-content-center align-items-center"></div>
                             </div>
-                            <ol class="text-start mb-0">
+                        </div>
+
+                        <!-- Pix Copia e Cola -->
+                        <div class="mb-4 mx-auto" style="max-width: 500px;">
+                            <label for="pix-copia-e-cola" class="form-label font-weight-bold">📋 Pix Copia e Cola</label>
+                            <div class="input-group">
+                                <input type="text" id="pix-copia-e-cola" class="form-control" readonly value="Gerando código...">
+                                <button class="btn btn-outline-primary" type="button" onclick="copiarPix()">Copiar</button>
+                            </div>
+                            <small class="text-muted">Use esta opção se estiver acessando pelo celular.</small>
+                        </div>
+
+                        <!-- Instruções -->
+                        <div class="alert alert-warning mt-3 text-start" role="alert">
+                            <h6>📌 Instruções:</h6>
+                            <ol class="mb-0">
                                 <li>Abra o aplicativo do seu banco</li>
-                                <li>Selecione a opção PIX</li>
-                                <li>Informe o Cpf acima</li>
+                                <li>Selecione a opção <strong>PIX</strong></li>
+                                <li>Escolha <strong>Ler QR Code</strong> ou <strong>Pix Copia e Cola</strong></li>
                                 <li>Confirme o pagamento de <strong>R$ <?= number_format($valor_brl, 2, ',', '.'); ?></strong></li>
                                 <li>Após o pagamento, clique no botão "Já paguei" abaixo</li>
                             </ol>
+                            <div class="mt-2 small border-top pt-2">
+                                <strong>Dados para conferência:</strong><br>
+                                Chave CPF: 032.067.407-03<br>
+                                Nome: Cristiane B. L. do Nascimento<br>
+                                Enviar comprovante: <strong>admin@estudotabela.com.br</strong>
+                            </div>
                         </div>
 
                         <!-- Botão de Confirmação de Pagamento -->
@@ -156,6 +179,57 @@ require VIEWPATH . '/header.php';
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    gerarPix();
+});
+
+function gerarPix() {
+    try {
+        // Usa o payload pré-gerado pelo backend para maior confiabilidade
+        const payload = '<?= $pix_payload ?? '' ?>';
+        
+        if (!payload) {
+            throw new Error("Payload do PIX não foi fornecido pelo servidor.");
+        }
+
+        // 1. Gera o QR Code
+        const qrcodeDiv = document.getElementById("qrcode");
+        qrcodeDiv.innerHTML = ""; // Limpa antes de gerar
+        
+        if (typeof QRCode === 'undefined') {
+            throw new Error("Biblioteca de QR Code não carregada.");
+        }
+
+        new QRCode(qrcodeDiv, {
+            text: payload,
+            width: 256,
+            height: 256,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+
+        // 2. Preenche o campo Copia e Cola
+        document.getElementById("pix-copia-e-cola").value = payload;
+    } catch (e) {
+        console.error("Erro detalhado ao gerar PIX:", e);
+        const errorMsg = e.message || "Erro desconhecido";
+        document.getElementById("pix-copia-e-cola").value = "Erro: " + errorMsg;
+    }
+}
+
+function copiarPix() {
+    const input = document.getElementById("pix-copia-e-cola");
+    input.select();
+    input.setSelectionRange(0, 99999); // Para dispositivos móveis
+    
+    navigator.clipboard.writeText(input.value).then(() => {
+        alert("✅ Código Pix copiado com sucesso!");
+    }).catch(err => {
+        console.error('Erro ao copiar:', err);
+    });
+}
+
 function confirmarPagamento() {
     // Confirma com o usuário
     if (!confirm('Você confirma que realizou o pagamento ?')) {

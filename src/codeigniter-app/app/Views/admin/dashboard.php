@@ -443,6 +443,7 @@ setTimeout(function() {
                             <tr>
                                 <th style="width: 50px;">#</th>
                                 <th>Aluno</th>
+                                <th>Perfil Comportamental</th>
                                 <th>Progresso Vídeos</th>
                                 <th>Progresso Tarefas</th>
                                 <th>XP Obtido</th>
@@ -466,6 +467,9 @@ setTimeout(function() {
                                     <td>
                                         <div style="font-weight: 600; color: #333;"><?php echo esc($student->user_name); ?></div>
                                         <div style="font-size: 12px; color: #999;"><?php echo esc($student->email); ?></div>
+                                    </td>
+                                    <td>
+                                        <div style="font-size: 13px; color: #764ba2; font-weight: 500;"><?php echo esc($student->perfil_comportamental); ?></div>
                                     </td>
                                     <td style="width: 250px;">
                                         <div style="display: flex; align-items: center; gap: 10px;">

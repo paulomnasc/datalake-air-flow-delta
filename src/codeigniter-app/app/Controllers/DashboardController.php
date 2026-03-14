@@ -582,18 +582,19 @@ class DashboardController extends BaseController
         header('Content-Disposition: attachment; filename="progresso_alunos.csv"');
 
         $output = fopen('php://output', 'w');
-        fputcsv($output, ['#', 'Aluno', 'Email', 'XP Obtido', 'Progresso Vídeos (%)', 'Tarefas Concluídas', 'Total Tarefas', 'Último Conteúdo', 'Última URI', 'Último Login']);
+        // Adiciona a coluna 'Perfil Comportamental' ao cabeçalho
+        fputcsv($output, ['#', 'Aluno', 'Email', 'Perfil Comportamental', 'XP Obtido', 'Progresso Vídeos (%)', 'Tarefas Concluídas', 'Total Tarefas', 'Último Conteúdo', 'Última URI', 'Último Login']);
 
         $rank = 1;
         foreach ($students as $student) {
             $taskProgress = $student->total_tasks_available > 0 
                 ? round(($student->tasks_completed / $student->total_tasks_available) * 100, 2) 
                 : 0;
-            
             fputcsv($output, [
                 $rank++,
                 $student->user_name,
                 $student->email,
+                $student->perfil_comportamental ?? 'N/A',
                 $student->xp_earned,
                 round($student->video_progress, 2),
                 $student->tasks_completed,

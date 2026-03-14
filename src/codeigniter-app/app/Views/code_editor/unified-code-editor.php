@@ -862,7 +862,7 @@ require VIEWPATH . '/header.php';
 </div>
     
     <!-- Monaco Editor -->
-    // ...existing code...
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
     <!-- Marked.js for Markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
     
@@ -908,7 +908,13 @@ require VIEWPATH . '/header.php';
         }
         
 
-        // toggleEditorSidebar() agora é global via git-file-manager.js
+        function toggleEditorSidebar() {
+            const sidebar = document.getElementById('editorSidebar');
+            if (sidebar) sidebar.classList.toggle('active');
+            
+            const overlay = document.getElementById('sidebarOverlayBg');
+            if (overlay) overlay.classList.toggle('active');
+        }
         
         // Fechar sidebar ao clicar no overlay
         document.getElementById('sidebarOverlayBg').addEventListener('click', function() {
@@ -2543,7 +2549,20 @@ ORDER BY departamento, rank;`
             return typeof window.git !== 'undefined' && typeof window.LightningFS !== 'undefined';
         }
         
-        // switchSidebarTab() agora é global via git-file-manager.js
+        function switchSidebarTab(tabName) {
+            document.querySelectorAll('.sidebar-tab').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.sidebar-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            const tabBtn = document.querySelector(`[data-tab="${tabName}"]`);
+            if (tabBtn) tabBtn.classList.add('active');
+            
+            const tabContent = document.getElementById(`tab-${tabName}`);
+            if (tabContent) tabContent.classList.add('active');
+        }
         
         // Conectar e clonar o repositório
         // connectAttempts já está declarado globalmente em git-file-manager.js

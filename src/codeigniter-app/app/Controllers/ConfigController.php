@@ -466,15 +466,60 @@ class ConfigController extends BaseController
             
             // 2. Lógica Condicional de Upload/Caminho (usando a descrição textual)
             if (str_contains($sourceTypeDescription, 'csv') || str_contains($sourceTypeDescription, 'json')) {
-                // ...existing code...
                 $uploadedFile = $this->request->getFile('source_filename');
                 if (!$uploadedFile || !$uploadedFile->isValid() || $uploadedFile->hasMoved()) {
                     throw new \Exception('O arquivo de upload é obrigatório ou inválido.');
                 }
-                // ...existing code...
-                // ... MinIO upload logic ...
-                // ...existing code...
-                $sourceLocation = $targetMinioPath;
+
+                if (!$this->minioClient) {
+                    throw new \Exception('Cliente MinIO não inicializado.');
+                }
+                
+                // Prioriza bucket do usuário logado
+                $bucket = \App\Helpers\SessionHelper::getUserBucket() ?: ($this->bucketName ?: 'lab01');
+                
+                // GARANTIR QUE O BUCKET DO USUÁRIO EXISTE
+                $bucketCheck = \App\Helpers\MinioHelper::ensureBucketExists($bucket);
+                
+                if (!$bucketCheck['success']) {
+                    throw new \Exception("Erro ao preparar armazenamento: {$bucketCheck['message']}");
+                }
+                
+                if ($bucketCheck['created']) {
+                    log_message('info', "Bucket '{$bucket}' criado automaticamente.");
+                }
+                
+                // VERIFICAÇÃO DE LIMITE DE ARMAZENAMENTO
+                $fileSize = $uploadedFile->getSize();
+                $storageCheck = \App\Helpers\MinioHelper::checkStorageLimit($bucket, $fileSize);
+                
+                if (!$storageCheck['allowed']) {
+                    log_message('warning', "Upload bloqueado por limite de armazenamento: {$storageCheck['message']}");
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => $storageCheck['message']
+                    ]);
+                }
+                
+                // Extrair target_table_name do nome do arquivo original (sem extensão)
+                $originalFileName = $uploadedFile->getClientName();
+                $targetTableName = $postData['target_table_name'] ?? pathinfo($originalFileName, PATHINFO_FILENAME);
+
+                $newName = $uploadedFile->getRandomName();
+                $targetMinioPath = "raw/{$targetTableName}/{$newName}";
+
+                try {
+                    $this->minioClient->putObject([
+                        'Bucket' => $bucket,
+                        'Key' => $targetMinioPath,
+                        'SourceFile' => $uploadedFile->getTempName(),
+                        'ContentType' => $uploadedFile->getClientMimeType(),
+                    ]);
+
+                    $sourceLocation = $targetMinioPath;
+                } catch (\Aws\Exception\AwsException $e) {
+                    throw new \Exception('Erro MinIO: ' . $e->getAwsErrorMessage());
+                }
             } else if (str_contains($sourceTypeDescription, 'parquet')) {
                 $sourceLocation = $postData['source_filename'] ?? null;
                 if (empty($sourceLocation)) {

@@ -182,7 +182,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                 <div x-show="currentView === 'dashboard'">
                     <!-- Hero Section -->
                     <div class="hero-section">
-                        <h1>🚀 Bem-vindo ao MyDataFlow</h1>
+                        <h1>Bem-vindo ao MyDataFlow</h1>
                         <!-- Botão YouTube -->
                         <?php if (isset($_SESSION['nome_usuario_logado'])): ?>
                         <a id="youtubeBtn" href="/cursos">

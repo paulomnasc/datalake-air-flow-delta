@@ -27,30 +27,11 @@ class CursoController extends BaseController
     // ========== STUDENT INTERFACE ==========
 
     /**
-     * Lista todos os cursos ativos disponíveis para o aluno
+     * Redireciona /cursos diretamente para o vídeo principal
      */
     public function index()
     {
-        $courseModel = new CourseModel();
-        $moduleModel = new ModuleModel();
-        $videoModel = new VideoModel();
-        $ucProgressModel = new UcProgressModel();
-
-        $userId = $_SESSION['id_usuario_logado'] ?? null;
-        $courses = $courseModel->getActiveCourses();
-        foreach ($courses as &$course) {
-            $modules = $moduleModel->where('course_id', $course['id'])->where('is_active', 1)->findAll();
-            $course['module_count'] = count($modules);
-            $videoCount = 0;
-            foreach ($modules as $module) {
-                $videoCount += $videoModel->where('module_id', $module['id'])->where('is_active', 1)->countAllResults();
-            }
-            $course['video_count'] = $videoCount;
-            // XP acumulado por curso
-            $course['total_xp'] = ($userId) ? $ucProgressModel->getCourseXp($userId, $course['id']) : 0;
-        }
-        $data['courses'] = $courses;
-        return view('student/courses_list', $data);
+        return redirect()->to(route_to('video.player', 5));
     }
 
     /**

@@ -33,8 +33,10 @@ def load_ci_env(env_path, env_mode='dev'):
     elif 'port' not in db_config:
         db_config['port'] = '3306'
 
-    if env_mode == 'dev' and db_config.get('hostname') == 'mysql':
+    if db_config.get('hostname') == 'mysql':
         db_config['hostname'] = '127.0.0.1'
+        if str(db_config.get('port')) == '3306':
+            db_config['port'] = '23306'
 
     return db_config
 

@@ -26,8 +26,7 @@ class ActivityLogFilter implements FilterInterface
             return;
         }
 
-        // Não grava log se perfil for Admin
-        if ($perfilUsuario === 'Admin') {
+        if (empty($nomeUsuario)) {
             return;
         }
 

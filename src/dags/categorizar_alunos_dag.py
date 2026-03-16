@@ -132,7 +132,7 @@ default_args = {
 dag = DAG(
     'categorizar_alunos_dag',
     default_args=default_args,
-    schedule_interval=None,
+    schedule_interval='0 0 * * *',
     catchup=False
 )
 

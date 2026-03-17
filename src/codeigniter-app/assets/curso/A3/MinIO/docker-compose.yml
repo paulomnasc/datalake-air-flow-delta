@@ -1,0 +1,21 @@
+version: '3.8' # Adiciona a versão do arquivo Compose
+services:      # Aninha todos os seus serviços aqui
+  minio:       # Este é o nome do seu serviço
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      # O volume está usando um caminho absoluto no host (/var/oled/minio_data).
+      # Se você quer usar a pasta 'data' que criou localmente, você deveria usar:
+      - ./data:/data
+    networks:
+      - airflow_net
+
+networks:
+  airflow_net:
+    driver: bridge

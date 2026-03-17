@@ -8,9 +8,15 @@ use App\Models\VideoModel;
 use App\Models\UcDefinitionModel;
 use App\Models\VideoProgressModel;
 use App\Models\UcProgressModel;
+use CodeIgniter\Exceptions\PageNotFoundException;
 
 class CursoController extends BaseController
 {
+
+    private const COURSE_ASSETS_PREFIX = 'assets/curso/';
+    private const DOWNLOADS_BASE_DIR = 'downloads/';
+    private const TEMP_ZIP_DIR = 'cache/course-zips/';
+    private const TEMP_ZIP_TTL_SECONDS = 3600;
 
     
 
@@ -220,7 +226,332 @@ class CursoController extends BaseController
                 $uc['completed'] = $ucProgress ? $ucProgress['completed'] : 0;
             }
         }
+
+        foreach ($data['ucs'] as &$uc) {
+            $uc['external_url'] = $this->mapExternalUrlToDownloadRoute($uc['external_url'] ?? null);
+        }
+        unset($uc);
         
         return view('student/video_player', $data);
+    }
+
+    public function downloadMaterial(string $relativePath = '')
+    {
+        if (!isset($_SESSION['id_usuario_logado']) || empty($_SESSION['id_usuario_logado'])) {
+            return redirect()->to('/loginUsuario');
+        }
+
+        $normalizedPath = $this->resolveDownloadRelativePath($relativePath);
+
+        if ($normalizedPath === '' || str_contains($normalizedPath, '..')) {
+            throw PageNotFoundException::forPageNotFound('Material não encontrado.');
+        }
+
+        $downloadRoot = WRITEPATH . self::DOWNLOADS_BASE_DIR;
+        if (!is_dir($downloadRoot) && !mkdir($downloadRoot, 0755, true) && !is_dir($downloadRoot)) {
+            throw PageNotFoundException::forPageNotFound('Diretório de materiais indisponível.');
+        }
+
+        $realDownloadRoot = realpath($downloadRoot);
+        $candidatePath = $downloadRoot . $normalizedPath;
+        $realPath = realpath($candidatePath);
+
+        if (
+            !$realDownloadRoot
+            || !$realPath
+            || !str_starts_with($realPath, $realDownloadRoot)
+        ) {
+            throw PageNotFoundException::forPageNotFound('Material não encontrado.');
+        }
+
+        if (!is_dir($realPath)) {
+            throw PageNotFoundException::forPageNotFound('Apenas pastas podem ser baixadas nesta rota.');
+        }
+
+        $zipFilePath = $this->createZipFromDirectory($realPath, $normalizedPath, $realDownloadRoot);
+        $zipFileName = basename($realPath) . '.zip';
+
+        return $this->response
+            ->download($zipFilePath, null)
+            ->setFileName($zipFileName);
+    }
+
+    private function mapExternalUrlToDownloadRoute(?string $externalUrl): ?string
+    {
+        if ($externalUrl === null) {
+            return null;
+        }
+
+        $trimmedUrl = trim($externalUrl);
+        if ($trimmedUrl === '') {
+            return $trimmedUrl;
+        }
+
+        if (preg_match('#^https?://#i', $trimmedUrl)) {
+            return $trimmedUrl;
+        }
+
+        $pathOnly = preg_split('/[?#]/', $trimmedUrl)[0] ?? $trimmedUrl;
+        $normalizedPath = ltrim($pathOnly, '/');
+
+        if (!str_starts_with($normalizedPath, self::COURSE_ASSETS_PREFIX)) {
+            return $trimmedUrl;
+        }
+
+        $courseRelativePath = 'curso/' . ltrim(substr($normalizedPath, strlen(self::COURSE_ASSETS_PREFIX)), '/');
+        $encodedPath = implode('/', array_map('rawurlencode', explode('/', $courseRelativePath)));
+
+        return site_url('curso/download/' . $encodedPath);
+    }
+
+    private function resolveDownloadRelativePath(string $relativePath): string
+    {
+        $normalizedPath = trim(rawurldecode($relativePath), "/ \t\n\r\0\x0B");
+        $normalizedPath = str_replace('\\', '/', $normalizedPath);
+
+        if (str_contains($normalizedPath, '/')) {
+            return $normalizedPath;
+        }
+
+        $uriPath = trim((string) $this->request->getUri()->getPath(), '/');
+        $prefix = 'curso/download/';
+
+        if (str_starts_with($uriPath, $prefix)) {
+            $fromUri = trim(substr($uriPath, strlen($prefix)), "/ \t\n\r\0\x0B");
+            $fromUri = str_replace('\\', '/', rawurldecode($fromUri));
+            if ($fromUri !== '') {
+                return $fromUri;
+            }
+        }
+
+        return $normalizedPath;
+    }
+
+    private function createZipFromDirectory(string $directoryPath, string $normalizedPath, string $realDownloadRoot): string
+    {
+        $zipDir = WRITEPATH . self::TEMP_ZIP_DIR;
+        if (!is_dir($zipDir) && !mkdir($zipDir, 0755, true) && !is_dir($zipDir)) {
+            throw PageNotFoundException::forPageNotFound('Não foi possível preparar o download.');
+        }
+
+        $this->cleanupOldZipFiles($zipDir);
+
+        $directoryMtime = (string) (filemtime($directoryPath) ?: time());
+        $zipFilePath = $zipDir . sha1($normalizedPath . '|' . $directoryMtime) . '.zip';
+
+        if (is_file($zipFilePath)) {
+            return $zipFilePath;
+        }
+
+        if (class_exists(\ZipArchive::class)) {
+            $zip = new \ZipArchive();
+            if ($zip->open($zipFilePath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+                throw PageNotFoundException::forPageNotFound('Não foi possível gerar o arquivo compactado.');
+            }
+
+            $folderName = basename($directoryPath);
+            $hasFile = false;
+
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($directoryPath, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+
+            foreach ($iterator as $item) {
+                if (!$item->isFile()) {
+                    continue;
+                }
+
+                $realItemPath = $item->getRealPath();
+                if ($realItemPath === false || !str_starts_with($realItemPath, $realDownloadRoot)) {
+                    continue;
+                }
+
+                $hasFile = true;
+                $relativeInFolder = ltrim(str_replace($directoryPath, '', $realItemPath), DIRECTORY_SEPARATOR);
+                $relativeInFolder = str_replace('\\', '/', $relativeInFolder);
+                $zip->addFile($realItemPath, $folderName . '/' . $relativeInFolder);
+            }
+
+            if (!$hasFile) {
+                $zip->addEmptyDir($folderName);
+            }
+
+            $zip->close();
+            return $zipFilePath;
+        }
+
+        $this->createZipWithSystemBinary($directoryPath, $zipFilePath, $realDownloadRoot);
+
+        return $zipFilePath;
+    }
+
+    private function createZipWithSystemBinary(string $directoryPath, string $zipFilePath, string $realDownloadRoot): void
+    {
+        if (!function_exists('shell_exec')) {
+            $this->createZipPurePhp($directoryPath, $zipFilePath, $realDownloadRoot);
+            return;
+        }
+
+        $zipBin = trim((string) shell_exec('command -v zip 2>/dev/null'));
+        if ($zipBin === '') {
+            $this->createZipPurePhp($directoryPath, $zipFilePath, $realDownloadRoot);
+            return;
+        }
+
+        $parentDir = dirname($directoryPath);
+        $folderName = basename($directoryPath);
+        $cmd = sprintf(
+            'cd %s && %s -r -q %s %s 2>/dev/null',
+            escapeshellarg($parentDir),
+            escapeshellarg($zipBin),
+            escapeshellarg($zipFilePath),
+            escapeshellarg($folderName)
+        );
+
+        shell_exec($cmd);
+
+        if (!is_file($zipFilePath) || filesize($zipFilePath) === 0) {
+            $this->createZipPurePhp($directoryPath, $zipFilePath, $realDownloadRoot);
+        }
+    }
+
+    private function createZipPurePhp(string $directoryPath, string $zipFilePath, string $realDownloadRoot): void
+    {
+        $zipHandle = fopen($zipFilePath, 'wb');
+        if ($zipHandle === false) {
+            throw PageNotFoundException::forPageNotFound('Não foi possível gerar o arquivo compactado.');
+        }
+
+        $folderName = basename($directoryPath);
+        $centralDirectory = '';
+        $offset = 0;
+        $entryCount = 0;
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($directoryPath, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            if (!$item->isFile()) {
+                continue;
+            }
+
+            $realItemPath = $item->getRealPath();
+            if ($realItemPath === false || !str_starts_with($realItemPath, $realDownloadRoot)) {
+                continue;
+            }
+
+            $data = file_get_contents($realItemPath);
+            if ($data === false) {
+                continue;
+            }
+
+            $relativeInFolder = ltrim(str_replace($directoryPath, '', $realItemPath), DIRECTORY_SEPARATOR);
+            $relativeInFolder = str_replace('\\', '/', $relativeInFolder);
+            $entryName = $folderName . '/' . $relativeInFolder;
+
+            $dosDateTime = $this->toDosDateTime((int) $item->getMTime());
+            $dosTime = $dosDateTime['time'];
+            $dosDate = $dosDateTime['date'];
+
+            $uncompressedSize = strlen($data);
+            $crc = (int) sprintf('%u', crc32($data));
+
+            $localHeader = "PK\x03\x04"
+                . pack('v', 20)
+                . pack('v', 0)
+                . pack('v', 0)
+                . pack('v', $dosTime)
+                . pack('v', $dosDate)
+                . pack('V', $crc)
+                . pack('V', $uncompressedSize)
+                . pack('V', $uncompressedSize)
+                . pack('v', strlen($entryName))
+                . pack('v', 0)
+                . $entryName;
+
+            fwrite($zipHandle, $localHeader);
+            fwrite($zipHandle, $data);
+
+            $centralDirectory .= "PK\x01\x02"
+                . pack('v', 20)
+                . pack('v', 20)
+                . pack('v', 0)
+                . pack('v', 0)
+                . pack('v', $dosTime)
+                . pack('v', $dosDate)
+                . pack('V', $crc)
+                . pack('V', $uncompressedSize)
+                . pack('V', $uncompressedSize)
+                . pack('v', strlen($entryName))
+                . pack('v', 0)
+                . pack('v', 0)
+                . pack('v', 0)
+                . pack('v', 0)
+                . pack('V', 0)
+                . pack('V', $offset)
+                . $entryName;
+
+            $offset += strlen($localHeader) + $uncompressedSize;
+            $entryCount++;
+        }
+
+        $centralDirectorySize = strlen($centralDirectory);
+        fwrite($zipHandle, $centralDirectory);
+        fwrite(
+            $zipHandle,
+            "PK\x05\x06"
+            . pack('v', 0)
+            . pack('v', 0)
+            . pack('v', $entryCount)
+            . pack('v', $entryCount)
+            . pack('V', $centralDirectorySize)
+            . pack('V', $offset)
+            . pack('v', 0)
+        );
+
+        fclose($zipHandle);
+
+        if (!is_file($zipFilePath) || filesize($zipFilePath) === 0) {
+            throw PageNotFoundException::forPageNotFound('Não foi possível gerar o arquivo compactado.');
+        }
+    }
+
+    private function toDosDateTime(int $timestamp): array
+    {
+        $date = getdate($timestamp);
+
+        $year = max(1980, (int) $date['year']);
+        $month = (int) $date['mon'];
+        $day = (int) $date['mday'];
+        $hour = (int) $date['hours'];
+        $minute = (int) $date['minutes'];
+        $second = (int) floor($date['seconds'] / 2);
+
+        $dosTime = ($hour << 11) | ($minute << 5) | $second;
+        $dosDate = (($year - 1980) << 9) | ($month << 5) | $day;
+
+        return [
+            'time' => $dosTime,
+            'date' => $dosDate,
+        ];
+    }
+
+    private function cleanupOldZipFiles(string $zipDir): void
+    {
+        $zipFiles = glob(rtrim($zipDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '*.zip');
+        if ($zipFiles === false) {
+            return;
+        }
+
+        $threshold = time() - self::TEMP_ZIP_TTL_SECONDS;
+        foreach ($zipFiles as $zipFile) {
+            $mtime = filemtime($zipFile);
+            if ($mtime !== false && $mtime < $threshold) {
+                @unlink($zipFile);
+            }
+        }
     }
 }

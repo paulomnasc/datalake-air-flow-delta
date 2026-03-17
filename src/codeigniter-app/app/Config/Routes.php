@@ -5,6 +5,9 @@ use CodeIgniter\Router\RouteCollection;
 // Curso - Módulo 1 (Legacy)
 $routes->get('/curso/modulo1', 'CursoController::modulo1', ['as'=>'cursoModulo1']);
 
+// Curso - Download de materiais via writable (seguro)
+$routes->get('/curso/download/(.*)', 'CursoController::downloadMaterial/$1', ['as'=>'curso.download-material']);
+
 // 🆕 UC Progress Monitor - Tracking de Vídeo e Tarefas
 $routes->get('/curso/progress-monitor', 'CursoController::progressMonitor', ['as'=>'curso.progress-monitor']);
 

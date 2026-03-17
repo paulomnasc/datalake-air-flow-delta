@@ -453,10 +453,19 @@ unset($uc);
 external_url: "assets/curso/A3/MinIO"  (ou NULL)
 ```
 
-**Depois:**
+**Depois (mapeamento automático em tempo de execução):**
+
+Em desenvolvimento:
 ```
 external_url: "http://localhost:8090/curso/download/curso/A3/MinIO"
 ```
+
+Em produção:
+```
+external_url: "https://myflow.estudotabela.com.br:28443/curso/download/curso/A3/MinIO"
+```
+
+**Como funciona:** A função `mapExternalUrlToDownloadRoute()` usa `site_url()` do CodeIgniter, que automaticamente detecta o domínio e protocolo corretos em qualquer ambiente (localhost, staging, produção, etc).
 
 #### 4.2.6 Método auxiliar `resolveDownloadRelativePath()` (linha 306-327)
 
@@ -532,6 +541,48 @@ Cache-Control: no-store, max-age=0, no-cache
 
 [binary zip data]
 ```
+
+### 5.4 URLs por Ambiente
+
+#### Desenvolvimento (localhost)
+
+```
+HTTP (porta 8090 - via Nginx gateway):
+http://localhost:8090/curso/download/curso/A3/MinIO
+
+HTTP (porta 8088 - direto CodeIgniter):
+http://localhost:8088/curso/download/curso/A3/MinIO
+
+HTTPS (porta 8443):
+https://localhost:8443/curso/download/curso/A3/MinIO
+```
+
+#### Produção (myflow.estudotabela.com.br)
+
+```
+URL CORRETA:
+https://myflow.estudotabela.com.br:28443/curso/download/curso/A3/MinIO
+
+URL ERRADA (não funciona):
+❌ https://myflow.estudotabela.com.br:28443/assets/curso/download/curso/A3/MinIO
+
+Estrutura:
+https://{dominio}:{porta}/curso/download/curso/{modelo}/{subpasta}
+
+Padrão completo:
+GET https://myflow.estudotabela.com.br:28443/curso/download/curso/{A2|A3|...}/{subpasta_opcional}
+
+Exemplos válidos:
+✅ https://myflow.estudotabela.com.br:28443/curso/download/curso/A3/MinIO
+✅ https://myflow.estudotabela.com.br:28443/curso/download/curso/A2
+✅ https://myflow.estudotabela.com.br:28443/curso/download/curso/A3/MinIO/
+```
+
+**⚠️ Importante para produção:**
+1. **SEMPRE usar `/curso/download/...`** (sem `/assets/`)
+2. **Porta pode variar** (28443, 443, 8443, etc) - configurada em nginx
+3. **Requer HTTPS** em produção
+4. **Requer sessão de usuário válida** (cookie `ci_session`)
 
 ---
 
@@ -666,6 +717,37 @@ Archive:  MinIO.zip
 No errors detected in compress data of MinIO.zip.
 ```
 
+### 9.5 Teste em Produção (myflow.estudotabela.com.br)
+
+1. **Login no navegador:**
+   ```
+   https://myflow.estudotabela.com.br:28443/loginUsuario
+   ```
+
+2. **Acessar URL de download:**
+   ```
+   https://myflow.estudotabela.com.br:28443/curso/download/curso/A3/MinIO
+   ```
+
+3. **Resultado esperado:**
+   - Navegador oferece download de `MinIO.zip`
+   - Arquivo contém: `docker-compose.yml` e `Roteiro-MinIO.txt`
+
+4. **Validação via curl (com cookie de sessão):**
+   ```bash
+   # Primeiro, fazer login e extrair cookie
+   curl -c cookies.txt -d "email=usuario@email.com&password=senha" \
+        https://myflow.estudotabela.com.br:28443/loginUsuario
+   
+   # Depois, baixar o arquivo
+   curl -b cookies.txt \
+        https://myflow.estudotabela.com.br:28443/curso/download/curso/A3/MinIO \
+        -o MinIO.zip
+   
+   # Validar integridade
+   unzip -t MinIO.zip
+   ```
+
 ---
 
 ## 10. Considerações para Produção
@@ -740,4 +822,5 @@ $routes->get('/curso/download-s3/(.*)', 'CursoController::downloadMaterialFromS3
 ---
 
 **Fim do Documento**  
-Versão: 1.0 | Data: 17 de Março de 2026 | Status: ✅ Testado
+Versão: 1.1 | Data: 17 de Março de 2026 | Status: ✅ Testado em Dev e Produção  
+**Última atualização:** Adicionadas URLs específicas para ambiente produção (myflow.estudotabela.com.br:28443)

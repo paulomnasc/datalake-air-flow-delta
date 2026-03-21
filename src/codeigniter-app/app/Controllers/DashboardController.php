@@ -346,6 +346,30 @@ class DashboardController extends BaseController
             LEFT JOIN uc_progress up ON up.user_id = u.id AND up.uc_definition_id = uc.id
             WHERE u.status_assinatura IN ('trial', 'active')
         ")->getRow();
+
+        $studentReturnStats15Days = $db->query("
+            SELECT 
+                COUNT(DISTINCT u.id) as total_students,
+                COUNT(DISTINCT CASE
+                    WHEN last_access.last_login IS NOT NULL
+                        AND DATE(last_access.last_login) > DATE(u.criado_em)
+                        AND last_access.last_login >= DATE_SUB(NOW(), INTERVAL 15 DAY)
+                    THEN u.id
+                END) as returned_students_last_15_days
+            FROM usuario u
+            LEFT JOIN (
+                SELECT user_id, MAX(created_at) as last_login
+                FROM activity_logs
+                GROUP BY user_id
+            ) last_access ON last_access.user_id = u.id
+            WHERE u.status_assinatura IN ('trial', 'active')
+              AND u.id NOT IN (146, 176)
+              AND u.criado_em >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        ")->getRow();
+
+        $studentReturnPercent15Days = ($studentReturnStats15Days->total_students ?? 0) > 0
+            ? round((($studentReturnStats15Days->returned_students_last_15_days ?? 0) / $studentReturnStats15Days->total_students) * 100, 2)
+            : 0;
         
         // ========== 4. ALUNOS ATIVOS NOS ÚLTIMOS 7 DIAS ==========
         $recentActivities = $db->query("
@@ -453,6 +477,8 @@ class DashboardController extends BaseController
             'total_xp_available' => $courseStats->total_xp_available ?? 0,
             'completed_tasks_count' => $courseStats->completed_tasks_count ?? 0,
             'total_xp_earned' => $courseStats->total_xp_earned ?? 0,
+            'student_return_percent_15_days' => $studentReturnPercent15Days,
+            'returned_students_last_15_days' => $studentReturnStats15Days->returned_students_last_15_days ?? 0,
             
             // Dados detalhados
             'recent_activities' => $recentActivities,
@@ -520,6 +546,7 @@ class DashboardController extends BaseController
                 u.id as user_id,
                 u.nome as user_name,
                 u.email,
+                u.criado_em,
                 u.perfil_comportamental,
                 -- Video Progress: soma dos percentuais dividido pelo total de vídeos ativos (progresso real no curso)
                 COALESCE((
@@ -563,9 +590,12 @@ class DashboardController extends BaseController
                     JOIN uc_definition ud2 ON ud2.id = up2.uc_definition_id
                     WHERE up2.user_id = u.id AND up2.completed = 1 AND ud2.is_active = 1
                 ), 0) as xp_earned
-            FROM usuario u
-            WHERE u.status_assinatura IN ('trial', 'active')
-               OR EXISTS (SELECT 1 FROM video_progress WHERE user_id = u.id)
+                FROM usuario u
+                WHERE u.id <> 146
+                  AND (
+                          u.status_assinatura IN ('trial', 'active')
+                      OR EXISTS (SELECT 1 FROM video_progress WHERE user_id = u.id)
+                  )
             GROUP BY u.id
             ORDER BY video_progress DESC, tasks_completed DESC
         ")->getResult();

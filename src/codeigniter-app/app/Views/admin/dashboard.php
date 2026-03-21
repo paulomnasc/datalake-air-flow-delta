@@ -221,6 +221,15 @@
     font-size: 64px;
     margin-bottom: 16px;
 }
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+}
+
+#studentProgressTable {
+    min-width: 1500px;
+}
 </style>
 
 <script>
@@ -320,6 +329,19 @@ setTimeout(function() {
                     <div style="font-size: 32px; color: #667eea; font-weight: bold;"><?php echo $total_students; ?></div>
                     <div style="color: #666; margin-top: 8px;">Alunos Totais</div>
                 </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; color: #11998e; font-weight: bold; cursor: help;"
+                         title="Taxa de Retorno (últimos 15 dias)&#10;&#10;Numerador: alunos cadastrados nos últimos 30 dias, com status trial ou active, cujo último acesso (activity_logs) ocorreu nos últimos 15 dias e em data posterior à data de cadastro (criado_em).&#10;&#10;Denominador: total de alunos trial/active cadastrados nos últimos 30 dias (excluindo ids 146 e 176).&#10;&#10;Fórmula: (alunos que retornaram / total de alunos recentes) × 100">
+                        <?php echo number_format($student_return_percent_15_days, 2); ?>%
+                    </div>
+                    <div style="color: #666; margin-top: 8px;">
+                        Retorno em 15 dias
+                        <span style="font-size: 11px; color: #aaa; display: block; margin-top: 2px;">de cadastros dos últimos 30 dias</span>
+                    </div>
+                    <div style="font-size: 13px; color: #999; margin-top: 6px;">
+                        <?php echo number_format($returned_students_last_15_days); ?> aluno(s) retornaram
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -363,7 +385,7 @@ setTimeout(function() {
                                             <?php echo $student->return_count; ?>
                                         </span>
                                     </td>
-                                    <td style="text-align: right;\">
+                                    <td style="text-align: right;\" data-order="<?php echo !empty($student->last_return) ? esc($student->last_return) : ''; ?>">
                                         <span style="font-size: 14px; color: #667eea;\">
                                             <?php 
                                                 if (!empty($student->last_return)) {
@@ -375,7 +397,7 @@ setTimeout(function() {
                                             ?>
                                         </span>
                                     </td>
-                                    <td style="text-align: right;\">
+                                    <td style="text-align: right;\" data-order="<?php echo !empty($student->criado_em) ? esc($student->criado_em) : ''; ?>">
                                         <span style="font-size: 14px; color: #999;\">
                                             <?php 
                                                 if (!empty($student->criado_em)) {
@@ -443,13 +465,14 @@ setTimeout(function() {
                             <tr>
                                 <th style="width: 50px;">#</th>
                                 <th>Aluno</th>
+                                <th style="text-align: right;">Criado em</th>
+                                <th style="text-align: right;">Último Login</th>
                                 <th>Perfil Comportamental</th>
                                 <th>Progresso Vídeos</th>
                                 <th>Progresso Tarefas</th>
                                 <th>XP Obtido</th>
                                 <th>Último Vídeo/Módulo</th>
                                 <th>Última URI</th>
-                                <th style="text-align: right;">Último Login</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -467,6 +490,30 @@ setTimeout(function() {
                                     <td>
                                         <div style="font-weight: 600; color: #333;"><?php echo esc($student->user_name); ?></div>
                                         <div style="font-size: 12px; color: #999;"><?php echo esc($student->email); ?></div>
+                                    </td>
+                                    <td style="text-align: right;" data-order="<?php echo !empty($student->criado_em) ? esc($student->criado_em) : ''; ?>">
+                                        <span style="font-size: 13px; color: #666;">
+                                            <?php 
+                                                if (!empty($student->criado_em)) {
+                                                    $createdAt = new DateTime($student->criado_em);
+                                                    echo $createdAt->format('d/m/Y H:i');
+                                                } else {
+                                                    echo '<i style="color:#ccc;">N/A</i>';
+                                                }
+                                            ?>
+                                        </span>
+                                    </td>
+                                    <td style="text-align: right;" data-order="<?php echo !empty($student->last_login) ? esc($student->last_login) : ''; ?>">
+                                        <span style="font-size: 13px; color: #666;">
+                                            <?php 
+                                                if (!empty($student->last_login)) {
+                                                    $lastLogin = new DateTime($student->last_login);
+                                                    echo $lastLogin->format('d/m/Y H:i');
+                                                } else {
+                                                    echo '<i style="color:#ccc;">Nunca</i>';
+                                                }
+                                            ?>
+                                        </span>
                                     </td>
                                     <td>
                                         <div style="font-size: 13px; color: #764ba2; font-weight: 500;"><?php echo esc($student->perfil_comportamental); ?></div>
@@ -502,18 +549,6 @@ setTimeout(function() {
                                             <?php echo $student->last_uri ? esc($student->last_uri) : '<i style="color:#ccc;">-</i>'; ?>
                                         </div>
                                     </td>
-                                    <td style="text-align: right;">
-                                        <span style="font-size: 13px; color: #666;">
-                                            <?php 
-                                                if (!empty($student->last_login)) {
-                                                    $lastLogin = new DateTime($student->last_login);
-                                                    echo $lastLogin->format('d/m/Y H:i');
-                                                } else {
-                                                    echo '<i style="color:#ccc;">Nunca</i>';
-                                                }
-                                            ?>
-                                        </span>
-                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -523,7 +558,9 @@ setTimeout(function() {
                 $(document).ready(function() {
                     if (!$.fn.DataTable.isDataTable('#studentProgressTable')) {
                         $('#studentProgressTable').DataTable({
-                            order: [[2, 'desc'], [3, 'desc']], // Ordenar por progresso de vídeo depois tarefas
+                            scrollX: true,
+                            autoWidth: false,
+                            order: [[5, 'desc'], [6, 'desc']], // Ordenar por progresso de vídeo depois tarefas
                             language: {
                                 "sEmptyTable": "Nenhum aluno encontrado",
                                 "sInfo": "Mostrando _START_ até _END_ de _TOTAL_ alunos",

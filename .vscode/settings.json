@@ -61,5 +61,8 @@
     "deploy.logLevel": "info",
 
     "php.debug.debugServerPort": 9004,
-    "php.debug.ideKey": "vscode"
+    "php.debug.ideKey": "vscode",
+    "chat.tools.terminal.autoApprove": {
+        "docker-compose": true
+    }
 }

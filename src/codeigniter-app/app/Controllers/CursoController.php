@@ -157,17 +157,6 @@ class CursoController extends BaseController
         $data['ucs'] = $ucModel->getUCsByVideo($videoId);
         
         $userId = $_SESSION['id_usuario_logado'] ?? null;
-        
-        // --- Validação de Pagamento (Segurança) ---
-        // Bloqueia acesso ao vídeo caso o módulo seja 2+ e pagamento_inicial não esteja autorizado
-        if ($userId && intval($data['module']['order'] ?? 1) > 1) {
-            $usuarioModel = new \App\Models\UsuarioModel();
-            $usuario = $usuarioModel->find($userId);
-            if (empty($usuario->pagamento_inicial) || $usuario->pagamento_inicial != 1) {
-                return redirect()->to('/subscription/initial-payment');
-            }
-        }
-        // ------------------------------------------
 
         // --- Cálculo da Navegação Sequencial (Próxima Aula) ---
         $nextVideo = null;
@@ -206,6 +195,24 @@ class CursoController extends BaseController
         }
         $data['next_video'] = $nextVideo;
         // ------------------------------------------------------
+        
+        // --- Validação de Pagamento (Segurança) ---
+        // Apenas o vídeo de ID 5 pode ser assistido sem pagamento
+        // Qualquer outro vídeo exige pagamento inicial
+        if (intval($videoId) != 5) {
+            if (!$userId) {
+                // Usuário não logado, redirecionar para pagamento
+                return redirect()->to('/subscription/initial-payment');
+            }
+            
+            // Verificar se usuário tem pagamento autorizado
+            $usuarioModel = new \App\Models\UsuarioModel();
+            $usuario = $usuarioModel->find($userId);
+            if (empty($usuario->pagamento_inicial) || $usuario->pagamento_inicial != 1) {
+                return redirect()->to('/subscription/initial-payment');
+            }
+        }
+        // ------------------------------------------
         
         // Buscar progresso do usuário se estiver logado
         if (isset($_SESSION['id_usuario_logado'])) {

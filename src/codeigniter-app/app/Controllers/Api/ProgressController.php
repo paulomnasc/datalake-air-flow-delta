@@ -162,5 +162,60 @@ class ProgressController extends ResourceController
             return $this->failServerError('Erro ao buscar progresso: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Salva feedback do usuário quando atinge 80% do vídeo
+     * POST /api/video-feedback
+     */
+    public function saveVideoFeedback()
+    {
+        // Verificar se usuário está logado
+        if (!isset($_SESSION['id_usuario_logado'])) {
+            return $this->failUnauthorized('Usuário não autenticado');
+        }
+
+        $userId = $_SESSION['id_usuario_logado'];
+        $data = $this->request->getPost();
+        
+        // Validação básica
+        if (!isset($data['video_id']) || !isset($data['lab_status']) || !isset($data['value_perception'])) {
+            return $this->failValidationErrors([
+                'video_id' => 'video_id é obrigatório',
+                'lab_status' => 'lab_status é obrigatório',
+                'value_perception' => 'value_perception é obrigatório'
+            ]);
+        }
+
+        $feedbackData = [
+            'user_id' => $userId,
+            'video_id' => intval($data['video_id']),
+            'lab_status' => $data['lab_status'],
+            'value_perception' => $data['value_perception'],
+            'open_feedback' => $data['open_feedback'] ?? null
+        ];
+
+        try {
+            $feedbackModel = new \App\Models\VideoFeedbackModel();
+            $feedbackModel->saveFeedback(
+                $feedbackData['user_id'],
+                $feedbackData['video_id'],
+                $feedbackData['lab_status'],
+                $feedbackData['value_perception'],
+                $feedbackData['open_feedback']
+            );
+
+            log_message('info', '[VideoFeedback] User: ' . $userId . ' | Video: ' . $feedbackData['video_id'] . ' | Lab Status: ' . $feedbackData['lab_status']);
+
+            return $this->respond([
+                'status' => 'success',
+                'message' => 'Feedback salvo com sucesso',
+                'data' => $feedbackData
+            ], 200);
+
+        } catch (\Exception $e) {
+            log_message('error', '[VideoFeedback Exception] ' . $e->getMessage() . ' | Line: ' . $e->getLine());
+            return $this->failServerError('Erro ao salvar feedback: ' . $e->getMessage());
+        }
+    }
 }
 

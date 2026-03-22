@@ -578,6 +578,7 @@ $(document).ready(function() {
     var videoId = <?php echo $video['id']; ?>;
     var videoDuration = <?php echo $video['duration_seconds'] ?? 0; ?>;
     var lastSavedPosition = 0;
+    var feedbackShown = false; // Flag para modal de feedback
 
     // Carregar YouTube IFrame API
     var tag = document.createElement('script');
@@ -588,7 +589,8 @@ $(document).ready(function() {
     window.onYouTubeIframeAPIReady = function() {
         player = new YT.Player('youtube-player', {
             events: {
-                'onStateChange': onPlayerStateChange
+                'onStateChange': onPlayerStateChange,
+                'onPlaybackRateChange': checkVideoProgressForFeedback
             }
         });
     };
@@ -599,8 +601,9 @@ $(document).ready(function() {
             setInterval(function() {
                 if (player && player.getCurrentTime) {
                     saveVideoProgress();
+                    checkVideoProgressForFeedback(); // Verificar feedback
                 }
-            }, 5000);
+            }, 2000); // Reduzido para 2s para detectar 80% mais rápido
         }
     }
 
@@ -628,19 +631,295 @@ $(document).ready(function() {
             }
         });
     }
+    
+    // Função para verificar progresso e mostrar feedback
+    function checkVideoProgressForFeedback() {
+        if (!player || feedbackShown) return;
+        
+        try {
+            var currentTime = player.getCurrentTime();
+            var duration = player.getDuration();
+            var percent = (currentTime / duration) * 100;
+            
+            // Disparar modal ao atingir 80%
+            if (percent >= 80) {
+                feedbackShown = true;
+                showFeedbackModal();
+            }
+        } catch (e) {
+            console.log('Erro ao verificar progresso:', e);
+        }
+    }
+    
+    // Funções do modal de feedback
+    window.showFeedbackModal = function() {
+        document.getElementById('feedback-modal').style.display = 'flex';
+    };
+    
+    window.closeFeedbackModal = function() {
+        document.getElementById('feedback-modal').style.display = 'none';
+    };
+    
+    window.submitFeedback = function(event) {
+        event.preventDefault();
+        
+        var labStatus = document.querySelector('input[name="lab_status"]:checked').value;
+        var valuePerception = document.querySelector('input[name="value_perception"]:checked').value;
+        var openFeedback = document.getElementById('feedback_text').value;
+        
+        if (!labStatus || !valuePerception) {
+            alert('Por favor, responda todas as perguntas obrigatórias.');
+            return;
+        }
+        
+        var submitBtn = event.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Enviando...';
+        
+        $.ajax({
+            url: '<?php echo site_url('api/video-feedback'); ?>',
+            type: 'POST',
+            data: {
+                video_id: videoId,
+                lab_status: labStatus,
+                value_perception: valuePerception,
+                open_feedback: openFeedback
+            },
+            success: function(data) {
+                if (data.status === 'success') {
+                    alert('✅ Obrigado pelo seu feedback! Vamos usar isso para melhorar.');
+                    closeFeedbackModal();
+                } else {
+                    alert('Erro ao enviar feedback. Tente novamente.');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Enviar Feedback';
+                }
+            },
+            error: function(error) {
+                console.error('Erro:', error);
+                alert('Erro ao enviar feedback. Tente novamente.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Enviar Feedback';
+            }
+        });
+    };
 });
 </script>
 
+<!-- MODAL DE FEEDBACK 80% DO VÍDEO -->
+<div id="feedback-modal" class="feedback-modal" style="display: none;">
+    <div class="feedback-modal-content">
+        <button type="button" class="feedback-modal-close" onclick="closeFeedbackModal()">✕</button>
+        
+        <h2 style="margin-top: 0; color: #333; font-size: 24px;">⚡ Rápido! Como está sendo sua experiência?</h2>
+        <p style="color: #666; margin-bottom: 25px;">Você já passou pela parte difícil! Ajude-nos a entender melhor sua jornada.</p>
+        
+        <form id="feedback-form" onsubmit="submitFeedback(event)">
+            <!-- Status do Lab -->
+            <div class="feedback-section">
+                <h3 style="color: #333; margin-bottom: 15px;">Status do Lab:</h3>
+                <div class="feedback-option">
+                    <input type="radio" id="lab_consegui" name="lab_status" value="consegui_rodar" required>
+                    <label for="lab_consegui">Consegui rodar tudo! 🚀</label>
+                </div>
+                <div class="feedback-option">
+                    <input type="radio" id="lab_erro" name="lab_status" value="erro_docker">
+                    <label for="lab_erro">Estou com erro no Docker/S3. 🛠️</label>
+                </div>
+                <div class="feedback-option">
+                    <input type="radio" id="lab_assistindo" name="lab_status" value="so_assistindo">
+                    <label for="lab_assistindo">Só estou assistindo a teoria por enquanto. 📺</label>
+                </div>
+            </div>
+            
+            <!-- Percepção de Valor -->
+            <div class="feedback-section" style="margin-top: 25px;">
+                <h3 style="color: #333; margin-bottom: 10px;">Percepção de Valor</h3>
+                <p style="color: #666; font-size: 14px; margin-bottom: 15px;"><strong>"Você sabia que esse laboratório simula o funcionamento do AWS Glue e Azure Data Factory?"</strong></p>
+                
+                <div class="feedback-option">
+                    <input type="radio" id="valor_sim" name="value_perception" value="sim_sentido" required>
+                    <label for="valor_sim">Sim, agora faz mais sentido!</label>
+                </div>
+                <div class="feedback-option">
+                    <input type="radio" id="valor_nao" name="value_perception" value="nao_sabia">
+                    <label for="valor_nao">Não sabia, achei que era só ferramenta local.</label>
+                </div>
+                <div class="feedback-option">
+                    <input type="radio" id="valor_nuvem" name="value_perception" value="direto_nuvem">
+                    <label for="valor_nuvem">Prefiro aprender direto na nuvem.</label>
+                </div>
+            </div>
+            
+            <!-- Campo Aberto -->
+            <div class="feedback-section" style="margin-top: 25px;">
+                <label for="feedback_text" style="display: block; color: #333; font-weight: 600; margin-bottom: 10px;">
+                    Campo Aberto (Opcional):
+                </label>
+                <p style="color: #666; font-size: 14px; margin-bottom: 10px;">"O que falta para você prosseguir agora?"</p>
+                <textarea 
+                    id="feedback_text" 
+                    name="open_feedback" 
+                    placeholder="Sua resposta aqui..." 
+                    style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; resize: vertical; min-height: 100px;">
+                </textarea>
+            </div>
+            
+            <!-- Botões -->
+            <div style="display: flex; gap: 12px; margin-top: 25px; justify-content: flex-end;">
+                <button type="button" class="feedback-btn-cancel" onclick="closeFeedbackModal()">Pular</button>
+                <button type="submit" class="feedback-btn-submit">Enviar Feedback</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <style>
-@keyframes slideInRight {
+/* MODAL DE FEEDBACK */
+.feedback-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.feedback-modal-content {
+    background: white;
+    border-radius: 12px;
+    padding: 40px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: slideInUp 0.3s ease;
+    position: relative;
+}
+
+@keyframes slideInUp {
     from {
-        transform: translateX(100%);
+        transform: translateY(50px);
         opacity: 0;
     }
     to {
-        transform: translateX(0);
+        transform: translateY(0);
         opacity: 1;
     }
+}
+
+.feedback-modal-close {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #999;
+    padding: 5px 10px;
+    transition: color 0.2s;
+}
+
+.feedback-modal-close:hover {
+    color: #333;
+}
+
+.feedback-section {
+    margin-bottom: 20px;
+}
+
+.feedback-option {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.feedback-option input[type="radio"] {
+    margin-right: 12px;
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    accent-color: #4f46e5;
+}
+
+.feedback-option label {
+    cursor: pointer;
+    color: #333;
+    margin: 0;
+    font-size: 15px;
+}
+
+.feedback-option input[type="radio"]:hover + label {
+    color: #4f46e5;
+}
+
+.feedback-btn-cancel {
+    padding: 10px 24px;
+    border: 1px solid #ddd;
+    background: white;
+    color: #666;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.feedback-btn-cancel:hover {
+    background: #f5f5f5;
+    border-color: #999;
+}
+
+.feedback-btn-submit {
+    padding: 10px 24px;
+    background: #4f46e5;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.feedback-btn-submit:hover {
+    background: #3730a3;
+    transform: translateY(-2px);
+}
+
+.feedback-btn-submit:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Scroll customizado para modal */
+.feedback-modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.feedback-modal-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.feedback-modal-content::-webkit-scrollbar-thumb {
+    background: #4f46e5;
+    border-radius: 10px;
+}
+
+.feedback-modal-content::-webkit-scrollbar-thumb:hover {
+    background: #3730a3;
 }
 </style>
 

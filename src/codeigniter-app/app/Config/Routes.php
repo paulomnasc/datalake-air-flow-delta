@@ -18,6 +18,7 @@ $routes->get('/modulo/(:num)', 'CursoController::module/$1', ['as'=>'modulo.show
 $routes->get('/video/(:num)', 'CursoController::video/$1', ['as'=>'video.player']);
 $routes->post('/api/video-progress', 'Api\ProgressController::videoProgress', ['as'=>'api.video-progress']);
 $routes->post('/api/uc-progress', 'Api\ProgressController::ucProgress', ['as'=>'api.uc-progress']);
+$routes->post('/api/video-feedback', 'Api\ProgressController::saveVideoFeedback', ['as'=>'api.video-feedback']);
 $routes->get('/api/video-progress/(:segment)/(:segment)', 'Api\ProgressController::getVideoProgress/$1/$2', ['as'=>'api.video-progress.get']);
 
 /**

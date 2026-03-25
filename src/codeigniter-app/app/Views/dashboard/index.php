@@ -183,6 +183,11 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     <!-- Hero Section -->
                     <div class="hero-section">
                         <h1>Bem-vindo ao MyDataFlow</h1>
+                        <div style="display: flex; justify-content: center; margin: 32px 0;">
+                            <div style="background: #181c2a; border-radius: 12px; box-shadow: 0 4px 24px #0002; padding: 16px; max-width: 100vw;">
+                                <iframe width="480" height="270" style="max-width:100%; border-radius:8px; border: none;" src="https://www.youtube.com/embed/_bPDHAEtnXw?si=D2DB11aZ1UvostEX" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+                            </div>
+                        </div>
                         <!-- Botão YouTube -->
                         <!-- ?php if (isset($_SESSION['nome_usuario_logado'])): ?>
                         <a id="youtubeBtn" href="/cursos">

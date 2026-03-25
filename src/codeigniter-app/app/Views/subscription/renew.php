@@ -27,12 +27,21 @@ require VIEWPATH . '/header.php';
     <div class="container mt-5">
         
         <!-- Mensagem de Bloqueio (se houver) -->
-        <?php if (!empty($mensagem_bloqueio)): ?>
-            <div class="alert alert-danger" role="alert">
-                <h4 class="alert-heading">😊 Gostou do nosso site de automação de pipelines e dos cursos de engenharia de dados? Ajude a manter o MyDataflow no ar!</h4>
-                <p><?= htmlspecialchars($mensagem_bloqueio, ENT_QUOTES, 'UTF-8'); ?></p>
+        
+            <!-- Frase de incentivo no topo -->
+            <div class="text-center mb-3">
+                <strong style="font-size:1.3em;">Você está prestes a avançar para próxima etapa...</strong>
             </div>
-        <?php endif; ?>
+            <!-- Banner do Curso: Como Criar um Data Lake do Zero (Passo a Passo) com Apache Airflow -->
+            <div class="text-center my-4">
+                <img src="<?= base_url('assets/img/DatalakeDoZero.png'); ?>" alt="Como Criar um Data Lake do Zero (Passo a Passo) com Apache Airflow" style="width: 420px; max-width: 98vw; height: auto; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            </div>
+            <?php if (!empty($mensagem_bloqueio)): ?>
+                <div class="alert alert-danger" role="alert">
+                    <h4 class="alert-heading">😊 Gostou do nosso site de automação de pipelines e dos cursos de engenharia de dados? Ajude a manter o MyDataflow no ar!</h4>
+                    <p><?= htmlspecialchars($mensagem_bloqueio, ENT_QUOTES, 'UTF-8'); ?></p>
+                </div>
+            <?php endif; ?>
 
         <!-- Card Principal -->
         <div class="card shadow-lg">

@@ -29,7 +29,7 @@ require VIEWPATH . '/header.php';
         <!-- Mensagem de Bloqueio (se houver) -->
         <?php if (!empty($mensagem_bloqueio)): ?>
             <div class="alert alert-danger" role="alert">
-                <h4 class="alert-heading">⚠️ Acesso Bloqueado</h4>
+                <h4 class="alert-heading">😊 Gostou do nosso site de automação de pipelines e dos cursos de engenharia de dados? Ajude a manter o MyDataflow no ar!</h4>
                 <p><?= htmlspecialchars($mensagem_bloqueio, ENT_QUOTES, 'UTF-8'); ?></p>
             </div>
         <?php endif; ?>

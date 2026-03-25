@@ -184,16 +184,18 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     <div class="hero-section">
                         <h1>Bem-vindo ao MyDataFlow</h1>
                         <!-- Botão YouTube -->
-                        <?php if (isset($_SESSION['nome_usuario_logado'])): ?>
+                        <!-- ?php if (isset($_SESSION['nome_usuario_logado'])): ?>
                         <a id="youtubeBtn" href="/cursos">
                             <i class="fab fa-youtube"></i>
                             <span>Videoaulas</span>
                         </a>
-                        <?php endif; ?>
+                        <!-- ?php endif; ? -->
                         <p>Crie pipelines de dados poderosos sem escrever código</p>
-                        <button class="btn btn-light btn-lg mt-3" @click="currentView = 'wizard'">
+                        <!-- Botão Criar Novo Pipeline ocultado por solicitação
+                        <button class="btn btn-light btn-lg mt-3" @click="currentView = 'wizard'" style="display:none;">
                             <i class="bi bi-plus-circle"></i> Criar Novo Pipeline
                         </button>
+                        -->
                         <script>
                         document.addEventListener('DOMContentLoaded', function() {
                             var btn = document.querySelector('.btn.btn-light.btn-lg.mt-3');
@@ -205,6 +207,37 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             }
                         });
                         </script>
+                    </div>
+
+                    <!-- Quick Actions (Início Rápido) -->
+                    <div class="row g-4 mb-5">
+                        <div class="col-12">
+                            <h4 class="mb-3">⚡ Início Rápido</h4>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="quick-action" id="novo-pipeline-action">
+                                <div class="quick-action-icon">🎯</div>
+                                <h5>Novo Pipeline</h5>
+                                <p class="text-muted mb-0">Assistente passo a passo</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <!-- Opção 'Usar Template' ocultada por solicitação
+                            <div class="quick-action" @click="scrollToTemplates()" style="display:none;">
+                                <div class="quick-action-icon">📋</div>
+                                <h5>Usar Template</h5>
+                                <p class="text-muted mb-0">Comece com exemplos prontos</p>
+                            </div>
+                            -->
+                        </div>
+                        <div class="col-md-4">
+                            <div class="quick-action" onclick="window.location.href='<?= route_to('listConfig') ?>'">
+                                <div class="quick-action-icon">📊</div>
+                                <h5>Ver Pipelines</h5>
+                                <p class="text-muted mb-0">Gerenciar existentes</p>
+                            </div>
+                        </div>
+                    </div>
                     </div>
 
                     <?php if (false): // SEÇÃO COMENTADA — Alunos que Retornaram Após Cadastro ?>
@@ -383,33 +416,6 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         </div>
                     </div>
 
-                    <!-- Quick Actions -->
-                    <div class="row g-4 mb-5">
-                        <div class="col-12">
-                            <h4 class="mb-3">⚡ Início Rápido</h4>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="quick-action" id="novo-pipeline-action">
-                                <div class="quick-action-icon">🎯</div>
-                                <h5>Novo Pipeline</h5>
-                                <p class="text-muted mb-0">Assistente passo a passo</p>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="quick-action" @click="scrollToTemplates()">
-                                <div class="quick-action-icon">📋</div>
-                                <h5>Usar Template</h5>
-                                <p class="text-muted mb-0">Comece com exemplos prontos</p>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="quick-action" onclick="window.location.href='<?= route_to('listConfig') ?>'">
-                                <div class="quick-action-icon">📊</div>
-                                <h5>Ver Pipelines</h5>
-                                <p class="text-muted mb-0">Gerenciar existentes</p>
-                            </div>
-                        </div>
-                    </div>
 
                     <!-- Templates Section -->
                                         <script>
@@ -423,7 +429,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                 }
                                             });
                                         </script>
-                    <div id="templates-section">
+                    <!--div id="templates-section">
                         <h4 class="mb-4">📚 Templates Populares</h4>
                         <div class="row g-4">
                             <template x-for="template in templates" :key="template.id">
@@ -441,7 +447,6 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                                 </small>
                                             </div>
                                         </div>
-                                        <!-- Botão de Download (se disponível) -->
                                         <div x-show="template.hasDownload" class="card-footer bg-light" @click.stop>
                                             <a :href="template.downloadUrl" class="btn btn-sm btn-outline-success w-100" download="Invoice.json">
                                                 <i class="bi bi-download"></i> Baixar Exemplo (Invoice.json)
@@ -451,7 +456,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                 </div>
                             </template>
                         </div>
-                    </div>
+                    </div-->
 
                 </div>
                 </div>

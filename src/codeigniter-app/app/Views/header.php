@@ -367,12 +367,16 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         padding: 10px 20px;
         border-radius: 6px;
         font-weight: 600;
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 8px;
         cursor: pointer;
         transition: all 0.3s ease;
         text-decoration: none;
+        width: auto;
+        max-width: 220px;
+        min-width: 120px;
+        white-space: nowrap;
     }
 
     #youtubeBtn:hover {

@@ -43,10 +43,38 @@ require VIEWPATH . '/header.php';
                 </div>
             <?php endif; ?>
 
-        <!-- Card Principal -->
-        <div class="card shadow-lg">
+                <!-- Ementa do Curso -->
+                <div class="card my-4">
+                    <div class="card-body">
+                        <h3 class="mb-3" style="color:#667eea;">Ementa do Curso</h3>
+                        <div style="background: #e0f7fa; color: #00796b; border-radius: 10px; padding: 20px; margin: 20px auto; max-width: 500px; font-size: 18px; font-weight: bold;">
+                            Domine a arquitetura de dados moderna aprendendo a construir Data Lakes escaláveis do absoluto zero. Este módulo combina fundamentos teóricos do ecossistema de dados com laboratórios práticos para configurar infraestrutura e camadas Silver com qualidade automatizada. Ideal para quem deseja sair da teoria e resolver problemas reais de ingestão e processamento. Elimine a fricção entre aprender e executar com nosso método assistido passo a passo.
+                        </div>
+                        <div style="margin: 30px auto; max-width: 700px; text-align: left; font-size: 16px; color: #333;">
+                            <b>1. Fundamentos e Visão Arquitetural</b> <span style="color:#888">mod-fund</span><br>
+                            Foco: Fundamentos, fluxo de informação e transformação de dados em ativo estratégico.<br>
+                            ⏱️ 2 horas estimadas<br>
+                            🎬 4 vídeos<br><br>
+                            <b>2. Infraestrutura e Setup do Ambiente</b> <span style="color:#888">mod-infra</span><br>
+                            Criação de buckets usando MinIO (tecnologia AWS compatível) em ambiente local. Implementação prática via Docker Compose e uso do repositório mini-datalake-stack.<br>
+                            ⏱️ 3 horas estimadas<br>
+                            🎬 3 vídeos<br><br>
+                            <b>3. Orquestração e Fluxo de Trabalho (Workflows)</b> <span style="color:#888">mod-fluxo</span><br>
+                            Funcionamento interno do Airflow, console web e integração entre componentes. Execução de pipeline ELT real e uso do ambiente de laboratório para testes de fluxos.<br>
+                            ⏱️ 5 horas estimadas<br>
+                            🎬 2 vídeos<br><br>
+                            <b>4. Engenharia Avançada e Qualidade</b> <span style="color:#888">mod-eng-mais</span><br>
+                            Criação de classes customizadas de validação para a arquitetura medalhão (Camada Silver). Conectando o Power BI Desktop no Delta Lake.<br>
+                            ⏱️ 5 horas estimadas<br>
+                            🎬 2 vídeos
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Principal -->
+                <div class="card shadow-lg">
             <div class="card-header bg-primary text-white">
-                <h2 class="mb-0">💳 Renovação de Assinatura</h2>
+                <h2 class="mb-0">💳 Contribuição para uso por 30 dias corridos</h2>
             </div>
             <div class="card-body">
                 
@@ -96,20 +124,18 @@ require VIEWPATH . '/header.php';
                     </div>
                 </div>
 
-                <!-- Informações de Renovação -->
-                <div class="alert alert-info" role="alert">
-                    <h5 class="alert-heading">📋 Informações da Renovação</h5>
-                    <p><strong>Valor:</strong> USD <?= number_format($valor_usd, 2); ?> (dólares americanos)<?= isset($texto_periodicidade) ? $texto_periodicidade : '' ?></p>
-                    <p class="mb-1"><strong>Conversão câmbio do dia:</strong> USD <?= number_format($valor_usd, 2); ?> × BRL <?= number_format($cotacao_usd_brl, 4); ?> = <strong>R$ <?= number_format($valor_brl, 2, ',', '.'); ?></strong></p>
-                    <?php if (!empty($cotacao_mensagem)): ?>
-                        <small class="text-warning d-block">⚠️ <?= htmlspecialchars($cotacao_mensagem, ENT_QUOTES, 'UTF-8'); ?></small>
-                    <?php endif; ?>
-                    <!-- p><strong>Como Founder Member, este valor está travado para você!</strong></p>
-                    <p class="mb-0">
-                        <strong>Ao renovar agora:</strong> Sua assinatura será válida até 
-                        <strong><?= $proximo_vencimento_formatado ?></strong>
-                    </p>
-                </div>
+
+                                <!-- Informações de Renovação -->
+                                <div class="alert alert-info" role="alert">
+                                        <h5 class="alert-heading">📋 Informações da Renovação</h5>
+                                        <p><strong>Valor:</strong> USD <?= number_format($valor_usd, 2); ?> (dólares americanos)<?= isset($texto_periodicidade) ? $texto_periodicidade : '' ?></p>
+                                        <p class="mb-1"><strong>Conversão câmbio do dia:</strong> USD <?= number_format($valor_usd, 2); ?> × BRL <?= number_format($cotacao_usd_brl, 4); ?> = <strong>R$ <?= number_format($valor_brl, 2, ',', '.'); ?></strong></p>
+                                        <?php if (!empty($cotacao_mensagem)): ?>
+                                                <small class="text-warning d-block">⚠️ <?= htmlspecialchars($cotacao_mensagem, ENT_QUOTES, 'UTF-8'); ?></small>
+                                        <?php endif; ?>
+                                </div>
+
+
 
                         <!-- Área do QR Code Dinâmico -->
                         <div class="my-4 text-center">

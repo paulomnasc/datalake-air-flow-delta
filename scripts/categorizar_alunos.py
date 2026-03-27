@@ -4,19 +4,17 @@ import pandas as pd
 import pymysql
 
 def load_ci_env(env_path, env_mode='dev'):
-    if not os.path.exists(env_path):
-        raise FileNotFoundError(f"Arquivo .env não encontrado em: {env_path}")
-
-    env_vars = {}
-    with open(env_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            if '=' in line:
-                key, val = line.split('=', 1)
-                env_vars[key.strip()] = val.strip().strip("'").strip('"')
-
+    env_vars = os.environ.copy()
+    if os.path.exists(env_path):
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if '=' in line:
+                    key, val = line.split('=', 1)
+                    env_vars[key.strip()] = val.strip().strip("'").strip('"')
+    
     db_config = {}
     prefixes = [f"database.{env_mode}.", "database.default."]
     fields = ['hostname', 'username', 'password', 'database', 'port']
@@ -28,15 +26,28 @@ def load_ci_env(env_path, env_mode='dev'):
                 db_config[field] = env_vars[key]
                 break
 
+    # Se não obteve pelo .env, tenta pelo formato genérico (inserido via Airflow, etc)
+    if 'hostname' not in db_config and 'MYSQL_HOSTNAME' in env_vars:
+        db_config['hostname'] = env_vars['MYSQL_HOSTNAME']
+    if 'username' not in db_config and 'MYSQL_USERNAME' in env_vars:
+        db_config['username'] = env_vars['MYSQL_USERNAME']
+    if 'password' not in db_config and 'MYSQL_PASSWORD' in env_vars:
+        db_config['password'] = env_vars['MYSQL_PASSWORD']
+    if 'database' not in db_config and 'MYSQL_DATABASE' in env_vars:
+        db_config['database'] = env_vars['MYSQL_DATABASE']
+
     if 'port' not in db_config and 'MYSQL_PORT' in env_vars:
         db_config['port'] = env_vars['MYSQL_PORT']
     elif 'port' not in db_config:
         db_config['port'] = '3306'
 
-    if db_config.get('hostname') == 'mysql':
+    if db_config.get('hostname') == 'mysql' and not env_vars.get('RUNNING_IN_DOCKER'):
         db_config['hostname'] = '127.0.0.1'
         if str(db_config.get('port')) == '3306':
             db_config['port'] = '23306'
+
+    if not db_config.get('hostname'):
+        raise FileNotFoundError(f"Arquivo .env não encontrado em: {env_path} e falta variáveis de ambiente (MYSQL_HOSTNAME).")
 
     return db_config
 

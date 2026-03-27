@@ -581,8 +581,11 @@ class DashboardController extends BaseController
                     ORDER BY created_at DESC 
                     LIMIT 1
                 ) as last_uri,
-                -- Last Login: data da última ação registrada no log
-                (SELECT MAX(created_at) FROM activity_logs WHERE user_id = u.id) as last_login,
+                -- Last Login: data da última ação registrada no log, ou data de criação do usuário
+                COALESCE(
+                    (SELECT MAX(created_at) FROM activity_logs WHERE user_id = u.id),
+                    u.criado_em
+                ) as last_login,
                 -- XP Earned: soma dos pontos XP das tarefas concluídas
                 COALESCE((
                     SELECT SUM(ud2.xp_points)

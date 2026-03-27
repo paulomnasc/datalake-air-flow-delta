@@ -37,6 +37,14 @@ class CursoController extends BaseController
      */
     public function index()
     {
+        $userId = $_SESSION['id_usuario_logado'] ?? null;
+        if ($userId) {
+            $usuarioModel = new \App\Models\UsuarioModel();
+            $usuario = $usuarioModel->find($userId);
+            if (!empty($usuario) && isset($usuario->pagamento_inicial) && $usuario->pagamento_inicial == 1) {
+                return redirect()->to('/curso/1');
+            }
+        }
         return redirect()->to(route_to('video.player', 5));
     }
 

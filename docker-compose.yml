@@ -170,6 +170,7 @@ services:
       - ENABLE_ATLAS=false
       - AIRFLOW_ADMIN_USERNAME=admin
       - AIRFLOW_ADMIN_PASSWORD=kJ#212394
+      - ZUMBI_EMAIL_DRY_RUN=${ZUMBI_EMAIL_DRY_RUN:-true}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
@@ -212,6 +213,7 @@ services:
       - ATLAS_HTTP_TIMEOUT=120
       - ATLAS_MAX_RETRIES=5
       - ATLAS_BACKOFF_SECONDS=3
+      - ZUMBI_EMAIL_DRY_RUN=${ZUMBI_EMAIL_DRY_RUN:-true}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
@@ -288,6 +290,7 @@ services:
       AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       ENABLE_ATLAS: "false"
+      ZUMBI_EMAIL_DRY_RUN: ${ZUMBI_EMAIL_DRY_RUN:-true}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - ./scripts:/usr/local/bin/scripts:ro

@@ -797,7 +797,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     // Verifica se o perfil do usuário está logado e se ele NÃO é "Visitante"
                     if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): 
                 ?>
-                    <?php echo anchor("listPasta", "Pastas", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle px-4 px-lg-5" data-bs-toggle="dropdown">CRIAR</a>
+                        <div class="dropdown-menu">
+                            <?php echo anchor("listPasta", "Pastas", ['class' => 'dropdown-item']) ?>
+                            <a href="<?= base_url('listConfig') ?>" class="dropdown-item">Pipelines</a>
+                        </div>
+                    </div>
                 <?php endif; ?>
 
                 <?php echo anchor("politica","Política Privacidade", ['class' => 'nav-link px-4 px-lg-5'])  ?>

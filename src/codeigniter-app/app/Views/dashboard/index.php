@@ -220,23 +220,24 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                             <h4 class="mb-3">⚡ Início Rápido</h4>
                         </div>
                         <div class="col-md-4">
-                            <div class="quick-action" id="novo-pipeline-action">
+                            <div class="quick-action h-100" id="novo-pipeline-action">
                                 <div class="quick-action-icon">🎯</div>
                                 <h5>Novo Pipeline</h5>
                                 <p class="text-muted mb-0">Assistente passo a passo</p>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <!-- Opção 'Usar Template' ocultada por solicitação
-                            <div class="quick-action" @click="scrollToTemplates()" style="display:none;">
-                                <div class="quick-action-icon">📋</div>
-                                <h5>Usar Template</h5>
-                                <p class="text-muted mb-0">Comece com exemplos prontos</p>
+                            <?php $airflowExternalUrl = getenv('AIRFLOW_EXTERNAL_URL') ?: 'http://localhost:8080'; ?>
+                            <div class="quick-action h-100" onclick="window.open('<?= htmlspecialchars($airflowExternalUrl, ENT_QUOTES, 'UTF-8'); ?>', '_blank', 'noopener,noreferrer')" title="AIRFLOW - Pipelines ELT">
+                                <div class="quick-action-icon d-flex align-items-center justify-content-center" style="min-height: 4.5rem;">
+                                    <img src="<?= base_url('assets/img/airflow-logo.png') ?>" alt="Airflow" style="height: 4rem; object-fit: contain; transform: scale(2.2); transform-origin: center;">
+                                </div>
+                                <h5>Gerenciar Airflow</h5>
+                                <p class="text-muted mb-0">AIRFLOW - Pipelines ELT</p>
                             </div>
-                            -->
                         </div>
                         <div class="col-md-4">
-                            <div class="quick-action" onclick="window.location.href='<?= route_to('listConfig') ?>'">
+                            <div class="quick-action h-100" onclick="window.location.href='<?= route_to('listConfig') ?>'">
                                 <div class="quick-action-icon">📊</div>
                                 <h5>Ver Pipelines</h5>
                                 <p class="text-muted mb-0">Gerenciar existentes</p>

@@ -95,12 +95,13 @@ def buscar_alunos_zumbi(**context):
     context["ti"].xcom_push(key="alunos_zumbi", value=alunos)
 
 
-def _build_html(nome: str) -> str:
+def _build_html(nome: str = None) -> str:
+    saudacao = f"Olá, {nome}!" if nome else "Olá!"
     return f"""
     <html>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background-color: #f9f9f9; padding: 30px; border-radius: 8px; border-top: 5px solid #0056b3;">
-          <h2 style="color: #0056b3; margin-top: 0;">Olá, {nome}!</h2>
+          <h2 style="color: #0056b3; margin-top: 0;">{saudacao}</h2>
           <p>
             Percebemos que você está um pouco distante da plataforma.
             Preparamos conteúdos práticos para você retomar seus estudos com foco total no mercado.
@@ -153,14 +154,14 @@ def enviar_emails_para_zumbi(**context):
             print(f"[DRY-RUN] {aluno['email']} ({aluno['nome']})")
         return
 
-    # --- BLOCO DE SEGURANÇA (Apenas envio para 176) ---
-    # print("DRY-RUN desabilitado: limitando o envio real apenas para o aluno ID 176.")
-    # alunos = [a for a in alunos if str(a.get("id")) == "176"]
-    # 
-    # if not alunos:
-    #     print("Aluno ID 176 não encontrado entre os grupos-alvo. Nenhum e-mail será enviado.")
-    #     return
-    # ----------------------------------------------------
+    # --- DESCOMENTAR PARA TESTES ESSE LOCO DE SEGURANÇA (Apenas envio para 176) ---
+    #print("DRY-RUN desabilitado: limitando o envio real apenas para o aluno ID 176.")
+    #alunos = [a for a in alunos if str(a.get("id")) == "176"]
+     
+    #if not alunos:
+    #    print("Aluno ID 176 não encontrado entre os grupos-alvo. Nenhum e-mail será enviado.")
+    #    return
+    #----------------------------------------------------
 
     smtp_host = smtp_config.get("host", "")
     smtp_user = smtp_config.get("user", "")
@@ -170,71 +171,70 @@ def enviar_emails_para_zumbi(**context):
     if not smtp_host:
         raise ValueError("SMTP não configurado no código da DAG.")
 
-    enviados = 0
-    falhas = 0
+    enviados_lotes = 0
+    falhas_lotes = 0
 
     smtp_client = None
-    emails_nesta_sessao = 0
-    LIMITE_POR_SESSAO = 20
 
-    for aluno in alunos:
-        destinatario = aluno["email"]
-        nome = aluno["nome"]
+    # Agrupa os e-mails em lotes de 50 para não estourar limite de destinatários por mensagem (limites comuns de provedores)
+    TAMANHO_LOTE = 50
+    todos_emails = [aluno["email"] for aluno in alunos]
+    lotes = [todos_emails[i:i + TAMANHO_LOTE] for i in range(0, len(todos_emails), TAMANHO_LOTE)]
 
+    print(f"Total de alunos: {len(todos_emails)}. Divididos em {len(lotes)} lote(s) de envio (BCC).")
+
+    for idx, lote_emails in enumerate(lotes):
         mensagem = MIMEMultipart("alternative")
         mensagem["Subject"] = EMAIL_SUBJECT
         mensagem["From"] = f"{smtp_from_name} <{smtp_from}>"
-        mensagem["To"] = destinatario
-        mensagem.attach(MIMEText(_build_html(nome), "html", "utf-8"))
+        mensagem["To"] = smtp_from  # O To fica como o próprio remetente (não expõe listas)
+        # O Bcc recebe a lista separada por vírgula dos e-mails no lote
+        mensagem["Bcc"] = ", ".join(lote_emails)
+        
+        # O nome foi removido do loop para ser genérico e ir igual a todos no BCC
+        mensagem.attach(MIMEText(_build_html(), "html", "utf-8"))
 
-        sucesso_neste_aluno = False
+        sucesso_neste_lote = False
         tentativas = 0
         
-        while not sucesso_neste_aluno and tentativas < 3:
+        while not sucesso_neste_lote and tentativas < 3:
             try:
-                # Avalia se a conexão precisa ser recriada (nula ou atingiu o limite por sessão do provedor SMTP)
-                if smtp_client is None or emails_nesta_sessao >= LIMITE_POR_SESSAO:
-                    if smtp_client is not None:
-                        try:
-                            smtp_client.quit()
-                        except:
-                            pass
-                    print("Processando nova conexão SMTP (Reset de Limite de Mensagens)...")
+                if smtp_client is None:
+                    print(f"Conectando ao SMTP para o lote {idx+1}/{len(lotes)}...")
                     smtp_client = _create_smtp_client(smtp_config)
-                    emails_nesta_sessao = 0
 
-                smtp_client.sendmail(smtp_from, [destinatario], mensagem.as_string())
-                enviados += 1
-                emails_nesta_sessao += 1
-                sucesso_neste_aluno = True
-                print(f"E-mail enviado para {destinatario}")
-                time.sleep(1.5) # Pequena pausa pro provedor SMTP não bloquear por SPAM rate
+                # O sendmail requer a concatenação da lista de todos que receberão o pacote de dados (To + Bcc)
+                destinatarios_reais = [smtp_from] + lote_emails
+                smtp_client.sendmail(smtp_from, destinatarios_reais, mensagem.as_string())
+                
+                enviados_lotes += 1
+                sucesso_neste_lote = True
+                print(f"Lote {idx+1}/{len(lotes)} enviado com sucesso! ({len(lote_emails)} destinatários em cópia oculta)")
+                time.sleep(2) # Pequena pausa entre lotes caso haja limitador
                 
             except Exception as exc:
                 tentativas += 1
                 erro_str = str(exc).lower()
-                print(f"Erro na tentativa {tentativas} para {destinatario}: {exc}")
-                # Erros globais do provedor (conta bloqueada por limite de envios do plano)
+                print(f"Erro na tentativa {tentativas} para lote {idx+1}: {exc}")
+                
                 if "too many emails" in erro_str:
-                    print(f"Limitação global do provedor! A conta de e-mail estourou seu limite por hora/dia: {exc}")
+                    print(f"Limitação global do provedor! A conta de e-mail estourou seu limite: {exc}")
                     raise RuntimeError(f"Provedor SMTP bloqueou a conta por limite de envios: {exc}")
                 
-                # Erros comuns de "Corte" de conexão do servidor
                 if "please run connect" in erro_str or "too many messages" in erro_str or "unexpected eof" in erro_str or "disconnected" in erro_str:
                     try:
                         smtp_client.quit()
                     except:
                         pass
                     smtp_client = None
-                    time.sleep(3) # Aguarda antes de reconectar
+                    time.sleep(3)
                 else:
-                    # Assumimos que a falha é estrutural do endereço do aluno final (ex: email não existe mais). Desiste dele e marca falha.
-                    falhas += 1
+                    falhas_lotes += 1
                     break 
                     
-        if not sucesso_neste_aluno and tentativas >= 3:
-            falhas += 1
-            print(f"Abandonado e-mail {destinatario} após atingir limite de 3 tentativas de conexão com erro.")
+        if not sucesso_neste_lote and tentativas >= 3:
+            falhas_lotes += 1
+            print(f"Abandonado lote {idx+1} após atingir limite de 3 tentativas de conexão com erro.")
 
     if smtp_client is not None:
         try:
@@ -242,9 +242,9 @@ def enviar_emails_para_zumbi(**context):
         except:
             pass
 
-    print(f"Resumo de envio: enviados={enviados}, falhas={falhas}, total={len(alunos)}")
-    if falhas > 0:
-        raise RuntimeError(f"{falhas} envio(s) falharam.")
+    print(f"Resumo de envio (Lotes): enviados={enviados_lotes}, falhas={falhas_lotes}, total_lotes={len(lotes)}")
+    if falhas_lotes > 0:
+        raise RuntimeError(f"{falhas_lotes} lote(s) falharam no envio.")
 
 
 with DAG(

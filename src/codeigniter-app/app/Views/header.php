@@ -449,7 +449,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 <!-- Botão para abrir a sidebar -->
                 <button id="openSidebarBtn" class="btn btn-light">
                     <i class="bi bi-person-circle"></i>
-                    <span class="ms-2"><?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Visitante'; ?></span>
+                    <span class="ms-2"><?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Logar'; ?></span>
                 </button>
             </div>
         </div>

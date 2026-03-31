@@ -353,6 +353,13 @@ class UsuarioController extends BaseController
             } else {
                 $usuario->pagamento_inicial = 'Pendente';
             }
+
+            // Formatando a data de vencimento da assinatura
+            if (!empty($usuario->data_vencimento_assinatura) && $usuario->data_vencimento_assinatura !== '0000-00-00' && $usuario->data_vencimento_assinatura !== '0000-00-00 00:00:00') {
+                $usuario->data_vencimento_assinatura = date('d/m/Y', strtotime($usuario->data_vencimento_assinatura));
+            } else {
+                $usuario->data_vencimento_assinatura = '-';
+            }
         }
         
         return $usuarios;
@@ -453,6 +460,9 @@ class UsuarioController extends BaseController
         $data['nome'] = $Usuario->nome;
         $data['email'] = $Usuario->email;
         $data['senha'] = $Usuario->senha;
+        $data['pagamento_inicial'] = $Usuario->pagamento_inicial ?? 0;
+        $data['data_vencimento_assinatura'] = $Usuario->data_vencimento_assinatura ?? null;
+        $data['status_assinatura'] = $Usuario->status_assinatura ?? '';
 
         return view('updUsuario', $data);
     }
@@ -1074,10 +1084,15 @@ class UsuarioController extends BaseController
         $model = new UsuarioModel();
         $usuarioPerfilModel = new UsuarioPerfilModel();
         $id = $this->request->getPost('id');
+        $vencimento = $this->request->getPost('data_vencimento_assinatura');
+        
         $data = [
             'nome' => $this->request->getPost('nome'),
             'email' => $this->request->getPost('email'),
-            'senha' => $this->request->getPost('senha')
+            'senha' => $this->request->getPost('senha'),
+            'pagamento_inicial' => $this->request->getPost('pagamento_inicial'),
+            'data_vencimento_assinatura' => !empty($vencimento) ? $vencimento : null,
+            'status_assinatura' => $this->request->getPost('status_assinatura')
         ];
         
         $perfis = $this->request->getPost('id_perfil');

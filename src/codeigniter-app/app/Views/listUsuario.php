@@ -24,6 +24,7 @@ require VIEWPATH.'/header.php';
                             <th>Nome</th>
                             <th>Perfis</th>
                             <th>Pagamento Inicial</th>
+                            <th>Vencimento</th>
                             <th>Ações</th>
                         </tr>
                         
@@ -36,6 +37,7 @@ require VIEWPATH.'/header.php';
                             <td> <?php echo $Usuario->nome ?> </td>
                             <td><?php echo isset($Usuario->perfis_descricao) ? $Usuario->perfis_descricao : ''; ?></td>
                             <td><?php echo isset($Usuario->pagamento_inicial) ? $Usuario->pagamento_inicial : 'N/A'; ?></td>
+                            <td><?php echo isset($Usuario->data_vencimento_assinatura) ? $Usuario->data_vencimento_assinatura : '-'; ?></td>
                             <td> 
                                 <div class="sidebyside-container">
                                     <form action="<?php echo site_url('updUsuario'); ?>" method="post">

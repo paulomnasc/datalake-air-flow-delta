@@ -337,7 +337,7 @@ class UsuarioController extends BaseController
         $model = new UsuarioModel();
         $usuarios = $model->findAll();
         
-        // Para cada usuário, buscar seus perfis
+        // Para cada usuário, buscar seus perfis e formatar dados
         $usuarioPerfilModel = new UsuarioPerfilModel();
         foreach ($usuarios as $usuario) {
             $perfis = $usuarioPerfilModel->getPerfisUsuario($usuario->id);
@@ -346,6 +346,13 @@ class UsuarioController extends BaseController
                 $perfisDescricao[] = $perfil->perfil_descricao;
             }
             $usuario->perfis_descricao = implode(', ', $perfisDescricao);
+            
+            // Formatando o pagamento_inicial
+            if ($usuario->pagamento_inicial == 1) {
+                $usuario->pagamento_inicial = 'Pago';
+            } else {
+                $usuario->pagamento_inicial = 'Pendente';
+            }
         }
         
         return $usuarios;

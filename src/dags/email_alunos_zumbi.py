@@ -52,15 +52,23 @@ def buscar_alunos_zumbi(**context):
 
     query = """
     SELECT
-        id,
-        nome,
-        email
-    FROM usuario
-    WHERE perfil_comportamental IN ('Zumbi', 'Oportunista (Pulou o S3 p/ ver preço)')
-      AND email IS NOT NULL
-      AND TRIM(email) <> ''
-      AND email_confirmado = 1
-    ORDER BY id;
+        u.id,
+        u.nome,
+        u.email
+    FROM usuario u
+    WHERE u.email IS NOT NULL
+      AND (u.perfil_comportamental NOT IN ('Power User') OR u.perfil_comportamental IS NULL)
+      AND TRIM(u.email) <> ''
+      AND u.email_confirmado = 1
+      AND NOT EXISTS (
+          SELECT 1 
+          FROM activity_logs al 
+          WHERE al.user_id = u.id 
+            AND al.uri = '/auth/google-callback' 
+            AND al.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      )
+      AND id <> 146
+    ORDER BY u.id;
     """
 
     print("Conectando ao banco via connection ID: mydataflow-conn")

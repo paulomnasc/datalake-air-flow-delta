@@ -118,3 +118,48 @@ SELECT nome, perfil_comportamental FROM usuario LIMIT 10;
 ```
 
 A coluna **perfil_comportamental** não estará mais em branco ou `NULL`. Estará exibindo os nomes corretamente como **Oportunista (Pulou o S3 p/ ver preço)**, mostrando em tempo real o raio-x da sua audiência, pronta pra você engatilhar seu disparo de marketing.
+
+---
+
+## Regra de Filtro: Status da Assinatura (Expirados Nulos)
+
+O motor de processamento (`scripts/categorizar_alunos.py`), possui internamente um filtro restritivo de abrangência:
+```sql
+WHERE u.status_assinatura IN ('trial', 'active')
+   OR EXISTS (SELECT 1 FROM video_progress WHERE user_id = u.id)
+```
+
+- **Por quê?** Isso foca o processamento computacional majoritariamente em quem está usando a plataforma.
+- **Consequência (Valores em Branco Nulos):** Usuários que estão com o status de `expired` (ou outro diverso) E nunca assistiram a nenhum vídeo, são completamente **ignorados** pelo script. Por não serem lidos, ele não executa a instrução secundária de `UPDATE` na tabela para inserção desses perfis no banco. 
+- Logo, ao executar contagens no banco de dados, você sempre observará que existe uma safra de usuários `NULL` (Nulos). É exatamente esta fatia ignorada pelas queries do motor de IA.
+
+---
+
+## Integração: DAG de Comunicação (`email_alunos_zumbi.py`)
+
+A automação de recuperação e engajamento via e-mail ("Sentimos sua falta nas Smart Tables") consome ativamente essas safras geradas por este cálculo.
+
+Recentemente o fluxo foi repensado, saindo de um whitelisting puro para um critério de excludência.
+
+ **A Regra de Filtro Atual da DAG:**
+```sql
+WHERE u.email IS NOT NULL
+  AND (u.perfil_comportamental NOT IN ('Power User') OR u.perfil_comportamental IS NULL)
+  AND TRIM(u.email) <> ''
+  AND u.email_confirmado = 1
+  AND NOT EXISTS (
+      SELECT 1 
+      FROM activity_logs al 
+      WHERE al.user_id = u.id 
+        AND al.uri = '/auth/google-callback' 
+        AND al.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+  )
+```
+
+### Validação da Regra Atual (Pontos Focais de Atenção)
+Com as recentes atualizações para aprimorar o direcionamento da DAG e evitar incômodos a alunos assíduos, a query passou a fazer uma checagem cruzada (Anti-Join / NOT EXISTS) contra os registros de `activity_logs`.
+
+O gatilho atual obedece aos seguintes comportamentos:
+1. **INATIVIDADE OBRIGATÓRIA (Filtro Anti-Spam):** O e-mail de resgate ("Percebemos que você está um pouco distante") **só será enviado** para alunos que não fizeram login (`/auth/google-callback`) nos últimos **7 dias**. Alunos como o _Pragmático_ ou _Em Evolução_ estarão protegidos contra e-mails de resgate contanto que estejam acessando o ambiente na semana vigente.
+2. **RESGATE DE BASE LEGA/EXPIRADA:** Utilizando explicitamente o termo `OR u.perfil_comportamental IS NULL`, nós passamos a cobrir e incluir no disparo aquela base adormecida de alunos antigos/expirados que o banco de dados desconsiderava por não ter sofrido avaliação no script principal de IA.
+3. **EXCLUSÃO DOS TOP TIER:** Os `Power Users` permanecem imunes a essas campanhas de "Sentimos sua falta".

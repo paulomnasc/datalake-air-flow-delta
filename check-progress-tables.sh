@@ -22,7 +22,7 @@ fi
 # Pegar credenciais do .env
 MYSQL_ROOT_PASSWORD=$(grep "^MYSQL_ROOT_PASSWORD=" .env | cut -d'=' -f2)
 MYSQL_DATABASE=$(grep "^MYSQL_DATABASE=" .env | cut -d'=' -f2)
-MYSQL_CONTAINER=$(docker ps | grep "mysql" | grep -o "mysql[^ ]*" | head -1)
+MYSQL_CONTAINER=$(docker ps --format '{{.Names}}' | grep mysql | head -1)
 
 if [ -z "$MYSQL_CONTAINER" ]; then
     echo -e "${RED}❌ Container MySQL não encontrado!${NC}"

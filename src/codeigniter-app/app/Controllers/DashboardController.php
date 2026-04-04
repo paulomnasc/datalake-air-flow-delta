@@ -455,10 +455,75 @@ class DashboardController extends BaseController
             LEFT JOIN video v ON v.module_id = m.id AND v.is_active = 1
             LEFT JOIN uc_definition uc ON uc.video_id = v.id AND uc.is_active = 1
             LEFT JOIN uc_progress up ON up.uc_definition_id = uc.id
-            WHERE c.is_active = 1
             GROUP BY c.id
             ORDER BY media_progresso DESC
         ")->getResult();
+
+        // ========== 7. FEEDBACK STATS ==========
+        // Card: Percentual de respondentes / cadastrados (semana)
+        $sevenDaysAgo = date('Y-m-d H:i:s', strtotime('-7 days'));
+        
+        $weeklyRegistrations = $db->query("
+            SELECT COUNT(id) as total 
+            FROM usuario 
+            WHERE criado_em >= ? AND id NOT IN (146, 176, 201)
+        ", [$sevenDaysAgo])->getRow()->total;
+        
+        // Quantos *desses* cadastrados nos últimos 7 dias responderam ao feedback
+        $weeklyRespondents = $db->query("
+            SELECT COUNT(DISTINCT u.id) as total 
+            FROM video_feedback vf 
+            JOIN usuario u ON vf.user_id = u.id 
+            WHERE u.criado_em >= ? AND u.id NOT IN (146, 176, 201)
+        ", [$sevenDaysAgo])->getRow()->total;
+        
+        $weeklyFeedbackPercent = $weeklyRegistrations > 0 ? round(($weeklyRespondents / $weeklyRegistrations) * 100, 1) : 0;
+        
+        $dateStartStr = date('d/m/Y', strtotime('-7 days'));
+        $dateEndStr = date('d/m/Y');
+
+        // Totais por questionamento (desde 22/03/2026)
+        $labStatusTotals = $db->query("
+            SELECT vf.lab_status, COUNT(DISTINCT vf.id) as total
+            FROM video_feedback vf
+            JOIN usuario u ON u.id = vf.user_id
+            WHERE u.criado_em >= '2026-03-22 00:00:00'
+              AND u.id NOT IN (146, 176, 201)
+            GROUP BY vf.lab_status
+        ")->getResult();
+
+        $valuePerceptionTotals = $db->query("
+            SELECT vf.value_perception, COUNT(DISTINCT vf.id) as total
+            FROM video_feedback vf
+            JOIN usuario u ON u.id = vf.user_id
+            WHERE u.criado_em >= '2026-03-22 00:00:00'
+              AND u.id NOT IN (146, 176, 201)
+            GROUP BY vf.value_perception
+        ")->getResult();
+
+        $feedbackUsers = $db->query("
+            SELECT DISTINCT
+                u.id,
+                u.nome,
+                u.perfil_comportamental, 
+                u.email,
+                al.uri,
+                vp.completed,
+                vp.percent,
+                vf.lab_status,
+                vf.value_perception,
+                vf.open_feedback,
+                vf.created_at as data_feedback
+            FROM activity_logs al
+            INNER JOIN usuario u ON u.id = al.user_id
+            LEFT JOIN video_progress vp ON u.id = vp.user_id 
+            INNER JOIN video_feedback vf ON u.id = vf.user_id 
+            WHERE al.uri LIKE '%/video/%' 
+              AND al.user_id NOT IN (146, 201, 176) 
+              AND vp.percent > 0
+              AND u.criado_em BETWEEN '2026-03-22 00:00:00' AND NOW()
+        ")->getResult();
+        
         
         $data = [
             // Estatísticas gerais
@@ -486,6 +551,14 @@ class DashboardController extends BaseController
             'top_students' => $topStudents,
             'courses_progress' => $coursesProgress,
             'student_progress' => $this->getStudentProgressData(),
+            'weekly_feedback_percent' => $weeklyFeedbackPercent ?? 0,
+            'weekly_respondents' => $weeklyRespondents ?? 0,
+            'weekly_registrations' => $weeklyRegistrations ?? 0,
+            'feedback_date_start' => $dateStartStr,
+            'feedback_date_end' => $dateEndStr,
+            'lab_status_totals' => $labStatusTotals ?? [],
+            'value_perception_totals' => $valuePerceptionTotals ?? [],
+            'feedback_users' => $feedbackUsers ?? [],
         ];
         
         return view('admin/dashboard', $data);
@@ -635,6 +708,64 @@ class DashboardController extends BaseController
                 $student->last_content ?? 'N/A',
                 $student->last_uri ?? 'N/A',
                 $student->last_login ?? 'N/A'
+            ]);
+        }
+        fclose($output);
+        exit;
+    }
+
+    /**
+     * Download CSV dos alunos que preencheram o feedback de vídeo
+     */
+    public function downloadFeedbackUsersCsv()
+    {
+        $db = \Config\Database::connect();
+        
+        $feedbackUsers = $db->query("
+            SELECT DISTINCT
+                u.id,
+                u.nome,
+                u.perfil_comportamental, 
+                u.email,
+                al.uri,
+                vp.completed,
+                vp.percent,
+                vf.lab_status,
+                vf.value_perception,
+                vf.open_feedback,
+                vf.created_at as data_feedback
+            FROM activity_logs al
+            INNER JOIN usuario u ON u.id = al.user_id
+            LEFT JOIN video_progress vp ON u.id = vp.user_id 
+            INNER JOIN video_feedback vf ON u.id = vf.user_id 
+            WHERE al.uri LIKE '%/video/%' 
+              AND al.user_id NOT IN (146, 201, 176) 
+              AND vp.percent > 0
+              AND u.criado_em >= '2026-03-22 00:00:00'
+        ")->getResult();
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="feedbacks_video.csv"');
+
+        $output = fopen('php://output', 'w');
+        fputcsv($output, [
+            'ID', 'Aluno', 'Email', 'Perfil', 'URI', 'Completo (Vídeo)', 'Percentual (Vídeo)', 
+            'Status Laboratório', 'Percepção de Valor', 'Feedback Aberto', 'Data Feedback'
+        ]);
+
+        foreach ($feedbackUsers as $student) {
+            fputcsv($output, [
+                $student->id,
+                $student->nome,
+                $student->email,
+                $student->perfil_comportamental,
+                $student->uri,
+                $student->completed,
+                $student->percent,
+                $student->lab_status,
+                $student->value_perception,
+                $student->open_feedback,
+                $student->data_feedback
             ]);
         }
         fclose($output);

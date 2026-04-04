@@ -178,6 +178,20 @@ WHERE id = SEU_ID_DE_TESTE;
 
 ---
 
+## 💰 Valor da Assinatura / Pagamento
+O valor-base original de pagamento, bem como o valor inicial, é gerido via variável de ambiente do projeto para facilitar a manutenção sem necessidade de alteração no código.
+- Edite ou adicione `INITIAL_PAYMENT_USD=10` no arquivo `.env` para fixar o valor que aparece na página de renovação e pagamento inicial.
+
+---
+
+## 🚀 Liberação Especial (pagamento_inicial = 1)
+Caso a coluna `pagamento_inicial` na tabela `usuario` seja definida como `1`:
+- O usuário ganha passe livre (liberação de acesso irrestrito).
+- A view de paywall não é mais exibida (o filtro ignora restrições ou banners).
+- O usuário poderá navegar livremente pela plataforma, independente do status `expired` ou `cancelled`.
+
+---
+
 ## 🎨 Personalizar QR Code de Pagamento
 
 Edite o arquivo `app/Views/subscription/renew.php` na seção:

@@ -116,6 +116,13 @@ class SubscriptionFilter implements FilterInterface
             $dataVencimento
         );
 
+        // Se pagamento_inicial = 1, o usuário navega livremente e não vê paywall
+        if (isset($usuario->pagamento_inicial) && $usuario->pagamento_inicial == 1) {
+            $acessoInfo['pode_acessar'] = true;
+            $_SESSION['subscription_services_blocked'] = false;
+            $_SESSION['subscription_show_warning'] = false;
+        }
+
         // Se não pode acessar, redireciona para página de renovação
         // Exceto se já estiver na página de renovação ou logout
         $uri = $request->getUri()->getPath();

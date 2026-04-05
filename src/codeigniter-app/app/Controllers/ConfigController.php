@@ -1068,53 +1068,85 @@ class ConfigController extends BaseController
             
             log_message('info', "Tentando conectar em $host:$port/$databaseName com usuário $user");
             
-            // Corrigir host para Docker: localhost -> mysql (nome do serviço)
+            // Corrigir host para Docker: localhost -> mysql/postgres (nome do serviço)
             $actualHost = ($host === 'localhost' || $host === '127.0.0.1') ? 'mysql' : $host;
             log_message('info', "Host traduzido para Docker: $actualHost");
             
-            // Conecta ao MySQL usando as credenciais fornecidas
-            $mysqli = new \mysqli($actualHost, $user, $password, $databaseName, $port);
-            
-            if ($mysqli->connect_error) {
-                log_message('error', "Erro de conexão MySQL: " . $mysqli->connect_error);
-                return $this->response->setJSON([
-                    'status' => 'error',
-                    'mensagem' => "Falha ao conectar ao MySQL: " . $mysqli->connect_error
-                ]);
-            }
-            
-            log_message('info', 'Conexão MySQL estabelecida com sucesso');
-            
-            // Busca tabelas do information_schema
-            $query = "SELECT 
-                        TABLE_NAME as table_name,
-                        TABLE_ROWS as row_count,
-                        ROUND(((DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024), 2) as table_size_mb
-                      FROM information_schema.TABLES
-                      WHERE TABLE_SCHEMA = ?
-                      AND TABLE_TYPE = 'BASE TABLE'
-                      ORDER BY TABLE_NAME";
-            
-            $stmt = $mysqli->prepare($query);
-            if (!$stmt) {
-                $mysqli->close();
-                return $this->response->setJSON([
-                    'status' => 'error',
-                    'mensagem' => 'Erro ao preparar query: ' . $mysqli->error
-                ]);
-            }
-            
-            $stmt->bind_param('s', $databaseName);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            
             $tables = [];
-            while ($row = $result->fetch_assoc()) {
-                $tables[] = $row;
+
+            if ($port == 5432 || strpos(strtolower($actualHost), 'postgres') !== false) {
+                // Conexão PostgreSQL via PDO
+                try {
+                    $dsn = "pgsql:host=$actualHost;port=$port;dbname=$databaseName";
+                    $pdo = new \PDO($dsn, $user, $password, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+                    
+                    log_message('info', 'Conexão PostgreSQL estabelecida com sucesso');
+                    
+                    // Busca tabelas no public schema do PostgreSQL
+                    $query = "SELECT 
+                                tablename as table_name,
+                                0 as row_count,
+                                ROUND(current_setting('block_size')::numeric * pg_class.relpages / 1024 / 1024, 2) as table_size_mb
+                              FROM pg_tables
+                              LEFT JOIN pg_class ON pg_tables.tablename = pg_class.relname
+                              WHERE schemaname = 'public'
+                              ORDER BY tablename";
+                    
+                    $stmt = $pdo->prepare($query);
+                    $stmt->execute();
+                    $tables = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+                } catch (\PDOException $e) {
+                    log_message('error', "Erro de conexão PostgreSQL: " . $e->getMessage());
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => "Falha ao conectar ao PostgreSQL: " . $e->getMessage()
+                    ]);
+                }
+            } else {
+                // Conecta ao MySQL usando as credenciais fornecidas
+                $mysqli = new \mysqli($actualHost, $user, $password, $databaseName, $port);
+                
+                if ($mysqli->connect_error) {
+                    log_message('error', "Erro de conexão MySQL: " . $mysqli->connect_error);
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => "Falha ao conectar ao MySQL: " . $mysqli->connect_error
+                    ]);
+                }
+                
+                log_message('info', 'Conexão MySQL estabelecida com sucesso');
+                
+                // Busca tabelas do information_schema
+                $query = "SELECT 
+                            TABLE_NAME as table_name,
+                            TABLE_ROWS as row_count,
+                            ROUND(((DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024), 2) as table_size_mb
+                          FROM information_schema.TABLES
+                          WHERE TABLE_SCHEMA = ?
+                          AND TABLE_TYPE = 'BASE TABLE'
+                          ORDER BY TABLE_NAME";
+                
+                $stmt = $mysqli->prepare($query);
+                if (!$stmt) {
+                    $mysqli->close();
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => 'Erro ao preparar query: ' . $mysqli->error
+                    ]);
+                }
+                
+                $stmt->bind_param('s', $databaseName);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                
+                while ($row = $result->fetch_assoc()) {
+                    $tables[] = $row;
+                }
+                
+                $stmt->close();
+                $mysqli->close();
             }
-            
-            $stmt->close();
-            $mysqli->close();
             
             log_message('info', count($tables) . ' tabelas encontradas');
             

@@ -579,7 +579,7 @@ Resumo dos nomes/hosts das instâncias de banco de dados por ambiente. Os servi�
 - PostgreSQL BI (Power BI)
   - Host interno: `postgres-bi`
   - Container: `postgres-bi-test`
-  - Database: `datalake_bi`
+  - Database: `datalake_bi` ou `northwind`
   - Usuário/Senha: `pbi_user` / `pbi_password`
   - Porta externa: 26433 (variável `POSTGRES_BI_PORT`)
 
@@ -602,7 +602,7 @@ Resumo dos nomes/hosts das instâncias de banco de dados por ambiente. Os servi�
 - PostgreSQL BI (Power BI)
   - Host interno: `postgres-bi`
   - Container: `postgres-bi-dev`
-  - Database: `datalake_bi`
+  - Database: `datalake_bi` ou `northwind`
   - Usuário/Senha: `pbi_user` / `pbi_password`
   - Porta externa: 25433 (ajuste conforme seu `.env`)
 
@@ -625,7 +625,7 @@ Resumo dos nomes/hosts das instâncias de banco de dados por ambiente. Os servi�
 - PostgreSQL BI (Power BI)
   - Host interno: `postgres-bi`
   - Container: `postgres-bi-prd`
-  - Database: `datalake_bi`
+  - Database: `datalake_bi` ou `northwind`
   - Usuário/Senha: `pbi_user` / senha forte definida em produção
   - Porta externa: 25433 (ajuste conforme seu `.env-prd`)
 

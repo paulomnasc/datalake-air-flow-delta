@@ -17,10 +17,11 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libicu-dev \
     default-mysql-client \
+    libpq-dev \
     dos2unix \
     docker.io \
     && rm -rf /var/lib/apt/lists/* \
-    && docker-php-ext-install pdo_mysql gd intl opcache mysqli
+    && docker-php-ext-install pdo_mysql gd intl opcache mysqli pdo_pgsql pgsql
 
 # 2.1 PYTHON para execução das validações (backend)
 RUN apt-get update && apt-get install -y --no-install-recommends \

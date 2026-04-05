@@ -1,0 +1,593 @@
+{
+  "id": "929ed400-789f-4047-991f-4d1d5511646f",
+  "version": "2.0",
+  "name": "connect-to-northwind",
+  "url": "https://myflow.estudotabela.com.br:28443",
+  "tests": [
+    {
+      "id": "c1edcfcb-28e4-466b-aa40-affacf7ee809",
+      "name": "Untitled",
+      "commands": [
+        {
+          "id": "fdc29969-3717-414b-969d-ddb287337634",
+          "comment": "",
+          "command": "open",
+          "target": "/dashboard",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "5e524834-544f-4f03-896c-0f696a721f57",
+          "comment": "",
+          "command": "setWindowSize",
+          "target": "870x672",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "b368290f-7ea9-4292-a2be-295ac02655cd",
+          "comment": "",
+          "command": "click",
+          "target": "id=novo-pipeline-action",
+          "targets": [
+            [
+              "id=novo-pipeline-action",
+              "id"
+            ],
+            [
+              "css=#novo-pipeline-action",
+              "css:finder"
+            ],
+            [
+              "xpath=//div[@id='novo-pipeline-action']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//div[@id='content']/div/div/div/div/div[2]/div",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div/div[2]/div",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "ea49b2b8-730d-43d5-a70c-c7656273793d",
+          "comment": "",
+          "command": "click",
+          "target": "name=dag_id",
+          "targets": [
+            [
+              "name=dag_id",
+              "name"
+            ],
+            [
+              "css=.form-section:nth-child(2) > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=//input[@name='dag_id']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div/div/input",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div/div/input",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "64b2f1f7-466e-4121-a3a6-c26e35155494",
+          "comment": "",
+          "command": "executeScript",
+          "target": "let el = document.querySelector('[name=\"dag_id\"]'); if(el) { el.value = 'pipe-northwind'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [
+            [
+              "name=dag_id",
+              "name"
+            ],
+            [
+              "css=.form-section:nth-child(2) > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=//input[@name='dag_id']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div/div/input",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div/div/input",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "4ebff9fd-5cbd-4748-a982-d910d6d781fc",
+          "comment": "",
+          "command": "click",
+          "target": "css=.form-section:nth-child(3) > .form-control",
+          "targets": [
+            [
+              "css=.form-section:nth-child(3) > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=//textarea[@name='description']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div/div[2]/textarea",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//textarea",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "e360bf3e-32bf-4ffa-8d07-991637486979",
+          "comment": "",
+          "command": "executeScript",
+          "target": "let el = document.querySelector('.form-section:nth-child(3) > .form-control'); if(el) { el.value = 'My pipe Northwind'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [
+            [
+              "css=.form-section:nth-child(3) > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=//textarea[@name='description']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div/div[2]/textarea",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//textarea",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "ed812d4c-242a-4210-bfe0-b20c7cb73693",
+          "comment": "",
+          "command": "click",
+          "target": "name=id_pasta",
+          "targets": [
+            [
+              "name=id_pasta",
+              "name"
+            ],
+            [
+              "css=div:nth-child(1) > .form-section > .form-select",
+              "css:finder"
+            ],
+            [
+              "xpath=//select[@name='id_pasta']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div/div[3]/select",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//select",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "a68fc716-ffeb-403b-a71d-5b20f15cfa34",
+          "comment": "",
+          "command": "select",
+          "target": "name=id_pasta",
+          "targets": [],
+          "value": "label=pasta-padrao"
+        },
+        {
+          "id": "98362d12-5e00-4270-8941-e865a0d7c227",
+          "comment": "",
+          "command": "click",
+          "target": "css=div:nth-child(1) > .form-section option:nth-child(2)",
+          "targets": [
+            [
+              "css=div:nth-child(1) > .form-section option:nth-child(2)",
+              "css:finder"
+            ],
+            [
+              "xpath=//option[@value='71']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div/div[3]/select/option[2]",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//option[2]",
+              "xpath:position"
+            ],
+            [
+              "xpath=//option[contains(.,'pasta-padrao')]",
+              "xpath:innerText"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "e0222a5d-ca1c-4064-97ed-db11fa323dd2",
+          "comment": "",
+          "command": "click",
+          "target": "css=.ms-auto > .btn-primary",
+          "targets": [
+            [
+              "css=.ms-auto > .btn-primary",
+              "css:finder"
+            ],
+            [
+              "xpath=(//button[@type='button'])[7]",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div[2]/div/button",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//form/div[2]/div/button",
+              "xpath:position"
+            ],
+            [
+              "xpath=//button[contains(.,'Pr\u00f3ximo ')]",
+              "xpath:innerText"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "244f3200-b83e-4e41-be72-548f10b63938",
+          "comment": "",
+          "command": "runScript",
+          "target": "window.scrollTo(0,635.3333129882812)",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "1889fffe-19ce-4224-9786-352ce66d0458",
+          "comment": "",
+          "command": "click",
+          "target": "name=id_source_type",
+          "targets": [
+            [
+              "name=id_source_type",
+              "name"
+            ],
+            [
+              "css=div:nth-child(2) > .form-section > .form-select",
+              "css:finder"
+            ],
+            [
+              "xpath=//select[@name='id_source_type']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div[2]/div/select",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div[2]/div/select",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "f4db34d9-6f31-468f-8d79-e54612692fbc",
+          "comment": "",
+          "command": "select",
+          "target": "name=id_source_type",
+          "targets": [],
+          "value": "label=PostgreSQL"
+        },
+        {
+          "id": "8b86cb0a-20db-47f0-930c-24130cde70ce",
+          "comment": "",
+          "command": "click",
+          "target": "css=option:nth-child(7)",
+          "targets": [
+            [
+              "css=option:nth-child(7)",
+              "css:finder"
+            ],
+            [
+              "xpath=//option[@value='4']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div[2]/div/select/option[7]",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//option[7]",
+              "xpath:position"
+            ],
+            [
+              "xpath=//option[contains(.,'\n                                                            PostgreSQL                                                        ')]",
+              "xpath:innerText"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "633271cd-1b40-4027-8174-e2f8c3854cf9",
+          "comment": "",
+          "command": "click",
+          "target": "name=sql_connection_id",
+          "targets": [
+            [
+              "name=sql_connection_id",
+              "name"
+            ],
+            [
+              "css=.col-md-6:nth-child(1) > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=//input[@name='sql_connection_id']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div[2]/div[3]/div[2]/div/div/input",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div[2]/div/div/input",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "738b415c-afea-40a4-87b0-c8a1d3bab968",
+          "comment": "",
+          "command": "executeScript",
+          "target": "let el = document.querySelector('[name=\"sql_connection_id\"]'); if(el) { el.value = 'conn_postsql'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [
+            [
+              "name=sql_connection_id",
+              "name"
+            ],
+            [
+              "css=.col-md-6:nth-child(1) > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=//input[@name='sql_connection_id']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div[2]/div[3]/div[2]/div/div/input",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div[2]/div/div/input",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "32cce362-b743-40b3-904e-ad605d22faaf",
+          "comment": "",
+          "command": "executeScript",
+          "target": "let el = document.querySelector('[name=\"sql_connection_id\"]'); if(el) { el.value = 'conn_postsql_northwind'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [
+            [
+              "name=sql_connection_id",
+              "name"
+            ],
+            [
+              "css=.col-md-6:nth-child(1) > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=//input[@name='sql_connection_id']",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div[2]/div[3]/div[2]/div/div/input",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div[2]/div/div/input",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "4c732f28-6949-4b70-ab4e-78e3f9b2c575",
+          "comment": "",
+          "command": "executeScript",
+          "target": "let el = document.querySelector('.col-md-6:nth-child(2) > .form-control'); if(el) { el.value = 'postgres-bi'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [
+            [
+              "css=.col-md-6:nth-child(2) > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=(//input[@name='sql_host'])[2]",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div[2]/div[3]/div[2]/div/div[2]/input",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div[2]/input",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "981a7f48-1822-43b9-88ae-ce5f6b8521da",
+          "comment": "",
+          "command": "executeScript",
+          "target": "let el = document.querySelector('.col-md-6:nth-child(3) > .form-control'); if(el) { el.value = '5432'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [
+            [
+              "css=.col-md-6:nth-child(3) > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=(//input[@name='sql_port'])[2]",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div[2]/div[3]/div[2]/div/div[3]/input",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div[2]/div/div[3]/input",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "ae6abbdc-79a6-4840-a676-966304fc9ad9",
+          "comment": "",
+          "command": "executeScript",
+          "target": "let el = document.querySelector('.col-md-6:nth-child(4) > .form-control'); if(el) { el.value = 'northwind'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [
+            [
+              "css=.col-md-6:nth-child(4) > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=(//input[@name='sql_database_name'])[2]",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div[2]/div[3]/div[2]/div/div[4]/input",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div[4]/input",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "9b3d5180-4f50-4d26-8b86-e384977b31cd",
+          "comment": "",
+          "command": "executeScript",
+          "target": "let el = document.querySelector('.col-md-6:nth-child(5) > .form-control'); if(el) { el.value = 'pbi_user'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [
+            [
+              "css=.col-md-6:nth-child(5) > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=(//input[@name='sql_user'])[2]",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div[2]/div[3]/div[2]/div/div[5]/input",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div[5]/input",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "cbee21f6-5865-4b09-9408-3f3b7c792fd0",
+          "comment": "",
+          "command": "executeScript",
+          "target": "let el = document.querySelector('.col-md-12 > .form-control'); if(el) { el.value = 'pbi_password'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [
+            [
+              "css=.col-md-12 > .form-control",
+              "css:finder"
+            ],
+            [
+              "xpath=(//input[@name='sql_password'])[2]",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div[2]/div[3]/div[2]/div/div[6]/input",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div[6]/input",
+              "xpath:position"
+            ]
+          ],
+          "value": ""
+        },
+        {
+          "id": "16a69736-4f1d-4a0b-87c8-62422ccc3989",
+          "comment": "",
+          "command": "click",
+          "target": "css=.mt-3 > .btn",
+          "targets": [
+            [
+              "css=.mt-3 > .btn",
+              "css:finder"
+            ],
+            [
+              "xpath=(//button[@type='button'])[4]",
+              "xpath:attributes"
+            ],
+            [
+              "xpath=//form[@id='wizardForm']/div/div[2]/div[3]/div[2]/div[2]/button",
+              "xpath:idRelative"
+            ],
+            [
+              "xpath=//div[3]/div[2]/div[2]/button",
+              "xpath:position"
+            ],
+            [
+              "xpath=//button[contains(.,'Conectar e Listar Tabelas')]",
+              "xpath:innerText"
+            ]
+          ],
+          "value": ""
+        }
+      ]
+    }
+  ],
+  "suites": [
+    {
+      "id": "24be10a1-8cfa-4894-88ea-a170491e1792",
+      "name": "Default Suite",
+      "persistSession": false,
+      "parallel": false,
+      "timeout": 300,
+      "tests": [
+        "c1edcfcb-28e4-466b-aa40-affacf7ee809"
+      ]
+    }
+  ],
+  "urls": [
+    "https://myflow.estudotabela.com.br:28443/"
+  ],
+  "plugins": []
+}

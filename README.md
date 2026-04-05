@@ -400,7 +400,7 @@ E sua stack estiver containerizada (Docker), siga os passos abaixo para aumentar
 | **MinIO Console**   | [http://localhost:9001](http://localhost:9001) | 9001  | `admin` / `admin123`       | —                  | Interface web de armazenamento S3   |
 | **MinIO API S3**    | `http://localhost:9000`                | 9000  | `admin` / `admin123`       | —                  | Usado por boto3, S3Hook, etc.        |
 | **PostgreSQL (Airflow)** | via cliente externo ou terminal   | 5432  | `airflow` / `airflow`      | `airflow`          | Banco de metadados do Airflow        |
-| **PostgreSQL (BI)** | via Power BI/cliente SQL               | 5433  | `pbi_user` / `pbi_password`| `datalake_bi`      | Endpoint para ferramentas de analytics (múltiplas conexões) |
+| **PostgreSQL (BI)** | via Power BI/cliente SQL               | 5433  | `pbi_user` / `pbi_password`| `datalake_bi` / `northwind` | Endpoint para ferramentas de analytics (múltiplas conexões) |
 | **Apache Atlas**    | [http://localhost:21000](http://localhost:21000) | 21000 | `admin` / `admin`          | —                  | Catálogo de dados standalone (HBase/Solr embarcados) |
 | **Jupyter Notebook**| [http://localhost:8888](http://localhost:8888) | 8888  | Token: `tavares1234`       | —                  | Lab de integração Atlas (pyspark-notebook) |
 | **CodeIgniter WebApp** | [http://localhost:8088](http://localhost:8088) | 8088  | Configurável via aplicação | `lista_revisao2`   | Interface web para configuração de DAGs |

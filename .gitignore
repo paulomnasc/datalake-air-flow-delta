@@ -48,7 +48,7 @@ src/codeigniter-app/.env.production
 scripts/api-ga4/*.json
 
 # Ignorar arquivo de configuração do nginx
-myflow.conf
+#myflow.conf
 
 # Ignorar certificados locais
 certs/

@@ -168,7 +168,7 @@ services:
       - AIRFLOW__WEBSERVER__OWNER_MODE=user
       - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth
       - MINIO_BUCKET=lab01
-      - ENABLE_ATLAS=false
+      - ENABLE_ATLAS=true
       - AIRFLOW_ADMIN_USERNAME=admin
       - AIRFLOW_ADMIN_PASSWORD=kJ#212394
       - ZUMBI_EMAIL_DRY_RUN=${ZUMBI_EMAIL_DRY_RUN:-true}
@@ -205,7 +205,7 @@ services:
       - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth
       - MINIO_BUCKET=lab01
       - ENABLE_DEBUGPY=false
-      - ENABLE_ATLAS=false
+      - ENABLE_ATLAS=true
       - ATLAS_HOST=http://apache-atlas:21000
       - ATLAS_USER=admin
       - ATLAS_PASS=admin

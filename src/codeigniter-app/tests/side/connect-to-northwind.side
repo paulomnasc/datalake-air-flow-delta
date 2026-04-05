@@ -112,6 +112,14 @@
           "value": ""
         },
         {
+          "id": "c9c6a762-9766-4e36-823c-d82d213da7d9",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
+          "targets": [],
+          "value": ""
+        },
+        {
           "id": "4ebff9fd-5cbd-4748-a982-d910d6d781fc",
           "comment": "",
           "command": "click",
@@ -162,6 +170,14 @@
           "value": ""
         },
         {
+          "id": "1aad7949-6a03-4f73-8f6c-51fdf6af9434",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
+          "targets": [],
+          "value": ""
+        },
+        {
           "id": "ed812d4c-242a-4210-bfe0-b20c7cb73693",
           "comment": "",
           "command": "click",
@@ -197,6 +213,14 @@
           "target": "name=id_pasta",
           "targets": [],
           "value": "label=pasta-padrao"
+        },
+        {
+          "id": "974f2dca-61db-4b83-a6b8-64a35046513f",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
+          "targets": [],
+          "value": ""
         },
         {
           "id": "98362d12-5e00-4270-8941-e865a0d7c227",
@@ -302,6 +326,14 @@
           "value": "label=PostgreSQL"
         },
         {
+          "id": "36b32825-0ac4-4fd0-a8df-7ead22d4f9f7",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
+          "targets": [],
+          "value": ""
+        },
+        {
           "id": "8b86cb0a-20db-47f0-930c-24130cde70ce",
           "comment": "",
           "command": "click",
@@ -389,6 +421,14 @@
           "value": ""
         },
         {
+          "id": "896b46a0-221e-4a1d-ab5a-fb33eaf3232c",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
+          "targets": [],
+          "value": ""
+        },
+        {
           "id": "32cce362-b743-40b3-904e-ad605d22faaf",
           "comment": "",
           "command": "executeScript",
@@ -418,6 +458,14 @@
           "value": ""
         },
         {
+          "id": "fc14ee4a-f747-41ba-aa51-a6f8bee33869",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
+          "targets": [],
+          "value": ""
+        },
+        {
           "id": "4c732f28-6949-4b70-ab4e-78e3f9b2c575",
           "comment": "",
           "command": "executeScript",
@@ -440,6 +488,14 @@
               "xpath:position"
             ]
           ],
+          "value": ""
+        },
+        {
+          "id": "24d522c9-93f0-44d9-b682-638e5fed2486",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
+          "targets": [],
           "value": ""
         },
         {
@@ -468,6 +524,14 @@
           "value": ""
         },
         {
+          "id": "7f49b6b1-92b7-41d5-9f4b-98d9e3ba601a",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
+          "targets": [],
+          "value": ""
+        },
+        {
           "id": "ae6abbdc-79a6-4840-a676-966304fc9ad9",
           "comment": "",
           "command": "executeScript",
@@ -490,6 +554,14 @@
               "xpath:position"
             ]
           ],
+          "value": ""
+        },
+        {
+          "id": "cef70394-74fb-4b59-a7c4-e7b315659444",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
+          "targets": [],
           "value": ""
         },
         {
@@ -518,6 +590,14 @@
           "value": ""
         },
         {
+          "id": "8549fca6-3fce-4495-bcb7-4f8034e93cdb",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
+          "targets": [],
+          "value": ""
+        },
+        {
           "id": "cbee21f6-5865-4b09-9408-3f3b7c792fd0",
           "comment": "",
           "command": "executeScript",
@@ -543,10 +623,26 @@
           "value": ""
         },
         {
+          "id": "8a2ecdbc-f773-4bba-8701-2ed66e9a7eb2",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
+          "targets": [],
+          "value": ""
+        },
+        {
           "id": "e3a89111-c309-411a-821b-6bcb60dc98f0",
           "comment": "Preenche Tabela Destino",
           "command": "executeScript",
           "target": "let el = document.querySelector('[name=\"target_table_name\"]'); if(el) { el.value = 'northwind'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "1fc318a3-6e85-40c0-aefa-e3fa3fbe4495",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
           "targets": [],
           "value": ""
         },
@@ -616,6 +712,14 @@
           "comment": "Seleciona a primeira Fun\u00e7\u00e3o Python",
           "command": "executeScript",
           "target": "let el = document.querySelector('[name=\"python_module_path\"]'); if(el) { el.selectedIndex = 1; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "d270db62-a725-4140-b64a-03f83efcf45a",
+          "comment": "Lag visual adicionado",
+          "command": "pause",
+          "target": "600",
           "targets": [],
           "value": ""
         },

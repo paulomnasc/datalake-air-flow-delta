@@ -374,7 +374,12 @@ class ConfigController extends BaseController
                     $sqlDatabase = $postData['sql_database_name'] ?? '';
                     $sqlUser = $postData['sql_user'] ?? '';
                     $sqlPassword = $postData['sql_password'] ?? '';
-                    $dsn = "mysql:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    
+                    if (strpos($sourceTypeDescription, 'postgres') !== false || strpos($sourceTypeDescription, 'pgsql') !== false || $sqlPort == 5432) {
+                        $dsn = "pgsql:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    } else {
+                        $dsn = "mysql:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    }
                     $result = \App\Helpers\MinioHelper::exportSqlTableToCsvAndUpload(
                         $dsn,
                         $sqlUser,
@@ -539,12 +544,18 @@ class ConfigController extends BaseController
                 $uploadedFiles = [];
                 foreach ($selectedTables as $tableName) {
                     $sqlHost = $postData['sql_host'] ?? '';
+                    $actualHost = ($sqlHost === 'localhost' || $sqlHost === '127.0.0.1') ? 'mysql' : $sqlHost;
                     $sqlPort = $postData['sql_port'] ?? 3306;
                     $sqlDatabase = $postData['sql_database_name'] ?? '';
                     $sqlUser = $postData['sql_user'] ?? '';
                     $sqlPassword = $postData['sql_password'] ?? '';
                     $dagId = $postData['dag_id'] ?? 'default_dag';
-                    $dsn = "mysql:host={$sqlHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    
+                    if (strpos($sourceTypeDescription, 'postgres') !== false || strpos($sourceTypeDescription, 'pgsql') !== false || $sqlPort == 5432) {
+                        $dsn = "pgsql:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    } else {
+                        $dsn = "mysql:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    }
                     $result = \App\Helpers\MinioHelper::exportSqlTableToCsvAndUpload(
                         $dsn,
                         $sqlUser,
@@ -726,12 +737,18 @@ class ConfigController extends BaseController
                 $uploadedFiles = [];
                 foreach ($selectedTables as $tableName) {
                     $sqlHost = $postData['sql_host'] ?? '';
+                    $actualHost = ($sqlHost === 'localhost' || $sqlHost === '127.0.0.1') ? 'mysql' : $sqlHost;
                     $sqlPort = $postData['sql_port'] ?? 3306;
                     $sqlDatabase = $postData['sql_database_name'] ?? '';
                     $sqlUser = $postData['sql_user'] ?? '';
                     $sqlPassword = $postData['sql_password'] ?? '';
                     $dagId = $postData['dag_id'] ?? $existingConfig->dag_id;
-                    $dsn = "mysql:host={$sqlHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    
+                    if (strpos($sourceTypeDescription, 'postgres') !== false || strpos($sourceTypeDescription, 'pgsql') !== false || $sqlPort == 5432) {
+                        $dsn = "pgsql:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    } else {
+                        $dsn = "mysql:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    }
                     $result = \App\Helpers\MinioHelper::exportSqlTableToCsvAndUpload(
                         $dsn,
                         $sqlUser,
@@ -1050,6 +1067,11 @@ class ConfigController extends BaseController
             $port = $this->request->getPost('port') ?? 3306;
             $user = $this->request->getPost('user');
             $password = $this->request->getPost('password') ?? '';
+            $idSourceType = (int)$this->request->getPost('id_source_type');
+
+            $sourceTypeModel = new \App\Models\SourceTypeModel();
+            $sourceTypeConfig = $sourceTypeModel->find($idSourceType);
+            $sourceTypeDescription = $sourceTypeConfig ? strtolower($sourceTypeConfig['description']) : '';
             
             // Validação
             if (!$connectionId || !$databaseName || !$host || !$user) {
@@ -1074,7 +1096,7 @@ class ConfigController extends BaseController
             
             $tables = [];
 
-            if ($port == 5432 || strpos(strtolower($actualHost), 'postgres') !== false) {
+            if (strpos($sourceTypeDescription, 'postgres') !== false || strpos($sourceTypeDescription, 'pgsql') !== false || $port == 5432) {
                 // Conexão PostgreSQL via PDO
                 try {
                     $dsn = "pgsql:host=$actualHost;port=$port;dbname=$databaseName";

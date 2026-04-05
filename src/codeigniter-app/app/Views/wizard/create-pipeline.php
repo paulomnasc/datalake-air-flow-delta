@@ -1399,6 +1399,7 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
             formData.append('database_name', databaseName);
             formData.append('user', user);
             formData.append('password', password);
+            formData.append('id_source_type', document.querySelector('[name=\"id_source_type\"]').value);
             fetch('<?= base_url('config/getAvailableTables') ?>', {
                 method: 'POST',
                 headers: {

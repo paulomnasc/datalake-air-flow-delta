@@ -553,7 +553,12 @@ class MinioHelper
             }
             $pdo = new \PDO($dsn, $user, $password);
             $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-            $stmt = $pdo->query("SELECT * FROM `{$tableName}`");
+            
+            if (strpos($dsn, 'pgsql:') === 0) {
+                $stmt = $pdo->query("SELECT * FROM \"{$tableName}\"");
+            } else {
+                $stmt = $pdo->query("SELECT * FROM `{$tableName}`");
+            }
             $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
             if (count($rows) === 0) {
                 log_message('warning', "[MinioHelper] Tabela '{$tableName}' está vazia. Nenhum CSV será gerado.");

@@ -543,6 +543,14 @@
           "value": ""
         },
         {
+          "id": "e3a89111-c309-411a-821b-6bcb60dc98f0",
+          "comment": "Preenche Tabela Destino",
+          "command": "executeScript",
+          "target": "let el = document.querySelector('[name=\"target_table_name\"]'); if(el) { el.value = 'northwind'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [],
+          "value": ""
+        },
+        {
           "id": "16a69736-4f1d-4a0b-87c8-62422ccc3989",
           "comment": "",
           "command": "click",
@@ -569,6 +577,86 @@
               "xpath:innerText"
             ]
           ],
+          "value": ""
+        },
+        {
+          "id": "e3a89111-c309-411a-821b-6bcb60dc98f1",
+          "comment": "Espera API de tabelas",
+          "command": "pause",
+          "target": "2000",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "abc89111-c309-411a-821b-6bcb60dc98f2",
+          "comment": "Selecionar todas as tabelas",
+          "command": "click",
+          "target": "css=button[onclick='selectAllTables(true)']",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "def89111-c309-411a-821b-6bcb60dc98f3",
+          "comment": "Avan\u00e7a Step 2 -> 3",
+          "command": "click",
+          "target": "xpath=//button[contains(.,'Pr\u00f3ximo')]",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "11189111-c309-411a-821b-6bcb60dc98f4",
+          "comment": "Pausa transi\u00e7\u00e3o",
+          "command": "pause",
+          "target": "500",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "22289111-c309-411a-821b-6bcb60dc98f5",
+          "comment": "Seleciona a primeira Fun\u00e7\u00e3o Python",
+          "command": "executeScript",
+          "target": "let el = document.querySelector('[name=\"python_module_path\"]'); if(el) { el.selectedIndex = 1; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "33389111-c309-411a-821b-6bcb60dc98f6",
+          "comment": "Avan\u00e7a Step 3 -> 4",
+          "command": "click",
+          "target": "xpath=//button[contains(.,'Pr\u00f3ximo')]",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "44489111-c309-411a-821b-6bcb60dc98f7",
+          "comment": "Pausa transi\u00e7\u00e3o",
+          "command": "pause",
+          "target": "500",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "55589111-c309-411a-821b-6bcb60dc98f8",
+          "comment": "Avan\u00e7a Step 4 -> 5",
+          "command": "click",
+          "target": "xpath=//button[contains(.,'Pr\u00f3ximo')]",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "66689111-c309-411a-821b-6bcb60dc98f9",
+          "comment": "Pausa transi\u00e7\u00e3o",
+          "command": "pause",
+          "target": "1000",
+          "targets": [],
+          "value": ""
+        },
+        {
+          "id": "77789111-c309-411a-821b-6bcb60dc9810",
+          "comment": "Submete Cria\u00e7\u00e3o do Pipeline",
+          "command": "click",
+          "target": "xpath=//button[contains(.,'Pipeline')]",
+          "targets": [],
           "value": ""
         }
       ]

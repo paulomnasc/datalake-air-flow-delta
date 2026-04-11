@@ -13,4 +13,4 @@ pyyaml
 PyMySQL
 debugpy
 psycopg2-binary
- pandas
+ pandasazure-storage-blob==12.19.0

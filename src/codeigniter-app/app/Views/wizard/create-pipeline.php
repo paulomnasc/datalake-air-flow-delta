@@ -618,6 +618,64 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                             </small>
                                         </div>
 
+                                        <!-- Nova Seção: Destino na Nuvem (Output) -->
+                                        <div class="form-section mt-4">
+                                            <h5 class="mb-3 border-bottom pb-2">Destino na Nuvem (Output)</h5>
+                                            <div class="mb-3">
+                                                <label class="form-label">Para onde deseja exportar a tabela Delta (Gold)? (Opcional)</label>
+                                                <select class="form-select" x-model="wizardData.cloudDestType">
+                                                    <option value="minio">Apenas Local (MinIO)</option>
+                                                    <option value="aws">AWS S3</option>
+                                                    <option value="azure">Azure Blob Storage</option>
+                                                </select>
+                                                <small class="text-muted d-block mt-1">
+                                                    <i class="bi bi-info-circle"></i> Ao selecionar uma nuvem externa, os dados finais processados na camada Gold (Delta Lake) serão transportados automaticamente para a sua conta profissional.
+                                                </small>
+                                            </div>
+
+                                            <!-- Formato AWS S3 -->
+                                            <div x-show="wizardData.cloudDestType === 'aws'" x-transition class="p-3 bg-light border rounded">
+                                                <h6 class="text-secondary"><i class="bi bi-amazon"></i> Configuração AWS S3</h6>
+                                                <div class="row g-3 mt-1">
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Access Key *</label>
+                                                        <input type="text" class="form-control" name="aws_access_key" x-model="wizardData.awsAccessKey" placeholder="AKIA...">
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Secret Key *</label>
+                                                        <input type="password" class="form-control" name="aws_secret_key" x-model="wizardData.awsSecretKey" placeholder="***">
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Nome do Bucket *</label>
+                                                        <input type="text" class="form-control" name="aws_bucket" x-model="wizardData.awsBucket" placeholder="meu-bucket">
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Região (Region) *</label>
+                                                        <input type="text" class="form-control" name="aws_region" x-model="wizardData.awsRegion" placeholder="us-east-1">
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Formato Azure Blob -->
+                                            <div x-show="wizardData.cloudDestType === 'azure'" x-transition class="p-3 bg-light border rounded">
+                                                <h6 class="text-secondary"><i class="bi bi-microsoft"></i> Configuração Azure Blob Storage</h6>
+                                                <div class="row g-3 mt-1">
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Account Name *</label>
+                                                        <input type="text" class="form-control" name="azure_account_name" x-model="wizardData.azureAccountName" placeholder="meustorageaccount">
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Account Key *</label>
+                                                        <input type="password" class="form-control" name="azure_account_key" x-model="wizardData.azureAccountKey" placeholder="***">
+                                                    </div>
+                                                    <div class="col-md-12">
+                                                        <label class="form-label">Nome do Container *</label>
+                                                        <input type="text" class="form-control" name="azure_container" x-model="wizardData.azureContainer" placeholder="meu-container">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <!--div class="form-section">
                                             <label class="form-label">Argumentos Extras da Função (JSON)</label>
                                             <textarea name="transform_args" 
@@ -918,7 +976,16 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     dbPort: '',
                     dbDatabase: '',
                     dbUser: '',
-                    dbPassword: ''
+                    dbPassword: '',
+                    // Campos Nuvem
+                    cloudDestType: 'minio',
+                    awsAccessKey: '',
+                    awsSecretKey: '',
+                    awsBucket: '',
+                    awsRegion: 'us-east-1',
+                    azureAccountName: '',
+                    azureAccountKey: '',
+                    azureContainer: ''
                 },
 
                 init() {
@@ -947,6 +1014,18 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                     this.wizardData.dbUser = editData.sql_user || editData.db_user || '';
                     this.wizardData.dbPassword = editData.sql_password || editData.db_password || '';
                     this.wizardData.sqlConnectionId = editData.sql_connection_id || '';
+                    
+                    try {
+                        const tArgs = JSON.parse(editData.transform_args || '{}');
+                        this.wizardData.cloudDestType = tArgs.cloud_dest_type || 'minio';
+                        this.wizardData.awsAccessKey = tArgs.aws_access_key || '';
+                        this.wizardData.awsSecretKey = tArgs.aws_secret_key || '';
+                        this.wizardData.awsBucket = tArgs.aws_bucket || '';
+                        this.wizardData.awsRegion = tArgs.aws_region || 'us-east-1';
+                        this.wizardData.azureAccountName = tArgs.azure_account_name || '';
+                        this.wizardData.azureAccountKey = tArgs.azure_account_key || '';
+                        this.wizardData.azureContainer = tArgs.azure_container || '';
+                    } catch(e) {}
                     
                     // Mudar para view do wizard
                     this.currentView = 'wizard';
@@ -1107,6 +1186,41 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         }
                         formData.set(f.name, f.value || '');
                     });
+
+                    // Injetar Configuração de Nuvem no transform_args
+                    let transformArgsParsed = {};
+                    try {
+                        const currentTransformArgs = document.getElementById('transform_args_hidden').value || '{}';
+                        transformArgsParsed = JSON.parse(currentTransformArgs);
+                    } catch (e) {
+                        transformArgsParsed = {};
+                    }
+                    
+                    if (this.wizardData.cloudDestType && this.wizardData.cloudDestType !== 'minio' && this.wizardData.cloudDestType !== 'none') {
+                        transformArgsParsed.cloud_dest_type = this.wizardData.cloudDestType;
+                        if (this.wizardData.cloudDestType === 'aws') {
+                            transformArgsParsed.aws_access_key = this.wizardData.awsAccessKey;
+                            transformArgsParsed.aws_secret_key = this.wizardData.awsSecretKey;
+                            transformArgsParsed.aws_bucket = this.wizardData.awsBucket;
+                            transformArgsParsed.aws_region = this.wizardData.awsRegion || 'us-east-1';
+                        } else if (this.wizardData.cloudDestType === 'azure') {
+                            transformArgsParsed.azure_account_name = this.wizardData.azureAccountName;
+                            transformArgsParsed.azure_account_key = this.wizardData.azureAccountKey;
+                            transformArgsParsed.azure_container = this.wizardData.azureContainer;
+                        }
+                    } else {
+                        transformArgsParsed.cloud_dest_type = 'minio';
+                        delete transformArgsParsed.aws_access_key;
+                        delete transformArgsParsed.aws_secret_key;
+                        delete transformArgsParsed.aws_bucket;
+                        delete transformArgsParsed.aws_region;
+                        delete transformArgsParsed.azure_account_name;
+                        delete transformArgsParsed.azure_account_key;
+                        delete transformArgsParsed.azure_container;
+                    }
+                    
+                    // Atualiza o formData
+                    formData.set('transform_args', JSON.stringify(transformArgsParsed));
 
                     // --- PATCH: Garantir selected_tables[] sempre como array ---
                     // Se multi-table está ativado, garantir envio correto

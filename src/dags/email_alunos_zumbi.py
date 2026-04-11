@@ -23,10 +23,10 @@ default_args = {
 
 
 SMTP_CONFIG = {
-    "host": "mail.estudotabela.com.br",
-    "port": 587,
-    "user": "admin@estudotabela.com.br",
-    "password": "kJ#212394",
+    "host": os.environ.get("SMTP_HOST", "smtp-relay.brevo.com"),
+    "port": int(os.environ.get("SMTP_PORT", 587)),
+    "user": os.environ.get("SMTP_USER", "SEU_LOGIN_BREVO"),
+    "password": os.environ.get("SMTP_PASSWORD", "SUA_SENHA_SMTP_BREVO"),
     "secure": "tls",
     "from_name": "MyDataFlow Lab",
 }

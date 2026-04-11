@@ -172,6 +172,10 @@ services:
       - AIRFLOW_ADMIN_USERNAME=admin
       - AIRFLOW_ADMIN_PASSWORD=kJ#212394
       - ZUMBI_EMAIL_DRY_RUN=${ZUMBI_EMAIL_DRY_RUN:-true}
+      - SMTP_HOST=${SMTP_HOST:-smtp-relay.brevo.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
@@ -215,6 +219,10 @@ services:
       - ATLAS_MAX_RETRIES=5
       - ATLAS_BACKOFF_SECONDS=3
       - ZUMBI_EMAIL_DRY_RUN=${ZUMBI_EMAIL_DRY_RUN:-true}
+      - SMTP_HOST=${SMTP_HOST:-smtp-relay.brevo.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
@@ -292,6 +300,10 @@ services:
       AIRFLOW__CELERY__BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       ENABLE_ATLAS: "false"
       ZUMBI_EMAIL_DRY_RUN: ${ZUMBI_EMAIL_DRY_RUN:-true}
+      SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - ./scripts:/usr/local/bin/scripts:ro

@@ -475,15 +475,18 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         pipeline_result = ti.xcom_pull(task_ids=task_id_name)
         
         # Se a pipeline retornou o caminho do silver, usar isso
+        silver_key = None
         if pipeline_result and isinstance(pipeline_result, dict):
             silver_key = pipeline_result.get('silver')
+            
+        if silver_key:
             log.info(f"📦 Usando caminho Silver retornado pela pipeline: {silver_key}")
         else:
             # Fallback: tentar adivinhar o caminho (comportamento antigo)
             basename = os.path.basename(source_filename) if source_filename else f"{target_name}.csv"
             basename_no_ext = os.path.splitext(basename)[0]
             silver_key = f"silver/{target_name}/{basename_no_ext}.parquet"
-            log.warning(f"⚠️ Pipeline não retornou resultado, usando fallback: {silver_key}")
+            log.warning(f"⚠️ Pipeline não retornou silver_key válido. Usando fallback: {silver_key}")
         
         log.info(f"Validando existência de: s3://{bucket}/{silver_key}")
         
@@ -502,6 +505,20 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         task_id='validate_data_integrity',
         python_callable=validate_processed_file,
         provide_context=True,
+        dag=dag,
+    )
+
+    # 4.5 Criar Tarefa de Sincronização para Nuvem Externa (Se aplicável)
+    from lib.cloud_sync import push_to_external_cloud
+    op_kwargs_cloud = dict(transform_args) if transform_args else {}
+    op_kwargs_cloud['bucket_name'] = bucket_name
+    op_kwargs_cloud['target_table_name'] = target_name
+    
+    task_push_to_cloud = PythonOperator(
+        task_id='push_to_external_cloud',
+        python_callable=push_to_external_cloud,
+        provide_context=True,
+        op_kwargs=op_kwargs_cloud,
         dag=dag,
     )
 
@@ -524,8 +541,8 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     #     dag=dag,
     # )
 
-    # 5. Definir a Sequência de Tarefas (ETL >> Validação >> (success|failure))
-    task_etl >> task_validation
+    # 5. Definir a Sequência de Tarefas (ETL >> Validação >> Push Cloud >> (success|failure))
+    task_etl >> task_validation >> task_push_to_cloud
     # task_validation >> task_cleanup_notify
     # task_validation >> task_handle_validation_failed
     
@@ -632,6 +649,19 @@ def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
             else:
                 log.info(f"[MULTI-TABLE] Executando função {callable_obj.__name__} para tabela {table_name}")
                 result = callable_obj(**merged_kwargs)
+            
+            # Executa push para nuvem se aplicável
+            try:
+                from lib.cloud_sync import push_to_external_cloud
+                cloud_kwargs = dict(transform_args) if transform_args else {}
+                cloud_kwargs['bucket_name'] = bucket_name
+                cloud_kwargs['target_table_name'] = table_name
+                cloud_dest_val = cloud_kwargs.get('cloud_dest_type', cloud_kwargs.get('cloudDestType'))
+                if cloud_dest_val not in [None, 'none', 'minio', 'local']:
+                    log.info(f"[MULTI-TABLE] Sincronizando tabela {table_name} para a nuvem...")
+                    push_to_external_cloud(**cloud_kwargs)
+            except Exception as e:
+                log.warning(f"[MULTI-TABLE] Erro ao sincronizar a tabela {table_name} para a nuvem: {e}")
             
             log.info(f"[MULTI-TABLE] ✅ Tabela {table_name} processada com sucesso")
             return {'status': 'success', 'table': table_name, 'result': result}

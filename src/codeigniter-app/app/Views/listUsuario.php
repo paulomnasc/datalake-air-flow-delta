@@ -10,7 +10,7 @@ require VIEWPATH.'/header.php';
             <div class="container">
             <h4 style="text-align: center;">Listagem de Usuários</h4>
 
-                <input type="text" id="filtro-nome" placeholder="Filtrar por nome">
+                <input type="text" id="filtro-nome" placeholder="Buscar...">
             <img src="../assets/img/lupa.jpg" >
             
             <form action="<?php echo site_url('addUsuario'); ?>" method="post">
@@ -22,7 +22,9 @@ require VIEWPATH.'/header.php';
                         <tr>
                             <th>ID</th>
                             <th>Nome</th>
-                            <th>Perfis</th>
+                            <th>Perfil Comport</th>
+                            <th>Pagamento Inicial</th>
+                            <th>Vencimento</th>
                             <th>Ações</th>
                         </tr>
                         
@@ -33,7 +35,9 @@ require VIEWPATH.'/header.php';
                         <tr>
                             <td> <?php echo $Usuario->id ?> </td>
                             <td> <?php echo $Usuario->nome ?> </td>
-                            <td><?php echo isset($Usuario->perfis_descricao) ? $Usuario->perfis_descricao : ''; ?></td>
+                            <td><?php echo isset($Usuario->perfil_comportamental) ? $Usuario->perfil_comportamental : 'Desinteressado'; ?></td>
+                            <td><?php echo isset($Usuario->pagamento_inicial) ? $Usuario->pagamento_inicial : 'N/A'; ?></td>
+                            <td><?php echo isset($Usuario->data_vencimento_assinatura) ? $Usuario->data_vencimento_assinatura : '-'; ?></td>
                             <td> 
                                 <div class="sidebyside-container">
                                     <form action="<?php echo site_url('updUsuario'); ?>" method="post">

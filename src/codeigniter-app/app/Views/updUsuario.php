@@ -53,6 +53,24 @@ require VIEWPATH . '/header.php';
                     <input type="password" id="senha" name="senha" placeholder="senha"  value="<?php echo $senha ?>"  required>
                 </div>
 
+                <div class="form-group">
+                    <label for="pagamento_inicial">Pagamento Inicial:</label>
+                    <select id="pagamento_inicial" name="pagamento_inicial" required>
+                        <option value="1" <?php echo (isset($pagamento_inicial) && $pagamento_inicial == 1) ? 'selected' : ''; ?>>Pago</option>
+                        <option value="0" <?php echo (!isset($pagamento_inicial) || $pagamento_inicial != 1) ? 'selected' : ''; ?>>Pendente</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="data_vencimento_assinatura">Vencimento da Assinatura:</label>
+                    <input type="date" id="data_vencimento_assinatura" name="data_vencimento_assinatura" value="<?php echo (!empty($data_vencimento_assinatura) && $data_vencimento_assinatura !== "0000-00-00" && $data_vencimento_assinatura !== "0000-00-00 00:00:00") ? date('Y-m-d', strtotime($data_vencimento_assinatura)) : ''; ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="status_assinatura">Status da Assinatura:</label>
+                    <input type="text" id="status_assinatura" name="status_assinatura" placeholder="Tiral, Ativo, Cancelado..." value="<?php echo isset($status_assinatura) ? htmlspecialchars($status_assinatura) : ''; ?>">
+                </div>
+
                 <div class="form-actions">
                     <button type="submit" class="save-button" value="Atualizar">Atualizar</button>
                     <button type="button" class="back-button" onclick="history.back();">Voltar</button>

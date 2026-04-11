@@ -306,6 +306,17 @@
     <p class="hero-subtitle">Transforme dados brutos em insights de negócio através de camadas Bronze, Silver e Gold</p>
 </div>
 
+<!-- Banner Call-to-Chat: E-mail Marketing -->
+<div class="cta-section email-marketing-banner" style="background: linear-gradient(135deg, rgba(231, 76, 60, 0.15), rgba(192, 57, 43, 0.1)); border: 1px solid rgba(231, 76, 60, 0.3); margin-top: 0;">
+    <h2 style="font-size: 2.2rem; margin-bottom: 20px; color: #e74c3c; font-weight: 700;">Campanhas de E-mail Marketing sob demanda.</h2>
+    <p style="font-size: 1.2rem; margin-bottom: 30px; opacity: 0.9;">
+        Configuramos e agendamos seus disparos com foco em entrega na caixa de entrada.
+    </p>
+    <a href="javascript:void(0);" onclick="if(typeof Tawk_API !== 'undefined'){Tawk_API.maximize();}else{console.log('Chat indisponível no momento.');}" class="cta-button" style="background: linear-gradient(135deg, #e74c3c, #c0392b); box-shadow: 0 5px 20px rgba(231, 76, 60, 0.4);">
+        <i class="fas fa-comment-dots" style="margin-right: 8px;"></i> Consultar disponibilidade via Chat
+    </a>
+</div>
+
 <!-- Medallion Architecture Flow -->
 <div class="medallion-flow">
     <div class="medallion-layer bronze-layer">

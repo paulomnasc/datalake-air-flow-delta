@@ -44,7 +44,7 @@ class SubscriptionController extends BaseController
         }
 
         // Cotação USD -> BRL para exibir valor convertido
-        $valorUsd = 7.00;
+        $valorUsd = getenv('INITIAL_PAYMENT_USD') ? (float)getenv('INITIAL_PAYMENT_USD') : 10.00;
         $cotacao = null;
         $valorBrl = null;
         $cotacaoMensagem = null;
@@ -255,7 +255,7 @@ class SubscriptionController extends BaseController
         $usuarioModel = new UsuarioModel();
         $usuario = $usuarioModel->find($userId);
 
-        $valorUsd = 7.00;
+        $valorUsd = getenv('INITIAL_PAYMENT_USD') ? (float)getenv('INITIAL_PAYMENT_USD') : 10.00;
         $pixKey = '024253748';
         $cotacao = null;
         $valorBrl = null;
@@ -381,7 +381,7 @@ class SubscriptionController extends BaseController
         $usuarioModel = new UsuarioModel();
         $usuario = $usuarioModel->find($userId);
         // Valor inicial
-        $valorUsd = getenv('INITIAL_PAYMENT_USD') ?: 2.00;
+        $valorUsd = getenv('INITIAL_PAYMENT_USD') ? (float)getenv('INITIAL_PAYMENT_USD') : 10.00;
         $pixKey = '032.067.407-03'; // Chave PIX
         $cotacao = null;
         $valorBrl = null;

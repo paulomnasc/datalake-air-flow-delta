@@ -337,7 +337,7 @@ class UsuarioController extends BaseController
         $model = new UsuarioModel();
         $usuarios = $model->findAll();
         
-        // Para cada usuário, buscar seus perfis
+        // Para cada usuário, buscar seus perfis e formatar dados
         $usuarioPerfilModel = new UsuarioPerfilModel();
         foreach ($usuarios as $usuario) {
             $perfis = $usuarioPerfilModel->getPerfisUsuario($usuario->id);
@@ -346,6 +346,20 @@ class UsuarioController extends BaseController
                 $perfisDescricao[] = $perfil->perfil_descricao;
             }
             $usuario->perfis_descricao = implode(', ', $perfisDescricao);
+            
+            // Formatando o pagamento_inicial
+            if ($usuario->pagamento_inicial == 1) {
+                $usuario->pagamento_inicial = 'Pago';
+            } else {
+                $usuario->pagamento_inicial = 'Pendente';
+            }
+
+            // Formatando a data de vencimento da assinatura
+            if (!empty($usuario->data_vencimento_assinatura) && $usuario->data_vencimento_assinatura !== '0000-00-00' && $usuario->data_vencimento_assinatura !== '0000-00-00 00:00:00') {
+                $usuario->data_vencimento_assinatura = date('d/m/Y', strtotime($usuario->data_vencimento_assinatura));
+            } else {
+                $usuario->data_vencimento_assinatura = '-';
+            }
         }
         
         return $usuarios;
@@ -446,6 +460,9 @@ class UsuarioController extends BaseController
         $data['nome'] = $Usuario->nome;
         $data['email'] = $Usuario->email;
         $data['senha'] = $Usuario->senha;
+        $data['pagamento_inicial'] = $Usuario->pagamento_inicial ?? 0;
+        $data['status_assinatura'] = $Usuario->status_assinatura ?? '';
+        $data['perfil_comportamental'] = $Usuario->perfil_comportamental ?? 'Desinteressado';
 
         return view('updUsuario', $data);
     }
@@ -1067,10 +1084,15 @@ class UsuarioController extends BaseController
         $model = new UsuarioModel();
         $usuarioPerfilModel = new UsuarioPerfilModel();
         $id = $this->request->getPost('id');
+        $vencimento = $this->request->getPost('data_vencimento_assinatura');
+        
         $data = [
             'nome' => $this->request->getPost('nome'),
             'email' => $this->request->getPost('email'),
-            'senha' => $this->request->getPost('senha')
+            'senha' => $this->request->getPost('senha'),
+            'pagamento_inicial' => $this->request->getPost('pagamento_inicial'),
+            'data_vencimento_assinatura' => !empty($vencimento) ? $vencimento : null,
+            'status_assinatura' => $this->request->getPost('status_assinatura')
         ];
         
         $perfis = $this->request->getPost('id_perfil');

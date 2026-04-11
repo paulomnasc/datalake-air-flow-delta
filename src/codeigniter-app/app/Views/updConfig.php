@@ -13,6 +13,18 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 
 // Prefere o username da sessão; se não houver, mantém o owner já existente
 $ownerPrefill = $ownerUsername ?: $owner;
+
+// Parsing de transform_args para Nuvem
+$tArgs = json_decode($transform_args ?? '{}', true);
+if (!$tArgs) $tArgs = [];
+$cloudDestType = $tArgs['cloud_dest_type'] ?? 'none';
+$awsAccessKey = $tArgs['aws_access_key'] ?? '';
+$awsSecretKey = $tArgs['aws_secret_key'] ?? '';
+$awsBucket = $tArgs['aws_bucket'] ?? '';
+$awsRegion = $tArgs['aws_region'] ?? 'us-east-1';
+$azureAccountName = $tArgs['azure_account_name'] ?? '';
+$azureAccountKey = $tArgs['azure_account_key'] ?? '';
+$azureContainer = $tArgs['azure_container'] ?? '';
 ?>
 
 <style>
@@ -282,6 +294,56 @@ $ownerPrefill = $ownerUsername ?: $owner;
 
                     </div>
 
+                    <!-- Nova Seção: Destino na Nuvem (Output) -->
+                    <div style="margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">
+                        <h4 style="margin-top: 0;">Destino na Nuvem (Output)</h4>
+                        
+                        <div class="form-group">
+                            <label>Para onde deseja exportar a tabela Delta (Gold)? (Opcional)</label>
+                            <select id="cloud_dest_type" class="form-control" onchange="toggleCloudDest()">
+                                <option value="minio" <?= ($cloudDestType == 'minio' || $cloudDestType == 'none') ? 'selected' : '' ?>>Apenas Local (MinIO)</option>
+                                <option value="aws" <?= ($cloudDestType == 'aws') ? 'selected' : '' ?>>AWS S3</option>
+                                <option value="azure" <?= ($cloudDestType == 'azure') ? 'selected' : '' ?>>Azure Blob Storage</option>
+                            </select>
+                        </div>
+
+                        <!-- Configuração AWS -->
+                        <div id="cloud_aws_config" style="display: <?= ($cloudDestType == 'aws') ? 'block' : 'none' ?>;">
+                            <div class="form-group">
+                                <label>Access Key *</label>
+                                <input type="text" id="aws_access_key" class="form-control" value="<?= htmlspecialchars($awsAccessKey) ?>">
+                            </div>
+                            <div class="form-group">
+                                <label>Secret Key *</label>
+                                <input type="password" id="aws_secret_key" class="form-control" value="<?= htmlspecialchars($awsSecretKey) ?>">
+                            </div>
+                            <div class="form-group">
+                                <label>Nome do Bucket *</label>
+                                <input type="text" id="aws_bucket" class="form-control" value="<?= htmlspecialchars($awsBucket) ?>">
+                            </div>
+                            <div class="form-group">
+                                <label>Região (Region) *</label>
+                                <input type="text" id="aws_region" class="form-control" value="<?= htmlspecialchars($awsRegion) ?>">
+                            </div>
+                        </div>
+
+                        <!-- Configuração Azure -->
+                        <div id="cloud_azure_config" style="display: <?= ($cloudDestType == 'azure') ? 'block' : 'none' ?>;">
+                            <div class="form-group">
+                                <label>Account Name *</label>
+                                <input type="text" id="azure_account_name" class="form-control" value="<?= htmlspecialchars($azureAccountName) ?>">
+                            </div>
+                            <div class="form-group">
+                                <label>Account Key *</label>
+                                <input type="password" id="azure_account_key" class="form-control" value="<?= htmlspecialchars($azureAccountKey) ?>">
+                            </div>
+                            <div class="form-group">
+                                <label>Nome do Container *</label>
+                                <input type="text" id="azure_container" class="form-control" value="<?= htmlspecialchars($azureContainer) ?>">
+                            </div>
+                        </div>
+                    </div>
+
             </fieldset>
             
             
@@ -393,6 +455,13 @@ $ownerPrefill = $ownerUsername ?: $owner;
         }
     }
 
+    // Toggle para Destino Cloud
+    function toggleCloudDest() {
+        const destType = document.getElementById('cloud_dest_type').value;
+        document.getElementById('cloud_aws_config').style.display = destType === 'aws' ? 'block' : 'none';
+        document.getElementById('cloud_azure_config').style.display = destType === 'azure' ? 'block' : 'none';
+    }
+
     // -----------------------------------------------------------
     // CONFIGURAÇÃO DOS LISTENERS
     // -----------------------------------------------------------
@@ -442,13 +511,46 @@ $ownerPrefill = $ownerUsername ?: $owner;
             }
             
             // Log do FormData para debug
-            console.log('📋 Conteúdo do FormData:');
+            console.log('📋 Conteúdo do FormData antes do inject Nuvem:');
             for (let pair of formData.entries()) {
                 if (pair[1] instanceof File) {
                     console.log(`  ${pair[0]}: [File] ${pair[1].name}`);
                 } else {
                     console.log(`  ${pair[0]}: ${pair[1]}`);
                 }
+            }
+
+            // Injetar Configuração de Nuvem no transform_args
+            try {
+                let currentArgs = JSON.parse(formData.get('transform_args') || '{}');
+                const cloudDestType = document.getElementById('cloud_dest_type').value;
+                
+                if (cloudDestType && cloudDestType !== 'minio' && cloudDestType !== 'none') {
+                    currentArgs.cloud_dest_type = cloudDestType;
+                    if (cloudDestType === 'aws') {
+                        currentArgs.aws_access_key = document.getElementById('aws_access_key').value;
+                        currentArgs.aws_secret_key = document.getElementById('aws_secret_key').value;
+                        currentArgs.aws_bucket = document.getElementById('aws_bucket').value;
+                        currentArgs.aws_region = document.getElementById('aws_region').value || 'us-east-1';
+                    } else if (cloudDestType === 'azure') {
+                        currentArgs.azure_account_name = document.getElementById('azure_account_name').value;
+                        currentArgs.azure_account_key = document.getElementById('azure_account_key').value;
+                        currentArgs.azure_container = document.getElementById('azure_container').value;
+                    }
+                } else {
+                    currentArgs.cloud_dest_type = 'minio';
+                    delete currentArgs.aws_access_key;
+                    delete currentArgs.aws_secret_key;
+                    delete currentArgs.aws_bucket;
+                    delete currentArgs.aws_region;
+                    delete currentArgs.azure_account_name;
+                    delete currentArgs.azure_account_key;
+                    delete currentArgs.azure_container;
+                }
+                
+                formData.set('transform_args', JSON.stringify(currentArgs));
+            } catch(e) {
+                console.error('Falha ao parsear transform_args para injetar configs da Nuvem.', e);
             }
 
             $.ajax({

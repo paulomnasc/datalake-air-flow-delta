@@ -85,8 +85,8 @@ def ingest_api_to_raw(
     elif not dag_id and 'ti' in kwargs:
         dag_id = kwargs['ti'].dag_id
     dag_name = dag_id or target_table
-    # Ajusta para pasta esperada pelo pipeline
-    folder = f"job_cotacao_voos_brasilia_rio27" if dag_name == "job_cotacao_voos_brasilia_rio27" else dag_name
+    # Ajusta para pasta esperada pelo pipeline (sempre target_table)
+    folder = target_table
     timestamp = int(datetime.now().timestamp())
     hash_suffix = hashlib.md5(f"{api_endpoint}{timestamp}".encode()).hexdigest()[:20]
     filename = f"{timestamp}_{hash_suffix}.json"

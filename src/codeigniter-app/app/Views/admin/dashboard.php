@@ -248,6 +248,21 @@ setTimeout(function() {
 
         <!-- Cards de Estatísticas -->
         <div class="stats-grid">
+            <div class="stat-card" style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); color: #333;">
+                <div class="stat-icon">📝</div>
+                <div class="stat-value" title="Respondentes na semana/Total cadastrados na semana">
+                    <?php echo $weekly_feedback_percent; ?>%
+                </div>
+                <div class="stat-label">
+                    Feedbacks da Semana (<?php echo $feedback_date_start; ?> - <?php echo $feedback_date_end; ?>)
+                    <span title="Fórmula: (Respondentes na semana / Registros na semana) × 100">🛈</span>
+                </div>
+                <div class="stat-secondary" style="border-top-color: rgba(0,0,0,0.1);">
+                    <?php echo $weekly_respondents; ?> de <?php echo $weekly_registrations; ?> alunos recentes
+                    <span title="Dos alunos que se cadastraram de <?php echo $feedback_date_start; ?> até <?php echo $feedback_date_end; ?>, quantos enviaram esse feedback.">🛈</span>
+                </div>
+            </div>
+
             <div class="stat-card primary">
                 <div class="stat-icon">👥</div>
                 <div class="stat-value" title="Contagem de registros na tabela 'usuario'.">
@@ -786,6 +801,119 @@ setTimeout(function() {
                 </div>
             <?php endif; ?>
         </div>
+        <!-- Relatórios de Feedback de Vídeo -->
+        <div class="content-section">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+                <h2 class="section-title" style="margin-bottom: 0;">💬 Respostas do Feedback de Vídeo</h2>
+                <a href="<?php echo site_url('admin/downloadFeedbackUsersCsv'); ?>" class="btn btn-sm btn-primary" style="background: #667eea; color: #fff; padding: 8px 18px; border-radius: 6px; text-decoration: none; font-weight: 500;">⬇️ Exportar CSV</a>
+            </div>
+
+            <div style="display: flex; gap: 24px; margin-bottom: 32px;">
+                <div style="flex: 1; background: #f8f9fa; padding: 16px; border-radius: 8px;">
+                    <h3 style="margin-top: 0; font-size: 16px; color: #333;">Totais por Status do Laboratório</h3>
+                    <?php if (!empty($lab_status_totals)): ?>
+                        <ul style="list-style: none; padding: 0; margin: 0;">
+                        <?php foreach($lab_status_totals as $item): ?>
+                            <li style="padding: 6px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
+                                <span><?php echo esc($item->lab_status ?: 'Não informado'); ?></span>
+                                <span style="font-weight: bold; color: #667eea;"><?php echo $item->total; ?></span>
+                            </li>
+                        <?php endforeach; ?>
+                        </ul>
+                    <?php else: ?>
+                        <p style="color: #999; margin: 0;">Nenhum dado.</p>
+                    <?php endif; ?>
+                </div>
+                
+                <div style="flex: 1; background: #f8f9fa; padding: 16px; border-radius: 8px;">
+                    <h3 style="margin-top: 0; font-size: 16px; color: #333;">Totais por Percepção de Valor</h3>
+                    <?php if (!empty($value_perception_totals)): ?>
+                        <ul style="list-style: none; padding: 0; margin: 0;">
+                        <?php foreach($value_perception_totals as $item): ?>
+                            <li style="padding: 6px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
+                                <span><?php echo esc($item->value_perception ?: 'Não informado'); ?></span>
+                                <span style="font-weight: bold; color: #667eea;"><?php echo $item->total; ?></span>
+                            </li>
+                        <?php endforeach; ?>
+                        </ul>
+                    <?php else: ?>
+                        <p style="color: #999; margin: 0;">Nenhum dado.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <?php if (!empty($feedback_users)): ?>
+                <div class="table-responsive">
+                    <table class="ranking-table" id="feedbackUsersTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Aluno / Perfil</th>
+                                <th>URI</th>
+                                <th>Progresso (%)</th>
+                                <th>Status Lab</th>
+                                <th>Percepção</th>
+                                <th>Feedback</th>
+                                <th>Data</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($feedback_users as $student): ?>
+                                <tr>
+                                    <td style="font-size: 13px; color: #666;">#<?php echo $student->id; ?></td>
+                                    <td>
+                                        <div style="font-weight: 600; color: #333;"><?php echo esc($student->nome); ?></div>
+                                        <div style="font-size: 12px; color: #999;"><?php echo esc($student->email); ?></div>
+                                        <?php if(!empty($student->perfil_comportamental)): ?>
+                                            <span style="font-size: 11px; background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 4px;"><?php echo esc($student->perfil_comportamental); ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td style="font-size: 12px; color: #666; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo esc($student->uri); ?>">
+                                        <?php echo esc($student->uri); ?>
+                                    </td>
+                                    <td>
+                                        <div style="font-weight: 600; <?php echo $student->completed ? 'color: #11998e;' : 'color: #333;'; ?>">
+                                            <?php echo round($student->percent); ?>% <?php echo $student->completed ? '✓' : ''; ?>
+                                        </div>
+                                    </td>
+                                    <td style="font-size: 13px; color: #333;"><?php echo esc($student->lab_status); ?></td>
+                                    <td style="font-size: 13px; color: #333;"><?php echo esc($student->value_perception); ?></td>
+                                    <td style="font-size: 12px; color: #666; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo esc($student->open_feedback); ?>">
+                                        <?php echo esc($student->open_feedback); ?>
+                                    </td>
+                                    <td style="font-size: 13px; color: #666;" data-order="<?php echo $student->data_feedback; ?>">
+                                        <?php echo (new DateTime($student->data_feedback))->format('d/m/Y H:i'); ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <script>
+                $(document).ready(function() {
+                    if (!$.fn.DataTable.isDataTable('#feedbackUsersTable')) {
+                        $('#feedbackUsersTable').DataTable({
+                            scrollX: true,
+                            autoWidth: false,
+                            order: [[7, 'desc']], // Ordenar por data
+                            language: {
+                                "sEmptyTable": "Nenhum aluno encontrado",
+                                "sInfo": "Mostrando _START_ até _END_ de _TOTAL_ alunos",
+                                "sSearch": "Buscar aluno:",
+                                "oPaginate": { "sNext": "Próximo", "sPrevious": "Anterior" }
+                            }
+                        });
+                    }
+                });
+                </script>
+            <?php else: ?>
+                <div class="empty-state">
+                    <div class="empty-state-icon">💬</div>
+                    <p>Nenhum feedback registrado no período.</p>
+                </div>
+            <?php endif; ?>
+        </div>
+
     </div>
 </div>
 

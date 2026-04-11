@@ -1,5 +1,7 @@
 ## Bloco removido: estudotabela.com.br não é servido neste ambiente
 
+
+
 # Bloco para airflow na porta airflow (variável da porta)
 server {
     listen ${AIRFLOW_WEBSERVER_PORT};
@@ -39,3 +41,17 @@ server {
 # VirtualHost HTTPS (apenas se SSL habilitado)
 ## Bloco HTTPS removido em ambientes sem SSL
 # Para habilitar HTTPS, use o template myflow-ssl.conf.template e ajuste o docker-compose.yml conforme documentação.
+
+# Bloco para responder ao desafio da Let's Encrypt (Renovar certificado SSL)
+server {
+    listen 80;
+    server_name myflow.estudotabela.com.br;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}

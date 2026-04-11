@@ -622,13 +622,16 @@ def create_multi_table_dag(dag_config: Dict[str, Any]) -> DAG:
             # Executar diretamente se for função, ou instanciar se for classe
             import inspect
             
+            # Mesclar kwargs para evitar colisão (op_kwargs tem prioridade menor que context em caso de colisão natural, mas evitar duplicação explícita)
+            merged_kwargs = {**op_kwargs, **context}
+            
             if inspect.isclass(callable_obj):
                 log.info(f"[MULTI-TABLE] Instanciando classe {callable_obj.__name__} para tabela {table_name}")
                 instance = callable_obj()
-                result = instance(source_filename=task_config.get('source_filename'), **op_kwargs, **context)
+                result = instance(**merged_kwargs)
             else:
                 log.info(f"[MULTI-TABLE] Executando função {callable_obj.__name__} para tabela {table_name}")
-                result = callable_obj(source_filename=task_config.get('source_filename'), **op_kwargs, **context)
+                result = callable_obj(**merged_kwargs)
             
             log.info(f"[MULTI-TABLE] ✅ Tabela {table_name} processada com sucesso")
             return {'status': 'success', 'table': table_name, 'result': result}

@@ -31,7 +31,7 @@ SMTP_CONFIG = {
     "from_name": "MyDataFlow Lab",
 }
 
-EMAIL_SUBJECT = "Sentimos sua falta no MyDataFlow Lab 🚀"
+EMAIL_SUBJECT = "DESAFIO: De Analista de BI a Engenheiro: O divisor de águas é o Vídeo 5 🚀"
 DRY_RUN = os.environ.get("ZUMBI_EMAIL_DRY_RUN", "true").lower() in {"1", "true", "yes", "on"}
 
 
@@ -60,13 +60,7 @@ def buscar_alunos_zumbi(**context):
       AND (u.perfil_comportamental NOT IN ('Power User') OR u.perfil_comportamental IS NULL)
       AND TRIM(u.email) <> ''
       AND u.email_confirmado = 1
-      AND NOT EXISTS (
-          SELECT 1 
-          FROM activity_logs al 
-          WHERE al.user_id = u.id 
-            AND al.uri = '/auth/google-callback' 
-            AND al.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-      )
+      AND u.pagamento_inicial = 0
       AND id <> 146
     ORDER BY u.id;
     """
@@ -111,14 +105,21 @@ def _build_html(nome: str = None) -> str:
         <div style="background-color: #f9f9f9; padding: 30px; border-radius: 8px; border-top: 5px solid #0056b3;">
           <h2 style="color: #0056b3; margin-top: 0;">{saudacao}</h2>
           <p>
-            Percebemos que você está um pouco distante da plataforma.
-            Preparamos conteúdos práticos para você retomar seus estudos com foco total no mercado.
+            Saber SQL e Power BI é o básico. O que separa os grandes salários da Engenharia de Dados é a capacidade de gerir 
+            infraestrutura e automação.
+           
+            No Vídeo 9 (Gratuito), eu mostro exatamente como configurar pipeline ELT sem nenhuma codificação. 
+            
+            Vi que você ainda não validou essa etapa no seu Dashboard. 
+            
+            Valide seu lab hoje !!!
+
           </p>
           <p>
             Acesse sua conta e continue de onde parou. Estamos com você nessa jornada.
           </p>
           <div style="text-align: center; margin: 35px 0;">
-            <a href="https://myflow.estudotabela.com.br:28443/" style="background-color: #0056b3; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">Ir para o MyDataFlow Lab</a>
+            <a href="https://myflow.estudotabela.com.br:28443/video/9" style="background-color: #0056b3; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">Ir para o MyDataFlow Lab</a>
           </div>
           <p style="margin-bottom: 0;">Abraços,<br/><strong>Equipe MyDataFlow Lab</strong></p>
         </div>
@@ -163,10 +164,10 @@ def enviar_emails_para_zumbi(**context):
         return
 
     # --- DESCOMENTAR PARA TESTES ESSE LOCO DE SEGURANÇA (Apenas envio para 176) ---
-    #print("DRY-RUN desabilitado: limitando o envio real apenas para o aluno ID 176.")
-    #alunos = [a for a in alunos if str(a.get("id")) == "176"]
+    # print("DRY-RUN desabilitado: limitando o envio real apenas para o aluno ID 176.")
+    # alunos = [a for a in alunos if str(a.get("id")) == "176"]
      
-    #if not alunos:
+    # if not alunos:
     #    print("Aluno ID 176 não encontrado entre os grupos-alvo. Nenhum e-mail será enviado.")
     #    return
     #----------------------------------------------------
@@ -229,7 +230,7 @@ def enviar_emails_para_zumbi(**context):
                     print(f"Limitação global do provedor! A conta de e-mail estourou seu limite: {exc}")
                     raise RuntimeError(f"Provedor SMTP bloqueou a conta por limite de envios: {exc}")
                 
-                if "please run connect" in erro_str or "too many messages" in erro_str or "unexpected eof" in erro_str or "disconnected" in erro_str:
+                if any(x in erro_str for x in ["please run connect", "too many messages", "unexpected eof", "disconnected", "connection", "closed"]):
                     try:
                         smtp_client.quit()
                     except:
@@ -262,6 +263,7 @@ with DAG(
     schedule_interval="0 9 * * 1-5",
     start_date=datetime(2025, 1, 1),
     catchup=False,
+    max_active_runs=1,
     tags=["engajamento", "email", "alunos"],
 ) as dag:
     task_buscar_alunos_zumbi = PythonOperator(

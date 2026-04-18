@@ -1513,6 +1513,10 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
             formData.append('database_name', databaseName);
             formData.append('user', user);
             formData.append('password', password);
+            const selectSource = document.querySelector('select[name="id_source_type"]');
+            if (selectSource && selectSource.selectedOptions.length > 0) {
+                formData.append('source_type_name', selectSource.selectedOptions[0].getAttribute('data-description') || '');
+            }
             fetch('<?= base_url('config/getAvailableTables') ?>', {
                 method: 'POST',
                 headers: {

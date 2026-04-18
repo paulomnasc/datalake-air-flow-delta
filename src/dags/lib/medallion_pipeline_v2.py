@@ -236,12 +236,48 @@ class RawToMedallionPipeline:
     def _process_bronze(self):
         """Cria camada Bronze (conversão para Parquet)"""
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+        import json
+        import re
         
-        # Busca apenas arquivos da subpasta raw/{target_table_name}/
-        src_files = self.list_raw_files(subdir=self.target_table_name)
+        src_files = []
+        
+        # 1. Tentar extrair do source_filename (caso seja um array de arquivos multi-table)
+        if self.source_filename:
+            try:
+                parsed_source = json.loads(self.source_filename)
+                if isinstance(parsed_source, list):
+                    for f in parsed_source:
+                        if f.endswith(f"_{self.target_table_name}.csv") or f.endswith(f"/{self.target_table_name}.csv"):
+                            src_files.append(f)
+            except Exception:
+                pass
+            
+            # 2. Se for uma string direta do arquivo (ex: .csv)
+            if not src_files and isinstance(self.source_filename, str) and not self.source_filename.startswith('['):
+                if self.source_filename.endswith('.csv') or self.source_filename.endswith('.json') or self.source_filename.endswith('.parquet'):
+                    src_files = [self.source_filename]
+
+        # 3. Fall-back: Busca na pasta padrão com o nome exato da tabela (ex: raw/categories/)
+        if not src_files:
+            src_files = self.list_raw_files(subdir=self.target_table_name)
+            
+        # 4. Fall-back 2: Busca na pasta base da DAG (ex: raw/pipe-northwind/)
+        # Pois CodeIgniter MinioHelper salva multi-tables em raw/{base_dag_id}/
+        if not src_files:
+            dag_id = self.context.get('dag_id')
+            if not dag_id and 'dag' in self.context:
+                dag_id = self.context['dag'].dag_id
+                
+            if dag_id:
+                base_dag_id = re.sub(r'\d+$', '', dag_id)
+                dag_files = self.list_raw_files(subdir=base_dag_id)
+                for f in dag_files:
+                    if f.endswith(f"_{self.target_table_name}.csv") or f.endswith(f"/{self.target_table_name}.csv"):
+                        src_files.append(f)
+
         log.info(f"[BRONZE][AUDIT] Total de arquivos a serem processados: {len(src_files)}")
         if not src_files:
-            log.warning(f"[BRONZE] Nenhum arquivo encontrado em s3://{self.bucket}/raw/{self.target_table_name}/")
+            log.warning(f"[BRONZE] Nenhum arquivo econtrado para a tabela '{self.target_table_name}'")
             self.results['bronze'] = None
             return
 
@@ -250,7 +286,17 @@ class RawToMedallionPipeline:
         for idx, src_key in enumerate(src_files):
             basename = os.path.basename(src_key)
             basename_no_ext = os.path.splitext(basename)[0]
-            bronze_key = f"bronze/{self.target_table_name}/{basename_no_ext}.parquet"
+            # Obtém dag_id limpo
+            clean_dag_id = self.target_table_name
+            if hasattr(self, 'context'):
+                dag_id_raw = self.context.get('dag_id')
+                if not dag_id_raw and 'dag' in self.context:
+                    dag_id_raw = self.context['dag'].dag_id
+                if dag_id_raw:
+                    import re
+                    clean_dag_id = re.sub(r'\d+$', '', dag_id_raw)
+
+            bronze_key = f"bronze/{clean_dag_id}/{basename_no_ext}.parquet"
             log.info(f"[BRONZE][AUDIT] ({idx+1}/{len(src_files)}) Processo: bronze | Arquivo: {src_key}")
             local_file = self.hook.download_file(
                 key=src_key,

@@ -368,13 +368,18 @@ class ConfigController extends BaseController
                 $uploadedFiles = [];
                 foreach ($selectedTables as $tableName) {
                     $sqlHost = $postData['sql_host'] ?? '';
-                    // Corrige host para Docker
-                    $actualHost = ($sqlHost === 'localhost' || $sqlHost === '127.0.0.1') ? 'mysql' : $sqlHost;
                     $sqlPort = $postData['sql_port'] ?? 3306;
                     $sqlDatabase = $postData['sql_database_name'] ?? '';
                     $sqlUser = $postData['sql_user'] ?? '';
                     $sqlPassword = $postData['sql_password'] ?? '';
-                    $dsn = "mysql:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    
+                    $isPostgres = str_contains($sourceTypeDescription, 'postgres') || str_contains($sourceTypeDescription, 'pgsql');
+                    $actualHost = $sqlHost;
+                    if ($sqlHost === 'localhost' || $sqlHost === '127.0.0.1') {
+                        $actualHost = $isPostgres ? 'postgres' : 'mysql';
+                    }
+                    $driver = $isPostgres ? 'pgsql' : 'mysql';
+                    $dsn = "{$driver}:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
                     $result = \App\Helpers\MinioHelper::exportSqlTableToCsvAndUpload(
                         $dsn,
                         $sqlUser,
@@ -544,7 +549,14 @@ class ConfigController extends BaseController
                     $sqlUser = $postData['sql_user'] ?? '';
                     $sqlPassword = $postData['sql_password'] ?? '';
                     $dagId = $postData['dag_id'] ?? 'default_dag';
-                    $dsn = "mysql:host={$sqlHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    
+                    $isPostgres = str_contains($sourceTypeDescription, 'postgres') || str_contains($sourceTypeDescription, 'pgsql');
+                    $actualHost = $sqlHost;
+                    if ($sqlHost === 'localhost' || $sqlHost === '127.0.0.1') {
+                        $actualHost = $isPostgres ? 'postgres' : 'mysql';
+                    }
+                    $driver = $isPostgres ? 'pgsql' : 'mysql';
+                    $dsn = "{$driver}:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
                     $result = \App\Helpers\MinioHelper::exportSqlTableToCsvAndUpload(
                         $dsn,
                         $sqlUser,
@@ -650,7 +662,7 @@ class ConfigController extends BaseController
                 'id' => $model->getInsertID()
             ]);
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             log_message('error', 'Erro ao salvar configuração de DAG: ' . $e->getMessage());
             
             return $this->response->setJSON([
@@ -731,7 +743,14 @@ class ConfigController extends BaseController
                     $sqlUser = $postData['sql_user'] ?? '';
                     $sqlPassword = $postData['sql_password'] ?? '';
                     $dagId = $postData['dag_id'] ?? $existingConfig->dag_id;
-                    $dsn = "mysql:host={$sqlHost};port={$sqlPort};dbname={$sqlDatabase}";
+                    
+                    $isPostgres = str_contains($sourceTypeDescription, 'postgres') || str_contains($sourceTypeDescription, 'pgsql');
+                    $actualHost = $sqlHost;
+                    if ($sqlHost === 'localhost' || $sqlHost === '127.0.0.1') {
+                        $actualHost = $isPostgres ? 'postgres' : 'mysql';
+                    }
+                    $driver = $isPostgres ? 'pgsql' : 'mysql';
+                    $dsn = "{$driver}:host={$actualHost};port={$sqlPort};dbname={$sqlDatabase}";
                     $result = \App\Helpers\MinioHelper::exportSqlTableToCsvAndUpload(
                         $dsn,
                         $sqlUser,
@@ -885,8 +904,8 @@ class ConfigController extends BaseController
                 'mensagem' => 'Registro atualizado com sucesso! DAG será recarregada.'
             ]);
             
-        } catch (\Exception $e) {
-            log_message('error', 'Erro ao salvar configuração de DAG: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            log_message('error', 'Erro ao salvar configuração de DAG: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             
             return $this->response->setJSON([
                 'status' => 'error',
@@ -1068,53 +1087,98 @@ class ConfigController extends BaseController
             
             log_message('info', "Tentando conectar em $host:$port/$databaseName com usuário $user");
             
-            // Corrigir host para Docker: localhost -> mysql (nome do serviço)
-            $actualHost = ($host === 'localhost' || $host === '127.0.0.1') ? 'mysql' : $host;
-            log_message('info', "Host traduzido para Docker: $actualHost");
-            
-            // Conecta ao MySQL usando as credenciais fornecidas
-            $mysqli = new \mysqli($actualHost, $user, $password, $databaseName, $port);
-            
-            if ($mysqli->connect_error) {
-                log_message('error', "Erro de conexão MySQL: " . $mysqli->connect_error);
-                return $this->response->setJSON([
-                    'status' => 'error',
-                    'mensagem' => "Falha ao conectar ao MySQL: " . $mysqli->connect_error
-                ]);
+            // Descobrir o tipo de banco
+            $dbType = 'mysql'; // default
+            $sourceTypeName = strtolower($this->request->getPost('source_type_name') ?? '');
+            if (str_contains($sourceTypeName, 'postgres') || str_contains($sourceTypeName, 'pgsql')) {
+                $dbType = 'postgres';
+            } elseif (str_contains(strtolower($connectionId), 'postgres') || $port == 5432) {
+                $dbType = 'postgres';
             }
-            
-            log_message('info', 'Conexão MySQL estabelecida com sucesso');
-            
-            // Busca tabelas do information_schema
-            $query = "SELECT 
-                        TABLE_NAME as table_name,
-                        TABLE_ROWS as row_count,
-                        ROUND(((DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024), 2) as table_size_mb
-                      FROM information_schema.TABLES
-                      WHERE TABLE_SCHEMA = ?
-                      AND TABLE_TYPE = 'BASE TABLE'
-                      ORDER BY TABLE_NAME";
-            
-            $stmt = $mysqli->prepare($query);
-            if (!$stmt) {
-                $mysqli->close();
-                return $this->response->setJSON([
-                    'status' => 'error',
-                    'mensagem' => 'Erro ao preparar query: ' . $mysqli->error
-                ]);
+
+            // Corrigir host para Docker: localhost -> mysql ou postgres (nome do serviço)
+            $actualHost = $host;
+            if ($host === 'localhost' || $host === '127.0.0.1') {
+                $actualHost = ($dbType === 'postgres') ? 'postgres' : 'mysql';
             }
-            
-            $stmt->bind_param('s', $databaseName);
-            $stmt->execute();
-            $result = $stmt->get_result();
+            log_message('info', "Host traduzido para Docker: $actualHost, DB Type: $dbType");
             
             $tables = [];
-            while ($row = $result->fetch_assoc()) {
-                $tables[] = $row;
+
+            if ($dbType === 'postgres') {
+                // Conexão via PDO para PostgreSQL
+                $dsn = "pgsql:host=$actualHost;port=$port;dbname=$databaseName";
+                try {
+                    $pdo = new \PDO($dsn, $user, $password, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+                    log_message('info', 'Conexão PostgreSQL estabelecida com sucesso');
+
+                    $query = "SELECT 
+                                table_name,
+                                (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = tables.table_name) as row_count,
+                                ROUND(pg_total_relation_size(quote_ident(table_name)) / 1024.0 / 1024.0, 2) as table_size_mb
+                              FROM information_schema.tables 
+                              WHERE table_schema = 'public' 
+                              AND table_type = 'BASE TABLE'
+                              ORDER BY table_name";
+                    
+                    $stmt = $pdo->query($query);
+                    while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                        $tables[] = [
+                            'table_name' => $row['table_name'],
+                            'row_count' => $row['row_count'] ?: 0,
+                            'table_size_mb' => $row['table_size_mb'] ?: 0
+                        ];
+                    }
+                } catch (\PDOException $e) {
+                    log_message('error', "Erro de conexão PostgreSQL: " . $e->getMessage());
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => "Falha ao conectar ao PostgreSQL: " . $e->getMessage()
+                    ]);
+                }
+            } else {
+                // Conexão via mysqli para MySQL
+                $mysqli = new \mysqli($actualHost, $user, $password, $databaseName, $port);
+                
+                if ($mysqli->connect_error) {
+                    log_message('error', "Erro de conexão MySQL: " . $mysqli->connect_error);
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => "Falha ao conectar ao MySQL: " . $mysqli->connect_error
+                    ]);
+                }
+                
+                log_message('info', 'Conexão MySQL estabelecida com sucesso');
+                
+                $query = "SELECT 
+                            TABLE_NAME as table_name,
+                            TABLE_ROWS as row_count,
+                            ROUND(((DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024), 2) as table_size_mb
+                          FROM information_schema.TABLES
+                          WHERE TABLE_SCHEMA = ?
+                          AND TABLE_TYPE = 'BASE TABLE'
+                          ORDER BY TABLE_NAME";
+                
+                $stmt = $mysqli->prepare($query);
+                if (!$stmt) {
+                    $mysqli->close();
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'mensagem' => 'Erro ao preparar query: ' . $mysqli->error
+                    ]);
+                }
+                
+                $stmt->bind_param('s', $databaseName);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                
+                while ($row = $result->fetch_assoc()) {
+                    $tables[] = $row;
+                }
+                
+                $stmt->close();
+                $mysqli->close();
             }
-            
-            $stmt->close();
-            $mysqli->close();
             
             log_message('info', count($tables) . ' tabelas encontradas');
             
@@ -1123,7 +1187,6 @@ class ConfigController extends BaseController
                 try {
                     $db = \Config\Database::connect();
                     foreach ($tables as $table) {
-                        // Usar REPLACE INTO ou INSERT ... ON DUPLICATE KEY UPDATE
                         $sql = "INSERT INTO available_source_tables 
                                 (connection_id, database_name, table_name, row_count, table_size_mb, last_updated)
                                 VALUES (?, ?, ?, ?, ?, NOW())

@@ -87,7 +87,7 @@ def sync_delta_to_postgres(**context):
     
     # Construir paths dinamicamente
     search_globs = [
-    f's3://{bucket}/delta/*/*.parquet',
+    f's3://{bucket}/gold/*/*_delta/*.parquet',
     ]
     
     duckdb_con = None
@@ -113,8 +113,9 @@ def sync_delta_to_postgres(**context):
         for search_path in search_globs:
             try:
                 print(f"  🔍 Procurando em: {search_path}")
+                # Captures the directory just before the parquet file (e.g. 'pipe-northwind/categories_delta' or just 'categories_delta' for old format)
                 rows = duckdb_con.execute(f"""
-                    SELECT DISTINCT regexp_extract(filename, '.*/delta/([^/]+)/[^/]+\\.parquet', 1) AS folder
+                    SELECT DISTINCT regexp_extract(filename, '.*/(gold/[^/]+/[^/]+|delta/[^/]+)/[^/]+\\.parquet', 1) AS folder
                     FROM read_parquet('{search_path}', filename=true)
                     WHERE folder IS NOT NULL AND folder <> ''
                 """).fetchall()
@@ -150,18 +151,23 @@ def sync_delta_to_postgres(**context):
         results = []
         print(f"[AUDIT] Início da escrita PostgreSQL para {len(folders)} tabelas Delta")
         log.info(f"[AUDIT] Início da escrita PostgreSQL para {len(folders)} tabelas Delta")
-        for folder in sorted(folders):
-            # Extrai UID/hash e nome lógico para garantir unicidade
-            if '_' in folder:
-                uid = folder.split('_')[0]
-                nome_logico = folder.split('_', 2)[-1]
-                safe_name = re.sub(r"[^a-zA-Z0-9_]+", "_", nome_logico)
-                table_name = f"delta_{safe_name}_{uid}"
-            else:
-                safe_name = re.sub(r"[^a-zA-Z0-9_]+", "_", folder)
-                table_name = f"delta_{safe_name}"
-            delta_path = f"s3://{bucket}/delta/{folder}/"
-            print(f"  📥 {table_name} ← {folder}")
+        for folder_path in sorted(folders):
+            # folder_path = 'gold/pipe-northwind/categories_delta' or 'delta/categories_delta'
+            folder_name = folder_path.split('/')[-1] # i.e. 'categories_delta'
+            
+            # Limpa suffixo '_delta' ou '_gold'
+            import re
+            base_nome = re.sub(r'(_delta|_gold)$', '', folder_name)
+            
+            # Limpeza proativa de hashes e timestamps
+            # Se o folder contiver formato antigo (ex: 20260412194917_89252dec_suppliers), extirpa o começo:
+            if re.match(r'^\d{14}_[0-9a-fA-F]{8}_', base_nome):
+                base_nome = base_nome.split('_', 2)[-1]
+                
+            safe_name = re.sub(r"[^a-zA-Z0-9_]+", "_", base_nome)
+            table_name = safe_name.strip('_').lower()
+            delta_path = f"s3://{bucket}/{folder_path}/"
+            print(f"  📥 {table_name} ← {folder_path}")
             try:
                 print(f"     Descobrindo versão mais recente...")
                 files = duckdb_con.execute(f"""

@@ -119,7 +119,7 @@ def _build_html(nome: str = None) -> str:
             Acesse sua conta e continue de onde parou. Estamos com você nessa jornada.
           </p>
           <div style="text-align: center; margin: 35px 0;">
-            <a href="https://myflow.estudotabela.com.br:28443/video/9" style="background-color: #0056b3; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">Ir para o MyDataFlow Lab</a>
+            <a href="https://myflow.estudotabela.com.br:28443/video/12" style="background-color: #0056b3; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">Ir para o MyDataFlow Lab</a>
           </div>
           <p style="margin-bottom: 0;">Abraços,<br/><strong>Equipe MyDataFlow Lab</strong></p>
         </div>

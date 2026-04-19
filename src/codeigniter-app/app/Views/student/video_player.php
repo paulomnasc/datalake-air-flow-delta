@@ -324,11 +324,12 @@ require VIEWPATH.'/header.php';
                     <?php endif; ?>
                 </div>
                 <!-- Botão Próxima aula -->
-                <div style="margin-top: 28px; text-align: right;">
+                <div style="margin-top: 28px; display: flex; justify-content: flex-end; gap: 15px;">
                 <?php if($next_video): ?>
                     <a href="<?php echo site_url('video/' . $next_video['id']); ?>" class="btn-proxima-aula" style="background: #4f46e5; color: #fff; padding: 12px 28px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 18px;">Próxima aula &rarr;</a>
                 <?php else: ?>
                     <button class="btn-proxima-aula" style="background: #ccc; color: #fff; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 18px;" disabled>Última aula</button>
+                    <a href="<?php echo site_url('modulo/' . $module['id']); ?>" class="btn-proxima-aula" style="background: #10b981; color: #fff; padding: 12px 28px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 18px;">Voltar ao Módulo &uarr;</a>
                 <?php endif; ?>
                 </div>
             </div>

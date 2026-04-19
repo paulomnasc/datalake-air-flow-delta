@@ -345,12 +345,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         gap: 16px;
     }
 
-    #head-bar .logo-container h1 {
-        color: white;
-        font-size: 24px;
-        font-weight: 600;
-        margin: 0;
-        letter-spacing: 0.5px;
+    #head-bar .logo-container img {
+        height: 40px; /* Ajuste a altura conforme necessário */
+        width: auto;
+        object-fit: contain;
+        display: block;
+        margin-bottom: 4px;
     }
 
     #head-bar .logo-container .subtitle {
@@ -429,8 +429,8 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         
         <div id="head-bar" class="left">
             <div class="logo-container">
-                <div>
-                    <h1>MyDataFlow</h1>
+                <div style="display: flex; flex-direction: column; justify-content: center;">
+                    <img src="<?= base_url('assets/img/carcara-logo.png'); ?>" alt="MyDataFlow Logo">
                     <p class="subtitle">Plataforma de Pipelines de Dados</p>
                 </div>
             </div>

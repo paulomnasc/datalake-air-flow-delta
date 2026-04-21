@@ -175,7 +175,7 @@ def enviar_emails_para_zumbi(**context):
     smtp_host = smtp_config.get("host", "")
     smtp_user = smtp_config.get("user", "")
     smtp_from_name = smtp_config.get("from_name", "Equipe Smart Tables")
-    smtp_from = smtp_user or "nao-responda@localhost"
+    smtp_from = os.environ.get("SMTP_FROM_EMAIL", "admin@estudotabela.com.br")
 
     if not smtp_host:
         raise ValueError("SMTP não configurado no código da DAG.")

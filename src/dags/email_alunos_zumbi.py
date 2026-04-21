@@ -119,7 +119,7 @@ def _build_html(nome: str = None) -> str:
             Acesse sua conta e continue de onde parou. Estamos com você nessa jornada.
           </p>
           <div style="text-align: center; margin: 35px 0;">
-            <a href="https://myflow.estudotabela.com.br:28443/video/9" style="background-color: #0056b3; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">Ir para o MyDataFlow Lab</a>
+            <a href="https://myflow.estudotabela.com.br:28443/video/12" style="background-color: #0056b3; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">Ir para o MyDataFlow Lab</a>
           </div>
           <p style="margin-bottom: 0;">Abraços,<br/><strong>Equipe MyDataFlow Lab</strong></p>
         </div>
@@ -175,7 +175,7 @@ def enviar_emails_para_zumbi(**context):
     smtp_host = smtp_config.get("host", "")
     smtp_user = smtp_config.get("user", "")
     smtp_from_name = smtp_config.get("from_name", "Equipe Smart Tables")
-    smtp_from = smtp_user or "nao-responda@localhost"
+    smtp_from = os.environ.get("SMTP_FROM_EMAIL", "admin@estudotabela.com.br")
 
     if not smtp_host:
         raise ValueError("SMTP não configurado no código da DAG.")

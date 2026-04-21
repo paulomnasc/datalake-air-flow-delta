@@ -53,14 +53,14 @@ MySQL/Fontes → Raw (CSV) → Bronze (CSV) → Silver (Parquet + Quality) → G
 ```
 s3://<owner da dag>/
 ├── raw/{dag_id}/{timestamp}_{hash}.csv
-├── bronze/{table}/{timestamp}_{hash}.csv
-├── silver/{table}/{timestamp}_{hash}.parquet
+├── bronze/{dag_id}/{timestamp}_{hash}.csv
+├── silver/{dag_id}/{timestamp}_{hash}.parquet
 │   ├── [Colunas originais]
 │   ├── DataQualityRulesPass
 │   ├── DataQualityRulesFail
 │   ├── DataQualityRulesSkip
 │   └── DataQualityEvaluationResult
-└── gold/{table}_delta/
+└── gold/{dag_id}/
     ├── _delta_log/
     │   ├── 00000000000000000000.json  ← Transaction log (versão 0)
     │   └── 00000000000000000001.json  ← Próximas transações

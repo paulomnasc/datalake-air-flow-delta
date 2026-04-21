@@ -92,7 +92,16 @@ def silver_to_gold(source_filename: str, target_table_name: str, **kwargs):
             
             # Gold: replicar estrutura do Silver, apenas trocar silver/ por gold/
             basename_no_ext = os.path.splitext(os.path.basename(silver_key))[0]
-            gold_key = silver_key.replace('silver/', 'gold/', 1)
+            
+            clean_dag_id = target_table_name
+            if kwargs.get('dag_id'):
+                import re
+                clean_dag_id = re.sub(r'\d+$', '', kwargs.get('dag_id'))
+            elif 'dag_id' in locals() and dag_id != 'default':
+                import re
+                clean_dag_id = re.sub(r'\d+$', '', dag_id)
+
+            gold_key = f"gold/{clean_dag_id}/{basename_no_ext}_gold.parquet"
             gold_local = os.path.join(tmpdir, f"{basename_no_ext}_gold.parquet")
             df.to_parquet(gold_local, index=False, compression='snappy', engine='pyarrow')
             log.info("[GOLD] Parquet otimizado criado: %s", gold_local)

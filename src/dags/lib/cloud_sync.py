@@ -48,97 +48,22 @@ def push_to_external_cloud(**kwargs) -> Dict[str, Any]:
             return {'status': 'skipped', 'reason': 'no files found'}
 
         # Processar com base no destino
-        if cloud_dest_type == 'aws':
-            return _sync_to_aws(local_hook, bucket_name, files_to_sync, transform_args)
-        elif cloud_dest_type == 'azure':
-            return _sync_to_azure(local_hook, bucket_name, files_to_sync, transform_args)
-        else:
-            log.warning(f"[CLOUD_SYNC] Tipo de nuvem desconhecido: {cloud_dest_type}")
-            return {'status': 'error', 'reason': f'unkown cloud_dest_type: {cloud_dest_type}'}
+        from lib.providers import ProviderFactory
+        
+        try:
+            cloud_provider = ProviderFactory.get_provider(cloud_dest_type)
+        except ValueError as exception_provider:
+            log.warning(f"[CLOUD_SYNC] Provedor declinado: {exception_provider}")
+            return {'status': 'error', 'reason': str(exception_provider)}
+            
+        # Desacoplamento Polimórfico - Executa Strategy
+        return cloud_provider.sync_files(
+            local_hook=local_hook,
+            bucket=bucket_name,
+            files=files_to_sync,
+            config=transform_args
+        )
             
     except Exception as e:
         log.error(f"[CLOUD_SYNC] Erro durante a sincronização: {e}", exc_info=True)
         raise
-
-def _sync_to_aws(local_hook, local_bucket, files_to_sync, config):
-    import boto3
-    import tempfile
-    
-    aws_access_key = config.get('aws_access_key')
-    aws_secret_key = config.get('aws_secret_key')
-    aws_bucket = config.get('aws_bucket')
-    aws_region = config.get('aws_region', 'us-east-1')
-    
-    if not all([aws_access_key, aws_secret_key, aws_bucket]):
-        raise ValueError("[CLOUD_SYNC][AWS] Faltam credenciais (access_key, secret_key, bucket).")
-        
-    # Inicializar cliente AWS
-    aws_client = boto3.client(
-        's3',
-        aws_access_key_id=aws_access_key,
-        aws_secret_access_key=aws_secret_key,
-        region_name=aws_region
-    )
-    
-    synced = 0
-    with tempfile.TemporaryDirectory() as tmpdir:
-        for file_key in files_to_sync:
-            log.info(f"[CLOUD_SYNC][AWS] Sincronizando: {file_key}")
-            # Pular subpastas vazias
-            if file_key.endswith('/'):
-                continue
-                
-            local_path = local_hook.download_file(
-                key=file_key,
-                bucket_name=local_bucket,
-                local_path=tmpdir,
-                preserve_file_name=True
-            )
-            
-            # Subir para AWS usando o mesmo nome de chave do MinIO (mantém hierarquia do data lake)
-            aws_client.upload_file(local_path, aws_bucket, file_key)
-            synced += 1
-            os.remove(local_path)
-            
-    log.info(f"[CLOUD_SYNC][AWS] ✅ Sucesso! {synced} arquivos encaminhados para bucket {aws_bucket}.")
-    return {'status': 'success', 'synced': synced, 'target': 'aws', 'bucket': aws_bucket}
-
-def _sync_to_azure(local_hook, local_bucket, files_to_sync, config):
-    from azure.storage.blob import BlobServiceClient
-    import tempfile
-    
-    account_name = config.get('azure_account_name')
-    account_key = config.get('azure_account_key')
-    container_name = config.get('azure_container')
-    
-    if not all([account_name, account_key, container_name]):
-        raise ValueError("[CLOUD_SYNC][AZURE] Faltam credenciais da Azure.")
-        
-    connection_string = f"DefaultEndpointsProtocol=https;AccountName={account_name};AccountKey={account_key};EndpointSuffix=core.windows.net"
-    blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-    
-    container_client = blob_service_client.get_container_client(container_name)
-    
-    synced = 0
-    with tempfile.TemporaryDirectory() as tmpdir:
-        for file_key in files_to_sync:
-            log.info(f"[CLOUD_SYNC][AZURE] Sincronizando: {file_key}")
-            if file_key.endswith('/'):
-                continue
-                
-            local_path = local_hook.download_file(
-                key=file_key,
-                bucket_name=local_bucket,
-                local_path=tmpdir,
-                preserve_file_name=True
-            )
-            
-            blob_client = container_client.get_blob_client(file_key)
-            with open(local_path, "rb") as data:
-                blob_client.upload_blob(data, overwrite=True)
-                
-            synced += 1
-            os.remove(local_path)
-            
-    log.info(f"[CLOUD_SYNC][AZURE] ✅ Sucesso! {synced} arquivos encaminhados para o container {container_name}.")
-    return {'status': 'success', 'synced': synced, 'target': 'azure', 'container': container_name}

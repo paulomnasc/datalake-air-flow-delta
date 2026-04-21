@@ -220,9 +220,18 @@ def bronze_to_silver(source_filename: str, target_table_name: str, **kwargs):
             else:
                 log.info("[SILVER] Coluna 'id' não encontrada para log de aprovados.")
             
-            # Silver: estrutura silver/{target_table_name}/{timestamp_hash}.parquet
+            # Resgatar dag_id para path
+            clean_dag_id = target_table_name
+            if kwargs.get('dag_id'):
+                import re
+                clean_dag_id = re.sub(r'\d+$', '', kwargs.get('dag_id'))
+            elif 'dag_id' in locals() and dag_id != 'default':
+                import re
+                clean_dag_id = re.sub(r'\d+$', '', dag_id)
+
+            # Silver: estrutura silver/{dag_id}/{timestamp_hash}.parquet
             basename_no_ext = os.path.splitext(os.path.basename(bronze_key))[0]
-            silver_key = f"silver/{target_table_name}/{basename_no_ext}.parquet"
+            silver_key = f"silver/{clean_dag_id}/{basename_no_ext}.parquet"
             silver_local = os.path.join(tmpdir, f"{basename_no_ext}.parquet")
             df.to_parquet(silver_local, index=False, compression='snappy')
             log.info("[SILVER] Parquet criado: %s", silver_local)

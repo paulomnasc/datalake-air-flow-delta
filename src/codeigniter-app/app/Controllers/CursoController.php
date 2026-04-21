@@ -45,7 +45,7 @@ class CursoController extends BaseController
                 return redirect()->to('/curso/1');
             }
         }
-        return redirect()->to(route_to('video.player', 9));
+        return redirect()->to(route_to('video.player', 12));
     }
 
     /**
@@ -205,9 +205,9 @@ class CursoController extends BaseController
         // ------------------------------------------------------
         
         // --- Validação de Pagamento (Segurança) ---
-        // Apenas o vídeo de ID 9 pode ser assistido sem pagamento
+        // Apenas o vídeo de ID 12 pode ser assistido sem pagamento
         // Qualquer outro vídeo exige pagamento inicial
-        if (intval($videoId) != 9) {
+        if (intval($videoId) != 12) {
             if (!$userId) {
                 // Usuário não logado, redirecionar para pagamento
                 return redirect()->to('/subscription/initial-payment');

@@ -50,8 +50,15 @@ def gold_to_delta(source_filename: str, target_table_name: str, **kwargs):
     # Determina chaves
     src_key = source_filename.lstrip('/')
     
-    # Delta: estrutura delta/{target_table_name}/ conforme documentação
-    delta_path = f"s3://{bucket}/delta/{target_table_name}/"
+    # Resgatar dag_id limpo
+    clean_dag_id = target_table_name
+    if kwargs.get('dag_id'):
+        import re
+        clean_dag_id = re.sub(r'\d+$', '', kwargs.get('dag_id'))
+        
+    # Delta: estrutura gold/{dag_id}/{target_table_name}_delta/
+    # Usando gold ao invés de delta para unificar a camada conforme doc
+    delta_path = f"s3://{bucket}/gold/{clean_dag_id}/{target_table_name}_delta/"
 
     log.info("[DELTA] source_filename: %s", source_filename)
     log.info("[DELTA] Processando: s3://%s/%s → %s", bucket, src_key, delta_path)

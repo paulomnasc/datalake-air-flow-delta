@@ -110,7 +110,7 @@ def _build_html(nome: str = None) -> str:
             Se você ainda quer manter seu acesso, me responda com "SIM" até amanhã. Caso contrário, entendemos que podemos remover seu usuário e você perderá seu histórico.
           </p>
           <div style="text-align: center; margin: 35px 0;">
-            <a href="https://myflow.estudotabela.com.br:28443/login" style="background-color: #0056b3; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">Fazer Login no Webapp</a>
+            <a href="https://myflow.estudotabela.com.br:28443/loginUsuario" style="background-color: #0056b3; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">Fazer Login no Webapp</a>
           </div>
           <p style="margin-bottom: 0;">Abraços,<br/><strong>Equipe MyDataFlow Lab</strong></p>
         </div>

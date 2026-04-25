@@ -59,7 +59,7 @@ O sistema possui duas regras principais para controlar o acesso:
 - O campo `status_assinatura` é gerenciado pelo sistema e atualizado por:
   - Filtro global (`SubscriptionFilter`) em cada requisição.
   - Comando automático (cron) que verifica vencimento e atualiza status.
-- Quando a data de vencimento (`data_vencimento_assinatura`) passa do dia atual, o status muda para `expired`.
+- Quando a data de vencimento (`data_vencimento_assinatura`) passa do dia atual, o status é rebaixado automaticamente para `trial` e o `pagamento_inicial` é zerado (`0`). Com isso, o aluno perde o acesso aos módulos avançados até renovar e fazer novo pagamento.
 - Ao renovar e confirmar pagamento, o status volta para `active` e a data de vencimento é atualizada.
 
 ---

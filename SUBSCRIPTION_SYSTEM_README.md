@@ -285,7 +285,13 @@ class UpdateSubscriptionStatus extends BaseCommand
                 $usuario->status_assinatura
             );
             
-            if ($novoStatus !== $usuario->status_assinatura) {
+            if ($novoStatus === 'expired') {
+                $usuarioModel->update($usuario->id, [
+                    'status_assinatura' => 'trial',
+                    'pagamento_inicial' => 0
+                ]);
+                $updated++;
+            } elseif ($novoStatus !== $usuario->status_assinatura) {
                 $usuarioModel->update($usuario->id, ['status_assinatura' => $novoStatus]);
                 $updated++;
             }

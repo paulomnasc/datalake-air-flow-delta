@@ -74,21 +74,39 @@ class SubscriptionFilter implements FilterInterface
         $dataVencimento = $usuario->data_vencimento_assinatura ?? null;
         $novoStatus = SubscriptionHelper::atualizarStatus($dataVencimento, $statusAtual);
 
-        // Se o status mudou, atualiza no banco
-        if ($novoStatus !== $statusAtual) {
-            $usuarioModel->update($userId, ['status_assinatura' => $novoStatus]);
-            $usuario->status_assinatura = $novoStatus;
+        // Se o status retornado for 'expired', aplica a nova regra: downgrade para 'trial' e zera 'pagamento_inicial'
+        if ($novoStatus === 'expired') {
+            $novoStatus = 'trial';
             
-            // Gerenciar status do usuário no Airflow baseado na assinatura
-            if ($novoStatus === 'expired' || $novoStatus === 'cancelled') {
-                // Desativar usuário no Airflow se assinatura expirou ou foi cancelada
-                AirflowHelper::setUserActiveStatus($userId, $usuario->email ?? '', false);
-                log_message('info', "[SUBSCRIPTION] Usuário {$userId} desativado no Airflow - assinatura {$novoStatus}");
-            } elseif (($statusAtual === 'expired' || $statusAtual === 'cancelled') && 
-                      ($novoStatus === 'active' || $novoStatus === 'trial')) {
-                // Reativar usuário no Airflow se assinatura foi renovada
+            if ($statusAtual !== 'trial' || $usuario->pagamento_inicial != 0) {
+                $usuarioModel->update($userId, [
+                    'status_assinatura' => 'trial',
+                    'pagamento_inicial' => 0
+                ]);
+                $usuario->status_assinatura = 'trial';
+                $usuario->pagamento_inicial = 0;
+                
+                // Garantir que o usuário continue ativo no Airflow, pois trial permite acesso
                 AirflowHelper::setUserActiveStatus($userId, $usuario->email ?? '', true);
-                log_message('info', "[SUBSCRIPTION] Usuário {$userId} reativado no Airflow - assinatura {$novoStatus}");
+                log_message('info', "[SUBSCRIPTION] Usuário {$userId} assinatura expirada. Rebaixado para trial e pagamento_inicial zerado.");
+            }
+        } else {
+            // Se o status mudou normalmente, atualiza no banco
+            if ($novoStatus !== $statusAtual) {
+                $usuarioModel->update($userId, ['status_assinatura' => $novoStatus]);
+                $usuario->status_assinatura = $novoStatus;
+                
+                // Gerenciar status do usuário no Airflow baseado na assinatura
+                if ($novoStatus === 'cancelled') {
+                    // Desativar usuário no Airflow se assinatura foi cancelada
+                    AirflowHelper::setUserActiveStatus($userId, $usuario->email ?? '', false);
+                    log_message('info', "[SUBSCRIPTION] Usuário {$userId} desativado no Airflow - assinatura {$novoStatus}");
+                } elseif (($statusAtual === 'cancelled') && 
+                          ($novoStatus === 'active' || $novoStatus === 'trial')) {
+                    // Reativar usuário no Airflow se assinatura foi renovada
+                    AirflowHelper::setUserActiveStatus($userId, $usuario->email ?? '', true);
+                    log_message('info', "[SUBSCRIPTION] Usuário {$userId} reativado no Airflow - assinatura {$novoStatus}");
+                }
             }
         }
 
@@ -116,12 +134,7 @@ class SubscriptionFilter implements FilterInterface
             $dataVencimento
         );
 
-        // Se pagamento_inicial = 1, o usuário navega livremente e não vê paywall
-        if (isset($usuario->pagamento_inicial) && $usuario->pagamento_inicial == 1) {
-            $acessoInfo['pode_acessar'] = true;
-            $_SESSION['subscription_services_blocked'] = false;
-            $_SESSION['subscription_show_warning'] = false;
-        }
+
 
         // Se não pode acessar, redireciona para página de renovação
         // Exceto se já estiver na página de renovação ou logout

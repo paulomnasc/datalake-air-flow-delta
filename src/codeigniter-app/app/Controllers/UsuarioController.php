@@ -461,6 +461,7 @@ class UsuarioController extends BaseController
         $data['email'] = $Usuario->email;
         $data['senha'] = $Usuario->senha;
         $data['pagamento_inicial'] = $Usuario->pagamento_inicial ?? 0;
+        $data['data_vencimento_assinatura'] = $Usuario->data_vencimento_assinatura ?? '';
         $data['status_assinatura'] = $Usuario->status_assinatura ?? '';
         $data['perfil_comportamental'] = $Usuario->perfil_comportamental ?? 'Desinteressado';
 

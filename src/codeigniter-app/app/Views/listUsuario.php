@@ -24,6 +24,7 @@ require VIEWPATH.'/header.php';
                             <th>Nome</th>
                             <th>Perfil Comport</th>
                             <th>Pagamento Inicial</th>
+                            <th>Status Assinatura</th>
                             <th>Vencimento</th>
                             <th>Ações</th>
                         </tr>
@@ -37,6 +38,7 @@ require VIEWPATH.'/header.php';
                             <td> <?php echo $Usuario->nome ?> </td>
                             <td><?php echo isset($Usuario->perfil_comportamental) ? $Usuario->perfil_comportamental : 'Desinteressado'; ?></td>
                             <td><?php echo isset($Usuario->pagamento_inicial) ? $Usuario->pagamento_inicial : 'N/A'; ?></td>
+                            <td><?php echo isset($Usuario->status_assinatura) ? $Usuario->status_assinatura : 'N/A'; ?></td>
                             <td><?php echo isset($Usuario->data_vencimento_assinatura) ? $Usuario->data_vencimento_assinatura : '-'; ?></td>
                             <td> 
                                 <div class="sidebyside-container">

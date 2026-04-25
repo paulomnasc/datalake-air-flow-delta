@@ -9,6 +9,16 @@ require VIEWPATH.'/header.php';
 <div id="content">
     <div class="container">
         <h4 style="text-align: center;">Autorizar Pagamento Inicial</h4>
+        <?php if (session()->getFlashdata('success')): ?>
+            <div class="alert alert-success mt-3 text-center">
+                <?= session()->getFlashdata('success'); ?>
+            </div>
+        <?php endif; ?>
+        <?php if (session()->getFlashdata('error')): ?>
+            <div class="alert alert-danger mt-3 text-center">
+                <?= session()->getFlashdata('error'); ?>
+            </div>
+        <?php endif; ?>
         <input type="text" id="filtro-nome" placeholder="Filtrar por nome ou email" class="form-control mb-3" style="max-width:300px;">
         <table class="data-table table table-bordered" id="data-table">
             <thead>

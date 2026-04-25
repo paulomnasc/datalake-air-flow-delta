@@ -505,9 +505,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 <li>
                     <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado'])): ?>
                         
-                        <?php echo anchor("sigInUsuario","Experimentar", ['class' => 'nav-link px-4 px-lg-5'])  ?>
+                        <?php echo anchor("sigInUsuario","Experimentar", ['class' => 'nav-link px-2 px-lg-2'])  ?>
                         
-                        <?php echo anchor("loginUsuario","Entrar", ['class' => 'nav-link px-4 px-lg-5'])  ?>
+                        <?php echo anchor("loginUsuario","Entrar", ['class' => 'nav-link px-2 px-lg-2'])  ?>
                         
                         <!-- ?php echo anchor("sigInUsuario","Assinar")  ?-->    
 
@@ -526,35 +526,35 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     
                     <li><p class="text-white">📊 Admin - Dashboard</p></li>
                     <li>
-                        <?php echo anchor("admin/dashboard", "📈 Dashboard Geral", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("admin/dashboard", "📈 Dashboard Geral", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     </li>
                     <li>
-                        <?php echo anchor("admin/pagamento-inicial", "💵 Confirmar Pagamento Inicial", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("admin/pagamento-inicial", "💵 Confirmar Pagamento Inicial", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     </li>
 
                     <li><hr class="text-white" style="margin: 10px 0;"></li>
                     
                     <li><p class="text-white">📚 Admin - Cursos</p></li>
                     <li>
-                        <?php echo anchor("admin/courses", "🎓 Cursos", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("admin/courses", "🎓 Cursos", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     </li>
                     <li>
-                        <?php echo anchor("admin/modules", "📖 Módulos", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("admin/modules", "📖 Módulos", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     </li>
                     <li>
-                        <?php echo anchor("admin/videos", "🎬 Vídeos", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("admin/videos", "🎬 Vídeos", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     </li>
                     <li>
-                        <?php echo anchor("admin/ucs", "✅ UCs/Tarefas", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("admin/ucs", "✅ UCs/Tarefas", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     </li>
                     
                     <li><hr class="text-white" style="margin: 10px 0;"></li>
                     <li><p class="text-white">👥 Admin - Sistema</p></li>
                     <li>
-                        <?php echo anchor("listPerfil", "🔐 Perfis", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("listPerfil", "🔐 Perfis", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     </li>
                     <li>
-                        <?php echo anchor("listUsuario", "👤 Usuários", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                        <?php echo anchor("listUsuario", "👤 Usuários", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     </li>
                     <?php
                     endif; 
@@ -566,18 +566,18 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
                 <li>
                     <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                        <a href="/docs/index.html" class="nav-link px-4 px-lg-5" target="_blank" style="color: #87ceeb;">
+                        <a href="/docs/index.html" class="nav-link px-2 px-lg-2" target="_blank" style="color: #87ceeb;">
                             📚 Documentação
                         </a>
                     <?php else: ?>
-                        <?php echo anchor("sigInUsuario", "📚 Documentação", ['class' => 'nav-link px-4 px-lg-5 terms-link', 'style' => 'color: #87ceeb;']); ?>
+                        <?php echo anchor("sigInUsuario", "📚 Documentação", ['class' => 'nav-link px-2 px-lg-2 terms-link', 'style' => 'color: #87ceeb;']); ?>
                     <?php endif; ?>
                 </li>
 
                 <li>
 
                     <?php if (isset($_SESSION['nome_usuario_logado']) || !empty($_SESSION['nome_usuario_logado'])): ?>
-                        <?php echo anchor(route_to('Usuario.logOut'), "Sair", ['class' => 'nav-link px-4 px-lg-5']); ?>
+                        <?php echo anchor(route_to('Usuario.logOut'), "Sair", ['class' => 'nav-link px-2 px-lg-2']); ?>
                     <?php endif; ?>
 
 
@@ -719,7 +719,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 <input type="hidden" id="perfil_usuario_logado" value="<?php echo isset($_SESSION['perfil_usuario_logado']) ? $_SESSION['perfil_usuario_logado'] : 'N/A'; ?>" readonly>
             </div>    
 
-            <a href="/" class="nav-link px-4 px-lg-5" title="Início">
+            <a href="/" class="nav-link px-2 px-lg-2" title="Início">
                 <i class="fas fa-home" style="font-size: 28px; vertical-align: middle;"></i>
             </a>
             
@@ -730,7 +730,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             
                 <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado'])): ?>
                     
-                    <?php echo anchor("sigInUsuario","Experimentar", ['class' => 'nav-link px-4 px-lg-5'])  ?>
+                    <?php echo anchor("sigInUsuario","Experimentar", ['class' => 'nav-link px-2 px-lg-2'])  ?>
                     
 
                 <?php endif; ?>
@@ -742,10 +742,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 ?>
 
                 <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                    <?php echo anchor("cursos", "CURSOS", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    <?php echo anchor("cursos", "CURSOS", ['class' => 'nav-link px-2 px-lg-2']) ?>
                 <?php endif; ?>
                 
-                <a href="https://github.com/paulomnasc/mydataflow-forum/discussions" class="nav-link px-4 px-lg-5" target="_blank" rel="noopener noreferrer">FORUM</a>
+                <a href="https://github.com/paulomnasc/mydataflow-forum/discussions" class="nav-link px-2 px-lg-2" target="_blank" rel="noopener noreferrer">FORUM</a>
                 
                 
                 <li class="nav-item dropdown <?= $servicesBlocked ? 'disabled' : '' ?>">
@@ -798,7 +798,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): 
                 ?>
                     <div class="nav-item dropdown">
-                        <a href="#" class="nav-link dropdown-toggle px-4 px-lg-5" data-bs-toggle="dropdown">CRIAR</a>
+                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">CRIAR</a>
                         <div class="dropdown-menu">
                             <?php echo anchor("listPasta", "Pastas", ['class' => 'dropdown-item']) ?>
                             <a href="<?= base_url('listConfig') ?>" class="dropdown-item">Pipelines</a>
@@ -806,14 +806,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     </div>
                 <?php endif; ?>
 
-                <?php echo anchor("politica","Política Privacidade", ['class' => 'nav-link px-4 px-lg-5'])  ?>
+                <?php echo anchor("politica","Política Privacidade", ['class' => 'nav-link px-2 px-lg-2'])  ?>
 
-                <?php echo anchor("tdu","Termos de uso", ['class' => 'nav-link px-4 px-lg-5'])  ?>
+                <?php echo anchor("tdu","Termos de uso", ['class' => 'nav-link px-2 px-lg-2'])  ?>
                 
-                <?php echo anchor("contactUs","Entre em contato", ['class' => 'nav-link px-4 px-lg-5'])  ?>
+                <?php echo anchor("contactUs","Entre em contato", ['class' => 'nav-link px-2 px-lg-2 text-nowrap'])  ?>
 
                 <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado']) || (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === 'Visitante')): ?>
-                    <?php echo anchor("sigInUsuario", "Registre-se", ['class' => 'nav-link px-4 px-lg-5']) ?>
+                    <?php echo anchor("sigInUsuario", "Registre-se", ['class' => 'nav-link px-2 px-lg-2']) ?>
                 <?php endif; ?>
 
                 

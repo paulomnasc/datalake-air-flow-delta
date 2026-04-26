@@ -71,6 +71,11 @@ require VIEWPATH . '/header.php';
                     <input type="text" id="status_assinatura" name="status_assinatura" placeholder="Tiral, Ativo, Cancelado..." value="<?php echo isset($status_assinatura) ? htmlspecialchars($status_assinatura) : ''; ?>">
                 </div>
 
+                <div class="form-group">
+                    <label for="criado_em">Criado Em:</label>
+                    <input type="text" id="criado_em" name="criado_em" value="<?php echo (!empty($criado_em) && $criado_em !== '0000-00-00 00:00:00') ? date('d/m/Y H:i:s', strtotime($criado_em)) : ''; ?>" readonly style="background-color: #f4f4f4; cursor: not-allowed; color: #666;">
+                </div>
+
                 <div class="form-actions">
                     <button type="submit" class="save-button" value="Atualizar">Atualizar</button>
                     <button type="button" class="back-button" onclick="history.back();">Voltar</button>

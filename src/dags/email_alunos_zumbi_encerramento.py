@@ -61,6 +61,7 @@ def buscar_alunos_zumbi(**context):
       AND TRIM(u.email) <> ''
       AND u.pagamento_inicial = 0
       AND id <> 146
+      AND u.criado_em < DATE_SUB(NOW(), INTERVAL 14 DAY)
     ORDER BY u.id;
     """
 

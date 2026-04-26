@@ -464,6 +464,7 @@ class UsuarioController extends BaseController
         $data['data_vencimento_assinatura'] = $Usuario->data_vencimento_assinatura ?? '';
         $data['status_assinatura'] = $Usuario->status_assinatura ?? '';
         $data['perfil_comportamental'] = $Usuario->perfil_comportamental ?? 'Desinteressado';
+        $data['criado_em'] = $Usuario->criado_em ?? '';
 
         return view('updUsuario', $data);
     }

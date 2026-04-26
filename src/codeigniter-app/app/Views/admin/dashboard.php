@@ -848,7 +848,8 @@ setTimeout(function() {
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Aluno / Perfil</th>
+                                <th>Aluno</th>
+                                <th>Perfil</th>
                                 <th>URI</th>
                                 <th>Progresso (%)</th>
                                 <th>Status Lab</th>
@@ -864,8 +865,12 @@ setTimeout(function() {
                                     <td>
                                         <div style="font-weight: 600; color: #333;"><?php echo esc($student->nome); ?></div>
                                         <div style="font-size: 12px; color: #999;"><?php echo esc($student->email); ?></div>
+                                    </td>
+                                    <td>
                                         <?php if(!empty($student->perfil_comportamental)): ?>
-                                            <span style="font-size: 11px; background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 4px;"><?php echo esc($student->perfil_comportamental); ?></span>
+                                            <span style="font-size: 11px; background: #e0e7ff; color: #4f46e5; padding: 4px 8px; border-radius: 4px; font-weight: 500; display: inline-block; white-space: nowrap;"><?php echo esc($student->perfil_comportamental); ?></span>
+                                        <?php else: ?>
+                                            <span style="font-size: 11px; color: #999;">-</span>
                                         <?php endif; ?>
                                     </td>
                                     <td style="font-size: 12px; color: #666; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo esc($student->uri); ?>">
@@ -895,7 +900,7 @@ setTimeout(function() {
                         $('#feedbackUsersTable').DataTable({
                             scrollX: true,
                             autoWidth: false,
-                            order: [[7, 'desc']], // Ordenar por data
+                            order: [[8, 'desc']], // Ordenar por data
                             language: {
                                 "sEmptyTable": "Nenhum aluno encontrado",
                                 "sInfo": "Mostrando _START_ até _END_ de _TOTAL_ alunos",

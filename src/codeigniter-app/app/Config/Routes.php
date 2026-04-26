@@ -212,6 +212,7 @@ $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
     $routes->get('dashboard', 'DashboardController::admin', ['as' => 'admin.dashboard']);
     $routes->get('downloadReturningStudentsCsv', 'DashboardController::downloadReturningStudentsCsv', ['as' => 'admin.downloadReturningStudentsCsv']);
     $routes->get('downloadStudentProgressCsv', 'DashboardController::downloadStudentProgressCsv', ['as' => 'admin.downloadStudentProgressCsv']);
+    $routes->get('downloadFeedbackUsersCsv', 'DashboardController::downloadFeedbackUsersCsv', ['as' => 'admin.downloadFeedbackUsersCsv']);
     
     // Courses
     $routes->get('courses', 'ProgressAdminController::indexCourses', ['as' => 'admin.courses.index']);

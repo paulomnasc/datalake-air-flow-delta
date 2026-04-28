@@ -5,13 +5,17 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+import pendulum
 import pymysql
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.hooks.base import BaseHook
 
+local_tz = pendulum.timezone("America/Sao_Paulo")
 
 default_args = {
+    "owner": "Paulo Nascimento",
+    "start_date": datetime(2026, 4, 1, tzinfo=local_tz),
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
@@ -257,8 +261,8 @@ with DAG(
     dag_id="email_alunos_zumbi_encerramento",
     default_args=default_args,
     description="Envia e-mails de notificação de encerramento para alunos inativos",
-    schedule_interval=None,  # Configurado para ser disparado manualmente ou defina conforme necessidade
-    start_date=datetime(2025, 1, 1),
+    # O Airflow scheduler opera em UTC. Para rodar às 09:00 BRT (UTC-3), agendamos para 12:00 UTC.
+    schedule_interval='0 12 * * *',
     catchup=False,
     max_active_runs=1,
     tags=["engajamento", "email", "alunos", "encerramento"],

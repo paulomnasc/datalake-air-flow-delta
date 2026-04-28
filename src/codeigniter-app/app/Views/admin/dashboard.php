@@ -480,6 +480,7 @@ setTimeout(function() {
                             <tr>
                                 <th style="width: 50px;">#</th>
                                 <th>Aluno</th>
+                                <th style="text-align: center;">Status Pagamento</th>
                                 <th style="text-align: right;">Criado em</th>
                                 <th style="text-align: right;">Último Login</th>
                                 <th>Perfil Comportamental</th>
@@ -505,6 +506,17 @@ setTimeout(function() {
                                     <td>
                                         <div style="font-weight: 600; color: #333;"><?php echo esc($student->user_name); ?></div>
                                         <div style="font-size: 12px; color: #999;"><?php echo esc($student->email); ?></div>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <?php if (isset($student->pagamento_inicial)): ?>
+                                            <?php if ($student->pagamento_inicial == 1): ?>
+                                                <span style="background: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">Comprou</span>
+                                            <?php else: ?>
+                                                <span style="background: #ffebee; color: #c62828; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">Não comprou</span>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <span style="color: #ccc;">N/A</span>
+                                        <?php endif; ?>
                                     </td>
                                     <td style="text-align: right;" data-order="<?php echo !empty($student->criado_em) ? esc($student->criado_em) : ''; ?>">
                                         <span style="font-size: 13px; color: #666;">

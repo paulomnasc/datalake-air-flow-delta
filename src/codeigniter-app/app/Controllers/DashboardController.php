@@ -621,6 +621,7 @@ class DashboardController extends BaseController
                 u.email,
                 u.criado_em,
                 u.perfil_comportamental,
+                u.pagamento_inicial,
                 -- Video Progress: soma dos percentuais dividido pelo total de vídeos ativos (progresso real no curso)
                 COALESCE((
                     SELECT SUM(vp.percent) / (SELECT COUNT(*) FROM video WHERE is_active = 1)

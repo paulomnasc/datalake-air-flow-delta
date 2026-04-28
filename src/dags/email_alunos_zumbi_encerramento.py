@@ -54,13 +54,14 @@ def buscar_alunos_zumbi(**context):
     SELECT
         u.id,
         u.nome,
-        u.email
+        u.email,
+        u.perfil_comportamental
     FROM usuario u
     WHERE u.email IS NOT NULL
       AND (u.perfil_comportamental NOT IN ('Power User') OR u.perfil_comportamental IS NULL)
       AND TRIM(u.email) <> ''
       AND u.pagamento_inicial = 0
-      AND id <> 146
+      AND id not in (146, 238, 422)
       AND u.criado_em < DATE_SUB(NOW(), INTERVAL 14 DAY)
     ORDER BY u.id;
     """
@@ -108,11 +109,15 @@ def _build_html(nome: str = None) -> str:
             Notei que você não acessa o MyDataFlow há semanas. Como preciso manter a plataforma enxuta para usuários ativos, vou encerrar as contas inativas nos próximos 2 dias.
           </p>
           <p>
-            Se você ainda quer manter seu acesso, me responda com "SIM" até amanhã. Caso contrário, entendemos que podemos remover seu usuário e você perderá seu histórico.
+            Se você ainda tem interesse em aprender engenharia de dados e destravar seu pipeline na AWS, basta fazer o login na plataforma agora pelo link abaixo:
           </p>
           <div style="text-align: center; margin: 35px 0;">
             <a href="https://myflow.estudotabela.com.br:28443/loginUsuario" style="background-color: #0056b3; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">Fazer Login no Webapp</a>
           </div>
+          <p>
+            Caso contrário, entenderei que o conteúdo não é uma prioridade para você neste momento e encerrarei o acesso da sua conta permanentemente para manter a qualidade da nossa comunidade.
+          </p>
+
           <p style="margin-bottom: 0;">Abraços,<br/><strong>Equipe MyDataFlow Lab</strong></p>
         </div>
       </body>
@@ -158,10 +163,10 @@ def enviar_emails_para_zumbi(**context):
     # --- DESCOMENTAR PARA TESTES ESSE LOCO DE SEGURANÇA (Apenas envio para 176) ---
     # print("DRY-RUN desabilitado: limitando o envio real apenas para o aluno ID 176.")
     # alunos = [a for a in alunos if str(a.get("id")) == "176"]
-     
+    
     # if not alunos:
-    #    print("Aluno ID 176 não encontrado entre os grupos-alvo. Nenhum e-mail será enviado.")
-    #    return
+    #     print("Aluno ID 176 não encontrado entre os grupos-alvo. Nenhum e-mail será enviado.")
+    #     return
     #----------------------------------------------------
 
     smtp_host = smtp_config.get("host", "")

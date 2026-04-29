@@ -142,6 +142,9 @@ def get_student_data_from_db(db_config):
     return df
 
 def categorizar_perfil(row):
+    if row.get('perfil_comportamental') == 'Interessados':
+        return 'Interessados'
+        
     try:
         xp = float(row.get('XP Obtido', 0))
     except (ValueError, TypeError):

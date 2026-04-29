@@ -54,20 +54,32 @@ def buscar_alunos_aws_live(**context):
     SELECT
         u.id,
         u.nome,
-        u.email,
-        MAX(al.created_at) as ultima_atividade
+        u.email
     FROM usuario u
-    JOIN activity_logs al ON u.id = al.user_id
     WHERE u.email IS NOT NULL
-      AND (u.perfil_comportamental NOT IN ('Power User') OR u.perfil_comportamental IS NULL)
+      AND u.perfil_comportamental IN ('Interessados')
       AND TRIM(u.email) <> ''
       AND u.pagamento_inicial = 0
-      AND u.id NOT IN (146, 238, 422)
-      AND u.criado_em < DATE_SUB(NOW(), INTERVAL 14 DAY)
-      AND al.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-    GROUP BY u.id, u.nome, u.email
-    ORDER BY ultima_atividade DESC;
     """
+
+    # query = """
+    # SELECT
+    #     u.id,
+    #     u.nome,
+    #     u.email,
+    #     MAX(al.created_at) as ultima_atividade
+    # FROM usuario u
+    # JOIN activity_logs al ON u.id = al.user_id
+    # WHERE u.email IS NOT NULL
+    #  AND (u.perfil_comportamental NOT IN ('Power User') OR u.perfil_comportamental IS NULL)
+    #   AND TRIM(u.email) <> ''
+    #   AND u.pagamento_inicial = 0
+    #   AND u.id NOT IN (146, 238, 422)
+    #   AND u.criado_em < DATE_SUB(NOW(), INTERVAL 14 DAY)
+    #   AND al.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    # GROUP BY u.id, u.nome, u.email
+    # ORDER BY ultima_atividade DESC;
+    # """
 
     print("Conectando ao banco via connection ID: mydataflow-conn")
     connection = _get_db_connection("mydataflow-conn")
@@ -157,12 +169,12 @@ def enviar_emails_aws_live(**context):
         return
 
     # --- DESCOMENTAR PARA TESTES ESSE LOCO DE SEGURANÇA (Apenas envio para 176) ---
-    print("DRY-RUN desabilitado: limitando o envio real apenas para o aluno ID 176.")
-    alunos = [a for a in alunos if str(a.get("id")) == "176"]
+    # print("DRY-RUN desabilitado: limitando o envio real apenas para o aluno ID 176.")
+    # alunos = [a for a in alunos if str(a.get("id")) == "176"]
     
-    if not alunos:
-        print("Aluno ID 176 não encontrado entre os grupos-alvo. Nenhum e-mail será enviado.")
-        return
+    # if not alunos:
+    #     print("Aluno ID 176 não encontrado entre os grupos-alvo. Nenhum e-mail será enviado.")
+    #     return
     #----------------------------------------------------
 
 

@@ -118,6 +118,9 @@ def _build_html(nome: str = None) -> str:
     return f"""
     <html>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <img src="https://myflow.estudotabela.com.br:28443/assets/img/carcara-logo.png" alt="MyDataFlow Logo" style="max-height: 80px; width: auto;">
+        </div>
         <div style="background-color: #f9f9f9; padding: 30px; border-radius: 8px; border-top: 5px solid #0056b3;">
           <h2 style="color: #0056b3; margin-top: 0;">{saudacao}</h2>
           <p>
@@ -169,12 +172,12 @@ def enviar_emails_aws_live(**context):
         return
 
     # --- DESCOMENTAR PARA TESTES ESSE LOCO DE SEGURANÇA (Apenas envio para 176) ---
-    # print("DRY-RUN desabilitado: limitando o envio real apenas para o aluno ID 176.")
-    # alunos = [a for a in alunos if str(a.get("id")) == "176"]
+    print("DRY-RUN desabilitado: limitando o envio real apenas para o aluno ID 176.")
+    alunos = [a for a in alunos if str(a.get("id")) == "176"]
     
-    # if not alunos:
-    #     print("Aluno ID 176 não encontrado entre os grupos-alvo. Nenhum e-mail será enviado.")
-    #     return
+    if not alunos:
+        print("Aluno ID 176 não encontrado entre os grupos-alvo. Nenhum e-mail será enviado.")
+        return
     #----------------------------------------------------
 
 

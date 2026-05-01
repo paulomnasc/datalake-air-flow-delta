@@ -398,6 +398,39 @@ services:
       - airflow_net
     # Não precisa de 'command' se estiver usando imagem base PHP-Apache
 
+  # Novo Bloco do Serviço FiscalWeb
+  fiscalweb:
+    build:
+      context: ./src/fiscalweb
+      dockerfile: Dockerfile.webapp
+      args:
+        HOST_UID: ${UID:-1000} 
+        HOST_GID: ${GID:-1000}
+        DOCKER_GID: 1001
+    container_name: fiscalweb${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    restart: always
+    depends_on:
+      - mysql
+    volumes:
+      - ./src/fiscalweb:/var/www/html
+      - .:/datalake-root
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "${FISCALWEB_PORT}:80"
+    environment:
+      - CI_ENVIRONMENT=development
+      - FISCALWEB_PORT=${FISCALWEB_PORT}
+      - NGINX_PORT_HTTP=${NGINX_PORT_HTTP}
+      - NGINX_PORT_HTTPS=${NGINX_PORT_HTTPS}
+      - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
+      - ENV_SUFFIX=${ENV_SUFFIX:-}
+      # Database connection override
+      - database.default.database=fiscal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
+    networks:
+      - airflow_net
   atlas:
     image: sburn/apache-atlas:latest
     container_name: apache-atlas${ENV_SUFFIX:+-${ENV_SUFFIX}}

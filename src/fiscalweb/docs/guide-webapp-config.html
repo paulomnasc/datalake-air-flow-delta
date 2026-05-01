@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📋 Guia de Preenchimento da Interface de Configuração de DAGs - Documentação Datalake</title>
+    <style>
+        :root {
+            --sidebar-width: 280px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar h2 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .sidebar nav ul {
+            list-style: none;
+        }
+
+        .sidebar nav ul li {
+            margin-bottom: 8px;
+        }
+
+        .sidebar nav ul li a {
+            color: #ecf0f1;
+            text-decoration: none;
+            display: block;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .sidebar nav ul li a:hover {
+            background: #34495e;
+            color: #3498db;
+        }
+
+        .sidebar nav ul li a.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            flex: 1;
+            background: white;
+            max-width: 1400px;
+            transition: margin-left 0.3s ease;
+        }
+
+        .content.collapsed {
+            margin-left: 0;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 900;
+            display: none;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+            transition: left 0.3s ease;
+        }
+
+        @media (min-width: 1100px) {
+            .sidebar-toggle {
+                left: calc(var(--sidebar-width) + 16px);
+            }
+        }
+
+        .content h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .content h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.8rem;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .content h3 {
+            color: #555;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+        }
+
+        .content h4 {
+            color: #666;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        .content ul {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ul li {
+            margin-bottom: 8px;
+        }
+
+        .content ol {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ol li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #3498db;
+            color: white;
+            border-radius: 3px;
+            font-size: 0.85rem;
+            margin-left: 5px;
+        }
+
+        .badge.star {
+            background: #f39c12;
+        }
+
+        .badge.warning {
+            background: #e74c3c;
+        }
+
+        .badge.success {
+            background: #27ae60;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #c7254e;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        table th {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #2980b9;
+        }
+
+        table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        blockquote {
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #555;
+            font-style: italic;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .alert-info {
+            background: #d9edf7;
+            border-left: 4px solid #31708f;
+            color: #31708f;
+        }
+
+        .alert-warning {
+            background: #fcf8e3;
+            border-left: 4px solid #8a6d3b;
+            color: #8a6d3b;
+        }
+
+        .alert-success {
+            background: #dff0d8;
+            border-left: 4px solid #3c763d;
+            color: #3c763d;
+        }
+
+        .alert-danger {
+            background: #f2dede;
+            border-left: 4px solid #a94442;
+            color: #a94442;
+        }
+
+        .masked-value {
+            font-family: 'Courier New', monospace;
+            user-select: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #f4f4f4;
+            transition: all 0.3s ease;
+        }
+
+        .masked-value:hover {
+            background: #e0e0e0;
+            text-decoration: underline;
+        }
+
+        .masked-value.revealed {
+            background: #ffffcc;
+        }
+    </style>
+    <script>
+        // Mascara valores sensíveis (passwords, tokens, secrets)
+        function maskSensitiveValues() {
+            const sensitivePatterns = [
+                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
+            ];
+
+            const codeBlocks = document.querySelectorAll('code, pre');
+            
+            codeBlocks.forEach(block => {
+                let content = block.innerHTML;
+                
+                sensitivePatterns.forEach(pattern => {
+                    content = content.replace(pattern.regex, (match, value) => {
+                        if (!value) return match;
+                        
+                        const prefix = match.substring(0, match.indexOf(value));
+                        const masked = '*'.repeat(Math.min(value.length, 12));
+                        const tooltip = `Clique para revelar o valor`;
+                        
+                        return `${prefix}<span class="masked-value" title="${tooltip}" data-original="${value}" onclick="toggleMask(event)">${masked}</span>`;
+                    });
+                });
+                
+                block.innerHTML = content;
+            });
+        }
+
+        // Toggle visibilidade de valores mascarados
+        function toggleMask(event) {
+            event.stopPropagation();
+            const span = event.target;
+            
+            if (span.classList.contains('revealed')) {
+                const original = span.getAttribute('data-original');
+                span.textContent = '*'.repeat(Math.min(original.length, 12));
+                span.classList.remove('revealed');
+            } else {
+                const original = span.getAttribute('data-original');
+                span.textContent = original;
+                span.classList.add('revealed');
+            }
+        }
+
+        function setSidebarState(isOpen) {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            sidebar.classList.toggle('collapsed', !isOpen);
+            content.classList.toggle('collapsed', !isOpen);
+
+            const useOverlay = window.innerWidth < 1100;
+            if (overlay) {
+                overlay.classList.toggle('active', isOpen && useOverlay);
+            }
+
+            toggleBtn.textContent = isOpen ? '✕' : '☰';
+            
+            // Ajusta posição do botão em telas maiores
+            if (window.innerWidth >= 1100) {
+                toggleBtn.style.left = isOpen ? 'calc(var(--sidebar-width) + 16px)' : '16px';
+            } else {
+                toggleBtn.style.left = '16px';
+            }
+        }
+
+        function initSidebarToggle() {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            const initialOpen = window.innerWidth >= 1100;
+            setSidebarState(initialOpen);
+
+            toggleBtn.addEventListener('click', function() {
+                const isOpen = !sidebar.classList.contains('collapsed');
+                setSidebarState(!isOpen);
+            });
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    setSidebarState(false);
+                });
+            }
+
+            window.addEventListener('resize', function() {
+                const shouldBeOpen = window.innerWidth >= 1100;
+                setSidebarState(shouldBeOpen);
+            });
+        }
+
+        // Executar quando documento carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            maskSensitiveValues();
+            initSidebarToggle();
+        });
+    </script>
+</head>
+<body>
+    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰</button>
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>📚 Documentação</h2>
+            <nav>
+                <ul>
+                    <li><a href="index.html" >🏠 Home</a></li>
+                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                    <li><a href="guide-webapp-config.html" class="active">🖥️ Guia Interface Web</a></li>
+                    <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
+                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="content">
+<h1 id="guia-de-preenchimento-da-interface-de-configuracao-de-dags">📋 Guia de Preenchimento da Interface de Configuração de DAGs</h1>
+
+<p>Este documento explica como preencher corretamente a interface web para criar configurações de DAGs de ingestão e transformação de dados.</p>
+
+<h2 id="indice">📑 Índice</h2>
+
+<ol>
+<li><a href="#visao-geral">Visão Geral</a></li>
+<li><a href="#interface-do-usuario">Interface do Usuário</a></li>
+<li><a href="#campos-basicos-da-dag">Campos Básicos da DAG</a></li>
+<li><a href="#configuracao-de-origem-de-dados">Configuração de Origem de Dados</a></li>
+<li><a href="#upload-multiplo-de-arquivos">Upload Múltiplo de Arquivos</a></li>
+<li><a href="#modo-multi-tabela-vs-single-tabela">Modo Multi-Tabela vs Single-Tabela</a></li>
+<li><a href="#selecao-de-funcao-de-pipeline">Seleção de Função de Pipeline</a></li>
+<li><a href="#conexao-sql-direct-vs-ssh-tunnel">Conexão SQL (Direct vs SSH Tunnel)</a></li>
+<li><a href="#exemplos-praticos">Exemplos Práticos</a></li>
+</ol>
+
+<p>---</p>
+
+<h2 id="visao-geral">🎯 Visão Geral</h2>
+
+<p>A interface permite configurar DAGs (Directed Acyclic Graphs) do Apache Airflow para:</p>
+<ul>
+<li>Ingestar dados de diferentes fontes (CSV, JSON, Parquet, MySQL, PostgreSQL)</li>
+<li>Processar uma ou múltiplas tabelas simultaneamente</li>
+<li>Fazer upload múltiplo de arquivos em lote</li>
+<li>Aplicar transformações através da arquitetura Medallion (RAW → Bronze → Silver → Gold)</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="interface-do-usuario">🖥️ Interface do Usuário</h2>
+
+<h3 id="mensagens-de-feedback">Mensagens de Feedback</h3>
+
+<p>As mensagens de sucesso e erro aparecem <strong>centralizadas no topo da tela</strong>, com as seguintes características:</p>
+
+<h4 id="mensagem-de-sucesso"><span class="badge success">✅</span> Mensagem de Sucesso</h4>
+<ul>
+<li><strong>Cor</strong>: Verde (alert-success)</li>
+<li><strong>Posição</strong>: Centralizada, 20px do topo</li>
+<li><strong>Estilo</strong>: Fundo verde com sombra</li>
+<li><strong>Exemplo</strong>: "<span class="badge success">✅</span> DAG criada com sucesso! 3 arquivo(s) serão processados em modo paralelo"</li>
+</ul>
+
+<h4 id="mensagem-de-erroaviso"><span class="badge warning">⚠️</span> Mensagem de Erro/Aviso</h4>
+<ul>
+<li><strong>Cor</strong>: Amarelo (alert-warning)</li>
+<li><strong>Posição</strong>: Centralizada, 20px do topo</li>
+<li><strong>Estilo</strong>: Fundo amarelo com sombra</li>
+<li><strong>Exemplo</strong>: "<span class="badge warning">❌</span> Erro: Preencha todos os campos obrigatórios"</li>
+</ul>
+
+<strong>Observação</strong>: As mensagens ficam fixas no topo mesmo ao rolar a página, garantindo visibilidade total.
+
+<h3 id="campos-dinamicos">Campos Dinâmicos</h3>
+
+<p>A interface adapta os campos visíveis baseado na seleção do usuário:</p>
+
+<h4 id="para-fontes-de-arquivo-csvjsonparquet">Para Fontes de Arquivo (CSV/JSON/Parquet)</h4>
+<ul>
+<li><span class="badge success">✅</span> Upload de arquivo único <strong>OU</strong> Upload múltiplo</li>
+<li><span class="badge success">✅</span> Checkbox "Modo Multi-Upload" </li>
+<li><span class="badge warning">❌</span> Checkbox "Multi-Tabela" (oculto)</li>
+<li><span class="badge warning">❌</span> Campos de conexão SQL (ocultos)</li>
+</ul>
+
+<h4 id="para-fontes-sql-mysqlpostgresql">Para Fontes SQL (MySQL/PostgreSQL)</h4>
+<ul>
+<li><span class="badge success">✅</span> Checkbox "Multi-Tabela"</li>
+<li><span class="badge success">✅</span> Campos de conexão SQL (abas Direct/SSH)</li>
+<li><span class="badge success">✅</span> Botão "🔌 Conectar e Listar Tabelas" (sempre visível)</li>
+<li><span class="badge warning">❌</span> Upload de arquivo (oculto)</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="campos-basicos-da-dag">📝 Campos Básicos da DAG</h2>
+
+<h3 id="nome-da-dag">Nome da DAG</h3>
+<ul>
+<li><strong>Campo</strong>: <code>DAG ID</code></li>
+<li><strong>Formato</strong>: Apenas letras minúsculas, números e underscores (<code>_</code>)</li>
+<li><strong>Exemplos válidos</strong>: <code>pipe_customers</code>, <code>dag_northwind_customers</code>, <code>ingest_vendas_2024</code></li>
+<li><strong>Exemplos inválidos</strong>: <span class="badge warning">❌</span> <code>Pipe-Customers</code>, <span class="badge warning">❌</span> <code>DAG Customers</code>, <span class="badge warning">❌</span> <code>pipe.customers</code></li>
+</ul>
+
+<h3 id="descricao">Descrição</h3>
+<ul>
+<li><strong>Campo</strong>: <code>Descrição</code></li>
+<li><strong>Propósito</strong>: Explicar o objetivo da DAG</li>
+<li><strong>Exemplo</strong>: "Ingestão diária da tabela de clientes do banco Northwind"</li>
+</ul>
+
+<h3 id="tipo-de-origem">Tipo de Origem</h3>
+<ul>
+<li><strong>Campo</strong>: <code>Tipo de Origem</code></li>
+<li><strong>Opções</strong>:</li>
+<li>📄 <strong>CSV Genérico</strong> - Arquivos CSV separados por vírgula</li>
+<li>📊 <strong>Parquet</strong> - Arquivos Parquet (formato colunar)</li>
+<li>🗄️ <strong>MySQL Northwind</strong> - Banco de dados MySQL</li>
+<li>🐘 <strong>PostgreSQL</strong> - Banco de dados PostgreSQL</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="configuracao-de-origem-de-dados">🔌 Configuração de Origem de Dados</h2>
+
+<h3 id="para-csvjson">Para CSV/JSON</h3>
+<ol>
+<li>Selecione <strong>CSV Genérico</strong> ou <strong>JSON</strong></li>
+<li>Aparecerá o campo <strong>Upload de Arquivo</strong></li>
+<li><strong>Opção 1: Upload Único</strong></li>
+<ul>
+<li>Clique em "Escolher arquivo" e selecione o arquivo local</li>
+<li>O arquivo será armazenado em MinIO/RAW</li>
+<li><strong>Opção 2: Upload Múltiplo</strong> (veja seção dedicada abaixo)</li>
+<li>Marque o checkbox ☑️ <strong>Modo Multi-Upload</strong></li>
+<li>Arraste múltiplos arquivos ou selecione vários de uma vez</li>
+<li>Todos os arquivos serão processados por uma única DAG</li>
+</ul>
+</ol>
+
+<h3 id="para-parquet">Para Parquet</h3>
+<ol>
+<li>Selecione <strong>Parquet</strong></li>
+<li>Aparecerá o campo <strong>Caminho no MinIO (RAW)</strong></li>
+<li>Digite o caminho: <code>raw/seu_arquivo.parquet</code> ou <code>raw/pasta/arquivo.parquet</code></li>
+</ol>
+
+<h3 id="para-mysqlpostgresql">Para MySQL/PostgreSQL</h3>
+<ol>
+<li>Selecione <strong>MySQL Northwind</strong> ou <strong>PostgreSQL</strong></li>
+<li>Aparecerão os <strong>campos de conexão SQL</strong> (veja seção específica abaixo)</li>
+<li>Você pode configurar conexão <strong>Direta</strong> ou via <strong>SSH Tunnel</strong></li>
+</ol>
+
+<p>---</p>
+
+<h2 id="upload-multiplo-de-arquivos">📤 Upload Múltiplo de Arquivos</h2>
+
+<h3 id="quando-usar">🎯 Quando Usar</h3>
+
+<p>Use o <strong>Modo Multi-Upload</strong> quando você precisa:</p>
+<ul>
+<li>Processar múltiplos arquivos JSON/CSV de uma mesma fonte</li>
+<li>Fazer upload em lote de arquivos relacionados</li>
+<li>Criar uma única DAG que processa vários arquivos em paralelo ou sequencial</li>
+</ul>
+
+<h3 id="como-ativar">🔧 Como Ativar</h3>
+
+<ol>
+<li>Selecione fonte de dados <strong>CSV Genérico</strong> ou <strong>JSON</strong></li>
+<li>Marque o checkbox ☑️ <strong>Modo Multi-Upload de Arquivos (Batch Processing)</strong></li>
+<li>A interface mudará para o modo de upload múltiplo</li>
+</ol>
+
+<h3 id="interface-de-upload-multiplo">📋 Interface de Upload Múltiplo</h3>
+
+<h4 id="area-de-drag-drop">Área de Drag & Drop</h4>
+<pre><code>┌─────────────────────────────────────────┐
+<p>│   📤 Arraste arquivos aqui              │</p>
+<p>│      ou clique para selecionar          │</p>
+<p>│                                         │</p>
+<p>│   Aceita: .csv, .json                   │</p>
+<p>└─────────────────────────────────────────┘</code></pre></p>
+
+<h4 id="opcoes-de-processamento">Opções de Processamento</h4>
+
+<strong>1. Modo de Processamento em Lote</strong>
+<ul>
+<li>🔄 <strong>Paralelo</strong> (Padrão)</li>
+<li>Processa múltiplos arquivos simultaneamente</li>
+<li>Mais rápido para grandes volumes</li>
+<li>Recomendado quando os arquivos são independentes</li>
+</ul>
+  
+<ul>
+<li>📝 <strong>Sequencial</strong></li>
+<li>Processa um arquivo por vez</li>
+<li>Recomendado quando há dependências ou limitações de recursos</li>
+</ul>
+
+<strong>2. Máximo de Arquivos Paralelos</strong>
+<ul>
+<li>Valor entre 1 e 16 (padrão: 4)</li>
+<li>Controla quantos arquivos são processados ao mesmo tempo</li>
+<li>Ajuste baseado nos recursos disponíveis</li>
+</ul>
+
+<strong>3. Selecionar Pasta Completa</strong>
+<ul>
+<li>☑️ Marque para fazer upload de uma pasta inteira</li>
+<li>Todos os arquivos da pasta serão enviados</li>
+<li>Útil para conjuntos de dados relacionados</li>
+</ul>
+
+<h3 id="estrutura-no-minio">📁 Estrutura no MinIO</h3>
+
+<p>Os arquivos são salvos com seus <strong>nomes originais</strong> (sem timestamp) no MinIO:</p>
+
+<pre><code>MinIO Bucket: data-lake-raw
+<p>├── raw/</p>
+<p>│   └── pipe-albuns/          ← DAG ID como pasta</p>
+<p>│       ├── Track.json        ← Nome original do arquivo</p>
+<p>│       ├── Album.json        ← Nome original do arquivo</p>
+<p>│       └── Artist.json       ← Nome original do arquivo</code></pre></p>
+
+<h3 id="configuracao-no-banco-de-dados">🗄️ Configuração no Banco de Dados</h3>
+
+<p>Uma <strong>única configuração</strong> é criada para processar todos os arquivos:</p>
+
+<pre><code>dag_id: pipe-albuns
+<p>source_filename: raw/pipe-albuns/  ← Apenas o caminho da pasta</p>
+<p>description: Batch processing - pasta com 3 arquivo(s)</p>
+<p>max_parallel_tasks: 4</p>
+<p>is_active: 1</p>
+
+<p>-- Campos SQL/SSH são NULL para fontes de arquivo</p>
+<p>sql_connection_id: NULL</p>
+<p>sql_host: NULL</p>
+<p>sql_port: NULL</p>
+<p>ssh_host: NULL</code></pre></p>
+
+<h3 id="como-o-airflow-processa">⚙️ Como o Airflow Processa</h3>
+
+<ol>
+<li><strong>Detecção de Pasta</strong>: O Airflow verifica se <code>source_filename</code> termina com <code>/</code></li>
+<li><strong>Listagem Dinâmica</strong>: Lista todos os arquivos em <code>raw/pipe-albuns/</code> no MinIO</li>
+<li><strong>Criação de Tasks</strong>: Cria uma task para cada arquivo encontrado</li>
+<li><strong>Execução</strong>: Processa em paralelo ou sequencial conforme configurado</li>
+</ol>
+
+<h3 id="exemplo-completo-de-upload-multiplo">💡 Exemplo Completo de Upload Múltiplo</h3>
+
+<pre><code>=== Configuração ===
+<p>Tipo de Origem: JSON</p>
+<p>DAG ID: pipe-albuns</p>
+<p>Descrição: Ingestão de dados musicais</p>
+<p>Modo Multi-Upload: <span class="badge success">✅</span> Marcado</p>
+
+<p>=== Upload ===</p>
+<p>Arquivos Selecionados:</p>
+<p>  📄 Track.json (45 KB)</p>
+<p>  📄 Album.json (12 KB)</p>
+<p>  📄 Artist.json (8 KB)</p>
+
+<p>Modo de Processamento: 🔄 Paralelo</p>
+<p>Máximo Paralelo: 4</p>
+
+<p>=== Resultado ===</p>
+<p><span class="badge success">✅</span> 3 arquivos salvos em: raw/pipe-albuns/</p>
+<p><span class="badge success">✅</span> DAG criada: pipe-albuns</p>
+<p><span class="badge success">✅</span> 3 tasks serão executadas em paralelo</p>
+
+<p>=== MinIO ===</p>
+<p>raw/pipe-albuns/Track.json   ← Arquivo 1</p>
+<p>raw/pipe-albuns/Album.json   ← Arquivo 2</p>
+<p>raw/pipe-albuns/Artist.json  ← Arquivo 3</p>
+
+<p>=== Airflow ===</p>
+<p>DAG: pipe-albuns</p>
+<p>├── Task 1: process_Track.json</p>
+<p>├── Task 2: process_Album.json</p>
+<p>└── Task 3: process_Artist.json</code></pre></p>
+
+<h3 id="validacoes-e-restricoes"><span class="badge warning">⚠️</span> Validações e Restrições</h3>
+
+<h4 id="validacoes-automaticas"><span class="badge success">✅</span> Validações Automáticas</h4>
+<ul>
+<li>Apenas arquivos <code>.csv</code> e <code>.json</code> são aceitos</li>
+<li>Nome do arquivo é validado (extensão real, não MIME type)</li>
+<li>Todos os arquivos devem passar na validação</li>
+</ul>
+
+<h4 id="campos-incompativeis"><span class="badge warning">❌</span> Campos Incompatíveis</h4>
+<p>Quando <strong>Multi-Upload</strong> está ativado:</p>
+<ul>
+<li><span class="badge warning">❌</span> Campos SQL são definidos como <code>NULL</code></li>
+<li><span class="badge warning">❌</span> Campos SSH são definidos como <code>NULL</code></li>
+<li><span class="badge warning">❌</span> <code>is_multi_table</code> é sempre <code>0</code></li>
+<li><span class="badge success">✅</span> <code>max_parallel_tasks</code> contém o valor configurado</li>
+</ul>
+
+<h3 id="atualizacao-de-dag-multi-upload">🔄 Atualização de DAG Multi-Upload</h3>
+
+<p>Ao editar uma DAG com multi-upload:</p>
+<ol>
+<li>O sistema <strong>deleta</strong> a configuração antiga</li>
+<li>Faz <strong>novo upload</strong> dos arquivos selecionados</li>
+<li>Cria <strong>nova configuração</strong> com o mesmo <code>dag_id</code></li>
+</ol>
+
+<p><span class="badge warning">⚠️</span> <strong>Atenção</strong>: Os arquivos antigos no MinIO são substituídos se tiverem o mesmo nome.</p>
+
+<p>---</p>
+
+<h2 id="modo-multi-tabela-vs-single-tabela">🔀 Modo Multi-Tabela vs Single-Tabela</h2>
+
+<h3 id="single-tabela-padrao">📊 Single-Tabela (Padrão)</h3>
+<ul>
+<li><strong>Quando usar</strong>: Processar apenas 1 tabela por DAG</li>
+<li><strong>Campos visíveis</strong>:</li>
+<li><span class="badge success">✅</span> <strong>Tabela/Destino Final</strong>: Nome da tabela no destino (ex: <code>customers</code>)</li>
+<li><strong>Exemplo de uso</strong>:</li>
+<li>DAG <code>pipe_customers</code> → Processa apenas tabela <code>customers</code></li>
+<li>DAG <code>pipe_orders</code> → Processa apenas tabela <code>orders</code></li>
+</ul>
+
+<h3 id="multi-tabela-avancado">📚 Multi-Tabela (Avançado)</h3>
+<ul>
+<li><strong>Quando usar</strong>: Processar múltiplas tabelas de uma mesma fonte SQL em paralelo</li>
+<li><strong>Como ativar</strong>: Marque o checkbox ☑️ <strong>Modo Multi-Tabela</strong></li>
+<li><strong>Campos que aparecem</strong>:</li>
+<li><span class="badge success">✅</span> <strong>Máximo de Tasks Paralelas</strong>: Número de tabelas processadas simultaneamente (padrão: 16)</li>
+<li><span class="badge success">✅</span> <strong>Botão "Conectar"</strong>: Testa conexão e lista tabelas disponíveis</li>
+<li><span class="badge success">✅</span> <strong>Checkboxes de seleção</strong>: Lista de tabelas com metadados (linhas, tamanho)</li>
+<li><strong>Campos que desaparecem</strong>:</li>
+<li><span class="badge warning">❌</span> <strong>Tabela/Destino Final</strong>: Não faz sentido, cada tabela mantém seu nome original</li>
+</ul>
+
+<h4 id="exemplo-de-uso-multi-tabela">Exemplo de Uso Multi-Tabela</h4>
+<pre><code>Fonte: MySQL Northwind
+<p>Banco: northwind</p>
+<p>Tabelas selecionadas:</p>
+<p>  ☑️ customers (91 linhas, 0.2 MB)</p>
+<p>  ☑️ orders (830 linhas, 0.5 MB)</p>
+<p>  ☑️ products (77 linhas, 0.1 MB)</p>
+
+<p>Resultado: 3 tasks paralelas, cada uma processando uma tabela</code></pre></p>
+
+<p>---</p>
+
+<h2 id="selecao-de-funcao-de-pipeline">🔧 Seleção de Função de Pipeline</h2>
+
+<h3 id="funcoes-disponiveis">⚙️ Funções Disponíveis</h3>
+
+<h4 id="recomendado-para-csvparquet"><span class="badge star">⭐</span> Recomendado para CSV/Parquet</h4>
+<ul>
+<li><strong>RAW → Medallion (Bronze/Silver/Gold)</strong></li>
+<li><strong>ID</strong>: <code>lib.medallion_pipeline.raw_to_medallion</code></li>
+<li><strong>Quando usar</strong>: Dados já estão na camada RAW (upload manual ou pré-ingestão)</li>
+<li><strong>Processo</strong>: RAW → Bronze → Silver → Gold</li>
+<li><span class="badge warning">⚠️</span> <strong>ATENÇÃO</strong>: NÃO use para fontes SQL! Vai dar erro 404 (arquivo não encontrado)</li>
+</ul>
+
+<h4 id="ingestao-de-fontes-sql">🔥 Ingestão de Fontes SQL</h4>
+<ul>
+<li><strong>MySQL → Medallion (Ingestão Completa)</strong> <span class="badge success">✅</span></li>
+<li><strong>ID</strong>: <code>lib.mysql_ingestion.mysql_to_medallion</code></li>
+<li><strong>Quando usar</strong>: Ingestar dados de MySQL/PostgreSQL + pipeline completo</li>
+<li><strong>Processo</strong>: MySQL → RAW → Bronze → Silver → Gold</li>
+<li><span class="badge success">✅</span> <strong>OBRIGATÓRIO para Multi-Tabela SQL</strong></li>
+</ul>
+
+<ul>
+<li><strong>MySQL → RAW (Apenas Ingestão)</strong></li>
+<li><strong>ID</strong>: <code>lib.mysql_ingestion.ingest_mysql_to_raw</code></li>
+<li><strong>Quando usar</strong>: Apenas copiar dados de SQL para RAW (sem transformações)</li>
+<li><strong>Processo</strong>: MySQL → RAW (para)</li>
+</ul>
+
+<h4 id="camadas-individuais">🎨 Camadas Individuais</h4>
+<ul>
+<li><strong>Apenas Bronze</strong>: <code>lib.medallion_pipeline.apply_bronze_layer</code></li>
+<li><strong>Apenas Silver</strong>: <code>lib.medallion_pipeline.apply_silver_layer</code></li>
+<li><strong>Apenas Gold</strong>: <code>lib.medallion_pipeline.apply_gold_layer</code></li>
+</ul>
+
+<h3 id="validacao-automatica">🚨 Validação Automática</h3>
+
+<p>A interface valida automaticamente a compatibilidade entre <strong>Tipo de Origem</strong> e <strong>Função de Pipeline</strong>:</p>
+
+<h4 id="configuracoes-validas"><span class="badge success">✅</span> Configurações Válidas</h4>
+<pre><code>Fonte: MySQL + Função: mysql_to_medallion
+<p>→ <span class="badge success">✅</span> Configuração válida: Função compatível com fonte SQL</p>
+
+<p>Fonte: CSV + Função: raw_to_medallion  </p>
+<p>→ <span class="badge success">✅</span> Configuração válida: Função compatível com arquivos CSV/Parquet</code></pre></p>
+
+<h4 id="configuracoes-com-aviso"><span class="badge warning">⚠️</span> Configurações com Aviso</h4>
+<pre><code>Fonte: MySQL + Função: raw_to_medallion
+<p>→ <span class="badge warning">⚠️</span> ATENÇÃO: Esta função espera que dados JÁ EXISTAM na camada RAW. </p>
+<p>  Para fontes SQL, use "MySQL → Medallion" que faz a ingestão primeiro!</code></pre></p>
+
+<h4 id="configuracoes-com-erro-auto-corrigido"><span class="badge warning">❌</span> Configurações com Erro (Auto-corrigido)</h4>
+<pre><code>Fonte: MySQL + Multi-Tabela + Função: raw_to_medallion
+<p>→ <span class="badge warning">❌</span> ERRO: Para processar múltiplas tabelas SQL, você DEVE usar </p>
+<p>  "MySQL → Medallion" (faz ingestão + pipeline completo)</p>
+  
+<p>→ Sistema auto-corrige para: mysql_to_medallion</code></pre></p>
+
+<p>---</p>
+
+<h2 id="conexao-sql-direct-vs-ssh-tunnel">🔐 Conexão SQL (Direct vs SSH Tunnel)</h2>
+
+<h3 id="aba-conexao-direta">🔌 Aba "Conexão Direta"</h3>
+
+<p>Use quando o banco de dados é <strong>acessível diretamente</strong> pela rede do Airflow.</p>
+
+<h4 id="campos">Campos:</h4>
+<ol>
+<li><strong>ID da Conexão Airflow</strong> (ex: <code>mysql_northwind</code>)</li>
+<ul>
+<li>Nome único para identificar esta conexão</li>
+<li>Será usado no código das DAGs</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Host</strong> (ex: <code>mysql</code>, <code>192.168.1.10</code>, <code>db.empresa.com</code>)</li>
+<ul>
+<li>Endereço do servidor de banco de dados</li>
+<li><strong>💡 Dica Importante</strong>:</li>
+<li>Use <code>localhost</code> para o MySQL local do Docker (será traduzido automaticamente para <code>mysql</code>)</li>
+<li>Use IP ou hostname para bancos <strong>externos</strong> (ex: <code>203.0.113.45</code>, <code>rds.amazonaws.com</code>)</li>
+<li>Qualquer valor diferente de <code>localhost</code>/<code>127.0.0.1</code> será usado <strong>exatamente como digitado</strong></li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Porta</strong> (ex: <code>3306</code> para MySQL, <code>5432</code> para PostgreSQL)</li>
+<ul>
+<li>Porta de conexão do banco de dados</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Nome do Banco</strong> (ex: <code>northwind</code>, <code>production_db</code>)</li>
+<ul>
+<li>Database/schema a conectar</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Usuário</strong> (ex: <code>root</code>, <code>airflow_user</code>)</li>
+<ul>
+<li>Usuário do banco de dados</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Senha</strong> (ex: <code>root123</code>)</li>
+<ul>
+<li>Senha do usuário (armazenada de forma segura)</li>
+</ul>
+</ol>
+
+<h4 id="exemplo-de-conexao-direta">Exemplo de Conexão Direta:</h4>
+<pre><code>ID da Conexão: mysql_northwind
+<p>Host: localhost          ← Será automaticamente traduzido para "mysql" (container Docker)</p>
+<p>Porta: 3306</p>
+<p>Banco: northwind</p>
+<p>Usuário: root</p>
+<p>Senha: root</code></pre></p>
+
+<h4 id="exemplo-de-conexao-externa">Exemplo de Conexão Externa:</h4>
+<pre><code>ID da Conexão: mysql_aws_rds
+<p>Host: mydb.abc123.us-east-1.rds.amazonaws.com  ← Usado exatamente como digitado</p>
+<p>Porta: 3306</p>
+<p>Banco: production</p>
+<p>Usuário: etl_user</p>
+<p>Senha: <strong></strong><strong></strong></code></pre></p>
+
+<h3 id="botao-conectar-e-listar-tabelas">🔘 Botão "Conectar e Listar Tabelas"</h3>
+
+<p>O botão <strong>🔌 Conectar e Listar Tabelas</strong> aparece automaticamente quando:</p>
+<ul>
+<li><span class="badge success">✅</span> Você seleciona uma fonte SQL (MySQL, PostgreSQL, etc.)</li>
+<li><span class="badge success">✅</span> Está disponível tanto em modo <strong>Single-Tabela</strong> quanto <strong>Multi-Tabela</strong></li>
+</ul>
+
+<h4 id="funcionalidades">Funcionalidades:</h4>
+<ol>
+<li><strong>Testa a Conexão</strong>: Valida as credenciais antes de salvar</li>
+<li><strong>Lista Tabelas</strong>: Mostra todas as tabelas disponíveis no banco</li>
+<li><strong>Metadados</strong>: Exibe número de linhas e tamanho de cada tabela</li>
+<li><strong>Seleção Múltipla</strong>: Permite selecionar várias tabelas (modo multi-tabela)</li>
+</ol>
+
+<h4 id="mensagens-de-feedback">Mensagens de Feedback:</h4>
+<pre><code><span class="badge success">✅</span> Sucesso: "<span class="badge success">✅</span> 12 tabelas encontradas"
+<p><span class="badge warning">❌</span> Erro: "<span class="badge warning">❌</span> Falha ao conectar ao MySQL: Access denied for user 'root'@'mysql'"</p>
+<p><span class="badge warning">⚠️</span> Aviso: "<span class="badge warning">⚠️</span> Nenhuma tabela encontrada"</code></pre></p>
+
+<h3 id="aba-ssh-tunnel">🔒 Aba "SSH Tunnel"</h3>
+
+<p>Use quando o banco de dados está em uma <strong>rede privada</strong> acessível apenas via SSH.</p>
+
+<h4 id="configuracao-ssh-servidor-bastion">Configuração SSH (Servidor Bastion):</h4>
+<ol>
+<li><strong>SSH Host</strong> (ex: <code>bastion.empresa.com</code>, <code>10.0.0.50</code>)</li>
+<ul>
+<li>Servidor SSH intermediário (jump server)</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>SSH User</strong> (ex: <code>ubuntu</code>, <code>admin</code>)</li>
+<ul>
+<li>Usuário SSH</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>SSH Port</strong> (ex: <code>22</code>)</li>
+<ul>
+<li>Porta SSH</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Local Bind Port</strong> (ex: <code>13306</code>)</li>
+<ul>
+<li>Porta local para o túnel (não conflitar com outras)</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>SSH Key Path</strong> (ex: <code>/path/to/key.pem</code>)</li>
+<ul>
+<li>Caminho para chave privada SSH</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>SSH Password</strong> (opcional)</li>
+<ul>
+<li>Senha SSH (se não usar chave)</li>
+</ul>
+</ol>
+
+<h4 id="configuracao-do-banco-de-dados-apos-o-tunel">Configuração do Banco de Dados (após o túnel):</h4>
+<ol>
+<li><strong>DB Host (Remoto)</strong> (ex: <code>localhost</code>, <code>10.0.1.100</code>)</li>
+<ul>
+<li>Host do banco <strong>dentro da rede privada</strong></li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>DB Port (Remoto)</strong> (ex: <code>3306</code>)</li>
+<ul>
+<li>Porta do banco na rede privada</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Nome do Banco</strong> (ex: <code>northwind</code>)</li>
+<li><strong>Usuário DB</strong> (ex: <code>root</code>)</li>
+<li><strong>Senha DB</strong> (ex: <code>secret123</code>)</li>
+</ol>
+
+<h4 id="exemplo-de-ssh-tunnel">Exemplo de SSH Tunnel:</h4>
+<pre><code>=== SSH Tunnel ===
+<p>SSH Host: bastion.aws.com</p>
+<p>SSH User: ubuntu</p>
+<p>SSH Port: 22</p>
+<p>Local Port: 13306</p>
+<p>SSH Key: /home/airflow/.ssh/aws_key.pem</p>
+
+<p>=== Database (via tunnel) ===</p>
+<p>Host Remoto: localhost (ou IP privado 10.0.1.50)</p>
+<p>Porta Remota: 3306</p>
+<p>Banco: northwind</p>
+<p>Usuário: root</p>
+<p>Senha: secret</code></pre></p>
+
+<strong>Como funciona:</strong>
+<pre><code>Airflow → SSH Tunnel (porta 13306) → Bastion (bastion.aws.com:22) 
+<p>       → Rede Privada → MySQL (10.0.1.50:3306)</code></pre></p>
+
+<p>---</p>
+
+<h2 id="exemplos-praticos">💡 Exemplos Práticos</h2>
+
+<h3 id="exemplo-1-ingestao-single-tabela-csv">Exemplo 1: Ingestão Single-Tabela CSV</h3>
+<pre><code>Tipo de Origem: CSV Genérico
+<p>Upload de Arquivo: customers.csv</p>
+<p>Tabela/Destino: customers</p>
+<p>Função Pipeline: lib.medallion_pipeline.raw_to_medallion</p>
+<p>Modo Multi-Tabela: <span class="badge warning">❌</span> Desmarcado</code></pre></p>
+
+<h3 id="exemplo-2-ingestao-single-tabela-mysql">Exemplo 2: Ingestão Single-Tabela MySQL</h3>
+<pre><code>Tipo de Origem: MySQL Northwind
+<p>Modo Multi-Tabela: <span class="badge warning">❌</span> Desmarcado</p>
+<p>Tabela/Destino: customers</p>
+
+<p>=== Conexão Direta ===</p>
+<p>ID Conexão: mysql_northwind</p>
+<p>Host: mysql</p>
+<p>Porta: 3306</p>
+<p>Banco: northwind</p>
+<p>Usuário: root</p>
+<p>Senha: root</p>
+
+<p>Função Pipeline: lib.mysql_ingestion.mysql_to_medallion</code></pre></p>
+
+<h3 id="exemplo-3-ingestao-multi-tabela-mysql">Exemplo 3: Ingestão Multi-Tabela MySQL</h3>
+<pre><code>Tipo de Origem: MySQL Northwind
+<p>Modo Multi-Tabela: <span class="badge success">✅</span> Marcado</p>
+<p>Máximo Tasks Paralelas: 16</p>
+
+<p>=== Conexão Direta ===</p>
+<p>ID Conexão: mysql_northwind</p>
+<p>Host: mysql</p>
+<p>Porta: 3306</p>
+<p>Banco: northwind</p>
+<p>Usuário: root</p>
+<p>Senha: root</p>
+
+<p>[Clicar em "Conectar"] → Lista tabelas disponíveis</p>
+
+<p>Tabelas Selecionadas:</p>
+<p>  ☑️ customers (91 linhas)</p>
+<p>  ☑️ orders (830 linhas)</p>
+<p>  ☑️ products (77 linhas)</p>
+
+<p>Função Pipeline: lib.mysql_ingestion.mysql_to_medallion (auto-selecionado)</code></pre></p>
+
+<h3 id="exemplo-4-upload-multiplo-de-arquivos-json">Exemplo 4: Upload Múltiplo de Arquivos JSON</h3>
+<pre><code>Tipo de Origem: JSON
+<p>DAG ID: pipe-albuns</p>
+<p>Modo Multi-Upload: <span class="badge success">✅</span> Marcado</p>
+
+<p>=== Upload ===</p>
+<p>Arquivos:</p>
+<ul>
+<li>Track.json</li>
+<li>Album.json</li>
+<li>Artist.json</li>
+</ul>
+
+<p>Modo de Processamento: 🔄 Paralelo</p>
+<p>Máximo Paralelo: 4</p>
+
+<p>=== Resultado ===</p>
+<p>MinIO: raw/pipe-albuns/Track.json</p>
+<p>       raw/pipe-albuns/Album.json</p>
+<p>       raw/pipe-albuns/Artist.json</p>
+
+<p>Banco: source_filename = "raw/pipe-albuns/"</p>
+<p>       max_parallel_tasks = 4</p>
+<p>       sql_* = NULL (todos os campos SQL)</p>
+<p>       ssh_* = NULL (todos os campos SSH)</p>
+
+<p>Airflow: 3 tasks paralelas processando cada arquivo</code></pre></p>
+
+<h3 id="exemplo-5-ssh-tunnel-para-mysql-aws">Exemplo 5: SSH Tunnel para MySQL AWS</h3>
+<pre><code>Tipo de Origem: MySQL Northwind
+<p>Modo Multi-Tabela: <span class="badge warning">❌</span> Desmarcado</p>
+<p>Tabela/Destino: sales</p>
+
+<p>=== SSH Tunnel ===</p>
+<p>SSH Host: bastion.empresa.com</p>
+<p>SSH User: ec2-user</p>
+<p>SSH Port: 22</p>
+<p>Local Port: 13306</p>
+<p>SSH Key: /home/airflow/.ssh/aws_production.pem</p>
+<p>SSH Password: (deixar vazio)</p>
+
+<p>DB Host Remoto: rds-mysql-prod.internal</p>
+<p>DB Port Remoto: 3306</p>
+<p>DB Name: production</p>
+<p>DB User: etl_user</p>
+<p>DB Password: <strong></strong><strong></strong></p>
+
+<p>Função Pipeline: lib.mysql_ingestion.mysql_to_medallion</code></pre></p>
+
+<p>---</p>
+
+<h2 id="boas-praticas">🎓 Boas Práticas</h2>
+
+<h3 id="dos-faca"><span class="badge success">✅</span> DO's (Faça)</h3>
+<ul>
+<li><span class="badge success">✅</span> Use nomes descritivos para DAG ID (<code>pipe_customers_daily</code>)</li>
+<li><span class="badge success">✅</span> Digite <code>localhost</code> no campo Host para conexões MySQL locais do Docker</li>
+<li><span class="badge success">✅</span> Use IP/hostname real para bancos de dados externos</li>
+<li><span class="badge success">✅</span> Teste a conexão SQL antes de salvar (botão "🔌 Conectar")</li>
+<li><span class="badge success">✅</span> Para SQL, sempre use funções de ingestão (<code>mysql_to_medallion</code>)</li>
+<li><span class="badge success">✅</span> Configure max_parallel_tasks de acordo com recursos disponíveis</li>
+<li><span class="badge success">✅</span> Use Upload Múltiplo para processar lotes de arquivos relacionados</li>
+<li><span class="badge success">✅</span> Use SSH Tunnel para bancos em redes privadas/produção</li>
+<li><span class="badge success">✅</span> Documente a finalidade na descrição da DAG</li>
+</ul>
+
+<h3 id="donts-nao-faca"><span class="badge warning">❌</span> DON'Ts (Não faça)</h3>
+<ul>
+<li><span class="badge warning">❌</span> Não use espaços ou caracteres especiais no DAG ID</li>
+<li><span class="badge warning">❌</span> Não use <code>raw_to_medallion</code> para fontes SQL (causará erro 404)</li>
+<li><span class="badge warning">❌</span> Não selecione muitas tabelas sem ajustar <code>max_parallel_tasks</code></li>
+<li><span class="badge warning">❌</span> Não misture campos SQL com fontes de arquivo (sistema limpa automaticamente)</li>
+<li><span class="badge warning">❌</span> Não compartilhe senhas em texto plano (use secrets managers)</li>
+<li><span class="badge warning">❌</span> Não crie múltiplas DAGs single-table quando pode usar multi-tabela ou multi-upload</li>
+<li><span class="badge warning">❌</span> Não esqueça de validar credenciais de SSH/Database antes de salvar</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="troubleshooting">🔍 Troubleshooting</h2>
+
+<h3 id="mensagens-nao-aparecem-ou-estao-mal-posicionadas">Mensagens não aparecem ou estão mal posicionadas</h3>
+<strong>Causa</strong>: CSS pode estar sendo sobrescrito  
+<strong>Solução</strong>: Mensagens estão com <code>position:fixed</code> e <code>z-index:9999</code>, sempre centralizadas no topo
+
+<h3 id="erro-no-such-file-or-directory-ao-conectar-mysql">Erro "No such file or directory" ao conectar MySQL</h3>
+<strong>Causa</strong>: Tentando conectar via <code>localhost</code> dentro do container Docker  
+<strong>Solução</strong>: 
+<ul>
+<li><span class="badge success">✅</span> Digite <code>localhost</code> no campo Host (sistema traduz automaticamente para <code>mysql</code>)</li>
+<li><span class="badge success">✅</span> Para bancos externos, use o IP/hostname real</li>
+</ul>
+
+<h3 id="botao-conectar-nao-aparece">Botão "Conectar" não aparece</h3>
+<strong>Verificar</strong>:
+<ol>
+<li>Tipo de fonte selecionado é SQL? (MySQL, PostgreSQL)</li>
+<li>O botão aparece tanto em single-tabela quanto multi-tabela</li>
+<li>Recarregue a página se mudou de fonte não-SQL para SQL</li>
+</ol>
+
+<h3 id="erro-404-not-found-em-dag-sql">Erro 404 "Not Found" em DAG SQL</h3>
+<strong>Causa</strong>: Selecionou <code>raw_to_medallion</code> para fonte SQL  
+<strong>Solução</strong>: Mudar para <code>mysql_to_medallion</code>
+
+<h3 id="upload-multiplo-salva-campos-sql-incorretamente">Upload múltiplo salva campos SQL incorretamente</h3>
+<strong>Causa</strong>: Bug corrigido - campos SQL não estavam sendo limpos  
+<strong>Solução</strong>: Sistema agora define automaticamente todos os campos SQL/SSH como <code>NULL</code> para fontes de arquivo
+
+<h3 id="conexao-sql-falha">Conexão SQL falha</h3>
+<strong>Verificar</strong>:
+<ol>
+<li>Host/Porta corretos (use <code>localhost</code> para MySQL do Docker)</li>
+<li>Credenciais válidas</li>
+<li>Firewall permite conexão</li>
+<li>Para SSH: chave privada tem permissões 600 (<code>chmod 600 key.pem</code>)</li>
+</ol>
+
+<h3 id="tabelas-nao-aparecem-ao-clicar-conectar">Tabelas não aparecem ao clicar "Conectar"</h3>
+<strong>Verificar</strong>:
+<ol>
+<li>Credenciais corretas</li>
+<li>Banco de dados existe</li>
+<li>Usuário tem permissão <code>SELECT</code> nas tabelas</li>
+<li>Verificar logs: <code>docker exec codeigniter-app tail -f /var/www/html/writable/logs/log-$(date +%Y-%m-%d).log</code></li>
+</ol>
+
+<h3 id="arquivos-de-upload-multiplo-nao-processam-no-airflow">Arquivos de upload múltiplo não processam no Airflow</h3>
+<strong>Verificar</strong>:
+<ol>
+<li><code>source_filename</code> termina com <code>/</code> (ex: <code>raw/pipe-albuns/</code>)</li>
+<li>Arquivos existem no MinIO bucket <code>data-lake-raw</code></li>
+<li><code>factory_master.py</code> tem lógica para detectar pastas e listar arquivos</li>
+</ol>
+
+<h3 id="dag-nao-aparece-no-airflow">DAG não aparece no Airflow</h3>
+<strong>Verificar</strong>:
+<ol>
+<li>DAG ID válido (sem espaços/caracteres especiais)</li>
+<li>Registro existe no banco: <code>SELECT * FROM dag_configurations WHERE dag_id = 'seu-dag-id'</code></li>
+<li><code>is_active = 1</code></li>
+<li>Reiniciar scheduler: <code>docker compose restart airflow-scheduler</code></li>
+</ol>
+
+<p>---</p>
+
+<h2 id="documentacao-relacionada">📚 Documentação Relacionada</h2>
+
+<ul>
+<li><a href="DATALAKE_LAYERS.html">Arquitetura Medallion</a></li>
+<li><a href="transformacoes-silver.html">Transformações Silver</a></li>
+<li><a href="delta-lake-implementation.html">Delta Lake & Gold</a></li>
+<li><a href="MYSQL_INGESTION.html">Ingestão MySQL</a></li>
+<li><a href="TroubleShooting.html">Troubleshooting</a></li>
+</ul>
+
+<p>---</p>
+
+<strong>Última atualização</strong>: 20 de dezembro de 2025
+
+<p>---</p>
+
+<h2 id="historico-de-alteracoes">📝 Histórico de Alterações</h2>
+
+<h3 id="v21-20122025">v2.1 - 20/12/2025</h3>
+<ul>
+<li><span class="badge success">✅</span> Adicionada funcionalidade de <strong>Upload Múltiplo de Arquivos</strong></li>
+<li><span class="badge success">✅</span> Mensagens de sucesso/erro agora <strong>centralizadas e fixas no topo</strong></li>
+<li><span class="badge success">✅</span> Botão "Conectar" agora aparece para <strong>todas as fontes SQL</strong> (não só multi-tabela)</li>
+<li><span class="badge success">✅</span> Correção automática de <code>localhost</code> → <code>mysql</code> para conexões Docker</li>
+<li><span class="badge success">✅</span> Campos SQL/SSH automaticamente limpos (<code>NULL</code>) para fontes de arquivo</li>
+<li><span class="badge success">✅</span> Adicionadas dicas visuais no campo Host sobre localhost vs IPs externos</li>
+<li><span class="badge success">✅</span> Documentação completa de upload múltiplo, validações e estrutura MinIO</li>
+</ul>
+
+<h3 id="v20-16122025">v2.0 - 16/12/2025</h3>
+<ul>
+<li>Versão inicial da documentação consolidada</li>
+</ul>
+
+
+        </main>
+    </div>
+</body>
+</html>

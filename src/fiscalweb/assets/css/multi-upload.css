@@ -1,0 +1,267 @@
+/**
+ * Multi-Upload Styles
+ * Estilos para funcionalidade de upload múltiplo
+ */
+
+/* Checkboxes de controle */
+.form-group .mb-3,
+.mb-3 {
+    display: flex !important;
+    align-items: flex-start !important;
+    flex-wrap: nowrap !important;
+    margin-bottom: 1rem;
+    gap: 8px !important;
+    max-width: 100%;
+}
+
+.form-group .mb-3 input[type="checkbox"],
+.mb-3 input[type="checkbox"] {
+    margin-right: 0 !important;
+    margin-top: 3px !important;
+    margin-bottom: 0 !important;
+    vertical-align: middle;
+    flex-shrink: 0 !important;
+    order: 1 !important;
+    width: auto !important;
+}
+
+.form-group .mb-3 label,
+.mb-3 label {
+    display: inline-block !important;
+    margin-bottom: 0 !important;
+    margin-top: 0 !important;
+    vertical-align: middle;
+    cursor: pointer;
+    order: 2 !important;
+    flex: 1 !important;
+    max-width: calc(100% - 30px) !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    white-space: normal !important;
+    width: auto !important;
+}
+
+.mb-3 small.text-muted {
+    width: 100%;
+    margin-left: 28px;
+    margin-top: 5px;
+}
+
+/* Área de Drop */
+.upload-area {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 40px;
+    text-align: center;
+    background-color: #f9f9f9;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.upload-area:hover {
+    border-color: #007bff;
+    background-color: #e7f3ff;
+}
+
+.upload-area.drag-over {
+    border-color: #28a745;
+    background-color: #d4edda;
+    transform: scale(1.02);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.upload-area i {
+    color: #007bff;
+    transition: color 0.3s ease;
+}
+
+.upload-area.drag-over i {
+    color: #28a745;
+}
+
+.upload-area p {
+    margin: 10px 0;
+    font-size: 16px;
+    color: #666;
+}
+
+/* Lista de arquivos */
+#file-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#file-list .list-group-item {
+    transition: background-color 0.2s;
+    border-left: 3px solid transparent;
+}
+
+#file-list .list-group-item:hover {
+    background-color: #f8f9fa;
+    border-left-color: #007bff;
+}
+
+#file-list .badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    margin-right: 8px;
+}
+
+/* Progress bar */
+.upload-progress {
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+.upload-progress .progress {
+    height: 30px;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.upload-progress .progress-bar {
+    font-weight: bold;
+    font-size: 14px;
+    line-height: 30px;
+    transition: width 0.3s ease;
+}
+
+/* Batch options */
+#batch-options {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+}
+
+#batch-options .form-check {
+    margin-bottom: 10px;
+}
+
+#parallel-config {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #fff;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+}
+
+/* Modal customizações */
+#upload-summary-modal .modal-header {
+    background-color: #28a745;
+    color: white;
+}
+
+#upload-summary-modal .list-group-item i {
+    margin-right: 8px;
+}
+
+/* Tabs */
+.nav-tabs .nav-link {
+    color: #495057;
+    border: 1px solid transparent;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: #e9ecef #e9ecef #dee2e6;
+    color: #007bff;
+}
+
+.nav-tabs .nav-link.active {
+    color: #495057;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+    font-weight: 600;
+}
+
+/* Botões */
+.btn-sm .fas {
+    font-size: 0.875rem;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .upload-area {
+        padding: 20px;
+        min-height: 150px;
+    }
+    
+    .upload-area i {
+        font-size: 2rem !important;
+    }
+    
+    .upload-area p {
+        font-size: 14px;
+    }
+    
+    #file-list .list-group-item {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    #file-list .list-group-item .btn {
+        margin-top: 10px;
+        width: 100%;
+    }
+}
+
+/* Animações */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#file-list .list-group-item {
+    animation: fadeIn 0.3s ease;
+}
+
+/* Estados de loading */
+.upload-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.upload-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Alert customizado */
+.alert-info {
+    border-left: 4px solid #17a2b8;
+}
+
+.alert-danger {
+    border-left: 4px solid #dc3545;
+}
+
+.alert-success {
+    border-left: 4px solid #28a745;
+}

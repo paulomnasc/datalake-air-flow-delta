@@ -1,0 +1,25 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "PermitirUploadMyDataFlow",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject"
+            ],
+            "Resource": "arn:aws:s3:::mydataflow-bucket/*"
+        },
+        {
+            "Sid": "PermitirDataDiscoveryGlue",
+            "Effect": "Allow",
+            "Action": [
+                "glue:GetDatabase",
+                "glue:GetTable",
+                "glue:CreateTable",
+                "glue:UpdateTable"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

@@ -172,12 +172,12 @@ def enviar_emails_aws_live(**context):
         return
 
     # --- DESCOMENTAR PARA TESTES ESSE LOCO DE SEGURANÇA (Apenas envio para 176) ---
-    print("DRY-RUN desabilitado: limitando o envio real apenas para o aluno ID 176.")
-    alunos = [a for a in alunos if str(a.get("id")) == "176"]
+    # print("DRY-RUN desabilitado: limitando o envio real apenas para o aluno ID 176.")
+    # alunos = [a for a in alunos if str(a.get("id")) == "176"]
     
-    if not alunos:
-        print("Aluno ID 176 não encontrado entre os grupos-alvo. Nenhum e-mail será enviado.")
-        return
+    #if not alunos:
+    #    print("Aluno ID 176 não encontrado entre os grupos-alvo. Nenhum e-mail será enviado.")
+    #    return
     #----------------------------------------------------
 
 

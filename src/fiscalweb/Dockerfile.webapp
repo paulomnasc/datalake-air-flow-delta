@@ -1,0 +1,104 @@
+# -----------------------------------------------------
+# Dockerfile.webapp (ou Dockerfile.codeigniter)
+# -------------------------------------------------------
+
+# 1. IMAGEM BASE: PHP com Apache para servir o CodeIgniter
+FROM php:8.2-apache
+
+# 2. INSTALAÇÃO DE EXTENSÕES
+# O CodeIgniter (e a maioria das apps PHP) precisam de extensões.
+# O MySQL/MariaDB é crucial para se conectar ao serviço 'mysql'.
+RUN apt-get update && apt-get install -y \
+    git \
+    unzip \
+    libzip-dev \
+    libonig-dev \
+    libpng-dev \
+    libxml2-dev \
+    libicu-dev \
+    default-mysql-client \
+    postgresql-client \
+    libpq-dev \
+    dos2unix \
+    docker.io \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-install pdo_mysql pdo_pgsql pgsql gd intl opcache mysqli
+
+# 2.1 PYTHON para execução das validações (backend)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --break-system-packages --no-cache-dir duckdb pandas numpy pyarrow
+ENV PYTHON_BIN=/usr/bin/python3
+
+# 3. CONFIGURAÇÃO DO COMPOSER
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# 4. CONFIGURAÇÃO DO VIRTUAL HOST DO APACHE
+COPY ./.docker/000-default.conf /etc/apache2/sites-available/000-default.conf
+RUN a2enmod rewrite headers
+
+COPY ./.docker/htaccess-no-ssl /tmp/htaccess-no-ssl 
+COPY ./.docker/entrypoint-webapp.sh /entrypoint-webapp.sh
+
+RUN dos2unix /entrypoint-webapp.sh
+RUN chmod +x /entrypoint-webapp.sh
+
+# 5. DIRETÓRIO DE TRABALHO
+WORKDIR /var/www/html
+COPY . /var/www/html
+
+# 6. PERMISSÕES E USUÁRIO
+ARG HOST_UID=1000 
+ARG HOST_GID=1000
+ARG DOCKER_GID=1001
+
+RUN groupmod -g ${HOST_GID} www-data
+RUN usermod -u ${HOST_UID} -g ${HOST_GID} www-data
+RUN chown -R www-data:www-data /var/www/html
+
+RUN mkdir -p /var/www/html/writable && \
+    chown -R www-data:www-data /var/www/html/writable
+
+# 7. Adicionar grupo docker com GID do host e adicionar www-data a este grupo
+RUN groupadd -g ${DOCKER_GID} docker-host && usermod -aG docker-host www-data
+
+RUN composer install --no-dev --optimize-autoloader
+
+# 7. Instalar XDebug
+RUN apt-get update && \
+    apt-get install -y \
+    git \
+    build-essential \
+    autoconf \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-install pcntl \
+    && pecl install xdebug \
+    && docker-php-ext-enable xdebug
+
+# 8. Configuração do XDebug
+RUN echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.start_with_request=yes" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.client_port=9004" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.log=/tmp/xdebug.log" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.log_level=7" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.idekey=vscode" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+
+# 9. Configurar limites de upload do PHP (10MB - alinhado com MINIO_USER_STORAGE_LIMIT)
+RUN echo "upload_max_filesize = 10M" >> /usr/local/etc/php/conf.d/uploads.ini && \
+    echo "post_max_size = 10M" >> /usr/local/etc/php/conf.d/uploads.ini && \
+    echo "memory_limit = 128M" >> /usr/local/etc/php/conf.d/uploads.ini && \
+    echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/uploads.ini && \
+    echo "max_input_time = 300" >> /usr/local/etc/php/conf.d/uploads.ini
+
+# A porta padrão do Apache é 80
+EXPOSE 80
+
+ENTRYPOINT ["/entrypoint-webapp.sh"]
+CMD ["apache2-foreground"]
+
+# 9. Usuário www-data
+USER www-data

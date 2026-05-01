@@ -430,8 +430,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         <div id="head-bar" class="left">
             <div class="logo-container">
                 <div style="display: flex; flex-direction: column; justify-content: center;">
-                    <img src="<?= base_url('assets/img/carcara-logo.png'); ?>" alt="MyDataFlow Logo">
-                    <p class="subtitle">Plataforma de Pipelines de Dados</p>
+                    <p class="subtitle">Plataforma Minha Fiscalização</p>
                 </div>
             </div>
             

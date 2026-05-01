@@ -426,6 +426,8 @@ services:
       - ENV_SUFFIX=${ENV_SUFFIX:-}
       # Database connection override
       - database.default.database=fiscal
+      # Força a baseURL para produção
+      - app_baseURL=http://46.224.156.251:28089/
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "vscode:host-gateway"

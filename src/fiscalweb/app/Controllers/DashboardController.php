@@ -44,6 +44,7 @@ class DashboardController extends BaseController
 
         $userId = (int) SessionHelper::getUserId();
 
+        /*
         // Carregar estatísticas
         $stats = $this->getStats($userId);
         
@@ -117,15 +118,16 @@ class DashboardController extends BaseController
             ORDER BY total_xp DESC
             LIMIT 10
         ")->getResult();
+        */
 
         $data = [
-            'stats' => $stats,
-            'pastas' => $pastas,
-            'source_types' => $sourceTypes,
-            'funcoes_python' => $funcoesAgrupadas,
-            'edit_data' => $editData,
-            'returning_students' => $returningStudents,
-            'top_students' => $topStudents,
+            'stats' => [],
+            'pastas' => [],
+            'source_types' => [],
+            'funcoes_python' => [],
+            'edit_data' => null,
+            'returning_students' => [],
+            'top_students' => [],
         ];
 
         return view('dashboard/index', $data);

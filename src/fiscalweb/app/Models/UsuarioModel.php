@@ -28,6 +28,7 @@ class UsuarioModel extends Model
         'auth_provider',
         'auth_updated_at',
            'pagamento_inicial',
+           'id_perfil',
     ];
     
 
@@ -68,6 +69,13 @@ class UsuarioModel extends Model
         return $this->select('id, nome')->findAll();
         
         return  $data;
+    }
+
+    public function getUsuariosComPerfil()
+    {
+        return $this->select('usuario.*, perfil.descricao as perfil_descricao')
+                    ->join('perfil', 'perfil.id = usuario.id_perfil', 'left')
+                    ->findAll();
     }
 
 }

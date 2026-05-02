@@ -1,65 +1,122 @@
 <?php
-if (! defined('VIEWPATH')) {
-    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR.'Views');
-}
-require VIEWPATH.'/header.php';
-?>
 
-<div id="content" class="container mt-4">
-    <div class="card">
-        <div class="card-header">
-            <h4>Editar Usuário</h4>
-        </div>
-        <div class="card-body">
-            <form id="updUsuarioForm">
-                <input type="hidden" name="id" value="<?= $usuario->id ?>">
+if (! defined('VIEWPATH')) {
+    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR . 'Views');
+}
+require VIEWPATH . '/header.php';
+?>
+<div id="main-content">
+
+    <button class="open-btn" onclick="toggleSidebar()">☰</button>
+
+    <div id="content">
+
+        <div class="container">
+            <h1>Editar Usuario</h1>
+            <!-- updUsuario.php -->
+            <form method="post" id="meuFormulario" action="<?php echo route_to('Usuario.update'); ?>">
                 
-                <div class="form-group mb-3">
-                    <label for="nome">Nome Completo</label>
-                    <input type="text" class="form-control" id="nome" name="nome" value="<?= $usuario->nome ?>" required>
+                <div class="form-group">
+                    <label for="id">Id:</label>
+                    <input type="text" id="id" name="id" placeholder="id" value="<?php echo $id ?>" required>
                 </div>
-                <div class="form-group mb-3">
-                    <label for="email">Email</label>
-                    <input type="email" class="form-control" id="email" name="email" value="<?= $usuario->email ?>" required>
+
+
+                <div class="form-group">
+                    <label for="nome">Nome:</label>
+                    <input type="text" id="nome" name="nome" placeholder="nome" value="<?php echo $nome ?>" required>
                 </div>
-                <div class="form-group mb-4">
-                    <label for="senha">Senha <small class="text-muted">(Deixe em branco para manter a atual)</small></label>
-                    <input type="password" class="form-control" id="senha" name="senha">
+
+
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" placeholder="email" value="<?php echo $email ?>" required>
                 </div>
-                
-                <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-                <a href="<?= site_url('usuario') ?>" class="btn btn-secondary">Cancelar</a>
+
+
+                <div class="form-group">
+                    <label for="id_perfil">Perfil:</label>
+                    <select id="id_perfil" name="id_perfil" class="form-control" required>
+                        <option value="">Selecione um perfil</option>
+                        <?php foreach($perfis as $perfil): ?>
+                            <option value="<?php echo $perfil->id; ?>" <?php echo ($id_perfil == $perfil->id) ? 'selected' : ''; ?>>
+                                <?php echo $perfil->descricao; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+
+
+                <div class="form-group">
+                    <label for="senha">Senha:</label>
+                    <input type="password" id="senha" name="senha" placeholder="senha"  value="<?php echo $senha ?>"  required>
+                </div>
+
+                <div class="form-group">
+                    <label for="pagamento_inicial">Pagamento Inicial:</label>
+                    <select id="pagamento_inicial" name="pagamento_inicial" required>
+                        <option value="1" <?php echo (isset($pagamento_inicial) && $pagamento_inicial == 1) ? 'selected' : ''; ?>>Pago</option>
+                        <option value="0" <?php echo (!isset($pagamento_inicial) || $pagamento_inicial != 1) ? 'selected' : ''; ?>>Pendente</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="data_vencimento_assinatura">Vencimento da Assinatura:</label>
+                    <input type="date" id="data_vencimento_assinatura" name="data_vencimento_assinatura" value="<?php echo (!empty($data_vencimento_assinatura) && $data_vencimento_assinatura !== "0000-00-00" && $data_vencimento_assinatura !== "0000-00-00 00:00:00") ? date('Y-m-d', strtotime($data_vencimento_assinatura)) : ''; ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="status_assinatura">Status da Assinatura:</label>
+                    <input type="text" id="status_assinatura" name="status_assinatura" placeholder="Tiral, Ativo, Cancelado..." value="<?php echo isset($status_assinatura) ? htmlspecialchars($status_assinatura) : ''; ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="criado_em">Criado Em:</label>
+                    <input type="text" id="criado_em" name="criado_em" value="<?php echo (!empty($criado_em) && $criado_em !== '0000-00-00 00:00:00') ? date('d/m/Y H:i:s', strtotime($criado_em)) : ''; ?>" readonly style="background-color: #f4f4f4; cursor: not-allowed; color: #666;">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="save-button" value="Atualizar">Atualizar</button>
+                    <button type="button" class="back-button" onclick="history.back();">Voltar</button>
+                </div>
             </form>
-            <div id="message" class="mt-3"></div>
+
+            <!-- <div id="success-message" class="alert alert-success" style="display:none;"></div>
+            <div id="error-message" class="alert alert-warning" style="display:none;"></div> -->
+
+            <script>
+            $('#meuFormulario').submit(function(event) {
+                event.preventDefault();
+                var formData = $(this).serialize();
+                $.ajax({
+                    url: $(this).attr('action'),
+                    type: 'POST',
+                    data: formData,
+                    success: function(result) {
+                        if (result.status === 'success') {
+                            $('#success-message').html(result.mensagem).show().delay(6000).fadeOut(function() {
+                                window.location.href = "<?php echo route_to('listUsuario'); ?>"; // Redireciona para listUsuario após exibir a mensagem
+                            }); // Mostra a mensagem de sucesso
+                        } else {
+                            $('#error-message').html(result.mensagem).show().delay(6000).fadeOut(); // Mostra a mensagem de erro
+                        }
+                    },
+                    error: function(err) {
+                        $('#error-message').html('Erro ao atualizar o registro.').show().delay(6000).fadeOut(); // Mostra a mensagem de erro
+                        console.log(err); // Trate o erro aqui
+                    }
+                });
+            });
+            </script>
+
+
         </div>
     </div>
+
+
 </div>
 
-<script>
-$(document).ready(function() {
-    $('#updUsuarioForm').on('submit', function(e) {
-        e.preventDefault();
-        
-        $.ajax({
-            url: '<?= site_url('updateUsuario/' . $usuario->id) ?>',
-            type: 'POST',
-            data: $(this).serialize(),
-            success: function(response) {
-                if(response.status === 'success') {
-                    $('#message').html('<div class="alert alert-success">' + response.mensagem + '</div>');
-                    setTimeout(function() {
-                        window.location.href = '<?= site_url('usuario') ?>';
-                    }, 1500);
-                } else {
-                    $('#message').html('<div class="alert alert-danger">' + response.mensagem + '</div>');
-                }
-            },
-            error: function() {
-                $('#message').html('<div class="alert alert-danger">Erro de comunicação com o servidor.</div>');
-            }
-        });
-    });
-});
-</script>
-
-<?php require VIEWPATH.'/footer.php'; ?>
+<?php
+require VIEWPATH . '/footer.php';
+?>

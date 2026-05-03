@@ -803,6 +803,24 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             <a href="<?= base_url('listConfig') ?>" class="dropdown-item">Pipelines</a>
                         </div>
                     </div>
+                    
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">CONTRATOS/OS</a>
+                        <div class="dropdown-menu">
+                            <a href="<?= base_url('listTipoDocumento') ?>" class="dropdown-item">Tipos de Documento</a>
+                            <a href="<?= base_url('listStatus') ?>" class="dropdown-item">Status</a>
+                            <a href="<?= base_url('listStatusRecebimento') ?>" class="dropdown-item">Status Recebimento</a>
+                            <a href="<?= base_url('listOrdemServico') ?>" class="dropdown-item">Ordens de Serviço</a>
+                            <a href="<?= base_url('listItemOs') ?>" class="dropdown-item">Itens OS</a>
+                            <a href="<?= base_url('listServico') ?>" class="dropdown-item">Serviços</a>
+                            <a href="<?= base_url('listAtividadeMacro') ?>" class="dropdown-item">Atividades Macro</a>
+                            <a href="<?= base_url('listAreaAtuacao') ?>" class="dropdown-item">Áreas de Atuação</a>
+                            <a href="<?= base_url('listCatalogoServicos') ?>" class="dropdown-item">Catálogo de Serviços</a>
+                            <a href="<?= base_url('listItemContrato') ?>" class="dropdown-item">Itens de Contrato</a>
+                            <a href="<?= base_url('listDocumentoRecebimento') ?>" class="dropdown-item">Docs Recebimento</a>
+                            <a href="<?= base_url('listAvaliacaoQualidadeSla') ?>" class="dropdown-item">Avaliação SLA</a>
+                        </div>
+                    </div>
                 <?php endif; ?>
 
                 <?php echo anchor("politica","Política Privacidade", ['class' => 'nav-link px-2 px-lg-2'])  ?>

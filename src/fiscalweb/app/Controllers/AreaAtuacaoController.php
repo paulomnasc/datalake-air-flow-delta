@@ -4,7 +4,8 @@ namespace App\Controllers;
 
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
-use App\Models\AreaAtuacaoModel;\nuse App\Models\AtividadeMacroModel;
+use App\Models\AreaAtuacaoModel;
+use App\Models\AtividadeMacroModel;
 
 class AreaAtuacaoController extends BaseController
 {

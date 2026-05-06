@@ -525,27 +525,6 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     // Verifica se o usuário tem perfil Admin ou a flag de admin está ativa
                     // if ($isAdmin): 
                     -->
-                    <li><p class="text-white">📊 Admin - Dashboard</p></li>
-                    <li>
-                        <?php echo anchor("admin/dashboard", "📈 Dashboard Geral", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-                    <li>
-                        <?php echo anchor("admin/pagamento-inicial", "💵 Confirmar Pagamento Inicial", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-
-                    <li><hr class="text-white" style="margin: 10px 0;"></li>
-                    
-                    
-                    <li><hr cla
-                    ss="text-white" style="margin: 10px 0;"></li>
-                    <li><p class="text-white">👥 Admin - Sistema</p></li>
-                    <li>
-                        <?php echo anchor("listPerfil", "🔐 Perfis", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-                    <li>
-                        <?php echo anchor("listUsuario", "👤 Usuários", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-                    
                     <li><hr class="text-white" style="margin: 10px 0;"></li>
                     <li><p class="text-white">🗄️ CRUD Tabelas</p></li>
                     <li>
@@ -571,6 +550,32 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             </div>
                         </div>
                     </li>
+                    
+                    
+                    
+                    <li><hr class="text-white" style="margin: 10px 0;"></li>    
+                    <li><p class="text-white">📊 Admin - Dashboard</p></li>
+                    <li>
+                        <?php echo anchor("admin/dashboard", "📈 Dashboard Geral", ['class' => 'nav-link px-2 px-lg-2']) ?>
+                    </li>
+                    <li>
+                        <?php echo anchor("admin/pagamento-inicial", "💵 Confirmar Pagamento Inicial", ['class' => 'nav-link px-2 px-lg-2']) ?>
+                    </li>
+
+                    
+                    
+                    
+                    <li><hr class="text-white" style="margin: 10px 0;"></li>
+                    <li><p class="text-white">👥 Admin - Sistema</p></li>
+                    <li>
+                        <?php echo anchor("listPerfil", "🔐 Perfis", ['class' => 'nav-link px-2 px-lg-2']) ?>
+                    </li>
+                    <li>
+                        <?php echo anchor("listUsuario", "👤 Usuários", ['class' => 'nav-link px-2 px-lg-2']) ?>
+                    </li>
+                    
+                    <li><hr class="text-white" style="margin: 10px 0;"></li>
+                    
                 <?php // endif; ?>
                 <?php endif; ?>
 

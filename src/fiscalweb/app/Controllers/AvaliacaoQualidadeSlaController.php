@@ -4,7 +4,8 @@ namespace App\Controllers;
 
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
-use App\Models\AvaliacaoQualidadeSlaModel;\nuse App\Models\DocumentoRecebimentoModel;
+use App\Models\AvaliacaoQualidadeSlaModel;
+use App\Models\DocumentoRecebimentoModel;
 
 class AvaliacaoQualidadeSlaController extends BaseController
 {

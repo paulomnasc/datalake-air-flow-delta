@@ -4,7 +4,8 @@ namespace App\Controllers;
 
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
-use App\Models\CatalogoServicosModel;\nuse App\Models\AreaAtuacaoModel;
+use App\Models\CatalogoServicosModel;
+use App\Models\AreaAtuacaoModel;
 
 class CatalogoServicosController extends BaseController
 {

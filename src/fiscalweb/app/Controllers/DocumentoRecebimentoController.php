@@ -4,7 +4,10 @@ namespace App\Controllers;
 
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
-use App\Models\DocumentoRecebimentoModel;\nuse App\Models\OrdemServicoModel;\nuse App\Models\TipoDocumentoModel;
+use App\Models\DocumentoRecebimentoModel;
+use App\Models\OrdemServicoModel;
+use App\Models\TipoDocumentoModel;
+use App\Models\UsuarioModel;
 
 class DocumentoRecebimentoController extends BaseController
 {
@@ -19,6 +22,9 @@ class DocumentoRecebimentoController extends BaseController
         $data = [];
         $data['id_os_list'] = (new OrdemServicoModel())->listToCombo();
         $data['id_tipo_documento_list'] = (new TipoDocumentoModel())->listToCombo();
+        $data['id_usuario_fiscal_tecnico_list'] = (new UsuarioModel())->listToCombo();
+        $data['id_usuario_fiscal_requisitante_list'] = (new UsuarioModel())->listToCombo();
+        $data['id_usuario_gestor_list'] = (new UsuarioModel())->listToCombo();
 
         return view('addDocumentoRecebimento', $data);
     }
@@ -32,6 +38,9 @@ class DocumentoRecebimentoController extends BaseController
         $data = ['record' => $record];
         $data['id_os_list'] = (new OrdemServicoModel())->listToCombo();
         $data['id_tipo_documento_list'] = (new TipoDocumentoModel())->listToCombo();
+        $data['id_usuario_fiscal_tecnico_list'] = (new UsuarioModel())->listToCombo();
+        $data['id_usuario_fiscal_requisitante_list'] = (new UsuarioModel())->listToCombo();
+        $data['id_usuario_gestor_list'] = (new UsuarioModel())->listToCombo();
 
         return view('updDocumentoRecebimento', $data);
     }

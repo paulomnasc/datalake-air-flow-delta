@@ -4,7 +4,8 @@ namespace App\Controllers;
 
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
-use App\Models\AtividadeMacroModel;\nuse App\Models\ServicoModel;
+use App\Models\AtividadeMacroModel;
+use App\Models\ServicoModel;
 
 class AtividadeMacroController extends BaseController
 {

@@ -4,7 +4,8 @@ namespace App\Controllers;
 
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
-use App\Models\ItemContratoModel;\nuse App\Models\CatalogoServicosModel;
+use App\Models\ItemContratoModel;
+use App\Models\CatalogoServicosModel;
 
 class ItemContratoController extends BaseController
 {

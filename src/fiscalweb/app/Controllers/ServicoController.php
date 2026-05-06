@@ -4,7 +4,8 @@ namespace App\Controllers;
 
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
-use App\Models\ServicoModel;\nuse App\Models\ItemOsModel;
+use App\Models\ServicoModel;
+use App\Models\ItemOsModel;
 
 class ServicoController extends BaseController
 {

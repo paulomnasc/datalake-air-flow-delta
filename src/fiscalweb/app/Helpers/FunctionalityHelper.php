@@ -34,34 +34,11 @@ function loadUserFunctionalities()
     $userHasPipelinesAccess = false;
 
     if (isset($_SESSION['id_usuario_logado']) && !empty($_SESSION['id_usuario_logado'])) {
-        try {
-            $usuarioPerfilModel = new \App\Models\UsuarioPerfilModel();
-            $perfilFuncionalidadeModel = new \App\Models\PerfilFuncionalidadeModel();
-
-            // Buscar perfis do usuário
-            $perfisUsuario = $usuarioPerfilModel->getPerfisUsuario($_SESSION['id_usuario_logado']);
-
-            if (!empty($perfisUsuario)) {
-                $funcionalidadesBuckets = ['Visualizar Buckets', 'Criar Buckets', 'Editar Buckets', 'Deletar Buckets'];
-                $funcionalidadesPipelines = ['Operar Fluxos de Dados'];
-
-                // Verificar funcionalidades para cada perfil do usuário
-                foreach ($perfisUsuario as $perfil) {
-                    $funcionalidadesPerfil = $perfilFuncionalidadeModel->getFuncionalidadesPerfil($perfil->id_perfil);
-
-                    foreach ($funcionalidadesPerfil as $func) {
-                        if (in_array($func->funcionalidade_descricao, $funcionalidadesBuckets)) {
-                            $userHasBucketsAccess = true;
-                        }
-                        if (in_array($func->funcionalidade_descricao, $funcionalidadesPipelines)) {
-                            $userHasPipelinesAccess = true;
-                        }
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            log_message('error', 'Erro ao buscar funcionalidades do usuário: ' . $e->getMessage());
-        }
+        // Não existe a entidade perfil_funcionalidade neste sistema fiscalweb,
+        // então liberamos acesso básico por padrão para usuários logados.
+        // Se for necessário, ajuste aqui para basear em perfil ou em outra lógica de autorização.
+        $userHasBucketsAccess = true;
+        $userHasPipelinesAccess = true;
     }
 
     // Cacheia em globals

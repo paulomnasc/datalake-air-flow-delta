@@ -28,7 +28,6 @@ class UsuarioModel extends Model
         'auth_provider',
         'auth_updated_at',
            'pagamento_inicial',
-           'id_perfil',
     ];
     
 
@@ -73,8 +72,10 @@ class UsuarioModel extends Model
 
     public function getUsuariosComPerfil()
     {
-        return $this->select('usuario.*, perfil.descricao as perfil_descricao')
-                    ->join('perfil', 'perfil.id = usuario.id_perfil', 'left')
+        return $this->select('usuario.*, GROUP_CONCAT(perfil.descricao SEPARATOR ", ") as perfil_descricao')
+                    ->join('usuario_perfil', 'usuario_perfil.id_usuario = usuario.id', 'left')
+                    ->join('perfil', 'perfil.id = usuario_perfil.id_perfil', 'left')
+                    ->groupBy('usuario.id')
                     ->findAll();
     }
 

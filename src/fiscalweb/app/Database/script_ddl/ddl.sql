@@ -1,6 +1,6 @@
-CREATE DATABASE IF NOT EXISTS `lista_revisao2` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
+CREATE DATABASE IF NOT EXISTS `fiscal` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
 
-USE `lista_revisao2`;
+USE `fiscal`;
 
 -- Criação da tabela perfil
 CREATE TABLE IF NOT EXISTS `perfil` (

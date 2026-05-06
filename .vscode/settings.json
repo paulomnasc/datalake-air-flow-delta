@@ -64,5 +64,11 @@
     "php.debug.ideKey": "vscode",
     "chat.tools.terminal.autoApprove": {
         "docker-compose": true
-    }
+    },
+
+    
+    // Configuração do Cline para usar Ollama + DeepSeek
+    "cline.provider": "ollama",
+    "cline.model": "deepseek-r1"
+
 }

@@ -155,6 +155,10 @@ if (!isset($userHasBucketsAccess) || !isset($userHasPipelinesAccess)) {
 // Calcula username sugerido para Airflow (prefixo do email + id) e lista de roles
 $airflowUsername = '';
 $airflowRoles = [];
+$perfilUsuario = trim((string) (session()->get('perfil_usuario_logado') ?? ($_SESSION['perfil_usuario_logado'] ?? '')));
+$isAdmin = !empty(session()->get('is_admin')) || !empty($_SESSION['is_admin']) || in_array(strtolower($perfilUsuario), ['admin', 'administrador'], true);
+$isVisitor = strcasecmp($perfilUsuario, 'Visitante') === 0;
+
 if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     $userId = $_SESSION['id_usuario_logado'] ?? null;
     $userEmail = $_SESSION['email_usuario_logado'] ?? '';
@@ -461,12 +465,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
             </div>
     
-            <li>
-                <p  class="text-white">Olá <?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Visitante'; ?></p>
-            </li>
+            <ul class="list-unstyled">
+                <li>
+                    <p class="text-white">Olá <?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Visitante'; ?></p>
+                </li>
 
-            <?php if (!empty($airflowUsername)): ?>
-            <li>
+                <?php if (!empty($airflowUsername)): ?>
+                <li>
                 <div class="bg-light text-dark p-2 rounded mb-2">
                     <small>Seu usuário no Airflow</small>
                     <div class="d-flex align-items-center mb-1">
@@ -498,9 +503,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 </div>
             </li>
             <?php endif; ?>
+            </ul>
 
             <ul class="list-unstyled">
-                
                 <li>
                     <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado'])): ?>
                         
@@ -514,15 +519,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 </li>
 
 
-                <!-- SE O USUÁRIO ESTÁ LOGADO E É O ADMINISTRADOR -->
-
-                <li>
-
-                    <?php 
-                        // Verifica se o perfil do usuário está logado e se ele é "Admin"
-                        if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === "Admin"): 
-                    ?>
-                    
+                <!-- SE O USUÁRIO ESTÁ LOGADO -->
+                <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
+                    <!-- 
+                    // Verifica se o usuário tem perfil Admin ou a flag de admin está ativa
+                    // if ($isAdmin): 
+                    -->
                     <li><p class="text-white">📊 Admin - Dashboard</p></li>
                     <li>
                         <?php echo anchor("admin/dashboard", "📈 Dashboard Geral", ['class' => 'nav-link px-2 px-lg-2']) ?>
@@ -533,21 +535,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
                     <li><hr class="text-white" style="margin: 10px 0;"></li>
                     
-                    <li><p class="text-white">📚 Admin - Cursos</p></li>
-                    <li>
-                        <?php echo anchor("admin/courses", "🎓 Cursos", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-                    <li>
-                        <?php echo anchor("admin/modules", "📖 Módulos", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-                    <li>
-                        <?php echo anchor("admin/videos", "🎬 Vídeos", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-                    <li>
-                        <?php echo anchor("admin/ucs", "✅ UCs/Tarefas", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
                     
-                    <li><hr class="text-white" style="margin: 10px 0;"></li>
+                    <li><hr cla
+                    ss="text-white" style="margin: 10px 0;"></li>
                     <li><p class="text-white">👥 Admin - Sistema</p></li>
                     <li>
                         <?php echo anchor("listPerfil", "🔐 Perfis", ['class' => 'nav-link px-2 px-lg-2']) ?>
@@ -555,9 +545,34 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <li>
                         <?php echo anchor("listUsuario", "👤 Usuários", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     </li>
-                    <?php
-                    endif; 
-                    ?>
+                    
+                    <li><hr class="text-white" style="margin: 10px 0;"></li>
+                    <li><p class="text-white">🗄️ CRUD Tabelas</p></li>
+                    <li>
+                        <div class="dropdown">
+                            <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
+                                📋 Todas as Tabelas
+                            </a>
+                            <div class="dropdown-menu">
+                                <a class="dropdown-item" href="<?= base_url('listAreaAtuacao') ?>">🏢 Áreas de Atuação</a>
+                                <a class="dropdown-item" href="<?= base_url('listAtividadeMacro') ?>">📊 Atividades Macro</a>
+                                <a class="dropdown-item" href="<?= base_url('listAvaliacaoQualidadeSla') ?>">⭐ Avaliação SLA</a>
+                                <a class="dropdown-item" href="<?= base_url('listCatalogoServicos') ?>">📚 Catálogo de Serviços</a>
+                                <a class="dropdown-item" href="<?= base_url('listDocumentoRecebimento') ?>">📄 Docs Recebimento</a>
+                                <a class="dropdown-item" href="<?= base_url('listItemContrato') ?>">📝 Itens de Contrato</a>
+                                <a class="dropdown-item" href="<?= base_url('listItemOs') ?>">🔧 Itens OS</a>
+                                <a class="dropdown-item" href="<?= base_url('listOrdemServico') ?>">📋 Ordens de Serviço</a>
+                                <a class="dropdown-item" href="<?= base_url('listPerfil') ?>">🔐 Perfis</a>
+                                <a class="dropdown-item" href="<?= base_url('listServico') ?>">🛠️ Serviços</a>
+                                <a class="dropdown-item" href="<?= base_url('listStatus') ?>">📊 Status</a>
+                                <a class="dropdown-item" href="<?= base_url('listStatusRecebimento') ?>">✅ Status Recebimento</a>
+                                <a class="dropdown-item" href="<?= base_url('listTipoDocumento') ?>">📑 Tipos de Documento</a>
+                                <a class="dropdown-item" href="<?= base_url('listUsuario') ?>">👤 Usuários</a>
+                            </div>
+                        </div>
+                    </li>
+                <?php // endif; ?>
+                <?php endif; ?>
 
                 <li>
                     <hr class="text-white" style="margin: 10px 0;">
@@ -588,13 +603,6 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
         </div>
 
-        <!-- Botão YouTube -->
-        <?php if (isset($_SESSION['nome_usuario_logado'])): ?>
-        <a id="youtubeBtn" href="/cursos">
-            <i class="fab fa-youtube"></i>
-            <span>Videoaulas</span>
-        </a>
-        <?php endif; ?>
 
 
     <!-- Fundo de overlay -->
@@ -610,21 +618,21 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     const closeSidebarBtn = document.getElementById('closeSidebarBtn');
 
     // Abrir a sidebar
-    openSidebarBtn.addEventListener('click', () => {
+    openSidebarBtn.addEventListener('click', (event) => {
         event.preventDefault();
         sidebar.classList.add('active');
         overlayBackground.classList.add('active');
     });
 
     // Fechar a sidebar
-    closeSidebarBtn.addEventListener('click', () => {
+    closeSidebarBtn.addEventListener('click', (event) => {
         event.preventDefault();
         sidebar.classList.remove('active');
         overlayBackground.classList.remove('active');
     });
 
     // Fechar a sidebar ao clicar no fundo
-    overlayBackground.addEventListener('click', () => {
+    overlayBackground.addEventListener('click', (event) => {
         event.preventDefault();
         sidebar.classList.remove('active');
         overlayBackground.classList.remove('active');
@@ -713,16 +721,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         </button>
         <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav">
-            <div>
-                
-                <input type="hidden" id="perfil_usuario_logado" value="<?php echo isset($_SESSION['perfil_usuario_logado']) ? $_SESSION['perfil_usuario_logado'] : 'N/A'; ?>" readonly>
-            </div>    
-
-            <a href="/" class="nav-link px-2 px-lg-2" title="Início">
-                <i class="fas fa-home" style="font-size: 28px; vertical-align: middle;"></i>
-            </a>
-            
-
+                <li class="nav-item visually-hidden">
+                    <input type="hidden" id="perfil_usuario_logado" value="<?php echo isset($_SESSION['perfil_usuario_logado']) ? $_SESSION['perfil_usuario_logado'] : 'N/A'; ?>" readonly>
+                </li>
+                <li class="nav-item">
+                    <a href="/" class="nav-link px-2 px-lg-2" title="Início">
+                        <i class="fas fa-home" style="font-size: 28px; vertical-align: middle;"></i>
+                    </a>
+                </li>
+            </ul>
 
             <div id="itens-menu-outros" class="navbar-nav ms-auto p-4 p-lg-0">
                 
@@ -783,7 +790,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             <!-- ?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
                                 <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->
                             <!-- ?php endif; ?-->
-                            <?php if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): ?>
+                            <?php if (!$isVisitor && $perfilUsuario !== ''): ?>
                                 <!-- a class="dropdown-item" href="<! ?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a-->
                                 <a class="dropdown-item" href="<?= base_url('code-editor') ?>">💻 SQL Editor + Customizações Python</a>
                             <?php endif; ?>
@@ -794,7 +801,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 <!-- Dropdown -->
                 <?php
                     // Verifica se o perfil do usuário está logado e se ele NÃO é "Visitante"
-                    if (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] != "Visitante"): 
+                    if (!$isVisitor && $perfilUsuario !== ''): 
                 ?>
                     <div class="nav-item dropdown">
                         <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">CRIAR</a>
@@ -829,14 +836,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 
                 <?php echo anchor("contactUs","Entre em contato", ['class' => 'nav-link px-2 px-lg-2 text-nowrap'])  ?>
 
-                <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado']) || (isset($_SESSION['perfil_usuario_logado']) && $_SESSION['perfil_usuario_logado'] === 'Visitante')): ?>
+                <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado']) || $isVisitor): ?>
                     <?php echo anchor("sigInUsuario", "Registre-se", ['class' => 'nav-link px-2 px-lg-2']) ?>
                 <?php endif; ?>
 
                 
             </div>
-
-            </ul>
 
         </div>
     

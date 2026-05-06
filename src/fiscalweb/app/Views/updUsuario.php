@@ -36,10 +36,10 @@ require VIEWPATH . '/header.php';
 
                 <div class="form-group">
                     <label for="id_perfil">Perfil:</label>
-                    <select id="id_perfil" name="id_perfil" class="form-control" required>
+                    <select id="id_perfil" name="id_perfil[]" class="form-control" multiple required>
                         <option value="">Selecione um perfil</option>
                         <?php foreach($perfis as $perfil): ?>
-                            <option value="<?php echo $perfil->id; ?>" <?php echo ($id_perfil == $perfil->id) ? 'selected' : ''; ?>>
+                            <option value="<?php echo $perfil->id; ?>" <?php echo (is_array($id_perfil) && in_array($perfil->id, $id_perfil)) ? 'selected' : ''; ?>>
                                 <?php echo $perfil->descricao; ?>
                             </option>
                         <?php endforeach; ?>

@@ -27,7 +27,7 @@ require VIEWPATH . '/header.php';
 
                 <div class="form-group">
                     <label for="id_perfil">Perfil:</label>
-                    <select id="id_perfil" name="id_perfil" class="form-control" required>
+                    <select id="id_perfil" name="id_perfil[]" class="form-control" multiple required>
                         <option value="">Selecione um perfil</option>
                         <?php foreach($perfis as $perfil): ?>
                             <option value="<?php echo $perfil->id; ?>" <?php echo (!empty($descricao_perfil_selecionado) && $perfil->descricao == $descricao_perfil_selecionado) ? 'selected' : ''; ?>>

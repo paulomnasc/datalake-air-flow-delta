@@ -60,7 +60,7 @@ class UsuarioController extends BaseController
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['email_usuario_logado'] = $usuario->email;
                 $_SESSION['usuario_logado'] = 1;
-                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
+                $_SESSION['is_admin'] = (strcasecmp($usuario->perfil_descricao, 'Admin') === 0);
                 
                 // Registra evento de login
                 if (empty($_SESSION['is_admin'])) {
@@ -209,7 +209,7 @@ class UsuarioController extends BaseController
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['email_usuario_logado'] = $usuario->email;
                 $_SESSION['usuario_logado'] = 1;
-                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
+                $_SESSION['is_admin'] = (strcasecmp($usuario->perfil_descricao, 'Admin') === 0);
                 
                 // Sincroniza funções Python do usuário (garante que tem as funções padrão)
                 try {
@@ -309,7 +309,7 @@ class UsuarioController extends BaseController
                 $_SESSION['nome_usuario_logado'] = $usuario->nome;
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['usuario_logado'] = 1;
-                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
+                $_SESSION['is_admin'] = (strcasecmp($usuario->perfil_descricao, 'Admin') === 0);
                 
                 // Redireciona para a tela listQuadro após o login anônimo
                 return redirect()->route('listQuadro');
@@ -362,10 +362,13 @@ class UsuarioController extends BaseController
     {
         $model = new UsuarioModel();
         $model->select('usuario.*, perfil.descricao as perfil_descricao');
-        $model->join('perfil', 'perfil.id = usuario.id_perfil', 'left');
+        // Join correto através da tabela many-to-many usuario_perfil
+        $model->join('usuario_perfil', 'usuario_perfil.id_usuario = usuario.id', 'left');
+        $model->join('perfil', 'perfil.id = usuario_perfil.id_perfil', 'left');
         $model->where('usuario.senha', $senha);
         $model->where('usuario.email_confirmado', 1);
         $model->like('usuario.email', $email);
+        $model->groupBy('usuario.id'); // Agrupa por usuário para evitar duplicatas
         $usuarios = $model->findAll();
         
         foreach ($usuarios as $usuario) {
@@ -379,9 +382,12 @@ class UsuarioController extends BaseController
     {
         $model = new UsuarioModel();
         $model->select('usuario.*, perfil.descricao as perfil_descricao');
-        $model->join('perfil', 'perfil.id = usuario.id_perfil', 'left');
+        // Join correto através da tabela many-to-many usuario_perfil
+        $model->join('usuario_perfil', 'usuario_perfil.id_usuario = usuario.id', 'left');
+        $model->join('perfil', 'perfil.id = usuario_perfil.id_perfil', 'left');
         $model->where('usuario.email_confirmado', 1);
         $model->like('usuario.email', $email);
+        $model->groupBy('usuario.id'); // Agrupa por usuário para evitar duplicatas
         $usuarios = $model->findAll();
         
         foreach ($usuarios as $usuario) {
@@ -428,8 +434,14 @@ class UsuarioController extends BaseController
         $perfilModel = new PerfilModel();
         $data['perfis'] = $perfilModel->listToCombo();
         
-        // No novo esquema 1:N, o id_perfil está na própria tabela de usuário
-        $data['id_perfil'] = $Usuario->id_perfil;
+        $usuarioPerfilModel = new \App\Models\UsuarioPerfilModel();
+        $perfisVinculados = $usuarioPerfilModel->getPerfisUsuario($id);
+        
+        $perfisSelected = [];
+        foreach ($perfisVinculados as $pv) {
+            $perfisSelected[] = $pv->id_perfil;
+        }
+        $data['id_perfil'] = $perfisSelected;
         $data['id'] = $Usuario->id;
         $data['nome'] = $Usuario->nome;
         $data['email'] = $Usuario->email;
@@ -467,8 +479,7 @@ class UsuarioController extends BaseController
             'id' => $this->request->getPost('id'),
             'nome' => $this->request->getPost('nome'),
             'email' => $this->request->getPost('email'),
-            'senha' => $this->request->getPost('senha'),
-            'id_perfil' => $this->request->getPost('id_perfil')
+            'senha' => $this->request->getPost('senha')
         ];
         
         $model = new UsuarioModel();
@@ -479,6 +490,14 @@ class UsuarioController extends BaseController
         
         try {
             $idUsuario = $model->insert($data);
+            
+            if ($idUsuario) {
+                $perfis = $this->request->getPost('id_perfil');
+                if (!empty($perfis)) {
+                    $usuarioPerfilModel = new \App\Models\UsuarioPerfilModel();
+                    $usuarioPerfilModel->savePerfisUsuario($idUsuario, (array) $perfis);
+                }
+            }
             
             // Sincronizar funções Python padrão do novo usuário
             if ($idUsuario) {
@@ -521,8 +540,7 @@ class UsuarioController extends BaseController
             'id' => $this->request->getPost('id'),
             'nome' => $nome,
             'email' => $email,
-            'senha' => $this->request->getPost('senha'),
-            'id_perfil' => $this->request->getPost('id_perfil')
+            'senha' => $this->request->getPost('senha')
         ];
         
         $model = new UsuarioModel();
@@ -540,6 +558,11 @@ class UsuarioController extends BaseController
                 $idUsuario = $model->insert($data);
                 if($idUsuario)
                 {
+                    $perfis = $this->request->getPost('id_perfil');
+                    if (!empty($perfis)) {
+                        $usuarioPerfilModel = new \App\Models\UsuarioPerfilModel();
+                        $usuarioPerfilModel->savePerfisUsuario($idUsuario, (array) $perfis);
+                    }
                     
                     // Sincronizar funções Python padrão do novo usuário
                     try {
@@ -885,7 +908,7 @@ class UsuarioController extends BaseController
                 $_SESSION['nome_usuario_logado'] = $usuario->nome;
                 $_SESSION['perfil_usuario_logado'] = $usuario->perfil_descricao;
                 $_SESSION['usuario_logado'] = 1;
-                $_SESSION['is_admin'] = ($usuario->perfil_descricao === 'Admin');
+                $_SESSION['is_admin'] = (strcasecmp($usuario->perfil_descricao, 'Admin') === 0);
                 
                 $db = \Config\Database::connect();
                 $db->transStart();   
@@ -1063,8 +1086,7 @@ class UsuarioController extends BaseController
             'senha' => $this->request->getPost('senha'),
             'pagamento_inicial' => $this->request->getPost('pagamento_inicial'),
             'data_vencimento_assinatura' => !empty($vencimento) ? $vencimento : null,
-            'status_assinatura' => $this->request->getPost('status_assinatura'),
-            'id_perfil' => $this->request->getPost('id_perfil')
+            'status_assinatura' => $this->request->getPost('status_assinatura')
         ];
         
         $db = \Config\Database::connect();
@@ -1073,6 +1095,15 @@ class UsuarioController extends BaseController
         try {
             $updated = $model->update($id, $data);
             
+            if ($updated) {
+                $perfis = $this->request->getPost('id_perfil');
+                $usuarioPerfilModel = new \App\Models\UsuarioPerfilModel();
+                if (!empty($perfis)) {
+                    $usuarioPerfilModel->savePerfisUsuario($id, (array) $perfis);
+                } else {
+                    $usuarioPerfilModel->deletePerfisUsuario($id);
+                }
+            }
             $db->transComplete();
             
             if ($db->transStatus() === false) {

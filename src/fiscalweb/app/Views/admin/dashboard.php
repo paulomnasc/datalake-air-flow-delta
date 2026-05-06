@@ -1,4 +1,9 @@
-
+<?php
+if (!defined('VIEWPATH')) {
+    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR . 'Views');
+}
+require VIEWPATH . '/header.php';
+?>
 
 <style>
 .admin-dashboard {
@@ -393,15 +398,15 @@ setTimeout(function() {
                                     <td>
                                         <span class="rank-badge <?php echo $rankClass; ?>"><?php echo $rank; ?></span>
                                     </td>
-                                    <td style="font-weight: 600;\"><?php echo esc($student->user_name); ?></td>
-                                    <td style="color: #666;\"><?php echo esc($student->email); ?></td>
-                                    <td style="text-align: center;\">
-                                        <span style="background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 12px; font-weight: 600;\">
+                                    <td style="font-weight: 600;"><?php echo esc($student->user_name); ?></td>
+                                    <td style="color: #666;"><?php echo esc($student->email); ?></td>
+                                    <td style="text-align: center;">
+                                        <span style="background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 12px; font-weight: 600;">
                                             <?php echo $student->return_count; ?>
                                         </span>
                                     </td>
-                                    <td style="text-align: right;\" data-order="<?php echo !empty($student->last_return) ? esc($student->last_return) : ''; ?>">
-                                        <span style="font-size: 14px; color: #667eea;\">
+                                    <td style="text-align: right;" data-order="<?php echo !empty($student->last_return) ? esc($student->last_return) : ''; ?>">
+                                        <span style="font-size: 14px; color: #667eea;">
                                             <?php 
                                                 if (!empty($student->last_return)) {
                                                     $lastReturn = new DateTime($student->last_return);
@@ -412,8 +417,8 @@ setTimeout(function() {
                                             ?>
                                         </span>
                                     </td>
-                                    <td style="text-align: right;\" data-order="<?php echo !empty($student->criado_em) ? esc($student->criado_em) : ''; ?>">
-                                        <span style="font-size: 14px; color: #999;\">
+                                    <td style="text-align: right;" data-order="<?php echo !empty($student->criado_em) ? esc($student->criado_em) : ''; ?>">
+                                        <span style="font-size: 14px; color: #999;">
                                             <?php 
                                                 if (!empty($student->criado_em)) {
                                                     $created = new DateTime($student->criado_em);
@@ -934,4 +939,6 @@ setTimeout(function() {
     </div>
 </div>
 
-
+<?php
+require VIEWPATH . '/footer.php';
+?>

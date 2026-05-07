@@ -361,7 +361,7 @@ class UsuarioController extends BaseController
     public function listByEmailSenha($email, $senha)
     {
         $model = new UsuarioModel();
-        $model->select('usuario.*, perfil.descricao as perfil_descricao');
+        $model->select('usuario.*, GROUP_CONCAT(perfil.descricao SEPARATOR ", ") as perfil_descricao');
         // Join correto através da tabela many-to-many usuario_perfil
         $model->join('usuario_perfil', 'usuario_perfil.id_usuario = usuario.id', 'left');
         $model->join('perfil', 'perfil.id = usuario_perfil.id_perfil', 'left');
@@ -381,7 +381,7 @@ class UsuarioController extends BaseController
     public function listByEmail($email)
     {
         $model = new UsuarioModel();
-        $model->select('usuario.*, perfil.descricao as perfil_descricao');
+        $model->select('usuario.*, GROUP_CONCAT(perfil.descricao SEPARATOR ", ") as perfil_descricao');
         // Join correto através da tabela many-to-many usuario_perfil
         $model->join('usuario_perfil', 'usuario_perfil.id_usuario = usuario.id', 'left');
         $model->join('perfil', 'perfil.id = usuario_perfil.id_perfil', 'left');

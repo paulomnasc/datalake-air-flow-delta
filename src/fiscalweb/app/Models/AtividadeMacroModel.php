@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace FiscalWeb\App\Models;
 
 use CodeIgniter\Model;
 

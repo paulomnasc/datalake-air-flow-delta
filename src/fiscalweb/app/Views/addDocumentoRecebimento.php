@@ -23,12 +23,12 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group">
-                <label for="data_assinatura">DataAssinatura:</label>
-                <input type="text" id="data_assinatura" name="data_assinatura" required>
+                <label for="data_assinatura">Data Assinatura:</label>
+                <input type="date" id="data_assinatura" name="data_assinatura" required>
             </div>
 
             <div class="form-group">
-                <label for="nup_sei">NupSei:</label>
+                <label for="nup_sei">NUP/SEI:</label>
                 <input type="text" id="nup_sei" name="nup_sei" required>
             </div>
 

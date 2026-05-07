@@ -24,17 +24,17 @@ require VIEWPATH.'/header.php';
 
             <div class="form-group">
                 <label for="nota_ins1_pontualidade">NotaIns1Pontualidade:</label>
-                <input type="text" id="nota_ins1_pontualidade" name="nota_ins1_pontualidade" required>
+                <input type="number" step="0.01" id="nota_ins1_pontualidade" name="nota_ins1_pontualidade" required>
             </div>
 
             <div class="form-group">
                 <label for="nota_ins2_qualidade">NotaIns2Qualidade:</label>
-                <input type="text" id="nota_ins2_qualidade" name="nota_ins2_qualidade" required>
+                <input type="number" step="0.01" id="nota_ins2_qualidade" name="nota_ins2_qualidade" required>
             </div>
 
             <div class="form-group">
                 <label for="percentual_glosa">PercentualGlosa:</label>
-                <input type="text" id="percentual_glosa" name="percentual_glosa" required>
+                <input type="number" step="0.01" id="percentual_glosa" name="percentual_glosa" required>
             </div>
 
             <div class="button-group">

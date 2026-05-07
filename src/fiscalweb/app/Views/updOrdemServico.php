@@ -13,7 +13,7 @@ require VIEWPATH.'/header.php';
             
             <div class="form-group">
                 <label for="horas_alocadas">HorasAlocadas:</label>
-                <input type="text" id="horas_alocadas" name="horas_alocadas" value="<?php echo $record->horas_alocadas; ?>" required>
+                <input type="number" step="0.01" id="horas_alocadas" name="horas_alocadas" value="<?php echo $record->horas_alocadas; ?>" required>
             </div>
 
             <div class="form-group">
@@ -23,12 +23,12 @@ require VIEWPATH.'/header.php';
 
             <div class="form-group">
                 <label for="data_emissao">DataEmissao:</label>
-                <input type="text" id="data_emissao" name="data_emissao" value="<?php echo $record->data_emissao; ?>" required>
+                <input type="date" id="data_emissao" name="data_emissao" value="<?php echo $record->data_emissao ? substr($record->data_emissao, 0, 10) : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="data_aceite">DataAceite:</label>
-                <input type="text" id="data_aceite" name="data_aceite" value="<?php echo $record->data_aceite; ?>" required>
+                <input type="date" id="data_aceite" name="data_aceite" value="<?php echo $record->data_aceite ? substr($record->data_aceite, 0, 10) : ''; ?>" required>
             </div>
 
             <div class="button-group">

@@ -25,7 +25,7 @@ require VIEWPATH.'/header.php';
 
             <div class="form-group">
                 <label for="data_assinatura">Data Assinatura:</label>
-                <input type="date" id="data_assinatura" name="data_assinatura" value="<?php echo $record->data_assinatura; ?>" required>
+                <input type="date" id="data_assinatura" name="data_assinatura" value="<?php echo $record->data_assinatura ? substr($record->data_assinatura, 0, 10) : ''; ?>" required>
             </div>
 
             <div class="form-group">

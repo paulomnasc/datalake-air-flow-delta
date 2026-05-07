@@ -44,22 +44,22 @@ require VIEWPATH.'/header.php';
 
             <div class="form-group">
                 <label for="total_horas_contratadas">TotalHorasContratadas:</label>
-                <input type="text" id="total_horas_contratadas" name="total_horas_contratadas" required>
+                <input type="number" step="0.01" id="total_horas_contratadas" name="total_horas_contratadas" required>
             </div>
 
             <div class="form-group">
                 <label for="saldo_horas">SaldoHoras:</label>
-                <input type="text" id="saldo_horas" name="saldo_horas" required>
+                <input type="number" step="0.01" id="saldo_horas" name="saldo_horas" required>
             </div>
 
             <div class="form-group">
                 <label for="data_inicio">DataInicio:</label>
-                <input type="text" id="data_inicio" name="data_inicio" required>
+                <input type="date" id="data_inicio" name="data_inicio" required>
             </div>
 
             <div class="form-group">
                 <label for="data_fim">DataFim:</label>
-                <input type="text" id="data_fim" name="data_fim" required>
+                <input type="date" id="data_fim" name="data_fim" required>
             </div>
 
             <div class="button-group">

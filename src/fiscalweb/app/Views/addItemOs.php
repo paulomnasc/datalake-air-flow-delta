@@ -12,7 +12,7 @@ require VIEWPATH.'/header.php';
             
             <div class="form-group">
                 <label for="quantidade_horas">QuantidadeHoras:</label>
-                <input type="text" id="quantidade_horas" name="quantidade_horas" required>
+                <input type="number" step="0.01" id="quantidade_horas" name="quantidade_horas" required>
             </div>
 
             <div class="form-group">

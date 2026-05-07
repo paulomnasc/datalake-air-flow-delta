@@ -29,27 +29,27 @@ require VIEWPATH.'/header.php';
 
             <div class="form-group">
                 <label for="remuneracao">Remuneracao:</label>
-                <input type="text" id="remuneracao" name="remuneracao" required>
+                <input type="number" step="0.01" id="remuneracao" name="remuneracao" required>
             </div>
 
             <div class="form-group">
                 <label for="base_horas_mes">BaseHorasMes:</label>
-                <input type="text" id="base_horas_mes" name="base_horas_mes" required>
+                <input type="number" step="0.01" id="base_horas_mes" name="base_horas_mes" required>
             </div>
 
             <div class="form-group">
                 <label for="base_horas_complexidade">BaseHorasComplexidade:</label>
-                <input type="text" id="base_horas_complexidade" name="base_horas_complexidade" required>
+                <input type="number" step="0.01" id="base_horas_complexidade" name="base_horas_complexidade" required>
             </div>
 
             <div class="form-group">
                 <label for="sla_dias">SlaDias:</label>
-                <input type="text" id="sla_dias" name="sla_dias" required>
+                <input type="number" id="sla_dias" name="sla_dias" required>
             </div>
 
             <div class="form-group">
                 <label for="estim_max_ano">EstimMaxAno:</label>
-                <input type="text" id="estim_max_ano" name="estim_max_ano" required>
+                <input type="number" step="0.01" id="estim_max_ano" name="estim_max_ano" required>
             </div>
 
             <div class="button-group">

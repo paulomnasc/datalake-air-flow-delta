@@ -9,33 +9,33 @@ require VIEWPATH.'/header.php';
         <h4 style="text-align: center;">Edição de AvaliacaoQualidadeSla</h4>
         
         <form id="updForm">
-            <input type="hidden" name="id" value="<?php echo $record->id; ?>">
+            <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
                 <label for="id_documento_recebimento">IdDocumentoRecebimento:</label>
                 <select id="id_documento_recebimento" name="id_documento_recebimento" required>
                     <option value="">Selecione...</option>
-                    <?php foreach($id_documento_recebimento_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php echo ($record->id_documento_recebimento == $opt->id) ? 'selected' : ''; ?>>
+                    <?php if(isset($id_documento_recebimento_list)): foreach($id_documento_recebimento_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_documento_recebimento) && $record->id_documento_recebimento == $opt->id) ? 'selected' : ''; ?>>
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 
             <div class="form-group">
                 <label for="nota_ins1_pontualidade">NotaIns1Pontualidade:</label>
-                <input type="number" step="0.01" id="nota_ins1_pontualidade" name="nota_ins1_pontualidade" value="<?php echo $record->nota_ins1_pontualidade; ?>" required>
+                <input type="number" step="0.01" id="nota_ins1_pontualidade" name="nota_ins1_pontualidade" value="<?php echo isset($record->nota_ins1_pontualidade) ? $record->nota_ins1_pontualidade : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="nota_ins2_qualidade">NotaIns2Qualidade:</label>
-                <input type="number" step="0.01" id="nota_ins2_qualidade" name="nota_ins2_qualidade" value="<?php echo $record->nota_ins2_qualidade; ?>" required>
+                <input type="number" step="0.01" id="nota_ins2_qualidade" name="nota_ins2_qualidade" value="<?php echo isset($record->nota_ins2_qualidade) ? $record->nota_ins2_qualidade : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="percentual_glosa">PercentualGlosa:</label>
-                <input type="number" step="0.01" id="percentual_glosa" name="percentual_glosa" value="<?php echo $record->percentual_glosa; ?>" required>
+                <input type="number" step="0.01" id="percentual_glosa" name="percentual_glosa" value="<?php echo isset($record->percentual_glosa) ? $record->percentual_glosa : ''; ?>" required>
             </div>
 
             <div class="button-group">

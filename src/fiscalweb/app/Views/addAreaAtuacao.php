@@ -11,14 +11,14 @@ require VIEWPATH.'/header.php';
         <form id="addForm">
             
             <div class="form-group">
-                <label for="id_atividade_macro">IdAtividadeMacro:</label>
-                <select id="id_atividade_macro" name="id_atividade_macro" required>
+                <label for="id_catalogo_servicos">IdCatalogoServicos:</label>
+                <select id="id_catalogo_servicos" name="id_catalogo_servicos" required>
                     <option value="">Selecione...</option>
-                    <?php foreach($id_atividade_macro_list as $opt): ?>
+                    <?php if(isset($id_catalogo_servicos_list)): foreach($id_catalogo_servicos_list as $opt): ?>
                         <option value="<?php echo $opt->id; ?>">
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 

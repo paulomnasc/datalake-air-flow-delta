@@ -9,11 +9,11 @@ require VIEWPATH.'/header.php';
         <h4 style="text-align: center;">Edição de StatusRecebimento</h4>
         
         <form id="updForm">
-            <input type="hidden" name="id" value="<?php echo $record->id; ?>">
+            <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
                 <label for="descricao">Descricao:</label>
-                <input type="text" id="descricao" name="descricao" value="<?php echo $record->descricao; ?>" required>
+                <input type="text" id="descricao" name="descricao" value="<?php echo isset($record->descricao) ? $record->descricao : ''; ?>" required>
             </div>
 
             <div class="button-group">

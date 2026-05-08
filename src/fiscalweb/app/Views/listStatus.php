@@ -8,7 +8,7 @@ require VIEWPATH.'/header.php';
     <div class="container">
         <h4 style="text-align: center;">Listagem de Status</h4>
         
-        <input type="text" id="filtro-status" placeholder="Filtrar">
+        <input type="text" id="filtro-descricao" placeholder="Filtrar">
         <img src="../assets/img/lupa.jpg" >
         
         <form action="<?php echo site_url('addStatus'); ?>" method="post">
@@ -19,7 +19,7 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Status</th>
+                    <th>Descricao</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -27,7 +27,7 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->status ?> </td>
+                    <td> <?php echo $item->descricao ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updStatus'); ?>" method="post">
@@ -74,7 +74,7 @@ require VIEWPATH.'/header.php';
                     language: { "sEmptyTable": "Nenhum registro encontrado" }
                 });
 
-                $('#filtro-status').on('keyup', function() {
+                $('#filtro-descricao').on('keyup', function() {
                     table.search(this.value).draw();
                 });
             });

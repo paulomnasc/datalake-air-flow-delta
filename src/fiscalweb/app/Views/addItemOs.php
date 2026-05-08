@@ -20,6 +20,18 @@ require VIEWPATH.'/header.php';
                 <input type="text" id="profissional_alocado" name="profissional_alocado" required>
             </div>
 
+            <div class="form-group">
+                <label for="id_servico">IdServico:</label>
+                <select id="id_servico" name="id_servico" required>
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_servico_list)): foreach($id_servico_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>">
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+
             <div class="button-group">
                 <button class="add-button" type="submit">Salvar</button>
                 <a href="<?php echo site_url('listItemOs'); ?>" class="add-button" style="text-decoration: none; background-color: #6c757d;">Voltar</a>

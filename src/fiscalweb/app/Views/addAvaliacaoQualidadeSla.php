@@ -14,11 +14,11 @@ require VIEWPATH.'/header.php';
                 <label for="id_documento_recebimento">IdDocumentoRecebimento:</label>
                 <select id="id_documento_recebimento" name="id_documento_recebimento" required>
                     <option value="">Selecione...</option>
-                    <?php foreach($id_documento_recebimento_list as $opt): ?>
+                    <?php if(isset($id_documento_recebimento_list)): foreach($id_documento_recebimento_list as $opt): ?>
                         <option value="<?php echo $opt->id; ?>">
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 

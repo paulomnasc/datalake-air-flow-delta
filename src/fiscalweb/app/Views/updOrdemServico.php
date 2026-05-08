@@ -9,26 +9,26 @@ require VIEWPATH.'/header.php';
         <h4 style="text-align: center;">Edição de OrdemServico</h4>
         
         <form id="updForm">
-            <input type="hidden" name="id" value="<?php echo $record->id; ?>">
+            <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
                 <label for="horas_alocadas">HorasAlocadas:</label>
-                <input type="number" step="0.01" id="horas_alocadas" name="horas_alocadas" value="<?php echo $record->horas_alocadas; ?>" required>
+                <input type="number" step="0.01" id="horas_alocadas" name="horas_alocadas" value="<?php echo isset($record->horas_alocadas) ? $record->horas_alocadas : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="nup_sei">NupSei:</label>
-                <input type="text" id="nup_sei" name="nup_sei" value="<?php echo $record->nup_sei; ?>" required>
+                <input type="text" id="nup_sei" name="nup_sei" value="<?php echo isset($record->nup_sei) ? $record->nup_sei : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="data_emissao">DataEmissao:</label>
-                <input type="date" id="data_emissao" name="data_emissao" value="<?php echo $record->data_emissao ? substr($record->data_emissao, 0, 10) : ''; ?>" required>
+                <input type="datetime-local" id="data_emissao" name="data_emissao" value="<?php echo isset($record->data_emissao) ? $record->data_emissao : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="data_aceite">DataAceite:</label>
-                <input type="date" id="data_aceite" name="data_aceite" value="<?php echo $record->data_aceite ? substr($record->data_aceite, 0, 10) : ''; ?>" required>
+                <input type="datetime-local" id="data_aceite" name="data_aceite" value="<?php echo isset($record->data_aceite) ? $record->data_aceite : ''; ?>" required>
             </div>
 
             <div class="button-group">

@@ -8,7 +8,7 @@ require VIEWPATH.'/header.php';
     <div class="container">
         <h4 style="text-align: center;">Listagem de ItemContrato</h4>
         
-        <input type="text" id="filtro-id_catalogo_servicos" placeholder="Filtrar">
+        <input type="text" id="filtro-gestor_substituto" placeholder="Filtrar">
         <img src="../assets/img/lupa.jpg" >
         
         <form action="<?php echo site_url('addItemContrato'); ?>" method="post">
@@ -19,7 +19,7 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>IdCatalogoServicos</th><th>GestorTitular</th><th>GestorSubstituto</th><th>NumeroContrato</th><th>Objeto</th><th>TotalHorasContratadas</th><th>SaldoHoras</th><th>DataInicio</th><th>DataFim</th>
+                    <th>GestorSubstituto</th><th>NumeroContrato</th><th>Objeto</th><th>TotalHorasContratadas</th><th>SaldoHoras</th><th>DataInicio</th><th>DataFim</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -27,7 +27,7 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->id_catalogo_servicos ?> </td><td> <?php echo $item->gestor_titular ?> </td><td> <?php echo $item->gestor_substituto ?> </td><td> <?php echo $item->numero_contrato ?> </td><td> <?php echo $item->objeto ?> </td><td> <?php echo $item->total_horas_contratadas ?> </td><td> <?php echo $item->saldo_horas ?> </td><td> <?php echo $item->data_inicio ?> </td><td> <?php echo $item->data_fim ?> </td>
+                    <td> <?php echo $item->gestor_substituto ?> </td><td> <?php echo $item->numero_contrato ?> </td><td> <?php echo $item->objeto ?> </td><td> <?php echo $item->total_horas_contratadas ?> </td><td> <?php echo $item->saldo_horas ?> </td><td> <?php echo $item->data_inicio ?> </td><td> <?php echo $item->data_fim ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updItemContrato'); ?>" method="post">
@@ -74,7 +74,7 @@ require VIEWPATH.'/header.php';
                     language: { "sEmptyTable": "Nenhum registro encontrado" }
                 });
 
-                $('#filtro-id_catalogo_servicos').on('keyup', function() {
+                $('#filtro-gestor_substituto').on('keyup', function() {
                     table.search(this.value).draw();
                 });
             });

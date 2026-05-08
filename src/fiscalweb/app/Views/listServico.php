@@ -8,7 +8,7 @@ require VIEWPATH.'/header.php';
     <div class="container">
         <h4 style="text-align: center;">Listagem de Servico</h4>
         
-        <input type="text" id="filtro-id_item_os" placeholder="Filtrar">
+        <input type="text" id="filtro-remuneracao" placeholder="Filtrar">
         <img src="../assets/img/lupa.jpg" >
         
         <form action="<?php echo site_url('addServico'); ?>" method="post">
@@ -19,7 +19,7 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>IdItemOs</th><th>Descricao</th><th>Remuneracao</th><th>BaseHorasMes</th><th>BaseHorasComplexidade</th><th>SlaDias</th><th>EstimMaxAno</th>
+                    <th>Remuneracao</th><th>BaseHorasMes</th><th>BaseHorasComplexidade</th><th>SlaDias</th><th>EstimMaxAno</th><th>IdAtividadeMacro</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -27,7 +27,7 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->id_item_os ?> </td><td> <?php echo $item->descricao ?> </td><td> <?php echo $item->remuneracao ?> </td><td> <?php echo $item->base_horas_mes ?> </td><td> <?php echo $item->base_horas_complexidade ?> </td><td> <?php echo $item->sla_dias ?> </td><td> <?php echo $item->estim_max_ano ?> </td>
+                    <td> <?php echo $item->remuneracao ?> </td><td> <?php echo $item->base_horas_mes ?> </td><td> <?php echo $item->base_horas_complexidade ?> </td><td> <?php echo $item->sla_dias ?> </td><td> <?php echo $item->estim_max_ano ?> </td><td> <?php echo $item->id_atividade_macro ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updServico'); ?>" method="post">
@@ -74,7 +74,7 @@ require VIEWPATH.'/header.php';
                     language: { "sEmptyTable": "Nenhum registro encontrado" }
                 });
 
-                $('#filtro-id_item_os').on('keyup', function() {
+                $('#filtro-remuneracao').on('keyup', function() {
                     table.search(this.value).draw();
                 });
             });

@@ -9,39 +9,39 @@ require VIEWPATH.'/header.php';
         <h4 style="text-align: center;">Edição de DocumentoRecebimento</h4>
         
         <form id="updForm">
-            <input type="hidden" name="id" value="<?php echo $record->id; ?>">
+            <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
                 <label for="id_os">IdOs:</label>
                 <select id="id_os" name="id_os" required>
                     <option value="">Selecione...</option>
-                    <?php foreach($id_os_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php echo ($record->id_os == $opt->id) ? 'selected' : ''; ?>>
+                    <?php if(isset($id_os_list)): foreach($id_os_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_os) && $record->id_os == $opt->id) ? 'selected' : ''; ?>>
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 
             <div class="form-group">
-                <label for="data_assinatura">Data Assinatura:</label>
-                <input type="date" id="data_assinatura" name="data_assinatura" value="<?php echo $record->data_assinatura ? substr($record->data_assinatura, 0, 10) : ''; ?>" required>
+                <label for="data_assinatura">DataAssinatura:</label>
+                <input type="datetime-local" id="data_assinatura" name="data_assinatura" value="<?php echo isset($record->data_assinatura) ? $record->data_assinatura : ''; ?>" required>
             </div>
 
             <div class="form-group">
-                <label for="nup_sei">NUP/SEI:</label>
-                <input type="text" id="nup_sei" name="nup_sei" value="<?php echo $record->nup_sei; ?>" required>
+                <label for="nup_sei">NupSei:</label>
+                <input type="text" id="nup_sei" name="nup_sei" value="<?php echo isset($record->nup_sei) ? $record->nup_sei : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="id_tipo_documento">IdTipoDocumento:</label>
                 <select id="id_tipo_documento" name="id_tipo_documento" required>
                     <option value="">Selecione...</option>
-                    <?php foreach($id_tipo_documento_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php echo ($record->id_tipo_documento == $opt->id) ? 'selected' : ''; ?>>
+                    <?php if(isset($id_tipo_documento_list)): foreach($id_tipo_documento_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_tipo_documento) && $record->id_tipo_documento == $opt->id) ? 'selected' : ''; ?>>
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 
@@ -49,11 +49,11 @@ require VIEWPATH.'/header.php';
                 <label for="id_usuario_fiscal_tecnico">IdUsuarioFiscalTecnico:</label>
                 <select id="id_usuario_fiscal_tecnico" name="id_usuario_fiscal_tecnico" required>
                     <option value="">Selecione...</option>
-                    <?php foreach($id_usuario_fiscal_tecnico_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php echo ($record->id_usuario_fiscal_tecnico == $opt->id) ? 'selected' : ''; ?>>
+                    <?php if(isset($id_usuario_fiscal_tecnico_list)): foreach($id_usuario_fiscal_tecnico_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_usuario_fiscal_tecnico) && $record->id_usuario_fiscal_tecnico == $opt->id) ? 'selected' : ''; ?>>
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 
@@ -61,11 +61,11 @@ require VIEWPATH.'/header.php';
                 <label for="id_usuario_fiscal_requisitante">IdUsuarioFiscalRequisitante:</label>
                 <select id="id_usuario_fiscal_requisitante" name="id_usuario_fiscal_requisitante" required>
                     <option value="">Selecione...</option>
-                    <?php foreach($id_usuario_fiscal_requisitante_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php echo ($record->id_usuario_fiscal_requisitante == $opt->id) ? 'selected' : ''; ?>>
+                    <?php if(isset($id_usuario_fiscal_requisitante_list)): foreach($id_usuario_fiscal_requisitante_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_usuario_fiscal_requisitante) && $record->id_usuario_fiscal_requisitante == $opt->id) ? 'selected' : ''; ?>>
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 
@@ -73,11 +73,11 @@ require VIEWPATH.'/header.php';
                 <label for="id_usuario_gestor">IdUsuarioGestor:</label>
                 <select id="id_usuario_gestor" name="id_usuario_gestor" required>
                     <option value="">Selecione...</option>
-                    <?php foreach($id_usuario_gestor_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php echo ($record->id_usuario_gestor == $opt->id) ? 'selected' : ''; ?>>
+                    <?php if(isset($id_usuario_gestor_list)): foreach($id_usuario_gestor_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_usuario_gestor) && $record->id_usuario_gestor == $opt->id) ? 'selected' : ''; ?>>
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 

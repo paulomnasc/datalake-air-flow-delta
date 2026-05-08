@@ -8,7 +8,7 @@ require VIEWPATH.'/header.php';
     <div class="container">
         <h4 style="text-align: center;">Listagem de AtividadeMacro</h4>
         
-        <input type="text" id="filtro-id_servico" placeholder="Filtrar">
+        <input type="text" id="filtro-id_area_atuacao" placeholder="Filtrar">
         <img src="../assets/img/lupa.jpg" >
         
         <form action="<?php echo site_url('addAtividadeMacro'); ?>" method="post">
@@ -19,7 +19,7 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>IdServico</th><th>Descricao</th>
+                    <th>IdAreaAtuacao</th><th>Descricao</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -27,7 +27,7 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->id_servico ?> </td><td> <?php echo $item->descricao ?> </td>
+                    <td> <?php echo $item->id_area_atuacao ?> </td><td> <?php echo $item->descricao ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updAtividadeMacro'); ?>" method="post">
@@ -74,7 +74,7 @@ require VIEWPATH.'/header.php';
                     language: { "sEmptyTable": "Nenhum registro encontrado" }
                 });
 
-                $('#filtro-id_servico').on('keyup', function() {
+                $('#filtro-id_area_atuacao').on('keyup', function() {
                     table.search(this.value).draw();
                 });
             });

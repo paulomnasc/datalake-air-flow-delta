@@ -19,7 +19,7 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>QuantidadeHoras</th><th>ProfissionalAlocado</th>
+                    <th>QuantidadeHoras</th><th>ProfissionalAlocado</th><th>IdServico</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -27,7 +27,7 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->quantidade_horas ?> </td><td> <?php echo $item->profissional_alocado ?> </td>
+                    <td> <?php echo $item->quantidade_horas ?> </td><td> <?php echo $item->profissional_alocado ?> </td><td> <?php echo $item->id_servico ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updItemOs'); ?>" method="post">

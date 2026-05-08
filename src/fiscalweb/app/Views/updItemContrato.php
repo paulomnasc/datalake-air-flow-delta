@@ -9,58 +9,41 @@ require VIEWPATH.'/header.php';
         <h4 style="text-align: center;">Edição de ItemContrato</h4>
         
         <form id="updForm">
-            <input type="hidden" name="id" value="<?php echo $record->id; ?>">
+            <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
-                <label for="id_catalogo_servicos">IdCatalogoServicos:</label>
-                <select id="id_catalogo_servicos" name="id_catalogo_servicos" required>
-                    <option value="">Selecione...</option>
-                    <?php foreach($id_catalogo_servicos_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php echo ($record->id_catalogo_servicos == $opt->id) ? 'selected' : ''; ?>>
-                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="gestor_titular">GestorTitular:</label>
-                <input type="text" id="gestor_titular" name="gestor_titular" value="<?php echo $record->gestor_titular; ?>" required>
-            </div>
-
-            <div class="form-group">
                 <label for="gestor_substituto">GestorSubstituto:</label>
-                <input type="text" id="gestor_substituto" name="gestor_substituto" value="<?php echo $record->gestor_substituto; ?>" required>
+                <input type="text" id="gestor_substituto" name="gestor_substituto" value="<?php echo isset($record->gestor_substituto) ? $record->gestor_substituto : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="numero_contrato">NumeroContrato:</label>
-                <input type="text" id="numero_contrato" name="numero_contrato" value="<?php echo $record->numero_contrato; ?>" required>
+                <input type="text" id="numero_contrato" name="numero_contrato" value="<?php echo isset($record->numero_contrato) ? $record->numero_contrato : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="objeto">Objeto:</label>
-                <input type="text" id="objeto" name="objeto" value="<?php echo $record->objeto; ?>" required>
+                <input type="text" id="objeto" name="objeto" value="<?php echo isset($record->objeto) ? $record->objeto : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="total_horas_contratadas">TotalHorasContratadas:</label>
-                <input type="number" step="0.01" id="total_horas_contratadas" name="total_horas_contratadas" value="<?php echo $record->total_horas_contratadas; ?>" required>
+                <input type="number" step="0.01" id="total_horas_contratadas" name="total_horas_contratadas" value="<?php echo isset($record->total_horas_contratadas) ? $record->total_horas_contratadas : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="saldo_horas">SaldoHoras:</label>
-                <input type="number" step="0.01" id="saldo_horas" name="saldo_horas" value="<?php echo $record->saldo_horas; ?>" required>
+                <input type="number" step="0.01" id="saldo_horas" name="saldo_horas" value="<?php echo isset($record->saldo_horas) ? $record->saldo_horas : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="data_inicio">DataInicio:</label>
-                <input type="date" id="data_inicio" name="data_inicio" value="<?php echo $record->data_inicio ? substr($record->data_inicio, 0, 10) : ''; ?>" required>
+                <input type="datetime-local" id="data_inicio" name="data_inicio" value="<?php echo isset($record->data_inicio) ? $record->data_inicio : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="data_fim">DataFim:</label>
-                <input type="date" id="data_fim" name="data_fim" value="<?php echo $record->data_fim ? substr($record->data_fim, 0, 10) : ''; ?>" required>
+                <input type="datetime-local" id="data_fim" name="data_fim" value="<?php echo isset($record->data_fim) ? $record->data_fim : ''; ?>" required>
             </div>
 
             <div class="button-group">

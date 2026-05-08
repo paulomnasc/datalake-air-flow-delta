@@ -9,23 +9,23 @@ require VIEWPATH.'/header.php';
         <h4 style="text-align: center;">Edição de AreaAtuacao</h4>
         
         <form id="updForm">
-            <input type="hidden" name="id" value="<?php echo $record->id; ?>">
+            <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
-                <label for="id_atividade_macro">IdAtividadeMacro:</label>
-                <select id="id_atividade_macro" name="id_atividade_macro" required>
+                <label for="id_catalogo_servicos">IdCatalogoServicos:</label>
+                <select id="id_catalogo_servicos" name="id_catalogo_servicos" required>
                     <option value="">Selecione...</option>
-                    <?php foreach($id_atividade_macro_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php echo ($record->id_atividade_macro == $opt->id) ? 'selected' : ''; ?>>
+                    <?php if(isset($id_catalogo_servicos_list)): foreach($id_catalogo_servicos_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_catalogo_servicos) && $record->id_catalogo_servicos == $opt->id) ? 'selected' : ''; ?>>
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 
             <div class="form-group">
                 <label for="descricao">Descricao:</label>
-                <input type="text" id="descricao" name="descricao" value="<?php echo $record->descricao; ?>" required>
+                <input type="text" id="descricao" name="descricao" value="<?php echo isset($record->descricao) ? $record->descricao : ''; ?>" required>
             </div>
 
             <div class="button-group">

@@ -8,7 +8,7 @@ require VIEWPATH.'/header.php';
     <div class="container">
         <h4 style="text-align: center;">Listagem de CatalogoServicos</h4>
         
-        <input type="text" id="filtro-id_area_atuacao" placeholder="Filtrar">
+        <input type="text" id="filtro-id_item_contrato" placeholder="Filtrar">
         <img src="../assets/img/lupa.jpg" >
         
         <form action="<?php echo site_url('addCatalogoServicos'); ?>" method="post">
@@ -19,7 +19,7 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>IdAreaAtuacao</th><th>CodItemUnificado</th><th>Descricao</th>
+                    <th>IdItemContrato</th><th>Descricao</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -27,7 +27,7 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->id_area_atuacao ?> </td><td> <?php echo $item->cod_item_unificado ?> </td><td> <?php echo $item->descricao ?> </td>
+                    <td> <?php echo $item->id_item_contrato ?> </td><td> <?php echo $item->descricao ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updCatalogoServicos'); ?>" method="post">
@@ -74,7 +74,7 @@ require VIEWPATH.'/header.php';
                     language: { "sEmptyTable": "Nenhum registro encontrado" }
                 });
 
-                $('#filtro-id_area_atuacao').on('keyup', function() {
+                $('#filtro-id_item_contrato').on('keyup', function() {
                     table.search(this.value).draw();
                 });
             });

@@ -9,48 +9,43 @@ require VIEWPATH.'/header.php';
         <h4 style="text-align: center;">Edição de Servico</h4>
         
         <form id="updForm">
-            <input type="hidden" name="id" value="<?php echo $record->id; ?>">
+            <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
-                <label for="id_item_os">IdItemOs:</label>
-                <select id="id_item_os" name="id_item_os" required>
-                    <option value="">Selecione...</option>
-                    <?php foreach($id_item_os_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php echo ($record->id_item_os == $opt->id) ? 'selected' : ''; ?>>
-                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="descricao">Descricao:</label>
-                <input type="text" id="descricao" name="descricao" value="<?php echo $record->descricao; ?>" required>
-            </div>
-
-            <div class="form-group">
                 <label for="remuneracao">Remuneracao:</label>
-                <input type="number" step="0.01" id="remuneracao" name="remuneracao" value="<?php echo $record->remuneracao; ?>" required>
+                <input type="number" step="0.01" id="remuneracao" name="remuneracao" value="<?php echo isset($record->remuneracao) ? $record->remuneracao : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="base_horas_mes">BaseHorasMes:</label>
-                <input type="number" step="0.01" id="base_horas_mes" name="base_horas_mes" value="<?php echo $record->base_horas_mes; ?>" required>
+                <input type="number" step="0.01" id="base_horas_mes" name="base_horas_mes" value="<?php echo isset($record->base_horas_mes) ? $record->base_horas_mes : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="base_horas_complexidade">BaseHorasComplexidade:</label>
-                <input type="number" step="0.01" id="base_horas_complexidade" name="base_horas_complexidade" value="<?php echo $record->base_horas_complexidade; ?>" required>
+                <input type="number" step="0.01" id="base_horas_complexidade" name="base_horas_complexidade" value="<?php echo isset($record->base_horas_complexidade) ? $record->base_horas_complexidade : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="sla_dias">SlaDias:</label>
-                <input type="number" id="sla_dias" name="sla_dias" value="<?php echo $record->sla_dias; ?>" required>
+                <input type="number" id="sla_dias" name="sla_dias" value="<?php echo isset($record->sla_dias) ? $record->sla_dias : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="estim_max_ano">EstimMaxAno:</label>
-                <input type="number" step="0.01" id="estim_max_ano" name="estim_max_ano" value="<?php echo $record->estim_max_ano; ?>" required>
+                <input type="number" step="0.01" id="estim_max_ano" name="estim_max_ano" value="<?php echo isset($record->estim_max_ano) ? $record->estim_max_ano : ''; ?>" required>
+            </div>
+
+            <div class="form-group">
+                <label for="id_atividade_macro">IdAtividadeMacro:</label>
+                <select id="id_atividade_macro" name="id_atividade_macro" required>
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_atividade_macro_list)): foreach($id_atividade_macro_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_atividade_macro) && $record->id_atividade_macro == $opt->id) ? 'selected' : ''; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
             </div>
 
             <div class="button-group">

@@ -22,12 +22,12 @@ require VIEWPATH.'/header.php';
 
             <div class="form-group">
                 <label for="data_emissao">DataEmissao:</label>
-                <input type="date" id="data_emissao" name="data_emissao" required>
+                <input type="datetime-local" id="data_emissao" name="data_emissao" required>
             </div>
 
             <div class="form-group">
                 <label for="data_aceite">DataAceite:</label>
-                <input type="date" id="data_aceite" name="data_aceite" required>
+                <input type="datetime-local" id="data_aceite" name="data_aceite" required>
             </div>
 
             <div class="button-group">

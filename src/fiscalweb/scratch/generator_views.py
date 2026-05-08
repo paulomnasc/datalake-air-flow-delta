@@ -7,21 +7,36 @@ def parse_ddl(file_path):
     tables = {}
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
-    blocks = re.findall(r'CREATE TABLE IF NOT EXISTS `([^`]+)` \((.*?)\) ENGINE=', content, re.DOTALL)
+    
+    # regex updated to capture type as well. We assume standard layout:
+    # `column_name` TYPE [OPTIONS]
+    blocks = re.findall(r'CREATE TABLE (?:IF NOT EXISTS )?`?(\w+)`? \((.*?)\)(?: ENGINE=|\s*;)', content, re.DOTALL | re.IGNORECASE)
     for table_name, body in blocks:
+        table_name = table_name.lower()
         lines = body.split('\n')
         columns = []
         fks = []
         for line in lines:
             line = line.strip()
             if not line: continue
-            if line.startswith('`'):
-                columns.append(line.split('`')[1])
-            elif line.startswith('CONSTRAINT') and 'FOREIGN KEY' in line:
-                col_match = re.search(r'FOREIGN KEY \(`([^`]+)`\)', line)
-                ref_match = re.search(r'REFERENCES `([^`]+)`', line)
+            
+            # Check for FKs
+            if line.upper().startswith('FOREIGN KEY'):
+                col_match = re.search(r'FOREIGN KEY\s*\(`?(\w+)`?\)', line, re.IGNORECASE)
+                ref_match = re.search(r'REFERENCES\s*`?(\w+)`?', line, re.IGNORECASE)
                 if col_match and ref_match:
-                    fks.append({'col': col_match.group(1), 'ref': ref_match.group(1)})
+                    fks.append({'col': col_match.group(1).lower(), 'ref': ref_match.group(1).lower()})
+            elif line.upper().startswith('PRIMARY KEY') or line.upper().startswith('UNIQUE KEY'):
+                continue
+            else:
+                # It's a column definition
+                # Match `col` or col TYPE
+                col_match = re.search(r'^`?(\w+)`?\s+(\w+)', line)
+                if col_match:
+                    col_name = col_match.group(1).lower()
+                    col_type = col_match.group(2).upper()
+                    columns.append({'name': col_name, 'type': col_type})
+
         tables[table_name] = {'columns': columns, 'fks': fks}
     return tables
 
@@ -39,8 +54,19 @@ def to_camel_case(snake_str):
 def to_pascal_case(snake_str):
     return ''.join(x.title() for x in snake_str.split('_'))
 
-def generate_list_view(table_name, columns, pascal_name):
-    # Determine display columns (skip id for display headers but keep it in data)
+def get_input_type(col_type):
+    if 'DATETIME' in col_type:
+        return 'datetime-local'
+    elif 'DATE' in col_type:
+        return 'date'
+    elif 'FLOAT' in col_type or 'DECIMAL' in col_type or 'DOUBLE' in col_type:
+        return 'number" step="0.01'
+    elif 'INT' in col_type:
+        return 'number'
+    return 'text'
+
+def generate_list_view(table_name, columns_info, pascal_name):
+    columns = [c['name'] for c in columns_info]
     disp_cols = [c for c in columns if c != 'id']
     headers = "".join([f"<th>{to_pascal_case(c)}</th>" for c in disp_cols])
     
@@ -134,31 +160,34 @@ require VIEWPATH.'/header.php';
 """
     return code
 
-def generate_add_view(table_name, columns, fks, pascal_name):
+def generate_add_view(table_name, columns_info, fks, pascal_name):
     inputs = ""
-    for c in columns:
+    for col in columns_info:
+        c = col['name']
+        ctype = col['type']
         if c == 'id': continue
+        
         fk_match = next((fk for fk in fks if fk['col'] == c), None)
         if fk_match:
-            # Add a select box for FK
             inputs += f"""
             <div class="form-group">
                 <label for="{c}">{to_pascal_case(c)}:</label>
                 <select id="{c}" name="{c}" required>
                     <option value="">Selecione...</option>
-                    <?php foreach(${c}_list as $opt): ?>
+                    <?php if(isset(${c}_list)): foreach(${c}_list as $opt): ?>
                         <option value="<?php echo $opt->id; ?>">
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 """
         else:
+            input_type = get_input_type(ctype)
             inputs += f"""
             <div class="form-group">
                 <label for="{c}">{to_pascal_case(c)}:</label>
-                <input type="text" id="{c}" name="{c}" required>
+                <input type="{input_type}" id="{c}" name="{c}" required>
             </div>
 """
 
@@ -210,10 +239,13 @@ require VIEWPATH.'/header.php';
     return code
 
 
-def generate_upd_view(table_name, columns, fks, pascal_name):
+def generate_upd_view(table_name, columns_info, fks, pascal_name):
     inputs = ""
-    for c in columns:
+    for col in columns_info:
+        c = col['name']
+        ctype = col['type']
         if c == 'id': continue
+        
         fk_match = next((fk for fk in fks if fk['col'] == c), None)
         if fk_match:
             inputs += f"""
@@ -221,19 +253,20 @@ def generate_upd_view(table_name, columns, fks, pascal_name):
                 <label for="{c}">{to_pascal_case(c)}:</label>
                 <select id="{c}" name="{c}" required>
                     <option value="">Selecione...</option>
-                    <?php foreach(${c}_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php echo ($record->{c} == $opt->id) ? 'selected' : ''; ?>>
+                    <?php if(isset(${c}_list)): foreach(${c}_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->{c}) && $record->{c} == $opt->id) ? 'selected' : ''; ?>>
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 """
         else:
+            input_type = get_input_type(ctype)
             inputs += f"""
             <div class="form-group">
                 <label for="{c}">{to_pascal_case(c)}:</label>
-                <input type="text" id="{c}" name="{c}" value="<?php echo $record->{c}; ?>" required>
+                <input type="{input_type}" id="{c}" name="{c}" value="<?php echo isset($record->{c}) ? $record->{c} : ''; ?>" required>
             </div>
 """
 
@@ -248,7 +281,7 @@ require VIEWPATH.'/header.php';
         <h4 style="text-align: center;">Edição de {pascal_name}</h4>
         
         <form id="updForm">
-            <input type="hidden" name="id" value="<?php echo $record->id; ?>">
+            <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             {inputs}
             <div class="button-group">
                 <button class="add-button" type="submit">Atualizar</button>

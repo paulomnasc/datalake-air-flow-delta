@@ -11,23 +11,6 @@ require VIEWPATH.'/header.php';
         <form id="addForm">
             
             <div class="form-group">
-                <label for="id_item_os">IdItemOs:</label>
-                <select id="id_item_os" name="id_item_os" required>
-                    <option value="">Selecione...</option>
-                    <?php foreach($id_item_os_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>">
-                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="descricao">Descricao:</label>
-                <input type="text" id="descricao" name="descricao" required>
-            </div>
-
-            <div class="form-group">
                 <label for="remuneracao">Remuneracao:</label>
                 <input type="number" step="0.01" id="remuneracao" name="remuneracao" required>
             </div>
@@ -50,6 +33,18 @@ require VIEWPATH.'/header.php';
             <div class="form-group">
                 <label for="estim_max_ano">EstimMaxAno:</label>
                 <input type="number" step="0.01" id="estim_max_ano" name="estim_max_ano" required>
+            </div>
+
+            <div class="form-group">
+                <label for="id_atividade_macro">IdAtividadeMacro:</label>
+                <select id="id_atividade_macro" name="id_atividade_macro" required>
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_atividade_macro_list)): foreach($id_atividade_macro_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>">
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
             </div>
 
             <div class="button-group">

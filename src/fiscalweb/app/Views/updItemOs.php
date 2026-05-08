@@ -9,16 +9,28 @@ require VIEWPATH.'/header.php';
         <h4 style="text-align: center;">Edição de ItemOs</h4>
         
         <form id="updForm">
-            <input type="hidden" name="id" value="<?php echo $record->id; ?>">
+            <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
                 <label for="quantidade_horas">QuantidadeHoras:</label>
-                <input type="number" step="0.01" id="quantidade_horas" name="quantidade_horas" value="<?php echo $record->quantidade_horas; ?>" required>
+                <input type="number" step="0.01" id="quantidade_horas" name="quantidade_horas" value="<?php echo isset($record->quantidade_horas) ? $record->quantidade_horas : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="profissional_alocado">ProfissionalAlocado:</label>
-                <input type="text" id="profissional_alocado" name="profissional_alocado" value="<?php echo $record->profissional_alocado; ?>" required>
+                <input type="text" id="profissional_alocado" name="profissional_alocado" value="<?php echo isset($record->profissional_alocado) ? $record->profissional_alocado : ''; ?>" required>
+            </div>
+
+            <div class="form-group">
+                <label for="id_servico">IdServico:</label>
+                <select id="id_servico" name="id_servico" required>
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_servico_list)): foreach($id_servico_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_servico) && $record->id_servico == $opt->id) ? 'selected' : ''; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
             </div>
 
             <div class="button-group">

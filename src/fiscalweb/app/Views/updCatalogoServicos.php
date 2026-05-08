@@ -9,28 +9,23 @@ require VIEWPATH.'/header.php';
         <h4 style="text-align: center;">Edição de CatalogoServicos</h4>
         
         <form id="updForm">
-            <input type="hidden" name="id" value="<?php echo $record->id; ?>">
+            <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
-                <label for="id_area_atuacao">IdAreaAtuacao:</label>
-                <select id="id_area_atuacao" name="id_area_atuacao" required>
+                <label for="id_item_contrato">IdItemContrato:</label>
+                <select id="id_item_contrato" name="id_item_contrato" required>
                     <option value="">Selecione...</option>
-                    <?php foreach($id_area_atuacao_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php echo ($record->id_area_atuacao == $opt->id) ? 'selected' : ''; ?>>
+                    <?php if(isset($id_item_contrato_list)): foreach($id_item_contrato_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_item_contrato) && $record->id_item_contrato == $opt->id) ? 'selected' : ''; ?>>
                             <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
 
             <div class="form-group">
-                <label for="cod_item_unificado">CodItemUnificado:</label>
-                <input type="text" id="cod_item_unificado" name="cod_item_unificado" value="<?php echo $record->cod_item_unificado; ?>" required>
-            </div>
-
-            <div class="form-group">
                 <label for="descricao">Descricao:</label>
-                <input type="text" id="descricao" name="descricao" value="<?php echo $record->descricao; ?>" required>
+                <input type="text" id="descricao" name="descricao" value="<?php echo isset($record->descricao) ? $record->descricao : ''; ?>" required>
             </div>
 
             <div class="button-group">

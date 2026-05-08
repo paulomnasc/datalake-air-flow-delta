@@ -27,7 +27,7 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->gestor_substituto ?> </td><td> <?php echo $item->numero_contrato ?> </td><td> <?php echo $item->objeto ?> </td><td> <?php echo $item->total_horas_contratadas ?> </td><td> <?php echo $item->saldo_horas ?> </td><td> <?php echo $item->data_inicio ?> </td><td> <?php echo $item->data_fim ?> </td>
+                    <td> <?php echo $item->gestor_substituto ?> </td><td> <?php echo $item->Numero_Contrato ?> </td><td> <?php echo $item->Objeto ?> </td><td> <?php echo $item->Total_Horas_Contratadas ?> </td><td> <?php echo $item->Saldo_Horas ?> </td><td> <?php echo $item->Data_Inicio ?> </td><td> <?php echo $item->Data_Fim ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updItemContrato'); ?>" method="post">

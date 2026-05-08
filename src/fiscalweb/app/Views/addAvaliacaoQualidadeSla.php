@@ -23,18 +23,18 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group">
-                <label for="nota_ins1_pontualidade">NotaIns1Pontualidade:</label>
-                <input type="number" step="0.01" id="nota_ins1_pontualidade" name="nota_ins1_pontualidade" required>
+                <label for="Nota_INS1_Pontualidade">NotaIns1Pontualidade:</label>
+                <input type="number" step="0.01" id="Nota_INS1_Pontualidade" name="Nota_INS1_Pontualidade" required>
             </div>
 
             <div class="form-group">
-                <label for="nota_ins2_qualidade">NotaIns2Qualidade:</label>
-                <input type="number" step="0.01" id="nota_ins2_qualidade" name="nota_ins2_qualidade" required>
+                <label for="Nota_INS2_Qualidade">NotaIns2Qualidade:</label>
+                <input type="number" step="0.01" id="Nota_INS2_Qualidade" name="Nota_INS2_Qualidade" required>
             </div>
 
             <div class="form-group">
-                <label for="percentual_glosa">PercentualGlosa:</label>
-                <input type="number" step="0.01" id="percentual_glosa" name="percentual_glosa" required>
+                <label for="Percentual_Glosa">PercentualGlosa:</label>
+                <input type="number" step="0.01" id="Percentual_Glosa" name="Percentual_Glosa" required>
             </div>
 
             <div class="button-group">

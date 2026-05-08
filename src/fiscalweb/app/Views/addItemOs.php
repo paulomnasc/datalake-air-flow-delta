@@ -11,13 +11,13 @@ require VIEWPATH.'/header.php';
         <form id="addForm">
             
             <div class="form-group">
-                <label for="quantidade_horas">QuantidadeHoras:</label>
-                <input type="number" step="0.01" id="quantidade_horas" name="quantidade_horas" required>
+                <label for="Quantidade_Horas">QuantidadeHoras:</label>
+                <input type="number" step="0.01" id="Quantidade_Horas" name="Quantidade_Horas" required>
             </div>
 
             <div class="form-group">
-                <label for="profissional_alocado">ProfissionalAlocado:</label>
-                <input type="text" id="profissional_alocado" name="profissional_alocado" required>
+                <label for="Profissional_Alocado">ProfissionalAlocado:</label>
+                <input type="text" id="Profissional_Alocado" name="Profissional_Alocado" required>
             </div>
 
             <div class="form-group">

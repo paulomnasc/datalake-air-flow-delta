@@ -11,8 +11,8 @@ require VIEWPATH.'/header.php';
         <form id="addForm">
             
             <div class="form-group">
-                <label for="horas_alocadas">HorasAlocadas:</label>
-                <input type="number" step="0.01" id="horas_alocadas" name="horas_alocadas" required>
+                <label for="Horas_Alocadas">HorasAlocadas:</label>
+                <input type="number" step="0.01" id="Horas_Alocadas" name="Horas_Alocadas" required>
             </div>
 
             <div class="form-group">
@@ -21,13 +21,13 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group">
-                <label for="data_emissao">DataEmissao:</label>
-                <input type="datetime-local" id="data_emissao" name="data_emissao" required>
+                <label for="Data_Emissao">DataEmissao:</label>
+                <input type="datetime-local" id="Data_Emissao" name="Data_Emissao" required>
             </div>
 
             <div class="form-group">
-                <label for="data_aceite">DataAceite:</label>
-                <input type="datetime-local" id="data_aceite" name="data_aceite" required>
+                <label for="Data_Aceite">DataAceite:</label>
+                <input type="datetime-local" id="Data_Aceite" name="Data_Aceite" required>
             </div>
 
             <div class="button-group">

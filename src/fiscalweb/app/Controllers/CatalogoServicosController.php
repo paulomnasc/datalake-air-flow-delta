@@ -5,7 +5,7 @@ namespace App\Controllers;
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\CatalogoServicosModel;
-use App\Models\AreaAtuacaoModel;
+use App\Models\ItemContratoModel;
 
 class CatalogoServicosController extends BaseController
 {
@@ -18,7 +18,7 @@ class CatalogoServicosController extends BaseController
     public function add()
     {
         $data = [];
-        $data['id_area_atuacao_list'] = (new AreaAtuacaoModel())->listToCombo();
+        $data['id_item_contrato_list'] = (new ItemContratoModel())->listToCombo();
 
         return view('addCatalogoServicos', $data);
     }
@@ -30,7 +30,7 @@ class CatalogoServicosController extends BaseController
         $record = $model->find($id);
 
         $data = ['record' => $record];
-        $data['id_area_atuacao_list'] = (new AreaAtuacaoModel())->listToCombo();
+        $data['id_item_contrato_list'] = (new ItemContratoModel())->listToCombo();
 
         return view('updCatalogoServicos', $data);
     }
@@ -44,8 +44,7 @@ class CatalogoServicosController extends BaseController
     public function insert() 
     {
         $data = [
-            'id_area_atuacao' => $this->request->getPost('id_area_atuacao'),
-            'cod_item_unificado' => $this->request->getPost('cod_item_unificado'),
+            'id_item_contrato' => $this->request->getPost('id_item_contrato'),
             'descricao' => $this->request->getPost('descricao')
         ];
         
@@ -70,8 +69,7 @@ class CatalogoServicosController extends BaseController
         $model = new CatalogoServicosModel();
         $id = $this->request->getPost('id');
         $data = [
-            'id_area_atuacao' => $this->request->getPost('id_area_atuacao'),
-            'cod_item_unificado' => $this->request->getPost('cod_item_unificado'),
+            'id_item_contrato' => $this->request->getPost('id_item_contrato'),
             'descricao' => $this->request->getPost('descricao')
         ];
         

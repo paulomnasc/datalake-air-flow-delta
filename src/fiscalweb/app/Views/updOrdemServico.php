@@ -12,8 +12,8 @@ require VIEWPATH.'/header.php';
             <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
-                <label for="horas_alocadas">HorasAlocadas:</label>
-                <input type="number" step="0.01" id="horas_alocadas" name="horas_alocadas" value="<?php echo isset($record->horas_alocadas) ? $record->horas_alocadas : ''; ?>" required>
+                <label for="Horas_Alocadas">HorasAlocadas:</label>
+                <input type="number" step="0.01" id="Horas_Alocadas" name="Horas_Alocadas" value="<?php echo isset($record->Horas_Alocadas) ? $record->Horas_Alocadas : ''; ?>" required>
             </div>
 
             <div class="form-group">
@@ -22,13 +22,13 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group">
-                <label for="data_emissao">DataEmissao:</label>
-                <input type="datetime-local" id="data_emissao" name="data_emissao" value="<?php echo isset($record->data_emissao) ? $record->data_emissao : ''; ?>" required>
+                <label for="Data_Emissao">DataEmissao:</label>
+                <input type="datetime-local" id="Data_Emissao" name="Data_Emissao" value="<?php echo isset($record->Data_Emissao) ? $record->Data_Emissao : ''; ?>" required>
             </div>
 
             <div class="form-group">
-                <label for="data_aceite">DataAceite:</label>
-                <input type="datetime-local" id="data_aceite" name="data_aceite" value="<?php echo isset($record->data_aceite) ? $record->data_aceite : ''; ?>" required>
+                <label for="Data_Aceite">DataAceite:</label>
+                <input type="datetime-local" id="Data_Aceite" name="Data_Aceite" value="<?php echo isset($record->Data_Aceite) ? $record->Data_Aceite : ''; ?>" required>
             </div>
 
             <div class="button-group">

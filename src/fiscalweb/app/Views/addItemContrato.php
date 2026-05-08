@@ -16,33 +16,33 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group">
-                <label for="numero_contrato">NumeroContrato:</label>
-                <input type="text" id="numero_contrato" name="numero_contrato" required>
+                <label for="Numero_Contrato">NumeroContrato:</label>
+                <input type="text" id="Numero_Contrato" name="Numero_Contrato" required>
             </div>
 
             <div class="form-group">
-                <label for="objeto">Objeto:</label>
-                <input type="text" id="objeto" name="objeto" required>
+                <label for="Objeto">Objeto:</label>
+                <input type="text" id="Objeto" name="Objeto" required>
             </div>
 
             <div class="form-group">
-                <label for="total_horas_contratadas">TotalHorasContratadas:</label>
-                <input type="number" step="0.01" id="total_horas_contratadas" name="total_horas_contratadas" required>
+                <label for="Total_Horas_Contratadas">TotalHorasContratadas:</label>
+                <input type="number" step="0.01" id="Total_Horas_Contratadas" name="Total_Horas_Contratadas" required>
             </div>
 
             <div class="form-group">
-                <label for="saldo_horas">SaldoHoras:</label>
-                <input type="number" step="0.01" id="saldo_horas" name="saldo_horas" required>
+                <label for="Saldo_Horas">SaldoHoras:</label>
+                <input type="number" step="0.01" id="Saldo_Horas" name="Saldo_Horas" required>
             </div>
 
             <div class="form-group">
-                <label for="data_inicio">DataInicio:</label>
-                <input type="datetime-local" id="data_inicio" name="data_inicio" required>
+                <label for="Data_Inicio">DataInicio:</label>
+                <input type="datetime-local" id="Data_Inicio" name="Data_Inicio" required>
             </div>
 
             <div class="form-group">
-                <label for="data_fim">DataFim:</label>
-                <input type="datetime-local" id="data_fim" name="data_fim" required>
+                <label for="Data_Fim">DataFim:</label>
+                <input type="datetime-local" id="Data_Fim" name="Data_Fim" required>
             </div>
 
             <div class="button-group">

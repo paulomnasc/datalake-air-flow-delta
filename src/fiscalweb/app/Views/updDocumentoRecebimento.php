@@ -24,8 +24,8 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group">
-                <label for="data_assinatura">DataAssinatura:</label>
-                <input type="datetime-local" id="data_assinatura" name="data_assinatura" value="<?php echo isset($record->data_assinatura) ? $record->data_assinatura : ''; ?>" required>
+                <label for="Data_Assinatura">DataAssinatura:</label>
+                <input type="datetime-local" id="Data_Assinatura" name="Data_Assinatura" value="<?php echo isset($record->Data_Assinatura) ? $record->Data_Assinatura : ''; ?>" required>
             </div>
 
             <div class="form-group">

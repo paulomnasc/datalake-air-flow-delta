@@ -17,33 +17,33 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group">
-                <label for="numero_contrato">NumeroContrato:</label>
-                <input type="text" id="numero_contrato" name="numero_contrato" value="<?php echo isset($record->numero_contrato) ? $record->numero_contrato : ''; ?>" required>
+                <label for="Numero_Contrato">NumeroContrato:</label>
+                <input type="text" id="Numero_Contrato" name="Numero_Contrato" value="<?php echo isset($record->Numero_Contrato) ? $record->Numero_Contrato : ''; ?>" required>
             </div>
 
             <div class="form-group">
-                <label for="objeto">Objeto:</label>
-                <input type="text" id="objeto" name="objeto" value="<?php echo isset($record->objeto) ? $record->objeto : ''; ?>" required>
+                <label for="Objeto">Objeto:</label>
+                <input type="text" id="Objeto" name="Objeto" value="<?php echo isset($record->Objeto) ? $record->Objeto : ''; ?>" required>
             </div>
 
             <div class="form-group">
-                <label for="total_horas_contratadas">TotalHorasContratadas:</label>
-                <input type="number" step="0.01" id="total_horas_contratadas" name="total_horas_contratadas" value="<?php echo isset($record->total_horas_contratadas) ? $record->total_horas_contratadas : ''; ?>" required>
+                <label for="Total_Horas_Contratadas">TotalHorasContratadas:</label>
+                <input type="number" step="0.01" id="Total_Horas_Contratadas" name="Total_Horas_Contratadas" value="<?php echo isset($record->Total_Horas_Contratadas) ? $record->Total_Horas_Contratadas : ''; ?>" required>
             </div>
 
             <div class="form-group">
-                <label for="saldo_horas">SaldoHoras:</label>
-                <input type="number" step="0.01" id="saldo_horas" name="saldo_horas" value="<?php echo isset($record->saldo_horas) ? $record->saldo_horas : ''; ?>" required>
+                <label for="Saldo_Horas">SaldoHoras:</label>
+                <input type="number" step="0.01" id="Saldo_Horas" name="Saldo_Horas" value="<?php echo isset($record->Saldo_Horas) ? $record->Saldo_Horas : ''; ?>" required>
             </div>
 
             <div class="form-group">
-                <label for="data_inicio">DataInicio:</label>
-                <input type="datetime-local" id="data_inicio" name="data_inicio" value="<?php echo isset($record->data_inicio) ? $record->data_inicio : ''; ?>" required>
+                <label for="Data_Inicio">DataInicio:</label>
+                <input type="datetime-local" id="Data_Inicio" name="Data_Inicio" value="<?php echo isset($record->Data_Inicio) ? $record->Data_Inicio : ''; ?>" required>
             </div>
 
             <div class="form-group">
-                <label for="data_fim">DataFim:</label>
-                <input type="datetime-local" id="data_fim" name="data_fim" value="<?php echo isset($record->data_fim) ? $record->data_fim : ''; ?>" required>
+                <label for="Data_Fim">DataFim:</label>
+                <input type="datetime-local" id="Data_Fim" name="Data_Fim" value="<?php echo isset($record->Data_Fim) ? $record->Data_Fim : ''; ?>" required>
             </div>
 
             <div class="button-group">

@@ -5,7 +5,6 @@ namespace App\Controllers;
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\ItemContratoModel;
-use App\Models\CatalogoServicosModel;
 
 class ItemContratoController extends BaseController
 {
@@ -18,7 +17,6 @@ class ItemContratoController extends BaseController
     public function add()
     {
         $data = [];
-        $data['id_catalogo_servicos_list'] = (new CatalogoServicosModel())->listToCombo();
 
         return view('addItemContrato', $data);
     }
@@ -30,7 +28,6 @@ class ItemContratoController extends BaseController
         $record = $model->find($id);
 
         $data = ['record' => $record];
-        $data['id_catalogo_servicos_list'] = (new CatalogoServicosModel())->listToCombo();
 
         return view('updItemContrato', $data);
     }
@@ -44,15 +41,13 @@ class ItemContratoController extends BaseController
     public function insert() 
     {
         $data = [
-            'id_catalogo_servicos' => $this->request->getPost('id_catalogo_servicos'),
-            'gestor_titular' => $this->request->getPost('gestor_titular'),
             'gestor_substituto' => $this->request->getPost('gestor_substituto'),
-            'numero_contrato' => $this->request->getPost('numero_contrato'),
-            'objeto' => $this->request->getPost('objeto'),
-            'total_horas_contratadas' => $this->request->getPost('total_horas_contratadas'),
-            'saldo_horas' => $this->request->getPost('saldo_horas'),
-            'data_inicio' => $this->request->getPost('data_inicio'),
-            'data_fim' => $this->request->getPost('data_fim')
+            'Numero_Contrato' => $this->request->getPost('Numero_Contrato'),
+            'Objeto' => $this->request->getPost('Objeto'),
+            'Total_Horas_Contratadas' => $this->request->getPost('Total_Horas_Contratadas'),
+            'Saldo_Horas' => $this->request->getPost('Saldo_Horas'),
+            'Data_Inicio' => $this->request->getPost('Data_Inicio'),
+            'Data_Fim' => $this->request->getPost('Data_Fim')
         ];
         
         $model = new ItemContratoModel();
@@ -76,15 +71,13 @@ class ItemContratoController extends BaseController
         $model = new ItemContratoModel();
         $id = $this->request->getPost('id');
         $data = [
-            'id_catalogo_servicos' => $this->request->getPost('id_catalogo_servicos'),
-            'gestor_titular' => $this->request->getPost('gestor_titular'),
             'gestor_substituto' => $this->request->getPost('gestor_substituto'),
-            'numero_contrato' => $this->request->getPost('numero_contrato'),
-            'objeto' => $this->request->getPost('objeto'),
-            'total_horas_contratadas' => $this->request->getPost('total_horas_contratadas'),
-            'saldo_horas' => $this->request->getPost('saldo_horas'),
-            'data_inicio' => $this->request->getPost('data_inicio'),
-            'data_fim' => $this->request->getPost('data_fim')
+            'Numero_Contrato' => $this->request->getPost('Numero_Contrato'),
+            'Objeto' => $this->request->getPost('Objeto'),
+            'Total_Horas_Contratadas' => $this->request->getPost('Total_Horas_Contratadas'),
+            'Saldo_Horas' => $this->request->getPost('Saldo_Horas'),
+            'Data_Inicio' => $this->request->getPost('Data_Inicio'),
+            'Data_Fim' => $this->request->getPost('Data_Fim')
         ];
         
         try {

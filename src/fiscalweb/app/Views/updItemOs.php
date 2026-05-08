@@ -12,13 +12,13 @@ require VIEWPATH.'/header.php';
             <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
-                <label for="quantidade_horas">QuantidadeHoras:</label>
-                <input type="number" step="0.01" id="quantidade_horas" name="quantidade_horas" value="<?php echo isset($record->quantidade_horas) ? $record->quantidade_horas : ''; ?>" required>
+                <label for="Quantidade_Horas">QuantidadeHoras:</label>
+                <input type="number" step="0.01" id="Quantidade_Horas" name="Quantidade_Horas" value="<?php echo isset($record->Quantidade_Horas) ? $record->Quantidade_Horas : ''; ?>" required>
             </div>
 
             <div class="form-group">
-                <label for="profissional_alocado">ProfissionalAlocado:</label>
-                <input type="text" id="profissional_alocado" name="profissional_alocado" value="<?php echo isset($record->profissional_alocado) ? $record->profissional_alocado : ''; ?>" required>
+                <label for="Profissional_Alocado">ProfissionalAlocado:</label>
+                <input type="text" id="Profissional_Alocado" name="Profissional_Alocado" value="<?php echo isset($record->Profissional_Alocado) ? $record->Profissional_Alocado : ''; ?>" required>
             </div>
 
             <div class="form-group">

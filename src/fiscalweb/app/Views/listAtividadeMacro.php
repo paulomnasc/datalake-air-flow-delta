@@ -27,7 +27,18 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->id_area_atuacao ?> </td><td> <?php echo $item->descricao ?> </td>
+                    
+            <td>
+                <select name="id_area_atuacao" id="id_area_atuacao-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_area_atuacao_list)): foreach($id_area_atuacao_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_area_atuacao) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+<td> <?php echo $item->descricao ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updAtividadeMacro'); ?>" method="post">

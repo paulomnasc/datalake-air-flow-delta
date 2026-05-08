@@ -4,8 +4,8 @@ namespace App\Controllers;
 
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
-use FiscalWeb\App\Models\AreaAtuacaoModel;
-use FiscalWeb\App\Models\AtividadeMacroModel;
+use App\Models\AreaAtuacaoModel;
+use App\Models\AtividadeMacroModel;
 
 class AreaAtuacaoController extends BaseController
 {

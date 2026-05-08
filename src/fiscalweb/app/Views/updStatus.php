@@ -12,8 +12,8 @@ require VIEWPATH.'/header.php';
             <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
-                <label for="descricao">Descricao:</label>
-                <input type="text" id="descricao" name="descricao" value="<?php echo isset($record->descricao) ? $record->descricao : ''; ?>" required>
+                <label for="Status">Status:</label>
+                <input type="text" id="Status" name="Status" value="<?php echo isset($record->Status) ? $record->Status : ''; ?>" required>
             </div>
 
             <div class="button-group">

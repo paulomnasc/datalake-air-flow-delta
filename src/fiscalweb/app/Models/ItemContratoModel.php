@@ -12,14 +12,14 @@ class ItemContratoModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['id_catalogo_servicos', 'gestor_titular', 'gestor_substituto', 'numero_contrato', 'objeto', 'total_horas_contratadas', 'saldo_horas', 'data_inicio', 'data_fim'];
+    protected $allowedFields    = ['gestor_substituto', 'Numero_Contrato', 'Objeto', 'Total_Horas_Contratadas', 'Saldo_Horas', 'Data_Inicio', 'Data_Fim'];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;
 
     public function listToCombo()
     {
-        $data = $this->select('id, gestor_titular')->findAll();
+        $data = $this->select('id, Objeto as descricao')->findAll();
         return $data;
     }
 }

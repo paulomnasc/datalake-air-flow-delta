@@ -27,7 +27,62 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->id_os ?> </td><td> <?php echo $item->data_assinatura ?> </td><td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->id_tipo_documento ?> </td><td> <?php echo $item->id_usuario_fiscal_tecnico ?> </td><td> <?php echo $item->id_usuario_fiscal_requisitante ?> </td><td> <?php echo $item->id_usuario_gestor ?> </td>
+                    
+            <td>
+                <select name="id_os" id="id_os-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_os_list)): foreach($id_os_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_os) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+<td> <?php echo $item->Data_Assinatura ?> </td><td> <?php echo $item->nup_sei ?> </td>
+            <td>
+                <select name="id_tipo_documento" id="id_tipo_documento-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_tipo_documento_list)): foreach($id_tipo_documento_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_tipo_documento) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+
+            <td>
+                <select name="id_usuario_fiscal_tecnico" id="id_usuario_fiscal_tecnico-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_usuario_fiscal_tecnico_list)): foreach($id_usuario_fiscal_tecnico_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_usuario_fiscal_tecnico) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+
+            <td>
+                <select name="id_usuario_fiscal_requisitante" id="id_usuario_fiscal_requisitante-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_usuario_fiscal_requisitante_list)): foreach($id_usuario_fiscal_requisitante_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_usuario_fiscal_requisitante) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+
+            <td>
+                <select name="id_usuario_gestor" id="id_usuario_gestor-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_usuario_gestor_list)): foreach($id_usuario_gestor_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_usuario_gestor) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updDocumentoRecebimento'); ?>" method="post">

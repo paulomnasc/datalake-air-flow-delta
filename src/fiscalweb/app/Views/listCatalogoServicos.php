@@ -27,7 +27,18 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->id_item_contrato ?> </td><td> <?php echo $item->descricao ?> </td>
+                    
+            <td>
+                <select name="id_item_contrato" id="id_item_contrato-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_item_contrato_list)): foreach($id_item_contrato_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_item_contrato) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+<td> <?php echo $item->descricao ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updCatalogoServicos'); ?>" method="post">

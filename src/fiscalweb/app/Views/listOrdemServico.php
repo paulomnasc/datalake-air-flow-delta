@@ -8,7 +8,7 @@ require VIEWPATH.'/header.php';
     <div class="container">
         <h4 style="text-align: center;">Listagem de OrdemServico</h4>
         
-        <input type="text" id="filtro-horas_alocadas" placeholder="Filtrar">
+        <input type="text" id="filtro-Horas_Alocadas" placeholder="Filtrar">
         <img src="../assets/img/lupa.jpg" >
         
         <form action="<?php echo site_url('addOrdemServico'); ?>" method="post">
@@ -27,7 +27,7 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->horas_alocadas ?> </td><td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->data_emissao ?> </td><td> <?php echo $item->data_aceite ?> </td>
+                    <td> <?php echo $item->Horas_Alocadas ?> </td><td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->Data_Emissao ?> </td><td> <?php echo $item->Data_Aceite ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updOrdemServico'); ?>" method="post">
@@ -74,7 +74,7 @@ require VIEWPATH.'/header.php';
                     language: { "sEmptyTable": "Nenhum registro encontrado" }
                 });
 
-                $('#filtro-horas_alocadas').on('keyup', function() {
+                $('#filtro-Horas_Alocadas').on('keyup', function() {
                     table.search(this.value).draw();
                 });
             });

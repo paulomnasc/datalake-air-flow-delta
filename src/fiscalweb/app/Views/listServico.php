@@ -27,7 +27,18 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->remuneracao ?> </td><td> <?php echo $item->base_horas_mes ?> </td><td> <?php echo $item->base_horas_complexidade ?> </td><td> <?php echo $item->sla_dias ?> </td><td> <?php echo $item->estim_max_ano ?> </td><td> <?php echo $item->id_atividade_macro ?> </td>
+                    <td> <?php echo $item->remuneracao ?> </td><td> <?php echo $item->base_horas_mes ?> </td><td> <?php echo $item->base_horas_complexidade ?> </td><td> <?php echo $item->sla_dias ?> </td><td> <?php echo $item->estim_max_ano ?> </td>
+            <td>
+                <select name="id_atividade_macro" id="id_atividade_macro-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_atividade_macro_list)): foreach($id_atividade_macro_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_atividade_macro) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updServico'); ?>" method="post">

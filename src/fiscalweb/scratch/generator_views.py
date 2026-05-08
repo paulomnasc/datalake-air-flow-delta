@@ -1,7 +1,7 @@
 import os
 import re
 
-ddl_path = '/root/datalake-air-flow-delta/src/fiscalweb/app/Database/script_ddl/ddl.sql'
+ddl_path = '/root/datalake-air-flow-delta/src/fiscalweb/app/Database/script_ddl/ddl-v2.sql'
 
 def parse_ddl(file_path):
     tables = {}
@@ -25,7 +25,7 @@ def parse_ddl(file_path):
                 col_match = re.search(r'FOREIGN KEY\s*\(`?(\w+)`?\)', line, re.IGNORECASE)
                 ref_match = re.search(r'REFERENCES\s*`?(\w+)`?', line, re.IGNORECASE)
                 if col_match and ref_match:
-                    fks.append({'col': col_match.group(1).lower(), 'ref': ref_match.group(1).lower()})
+                    fks.append({'col': col_match.group(1), 'ref': ref_match.group(1).lower()})
             elif line.upper().startswith('PRIMARY KEY') or line.upper().startswith('UNIQUE KEY'):
                 continue
             else:
@@ -33,7 +33,7 @@ def parse_ddl(file_path):
                 # Match `col` or col TYPE
                 col_match = re.search(r'^`?(\w+)`?\s+(\w+)', line)
                 if col_match:
-                    col_name = col_match.group(1).lower()
+                    col_name = col_match.group(1)
                     col_type = col_match.group(2).upper()
                     columns.append({'name': col_name, 'type': col_type})
 
@@ -65,12 +65,30 @@ def get_input_type(col_type):
         return 'number'
     return 'text'
 
-def generate_list_view(table_name, columns_info, pascal_name):
+def generate_list_view(table_name, columns_info, fks, pascal_name):
     columns = [c['name'] for c in columns_info]
     disp_cols = [c for c in columns if c != 'id']
     headers = "".join([f"<th>{to_pascal_case(c)}</th>" for c in disp_cols])
     
-    tds = "".join([f"<td> <?php echo $item->{c} ?> </td>" for c in disp_cols])
+    tds = ""
+    for c in disp_cols:
+        fk_match = next((fk for fk in fks if fk['col'] == c), None)
+        if fk_match:
+            tds += f"""
+            <td>
+                <select name="{c}" id="{c}-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset(${c}_list)): foreach(${c}_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->{c}) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+"""
+        else:
+            tds += f"<td> <?php echo $item->{c} ?> </td>"
+    
     first_col = disp_cols[0] if disp_cols else 'id'
 
     code = f"""<?php
@@ -321,7 +339,7 @@ require VIEWPATH.'/header.php';
 for t in main_tables:
     if t in tables:
         pascal_name = to_pascal_case(t)
-        list_code = generate_list_view(t, tables[t]['columns'], pascal_name)
+        list_code = generate_list_view(t, tables[t]['columns'], tables[t]['fks'], pascal_name)
         add_code = generate_add_view(t, tables[t]['columns'], tables[t]['fks'], pascal_name)
         upd_code = generate_upd_view(t, tables[t]['columns'], tables[t]['fks'], pascal_name)
         

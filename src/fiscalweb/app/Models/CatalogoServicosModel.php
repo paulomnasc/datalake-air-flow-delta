@@ -12,7 +12,7 @@ class CatalogoServicosModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['id_area_atuacao', 'cod_item_unificado', 'descricao'];
+    protected $allowedFields    = ['id_item_contrato', 'descricao'];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;

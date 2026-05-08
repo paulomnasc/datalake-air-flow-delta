@@ -27,7 +27,18 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->id_documento_recebimento ?> </td><td> <?php echo $item->nota_ins1_pontualidade ?> </td><td> <?php echo $item->nota_ins2_qualidade ?> </td><td> <?php echo $item->percentual_glosa ?> </td>
+                    
+            <td>
+                <select name="id_documento_recebimento" id="id_documento_recebimento-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_documento_recebimento_list)): foreach($id_documento_recebimento_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_documento_recebimento) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+<td> <?php echo $item->Nota_INS1_Pontualidade ?> </td><td> <?php echo $item->Nota_INS2_Qualidade ?> </td><td> <?php echo $item->Percentual_Glosa ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updAvaliacaoQualidadeSla'); ?>" method="post">

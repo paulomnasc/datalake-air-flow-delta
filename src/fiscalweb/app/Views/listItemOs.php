@@ -8,7 +8,7 @@ require VIEWPATH.'/header.php';
     <div class="container">
         <h4 style="text-align: center;">Listagem de ItemOs</h4>
         
-        <input type="text" id="filtro-quantidade_horas" placeholder="Filtrar">
+        <input type="text" id="filtro-Quantidade_Horas" placeholder="Filtrar">
         <img src="../assets/img/lupa.jpg" >
         
         <form action="<?php echo site_url('addItemOs'); ?>" method="post">
@@ -27,7 +27,18 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->quantidade_horas ?> </td><td> <?php echo $item->profissional_alocado ?> </td><td> <?php echo $item->id_servico ?> </td>
+                    <td> <?php echo $item->Quantidade_Horas ?> </td><td> <?php echo $item->Profissional_Alocado ?> </td>
+            <td>
+                <select name="id_servico" id="id_servico-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_servico_list)): foreach($id_servico_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_servico) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updItemOs'); ?>" method="post">
@@ -74,7 +85,7 @@ require VIEWPATH.'/header.php';
                     language: { "sEmptyTable": "Nenhum registro encontrado" }
                 });
 
-                $('#filtro-quantidade_horas').on('keyup', function() {
+                $('#filtro-Quantidade_Horas').on('keyup', function() {
                     table.search(this.value).draw();
                 });
             });

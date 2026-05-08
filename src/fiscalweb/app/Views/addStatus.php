@@ -11,8 +11,8 @@ require VIEWPATH.'/header.php';
         <form id="addForm">
             
             <div class="form-group">
-                <label for="descricao">Descricao:</label>
-                <input type="text" id="descricao" name="descricao" required>
+                <label for="Status">Status:</label>
+                <input type="text" id="Status" name="Status" required>
             </div>
 
             <div class="button-group">

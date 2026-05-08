@@ -5,20 +5,24 @@ namespace App\Controllers;
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\ServicoModel;
-use App\Models\ItemOsModel;
+use App\Models\AtividadeMacroModel;
 
 class ServicoController extends BaseController
 {
     public function index()
     {
         $list = $this->list();        
-        return view('listServico', ['list' => $list]);
+        $data = [
+            'list' => $list,
+            'id_atividade_macro_list' => (new AtividadeMacroModel())->listToCombo()
+        ];
+        return view('listServico', $data);
     }
 
     public function add()
     {
         $data = [];
-        $data['id_item_os_list'] = (new ItemOsModel())->listToCombo();
+        $data['id_atividade_macro_list'] = (new AtividadeMacroModel())->listToCombo();
 
         return view('addServico', $data);
     }
@@ -30,7 +34,7 @@ class ServicoController extends BaseController
         $record = $model->find($id);
 
         $data = ['record' => $record];
-        $data['id_item_os_list'] = (new ItemOsModel())->listToCombo();
+        $data['id_atividade_macro_list'] = (new AtividadeMacroModel())->listToCombo();
 
         return view('updServico', $data);
     }
@@ -44,8 +48,10 @@ class ServicoController extends BaseController
     public function insert() 
     {
         $data = [
-            'id_item_os' => $this->request->getPost('id_item_os'),
+            'id_atividade_macro' => $this->request->getPost('id_atividade_macro'),
+            'numero_item' => $this->request->getPost('numero_item'),
             'descricao' => $this->request->getPost('descricao'),
+            'entregaveis' => $this->request->getPost('entregaveis'),
             'remuneracao' => $this->request->getPost('remuneracao'),
             'base_horas_mes' => $this->request->getPost('base_horas_mes'),
             'base_horas_complexidade' => $this->request->getPost('base_horas_complexidade'),
@@ -74,8 +80,10 @@ class ServicoController extends BaseController
         $model = new ServicoModel();
         $id = $this->request->getPost('id');
         $data = [
-            'id_item_os' => $this->request->getPost('id_item_os'),
+            'id_atividade_macro' => $this->request->getPost('id_atividade_macro'),
+            'numero_item' => $this->request->getPost('numero_item'),
             'descricao' => $this->request->getPost('descricao'),
+            'entregaveis' => $this->request->getPost('entregaveis'),
             'remuneracao' => $this->request->getPost('remuneracao'),
             'base_horas_mes' => $this->request->getPost('base_horas_mes'),
             'base_horas_complexidade' => $this->request->getPost('base_horas_complexidade'),

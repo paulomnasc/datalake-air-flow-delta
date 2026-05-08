@@ -5,18 +5,24 @@ namespace App\Controllers;
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\ItemOsModel;
+use App\Models\ServicoModel;
 
 class ItemOsController extends BaseController
 {
     public function index()
     {
         $list = $this->list();        
-        return view('listItemOs', ['list' => $list]);
+        $data = [
+            'list' => $list,
+            'id_servico_list' => (new ServicoModel())->listToCombo()
+        ];
+        return view('listItemOs', $data);
     }
 
     public function add()
     {
         $data = [];
+        $data['id_servico_list'] = (new ServicoModel())->listToCombo();
 
         return view('addItemOs', $data);
     }
@@ -28,6 +34,7 @@ class ItemOsController extends BaseController
         $record = $model->find($id);
 
         $data = ['record' => $record];
+        $data['id_servico_list'] = (new ServicoModel())->listToCombo();
 
         return view('updItemOs', $data);
     }
@@ -41,6 +48,7 @@ class ItemOsController extends BaseController
     public function insert() 
     {
         $data = [
+            'id_servico' => $this->request->getPost('id_servico'),
             'quantidade_horas' => $this->request->getPost('quantidade_horas'),
             'profissional_alocado' => $this->request->getPost('profissional_alocado')
         ];
@@ -66,6 +74,7 @@ class ItemOsController extends BaseController
         $model = new ItemOsModel();
         $id = $this->request->getPost('id');
         $data = [
+            'id_servico' => $this->request->getPost('id_servico'),
             'quantidade_horas' => $this->request->getPost('quantidade_horas'),
             'profissional_alocado' => $this->request->getPost('profissional_alocado')
         ];

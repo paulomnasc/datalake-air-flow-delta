@@ -14,7 +14,15 @@ class DocumentoRecebimentoController extends BaseController
     public function index()
     {
         $list = $this->list();        
-        return view('listDocumentoRecebimento', ['list' => $list]);
+        $data = [
+            'list' => $list,
+            'id_os_list' => (new OrdemServicoModel())->listToCombo(),
+            'id_tipo_documento_list' => (new TipoDocumentoModel())->listToCombo(),
+            'id_usuario_fiscal_tecnico_list' => (new UsuarioModel())->listToCombo(),
+            'id_usuario_fiscal_requisitante_list' => (new UsuarioModel())->listToCombo(),
+            'id_usuario_gestor_list' => (new UsuarioModel())->listToCombo()
+        ];
+        return view('listDocumentoRecebimento', $data);
     }
 
     public function add()

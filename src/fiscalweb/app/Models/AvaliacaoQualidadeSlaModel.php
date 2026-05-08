@@ -19,7 +19,7 @@ class AvaliacaoQualidadeSlaModel extends Model
 
     public function listToCombo()
     {
-        $data = $this->select('id, nota_ins1_pontualidade')->findAll();
+        $data = $this->select('id, nota_ins1_pontualidade as descricao')->findAll();
         return $data;
     }
 }

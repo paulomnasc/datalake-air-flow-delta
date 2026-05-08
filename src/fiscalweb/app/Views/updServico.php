@@ -12,6 +12,21 @@ require VIEWPATH.'/header.php';
             <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
+                <label for="numero_item">NumeroItem:</label>
+                <input type="text" id="numero_item" name="numero_item" value="<?php echo isset($record->numero_item) ? $record->numero_item : ''; ?>" required>
+            </div>
+
+            <div class="form-group">
+                <label for="descricao">Descricao:</label>
+                <input type="text" id="descricao" name="descricao" value="<?php echo isset($record->descricao) ? $record->descricao : ''; ?>" required>
+            </div>
+
+            <div class="form-group">
+                <label for="entregaveis">Entregaveis:</label>
+                <input type="text" id="entregaveis" name="entregaveis" value="<?php echo isset($record->entregaveis) ? $record->entregaveis : ''; ?>" required>
+            </div>
+
+            <div class="form-group">
                 <label for="remuneracao">Remuneracao:</label>
                 <input type="number" step="0.01" id="remuneracao" name="remuneracao" value="<?php echo isset($record->remuneracao) ? $record->remuneracao : ''; ?>" required>
             </div>

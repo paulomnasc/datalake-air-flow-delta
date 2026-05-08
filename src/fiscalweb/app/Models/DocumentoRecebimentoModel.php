@@ -19,7 +19,7 @@ class DocumentoRecebimentoModel extends Model
 
     public function listToCombo()
     {
-        $data = $this->select('id, data_assinatura')->findAll();
+        $data = $this->select('id, nup_sei as descricao')->findAll();
         return $data;
     }
 }

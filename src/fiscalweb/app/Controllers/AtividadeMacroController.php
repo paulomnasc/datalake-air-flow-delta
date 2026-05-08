@@ -5,20 +5,24 @@ namespace App\Controllers;
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\AtividadeMacroModel;
-use App\Models\ServicoModel;
+use App\Models\AreaAtuacaoModel;
 
 class AtividadeMacroController extends BaseController
 {
     public function index()
     {
         $list = $this->list();        
-        return view('listAtividadeMacro', ['list' => $list]);
+        $data = [
+            'list' => $list,
+            'id_area_atuacao_list' => (new AreaAtuacaoModel())->listToCombo()
+        ];
+        return view('listAtividadeMacro', $data);
     }
 
     public function add()
     {
         $data = [];
-        $data['id_servico_list'] = (new ServicoModel())->listToCombo();
+        $data['id_area_atuacao_list'] = (new AreaAtuacaoModel())->listToCombo();
 
         return view('addAtividadeMacro', $data);
     }
@@ -30,7 +34,7 @@ class AtividadeMacroController extends BaseController
         $record = $model->find($id);
 
         $data = ['record' => $record];
-        $data['id_servico_list'] = (new ServicoModel())->listToCombo();
+        $data['id_area_atuacao_list'] = (new AreaAtuacaoModel())->listToCombo();
 
         return view('updAtividadeMacro', $data);
     }
@@ -44,7 +48,7 @@ class AtividadeMacroController extends BaseController
     public function insert() 
     {
         $data = [
-            'id_servico' => $this->request->getPost('id_servico'),
+            'id_area_atuacao' => $this->request->getPost('id_area_atuacao'),
             'descricao' => $this->request->getPost('descricao')
         ];
         
@@ -69,7 +73,7 @@ class AtividadeMacroController extends BaseController
         $model = new AtividadeMacroModel();
         $id = $this->request->getPost('id');
         $data = [
-            'id_servico' => $this->request->getPost('id_servico'),
+            'id_area_atuacao' => $this->request->getPost('id_area_atuacao'),
             'descricao' => $this->request->getPost('descricao')
         ];
         

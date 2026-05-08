@@ -12,7 +12,11 @@ class AvaliacaoQualidadeSlaController extends BaseController
     public function index()
     {
         $list = $this->list();        
-        return view('listAvaliacaoQualidadeSla', ['list' => $list]);
+        $data = [
+            'list' => $list,
+            'id_documento_recebimento_list' => (new DocumentoRecebimentoModel())->listToCombo()
+        ];
+        return view('listAvaliacaoQualidadeSla', $data);
     }
 
     public function add()

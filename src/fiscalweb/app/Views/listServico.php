@@ -8,7 +8,7 @@ require VIEWPATH.'/header.php';
     <div class="container">
         <h4 style="text-align: center;">Listagem de Servico</h4>
         
-        <input type="text" id="filtro-remuneracao" placeholder="Filtrar">
+        <input type="text" id="filtro-numero_item" placeholder="Filtrar por número ou descrição">
         <img src="../assets/img/lupa.jpg" >
         
         <form action="<?php echo site_url('addServico'); ?>" method="post">
@@ -19,7 +19,7 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Remuneracao</th><th>BaseHorasMes</th><th>BaseHorasComplexidade</th><th>SlaDias</th><th>EstimMaxAno</th><th>IdAtividadeMacro</th>
+                    <th>NumeroItem</th><th>Descricao</th><th>Entregaveis</th><th>Remuneracao</th><th>BaseHorasMes</th><th>BaseHorasComplexidade</th><th>SlaDias</th><th>EstimMaxAno</th><th>IdAtividadeMacro</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -27,7 +27,7 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->remuneracao ?> </td><td> <?php echo $item->base_horas_mes ?> </td><td> <?php echo $item->base_horas_complexidade ?> </td><td> <?php echo $item->sla_dias ?> </td><td> <?php echo $item->estim_max_ano ?> </td>
+                    <td> <?php echo $item->numero_item ?> </td><td> <?php echo $item->descricao ?> </td><td> <?php echo $item->entregaveis ?> </td><td> <?php echo $item->remuneracao ?> </td><td> <?php echo $item->base_horas_mes ?> </td><td> <?php echo $item->base_horas_complexidade ?> </td><td> <?php echo $item->sla_dias ?> </td><td> <?php echo $item->estim_max_ano ?> </td>
             <td>
                 <select name="id_atividade_macro" id="id_atividade_macro-<?php echo $item->id ?>">
                     <option value="">Selecione...</option>
@@ -85,7 +85,7 @@ require VIEWPATH.'/header.php';
                     language: { "sEmptyTable": "Nenhum registro encontrado" }
                 });
 
-                $('#filtro-remuneracao').on('keyup', function() {
+                $('#filtro-numero_item').on('keyup', function() {
                     table.search(this.value).draw();
                 });
             });

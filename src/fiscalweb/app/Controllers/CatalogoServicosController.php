@@ -12,13 +12,18 @@ class CatalogoServicosController extends BaseController
     public function index()
     {
         $list = $this->list();        
-        return view('listCatalogoServicos', ['list' => $list]);
+        $data = [
+            'list' => $list,
+            'id_item_contrato_list' => (new ItemContratoModel())->listToCombo()
+        ];
+        return view('listCatalogoServicos', $data);
     }
 
     public function add()
     {
         $data = [];
         $data['id_item_contrato_list'] = (new ItemContratoModel())->listToCombo();
+        $data['catalogo_servicos_list'] = (new CatalogoServicosModel())->listToArray();
 
         return view('addCatalogoServicos', $data);
     }
@@ -31,6 +36,7 @@ class CatalogoServicosController extends BaseController
 
         $data = ['record' => $record];
         $data['id_item_contrato_list'] = (new ItemContratoModel())->listToCombo();
+        $data['catalogo_servicos_list'] = (new CatalogoServicosModel())->listToArray();
 
         return view('updCatalogoServicos', $data);
     }
@@ -98,3 +104,4 @@ class CatalogoServicosController extends BaseController
         ]);
     }
 }
+

@@ -12,7 +12,7 @@ class AtividadeMacroModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['id_servico', 'descricao'];
+    protected $allowedFields    = ['id_area_atuacao', 'descricao'];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;

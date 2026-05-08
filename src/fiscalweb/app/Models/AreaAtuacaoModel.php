@@ -12,7 +12,7 @@ class AreaAtuacaoModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['id_atividade_macro', 'descricao'];
+    protected $allowedFields    = ['id_catalogo_servicos', 'descricao'];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;

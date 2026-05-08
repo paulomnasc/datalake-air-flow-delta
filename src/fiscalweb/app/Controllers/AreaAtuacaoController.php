@@ -5,20 +5,24 @@ namespace App\Controllers;
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\AreaAtuacaoModel;
-use App\Models\AtividadeMacroModel;
+use App\Models\CatalogoServicosModel;
 
 class AreaAtuacaoController extends BaseController
 {
     public function index()
     {
         $list = $this->list();        
-        return view('listAreaAtuacao', ['list' => $list]);
+        $data = [
+            'list' => $list,
+            'id_catalogo_servicos_list' => (new CatalogoServicosModel())->listToCombo()
+        ];
+        return view('listAreaAtuacao', $data);
     }
 
     public function add()
     {
         $data = [];
-        $data['id_atividade_macro_list'] = (new AtividadeMacroModel())->listToCombo();
+        $data['id_catalogo_servicos_list'] = (new CatalogoServicosModel())->listToCombo();
 
         return view('addAreaAtuacao', $data);
     }
@@ -30,7 +34,7 @@ class AreaAtuacaoController extends BaseController
         $record = $model->find($id);
 
         $data = ['record' => $record];
-        $data['id_atividade_macro_list'] = (new AtividadeMacroModel())->listToCombo();
+        $data['id_catalogo_servicos_list'] = (new CatalogoServicosModel())->listToCombo();
 
         return view('updAreaAtuacao', $data);
     }
@@ -44,7 +48,7 @@ class AreaAtuacaoController extends BaseController
     public function insert() 
     {
         $data = [
-            'id_atividade_macro' => $this->request->getPost('id_atividade_macro'),
+            'id_catalogo_servicos' => $this->request->getPost('id_catalogo_servicos'),
             'descricao' => $this->request->getPost('descricao')
         ];
         
@@ -69,7 +73,7 @@ class AreaAtuacaoController extends BaseController
         $model = new AreaAtuacaoModel();
         $id = $this->request->getPost('id');
         $data = [
-            'id_atividade_macro' => $this->request->getPost('id_atividade_macro'),
+            'id_catalogo_servicos' => $this->request->getPost('id_catalogo_servicos'),
             'descricao' => $this->request->getPost('descricao')
         ];
         

@@ -52,11 +52,11 @@ class ServicoController extends BaseController
             'numero_item' => $this->request->getPost('numero_item'),
             'descricao' => $this->request->getPost('descricao'),
             'entregaveis' => $this->request->getPost('entregaveis'),
-            'remuneracao' => $this->request->getPost('remuneracao'),
-            'base_horas_mes' => $this->request->getPost('base_horas_mes'),
-            'base_horas_complexidade' => $this->request->getPost('base_horas_complexidade'),
-            'sla_dias' => $this->request->getPost('sla_dias'),
-            'estim_max_ano' => $this->request->getPost('estim_max_ano')
+            'remuneracao' => $this->normalizeDecimal($this->request->getPost('remuneracao')),
+            'base_horas_mes' => $this->normalizeDecimal($this->request->getPost('base_horas_mes')),
+            'base_horas_complexidade' => $this->normalizeDecimal($this->request->getPost('base_horas_complexidade')),
+            'sla_dias' => $this->normalizeDecimal($this->request->getPost('sla_dias')),
+            'estim_max_ano' => $this->normalizeDecimal($this->request->getPost('estim_max_ano'))
         ];
         
         $model = new ServicoModel();
@@ -70,7 +70,7 @@ class ServicoController extends BaseController
         } catch (\Exception $e) {
             return $this->response->setJSON([
                 'status' => 'error',
-                'mensagem' => 'Falha ao inserir o registro: ' . $e->getMessage()
+                'mensagem' => 'Falha ao inserir o registro: ' . $this->buildExceptionMessage($e)
             ]);
         }
     }
@@ -84,11 +84,11 @@ class ServicoController extends BaseController
             'numero_item' => $this->request->getPost('numero_item'),
             'descricao' => $this->request->getPost('descricao'),
             'entregaveis' => $this->request->getPost('entregaveis'),
-            'remuneracao' => $this->request->getPost('remuneracao'),
-            'base_horas_mes' => $this->request->getPost('base_horas_mes'),
-            'base_horas_complexidade' => $this->request->getPost('base_horas_complexidade'),
-            'sla_dias' => $this->request->getPost('sla_dias'),
-            'estim_max_ano' => $this->request->getPost('estim_max_ano')
+            'remuneracao' => $this->normalizeDecimal($this->request->getPost('remuneracao')),
+            'base_horas_mes' => $this->normalizeDecimal($this->request->getPost('base_horas_mes')),
+            'base_horas_complexidade' => $this->normalizeDecimal($this->request->getPost('base_horas_complexidade')),
+            'sla_dias' => $this->normalizeDecimal($this->request->getPost('sla_dias')),
+            'estim_max_ano' => $this->normalizeDecimal($this->request->getPost('estim_max_ano'))
         ];
         
         try {
@@ -100,11 +100,21 @@ class ServicoController extends BaseController
         } catch (\Exception $e) {
             return $this->response->setJSON([
                 'status' => 'error',
-                'mensagem' => 'Falha ao atualizar o registro: ' . $e->getMessage()
+                'mensagem' => 'Falha ao atualizar o registro: ' . $this->buildExceptionMessage($e)
             ]);
         }
     }
     
+    private function normalizeDecimal($value)
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        return str_replace(',', '.', $value);
+    }
+
     public function delete($id)  
     {
         $model = new ServicoModel();

@@ -98,4 +98,15 @@ abstract class BaseController extends Controller
         return view($viewName, $data);
     }
 
+    protected function buildExceptionMessage(\Throwable $e): string
+    {
+        $message = $e->getMessage();
+
+        $previous = $e->getPrevious();
+        if ($previous instanceof \Throwable && $previous->getMessage()) {
+            $message = $previous->getMessage();
+        }
+
+        return trim($message) ?: 'Erro desconhecido no servidor.';
+    }
 }

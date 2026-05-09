@@ -12,7 +12,7 @@ class ItemOsModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['quantidade_horas', 'profissional_alocado', 'id_servico'];
+    protected $allowedFields    = ['id_os', 'quantidade_horas', 'profissional_alocado', 'id_servico'];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;

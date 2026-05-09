@@ -115,14 +115,17 @@ class ServicoController extends BaseController
         return str_replace(',', '.', $value);
     }
 
-    public function delete($id)  
+    public function getByMacro($macro_id)
     {
         $model = new ServicoModel();
-        $deleted = $model->delete($id);
+        $data = $model->where('id_atividade_macro', $macro_id)->select('id, descricao')->findAll();
+        return $this->response->setJSON($data);
+    }
 
-        return $this->response->setJSON([
-            'status' => $deleted ? 'success' : 'warning',
-            'mensagem' => $deleted ? 'Registro deletado com sucesso!' : 'Falha ao deletar o registro. Tente novamente.'
-        ]);
+    public function getMacroByServico($servico_id)
+    {
+        $model = new ServicoModel();
+        $servico = $model->find($servico_id);
+        return $this->response->setJSON(['id_atividade_macro' => $servico ? $servico->id_atividade_macro : null]);
     }
 }

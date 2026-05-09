@@ -21,6 +21,30 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group">
+                <label for="id_os">IdOS:</label>
+                <select id="id_os" name="id_os" required>
+                    <option value="">Selecione a Ordem de Serviço...</option>
+                    <?php if(isset($id_os_list)): foreach($id_os_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>">
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nup_sei) ? $opt->nup_sei : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_atividade_macro">Macro Serviço:</label>
+                <select id="id_atividade_macro" name="id_atividade_macro" required>
+                    <option value="">Selecione o Macro Serviço...</option>
+                    <?php if(isset($id_atividade_macro_list)): foreach($id_atividade_macro_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>">
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
                 <label for="id_servico">IdServico:</label>
                 <select id="id_servico" name="id_servico" required>
                     <option value="">Selecione...</option>
@@ -40,6 +64,28 @@ require VIEWPATH.'/header.php';
 
         <script>
             $(document).ready(function() {
+                // Filter services based on selected macro
+                $('#id_atividade_macro').on('change', function() {
+                    var macroId = $(this).val();
+                    var servicoSelect = $('#id_servico');
+                    servicoSelect.empty().append('<option value="">Selecione...</option>');
+                    
+                    if (macroId) {
+                        $.ajax({
+                            url: '<?php echo site_url('getServicoByMacro'); ?>/' + macroId,
+                            type: 'GET',
+                            success: function(data) {
+                                $.each(data, function(index, item) {
+                                    servicoSelect.append('<option value="' + item.id + '">' + item.descricao + '</option>');
+                                });
+                            },
+                            error: function() {
+                                alert('Erro ao carregar serviços.');
+                            }
+                        });
+                    }
+                });
+
                 $('#addForm').on('submit', function(e) {
                     e.preventDefault();
                     $.ajax({

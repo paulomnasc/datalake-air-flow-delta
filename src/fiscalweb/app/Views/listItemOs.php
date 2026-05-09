@@ -19,7 +19,7 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>QuantidadeHoras</th><th>ProfissionalAlocado</th><th>IdServico</th>
+                    <th>QuantidadeHoras</th><th>ProfissionalAlocado</th><th>IdOS</th><th>IdServico</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -28,6 +28,20 @@ require VIEWPATH.'/header.php';
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
                     <td> <?php echo $item->Quantidade_Horas ?> </td><td> <?php echo $item->Profissional_Alocado ?> </td>
+                    <td>
+                        <?php
+                            $osLabel = '-';
+                            if (!empty($item->id_os) && isset($id_os_list)) {
+                                foreach ($id_os_list as $opt) {
+                                    if ($opt->id == $item->id_os) {
+                                        $osLabel = isset($opt->descricao) ? $opt->descricao : (isset($opt->nup_sei) ? $opt->nup_sei : $opt->id);
+                                        break;
+                                    }
+                                }
+                            }
+                            echo $osLabel;
+                        ?>
+                    </td>
             <td>
                 <select name="id_servico" id="id_servico-<?php echo $item->id ?>">
                     <option value="">Selecione...</option>

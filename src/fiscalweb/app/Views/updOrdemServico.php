@@ -13,7 +13,7 @@ require VIEWPATH.'/header.php';
             
             <div class="form-group">
                 <label for="Horas_Alocadas">HorasAlocadas:</label>
-                <input type="number" step="0.01" id="Horas_Alocadas" name="Horas_Alocadas" value="<?php echo isset($record->Horas_Alocadas) ? $record->Horas_Alocadas : ''; ?>" required>
+                <input type="number" step="0.01" id="Horas_Alocadas" name="horas_alocadas" value="<?php echo isset($record->Horas_Alocadas) ? $record->Horas_Alocadas : ''; ?>" required>
             </div>
 
             <div class="form-group">
@@ -23,12 +23,17 @@ require VIEWPATH.'/header.php';
 
             <div class="form-group">
                 <label for="Data_Emissao">DataEmissao:</label>
-                <input type="datetime-local" id="Data_Emissao" name="Data_Emissao" value="<?php echo isset($record->Data_Emissao) ? $record->Data_Emissao : ''; ?>" required>
+                <input type="datetime-local" id="Data_Emissao" name="data_emissao" value="<?php echo isset($record->Data_Emissao) ? date('Y-m-d\TH:i', strtotime($record->Data_Emissao)) : ''; ?>" required>
             </div>
 
             <div class="form-group">
                 <label for="Data_Aceite">DataAceite:</label>
-                <input type="datetime-local" id="Data_Aceite" name="Data_Aceite" value="<?php echo isset($record->Data_Aceite) ? $record->Data_Aceite : ''; ?>" required>
+                <input type="datetime-local" id="Data_Aceite" name="data_aceite" value="<?php echo isset($record->Data_Aceite) ? date('Y-m-d\TH:i', strtotime($record->Data_Aceite)) : ''; ?>" required>
+            </div>
+
+            <div class="form-group">
+                <label for="Data_Vencimento">Data_Vencimento:</label>
+                <input type="datetime-local" id="Data_Vencimento" name="data_vencimento" value="<?php echo isset($record->Data_Vencimento) ? date('Y-m-d\TH:i', strtotime($record->Data_Vencimento)) : ''; ?>">
             </div>
 
             <div class="button-group">

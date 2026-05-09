@@ -2,10 +2,11 @@
 set -euo pipefail
 
 # Backup config
-DB_NAME="lista_revisao2"
-DB_HOST="172.18.0.1"
-DB_PORT="23306"
+DB_NAME="${MYSQL_DB:-lista_revisao2}"
+DB_HOST="${MYSQL_HOST:-172.18.0.1}"
+DB_PORT="${MYSQL_PORT:-23306}"
 DB_USER="${MYSQL_USER:-backup_lista_revisao2}"
+MYSQL_CNF="${MYSQL_CNF:-$HOME/.my.cnf}"
 BACKUP_DATE="$(date +%Y%m%d_%H%M%S)"
 DUMP_DIR="${TMPDIR:-/tmp}/mysql_backups"
 DUMP_FILE="${DUMP_DIR}/${DB_NAME}_${BACKUP_DATE}.sql"
@@ -16,8 +17,13 @@ RCLONE_PATH="backups/${DB_NAME}"
 mkdir -p "$DUMP_DIR"
 
 # Connect via TCP to Docker MySQL (port 23306)
-# Password from ~/.my.cnf [client] section or MYSQL_PWD env var
-mysqldump --protocol=TCP -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"kJ#212394" \
+# Password is read from ~/.my.cnf [client] section or MYSQL_PWD env var
+MYSQL_DUMP_OPTIONS=(--protocol=TCP -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER")
+if [ -n "${MYSQL_CNF:-}" ] && [ -f "$MYSQL_CNF" ]; then
+  MYSQL_DUMP_OPTIONS=(--defaults-file="$MYSQL_CNF" "${MYSQL_DUMP_OPTIONS[@]}")
+fi
+
+mysqldump "${MYSQL_DUMP_OPTIONS[@]}" \
   --single-transaction --quick --routines --triggers --events \
   "$DB_NAME" > "$DUMP_FILE"
 

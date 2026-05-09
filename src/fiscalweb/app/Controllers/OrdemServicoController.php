@@ -41,10 +41,11 @@ class OrdemServicoController extends BaseController
     public function insert() 
     {
         $data = [
-            'horas_alocadas' => $this->request->getPost('horas_alocadas'),
-            'nup_sei' => $this->request->getPost('nup_sei'),
-            'data_emissao' => $this->request->getPost('data_emissao'),
-            'data_aceite' => $this->request->getPost('data_aceite')
+            'horas_alocadas' => $this->post('horas_alocadas'),
+            'nup_sei' => $this->post('nup_sei'),
+            'data_emissao' => $this->normalizeDatetime($this->post('data_emissao')),
+            'data_aceite' => $this->normalizeDatetime($this->post('data_aceite')),
+            'data_vencimento' => $this->normalizeDatetime($this->post('data_vencimento'))
         ];
         
         $model = new OrdemServicoModel();
@@ -68,10 +69,11 @@ class OrdemServicoController extends BaseController
         $model = new OrdemServicoModel();
         $id = $this->request->getPost('id');
         $data = [
-            'horas_alocadas' => $this->request->getPost('horas_alocadas'),
-            'nup_sei' => $this->request->getPost('nup_sei'),
-            'data_emissao' => $this->request->getPost('data_emissao'),
-            'data_aceite' => $this->request->getPost('data_aceite')
+            'horas_alocadas' => $this->post('horas_alocadas'),
+            'nup_sei' => $this->post('nup_sei'),
+            'data_emissao' => $this->normalizeDatetime($this->post('data_emissao')),
+            'data_aceite' => $this->normalizeDatetime($this->post('data_aceite')),
+            'data_vencimento' => $this->normalizeDatetime($this->post('data_vencimento'))
         ];
         
         try {
@@ -86,6 +88,38 @@ class OrdemServicoController extends BaseController
                 'mensagem' => 'Falha ao atualizar o registro: ' . $e->getMessage()
             ]);
         }
+    }
+
+    private function post(string $key)
+    {
+        $value = $this->request->getPost($key);
+        if ($value !== null) {
+            return $value;
+        }
+
+        $parts = explode('_', $key);
+        $altKey = implode('_', array_map('ucfirst', $parts));
+        return $this->request->getPost($altKey);
+    }
+
+    private function normalizeDatetime($value)
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        // Normalize browser datetime-local values (2025-12-30T10:30) to SQL DATETIME
+        if (strpos($value, 'T') !== false) {
+            $value = str_replace('T', ' ', $value);
+        }
+
+        // Convert dd/mm/YYYY HH:MM if provided by other clients
+        $date = date_create_from_format('d/m/Y H:i', $value);
+        if ($date !== false) {
+            return $date->format('Y-m-d H:i:s');
+        }
+
+        return $value;
     }
     
     public function delete($id)  

@@ -51,17 +51,25 @@ class ItemOsController extends BaseController
     public function list()  
     {
         $model = new ItemOsModel();
-        return $model->findAll();
+        return $model->findAllWithOS();
     }
 
     public function insert() 
     {
+        $id_os = $this->request->getPost('id_os');
         $data = [
-            'id_os' => $this->request->getPost('id_os'),
             'id_servico' => $this->request->getPost('id_servico'),
-            'quantidade_horas' => $this->request->getPost('quantidade_horas'),
-            'profissional_alocado' => $this->request->getPost('profissional_alocado')
+            'Quantidade_Horas' => $this->request->getPost('Quantidade_Horas'),
+            'Profissional_Alocado' => $this->request->getPost('Profissional_Alocado')
         ];
+        
+        // Validate required fields
+        if (empty($id_os) || empty($data['id_servico'])) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Campos obrigatórios não preenchidos.'
+            ]);
+        }
         
         $model = new ItemOsModel();
         $osItemOsModel = new OsItemOsModel();
@@ -69,10 +77,7 @@ class ItemOsController extends BaseController
         try {
             $itemOsId = $model->insert($data);
             if ($itemOsId) {
-                $osItemOsModel->insert([
-                    'id_os' => $data['id_os'],
-                    'id_item_os' => $itemOsId
-                ]);
+                $osItemOsModel->insertAssociation($id_os, $itemOsId);
             }
             return $this->response->setJSON([
                 'status' => 'success',
@@ -91,22 +96,30 @@ class ItemOsController extends BaseController
         $model = new ItemOsModel();
         $osItemOsModel = new OsItemOsModel();
         $id = $this->request->getPost('id');
+        $id_os = $this->request->getPost('id_os');
         $data = [
-            'id_os' => $this->request->getPost('id_os'),
             'id_servico' => $this->request->getPost('id_servico'),
-            'quantidade_horas' => $this->request->getPost('quantidade_horas'),
-            'profissional_alocado' => $this->request->getPost('profissional_alocado')
+            'Quantidade_Horas' => $this->request->getPost('Quantidade_Horas'),
+            'Profissional_Alocado' => $this->request->getPost('Profissional_Alocado')
         ];
+        
+        // Validate required fields
+        if (empty($id_os) || empty($data['id_servico'])) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Campos obrigatórios não preenchidos.'
+            ]);
+        }
         
         try {
             $model->update($id, $data);
-            // Remove existing associations
-            $osItemOsModel->where('id_item_os', $id)->delete();
-            // Add new association
-            $osItemOsModel->insert([
-                'id_os' => $data['id_os'],
-                'id_item_os' => $id
-            ]);
+            // Upsert association
+            $existing = $osItemOsModel->where('id_item_os', $id)->first();
+            if ($existing) {
+                $osItemOsModel->updateAssociation($id, $id_os);
+            } else {
+                $osItemOsModel->insertAssociation($id_os, $id);
+            }
             return $this->response->setJSON([
                 'status' => 'success',
                 'mensagem' => 'Registro atualizado com sucesso!'
@@ -122,11 +135,22 @@ class ItemOsController extends BaseController
     public function delete($id)  
     {
         $model = new ItemOsModel();
-        $deleted = $model->delete($id);
-
-        return $this->response->setJSON([
-            'status' => $deleted ? 'success' : 'warning',
-            'mensagem' => $deleted ? 'Registro deletado com sucesso!' : 'Falha ao deletar o registro. Tente novamente.'
-        ]);
+        $osItemOsModel = new OsItemOsModel();
+        
+        try {
+            // Delete association first
+            $osItemOsModel->deleteAssociation($id);
+            // Then delete the item
+            $deleted = $model->delete($id);
+            return $this->response->setJSON([
+                'status' => $deleted ? 'success' : 'warning',
+                'mensagem' => $deleted ? 'Registro deletado com sucesso!' : 'Falha ao deletar o registro. Tente novamente.'
+            ]);
+        } catch (\Exception $e) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Falha ao deletar o registro: ' . $e->getMessage()
+            ]);
+        }
     }
 }

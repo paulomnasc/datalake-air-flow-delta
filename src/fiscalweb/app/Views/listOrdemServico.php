@@ -19,7 +19,7 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>HorasAlocadas</th><th>NupSei</th><th>DataEmissao</th><th>DataAceite</th><th>DataVencimento</th>
+                    <th>HorasAlocadas</th><th>NupSei</th><th>DataEmissao</th><th>DataAceite</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -27,7 +27,7 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->Horas_Alocadas ?> </td><td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->Data_Emissao ?> </td><td> <?php echo $item->Data_Aceite ?> </td><td> <?php echo isset($item->Data_Vencimento) ? $item->Data_Vencimento : '-'; ?> </td>
+                    <td> <?php echo $item->Horas_Alocadas ?> </td><td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->Data_Emissao ?> </td><td> <?php echo $item->Data_Aceite ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updOrdemServico'); ?>" method="post">

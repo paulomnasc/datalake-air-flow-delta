@@ -19,7 +19,7 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Quantidade Total Horas OS</th><th>ProfissionalAlocado</th><th>NUP_SEI</th><th>IdServico</th>
+                    <th>QuantidadeHoras</th><th>ProfissionalAlocado</th><th>IdServico</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -28,9 +28,6 @@ require VIEWPATH.'/header.php';
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
                     <td> <?php echo $item->Quantidade_Horas ?> </td><td> <?php echo $item->Profissional_Alocado ?> </td>
-                    <td>
-                        <?php echo isset($item->nup_sei) ? $item->nup_sei : '-'; ?>
-                    </td>
             <td>
                 <select name="id_servico" id="id_servico-<?php echo $item->id ?>">
                     <option value="">Selecione...</option>

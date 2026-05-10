@@ -168,23 +168,48 @@ require VIEWPATH.'/header.php';
             }
 
             $(document).ready(function() {
-                // Ao trocar a OS, carregar itens
+                // Ao trocar a OS, carregar itens e migrar dados
                 $('#id_os').change(function() {
                     const idOs = $(this).val();
                     $('#item_os_select').html('<option value="">Carregando...</option>').prop('disabled', true);
                     currentOsItems = [];
+                    docItems = []; // Limpar grid ao trocar OS
                     
                     if (idOs) {
+                        // Buscar detalhes do Cabeçalho da OS
+                        $.get('<?php echo site_url('api/os_details/'); ?>' + idOs, function(osData) {
+                            if(osData && osData.nup_sei) {
+                                $('#nup_sei').val(osData.nup_sei);
+                            }
+                        });
+
+                        // Buscar itens e pré-popular a Grid
                         $.get('<?php echo site_url('api/itens_os/'); ?>' + idOs, function(data) {
                             currentOsItems = data;
                             $('#item_os_select').empty().append('<option value="">Selecione o Item da OS...</option>');
+                            
                             data.forEach(function(item) {
                                 $('#item_os_select').append(`<option value="${item.id}">Item ${item.numero_item || item.id} - ${item.descricao || ''} (${item.quantidade_horas}H - ${item.profissional_alocado})</option>`);
+                                
+                                // Auto-popular a grid com 100% da quantidade da OS e glosa zerada
+                                const descServico = item.descricao ? `Item ${item.numero_item} - ${item.descricao}` : `Item OS #${item.id}`;
+                                docItems.push({
+                                    id_item_os: item.id,
+                                    quantidade_entregue: item.quantidade_horas,
+                                    glosa_horas: 0,
+                                    observacoes: 'Migrado da OS',
+                                    desc_servico: descServico,
+                                    profissional: item.profissional_alocado || ''
+                                });
                             });
+                            
                             $('#item_os_select').prop('disabled', false);
+                            renderItems(); // Mostrar itens na tela
                         });
                     } else {
                         $('#item_os_select').html('<option value="">Primeiro, selecione uma OS no cabeçalho...</option>');
+                        $('#nup_sei').val('');
+                        renderItems();
                     }
                 });
 

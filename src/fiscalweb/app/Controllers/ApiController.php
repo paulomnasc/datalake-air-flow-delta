@@ -37,4 +37,11 @@ class ApiController extends Controller
         $itens = $builder->get()->getResult();
         return $this->response->setJSON($itens);
     }
+
+    public function getOsDetails($id_os)
+    {
+        $db = \Config\Database::connect();
+        $os = $db->table('ordem_servico')->where('id', $id_os)->get()->getRow();
+        return $this->response->setJSON($os);
+    }
 }

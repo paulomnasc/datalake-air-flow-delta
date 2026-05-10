@@ -349,3 +349,5 @@ $routes->get('api/atividades/(:num)', 'ApiController::getAtividadesByArea/$1');
 $routes->get('api/servicos/(:num)', 'ApiController::getServicosByAtividade/$1');
 
 $routes->get('api/itens_os/(:num)', 'ApiController::getItensByOs/$1');
+
+$routes->get('api/os_details/(:num)', 'ApiController::getOsDetails/$1');

@@ -197,11 +197,57 @@ require VIEWPATH.'/header.php';
                 const initialOsId = $('#id_os').val();
                 loadOsItems(initialOsId);
 
-                // Ao trocar a OS, recarregar itens da combo
+                // Ao trocar a OS, recarregar itens da combo e repopular a grid
                 $('#id_os').change(function() {
+                    const idOs = $(this).val();
                     $('#item_os_select').html('<option value="">Carregando...</option>').prop('disabled', true);
                     currentOsItems = [];
-                    loadOsItems($(this).val());
+                    
+                    if (confirm('Atenção: Mudar a Ordem de Serviço irá limpar os Itens Recebidos atuais e importar todos os itens da nova OS. Deseja continuar?')) {
+                        docItems = []; // Limpar grid ao trocar OS
+                        
+                        if (idOs) {
+                            // Buscar detalhes do Cabeçalho da OS
+                            $.get('<?php echo site_url('api/os_details/'); ?>' + idOs, function(osData) {
+                                if(osData && osData.nup_sei) {
+                                    $('#nup_sei').val(osData.nup_sei);
+                                }
+                            });
+
+                            // Buscar itens e pré-popular a Grid
+                            $.get('<?php echo site_url('api/itens_os/'); ?>' + idOs, function(data) {
+                                currentOsItems = data;
+                                $('#item_os_select').empty().append('<option value="">Selecione o Item da OS...</option>');
+                                
+                                data.forEach(function(item) {
+                                    $('#item_os_select').append(`<option value="${item.id}">Item ${item.numero_item || item.id} - ${item.descricao || ''} (${item.quantidade_horas}H - ${item.profissional_alocado})</option>`);
+                                    
+                                    // Auto-popular a grid
+                                    const descServico = item.descricao ? `Item ${item.numero_item} - ${item.descricao}` : `Item OS #${item.id}`;
+                                    docItems.push({
+                                        id_item_os: item.id,
+                                        quantidade_entregue: item.quantidade_horas,
+                                        glosa_horas: 0,
+                                        observacoes: 'Migrado da OS',
+                                        desc_servico: descServico,
+                                        profissional: item.profissional_alocado || '',
+                                        profissional_alocado: item.profissional_alocado || ''
+                                    });
+                                });
+                                
+                                $('#item_os_select').prop('disabled', false);
+                                renderItems();
+                            });
+                        } else {
+                            $('#item_os_select').html('<option value="">Primeiro, selecione uma OS no cabeçalho...</option>').prop('disabled', true);
+                            $('#nup_sei').val('');
+                            renderItems();
+                        }
+                    } else {
+                        // Reverter para o valor original
+                        $(this).val(initialOsId);
+                        $('#item_os_select').prop('disabled', false);
+                    }
                 });
 
                 $('#addItemBtn').click(function() {

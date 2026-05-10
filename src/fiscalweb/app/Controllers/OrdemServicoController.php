@@ -39,9 +39,11 @@ class OrdemServicoController extends BaseController
         // Buscar itens existentes
         $db = \Config\Database::connect();
         $builder = $db->table('os_item_os oio');
-        $builder->select('io.id as id_item_os, io.quantidade_horas, io.profissional_alocado, io.id_servico, s.numero_item, s.descricao, s.sla_dias, s.remuneracao');
+        $builder->select('io.id as id_item_os, io.Quantidade_Horas as quantidade_horas, io.Profissional_Alocado as profissional_alocado, io.id_servico, s.numero_item, s.descricao, s.sla_dias, s.remuneracao, s.id_atividade_macro as id_macro, am.id_area_atuacao as id_area, aa.id_catalogo_servicos as id_catalogo');
         $builder->join('item_os io', 'io.id = oio.id_item_os');
         $builder->join('servico s', 's.id = io.id_servico', 'left');
+        $builder->join('atividade_macro am', 'am.id = s.id_atividade_macro', 'left');
+        $builder->join('area_atuacao aa', 'aa.id = am.id_area_atuacao', 'left');
         $builder->where('oio.id_os', $id);
         $data['items_json'] = json_encode($builder->get()->getResult());
 
@@ -78,8 +80,8 @@ class OrdemServicoController extends BaseController
                 if (is_array($items)) {
                     foreach ($items as $item) {
                         $itemData = [
-                            'quantidade_horas' => $item['quantidade_horas'],
-                            'profissional_alocado' => $item['profissional_alocado'],
+                            'Quantidade_Horas' => $item['quantidade_horas'],
+                            'Profissional_Alocado' => $item['profissional_alocado'],
                             'id_servico' => $item['id_servico']
                         ];
                         $idItemOs = $itemOsModel->insert($itemData);
@@ -146,8 +148,8 @@ class OrdemServicoController extends BaseController
                     foreach ($items as $item) {
                         // Insert new or updated items
                         $itemData = [
-                            'quantidade_horas' => $item['quantidade_horas'],
-                            'profissional_alocado' => $item['profissional_alocado'],
+                            'Quantidade_Horas' => $item['quantidade_horas'],
+                            'Profissional_Alocado' => $item['profissional_alocado'],
                             'id_servico' => $item['id_servico']
                         ];
                         $idItemOs = $itemOsModel->insert($itemData);

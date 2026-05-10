@@ -120,6 +120,7 @@ require VIEWPATH.'/header.php';
                             <td>${item.sla_dias || '-'}</td>
                             <td>${item.remuneracao ? formatCurrency(item.remuneracao) : '-'}</td>
                             <td>
+                                <button type="button" class="edit-button" onclick="editItem(${index})">✏️</button>
                                 <button type="button" class="delete-button" onclick="removeItem(${index})">🗑️</button>
                             </td>
                         </tr>
@@ -127,85 +128,157 @@ require VIEWPATH.'/header.php';
                 });
             }
 
+            let editingIndex = -1;
+
+            async function editItem(index) {
+                editingIndex = index;
+                const item = osItems[index];
+                $('#item_qtd').val(item.quantidade_horas);
+                $('#item_prof').val(item.profissional_alocado);
+                
+                // Mudar o botão
+                $('#addItemBtn').text('Atualizar Item').css('background-color', '#ffc107').css('color', '#000');
+                
+                // Carregar cascata se os IDs estiverem disponíveis
+                if (item.id_catalogo) {
+                    $('#item_catalogo').val(item.id_catalogo);
+                    await carregarAreas(item.id_catalogo);
+                    $('#item_area').val(item.id_area);
+                    await carregarMacros(item.id_area);
+                    $('#item_macro').val(item.id_macro);
+                    await carregarServicos(item.id_macro);
+                    $('#item_servico').val(item.id_servico);
+                }
+            }
+
             function removeItem(index) {
                 osItems.splice(index, 1);
                 renderItems();
             }
 
-            $(document).ready(function() {
-                // Filtros em Cascata
-                $('#item_catalogo').change(function() {
-                    const val = $(this).val();
+            // Funções Promisificadas para Cascata
+            function carregarAreas(id_catalogo) {
+                return new Promise((resolve) => {
                     $('#item_area').html('<option value="">Selecione...</option>').prop('disabled', true);
                     $('#item_macro').html('<option value="">Selecione...</option>').prop('disabled', true);
                     $('#item_servico').html('<option value="">Selecione...</option>').prop('disabled', true);
+                    if(!id_catalogo) return resolve();
                     
-                    if(val) {
-                        $.get('<?php echo site_url('api/areas/'); ?>' + val, function(data) {
-                            data.forEach(function(item) {
-                                $('#item_area').append(`<option value="${item.id}">${item.descricao}</option>`);
-                            });
-                            $('#item_area').prop('disabled', false);
+                    $.get('<?php echo site_url('api/areas/'); ?>' + id_catalogo, function(data) {
+                        data.forEach(function(item) {
+                            $('#item_area').append(`<option value="${item.id}">${item.descricao}</option>`);
                         });
-                    }
+                        $('#item_area').prop('disabled', false);
+                        resolve();
+                    });
                 });
+            }
 
-                $('#item_area').change(function() {
-                    const val = $(this).val();
+            function carregarMacros(id_area) {
+                return new Promise((resolve) => {
                     $('#item_macro').html('<option value="">Selecione...</option>').prop('disabled', true);
                     $('#item_servico').html('<option value="">Selecione...</option>').prop('disabled', true);
+                    if(!id_area) return resolve();
                     
-                    if(val) {
-                        $.get('<?php echo site_url('api/atividades/'); ?>' + val, function(data) {
-                            data.forEach(function(item) {
-                                $('#item_macro').append(`<option value="${item.id}">${item.descricao}</option>`);
-                            });
-                            $('#item_macro').prop('disabled', false);
+                    $.get('<?php echo site_url('api/atividades/'); ?>' + id_area, function(data) {
+                        data.forEach(function(item) {
+                            $('#item_macro').append(`<option value="${item.id}">${item.descricao}</option>`);
                         });
-                    }
+                        $('#item_macro').prop('disabled', false);
+                        resolve();
+                    });
                 });
+            }
 
-                $('#item_macro').change(function() {
-                    const val = $(this).val();
+            function carregarServicos(id_macro) {
+                return new Promise((resolve) => {
                     $('#item_servico').html('<option value="">Selecione...</option>').prop('disabled', true);
                     currentServicos = [];
+                    if(!id_macro) return resolve();
                     
-                    if(val) {
-                        $.get('<?php echo site_url('api/servicos/'); ?>' + val, function(data) {
-                            currentServicos = data;
-                            data.forEach(function(item) {
-                                $('#item_servico').append(`<option value="${item.id}">${item.descricao}</option>`);
-                            });
-                            $('#item_servico').prop('disabled', false);
+                    $.get('<?php echo site_url('api/servicos/'); ?>' + id_macro, function(data) {
+                        currentServicos = data;
+                        data.forEach(function(item) {
+                            $('#item_servico').append(`<option value="${item.id}">${item.descricao}</option>`);
                         });
-                    }
+                        $('#item_servico').prop('disabled', false);
+                        resolve();
+                    });
                 });
+            }
+
+            $(document).ready(function() {
+                // Filtros em Cascata usando as funções acima
+                $('#item_catalogo').change(function() { carregarAreas($(this).val()); });
+                $('#item_area').change(function() { carregarMacros($(this).val()); });
+                $('#item_macro').change(function() { carregarServicos($(this).val()); });
 
                 $('#addItemBtn').click(function() {
                     const qtd = $('#item_qtd').val();
                     const prof = $('#item_prof').val() || 'Nenhum';
                     const servicoId = $('#item_servico').val();
                     
-                    if (!qtd || !servicoId) {
-                        alert('Por favor preencha Horas e Serviço.');
-                        return;
+                    if (editingIndex >= 0) {
+                        if (!qtd) {
+                            alert('Por favor preencha Horas.');
+                            return;
+                        }
+                        
+                        let servicoObj = osItems[editingIndex]; // Mantém o atual
+                        let finalServicoId = osItems[editingIndex].id_servico;
+                        
+                        if (servicoId) {
+                            // Se selecionou um novo serviço na combo, atualiza
+                            servicoObj = currentServicos.find(s => s.id == servicoId) || {};
+                            finalServicoId = servicoId;
+                        }
+                        
+                        osItems[editingIndex] = {
+                            quantidade_horas: qtd,
+                            profissional_alocado: prof,
+                            id_servico: finalServicoId,
+                            id_catalogo: $('#item_catalogo').val() || osItems[editingIndex].id_catalogo,
+                            id_area: $('#item_area').val() || osItems[editingIndex].id_area,
+                            id_macro: $('#item_macro').val() || osItems[editingIndex].id_macro,
+                            numero_item: servicoObj.numero_item,
+                            descricao: servicoObj.descricao,
+                            sla_dias: servicoObj.sla_dias,
+                            remuneracao: servicoObj.remuneracao
+                        };
+                        
+                        editingIndex = -1;
+                        $('#addItemBtn').text('Adicionar Item').css('background-color', '').css('color', '');
+                        
+                    } else {
+                        if (!qtd || !servicoId) {
+                            alert('Por favor preencha Horas e Serviço.');
+                            return;
+                        }
+                        
+                        const servicoObj = currentServicos.find(s => s.id == servicoId) || {};
+                        
+                        osItems.push({
+                            quantidade_horas: qtd,
+                            profissional_alocado: prof,
+                            id_servico: servicoId,
+                            id_catalogo: $('#item_catalogo').val(),
+                            id_area: $('#item_area').val(),
+                            id_macro: $('#item_macro').val(),
+                            numero_item: servicoObj.numero_item,
+                            descricao: servicoObj.descricao,
+                            sla_dias: servicoObj.sla_dias,
+                            remuneracao: servicoObj.remuneracao
+                        });
                     }
-                    
-                    const servicoObj = currentServicos.find(s => s.id == servicoId) || {};
-                    
-                    osItems.push({
-                        quantidade_horas: qtd,
-                        profissional_alocado: prof,
-                        id_servico: servicoId,
-                        numero_item: servicoObj.numero_item,
-                        descricao: servicoObj.descricao,
-                        sla_dias: servicoObj.sla_dias,
-                        remuneracao: servicoObj.remuneracao
-                    });
                     
                     $('#item_qtd').val('');
                     $('#item_prof').val('');
-                    $('#item_servico').val('');
+                    
+                    // Reset combos
+                    $('#item_catalogo').val('');
+                    $('#item_area').html('<option value="">Selecione...</option>').prop('disabled', true);
+                    $('#item_macro').html('<option value="">Selecione...</option>').prop('disabled', true);
+                    $('#item_servico').html('<option value="">Selecione...</option>').prop('disabled', true);
                     
                     renderItems();
                 });

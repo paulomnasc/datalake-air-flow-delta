@@ -82,19 +82,183 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="button-group">
-                <button class="add-button" type="submit">Atualizar</button>
+                <button class="add-button" type="button" id="saveDocBtn">Atualizar Documento de Recebimento</button>
                 <a href="<?php echo site_url('listDocumentoRecebimento'); ?>" class="add-button" style="text-decoration: none; background-color: #6c757d;">Voltar</a>
             </div>
         </form>
 
+        <hr style="margin: 30px 0;">
+        
+        <h4 style="text-align: center;">Itens Recebidos (Atesto)</h4>
+        <div style="display: flex; gap: 10px; margin-bottom: 20px; align-items: flex-end; flex-wrap: wrap;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="item_os_select">Item da OS Associado:</label>
+                <select id="item_os_select" style="width: 250px;" disabled>
+                    <option value="">Carregando itens da OS...</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="item_qtd">Qtd. Entregue (Horas):</label>
+                <input type="number" step="0.01" id="item_qtd" style="width: 120px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="item_glosa">Glosa (Horas):</label>
+                <input type="number" step="0.01" id="item_glosa" style="width: 120px;" value="0">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="item_obs">Observações:</label>
+                <input type="text" id="item_obs" style="width: 200px;">
+            </div>
+            <button type="button" class="add-button" id="addItemBtn" style="margin-bottom: 0; padding: 10px 15px;">Adicionar Item</button>
+        </div>
+
+        <table class="data-table" id="itemsTable">
+            <thead>
+                <tr>
+                    <th>Item OS / Serviço</th>
+                    <th>Profissional</th>
+                    <th>Qtd Entregue</th>
+                    <th>Glosa (H)</th>
+                    <th>Observações</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Items inseridos via JS aparecerão aqui -->
+            </tbody>
+        </table>
+
         <script>
+            let docItems = <?php echo isset($items_json) ? $items_json : '[]'; ?>;
+            let currentOsItems = [];
+            let editingIndex = -1;
+
+            function renderItems() {
+                const tbody = $('#itemsTable tbody');
+                tbody.empty();
+                docItems.forEach((item, index) => {
+                    let desc = item.desc_servico;
+                    if (!desc) {
+                        desc = item.descricao ? `Item ${item.numero_item || item.id_item_os} - ${item.descricao}` : `Item OS #${item.id_item_os}`;
+                    }
+                    tbody.append(`
+                        <tr>
+                            <td>${desc}</td>
+                            <td>${item.profissional || item.profissional_alocado || '-'}</td>
+                            <td>${item.quantidade_entregue}</td>
+                            <td>${item.glosa_horas}</td>
+                            <td>${item.observacoes || '-'}</td>
+                            <td>
+                                <button type="button" class="edit-button" onclick="editItem(${index})">✏️</button>
+                                <button type="button" class="delete-button" onclick="removeItem(${index})">🗑️</button>
+                            </td>
+                        </tr>
+                    `);
+                });
+            }
+
+            function editItem(index) {
+                editingIndex = index;
+                const item = docItems[index];
+                $('#item_os_select').val(item.id_item_os);
+                $('#item_qtd').val(item.quantidade_entregue);
+                $('#item_glosa').val(item.glosa_horas);
+                $('#item_obs').val(item.observacoes);
+                $('#addItemBtn').text('Atualizar Item').css('background-color', '#ffc107').css('color', '#000');
+            }
+
+            function removeItem(index) {
+                docItems.splice(index, 1);
+                renderItems();
+            }
+
+            function loadOsItems(idOs, callback) {
+                if (idOs) {
+                    $.get('<?php echo site_url('api/itens_os/'); ?>' + idOs, function(data) {
+                        currentOsItems = data;
+                        $('#item_os_select').empty().append('<option value="">Selecione o Item da OS...</option>');
+                        data.forEach(function(item) {
+                            $('#item_os_select').append(`<option value="${item.id}">Item ${item.numero_item || item.id} - ${item.descricao || ''} (${item.quantidade_horas}H - ${item.profissional_alocado})</option>`);
+                        });
+                        $('#item_os_select').prop('disabled', false);
+                        if (callback) callback();
+                    });
+                } else {
+                    $('#item_os_select').html('<option value="">Primeiro, selecione uma OS no cabeçalho...</option>').prop('disabled', true);
+                    if (callback) callback();
+                }
+            }
+
             $(document).ready(function() {
-                $('#updForm').on('submit', function(e) {
-                    e.preventDefault();
+                // Carrega os itens da grid inicialmente
+                renderItems();
+
+                // Carrega a combo de Itens da OS inicial com base no valor carregado
+                const initialOsId = $('#id_os').val();
+                loadOsItems(initialOsId);
+
+                // Ao trocar a OS, recarregar itens da combo
+                $('#id_os').change(function() {
+                    $('#item_os_select').html('<option value="">Carregando...</option>').prop('disabled', true);
+                    currentOsItems = [];
+                    loadOsItems($(this).val());
+                });
+
+                $('#addItemBtn').click(function() {
+                    const idItemOs = $('#item_os_select').val();
+                    const qtd = $('#item_qtd').val();
+                    const glosa = $('#item_glosa').val() || 0;
+                    const obs = $('#item_obs').val();
+                    
+                    if (!idItemOs || !qtd) {
+                        alert('Por favor, selecione o Item da OS e a Quantidade Entregue.');
+                        return;
+                    }
+                    
+                    const osItemObj = currentOsItems.find(i => i.id == idItemOs) || {};
+                    const descServico = osItemObj.descricao ? `Item ${osItemObj.numero_item} - ${osItemObj.descricao}` : `Item OS #${idItemOs}`;
+                    const profissional = osItemObj.profissional_alocado || '';
+
+                    if (editingIndex >= 0) {
+                        docItems[editingIndex] = {
+                            id_item_os: idItemOs,
+                            quantidade_entregue: qtd,
+                            glosa_horas: glosa,
+                            observacoes: obs,
+                            desc_servico: descServico,
+                            profissional: profissional,
+                            profissional_alocado: profissional
+                        };
+                        editingIndex = -1;
+                        $('#addItemBtn').text('Adicionar Item').css('background-color', '').css('color', '');
+                    } else {
+                        docItems.push({
+                            id_item_os: idItemOs,
+                            quantidade_entregue: qtd,
+                            glosa_horas: glosa,
+                            observacoes: obs,
+                            desc_servico: descServico,
+                            profissional: profissional,
+                            profissional_alocado: profissional
+                        });
+                    }
+                    
+                    $('#item_os_select').val('');
+                    $('#item_qtd').val('');
+                    $('#item_glosa').val('0');
+                    $('#item_obs').val('');
+                    
+                    renderItems();
+                });
+
+                $('#saveDocBtn').click(function() {
+                    let formData = $('#updForm').serializeArray();
+                    formData.push({name: "items", value: JSON.stringify(docItems)});
+                    
                     $.ajax({
                         url: '<?php echo site_url('updateDocumentoRecebimento'); ?>',
                         type: 'POST',
-                        data: $(this).serialize(),
+                        data: $.param(formData),
                         success: function(response) {
                             if (response.status === 'success') {
                                 $('#success-message').html(response.mensagem).show().delay(3000).fadeOut();
@@ -104,7 +268,7 @@ require VIEWPATH.'/header.php';
                             }
                         },
                         error: function() {
-                            $('#error-message').html('Ocorreu um erro ao salvar os dados.').show().delay(5000).fadeOut();
+                            $('#error-message').html('Ocorreu um erro ao atualizar os dados.').show().delay(5000).fadeOut();
                         }
                     });
                 });

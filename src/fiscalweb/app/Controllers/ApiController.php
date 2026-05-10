@@ -25,4 +25,16 @@ class ApiController extends Controller
         $servicos = $db->table('servico')->where('id_atividade_macro', $id_atividade)->get()->getResult();
         return $this->response->setJSON($servicos);
     }
+
+    public function getItensByOs($id_os)
+    {
+        $db = \Config\Database::connect();
+        $builder = $db->table('os_item_os oio');
+        $builder->select('io.id, io.Quantidade_Horas as quantidade_horas, io.Profissional_Alocado as profissional_alocado, s.numero_item, s.descricao');
+        $builder->join('item_os io', 'io.id = oio.id_item_os');
+        $builder->join('servico s', 's.id = io.id_servico', 'left');
+        $builder->where('oio.id_os', $id_os);
+        $itens = $builder->get()->getResult();
+        return $this->response->setJSON($itens);
+    }
 }

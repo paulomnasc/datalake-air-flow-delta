@@ -347,3 +347,5 @@ $routes->delete('deleteAvaliacaoQualidadeSla/(:num)', 'AvaliacaoQualidadeSlaCont
 $routes->get('api/areas/(:num)', 'ApiController::getAreasByCatalogo/$1');
 $routes->get('api/atividades/(:num)', 'ApiController::getAtividadesByArea/$1');
 $routes->get('api/servicos/(:num)', 'ApiController::getServicosByAtividade/$1');
+
+$routes->get('api/itens_os/(:num)', 'ApiController::getItensByOs/$1');

@@ -70,4 +70,13 @@ class UsuarioModel extends Model
         return  $data;
     }
 
+    public function getUsuariosComPerfil()
+    {
+        return $this->select('usuario.*, GROUP_CONCAT(perfil.descricao SEPARATOR ", ") as perfil_descricao')
+                    ->join('usuario_perfil', 'usuario_perfil.id_usuario = usuario.id', 'left')
+                    ->join('perfil', 'perfil.id = usuario_perfil.id_perfil', 'left')
+                    ->groupBy('usuario.id')
+                    ->findAll();
+    }
+
 }

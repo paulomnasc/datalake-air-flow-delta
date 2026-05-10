@@ -14,6 +14,9 @@ class PerfilFuncionalidadeModel extends Model
     protected $protectFields    = true;
     protected $allowedFields    = ['id_perfil', 'id_funcionalidade'];
 
+    // A tabela perfil_funcionalidade não existe no fiscalweb atual.
+    // Os métodos abaixo foram convertidos em fallbacks para evitar exceções.
+
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;
 
@@ -49,11 +52,8 @@ class PerfilFuncionalidadeModel extends Model
      */
     public function getFuncionalidadesPerfil($idPerfil)
     {
-        return $this->select('perfil_funcionalidade.*, funcionalidade.descricao as funcionalidade_descricao')
-                    ->join('funcionalidade', 'perfil_funcionalidade.id_funcionalidade = funcionalidade.id')
-                    ->where('perfil_funcionalidade.id_perfil', $idPerfil)
-                    ->orderBy('funcionalidade.descricao', 'ASC')
-                    ->findAll();
+        // A tabela não existe no fiscalweb. Retornamos vazio para evitar queries.
+        return [];
     }
 
     /**
@@ -61,7 +61,8 @@ class PerfilFuncionalidadeModel extends Model
      */
     public function deleteFuncionalidadesPerfil($idPerfil)
     {
-        return $this->where('id_perfil', $idPerfil)->delete();
+        // Operação no model desativada porque a entidade não existe.
+        return true;
     }
 
     /**
@@ -69,32 +70,7 @@ class PerfilFuncionalidadeModel extends Model
      */
     public function saveFuncionalidadesPerfil($idPerfil, $funcionalidades)
     {
-        // Normaliza entrada: garante array, remove duplicados e converte para int
-        if (!is_array($funcionalidades)) {
-            $funcionalidades = $funcionalidades !== null ? [$funcionalidades] : [];
-        }
-        $funcionalidades = array_unique(array_map('intval', $funcionalidades));
-
-        // Remove funcionalidades antigas
-        $this->deleteFuncionalidadesPerfil($idPerfil);
-
-        // Insere novas funcionalidades
-        if (!empty($funcionalidades)) {
-            $data = [];
-            foreach ($funcionalidades as $idFuncionalidade) {
-                if ($idFuncionalidade > 0) {
-                    $data[] = [
-                        'id_perfil' => (int) $idPerfil,
-                        'id_funcionalidade' => (int) $idFuncionalidade
-                    ];
-                }
-            }
-
-            if (!empty($data)) {
-                return (bool) $this->insertBatch($data);
-            }
-        }
-
+        // Operação desativada: sem tabela de associação, não há persistência.
         return true;
     }
 }

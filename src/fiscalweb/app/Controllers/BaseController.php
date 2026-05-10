@@ -59,66 +59,20 @@ abstract class BaseController extends Controller
         // E.g.: $this->session = \Config\Services::session();
     }
 
-    /**
-     * Busca funcionalidades do usuário logado
-     */
     protected function getUserFunctionalities()
     {
-        $userHasBucketsAccess = false;
-        $userHasPipelinesAccess = false;
+        // Neste sistema (fiscalweb) não teremos a entidade perfil_funcionalidade.
+        // Vamos retornar true provisoriamente, ou implementar lógica customizada
+        // com base no perfil do usuário no futuro.
         
-        if (isset($_SESSION['id_usuario_logado']) && !empty($_SESSION['id_usuario_logado'])) {
-            try {
-                $idUser = $_SESSION['id_usuario_logado'];
-                log_message('debug', "getUserFunctionalities: ID do usuário = {$idUser}");
-                
-                $usuarioPerfilModel = new \App\Models\UsuarioPerfilModel();
-                $perfilFuncionalidadeModel = new \App\Models\PerfilFuncionalidadeModel();
-                
-                // Buscar perfis do usuário
-                $perfisUsuario = $usuarioPerfilModel->getPerfisUsuario($idUser);
-                log_message('debug', "getUserFunctionalities: Perfis encontrados = " . count($perfisUsuario));
-                
-                if (!empty($perfisUsuario)) {
-                    $funcionalidadesBuckets = ['Visualizar Buckets', 'Criar Buckets', 'Editar Buckets', 'Deletar Buckets'];
-                    $funcionalidadesPipelines = ['Operar Fluxos de Dados'];
-                    
-                    // Verificar funcionalidades para cada perfil do usuário
-                    foreach ($perfisUsuario as $perfil) {
-                        log_message('debug', "getUserFunctionalities: Verificando perfil ID = {$perfil->id_perfil}");
-                        
-                        $funcionalidadesPerfil = $perfilFuncionalidadeModel->getFuncionalidadesPerfil($perfil->id_perfil);
-                        log_message('debug', "getUserFunctionalities: Funcionalidades do perfil = " . count($funcionalidadesPerfil));
-                        
-                        foreach ($funcionalidadesPerfil as $func) {
-                            log_message('debug', "getUserFunctionalities: Funcionalidade = {$func->funcionalidade_descricao}");
-                            
-                            if (in_array($func->funcionalidade_descricao, $funcionalidadesBuckets)) {
-                                $userHasBucketsAccess = true;
-                                log_message('debug', "getUserFunctionalities: Acesso a Buckets concedido");
-                            }
-                            if (in_array($func->funcionalidade_descricao, $funcionalidadesPipelines)) {
-                                $userHasPipelinesAccess = true;
-                                log_message('debug', "getUserFunctionalities: Acesso a Pipelines concedido");
-                            }
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                log_message('error', 'Erro ao buscar funcionalidades do usuário: ' . $e->getMessage());
-            }
-        } else {
-            log_message('debug', "getUserFunctionalities: Nenhum usuário logado");
-        }
-        
-        log_message('debug', "getUserFunctionalities: Final - Buckets={$userHasBucketsAccess}, Pipelines={$userHasPipelinesAccess}");
+        $userHasBucketsAccess = true;
+        $userHasPipelinesAccess = true;
         
         return [
             'userHasBucketsAccess' => $userHasBucketsAccess,
             'userHasPipelinesAccess' => $userHasPipelinesAccess
         ];
     }
-
     protected function loadView($viewName, $data = [])
     {
         // Aqui você pode registrar ou exibir o nome da view
@@ -144,4 +98,15 @@ abstract class BaseController extends Controller
         return view($viewName, $data);
     }
 
+    protected function buildExceptionMessage(\Throwable $e): string
+    {
+        $message = $e->getMessage();
+
+        $previous = $e->getPrevious();
+        if ($previous instanceof \Throwable && $previous->getMessage()) {
+            $message = $previous->getMessage();
+        }
+
+        return trim($message) ?: 'Erro desconhecido no servidor.';
+    }
 }

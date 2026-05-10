@@ -5,8 +5,6 @@ namespace App\Controllers;
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\PerfilModel;
-use App\Models\FuncionalidadeModel;
-use App\Models\PerfilFuncionalidadeModel;
 
 class PerfilController extends BaseController
 {
@@ -26,36 +24,20 @@ class PerfilController extends BaseController
 
     public function add()
     {
-        $funcionalidadeModel = new FuncionalidadeModel();
-        $data['funcionalidades'] = $funcionalidadeModel->listToCombo();
-        return view('addPerfil', $data);
+        return view('addPerfil');
     }
 
     public function upd()
     {
-
         $id = $this->request->getPost('id');
         
         $model = new PerfilModel();
         $perfil = $model->find($id);
 
-        $funcionalidadeModel = new FuncionalidadeModel();
-        $data['funcionalidades'] = $funcionalidadeModel->listToCombo();
-        
-        // Buscar as funcionalidades associadas ao perfil
-        $perfilFuncionalidadeModel = new PerfilFuncionalidadeModel();
-        $funcionalidadesPerfil = $perfilFuncionalidadeModel->getFuncionalidadesPerfil($id);
-        $funcionalidadesSelecionadas = [];
-        foreach ($funcionalidadesPerfil as $func) {
-            $funcionalidadesSelecionadas[] = $func->id_funcionalidade;
-        }
-        
-        $data['funcionalidades_selecionadas'] = $funcionalidadesSelecionadas;
         $data['id'] = $perfil->id;
         $data['descricao'] = $perfil->descricao;
 
         return view('updPerfil',$data);
-
     }
 
     public function del($id)
@@ -86,20 +68,13 @@ class PerfilController extends BaseController
             'descricao' => $this->request->getPost('descricao')
         ];
         
-        $funcionalidades = $this->request->getPost('id_funcionalidade');
-        
         $model = new PerfilModel();
-        $perfilFuncionalidadeModel = new PerfilFuncionalidadeModel();
         
         $db = \Config\Database::connect();
         $db->transStart();
         
         try {
             $idPerfil = $model->insert($data);
-            
-            if ($idPerfil && !empty($funcionalidades)) {
-                $perfilFuncionalidadeModel->saveFuncionalidadesPerfil($idPerfil, $funcionalidades);
-            }
             
             $db->transComplete();
             
@@ -124,26 +99,16 @@ class PerfilController extends BaseController
     
     public function update() {
         $model = new PerfilModel();
-        $perfilFuncionalidadeModel = new PerfilFuncionalidadeModel();
         $id = $this->request->getPost('id');
         $data = [
             'descricao' => $this->request->getPost('descricao')
         ];
-        
-        $funcionalidades = $this->request->getPost('id_funcionalidade');
         
         $db = \Config\Database::connect();
         $db->transStart();
 
         try {
             $updated = $model->update($id, $data);
-            
-            if ($updated && !empty($funcionalidades)) {
-                $perfilFuncionalidadeModel->saveFuncionalidadesPerfil($id, $funcionalidades);
-            } elseif ($updated) {
-                // Remove todas as funcionalidades se não houver selecionadas
-                $perfilFuncionalidadeModel->deleteFuncionalidadesPerfil($id);
-            }
             
             $db->transComplete();
             

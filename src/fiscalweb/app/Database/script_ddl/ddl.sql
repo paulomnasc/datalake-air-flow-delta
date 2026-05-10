@@ -1,6 +1,6 @@
-CREATE DATABASE IF NOT EXISTS `lista_revisao2` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
+CREATE DATABASE IF NOT EXISTS `fiscal` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
 
-USE `lista_revisao2`;
+USE `fiscal`;
 
 -- Criação da tabela perfil
 CREATE TABLE IF NOT EXISTS `perfil` (
@@ -33,137 +33,134 @@ CREATE TABLE IF NOT EXISTS `usuario_perfil` (
   CONSTRAINT `fk_usuario_perfil_perfil` FOREIGN KEY (`id_perfil`) REFERENCES `perfil` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Criação da tabela funcionalidade
-CREATE TABLE IF NOT EXISTS `funcionalidade` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `descricao` varchar(100) NOT NULL UNIQUE,
-  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Criação da tabela associativa perfil_funcionalidade
-CREATE TABLE IF NOT EXISTS `perfil_funcionalidade` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `id_perfil` int NOT NULL,
-  `id_funcionalidade` int NOT NULL,
-  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `perfil_funcionalidade_unique` (`id_perfil`, `id_funcionalidade`),
-  KEY `fk_perfil_funcionalidade_perfil_idx` (`id_perfil`),
-  KEY `fk_perfil_funcionalidade_funcionalidade_idx` (`id_funcionalidade`),
-  CONSTRAINT `fk_perfil_funcionalidade_perfil` FOREIGN KEY (`id_perfil`) REFERENCES `perfil` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_perfil_funcionalidade_funcionalidade` FOREIGN KEY (`id_funcionalidade`) REFERENCES `funcionalidade` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-
--- Criação da tabela pasta
-CREATE TABLE IF NOT EXISTS `pasta` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `descricao` varchar(100) NOT NULL,
-  `id_usuario` tinyint unsigned NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `pasta_usuario_FK` (`id_usuario`),
-  CONSTRAINT `pasta_usuario_FK` FOREIGN KEY (`id_usuario`) REFERENCES `usuario` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE=InnoDB AUTO_INCREMENT=60 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='';
-
-
--- Definição da tabela email_tokens
-CREATE TABLE IF NOT EXISTS `email_tokens` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `email` varchar(255) NOT NULL,
-  `token` varchar(32) NOT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- DDL (Data Definition Language) para a tabela de configurações de DAGs
--- No MySQL: CREATE DATABASE IF NOT EXISTS dag_factory_db; USE dag_factory_db;
-
-CREATE TABLE source_types (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    description VARCHAR(100) NOT NULL UNIQUE COMMENT 'Descrição do tipo de fonte (Ex: MySQL, CSV, API REST)'
+CREATE TABLE item_contrato (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    gestor_substituto VARCHAR(255) NOT NULL,
+    Numero_Contrato VARCHAR(100) NOT NULL,
+    Objeto VARCHAR(255) NOT NULL,
+    Total_Horas_Contratadas FLOAT NOT NULL,
+    Saldo_Horas FLOAT NOT NULL,
+    Data_Inicio DATETIME NOT NULL,
+    Data_Fim DATETIME NOT NULL
 );
 
--- Dados de Exemplo (para começar a testar)
-INSERT INTO source_types (description) VALUES
-('CSV (MinIO/S3)'),
-('JSON (MinIO/S3)'),
-('MySQL'),
-('PostgreSQL'),
-('API REST');
+CREATE TABLE Status (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    Status VARCHAR(100) NOT NULL UNIQUE
+);
 
--- DROP TABLE IF EXISTS dag_configurations; -- Use esta linha se precisar recriar do zero
+CREATE TABLE catalogo_servicos (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    id_item_contrato INT,
+    descricao VARCHAR(255) NOT NULL,
+    FOREIGN KEY (id_item_contrato) REFERENCES item_contrato(id)
+);
 
-CREATE TABLE dag_configurations (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    
-    -- 1. Chave Estrangeira (FK) para a tabela PASTA
-    id_pasta INT UNSIGNED NOT NULL COMMENT 'ID da pasta associada, FK para a tabela pasta(id)',
-    
-    -- 2. Metadata da DAG
-    dag_id VARCHAR(128) NOT NULL UNIQUE COMMENT 'O nome único da DAG no Airflow',
-    is_active BOOLEAN DEFAULT TRUE COMMENT 'Indica se a DAG deve ser gerada',
-    owner VARCHAR(64) DEFAULT 'webapp_user' COMMENT 'Proprietário da DAG no Airflow',
-    schedule_interval VARCHAR(64) DEFAULT '0 0 * * *' COMMENT 'Agendamento no formato cron',
-    description TEXT COMMENT 'Descrição da DAG',
-    
-    -- 3. Parâmetros da Tarefa
-    -- 🛑 NOVO CAMPO FK para source_types 🛑
-    id_source_type INT UNSIGNED NOT NULL COMMENT 'ID do tipo de fonte de dados (FK para source_types)',
-    source_filename VARCHAR(512) COMMENT 'Caminho do arquivo ou URI de conexão',
-    target_table_name VARCHAR(128) NOT NULL COMMENT 'Nome da tabela/destino final',
-    
-    -- 4. Parâmetros de Processamento
-    python_module_path VARCHAR(255) COMMENT 'Caminho do módulo Python a ser chamado',
-    -- ...existing code...
-    -- Nova tabela para múltiplos nomes de arquivos originais por configuração de DAG
-    CREATE TABLE config_multiplefilenames (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      dag_configuration_id INT NOT NULL,
-      original_filename VARCHAR(512) NOT NULL,
-      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      -- FK para dag_configurations com delete cascade
-      CONSTRAINT fk_config_multiplefilenames_dagconfig FOREIGN KEY (dag_configuration_id)
-        REFERENCES dag_configurations(id)
-        ON DELETE CASCADE
-    );
-    transform_args JSON COMMENT 'Parâmetros extras para a função Python (JSON)',
+CREATE TABLE ordem_servico (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    Horas_Alocadas FLOAT NOT NULL,
+    nup_sei VARCHAR(100) NOT NULL,
+    Data_Emissao DATETIME NOT NULL,
+    Data_Aceite DATETIME
+);
 
-    -- 🛑 CAMPOS SSH TUNNELING 🛑
-    ssh_host VARCHAR(255) NULL COMMENT 'FQDN ou IP do Jump Server',
-    ssh_port INT DEFAULT 22 NULL COMMENT 'Porta SSH para conexão, padrão 22',
-    ssh_user VARCHAR(100) NULL COMMENT 'Usuário SSH para autenticação',
-    ssh_key_path VARCHAR(255) NULL COMMENT 'Caminho da chave privada SSH no servidor Airflow',
-    ssh_local_port INT DEFAULT 13306 NULL COMMENT 'Porta local que será usada para o túnel',
+CREATE TABLE area_atuacao (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    id_catalogo_servicos INT,
+    descricao VARCHAR(255) NOT NULL UNIQUE,
+    FOREIGN KEY (id_catalogo_servicos) REFERENCES catalogo_servicos(id)
+);
 
-    -- 5. Controle e Auditoria
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+CREATE TABLE atividade_macro (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    id_area_atuacao INT,
+    descricao VARCHAR(255) NOT NULL UNIQUE,
+    FOREIGN KEY (id_area_atuacao) REFERENCES area_atuacao(id)
+);
 
-    -- Índices para performance
-    INDEX idx_dag_active (is_active),
-    INDEX idx_owner (owner),
-    
-    -- 6. Declaração das Chaves Estrangeiras
+CREATE TABLE servico (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    remuneracao FLOAT NOT NULL,
+    base_horas_mes FLOAT NOT NULL,
+    base_horas_complexidade FLOAT NOT NULL,
+    sla_dias INT NOT NULL,
+    estim_max_ano FLOAT NOT NULL,
+    id_atividade_macro INT,
+    FOREIGN KEY (id_atividade_macro) REFERENCES atividade_macro(id)
+);
 
-    -- FK para PASTA
-    CONSTRAINT fk_dagconfig_pasta
-        FOREIGN KEY (id_pasta) 
-        REFERENCES pasta(id)
-        ON DELETE RESTRICT 
-        ON UPDATE CASCADE,
-        
-    -- 🛑 FK para SOURCE_TYPES 🛑
-    CONSTRAINT fk_source_type
-        FOREIGN KEY (id_source_type) 
-        REFERENCES source_types(id)
-        ON DELETE RESTRICT
-        ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE item_os (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    Quantidade_Horas FLOAT NOT NULL,
+    Profissional_Alocado VARCHAR(255) NOT NULL DEFAULT 'Nenhum',
+    id_servico INT,
+    FOREIGN KEY (id_servico) REFERENCES servico(id)
+);
 
--- Adicione a coluna start_date como DATE, permitindo NULL
-ALTER TABLE dag_configurations
-ADD COLUMN start_date DATE NULL AFTER transform_args; 
+CREATE TABLE tipo_documento (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    descricao VARCHAR(255) NOT NULL
+);
 
+CREATE TABLE documento_recebimento (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    id_os INT,
+    Data_Assinatura DATETIME,
+    nup_sei VARCHAR(100) NOT NULL,
+    id_tipo_documento INT,
+    id_usuario_fiscal_tecnico INT,
+    id_usuario_fiscal_requisitante INT,
+    id_usuario_gestor INT,
+    FOREIGN KEY (id_os) REFERENCES ordem_servico(id),
+    FOREIGN KEY (id_tipo_documento) REFERENCES tipo_documento(id),
+    FOREIGN KEY (id_usuario_fiscal_tecnico) REFERENCES usuario(id),
+    FOREIGN KEY (id_usuario_fiscal_requisitante) REFERENCES usuario(id),
+    FOREIGN KEY (id_usuario_gestor) REFERENCES usuario(id)
+);
 
+CREATE TABLE avaliacao_qualidade_sla (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    id_documento_recebimento INT,
+    Nota_INS1_Pontualidade FLOAT NOT NULL,
+    Nota_INS2_Qualidade FLOAT NOT NULL,
+    Percentual_Glosa FLOAT NOT NULL DEFAULT 0,
+    FOREIGN KEY (id_documento_recebimento) REFERENCES documento_recebimento(id)
+);
+
+CREATE TABLE status_recebimento (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    descricao VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE os_item_os (
+    id_os INT,
+    id_item_os INT,
+    PRIMARY KEY (id_os, id_item_os),
+    FOREIGN KEY (id_os) REFERENCES ordem_servico(id),
+    FOREIGN KEY (id_item_os) REFERENCES item_os(id)
+);
+
+CREATE TABLE os_status_recebimento (
+    id_os INT,
+    id_status_recebimento INT,
+    PRIMARY KEY (id_os, id_status_recebimento),
+    FOREIGN KEY (id_os) REFERENCES ordem_servico(id),
+    FOREIGN KEY (id_status_recebimento) REFERENCES status_recebimento(id)
+);
+
+CREATE TABLE usuario_os (
+    id_os INT,
+    id_usuario INT,
+    PRIMARY KEY (id_os, id_usuario),
+    FOREIGN KEY (id_os) REFERENCES ordem_servico(id),
+    FOREIGN KEY (id_usuario) REFERENCES usuario(id)
+);
+
+CREATE TABLE usuario_recebimento (
+    id_recebimento INT,
+    id_usuario INT,
+    PRIMARY KEY (id_recebimento, id_usuario),
+    FOREIGN KEY (id_recebimento) REFERENCES documento_recebimento(id),
+    FOREIGN KEY (id_usuario) REFERENCES usuario(id)
+);

@@ -1,63 +1,105 @@
 <?php
+
 if (! defined('VIEWPATH')) {
-    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR.'Views');
+    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR . 'Views');
 }
-require VIEWPATH.'/header.php';
+require VIEWPATH . '/header.php';
 ?>
 
-<div id="content" class="container mt-4">
-    <div class="card">
-        <div class="card-header">
-            <h4>Incluir Novo Usuário</h4>
-        </div>
-        <div class="card-body">
-            <form id="addUsuarioForm">
-                <div class="form-group mb-3">
-                    <label for="nome">Nome Completo</label>
-                    <input type="text" class="form-control" id="nome" name="nome" required>
+    <div id="content">
+
+        <div class="container">
+            <h1>Criar Novo Usuario</h1>
+            <form method="post" id="meuFormulario" action="<?php echo route_to('Usuario.insert'); ?>">
+                  
+
+                <div class="form-group">
+                    <label for="nome">Nome:</label>
+                    <input type="text" id="nome" name="nome" placeholder="nome" required>
                 </div>
-                <div class="form-group mb-3">
-                    <label for="email">Email</label>
-                    <input type="email" class="form-control" id="email" name="email" required>
+
+
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" placeholder="email" required>
                 </div>
-                <div class="form-group mb-4">
-                    <label for="senha">Senha</label>
-                    <input type="password" class="form-control" id="senha" name="senha" required>
+
+
+                <div class="form-group">
+                    <label for="id_perfil">Perfil:</label>
+                    <select id="id_perfil" name="id_perfil[]" class="form-control" multiple required>
+                        <option value="">Selecione um perfil</option>
+                        <?php foreach($perfis as $perfil): ?>
+                            <option value="<?php echo $perfil->id; ?>" <?php echo (!empty($descricao_perfil_selecionado) && $perfil->descricao == $descricao_perfil_selecionado) ? 'selected' : ''; ?>>
+                                <?php echo $perfil->descricao; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
-                
-                <button type="submit" class="btn btn-primary">Salvar</button>
-                <a href="<?= site_url('usuario') ?>" class="btn btn-secondary">Cancelar</a>
+
+
+
+                <div class="form-group">
+                    <label for="senha">Senha:</label>
+                    <input type="password" id="senha" name="senha" placeholder="senha" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="senha">Confirmar senha:</label>
+                    <input type="password" id="repete-senha" name="senha" placeholder="senha" required>
+                </div>
+                    
+                <div class="form-actions">
+                    <button type="submit" class="save-button" value="Atualizar" onclick="return validatePasswords()">Atualizar</button>
+                    <button type="button" class="back-button" onclick="history.back();">Voltar</button>
+                </div>
+
             </form>
-            <div id="message" class="mt-3"></div>
+
+        <script>
+        function validatePasswords() {
+            
+            var senha = document.getElementById("senha").value;
+            var repeteSenha = document.getElementById("repete-senha").value;
+
+            if (senha !== repeteSenha) {
+                alert("As senhas não coincidem");
+                document.getElementById("error-message").innerHTML = "As senhas não coincidem";
+                return false;
+            }
+            return true;
+        }
+        </script>
+        <script>
+            $('#meuFormulario').submit(function(event) {
+                event.preventDefault();
+                var formData = $(this).serialize();
+                $.ajax({
+                    url: $(this).attr('action'),
+                    type: 'POST',
+                    data: formData,
+                    success: function(result) {
+                        if (result.status === 'success') {
+                            $('#success-message').html(result.mensagem).show().delay(6000).fadeOut(function() {
+                                window.location.href = "<?php echo route_to('listUsuario'); ?>"; // Redireciona para listUsuario após exibir a mensagem
+                            }); // Mostra a mensagem de sucesso
+                        } else {
+                            $('#error-message').html(result.mensagem).show().delay(6000).fadeOut(); // Mostra a mensagem de erro
+                        }
+                    },
+                    error: function(err) {
+                        $('#error-message').html('Erro ao atualizar o registro.').show().delay(6000).fadeOut(); // Mostra a mensagem de erro
+                        console.log(err); // Trate o erro aqui
+                    }
+                });
+            });
+            </script>
         </div>
     </div>
+
+
 </div>
 
-<script>
-$(document).ready(function() {
-    $('#addUsuarioForm').on('submit', function(e) {
-        e.preventDefault();
-        
-        $.ajax({
-            url: '<?= site_url('insertUsuario') ?>',
-            type: 'POST',
-            data: $(this).serialize(),
-            success: function(response) {
-                if(response.status === 'success') {
-                    $('#message').html('<div class="alert alert-success">' + response.mensagem + '</div>');
-                    setTimeout(function() {
-                        window.location.href = '<?= site_url('usuario') ?>';
-                    }, 1500);
-                } else {
-                    $('#message').html('<div class="alert alert-danger">' + response.mensagem + '</div>');
-                }
-            },
-            error: function() {
-                $('#message').html('<div class="alert alert-danger">Erro de comunicação com o servidor.</div>');
-            }
-        });
-    });
-});
-</script>
-
-<?php require VIEWPATH.'/footer.php'; ?>
+<?php
+require VIEWPATH . '/footer.php';
+?>

@@ -57,10 +57,8 @@ class FuncionalidadeModel extends Model
      */
     public function getFuncionalidadesPerfil($idPerfil)
     {
-        return $this->select('funcionalidade.*')
-                    ->join('perfil_funcionalidade', 'perfil_funcionalidade.id_funcionalidade = funcionalidade.id')
-                    ->where('perfil_funcionalidade.id_perfil', $idPerfil)
-                    ->orderBy('funcionalidade.descricao', 'ASC')
-                    ->findAll();
+        // A tabela de associação perfil_funcionalidade não existe no fiscalweb.
+        // Este método permanece como fallback sem acessar o banco.
+        return [];
     }
 }

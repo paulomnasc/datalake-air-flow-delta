@@ -27,6 +27,7 @@ DROP TABLE IF EXISTS `usuario`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `usuario` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `id_perfil` int NULL,
   `nome` varchar(100) NOT NULL,
   `email` varchar(100) NOT NULL,
   `senha` varchar(100) NOT NULL,
@@ -51,7 +52,9 @@ CREATE TABLE `usuario` (
   KEY `idx_data_vencimento` (`data_vencimento_assinatura`),
   KEY `idx_status_assinatura` (`status_assinatura`),
   KEY `idx_google_id` (`google_id`),
-  KEY `idx_auth_provider` (`auth_provider`)
+  KEY `idx_auth_provider` (`auth_provider`),
+  KEY `idx_id_perfil` (`id_perfil`),
+  CONSTRAINT `fk_usuario_perfil` FOREIGN KEY (`id_perfil`) REFERENCES `perfil` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=481 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;

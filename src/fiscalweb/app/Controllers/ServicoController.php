@@ -41,8 +41,11 @@ class ServicoController extends BaseController
 
     public function list()  
     {
-        $model = new ServicoModel();
-        return $model->findAll();
+        $db = \Config\Database::connect();
+        $builder = $db->table('servico s');
+        $builder->select('s.*, am.descricao as desc_macro');
+        $builder->join('atividade_macro am', 'am.id = s.id_atividade_macro', 'left');
+        return $builder->get()->getResult();
     }
 
     public function insert() 

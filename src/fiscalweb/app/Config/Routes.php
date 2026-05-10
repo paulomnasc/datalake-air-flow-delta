@@ -343,3 +343,7 @@ $routes->post('updAvaliacaoQualidadeSla', 'AvaliacaoQualidadeSlaController::upd'
 $routes->post('insertAvaliacaoQualidadeSla', 'AvaliacaoQualidadeSlaController::insert');
 $routes->post('updateAvaliacaoQualidadeSla', 'AvaliacaoQualidadeSlaController::update');
 $routes->delete('deleteAvaliacaoQualidadeSla/(:num)', 'AvaliacaoQualidadeSlaController::delete/$1');
+
+$routes->get('api/areas/(:num)', 'ApiController::getAreasByCatalogo/$1');
+$routes->get('api/atividades/(:num)', 'ApiController::getAtividadesByArea/$1');
+$routes->get('api/servicos/(:num)', 'ApiController::getServicosByAtividade/$1');

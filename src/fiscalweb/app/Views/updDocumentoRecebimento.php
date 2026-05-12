@@ -120,12 +120,20 @@ require VIEWPATH.'/header.php';
                     <th>Qtd Entregue</th>
                     <th>Glosa (H)</th>
                     <th>Observações</th>
+                    <th>Valor Item (R$)</th>
                     <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
                 <!-- Items inseridos via JS aparecerão aqui -->
             </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="5" style="text-align: right; font-weight: bold;">Total do Documento:</td>
+                    <td id="totalValorDoc" style="font-weight: bold;">R$ 0,00</td>
+                    <td></td>
+                </tr>
+            </tfoot>
         </table>
 
         <script>
@@ -133,14 +141,21 @@ require VIEWPATH.'/header.php';
             let currentOsItems = [];
             let editingIndex = -1;
 
+            function formatCurrency(value) {
+                return parseFloat(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            }
+
             function renderItems() {
                 const tbody = $('#itemsTable tbody');
                 tbody.empty();
+                let totalDoc = 0;
                 docItems.forEach((item, index) => {
                     let desc = item.desc_servico;
                     if (!desc) {
                         desc = item.descricao ? `Item ${item.numero_item || item.id_item_os} - ${item.descricao}` : `Item OS #${item.id_item_os}`;
                     }
+                    let valorItem = item.valor_remuneracao_item ? parseFloat(item.valor_remuneracao_item) : 0;
+                    totalDoc += valorItem;
                     tbody.append(`
                         <tr>
                             <td>${desc}</td>
@@ -148,6 +163,7 @@ require VIEWPATH.'/header.php';
                             <td>${item.quantidade_entregue}</td>
                             <td>${item.glosa_horas}</td>
                             <td>${item.observacoes || '-'}</td>
+                            <td>${formatCurrency(valorItem)}</td>
                             <td>
                                 <button type="button" class="edit-button" onclick="editItem(${index})">✏️</button>
                                 <button type="button" class="delete-button" onclick="removeItem(${index})">🗑️</button>
@@ -155,6 +171,7 @@ require VIEWPATH.'/header.php';
                         </tr>
                     `);
                 });
+                $('#totalValorDoc').text(formatCurrency(totalDoc));
             }
 
             function editItem(index) {
@@ -231,7 +248,8 @@ require VIEWPATH.'/header.php';
                                         observacoes: 'Migrado da OS',
                                         desc_servico: descServico,
                                         profissional: item.profissional_alocado || '',
-                                        profissional_alocado: item.profissional_alocado || ''
+                                        profissional_alocado: item.profissional_alocado || '',
+                                        valor_remuneracao_item: item.valor_remuneracao_item || 0
                                     });
                                 });
                                 

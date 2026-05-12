@@ -90,12 +90,20 @@ require VIEWPATH.'/header.php';
                     <th>Descrição</th>
                     <th>SLA (Dias)</th>
                     <th>Remuneração</th>
+                    <th>Valor Item (R$)</th>
                     <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
                 <!-- Items inseridos via JS aparecerão aqui -->
             </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="7" style="text-align: right; font-weight: bold;">Total da Ordem de Serviço:</td>
+                    <td id="totalValorOS" style="font-weight: bold;">R$ 0,00</td>
+                    <td></td>
+                </tr>
+            </tfoot>
         </table>
 
         <script>
@@ -109,7 +117,10 @@ require VIEWPATH.'/header.php';
             function renderItems() {
                 const tbody = $('#itemsTable tbody');
                 tbody.empty();
+                let totalOs = 0;
                 osItems.forEach((item, index) => {
+                    let valorItem = item.valor_remuneracao_item ? parseFloat(item.valor_remuneracao_item) : 0;
+                    totalOs += valorItem;
                     tbody.append(`
                         <tr>
                             <td>${item.quantidade_horas}</td>
@@ -119,6 +130,7 @@ require VIEWPATH.'/header.php';
                             <td>${item.descricao || '-'}</td>
                             <td>${item.sla_dias || '-'}</td>
                             <td>${item.remuneracao ? formatCurrency(item.remuneracao) : '-'}</td>
+                            <td>${formatCurrency(valorItem)}</td>
                             <td>
                                 <button type="button" class="edit-button" onclick="editItem(${index})">✏️</button>
                                 <button type="button" class="delete-button" onclick="removeItem(${index})">🗑️</button>
@@ -126,6 +138,7 @@ require VIEWPATH.'/header.php';
                         </tr>
                     `);
                 });
+                $('#totalValorOS').text(formatCurrency(totalOs));
             }
 
             let editingIndex = -1;

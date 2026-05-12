@@ -173,3 +173,19 @@ CREATE TABLE reajuste_item_contrato (
     UNIQUE (data_reajuste_item_contrato),
     FOREIGN KEY (id_item_contrato) REFERENCES item_contrato(id)
 );
+
+-- fiscal.item_documento_recebimento definition
+
+CREATE TABLE `item_documento_recebimento` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `id_documento_recebimento` int NOT NULL,
+  `id_item_os` int NOT NULL,
+  `quantidade_entregue` float NOT NULL,
+  `glosa_horas` float DEFAULT '0',
+  `observacoes` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `id_documento_recebimento` (`id_documento_recebimento`),
+  KEY `id_item_os` (`id_item_os`),
+  CONSTRAINT `item_documento_recebimento_ibfk_1` FOREIGN KEY (`id_documento_recebimento`) REFERENCES `documento_recebimento` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `item_documento_recebimento_ibfk_2` FOREIGN KEY (`id_item_os`) REFERENCES `item_os` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

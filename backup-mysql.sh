@@ -52,9 +52,22 @@ if [ $? -eq 0 ]; then
 fi
 
 echo ""
+echo "📦 Fazendo backup do schema fiscal..."
+docker-compose exec -T mysql mysqldump -uroot -proot \
+    --single-transaction \
+    --routines \
+    --triggers \
+    fiscal > "$BACKUP_DIR/fiscal_${TIMESTAMP}.sql"
+
+if [ $? -eq 0 ]; then
+    echo "✅ Backup Fiscal criado: $BACKUP_DIR/fiscal_${TIMESTAMP}.sql"
+fi
+
+echo ""
 echo "📝 Mantendo apenas os últimos 10 backups..."
 ls -t $BACKUP_DIR/lista_revisao2_*.sql | tail -n +11 | xargs -r rm
 ls -t $BACKUP_DIR/lista_revisao_*.sql | tail -n +11 | xargs -r rm
+ls -t $BACKUP_DIR/fiscal_*.sql | tail -n +11 | xargs -r rm
 
 echo ""
 echo "✅ Backup concluído!"

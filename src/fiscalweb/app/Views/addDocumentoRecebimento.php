@@ -97,11 +97,11 @@ require VIEWPATH.'/header.php';
                 </select>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_qtd">Qtd. Entregue (Horas):</label>
+                <label for="item_qtd">Qtd. Entregue:</label>
                 <input type="number" step="0.01" id="item_qtd" style="width: 120px;">
             </div>
             <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_glosa">Glosa (Horas):</label>
+                <label for="item_glosa">Glosa:</label>
                 <input type="number" step="0.01" id="item_glosa" style="width: 120px;" value="0">
             </div>
             <div class="form-group" style="margin-bottom: 0;">
@@ -117,7 +117,7 @@ require VIEWPATH.'/header.php';
                     <th>Item OS / Serviço</th>
                     <th>Profissional</th>
                     <th>Qtd Entregue</th>
-                    <th>Glosa (H)</th>
+                    <th>Glosa</th>
                     <th>Observações</th>
                     <th>Valor Item (R$)</th>
                     <th>Ações</th>
@@ -206,7 +206,7 @@ require VIEWPATH.'/header.php';
                             $('#item_os_select').empty().append('<option value="">Selecione o Item da OS...</option>');
                             
                             data.forEach(function(item) {
-                                $('#item_os_select').append(`<option value="${item.id}">Item ${item.numero_item || item.id} - ${item.descricao || ''} (${item.quantidade_horas}H - ${item.profissional_alocado})</option>`);
+                                $('#item_os_select').append(`<option value="${item.id}">Item ${item.numero_item || item.id} - ${item.descricao || ''} (Qtd: ${item.quantidade_horas} - Prof: ${item.profissional_alocado})</option>`);
                                 
                                 // Auto-popular a grid com 100% da quantidade da OS e glosa zerada
                                 const descServico = item.descricao ? `Item ${item.numero_item} - ${item.descricao}` : `Item OS #${item.id}`;

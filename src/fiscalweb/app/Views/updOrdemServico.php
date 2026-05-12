@@ -42,7 +42,7 @@ require VIEWPATH.'/header.php';
         <h4 style="text-align: center;">Itens da Ordem de Serviço</h4>
         <div style="display: flex; gap: 10px; margin-bottom: 20px; align-items: flex-end;">
             <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_qtd">Horas:</label>
+                <label for="item_qtd">Quantidade:</label>
                 <input type="number" step="0.01" id="item_qtd" style="width: 100px;">
             </div>
             <div class="form-group" style="margin-bottom: 0;">
@@ -84,13 +84,13 @@ require VIEWPATH.'/header.php';
         <table class="data-table" id="itemsTable">
             <thead>
                 <tr>
-                    <th>Horas</th>
+                    <th>Quantidade</th>
                     <th>Profissional</th>
                     <th>ID Serviço</th>
                     <th>Nº Item</th>
                     <th>Descrição</th>
                     <th>SLA (Dias)</th>
-                    <th>Remuneração</th>
+                    <th>Remuneração (Base)</th>
                     <th>Valor Item (R$)</th>
                     <th>Ações</th>
                 </tr>
@@ -130,7 +130,7 @@ require VIEWPATH.'/header.php';
                             <td>${item.numero_item || '-'}</td>
                             <td>${item.descricao || '-'}</td>
                             <td>${item.sla_dias || '-'}</td>
-                            <td>${item.remuneracao ? formatCurrency(item.remuneracao) : '-'}</td>
+                            <td>${item.remuneracao ? parseFloat(item.remuneracao).toFixed(2).replace('.', ',') : '-'}</td>
                             <td>${formatCurrency(valorItem)}</td>
                             <td>
                                 <button type="button" class="edit-button" onclick="editItem(${index})">✏️</button>
@@ -236,7 +236,7 @@ require VIEWPATH.'/header.php';
                     
                     if (editingIndex >= 0) {
                         if (!qtd) {
-                            alert('Por favor preencha Horas.');
+                            alert('Por favor preencha a Quantidade.');
                             return;
                         }
                         
@@ -268,7 +268,7 @@ require VIEWPATH.'/header.php';
                         
                     } else {
                         if (!qtd || !servicoId) {
-                            alert('Por favor preencha Horas e Serviço.');
+                            alert('Por favor preencha Quantidade e Serviço.');
                             return;
                         }
                         

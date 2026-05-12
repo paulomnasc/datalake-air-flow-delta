@@ -344,6 +344,14 @@ $routes->post('insertAvaliacaoQualidadeSla', 'AvaliacaoQualidadeSlaController::i
 $routes->post('updateAvaliacaoQualidadeSla', 'AvaliacaoQualidadeSlaController::update');
 $routes->delete('deleteAvaliacaoQualidadeSla/(:num)', 'AvaliacaoQualidadeSlaController::delete/$1');
 
+$routes->get('listReajusteItemContrato', 'ReajusteItemContratoController::index');
+$routes->post('addReajusteItemContrato', 'ReajusteItemContratoController::add');
+$routes->get('addReajusteItemContrato', 'ReajusteItemContratoController::add');
+$routes->post('updReajusteItemContrato', 'ReajusteItemContratoController::upd');
+$routes->post('insertReajusteItemContrato', 'ReajusteItemContratoController::insert');
+$routes->post('updateReajusteItemContrato', 'ReajusteItemContratoController::update');
+$routes->delete('deleteReajusteItemContrato/(:num)', 'ReajusteItemContratoController::delete/$1');
+
 $routes->get('api/areas/(:num)', 'ApiController::getAreasByCatalogo/$1');
 $routes->get('api/atividades/(:num)', 'ApiController::getAtividadesByArea/$1');
 $routes->get('api/servicos/(:num)', 'ApiController::getServicosByAtividade/$1');

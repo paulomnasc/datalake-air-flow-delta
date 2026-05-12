@@ -164,3 +164,12 @@ CREATE TABLE usuario_recebimento (
     FOREIGN KEY (id_recebimento) REFERENCES documento_recebimento(id),
     FOREIGN KEY (id_usuario) REFERENCES usuario(id)
 );
+
+CREATE TABLE reajuste_item_contrato (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    id_item_contrato INT,
+    data_reajuste_item_contrato DATE NOT NULL,
+    valor_item_contrato FLOAT NOT NULL,
+    UNIQUE (data_reajuste_item_contrato),
+    FOREIGN KEY (id_item_contrato) REFERENCES item_contrato(id)
+);

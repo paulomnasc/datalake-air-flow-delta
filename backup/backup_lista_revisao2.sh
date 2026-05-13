@@ -2,17 +2,14 @@
 set -euo pipefail
 
 # Backup config
-DB_NAME="${MYSQL_DB:-lista_revisao2}"
+DATABASES=("${MYSQL_DB:-lista_revisao2}" "fiscal")
 DB_HOST="${MYSQL_HOST:-172.18.0.1}"
 DB_PORT="${MYSQL_PORT:-23306}"
 DB_USER="${MYSQL_USER:-backup_lista_revisao2}"
 MYSQL_CNF="${MYSQL_CNF:-$HOME/.my.cnf}"
 BACKUP_DATE="$(date +%Y%m%d_%H%M%S)"
 DUMP_DIR="${TMPDIR:-/tmp}/mysql_backups"
-DUMP_FILE="${DUMP_DIR}/${DB_NAME}_${BACKUP_DATE}.sql"
-ARCHIVE_FILE="${DUMP_FILE}.gz"
 RCLONE_REMOTE="gdrive"
-RCLONE_PATH="backups/${DB_NAME}"
 
 mkdir -p "$DUMP_DIR"
 
@@ -23,16 +20,22 @@ if [ -n "${MYSQL_CNF:-}" ] && [ -f "$MYSQL_CNF" ]; then
   MYSQL_DUMP_OPTIONS=(--defaults-file="$MYSQL_CNF" "${MYSQL_DUMP_OPTIONS[@]}")
 fi
 
-mysqldump "${MYSQL_DUMP_OPTIONS[@]}" \
-  --single-transaction --quick --routines --triggers --events \
-  "$DB_NAME" > "$DUMP_FILE"
+for DB_NAME in "${DATABASES[@]}"; do
+  DUMP_FILE="${DUMP_DIR}/${DB_NAME}_${BACKUP_DATE}.sql"
+  ARCHIVE_FILE="${DUMP_FILE}.gz"
+  RCLONE_PATH="backups/${DB_NAME}"
 
-gzip -f "$DUMP_FILE"
+  mysqldump "${MYSQL_DUMP_OPTIONS[@]}" \
+    --single-transaction --quick --routines --triggers --events \
+    "$DB_NAME" > "$DUMP_FILE"
 
-# Upload to Google Drive via rclone
-rclone copy "$ARCHIVE_FILE" "${RCLONE_REMOTE}:${RCLONE_PATH}/"
+  gzip -f "$DUMP_FILE"
 
-# Keep local temp files short-lived (7 days)
-find "$DUMP_DIR" -type f -name "${DB_NAME}_*.gz" -mtime +7 -delete
+  # Upload to Google Drive via rclone
+  rclone copy "$ARCHIVE_FILE" "${RCLONE_REMOTE}:${RCLONE_PATH}/"
 
-printf "Backup completed: %s\n" "$ARCHIVE_FILE"
+  # Keep local temp files short-lived (7 days)
+  find "$DUMP_DIR" -type f -name "${DB_NAME}_*.gz" -mtime +7 -delete
+
+  printf "Backup completed: %s\n" "$ARCHIVE_FILE"
+done

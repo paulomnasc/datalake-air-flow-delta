@@ -41,8 +41,11 @@ class ServicoController extends BaseController
 
     public function list()  
     {
-        $model = new ServicoModel();
-        return $model->findAll();
+        $db = \Config\Database::connect();
+        $builder = $db->table('servico s');
+        $builder->select('s.*, am.descricao as desc_macro');
+        $builder->join('atividade_macro am', 'am.id = s.id_atividade_macro', 'left');
+        return $builder->get()->getResult();
     }
 
     public function insert() 
@@ -56,7 +59,8 @@ class ServicoController extends BaseController
             'base_horas_mes' => $this->normalizeDecimal($this->request->getPost('base_horas_mes')),
             'base_horas_complexidade' => $this->normalizeDecimal($this->request->getPost('base_horas_complexidade')),
             'sla_dias' => $this->normalizeDecimal($this->request->getPost('sla_dias')),
-            'estim_max_ano' => $this->normalizeDecimal($this->request->getPost('estim_max_ano'))
+            'estim_max_ano' => $this->normalizeDecimal($this->request->getPost('estim_max_ano')),
+            'saldo_horas' => $this->normalizeDecimal($this->request->getPost('saldo_horas'))
         ];
         
         $model = new ServicoModel();
@@ -88,7 +92,8 @@ class ServicoController extends BaseController
             'base_horas_mes' => $this->normalizeDecimal($this->request->getPost('base_horas_mes')),
             'base_horas_complexidade' => $this->normalizeDecimal($this->request->getPost('base_horas_complexidade')),
             'sla_dias' => $this->normalizeDecimal($this->request->getPost('sla_dias')),
-            'estim_max_ano' => $this->normalizeDecimal($this->request->getPost('estim_max_ano'))
+            'estim_max_ano' => $this->normalizeDecimal($this->request->getPost('estim_max_ano')),
+            'saldo_horas' => $this->normalizeDecimal($this->request->getPost('saldo_horas'))
         ];
         
         try {

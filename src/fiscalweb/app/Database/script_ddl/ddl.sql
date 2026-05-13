@@ -86,6 +86,7 @@ CREATE TABLE servico (
     base_horas_complexidade FLOAT NOT NULL,
     sla_dias INT NOT NULL,
     estim_max_ano FLOAT NOT NULL,
+    saldo_horas FLOAT NOT NULL DEFAULT 0,
     id_atividade_macro INT,
     FOREIGN KEY (id_atividade_macro) REFERENCES atividade_macro(id)
 );
@@ -164,3 +165,81 @@ CREATE TABLE usuario_recebimento (
     FOREIGN KEY (id_recebimento) REFERENCES documento_recebimento(id),
     FOREIGN KEY (id_usuario) REFERENCES usuario(id)
 );
+
+CREATE TABLE reajuste_item_contrato (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    id_item_contrato INT,
+    data_reajuste_item_contrato DATE NOT NULL,
+    valor_item_contrato FLOAT NOT NULL,
+    UNIQUE (data_reajuste_item_contrato),
+    FOREIGN KEY (id_item_contrato) REFERENCES item_contrato(id)
+);
+
+-- fiscal.item_documento_recebimento definition
+
+CREATE TABLE `item_documento_recebimento` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `id_documento_recebimento` int NOT NULL,
+  `id_item_os` int NOT NULL,
+  `quantidade_entregue` float NOT NULL,
+  `glosa_horas` float DEFAULT '0',
+  `observacoes` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `id_documento_recebimento` (`id_documento_recebimento`),
+  KEY `id_item_os` (`id_item_os`),
+  CONSTRAINT `item_documento_recebimento_ibfk_1` FOREIGN KEY (`id_documento_recebimento`) REFERENCES `documento_recebimento` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `item_documento_recebimento_ibfk_2` FOREIGN KEY (`id_item_os`) REFERENCES `item_os` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;DELIMITER //
+
+CREATE TRIGGER after_item_doc_insert
+AFTER INSERT ON item_documento_recebimento
+FOR EACH ROW
+BEGIN
+    DECLARE v_id_servico INT;
+    DECLARE v_remuneracao FLOAT;
+    
+    SELECT s.id, s.remuneracao INTO v_id_servico, v_remuneracao
+    FROM item_os io
+    JOIN servico s ON io.id_servico = s.id
+    WHERE io.id = NEW.id_item_os;
+
+    UPDATE servico
+    SET saldo_horas = saldo_horas - (NEW.quantidade_entregue * v_remuneracao)
+    WHERE id = v_id_servico;
+END //
+
+CREATE TRIGGER after_item_doc_update
+AFTER UPDATE ON item_documento_recebimento
+FOR EACH ROW
+BEGIN
+    DECLARE v_id_servico INT;
+    DECLARE v_remuneracao FLOAT;
+    
+    SELECT s.id, s.remuneracao INTO v_id_servico, v_remuneracao
+    FROM item_os io
+    JOIN servico s ON io.id_servico = s.id
+    WHERE io.id = NEW.id_item_os;
+
+    UPDATE servico
+    SET saldo_horas = saldo_horas + (OLD.quantidade_entregue * v_remuneracao) - (NEW.quantidade_entregue * v_remuneracao)
+    WHERE id = v_id_servico;
+END //
+
+CREATE TRIGGER after_item_doc_delete
+AFTER DELETE ON item_documento_recebimento
+FOR EACH ROW
+BEGIN
+    DECLARE v_id_servico INT;
+    DECLARE v_remuneracao FLOAT;
+    
+    SELECT s.id, s.remuneracao INTO v_id_servico, v_remuneracao
+    FROM item_os io
+    JOIN servico s ON io.id_servico = s.id
+    WHERE io.id = OLD.id_item_os;
+
+    UPDATE servico
+    SET saldo_horas = saldo_horas + (OLD.quantidade_entregue * v_remuneracao)
+    WHERE id = v_id_servico;
+END //
+
+DELIMITER ;

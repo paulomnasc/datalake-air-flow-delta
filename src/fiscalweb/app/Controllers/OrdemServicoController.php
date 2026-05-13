@@ -38,14 +38,44 @@ class OrdemServicoController extends BaseController
         
         // Buscar itens existentes
         $db = \Config\Database::connect();
+        $os = $db->table('ordem_servico')->where('id', $id)->get()->getRow();
+        $dataEmissao = $os ? $os->Data_Emissao : date('Y-m-d');
+
         $builder = $db->table('os_item_os oio');
-        $builder->select('io.id as id_item_os, io.Quantidade_Horas as quantidade_horas, io.Profissional_Alocado as profissional_alocado, io.id_servico, s.numero_item, s.descricao, s.sla_dias, s.remuneracao, s.id_atividade_macro as id_macro, am.id_area_atuacao as id_area, aa.id_catalogo_servicos as id_catalogo');
+        $builder->select('
+            io.id as id_item_os, 
+            io.Quantidade_Horas as quantidade_horas, 
+            io.Profissional_Alocado as profissional_alocado, 
+            io.id_servico, 
+            s.numero_item, 
+            s.descricao, 
+            s.sla_dias, 
+            s.remuneracao, 
+            s.id_atividade_macro as id_macro, 
+            am.id_area_atuacao as id_area, 
+            aa.id_catalogo_servicos as id_catalogo,
+            cs.id_item_contrato,
+            (SELECT valor_item_contrato 
+             FROM reajuste_item_contrato 
+             WHERE id_item_contrato = cs.id_item_contrato 
+             AND data_reajuste_item_contrato <= ' . $db->escape($dataEmissao) . ' 
+             ORDER BY data_reajuste_item_contrato DESC LIMIT 1) as valor_item_contrato
+        ');
         $builder->join('item_os io', 'io.id = oio.id_item_os');
         $builder->join('servico s', 's.id = io.id_servico', 'left');
         $builder->join('atividade_macro am', 'am.id = s.id_atividade_macro', 'left');
         $builder->join('area_atuacao aa', 'aa.id = am.id_area_atuacao', 'left');
+        $builder->join('catalogo_servicos cs', 'cs.id = aa.id_catalogo_servicos', 'left');
         $builder->where('oio.id_os', $id);
-        $data['items_json'] = json_encode($builder->get()->getResult());
+        $itens = $builder->get()->getResult();
+        
+        foreach($itens as &$item) {
+            $valContrato = isset($item->valor_item_contrato) ? (float)$item->valor_item_contrato : 0;
+            $remun = isset($item->remuneracao) ? (float)$item->remuneracao : 0;
+            $qtd = isset($item->quantidade_horas) ? (float)$item->quantidade_horas : 0;
+            $item->valor_remuneracao_item = $qtd * $remun * $valContrato;
+        }
+        $data['items_json'] = json_encode($itens);
 
         return view('updOrdemServico', $data);
     }

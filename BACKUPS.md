@@ -12,6 +12,7 @@ Se o usuário de backup for apagado ou precisar ser recriado, utilize os comando
 CREATE USER IF NOT EXISTS 'backup_lista_revisao2'@'localhost' IDENTIFIED BY 'kJ#212394';
 ALTER USER 'backup_lista_revisao2'@'localhost' IDENTIFIED BY 'kJ#212394';
 GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON lista_revisao2.* TO 'backup_lista_revisao2'@'localhost';
+GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON fiscal.* TO 'backup_lista_revisao2'@'localhost';
 GRANT PROCESS ON *.* TO 'backup_lista_revisao2'@'localhost';
 FLUSH PRIVILEGES;
 
@@ -19,6 +20,7 @@ FLUSH PRIVILEGES;
 CREATE USER IF NOT EXISTS 'backup_lista_revisao2'@'172.18.0.1' IDENTIFIED BY 'kJ#212394';
 ALTER USER 'backup_lista_revisao2'@'172.18.0.1' IDENTIFIED BY 'kJ#212394';
 GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON lista_revisao2.* TO 'backup_lista_revisao2'@'172.18.0.1';
+GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON fiscal.* TO 'backup_lista_revisao2'@'172.18.0.1';
 GRANT PROCESS ON *.* TO 'backup_lista_revisao2'@'172.18.0.1';
 FLUSH PRIVILEGES;
 ```
@@ -44,7 +46,7 @@ port=23306
 
 ## 📋 Visão Geral
 
-Sistema de backup automatizado que exporta dumps diários do banco de dados MySQL `lista_revisao2` e armazena no Google Drive usando `rclone`. Os backups são compactados em formato `.sql.gz` e mantidos localmente por 7 dias.
+Sistema de backup automatizado que exporta dumps diários dos bancos de dados MySQL `lista_revisao2` e `fiscal` e os armazena no Google Drive usando `rclone`. Os backups são compactados em formato `.sql.gz` e mantidos localmente por 7 dias.
 
 ## 🏗️ Arquitetura
 

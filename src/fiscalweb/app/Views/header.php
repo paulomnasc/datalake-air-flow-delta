@@ -539,6 +539,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 <a class="dropdown-item" href="<?= base_url('listCatalogoServicos') ?>">📚 Catálogo de Serviços</a>
                                 <a class="dropdown-item" href="<?= base_url('listDocumentoRecebimento') ?>">📄 Docs Recebimento</a>
                                 <a class="dropdown-item" href="<?= base_url('listItemContrato') ?>">📝 Itens de Contrato</a>
+                                <a class="dropdown-item" href="<?= base_url('listReajusteItemContrato') ?>">📈 Reajustes de Contrato</a>
                                 <a class="dropdown-item" href="<?= base_url('listItemOs') ?>">🔧 Itens OS</a>
                                 <a class="dropdown-item" href="<?= base_url('listOrdemServico') ?>">📋 Ordens de Serviço</a>
                                 <a class="dropdown-item" href="<?= base_url('listPerfil') ?>">🔐 Perfis</a>
@@ -829,6 +830,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             <a href="<?= base_url('listAreaAtuacao') ?>" class="dropdown-item">Áreas de Atuação</a>
                             <a href="<?= base_url('listCatalogoServicos') ?>" class="dropdown-item">Catálogo de Serviços</a>
                             <a href="<?= base_url('listItemContrato') ?>" class="dropdown-item">Itens de Contrato</a>
+                            <a href="<?= base_url('listReajusteItemContrato') ?>" class="dropdown-item">Reajustes de Contrato</a>
                             <a href="<?= base_url('listDocumentoRecebimento') ?>" class="dropdown-item">Docs Recebimento</a>
                             <a href="<?= base_url('listAvaliacaoQualidadeSla') ?>" class="dropdown-item">Avaliação SLA</a>
                         </div>

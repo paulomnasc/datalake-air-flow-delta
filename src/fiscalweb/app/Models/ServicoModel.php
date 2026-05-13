@@ -12,7 +12,7 @@ class ServicoModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['numero_item', 'descricao', 'entregaveis', 'remuneracao', 'base_horas_mes', 'base_horas_complexidade', 'sla_dias', 'estim_max_ano', 'id_atividade_macro'];
+    protected $allowedFields    = ['numero_item', 'descricao', 'entregaveis', 'remuneracao', 'base_horas_mes', 'base_horas_complexidade', 'sla_dias', 'estim_max_ano', 'saldo_horas', 'id_atividade_macro'];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;

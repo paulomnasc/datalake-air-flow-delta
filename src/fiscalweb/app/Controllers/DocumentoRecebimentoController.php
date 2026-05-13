@@ -63,6 +63,8 @@ class DocumentoRecebimentoController extends BaseController
             s.numero_item, 
             s.descricao, 
             s.remuneracao,
+            s.sla_dias,
+            io.id_servico,
             io.Profissional_Alocado as profissional_alocado,
             (SELECT valor_item_contrato 
              FROM reajuste_item_contrato 
@@ -176,7 +178,8 @@ class DocumentoRecebimentoController extends BaseController
         
         try {
             $model->update($id, $data);
-            
+
+
             // Delete old items
             $db->table('item_documento_recebimento')->where('id_documento_recebimento', $id)->delete();
             

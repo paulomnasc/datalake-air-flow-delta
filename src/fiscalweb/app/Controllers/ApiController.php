@@ -36,11 +36,13 @@ class ApiController extends Controller
         $builder = $db->table('os_item_os oio');
         $builder->select('
             io.id, 
+            io.id_servico,
             io.Quantidade_Horas as quantidade_horas, 
             io.Profissional_Alocado as profissional_alocado, 
             s.numero_item, 
             s.descricao,
             s.remuneracao,
+            s.sla_dias,
             (SELECT valor_item_contrato 
              FROM reajuste_item_contrato 
              WHERE id_item_contrato = cs.id_item_contrato 

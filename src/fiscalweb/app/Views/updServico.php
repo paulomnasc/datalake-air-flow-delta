@@ -37,6 +37,11 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group">
+                <label for="saldo_horas">SaldoHoras:</label>
+                <input type="number" step="0.01" id="saldo_horas" name="saldo_horas" value="<?php echo isset($record->saldo_horas) ? $record->saldo_horas : ''; ?>" required>
+            </div>
+
+            <div class="form-group">
                 <label for="id_atividade_macro">IdAtividadeMacro:</label>
                 <select id="id_atividade_macro" name="id_atividade_macro" required>
                     <option value="">Selecione...</option>

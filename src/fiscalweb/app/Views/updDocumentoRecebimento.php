@@ -115,12 +115,16 @@ require VIEWPATH.'/header.php';
         <table class="data-table" id="itemsTable">
             <thead>
                 <tr>
-                    <th>Item OS / Serviço</th>
-                    <th>Profissional</th>
                     <th>Qtd Entregue</th>
-                    <th>Glosa</th>
-                    <th>Observações</th>
+                    <th>Profissional</th>
+                    <th>ID Serviço</th>
+                    <th>Nº Item</th>
+                    <th>Descrição</th>
+                    <th>SLA (Dias)</th>
+                    <th>Remuneração (Base)</th>
+                    <th>Glosa (Horas)</th>
                     <th>Valor Item (R$)</th>
+                    <th>Observações</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -129,9 +133,9 @@ require VIEWPATH.'/header.php';
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="5" style="text-align: right; font-weight: bold;">Total do Documento:</td>
+                    <td colspan="8" style="text-align: right; font-weight: bold;">Total do Documento:</td>
                     <td id="totalValorDoc" style="font-weight: bold;">R$ 0,00</td>
-                    <td></td>
+                    <td colspan="2"></td>
                 </tr>
             </tfoot>
         </table>
@@ -150,20 +154,29 @@ require VIEWPATH.'/header.php';
                 tbody.empty();
                 let totalDoc = 0;
                 docItems.forEach((item, index) => {
-                    let desc = item.desc_servico;
-                    if (!desc) {
-                        desc = item.descricao ? `Item ${item.numero_item || item.id_item_os} - ${item.descricao}` : `Item OS #${item.id_item_os}`;
+                    let valorItem = 0;
+                    if (item.valor_remuneracao_item) {
+                        valorItem = parseFloat(item.valor_remuneracao_item);
+                    } else if (item.valor_item_contrato && item.remuneracao) {
+                        let qtd = parseFloat(item.quantidade_entregue) || 0;
+                        let glosa = parseFloat(item.glosa_horas) || 0;
+                        valorItem = (qtd - glosa) * parseFloat(item.remuneracao) * parseFloat(item.valor_item_contrato);
+                        item.valor_remuneracao_item = valorItem;
                     }
-                    let valorItem = item.valor_remuneracao_item ? parseFloat(item.valor_remuneracao_item) : 0;
                     totalDoc += valorItem;
+
                     tbody.append(`
                         <tr>
-                            <td>${desc}</td>
-                            <td>${item.profissional || item.profissional_alocado || '-'}</td>
                             <td>${item.quantidade_entregue}</td>
-                            <td>${item.glosa_horas}</td>
-                            <td>${item.observacoes || '-'}</td>
+                            <td>${item.profissional || item.profissional_alocado || '-'}</td>
+                            <td>${item.id_servico || '-'}</td>
+                            <td>${item.numero_item || '-'}</td>
+                            <td>${item.descricao || item.desc_servico || '-'}</td>
+                            <td>${item.sla_dias || '-'}</td>
+                            <td>${item.remuneracao ? parseFloat(item.remuneracao).toFixed(2).replace('.', ',') : '-'}</td>
+                            <td>${item.glosa_horas || '0'}</td>
                             <td>${formatCurrency(valorItem)}</td>
+                            <td>${item.observacoes || '-'}</td>
                             <td>
                                 <button type="button" class="edit-button" onclick="editItem(${index})">✏️</button>
                                 <button type="button" class="delete-button" onclick="removeItem(${index})">🗑️</button>
@@ -249,6 +262,12 @@ require VIEWPATH.'/header.php';
                                         desc_servico: descServico,
                                         profissional: item.profissional_alocado || '',
                                         profissional_alocado: item.profissional_alocado || '',
+                                        id_servico: item.id_servico,
+                                        numero_item: item.numero_item,
+                                        descricao: item.descricao,
+                                        sla_dias: item.sla_dias,
+                                        remuneracao: item.remuneracao,
+                                        valor_item_contrato: item.valor_item_contrato,
                                         valor_remuneracao_item: item.valor_remuneracao_item || 0
                                     });
                                 });
@@ -291,7 +310,13 @@ require VIEWPATH.'/header.php';
                             observacoes: obs,
                             desc_servico: descServico,
                             profissional: profissional,
-                            profissional_alocado: profissional
+                            profissional_alocado: profissional,
+                            id_servico: osItemObj.id_servico,
+                            numero_item: osItemObj.numero_item,
+                            descricao: osItemObj.descricao,
+                            sla_dias: osItemObj.sla_dias,
+                            remuneracao: osItemObj.remuneracao,
+                            valor_item_contrato: osItemObj.valor_item_contrato
                         };
                         editingIndex = -1;
                         $('#addItemBtn').text('Adicionar Item').css('background-color', '').css('color', '');
@@ -303,7 +328,13 @@ require VIEWPATH.'/header.php';
                             observacoes: obs,
                             desc_servico: descServico,
                             profissional: profissional,
-                            profissional_alocado: profissional
+                            profissional_alocado: profissional,
+                            id_servico: osItemObj.id_servico,
+                            numero_item: osItemObj.numero_item,
+                            descricao: osItemObj.descricao,
+                            sla_dias: osItemObj.sla_dias,
+                            remuneracao: osItemObj.remuneracao,
+                            valor_item_contrato: osItemObj.valor_item_contrato
                         });
                     }
                     

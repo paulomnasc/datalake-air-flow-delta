@@ -59,7 +59,8 @@ class ServicoController extends BaseController
             'base_horas_mes' => $this->normalizeDecimal($this->request->getPost('base_horas_mes')),
             'base_horas_complexidade' => $this->normalizeDecimal($this->request->getPost('base_horas_complexidade')),
             'sla_dias' => $this->normalizeDecimal($this->request->getPost('sla_dias')),
-            'estim_max_ano' => $this->normalizeDecimal($this->request->getPost('estim_max_ano'))
+            'estim_max_ano' => $this->normalizeDecimal($this->request->getPost('estim_max_ano')),
+            'saldo_horas' => $this->normalizeDecimal($this->request->getPost('saldo_horas'))
         ];
         
         $model = new ServicoModel();
@@ -91,7 +92,8 @@ class ServicoController extends BaseController
             'base_horas_mes' => $this->normalizeDecimal($this->request->getPost('base_horas_mes')),
             'base_horas_complexidade' => $this->normalizeDecimal($this->request->getPost('base_horas_complexidade')),
             'sla_dias' => $this->normalizeDecimal($this->request->getPost('sla_dias')),
-            'estim_max_ano' => $this->normalizeDecimal($this->request->getPost('estim_max_ano'))
+            'estim_max_ano' => $this->normalizeDecimal($this->request->getPost('estim_max_ano')),
+            'saldo_horas' => $this->normalizeDecimal($this->request->getPost('saldo_horas'))
         ];
         
         try {

@@ -37,6 +37,7 @@ require VIEWPATH.'/header.php';
                     <th>Base Horas Cmplx</th>
                     <th>SLA Dias</th>
                     <th>Estim Max Ano</th>
+                    <th>Saldo Horas</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -52,6 +53,7 @@ require VIEWPATH.'/header.php';
                     <td> <?php echo $item->base_horas_complexidade ?> </td>
                     <td> <?php echo $item->sla_dias ?> </td>
                     <td> R$ <?php echo number_format((float)$item->estim_max_ano, 2, ',', '.') ?> </td>
+                    <td> <?php echo $item->saldo_horas ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updServico'); ?>" method="post">

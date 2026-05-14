@@ -526,28 +526,50 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     // if ($isAdmin): 
                     -->
                     <li><hr class="text-white" style="margin: 10px 0;"></li>
-                    <li><p class="text-white">🗄️ CRUD Tabelas</p></li>
+                    <li><p class="text-white">🗄️ Menus do Sistema</p></li>
+                    
                     <li>
                         <div class="dropdown">
                             <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
-                                📋 Todas as Tabelas
+                                📝 Cadastros
                             </a>
                             <div class="dropdown-menu">
                                 <a class="dropdown-item" href="<?= base_url('listAreaAtuacao') ?>">🏢 Áreas de Atuação</a>
                                 <a class="dropdown-item" href="<?= base_url('listAtividadeMacro') ?>">📊 Atividades Macro</a>
                                 <a class="dropdown-item" href="<?= base_url('listAvaliacaoQualidadeSla') ?>">⭐ Avaliação SLA</a>
                                 <a class="dropdown-item" href="<?= base_url('listCatalogoServicos') ?>">📚 Catálogo de Serviços</a>
-                                <a class="dropdown-item" href="<?= base_url('listDocumentoRecebimento') ?>">📄 Docs Recebimento</a>
                                 <a class="dropdown-item" href="<?= base_url('listItemContrato') ?>">📝 Itens de Contrato</a>
                                 <a class="dropdown-item" href="<?= base_url('listReajusteItemContrato') ?>">📈 Reajustes de Contrato</a>
                                 <a class="dropdown-item" href="<?= base_url('listItemOs') ?>">🔧 Itens OS</a>
-                                <a class="dropdown-item" href="<?= base_url('listOrdemServico') ?>">📋 Ordens de Serviço</a>
                                 <a class="dropdown-item" href="<?= base_url('listPerfil') ?>">🔐 Perfis</a>
-                                <a class="dropdown-item" href="<?= base_url('listServico') ?>">🛠️ Serviços</a>
                                 <a class="dropdown-item" href="<?= base_url('listStatus') ?>">📊 Status</a>
                                 <a class="dropdown-item" href="<?= base_url('listStatusRecebimento') ?>">✅ Status Recebimento</a>
                                 <a class="dropdown-item" href="<?= base_url('listTipoDocumento') ?>">📑 Tipos de Documento</a>
                                 <a class="dropdown-item" href="<?= base_url('listUsuario') ?>">👤 Usuários</a>
+                            </div>
+                        </div>
+                    </li>
+
+                    <li>
+                        <div class="dropdown">
+                            <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
+                                ⚡ Execução
+                            </a>
+                            <div class="dropdown-menu">
+                                <a class="dropdown-item" href="<?= base_url('listServico') ?>">🛠️ Serviços</a>
+                                <a class="dropdown-item" href="<?= base_url('listOrdemServico') ?>">📋 Ordens de Compra (OS)</a>
+                                <a class="dropdown-item" href="<?= base_url('listDocumentoRecebimento') ?>">📄 Docs Recebimento</a>
+                            </div>
+                        </div>
+                    </li>
+
+                    <li>
+                        <div class="dropdown">
+                            <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
+                                📊 Relatórios
+                            </a>
+                            <div class="dropdown-menu">
+                                <a class="dropdown-item" href="#">Em breve...</a>
                             </div>
                         </div>
                     </li>
@@ -753,11 +775,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 $servicesBlocked = isset($_SESSION['subscription_services_blocked']) && $_SESSION['subscription_services_blocked'];
                 ?>
 
+                <!--
                 <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
                     <?php echo anchor("cursos", "CURSOS", ['class' => 'nav-link px-2 px-lg-2']) ?>
                 <?php endif; ?>
+                -->
                 
-                <a href="https://github.com/paulomnasc/mydataflow-forum/discussions" class="nav-link px-2 px-lg-2" target="_blank" rel="noopener noreferrer">FORUM</a>
+                <!-- <a href="https://github.com/paulomnasc/mydataflow-forum/discussions" class="nav-link px-2 px-lg-2" target="_blank" rel="noopener noreferrer">FORUM</a> -->
                 
                 
                 <li class="nav-item dropdown <?= $servicesBlocked ? 'disabled' : '' ?>">
@@ -771,7 +795,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             SERVIÇOS 🔒
                         </a>
                     <?php else: ?>
-                        <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-bs-toggle="dropdown">
+                        <!-- <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-bs-toggle="dropdown">
                             SERVIÇOS
                         </a>
                         <div class="dropdown-menu">
@@ -791,15 +815,16 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                         <circle cx="128.017" cy="127.983" r="5.479" fill="#4a4848"/>
                                     </svg>
                                     AIRFLOW - Pipelines ELT
-                                </a>
+                                </a> -->
                             <?php endif; ?>
                             <!-- ?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
                                 <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->
                             <!-- ?php endif; ?-->
+                            <!-- 
                             <?php if (!$isVisitor && $perfilUsuario !== ''): ?>
-                                <!-- a class="dropdown-item" href="<! ?= base_url('query-builder') ?>">🦆 Query Builder Parquet</a-->
                                 <a class="dropdown-item" href="<?= base_url('code-editor') ?>">💻 SQL Editor + Customizações Python</a>
                             <?php endif; ?>
+                            -->
                         </div>
                     <?php endif; ?>
                 </li>
@@ -809,6 +834,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     // Verifica se o perfil do usuário está logado e se ele NÃO é "Visitante"
                     if (!$isVisitor && $perfilUsuario !== ''): 
                 ?>
+                    <!--
                     <div class="nav-item dropdown">
                         <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">CRIAR</a>
                         <div class="dropdown-menu">
@@ -816,23 +842,37 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             <a href="<?= base_url('listConfig') ?>" class="dropdown-item">Pipelines</a>
                         </div>
                     </div>
+                    -->
                     
                     <div class="nav-item dropdown">
-                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">CONTRATOS/OS</a>
+                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">CADASTROS</a>
                         <div class="dropdown-menu">
                             <a href="<?= base_url('listTipoDocumento') ?>" class="dropdown-item">Tipos de Documento</a>
                             <a href="<?= base_url('listStatus') ?>" class="dropdown-item">Status</a>
                             <a href="<?= base_url('listStatusRecebimento') ?>" class="dropdown-item">Status Recebimento</a>
-                            <a href="<?= base_url('listOrdemServico') ?>" class="dropdown-item">Ordens de Serviço</a>
                             <a href="<?= base_url('listItemOs') ?>" class="dropdown-item">Itens OS</a>
-                            <a href="<?= base_url('listServico') ?>" class="dropdown-item">Serviços</a>
                             <a href="<?= base_url('listAtividadeMacro') ?>" class="dropdown-item">Atividades Macro</a>
                             <a href="<?= base_url('listAreaAtuacao') ?>" class="dropdown-item">Áreas de Atuação</a>
                             <a href="<?= base_url('listCatalogoServicos') ?>" class="dropdown-item">Catálogo de Serviços</a>
                             <a href="<?= base_url('listItemContrato') ?>" class="dropdown-item">Itens de Contrato</a>
                             <a href="<?= base_url('listReajusteItemContrato') ?>" class="dropdown-item">Reajustes de Contrato</a>
-                            <a href="<?= base_url('listDocumentoRecebimento') ?>" class="dropdown-item">Docs Recebimento</a>
                             <a href="<?= base_url('listAvaliacaoQualidadeSla') ?>" class="dropdown-item">Avaliação SLA</a>
+                        </div>
+                    </div>
+                    
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">EXECUÇÃO</a>
+                        <div class="dropdown-menu">
+                            <a href="<?= base_url('listServico') ?>" class="dropdown-item">Serviços</a>
+                            <a href="<?= base_url('listOrdemServico') ?>" class="dropdown-item">Ordens de Compra (OS)</a>
+                            <a href="<?= base_url('listDocumentoRecebimento') ?>" class="dropdown-item">Docs Recebimento</a>
+                        </div>
+                    </div>
+
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">RELATÓRIOS</a>
+                        <div class="dropdown-menu">
+                            <a href="#" class="dropdown-item">Em breve...</a>
                         </div>
                     </div>
                 <?php endif; ?>

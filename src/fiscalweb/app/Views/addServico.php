@@ -11,7 +11,22 @@ require VIEWPATH.'/header.php';
         <form id="addForm">
             
             <div class="form-group">
-                <label for="remuneracao">Remuneracao:</label>
+                <label for="numero_item">Nº Item:</label>
+                <input type="text" id="numero_item" name="numero_item" required>
+            </div>
+
+            <div class="form-group">
+                <label for="descricao">Descrição:</label>
+                <input type="text" id="descricao" name="descricao" required>
+            </div>
+
+            <div class="form-group">
+                <label for="entregaveis">Entregáveis:</label>
+                <input type="text" id="entregaveis" name="entregaveis" required>
+            </div>
+
+            <div class="form-group">
+                <label for="remuneracao">Remuneração (Horas):</label>
                 <input type="number" step="0.01" id="remuneracao" name="remuneracao" required>
             </div>
 

@@ -824,7 +824,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             <?php if (!$isVisitor && $perfilUsuario !== ''): ?>
                                 <a class="dropdown-item" href="<?= base_url('code-editor') ?>">💻 SQL Editor + Customizações Python</a>
                             <?php endif; ?>
-                            -->
+                            --> 
                         </div>
                     <?php endif; ?>
                 </li>

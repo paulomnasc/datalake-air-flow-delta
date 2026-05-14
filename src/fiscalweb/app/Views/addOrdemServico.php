@@ -89,8 +89,8 @@ require VIEWPATH.'/header.php';
                     <th>Nº Item</th>
                     <th>Descrição</th>
                     <th>SLA (Dias)</th>
-                    <th>Remuneração (Base)</th>
-                    <th>Valor Item (R$)</th>
+                    <th>Horas (Base)</th>
+                    <th>Horas do Item</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -100,7 +100,7 @@ require VIEWPATH.'/header.php';
             <tfoot>
                 <tr>
                     <td colspan="7" style="text-align: right; font-weight: bold;">Total da Ordem de Serviço:</td>
-                    <td id="totalValorOS" style="font-weight: bold;">R$ 0,00</td>
+                    <td id="totalValorOS" style="font-weight: bold;">0,00</td>
                     <td></td>
                 </tr>
             </tfoot>
@@ -111,7 +111,7 @@ require VIEWPATH.'/header.php';
             let currentServicos = [];
 
             function formatCurrency(value) {
-                return parseFloat(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                return parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
 
             function renderItems() {

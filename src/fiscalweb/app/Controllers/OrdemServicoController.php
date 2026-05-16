@@ -92,7 +92,9 @@ class OrdemServicoController extends BaseController
             'horas_alocadas' => $this->post('horas_alocadas'),
             'nup_sei' => $this->post('nup_sei'),
             'data_emissao' => $this->normalizeDatetime($this->post('data_emissao')),
-            'data_aceite' => $this->normalizeDatetime($this->post('data_aceite'))
+            'data_aceite' => $this->normalizeDatetime($this->post('data_aceite')),
+            'realizada_estimativa' => $this->post('realizada_estimativa'),
+            'metodologia_estimativa' => $this->post('metodologia_estimativa')
         ];
         
         $model = new OrdemServicoModel();
@@ -151,7 +153,9 @@ class OrdemServicoController extends BaseController
             'horas_alocadas' => $this->post('horas_alocadas'),
             'nup_sei' => $this->post('nup_sei'),
             'data_emissao' => $this->normalizeDatetime($this->post('data_emissao')),
-            'data_aceite' => $this->normalizeDatetime($this->post('data_aceite'))
+            'data_aceite' => $this->normalizeDatetime($this->post('data_aceite')),
+            'realizada_estimativa' => $this->post('realizada_estimativa'),
+            'metodologia_estimativa' => $this->post('metodologia_estimativa')
         ];
         
         $db = \Config\Database::connect();

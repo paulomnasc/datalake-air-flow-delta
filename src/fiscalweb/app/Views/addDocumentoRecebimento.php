@@ -120,9 +120,9 @@ require VIEWPATH.'/header.php';
                     <th>Nº Item</th>
                     <th>Descrição</th>
                     <th>SLA (Dias)</th>
-                    <th>Remuneração (Base)</th>
+                    <th>Horas (Base)</th>
                     <th>Glosa (Horas)</th>
-                    <th>Valor Item (R$)</th>
+                    <th>Horas do Item</th>
                     <th>Observações</th>
                     <th>Ações</th>
                 </tr>
@@ -133,7 +133,7 @@ require VIEWPATH.'/header.php';
             <tfoot>
                 <tr>
                     <td colspan="8" style="text-align: right; font-weight: bold;">Total do Documento:</td>
-                    <td id="totalValorDoc" style="font-weight: bold;">R$ 0,00</td>
+                    <td id="totalValorDoc" style="font-weight: bold;">0,00</td>
                     <td colspan="2"></td>
                 </tr>
             </tfoot>
@@ -145,7 +145,7 @@ require VIEWPATH.'/header.php';
             let editingIndex = -1;
 
             function formatCurrency(value) {
-                return parseFloat(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                return parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
 
             function renderItems() {

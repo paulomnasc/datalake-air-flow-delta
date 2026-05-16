@@ -31,6 +31,20 @@ require VIEWPATH.'/header.php';
                 <input type="datetime-local" id="Data_Aceite" name="Data_Aceite" value="<?php echo isset($record->Data_Aceite) ? $record->Data_Aceite : ''; ?>" required>
             </div>
 
+            <div class="form-group" style="margin-top: 15px;">
+                <label for="realizada_estimativa">Realizada Estimativa?</label>
+                <select id="realizada_estimativa" name="realizada_estimativa" class="form-control" required style="width: 100%; padding: 8px;">
+                    <option value="">Selecione...</option>
+                    <option value="Sim" <?php echo (isset($record->realizada_estimativa) && $record->realizada_estimativa == 'Sim') ? 'selected' : ''; ?>>Sim</option>
+                    <option value="Não" <?php echo (isset($record->realizada_estimativa) && $record->realizada_estimativa == 'Não') ? 'selected' : ''; ?>>Não</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label for="metodologia_estimativa">Metodologia da Estimativa (segundo o contrato):</label>
+                <textarea id="metodologia_estimativa" name="metodologia_estimativa" class="form-control" rows="10" maxlength="1000" style="width: 100%; resize: vertical; padding: 8px;" required placeholder="Descreva a metodologia utilizada na estimativa em até 10 linhas..."><?php echo isset($record->metodologia_estimativa) ? htmlspecialchars($record->metodologia_estimativa) : ''; ?></textarea>
+            </div>
+
             <div class="button-group">
                 <button class="add-button" type="button" id="saveOrdemServicoBtn">Atualizar Ordem de Serviço</button>
                 <a href="<?php echo site_url('listOrdemServico'); ?>" class="add-button" style="text-decoration: none; background-color: #6c757d;">Voltar</a>
@@ -90,8 +104,8 @@ require VIEWPATH.'/header.php';
                     <th>Nº Item</th>
                     <th>Descrição</th>
                     <th>SLA (Dias)</th>
-                    <th>Remuneração (Base)</th>
-                    <th>Valor Item (R$)</th>
+                    <th>Horas (Base)</th>
+                    <th>Horas do Item</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -101,7 +115,7 @@ require VIEWPATH.'/header.php';
             <tfoot>
                 <tr>
                     <td colspan="7" style="text-align: right; font-weight: bold;">Total da Ordem de Serviço:</td>
-                    <td id="totalValorOS" style="font-weight: bold;">R$ 0,00</td>
+                    <td id="totalValorOS" style="font-weight: bold;">0,00</td>
                     <td></td>
                 </tr>
             </tfoot>
@@ -112,7 +126,7 @@ require VIEWPATH.'/header.php';
             let currentServicos = [];
 
             function formatCurrency(value) {
-                return parseFloat(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                return parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
 
             function renderItems() {
@@ -230,6 +244,12 @@ require VIEWPATH.'/header.php';
                 $('#item_macro').change(function() { carregarServicos($(this).val()); });
 
                 $('#addItemBtn').click(function() {
+                    if ($('#realizada_estimativa').val() !== 'Sim') {
+                        $('#error-message').html('Operação não permitida: A adição de itens só é possível se houver uma estimativa realizada (Realizada Estimativa = Sim).').show().delay(5000).fadeOut();
+                        $('html, body').animate({ scrollTop: 0 }, 'fast');
+                        return;
+                    }
+
                     const qtd = $('#item_qtd').val();
                     const prof = $('#item_prof').val() || 'Nenhum';
                     const servicoId = $('#item_servico').val();
@@ -301,6 +321,11 @@ require VIEWPATH.'/header.php';
                 });
 
                 $('#saveOrdemServicoBtn').click(function() {
+                    if (!$('#updForm')[0].checkValidity()) {
+                        $('#updForm')[0].reportValidity();
+                        return;
+                    }
+                    
                     let formData = $('#updForm').serializeArray();
                     formData.push({name: "items", value: JSON.stringify(osItems)});
                     

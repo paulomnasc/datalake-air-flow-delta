@@ -32,7 +32,7 @@ require VIEWPATH.'/header.php';
                     <th>Atividade Macro</th>
                     <th>Serviço (Descrição)</th>
                     <th>Nº Item</th>
-                    <th>Remuneração</th>
+                    <th>Horas</th>
                     <th>Base Horas Mês</th>
                     <th>Base Horas Cmplx</th>
                     <th>SLA Dias</th>
@@ -48,11 +48,11 @@ require VIEWPATH.'/header.php';
                     <td> <?php echo isset($item->desc_macro) ? $item->desc_macro : $item->id_atividade_macro; ?> </td>
                     <td> <?php echo isset($item->descricao) ? $item->descricao : ''; ?> </td>
                     <td> <?php echo isset($item->numero_item) ? $item->numero_item : ''; ?> </td>
-                    <td> R$ <?php echo number_format((float)$item->remuneracao, 2, ',', '.') ?> </td>
+                    <td> <?php echo number_format((float)$item->remuneracao, 2, ',', '.') ?> </td>
                     <td> <?php echo $item->base_horas_mes ?> </td>
                     <td> <?php echo $item->base_horas_complexidade ?> </td>
                     <td> <?php echo $item->sla_dias ?> </td>
-                    <td> R$ <?php echo number_format((float)$item->estim_max_ano, 2, ',', '.') ?> </td>
+                    <td> <?php echo number_format((float)$item->estim_max_ano, 2, ',', '.') ?> </td>
                     <td> <?php echo $item->saldo_horas ?> </td>
                     <td> 
                         <div class="sidebyside-container">

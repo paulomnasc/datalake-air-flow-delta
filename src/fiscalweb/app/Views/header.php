@@ -557,7 +557,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             </a>
                             <div class="dropdown-menu">
                                 <a class="dropdown-item" href="<?= base_url('listServico') ?>">🛠️ Serviços</a>
-                                <a class="dropdown-item" href="<?= base_url('listOrdemServico') ?>">📋 Ordens de Compra (OS)</a>
+                                <a class="dropdown-item" href="<?= base_url('listOrdemServico') ?>">📋 Ordens de Serviço (OS)</a>
                                 <a class="dropdown-item" href="<?= base_url('listDocumentoRecebimento') ?>">📄 Docs Recebimento</a>
                             </div>
                         </div>
@@ -864,7 +864,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">EXECUÇÃO</a>
                         <div class="dropdown-menu">
                             <a href="<?= base_url('listServico') ?>" class="dropdown-item">Serviços</a>
-                            <a href="<?= base_url('listOrdemServico') ?>" class="dropdown-item">Ordens de Compra (OS)</a>
+                            <a href="<?= base_url('listOrdemServico') ?>" class="dropdown-item">Ordens de Serviço (OS)</a>
                             <a href="<?= base_url('listDocumentoRecebimento') ?>" class="dropdown-item">Docs Recebimento</a>
                         </div>
                     </div>

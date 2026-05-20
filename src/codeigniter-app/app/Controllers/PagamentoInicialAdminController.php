@@ -48,7 +48,7 @@ class PagamentoInicialAdminController extends BaseController
         return redirect()->back()->with('success', "Pagamento inicial autorizado e e-mail enviado para {$usuario->email}");
     }
 
-    private function enviarEmailAgradecimento($usuario)
+    public function enviarEmailAgradecimento($usuario)
     {
         $mail = new PHPMailer(true);
 

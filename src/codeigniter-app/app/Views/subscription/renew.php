@@ -5,20 +5,30 @@ if (! defined('VIEWPATH')) {
 require VIEWPATH . '/header.php';
 ?>
 
-<!-- Bibliotecas para PIX e QR Code -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
 <style>
-    #qrcode img, #qrcode canvas {
-        width: 256px !important;
-        height: 256px !important;
-        display: block;
-        margin: 0 auto;
+    .btn-gradient {
+        background: linear-gradient(135deg, #f04e23 0%, #ff8a00 100%);
+        border: none !important;
+        color: white !important;
+        box-shadow: 0 4px 15px rgba(240, 78, 35, 0.4);
+        transition: all 0.3s ease-in-out;
+        text-decoration: none;
+        display: inline-block;
     }
-    #qrcode-container {
-        display: inline-flex !important;
-        align-items: center;
-        justify-content: center;
+    .btn-gradient:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(240, 78, 35, 0.6);
+        background: linear-gradient(135deg, #d83c12 0%, #e67300 100%);
+        color: white !important;
+    }
+    .iframe-wrapper {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        overflow: hidden;
+        height: 750px;
+        max-height: 85vh;
+        background: #ffffff;
     }
 </style>
 
@@ -38,7 +48,7 @@ require VIEWPATH . '/header.php';
             </div>
             <?php if (!empty($mensagem_bloqueio)): ?>
                 <div class="alert alert-danger" role="alert">
-                    <h4 class="alert-heading">😊 Gostou do nosso site de automação de pipelines e dos cursos de engenharia de dados? Ajude a manter o MyDataflow no ar!</h4>
+                    <h4 class="alert-heading">😊 Gostou da amostra da nossa videoaula de automação do curso de engenharia de dados? </h4>
                     <p><?= htmlspecialchars($mensagem_bloqueio, ENT_QUOTES, 'UTF-8'); ?></p>
                 </div>
             <?php endif; ?>
@@ -137,45 +147,26 @@ require VIEWPATH . '/header.php';
 
 
 
-                        <!-- Área do QR Code Dinâmico -->
+                        <!-- Hotmart Checkout -->
                         <div class="my-4 text-center">
-                            <div id="qrcode-container" class="p-4 bg-white border rounded d-inline-block shadow" style="min-width: 290px; min-height: 290px;">
-                                <div id="qrcode" class="d-flex justify-content-center align-items-center"></div>
+                            <h4 class="mb-3" style="color: #f04e23; font-weight: bold;">💳 Finalizar Pagamento com Hotmart</h4>
+                            <p class="text-muted mb-4">Selecione o botão abaixo para abrir a página de pagamento em uma nova janela ou utilize a janela integrada logo a seguir:</p>
+                            
+                            <div class="mb-4">
+                                <a href="https://go.hotmart.com/G105919559X?dp=1" target="_blank" class="btn btn-gradient btn-lg px-5 py-3 shadow-lg rounded-pill font-weight-bold">
+                                    🚀 Ir para o Checkout da Hotmart
+                                </a>
                             </div>
-                        </div>
 
-                        <!-- Pix Copia e Cola -->
-                        <div class="mb-4 mx-auto" style="max-width: 500px;">
-                            <label for="pix-copia-e-cola" class="form-label font-weight-bold">📋 Pix Copia e Cola</label>
-                            <div class="input-group">
-                                <input type="text" id="pix-copia-e-cola" class="form-control" readonly value="Gerando código...">
-                                <button class="btn btn-outline-primary" type="button" onclick="copiarPix()">Copiar</button>
+                            <div class="iframe-wrapper shadow-lg rounded-3 border overflow-hidden position-relative">
+                                <iframe src="https://go.hotmart.com/G105919559X?dp=1" 
+                                        style="width: 100%; height: 100%; border: 0;" 
+                                        allowfullscreen 
+                                        loading="lazy">
+                                </iframe>
                             </div>
-                            <small class="text-muted">Use esta opção se estiver acessando pelo celular.</small>
+                            <p class="text-muted mt-3 small">⚠️ Se a janela acima não carregar corretamente ou exibir uma mensagem de bloqueio, clique no botão laranja acima para concluir sua compra com segurança em uma nova aba.</p>
                         </div>
-
-                        <!-- Instruções -->
-                        <div class="alert alert-warning mt-3 text-start" role="alert">
-                            <h6>📌 Instruções:</h6>
-                            <ol class="mb-0">
-                                <li>Abra o aplicativo do seu banco</li>
-                                <li>Selecione a opção <strong>PIX</strong></li>
-                                <li>Escolha <strong>Ler QR Code</strong> ou <strong>Pix Copia e Cola</strong></li>
-                                <li>Confirme o pagamento de <strong>R$ <?= number_format($valor_brl, 2, ',', '.'); ?></strong></li>
-                                <li>Após o pagamento, clique no botão "Já paguei" abaixo</li>
-                            </ol>
-                            <div class="mt-2 small border-top pt-2">
-                                <strong>Dados para conferência:</strong><br>
-                                Chave CPF: 032.067.407-03<br>
-                                Nome: Cristiane B. L. do Nascimento<br>
-                                Enviar comprovante: <strong>admin@estudotabela.com.br</strong>
-                            </div>
-                        </div>
-
-                        <!-- Botão de Confirmação de Pagamento -->
-                        <button id="btn-confirm-payment" class="btn btn-success btn-lg mt-3" onclick="confirmarPagamento()">
-                            ✅ Já Paguei - Confirmar Pagamento
-                        </button>
                     </div>
                 </div>
 
@@ -213,107 +204,7 @@ require VIEWPATH . '/header.php';
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    gerarPix();
-});
-
-function gerarPix() {
-    try {
-        // Usa o payload pré-gerado pelo backend para maior confiabilidade
-        const payload = '<?= $pix_payload ?? '' ?>';
-        
-        if (!payload) {
-            throw new Error("Payload do PIX não foi fornecido pelo servidor.");
-        }
-
-        // 1. Gera o QR Code
-        const qrcodeDiv = document.getElementById("qrcode");
-        qrcodeDiv.innerHTML = ""; // Limpa antes de gerar
-        
-        if (typeof QRCode === 'undefined') {
-            throw new Error("Biblioteca de QR Code não carregada.");
-        }
-
-        new QRCode(qrcodeDiv, {
-            text: payload,
-            width: 256,
-            height: 256,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
-        });
-
-        // 2. Preenche o campo Copia e Cola
-        document.getElementById("pix-copia-e-cola").value = payload;
-    } catch (e) {
-        console.error("Erro detalhado ao gerar PIX:", e);
-        const errorMsg = e.message || "Erro desconhecido";
-        document.getElementById("pix-copia-e-cola").value = "Erro: " + errorMsg;
-    }
-}
-
-function copiarPix() {
-    const input = document.getElementById("pix-copia-e-cola");
-    input.select();
-    input.setSelectionRange(0, 99999); // Para dispositivos móveis
-    
-    navigator.clipboard.writeText(input.value).then(() => {
-        alert("✅ Código Pix copiado com sucesso!");
-    }).catch(err => {
-        console.error('Erro ao copiar:', err);
-    });
-}
-
-function confirmarPagamento() {
-    // Confirma com o usuário
-    if (!confirm('Você confirma que realizou o pagamento ?')) {
-        return;
-    }
-
-    // Desabilita o botão
-    const btn = document.getElementById('btn-confirm-payment');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
-
-    // Faz a requisição para confirmar o pagamento
-    fetch('<?= base_url('subscription/confirmPayment') ?>', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            // Exibe mensagem de sucesso
-            //alert('✅ ' + data.message + '\nNovo vencimento: ' + data.novo_vencimento);
-            
-            alert('✅ ' + '\nAssim que confirmarmos o pagamento, seu acesso será liberado');
-                    
-
-            // Recarrega a página
-            window.location.reload();
-        } else {
-            // Exibe mensagem de erro
-            alert('❌ ' + data.message);
-            
-            // Reabilita o botão
-            btn.disabled = false;
-            btn.innerHTML = '✅ Já Paguei - Confirmar Pagamento';
-        }
-    })
-    .catch(error => {
-        console.error('Erro:', error);
-        alert('❌ Erro ao confirmar pagamento. Tente novamente.');
-        
-        // Reabilita o botão
-        btn.disabled = false;
-        btn.innerHTML = '✅ Já Paguei - Confirmar Pagamento';
-    });
-}
-</script>
+<!-- Script do PIX removido por não ser mais utilizado -->
 
 <?php
 require VIEWPATH . '/footer.php';

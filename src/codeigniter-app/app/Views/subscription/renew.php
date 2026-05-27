@@ -49,7 +49,7 @@ require VIEWPATH . '/header.php';
             <?php if (!empty($mensagem_bloqueio)): ?>
                 <div class="alert alert-danger" role="alert">
                     <h4 class="alert-heading">😊 Gostou da amostra da nossa videoaula de automação do curso de engenharia de dados? </h4>
-                    <p><?= htmlspecialchars($mensagem_bloqueio, ENT_QUOTES, 'UTF-8'); ?></p>
+                    <!--p><!--?= htmlspecialchars($mensagem_bloqueio, ENT_QUOTES, 'UTF-8'); ?></p-->
                 </div>
             <?php endif; ?>
 
@@ -135,15 +135,7 @@ require VIEWPATH . '/header.php';
                 </div>
 
 
-                                <!-- Informações de Renovação -->
-                                <div class="alert alert-info" role="alert">
-                                        <h5 class="alert-heading">📋 Informações da Renovação</h5>
-                                        <p><strong>Valor:</strong> USD <?= number_format($valor_usd, 2); ?> (dólares americanos)<?= isset($texto_periodicidade) ? $texto_periodicidade : '' ?></p>
-                                        <p class="mb-1"><strong>Conversão câmbio do dia:</strong> USD <?= number_format($valor_usd, 2); ?> × BRL <?= number_format($cotacao_usd_brl, 4); ?> = <strong>R$ <?= number_format($valor_brl, 2, ',', '.'); ?></strong></p>
-                                        <?php if (!empty($cotacao_mensagem)): ?>
-                                                <small class="text-warning d-block">⚠️ <?= htmlspecialchars($cotacao_mensagem, ENT_QUOTES, 'UTF-8'); ?></small>
-                                        <?php endif; ?>
-                                </div>
+                                
 
 
 
@@ -158,14 +150,6 @@ require VIEWPATH . '/header.php';
                                 </a>
                             </div>
 
-                            <div class="iframe-wrapper shadow-lg rounded-3 border overflow-hidden position-relative">
-                                <iframe src="https://go.hotmart.com/G105919559X?dp=1" 
-                                        style="width: 100%; height: 100%; border: 0;" 
-                                        allowfullscreen 
-                                        loading="lazy">
-                                </iframe>
-                            </div>
-                            <p class="text-muted mt-3 small">⚠️ Se a janela acima não carregar corretamente ou exibir uma mensagem de bloqueio, clique no botão laranja acima para concluir sua compra com segurança em uma nova aba.</p>
                         </div>
                     </div>
                 </div>

@@ -66,6 +66,26 @@ Como o PostgreSQL analítico de Produção (`datalake_bi`) divide recursos na me
 3. **Macro `generate_schema_name`**:
    * O arquivo `macros/generate_schema_name.sql` garante que as regras de concatenação padrão do dbt sejam sobrescritas, forçando o isolamento físico no Postgres por schema limpo.
 
+### 🗄️ Pré-criação de Schemas no PostgreSQL
+Por padrão, o dbt tentará criar os schemas automaticamente durante o primeiro `dbt run` (usando comandos `CREATE SCHEMA IF NOT EXISTS`).
+
+Caso o usuário do banco de dados (`pbi_user`) tenha permissões restritas e não consiga criar schemas diretamente, execute previamente a seguinte query SQL no banco de dados `datalake_bi` (conectando como superusuário postgres ou com o proprietário do banco):
+
+```sql
+-- Criar schemas caso não existam
+CREATE SCHEMA IF NOT EXISTS homolog_analytics;
+CREATE SCHEMA IF NOT EXISTS analytics;
+
+-- Conceder permissão de proprietário/escrita ao usuário do dbt
+ALTER SCHEMA homolog_analytics OWNER TO pbi_user;
+ALTER SCHEMA analytics OWNER TO pbi_user;
+
+-- Conceder privilégios de uso ao usuário do dbt (se necessário)
+GRANT USAGE, CREATE ON SCHEMA homolog_analytics TO pbi_user;
+GRANT USAGE, CREATE ON SCHEMA analytics TO pbi_user;
+```
+
+
 ---
 
 ## 📊 Passo 3: Executar o dbt Core e Modelar o DW

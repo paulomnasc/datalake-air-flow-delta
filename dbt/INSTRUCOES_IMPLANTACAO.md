@@ -56,8 +56,21 @@ Para não poluir o Python global do sistema operacional do servidor, utilize o s
 
 ---
 
+## 🔒 Segurança em Produção: Ambiente de Homologação Lógico (Sandbox)
+Como o PostgreSQL analítico de Produção (`datalake_bi`) divide recursos na mesma máquina física, o projeto implementa o conceito de **Sandbox de Homologação Lógico** para evitar sobrecarga de memória, Locks e corrupção das tabelas de produção:
+1. **Target `dev` (Homologação Virtual)**:
+   * Redireciona 100% das compilações do dbt para o schema **`homolog_analytics`**.
+   * O parquinho de testes do desenvolvedor fica isolado. Tabelas de produção e o Metabase oficial continuam intocados.
+2. **Target `prod` (Produção Oficial)**:
+   * Grava as tabelas finais unicamente no schema **`analytics`** (consumido pelo Metabase produtivo).
+3. **Macro `generate_schema_name`**:
+   * O arquivo `macros/generate_schema_name.sql` garante que as regras de concatenação padrão do dbt sejam sobrescritas, forçando o isolamento físico no Postgres por schema limpo.
+
+---
+
 ## 📊 Passo 3: Executar o dbt Core e Modelar o DW
 Com o ambiente virtual ativado, acesse o diretório do dbt e execute os comandos apontando para a pasta local de perfis (`--profiles-dir .`).
+
 
 Você pode rodar os comandos especificando o **target** (ambiente de execução):
 * **No Host local / Dev** (aponta para `localhost` na porta exposta `5433`):

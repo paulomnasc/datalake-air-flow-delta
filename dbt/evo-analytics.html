@@ -1,0 +1,393 @@
+```python
+import os
+from weasyprint import HTML
+
+# Conteúdo HTML com design profissional e moderno para o plano de implantação da arquitetura dbt + Postgres + Metabase
+html_content = """
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Plano de Implantação de Arquitetura de Dados</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 18mm 15mm;
+            background-color: #fcfdfd;
+            @bottom-right {
+                content: counter(page);
+                font-family: 'Helvetica Neue', Arial, sans-serif;
+                font-size: 9pt;
+                color: #8892b0;
+            }
+            @bottom-left {
+                content: "MyDataFlow & EstudoTabela — Privado e Confidencial";
+                font-family: 'Helvetica Neue', Arial, sans-serif;
+                font-size: 9pt;
+                color: #8892b0;
+            }
+        }
+        
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            color: #232946;
+            line-height: 1.6;
+            font-size: 10.5pt;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Full bleed header for page 1 */
+        .doc-header {
+            margin: -18mm -15mm 25px -15mm;
+            padding: 25px 15mm;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #ffffff;
+            border-bottom: 4px solid #38bdf8;
+        }
+
+        .doc-header h1 {
+            font-size: 20pt;
+            margin: 0 0 8px 0;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #f8fafc;
+        }
+
+        .doc-header p {
+            font-size: 11pt;
+            margin: 0;
+            color: #94a3b8;
+        }
+
+        .doc-metadata {
+            margin-top: 12px;
+            font-size: 9pt;
+            color: #38bdf8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+
+        h2 {
+            font-size: 14pt;
+            color: #0f172a;
+            margin-top: 25px;
+            margin-bottom: 12px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #e2e8f0;
+            page-break-inside: avoid;
+            page-break-after: avoid;
+        }
+
+        h3 {
+            font-size: 11.5pt;
+            color: #1e293b;
+            margin-top: 18px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            page-break-inside: avoid;
+            page-break-after: avoid;
+        }
+
+        p {
+            margin-top: 0;
+            margin-bottom: 12px;
+            text-align: justify;
+        }
+
+        ul, ol {
+            margin-top: 0;
+            margin-bottom: 15px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        /* Codeblock styling */
+        pre, code {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            border-radius: 4px;
+        }
+
+        pre {
+            padding: 12px;
+            font-size: 9.5pt;
+            border-left: 4px solid #64748b;
+            white-space: pre-wrap;
+            margin-top: 8px;
+            margin-bottom: 15px;
+            page-break-inside: avoid;
+        }
+
+        code {
+            padding: 2px 5px;
+            font-size: 9.5pt;
+        }
+
+        /* Callout blocks */
+        .callout {
+            background-color: #f0fdf4;
+            border-left: 4px solid #22c55e;
+            padding: 12px 15px;
+            margin: 15px 0;
+            border-radius: 0 4px 4px 0;
+            page-break-inside: avoid;
+        }
+
+        .callout-title {
+            font-weight: bold;
+            color: #14532d;
+            margin-bottom: 4px;
+            font-size: 10pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .callout p {
+            margin: 0;
+            color: #166534;
+            font-size: 10pt;
+        }
+
+        .architecture-box {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 18px 0;
+            page-break-inside: avoid;
+        }
+
+        /* Step navigation labels */
+        .step-badge {
+            background-color: #0284c7;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 8.5pt;
+            font-weight: bold;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="doc-header">
+        <h1>Documento de Visão e Plano de Implantação</h1>
+        <p>Desenvolvimento e Engenharia de Dados — Pivot Educacional & Analytics</p>
+        <div class="doc-metadata">Stack: dbt Core + PostgreSQL + Metabase</div>
+    </div>
+
+    <h2>1. Visão Geral da Mudança Estratégica</h2>
+    <p>
+        Este documento orienta o desenvolvedor responsável na reestruturação técnica da plataforma de estudos. Visando mitigar barreiras de desconfiança observadas no modelo de pagamento via PIX direto, migramos a gestão de assinaturas, checkout e o ecossistema de afiliados integralmente para a <strong>Hotmart</strong>. 
+    </p>
+    <p>
+        Em paralelo, a stack interna abandona ferramentas visuais legadas de modelagem em favor do ecossistema moderno de dados (Modern Data Stack). Centralizaremos nossa inteligência de negócios estruturando um <strong>Data Lakehouse</strong> gerenciado por código, garantindo governança, histórico via Git e relatórios eficientes de alta performance.
+    </p>
+
+    <h2>2. Alinhamento Arquitetural (Explicação Técnica Analítica)</h2>
+    <p>
+        Para alinhar o entendimento do time de desenvolvimento, reproduzimos o detalhamento de como a stack opera de ponta a ponta e o papel exato de cada componente, desfazendo mitos sobre a substituição de motores de bancos relacionais por frameworks analíticos:
+    </p>
+
+    <div class="architecture-box">
+        <h3>Como funciona a Engenharia e Modelagem Dimensional Desejada</h3>
+        <p><strong>O dbt substitui o PostgreSQL?</strong></p>
+        <p>
+            Não, o dbt <em>(Data Build Tool)</em> <strong>não</strong> vai substituir o seu PostgreSQL. Na verdade, eles trabalham juntos, como parceiros inseparáveis. A divisão clara de papéis na nossa stack é definida como:
+        </p>
+        <ul>
+            <li><strong>PostgreSQL (O Motor / O Músculo):</strong> Continua sendo o seu banco de dados físico, onde os dados de fato ficam armazenados no disco rígido. É ele quem cede o poder de processamento, a memória e guarda as tabelas físicas.</li>
+            <li><strong>dbt (O Maestro / O Cérebro):</strong> Ele não guarda dados. Ele é o framework que você usa para <strong>comandar</strong> o PostgreSQL. Em vez de você entrar no banco e criar tabelas ou views na mão usando SQL bruto, você escreve a lógica no dbt, e ele vai até o PostgreSQL e cria a estrutura dimensional (os cubos/tabelas estruturadas) de forma organizada, testada e documentada.</li>
+            <li><strong>Metabase (Os Olhos / O Frontend):</strong> É a sua camada de visualização. Ele se conecta no seu PostgreSQL (especificamente nas tabelas de Fato e Dimensão que o dbt organizou por lá) e exibe os gráficos e dashboards bonitos para o usuário final de maneira ágil.</li>
+        </ul>
+
+        <h3>O Fluxo de Processamento de Dados na Prática (Pipeline ELT)</h3>
+        <pre>
+[Dados Brutos / Origem] (Logs de Atividade, APIs Hotmart)
+          │
+          ▼
+[PostgreSQL (Camada RAW / Bronze)]  ───► O dbt entra aqui, lê o RAW, processa e cria...
+          │
+          ▼
+[PostgreSQL (Camada Dimensional)]   ◄─── ... tabelas Fato e Dimensão bem estruturadas (Gold).
+          │
+          ▼
+[Metabase (Frontend Analítico)]     ◄─── Lê as tabelas limpas e entrega os cubos visuais.
+        </pre>
+    </div>
+
+    <h2>3. Plano de Implantação Passo a Passo</h2>
+    <p>O desenvolvedor deverá executar o provisionamento e configuração seguindo estritamente as etapas abaixo:</p>
+
+
+    <h3><span class="step-badge">Fase 1</span>Inicialização e Estruturação do Projeto dbt Core</h3>
+    <p>O dbt operará via CLI, orquestrado nativamente. Instalar o adaptador do Postgres e iniciar a estrutura de diretórios padrão de engenharia de software:</p>
+    <ol>
+        <li>Instalar dependências no ambiente virtual Python: <code>pip install dbt-core dbt-postgres</code></li>
+        <li>Executar <code>dbt init meu_projeto_dbt</code> para criar a árvore de diretórios.</li>
+        <li>Configurar o arquivo <code>profiles.yml</code> apontando as credenciais de desenvolvimento e produção para o container Postgres que já está instanciado na stack sgbd identificado como datalake_bi.</li>
+    </ol>
+
+    <h3><span class="step-badge">Fase 2</span>Padronização da Modelagem de Dados no dbt</h3>
+    <p>O desenvolvedor não deve criar tabelas diretamente via DDL. Toda a criação de tabelas fato (ex: <code>fato_acessos</code>, <code>fato_vendas</code>) e tabelas dimensão (ex: <code>dim_usuarios</code>, <code>dim_cursos</code>) deve ser escrita como consultas <code>SELECT</code> dentro da pasta <code>models/</code> do dbt.</p>
+    <p>Exemplo de configuração de uma Dimensão protegendo a integridade no arquivo <code>schema.yml</code>:</p>
+    <pre>
+version: 2
+
+models:
+  - name: dim_usuarios
+    description: "Tabela dimensional de alunos da plataforma mapeados por perfis"
+    columns:
+      - name: id
+        description: "Chave primária do usuário"
+        tests:
+          - unique
+          - not_null
+      - name: perfil_comportamental
+        description: "Status do perfil (Power User, Interessados, Oportunista)"
+    </pre>
+
+    <div class="callout">
+        <div class="callout-title">Nota de Engenharia — Rodando o Pipeline</div>
+        <p>Para aplicar as alterações e construir as tabelas estruturadas e cubos no Postgres, execute no terminal: <code>dbt run</code>. Para validar as regras de integridade e unicidade dos dados, execute: <code>dbt test</code>.</p>
+    </div>
+
+    <h3><span class="step-badge">Fase 3</span>Implantação e Acoplamento do Metabase (Camada Visual)</h3>
+    <p>Subir o Metabase conectado à mesma rede Docker do PostgreSQL analítico. Evitar apontá-lo para tabelas brutas. O Metabase lerá unicamente o schema gerenciado pelo dbt.</p>
+    <pre>
+# Comando rápido para levantar a camada analítica frontend
+docker run -d -p 3000:3000 \
+  --net=host \
+  --name metabase_frontend \
+  metabase/metabase:latest
+    </pre>
+    <p><strong>Configuração no painel administrativo do Metabase:</strong></p>
+    <ul>
+        <li>Adicionar banco de dados do tipo <strong>PostgreSQL</strong>.</li>
+        <li>No menu <em>Data Model</em> (Camada Semântica), documentar as chaves estrangeiras virtuais que unem os acessos dos logs à dimensão de usuários e categorizar granularidades temporais de acessos.</li>
+    </ul>
+
+    <h2>4. Governança, Linhagem e Próximas Implementações</h2>
+    <p>
+        Com a conclusão deste plano, o desenvolvedor poderá rodar o comando <code>dbt docs generate</code> seguido de <code>dbt docs serve</code>. Isso renderizará uma documentação web completa com o gráfico de linhagem (Lineage Graph), permitindo visualizar visualmente o fluxo do dado desde sua ingestão bruta até o consumo final pelo painel do Metabase. 
+    </p>
+    <p>
+        Esta arquitetura garante que a lógica de negócio fique centralizada sob controle de versão (Git), permitindo manutenções seguras e escalabilidade total para as futuras integrações via webhook dos eventos de vendas gerados na Hotmart.
+		
+		Essa é uma excelente dúvida de quem está acostumado com a cultura do Docker, onde costumamos centralizar todas as variáveis de ambiente, usuários e senhas dentro do `docker-compose.yml`.
+
+No entanto, o **`profiles.yml` não fica dentro do Docker Compose**. Ele é um arquivo de configuração próprio e exclusivo do ecossistema do dbt.
+
+Aqui está a explicação de onde ele vem, por que ele existe e como ele se conecta ao seu Docker:
+
+---
+
+### 1. De onde vem esse arquivo?
+
+O `profiles.yml` é gerado automaticamente na sua máquina (ou dentro do container) no momento em que você executa o comando **`dbt init`** para começar um projeto.
+
+Por padrão, o dbt cria esse arquivo em uma pasta oculta no diretório do seu usuário no sistema operacional:
+
+* No Linux/WSL/Docker: `~/.dbt/profiles.yml`
+* No Windows: `C:\Users\SeuUsuario\.dbt\profiles.yml`
+
+Ele funciona como o **"gerenciador de conexões"** do dbt. É nele que você diz: *"Olha dbt, o meu ambiente de 'dev' aponta para o Postgres local na porta 5432, mas o meu ambiente de 'prod' aponta para o Redshift ou Athena na AWS"*.
+
+---
+
+### 2. Por que ele não fica direto no `docker-compose.yml`?
+
+Por uma questão de **segurança** e **arquitetura**:
+
+1. **Isolamento de Credenciais:** O seu projeto dbt (os códigos SQL, as tabelas fato e dimensão) vai ser dropado dentro de um repositório Git. Você **nunca** deve subir senhas de banco de dados para o Git. Como o `profiles.yml` fica guardado fora da pasta do projeto (na pasta do usuário `~/.dbt/`), você evita o risco de expor suas senhas por acidente.
+2. **O dbt roda fora do banco:** O `docker-compose.yml` serve para o Docker saber como levantar o contêiner do PostgreSQL e do Metabase. O dbt é apenas um cliente (como se fosse o DBeaver ou o PGAdmin) que vai se conectar neles. Ele precisa do seu próprio arquivo de configuração para saber onde o banco está rodando.
+
+---
+
+### 3. Como integrar o `profiles.yml` com o seu Docker Compose?
+
+Para o desenvolvedor que vai implementar, existem duas formas elegantes de fazer isso rodar em harmonia com o Docker:
+
+#### Abordagem A: Passando as variáveis do Docker para o `profiles.yml` (Mais Recomendada)
+
+Você pode criar o `profiles.yml` e deixá-lo ler as credenciais diretamente das variáveis de ambiente que o seu Docker Compose injetar. O dbt aceita Jinja (a engine de template do Python) para ler variáveis de ambiente.
+
+O arquivo `profiles.yml` do desenvolvedor ficaria assim:
+
+```yaml
+meu_projeto_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      user: "{{ env_var('DB_USER') }}"       # Puxa o usuário do ambiente do Docker
+      pass: "{{ env_var('DB_PASSWORD') }}"   # Puxa a senha do ambiente do Docker
+      port: 5432
+      dbname: data_lakehouse
+      schema: analytics
+      threads: 4
+
+```
+
+#### Abordagem B: Mapeando por Volume no Docker
+
+Se você for rodar o dbt dentro de um container Docker (orquestrado pelo Airflow, por exemplo), você pode simplesmente criar o `profiles.yml` na sua máquina local e mapeá-lo como um volume dentro do service do dbt no seu `docker-compose.yml`:
+
+```yaml
+services:
+  dbt_runner:
+    image: ghcr.io/dbt-labs/dbt-postgres:1.5.0
+    volumes:
+      - ./meu_projeto_dbt:/usr/app/dbt
+      - ~/.dbt:/root/.dbt  # Mapeia a pasta do perfil para dentro do container
+    environment:
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+
+```
+
+### Resumo da ópera:
+
+O `docker-compose.yml` levanta a infraestrutura (Postgres). O `profiles.yml` é o crachá de acesso que o dbt usa para conseguir entrar nessa infraestrutura e criar os cubos.
+		
+		
+    </p>
+
+	
+
+</body>
+</html>
+"""
+
+# Nome do arquivo de saída
+output_pdf = "plano_implantacao_arquitetura_v2.pdf"
+
+# Criando o arquivo temporário HTML
+with open("temp_plan.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+# Convertendo o HTML para PDF usando WeasyPrint (com suporte nativo ao CSS Paged Media)
+HTML("temp_plan.html").write_pdf(output_pdf)
+
+# Limpando arquivo temporário
+if os.path.exists("temp_plan.html"):
+    os.remove("temp_plan.html")
+
+print(f"PDF gerado com sucesso: {output_pdf}")
+print(f"[file-tag: {output_pdf}]")
+}
+
+```

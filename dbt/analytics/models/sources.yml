@@ -1,0 +1,17 @@
+version: 2
+
+sources:
+  - name: raw_lakehouse
+    schema: public
+    description: "Tabelas Gold do Data Lakehouse sincronizadas no PostgreSQL public"
+    tables:
+      - name: customers
+        description: "Tabela de clientes/usuários sincronizada da camada Gold"
+      - name: orders
+        description: "Tabela de pedidos/transações sincronizada da camada Gold"
+      - name: employee_privileges
+        description: "Privilégios de funcionários"
+      - name: products
+        description: "Produtos da plataforma"
+      - name: activity_logs
+        description: "Tabela de logs de acessos/atividades dos usuários"

@@ -1,0 +1,24 @@
+name: 'analytics'
+version: '1.0.0'
+config-version: 2
+
+# This setting points to the profile defined in profiles.yml
+profile: 'analytics'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  analytics:
+    # Configura materialização padrão como view. Tabelas fato/dimensão específicas podem sobrescrever para table.
+    +materialized: view
+    +schema: analytics

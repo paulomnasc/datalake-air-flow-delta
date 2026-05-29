@@ -1,0 +1,13 @@
+analytics:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      port: 5433
+      user: pbi_user
+      password: pbi_password
+      dbname: datalake_bi
+      schema: public # dbt irá criar/escrever no schema analytics (concatenando ou sobrescrevendo de acordo com as regras de custom schema)
+      threads: 4
+      keepalives_idle: 0

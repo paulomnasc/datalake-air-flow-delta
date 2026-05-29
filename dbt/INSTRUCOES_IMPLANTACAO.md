@@ -57,7 +57,19 @@ Para não poluir o Python global do sistema operacional do servidor, utilize o s
 ---
 
 ## 📊 Passo 3: Executar o dbt Core e Modelar o DW
-Com o ambiente virtual ativado, acesse o diretório do dbt e execute os comandos apontando para a pasta local de perfis (`--profiles-dir .`), permitindo portabilidade das credenciais.
+Com o ambiente virtual ativado, acesse o diretório do dbt e execute os comandos apontando para a pasta local de perfis (`--profiles-dir .`).
+
+Você pode rodar os comandos especificando o **target** (ambiente de execução):
+* **No Host local / Dev** (aponta para `localhost` na porta exposta `5433`):
+  ```bash
+  dbt run --profiles-dir . --target dev
+  dbt test --profiles-dir . --target dev
+  ```
+* **Dentro do Docker / Produção** (aponta para o container `postgres-bi` na porta interna `5432`):
+  ```bash
+  dbt run --profiles-dir . --target prod
+  dbt test --profiles-dir . --target prod
+  ```
 
 1. Acesse o diretório do projeto dbt:
    ```bash
@@ -65,16 +77,17 @@ Com o ambiente virtual ativado, acesse o diretório do dbt e execute os comandos
    ```
 2. Valide a conectividade com o banco analítico `postgres-bi`:
    ```bash
-   dbt debug --profiles-dir .
+   dbt debug --profiles-dir . --target dev   # ou --target prod
    ```
 3. Execute as transformações para materializar as Dimensões e Fatos no schema `analytics`:
    ```bash
-   dbt run --profiles-dir .
+   dbt run --profiles-dir . --target dev     # ou --target prod
    ```
 4. Execute os testes de integridade e qualidade (IDs únicos, campos obrigatórios, etc.):
    ```bash
-   dbt test --profiles-dir .
+   dbt test --profiles-dir . --target dev    # ou --target prod
    ```
+
 
 ---
 

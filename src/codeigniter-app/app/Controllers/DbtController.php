@@ -105,10 +105,35 @@ class DbtController extends BaseController
         // Encontrar onde dbt_project.yml está no repositório baixado
         $projectDir = $this->findDbtProjectDir($tempDir);
 
-        // Fallback para os templates se não foi conectado/baixado ou dbt_project.yml não existe
-        if (!$downloaded || $projectDir === null) {
+        // Fallback para os templates se não foi conectado/baixado
+        if (!$downloaded) {
             $this->_copyDir('/datalake-root/dbt/analytics', $tempDir);
             $projectDir = $tempDir;
+        } elseif ($projectDir === null) {
+            // Se foi baixado, mas não tem dbt_project.yml, copiamos apenas a estrutura básica de suporte
+            // (dbt_project.yml, macros e metadados se não existirem) SEM copiar os modelos SQL de template.
+            $projectDir = $tempDir;
+            
+            if (!file_exists($projectDir . '/dbt_project.yml')) {
+                copy('/datalake-root/dbt/analytics/dbt_project.yml', $projectDir . '/dbt_project.yml');
+            }
+            
+            if (!is_dir($projectDir . '/macros')) {
+                @mkdir($projectDir . '/macros', 0777, true);
+                $this->_copyDir('/datalake-root/dbt/analytics/macros', $projectDir . '/macros');
+            }
+            
+            if (!is_dir($projectDir . '/models')) {
+                @mkdir($projectDir . '/models', 0777, true);
+            }
+            
+            if (!file_exists($projectDir . '/models/sources.yml')) {
+                copy('/datalake-root/dbt/analytics/models/sources.yml', $projectDir . '/models/sources.yml');
+            }
+            
+            if (!file_exists($projectDir . '/models/schema.yml')) {
+                copy('/datalake-root/dbt/analytics/models/schema.yml', $projectDir . '/models/schema.yml');
+            }
         }
 
         // 3. Garantir pre-criação dos schemas no PostgreSQL

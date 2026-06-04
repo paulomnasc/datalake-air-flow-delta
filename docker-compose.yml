@@ -352,7 +352,7 @@ services:
         # Passa as variáveis para o Dockerfile
         HOST_UID: ${UID:-1000} 
         HOST_GID: ${GID:-1000}
-        DOCKER_GID: 1001  # GID do grupo docker no host
+        DOCKER_GID: ${DOCKER_GID:-1001}  # GID do grupo docker no host
     container_name: codeigniter-app${ENV_SUFFIX:+-${ENV_SUFFIX}}
     restart: always
     depends_on:

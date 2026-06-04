@@ -2864,7 +2864,8 @@ ORDER BY departamento, rank;`
             const root = { children: {}, isFile: false };
             
             files.forEach(file => {
-                const parts = file.path.split('/').filter(Boolean);
+                const normalizedPath = file.path.replace(/\\/g, '/');
+                const parts = normalizedPath.split('/').filter(Boolean);
 
                 // Ignorar arquivo .gitkeep, mas manter a pasta como nó de pasta
                 let isGitkeepPlaceholder = false;
@@ -2880,7 +2881,8 @@ ORDER BY departamento, rank;`
                 parts.forEach((part, index) => {
                     accumulated.push(part);
                     const pathSoFar = accumulated.join('/');
-                    const isFile = isGitkeepPlaceholder ? false : (index === parts.length - 1);
+                    const isLast = (index === parts.length - 1);
+                    const isFile = isGitkeepPlaceholder ? false : (isLast && !normalizedPath.endsWith('/'));
                     
                     if (!current.children[part]) {
                         current.children[part] = {
@@ -2892,6 +2894,13 @@ ORDER BY departamento, rank;`
                             children: {},
                             expanded: index < 2
                         };
+                    } else {
+                        // Se já existia (ex: criado via placeholder/pasta antes), mas agora estamos
+                        // passando por ele para criar um nó filho, garante que seja marcado como pasta.
+                        if (!isLast) {
+                            current.children[part].isFile = false;
+                            current.children[part].fileData = null;
+                        }
                     }
                     current = current.children[part];
                 });
@@ -2912,6 +2921,14 @@ ORDER BY departamento, rank;`
                 item.dataset.type = entry.isFile ? 'file' : 'folder';
                 
                 if (entry.isFile) {
+                    // Filtrar em tempo de renderização
+                    const allowed = window.allowedExtensions || ['.sql', '.parquet'];
+                    const name = entry.name.toLowerCase();
+                    const isAllowed = allowed.some(ext => name.endsWith(ext));
+                    if (!isAllowed) {
+                        return; // Omitir arquivo do DOM
+                    }
+
                     item.className = 'tree-item file';
                     item.draggable = true;
                     item.innerHTML = `
@@ -2938,14 +2955,22 @@ ORDER BY departamento, rank;`
                         item.classList.remove('dragging');
                     });
                 } else {
-                    const hasChildren = Object.keys(entry.children).length > 0;
+                    // Renderizar pasta
                     const childrenContainer = document.createElement('div');
+                    
+                    // Renderizar filhos recursivamente primeiro para saber se a pasta tem filhos visíveis
+                    renderGitTree(entry, childrenContainer, level + 1);
+                    
+                    // Se a pasta não possui filhos renderizados no DOM, mas existiam filhos no modelo,
+                    // ela ainda é exibida como pasta (para que o usuário possa interagir e criar arquivos).
+                    const hasRenderedChildren = childrenContainer.children.length > 0;
+                    
                     childrenContainer.className = `tree-children ${entry.expanded ? 'expanded' : ''}`;
                     
                     item.className = 'tree-item folder';
                     item.draggable = true;
                     item.innerHTML = `
-                        <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasChildren ? '▶' : ''}</span>
+                        <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasRenderedChildren ? (entry.expanded ? '▼' : '▶') : ''}</span>
                         <span class="icon">${entry.expanded ? '📂' : '📁'}</span>
                         <span class="label" title="${entry.name}">${entry.name}</span>
                     `;
@@ -2964,7 +2989,7 @@ ORDER BY departamento, rank;`
                             currentInfo.innerHTML = `📁 ${entry.name} (pasta)`;
                         }
                         
-                        if (hasChildren) {
+                        if (hasRenderedChildren) {
                             toggleGitFolder(item, childrenContainer, entry);
                         }
                     };
@@ -2984,7 +3009,7 @@ ORDER BY departamento, rank;`
                         item.classList.remove('dragging');
                     });
                     
-                    // Drop handlers - allow dropping files/folders into this folder
+                    // Drop handlers
                     item.addEventListener('dragover', (e) => {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = 'move';
@@ -3004,10 +3029,9 @@ ORDER BY departamento, rank;`
                         const targetFolderPath = entry.fullPath || entry.path;
                         
                         if (draggedData.path === targetFolderPath) {
-                            return; // Can't drop into itself
+                            return;
                         }
                         
-                        // Check if trying to drop parent into child
                         if (targetFolderPath.startsWith(draggedData.path + '/')) {
                             alert('❌ Não pode mover uma pasta para dentro de si mesma');
                             return;
@@ -3017,11 +3041,7 @@ ORDER BY departamento, rank;`
                     });
                     
                     container.appendChild(item);
-                    
-                    if (hasChildren) {
-                        renderGitTree(entry, childrenContainer, level + 1);
-                        container.appendChild(childrenContainer);
-                    }
+                    container.appendChild(childrenContainer);
                     return;
                 }
                 
@@ -3035,12 +3055,18 @@ ORDER BY departamento, rank;`
             const isExpanded = childrenContainer.classList.toggle('expanded');
             
             if (isExpanded) {
-                expandIcon.classList.add('expanded');
-                icon.textContent = '📂';
+                if (expandIcon) {
+                    expandIcon.classList.add('expanded');
+                    expandIcon.textContent = '▼';
+                }
+                if (icon) icon.textContent = '📂';
                 entry.expanded = true;
             } else {
-                expandIcon.classList.remove('expanded');
-                icon.textContent = '📁';
+                if (expandIcon) {
+                    expandIcon.classList.remove('expanded');
+                    expandIcon.textContent = '▶';
+                }
+                if (icon) icon.textContent = '📁';
                 entry.expanded = false;
             }
         }
@@ -3064,20 +3090,8 @@ ORDER BY departamento, rank;`
                 return;
             }
             
-            // Filtro dinâmico conforme aba ativa
-            const allowed = window.allowedExtensions || ['.sql', '.parquet'];
-            const filteredFiles = files.filter(file => {
-                const name = file.name.toLowerCase();
-                return allowed.some(ext => name.endsWith(ext));
-            });
-
-            if (filteredFiles.length === 0) {
-                gitFileTree.innerHTML = '<div style="color: #94a3b8; font-size: 13px; padding: 8px;">Nenhum arquivo correspondente nesta aba</div>';
-                return;
-            }
-            
-            console.log(`✅ Renderizando ${filteredFiles.length} arquivo(s)`);
-            const tree = buildGitFileTree(filteredFiles);
+            console.log(`✅ Renderizando árvore para ${files.length} arquivo(s)`);
+            const tree = buildGitFileTree(files);
             renderGitTree(tree, gitFileTree, 0);
             console.log('✅ Árvore de arquivos renderizada com sucesso');
         }

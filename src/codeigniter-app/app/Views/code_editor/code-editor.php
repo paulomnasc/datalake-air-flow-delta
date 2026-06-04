@@ -1972,21 +1972,43 @@ ORDER BY departamento, rank;`
             const root = { children: {}, isFile: false };
             
             files.forEach(file => {
-                const parts = file.path.split('/');
+                const normalizedPath = file.path.replace(/\\/g, '/');
+                const parts = normalizedPath.split('/').filter(Boolean);
+
+                // Ignorar arquivo .gitkeep, mas manter a pasta como nó de pasta
+                let isGitkeepPlaceholder = false;
+                if (parts.length > 0 && parts[parts.length - 1] === '.gitkeep') {
+                    parts.pop();
+                    if (parts.length === 0) return; // nada a criar
+                    isGitkeepPlaceholder = true;
+                }
+
                 let current = root;
+                const accumulated = [];
                 
                 parts.forEach((part, index) => {
-                    if (!part) return;
+                    accumulated.push(part);
+                    const pathSoFar = accumulated.join('/');
+                    const isLast = (index === parts.length - 1);
+                    const isFile = isGitkeepPlaceholder ? false : (isLast && !normalizedPath.endsWith('/'));
                     
                     if (!current.children[part]) {
                         current.children[part] = {
                             name: part,
-                            fullPath: file.path,
-                            isFile: index === parts.length - 1,
-                            fileData: file,
+                            path: pathSoFar,
+                            fullPath: pathSoFar,
+                            isFile: isFile,
+                            fileData: isFile ? file : null,
                             children: {},
                             expanded: index < 2
                         };
+                    } else {
+                        // Se já existia (ex: criado via placeholder/pasta antes), mas agora estamos
+                        // passando por ele para criar um nó filho, garante que seja marcado como pasta.
+                        if (!isLast) {
+                            current.children[part].isFile = false;
+                            current.children[part].fileData = null;
+                        }
                     }
                     current = current.children[part];
                 });
@@ -2003,8 +2025,20 @@ ORDER BY departamento, rank;`
             
             entries.forEach(entry => {
                 const item = document.createElement('div');
+                item.dataset.path = entry.fullPath || entry.path || entry.name;
+                item.dataset.type = entry.isFile ? 'file' : 'folder';
                 
                 if (entry.isFile) {
+                    // Filtrar em tempo de renderização (se houver restrição configurada)
+                    if (window.allowedExtensions) {
+                        const allowed = window.allowedExtensions;
+                        const name = entry.name.toLowerCase();
+                        const isAllowed = allowed.some(ext => name.endsWith(ext));
+                        if (!isAllowed) {
+                            return; // Omitir arquivo do DOM
+                        }
+                    }
+
                     item.className = 'tree-item file';
                     item.innerHTML = `
                         <span class="icon">📄</span>
@@ -2012,30 +2046,35 @@ ORDER BY departamento, rank;`
                     `;
                     item.onclick = () => loadGitFileContent(entry.fileData);
                 } else {
-                    const hasChildren = Object.keys(entry.children).length > 0;
+                    // Renderizar pasta
                     const childrenContainer = document.createElement('div');
+                    
+                    // Renderizar filhos recursivamente primeiro para saber se a pasta tem filhos visíveis
+                    renderGitTree(entry, childrenContainer, level + 1);
+                    
+                    // Se a pasta não possui filhos renderizados no DOM, mas existiam filhos no modelo,
+                    // ela ainda é exibida como pasta (para que o usuário possa interagir e criar arquivos).
+                    const hasRenderedChildren = childrenContainer.children.length > 0;
+                    
                     childrenContainer.className = `tree-children ${entry.expanded ? 'expanded' : ''}`;
                     
                     item.className = 'tree-item folder';
                     item.innerHTML = `
-                        <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasChildren ? '▶' : ''}</span>
+                        <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasRenderedChildren ? (entry.expanded ? '▼' : '▶') : ''}</span>
                         <span class="icon">${entry.expanded ? '📂' : '📁'}</span>
                         <span class="label" title="${entry.name}">${entry.name}</span>
                     `;
                     
-                    if (hasChildren) {
-                        item.onclick = (e) => {
-                            e.stopPropagation();
+                    item.onclick = (e) => {
+                        e.stopPropagation();
+                        
+                        if (hasRenderedChildren) {
                             toggleGitFolder(item, childrenContainer, entry);
-                        };
-                    }
+                        }
+                    };
                     
                     container.appendChild(item);
-                    
-                    if (hasChildren) {
-                        renderGitTree(entry, childrenContainer, level + 1);
-                        container.appendChild(childrenContainer);
-                    }
+                    container.appendChild(childrenContainer);
                     return;
                 }
                 
@@ -2049,12 +2088,18 @@ ORDER BY departamento, rank;`
             const isExpanded = childrenContainer.classList.toggle('expanded');
             
             if (isExpanded) {
-                expandIcon.classList.add('expanded');
-                icon.textContent = '📂';
+                if (expandIcon) {
+                    expandIcon.classList.add('expanded');
+                    expandIcon.textContent = '▼';
+                }
+                if (icon) icon.textContent = '📂';
                 entry.expanded = true;
             } else {
-                expandIcon.classList.remove('expanded');
-                icon.textContent = '📁';
+                if (expandIcon) {
+                    expandIcon.classList.remove('expanded');
+                    expandIcon.textContent = '▶';
+                }
+                if (icon) icon.textContent = '📁';
                 entry.expanded = false;
             }
         }
@@ -2077,7 +2122,7 @@ ORDER BY departamento, rank;`
                 return;
             }
             
-            console.log(`✅ Renderizando ${files.length} arquivo(s)`);
+            console.log(`✅ Renderizando árvore para ${files.length} arquivo(s)`);
             const tree = buildGitFileTree(files);
             renderGitTree(tree, gitFileTree, 0);
             console.log('✅ Árvore de arquivos renderizada com sucesso');

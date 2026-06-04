@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guia de Uso: Git & dbt Analytics - Documentação Datalake</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --bg-color: #0b0f19;
+            --card-bg: rgba(20, 27, 45, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --primary: #6366f1; /* Indigo */
+            --accent-dbt: #ff6f00; /* Orange */
+            --accent-green: #10b981; /* Emerald */
+            --font-main: 'Outfit', sans-serif;
+            --font-code: 'Fira Code', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Styling (Matching Portal) */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar h2 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .sidebar nav ul {
+            list-style: none;
+        }
+
+        .sidebar nav ul li {
+            margin-bottom: 8px;
+        }
+
+        .sidebar nav ul li a {
+            color: #ecf0f1;
+            text-decoration: none;
+            display: block;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .sidebar nav ul li a:hover {
+            background: #34495e;
+            color: #3498db;
+        }
+
+        .sidebar nav ul li a.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+            transition: left 0.3s ease;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 900;
+            display: none;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        @media (min-width: 1100px) {
+            .sidebar-toggle {
+                left: calc(var(--sidebar-width) + 16px);
+            }
+        }
+
+        /* Content Area (Dark Theme Content) */
+        .content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            flex: 1;
+            background: var(--bg-color);
+            background-image: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+                              radial-gradient(circle at 90% 80%, rgba(255, 111, 0, 0.06) 0%, transparent 40%);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            transition: margin-left 0.3s ease;
+        }
+
+        .content.collapsed {
+            margin-left: 0;
+        }
+
+        .content h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 10px;
+            background: linear-gradient(135deg, #a5b4fc 0%, #ff9d4d 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+
+        h2 {
+            font-size: 1.6rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        h2 i {
+            color: var(--primary);
+        }
+
+        .dbt-title i {
+            color: var(--accent-dbt);
+        }
+
+        p {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            font-size: 1.05rem;
+        }
+
+        .step-list {
+            list-style: none;
+        }
+
+        .step-item {
+            position: relative;
+            padding-left: 50px;
+            margin-bottom: 25px;
+        }
+
+        .step-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .step-number {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary) 0%, #4f46e5 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.95rem;
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.4);
+        }
+
+        .dbt-step .step-number {
+            background: linear-gradient(135deg, var(--accent-dbt) 0%, #e65100 100%);
+            box-shadow: 0 4px 10px rgba(255, 111, 0, 0.4);
+        }
+
+        .step-content h3 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        code {
+            font-family: var(--font-code);
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: #ff9d4d;
+        }
+
+        pre {
+            font-family: var(--font-code);
+            background: #050811;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 12px 0;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            font-size: 0.85rem;
+            color: #a5b4fc;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-dev {
+            background-color: rgba(255, 111, 0, 0.15);
+            color: var(--accent-dbt);
+            border: 1px solid rgba(255, 111, 0, 0.3);
+        }
+
+        .badge-prod {
+            background-color: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .alert-box {
+            background: rgba(99, 102, 241, 0.08);
+            border-left: 4px solid var(--primary);
+            padding: 16px;
+            border-radius: 0 8px 8px 0;
+            margin: 20px 0;
+        }
+
+        .alert-box.dbt-alert {
+            background: rgba(255, 111, 0, 0.06);
+            border-left-color: var(--accent-dbt);
+        }
+
+        .alert-box h4 {
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--text-primary);
+        }
+        
+        ul {
+            margin-left: 20px;
+            margin-bottom: 10px;
+        }
+        
+        li {
+            margin-bottom: 6px;
+        }
+    </style>
+    <script>
+        function setSidebarState(isOpen) {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            sidebar.classList.toggle('collapsed', !isOpen);
+            content.classList.toggle('collapsed', !isOpen);
+
+            const useOverlay = window.innerWidth < 1100;
+            if (overlay) {
+                overlay.classList.toggle('active', isOpen && useOverlay);
+            }
+
+            toggleBtn.textContent = isOpen ? '✕' : '☰';
+            
+            if (window.innerWidth >= 1100) {
+                toggleBtn.style.left = isOpen ? 'calc(var(--sidebar-width) + 16px)' : '16px';
+            } else {
+                toggleBtn.style.left = '16px';
+            }
+        }
+
+        function initSidebarToggle() {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            const initialOpen = window.innerWidth >= 1100;
+            setSidebarState(initialOpen);
+
+            toggleBtn.addEventListener('click', function() {
+                const isOpen = !sidebar.classList.contains('collapsed');
+                setSidebarState(!isOpen);
+            });
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    setSidebarState(false);
+                });
+            }
+
+            window.addEventListener('resize', function() {
+                const shouldBeOpen = window.innerWidth >= 1100;
+                setSidebarState(shouldBeOpen);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initSidebarToggle();
+        });
+    </script>
+</head>
+<body>
+    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰</button>
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>📚 Documentação</h2>
+            <nav>
+                <ul>
+                    <li><a href="index.html">🏠 Home</a></li>
+                    <li><a href="docs-index.html">📋 Índice Completo</a></li>
+                    <li><a href="guide-webapp-config.html">🖥️ Guia Interface Web</a></li>
+                    <li><a href="powerbi-conexao-duckdb-odbc.html">🔌 Conexão Power BI</a></li>
+                    <li><a href="transformacoes-silver.html">🥈 Transformações Silver</a></li>
+                    <li><a href="delta-lake-implementation.html">🥇 Delta Lake & Gold</a></li>
+                    <li><a href="git-dbt-analytics.html" class="active">📊 Git & dbt Analytics</a></li>
+                    <li><a href="MyDataFloConfigurandoAPI.html">🛠️ Configurando API (Exemplo)</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="content">
+            <h1>Guia de Uso: Git & dbt Analytics</h1>
+            <p style="margin-bottom: 30px; font-size: 1.1rem; color: var(--text-secondary);">Aprenda a versionar seus modelos e processar a camada Gold com isolamento completo usando o Monaco Editor</p>
+
+            <!-- CARD 1: INTRODUÇÃO -->
+            <div class="card">
+                <h2><i class="bi bi-info-circle"></i> Visão Geral</h2>
+                <p>O <strong>MyDataFlow</strong> integra um editor Monaco unificado com controle de versionamento Git e execução do <strong>dbt Core</strong>. Com essa stack, os dados brutos salvos no PostgreSQL analítico são limpos, agregados e refinados, transformando-se em cubos e dimensões prontos para visualização no Metabase.</p>
+                <div class="alert-box">
+                    <h4 style="color: var(--text-primary); margin-bottom: 4px;">Isolamento de Segurança (Multi-Tenancy)</h4>
+                    Cada aluno/inquilino trabalha em schemas exclusivos no PostgreSQL, garantindo que o seu desenvolvimento não afete os dados de outros usuários.
+                </div>
+            </div>
+
+            <!-- CARD 2: CONECTAR REPOSITÓRIO -->
+            <div class="card">
+                <h2><i class="bi bi-github"></i> 1. Conectando seu Repositório GitHub</h2>
+                <p>Antes de editar ou salvar seus códigos SQL e configurações dbt, você precisa conectar o seu repositório pessoal na barra lateral do Git:</p>
+                
+                <ul class="step-list">
+                    <li class="step-item">
+                        <span class="step-number">1</span>
+                        <div class="step-content">
+                            <h3>Gerar Token no GitHub</h3>
+                            <p>No seu perfil do GitHub, vá em <em>Settings → Developer settings → Personal access tokens → Tokens (classic)</em>. Clique em <strong>Generate new token</strong>, marque o escopo <strong>repo</strong> e salve o token gerado.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <span class="step-number">2</span>
+                        <div class="step-content">
+                            <h3>Vincular no Painel</h3>
+                            <p>Abra o menu <strong>Serviços → SQL Editor + Customizações Python</strong>, ative a aba <strong>🔗 Git</strong> na barra lateral esquerda e insira:</p>
+                            <ul style="color: var(--text-secondary); margin-bottom: 8px;">
+                                <li><strong>GitHub Username</strong>: Seu nome de usuário do GitHub.</li>
+                                <li><strong>Personal Access Token</strong>: O token clássico gerado no passo anterior.</li>
+                                <li><strong>Repo URL</strong>: O nome do seu repositório público ou privado no formato <code>usuario/nome-do-repositorio</code>.</li>
+                            </ul>
+                            <p>Clique em <strong>Conectar</strong>. O sistema irá clonar a estrutura no servidor e listar seus arquivos.</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- CARD 3: CRIAR E EDITAR MODELOS NO MONACO -->
+            <div class="card">
+                <h2 class="dbt-title"><i class="bi bi-database-gear"></i> 2. Guia de Uso do dbt no Monaco Editor</h2>
+                <p>O dbt lê dados brutos do schema público (sincronizados pelo Airflow) e materializa tabelas analíticas organizadas. Siga o passo a passo detalhado abaixo para utilizar a interface do Monaco Editor:</p>
+                
+                <ul class="step-list dbt-step">
+                    <li class="step-item">
+                        <span class="step-number">1</span>
+                        <div class="step-content">
+                            <h3>Selecionar a Aba dbt Analytics</h3>
+                            <p>No painel do editor de código, clique no botão <strong>📊 dbt Analytics</strong> no menu superior de abas. A interface será configurada para carregar o editor Monaco com suporte à sintaxe SQL/YAML e a barra lateral do Git filtrará automaticamente para exibir apenas arquivos <code>.sql</code> e <code>.yml</code> do seu repositório.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <span class="step-number">2</span>
+                        <div class="step-content">
+                            <h3>Navegar e Abrir Arquivos</h3>
+                            <p>Caso a barra lateral esquerda esteja fechada, clique no botão <strong>📁 GitHub</strong> na barra de ferramentas do painel. Navegue pela estrutura de pastas (como <code>models/</code>) e dê um clique no arquivo que deseja editar para carregá-lo no Monaco Editor.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <span class="step-number">3</span>
+                        <div class="step-content">
+                            <h3>Criar uma Nova Pasta ou Arquivo</h3>
+                            <p>Você pode estruturar seu projeto criando novos diretórios ou arquivos diretamente na barra lateral do Git:</p>
+                            <ul style="color: var(--text-secondary); margin-bottom: 8px;">
+                                <li><strong>Para criar uma pasta:</strong> Digite o nome da pasta no campo <em>📁 Criar Pasta</em> e clique no botão. Ela será criada abaixo do diretório selecionado ou na raiz se nada estiver selecionado.</li>
+                                <li><strong>Para criar um arquivo SQL:</strong> Selecione a pasta de destino na árvore, digite o nome do arquivo (ex: <code>dim_usuarios.sql</code>) no campo <em>➕ Criar Novo Arquivo</em> e clique em <em>Criar do Editor</em>.</li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <span class="step-number">4</span>
+                        <div class="step-content">
+                            <h3>Escrever e Formatar seu Código SQL</h3>
+                            <p>Edite o arquivo SQL no Monaco Editor central utilizando sintaxe SQL e Jinja. O editor oferece destaque de sintaxe, numeração de linhas e autocomplete. Exemplo de modelo:</p>
+                            <pre><code>select 
+    id_usuario, 
+    nome, 
+    email,
+    perfil
+from {{ source('public', 'usuario') }}</code></pre>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <span class="step-number">5</span>
+                        <div class="step-content">
+                            <h3>Salvar seu Progresso no MinIO</h3>
+                            <p>Após realizar alterações no editor, localize a seção <strong>📝 Arquivo Atual</strong> na barra lateral do Git e clique no botão <strong>💾 Salvar</strong>. O sistema irá enviar o código alterado para o armazenamento seguro do MinIO e exibirá uma confirmação verde de sucesso.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <span class="step-number">6</span>
+                        <div class="step-content">
+                            <h3>Executar Comandos dbt e Acompanhar Logs</h3>
+                            <p>Use os botões de controle na barra de ferramentas superior para interagir com o container do dbt:</p>
+                            <ul style="color: var(--text-secondary); margin-bottom: 8px;">
+                                <li>Clique em <strong>▶️ dbt Run (Dev)</strong> para compilar e materializar o modelo no seu schema de testes.</li>
+                                <li>Os logs detalhados do processamento serão exibidos em tempo real no painel <strong>💻 Terminal dbt Console</strong> no canto superior direito.</li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <span class="step-number">7</span>
+                        <div class="step-content">
+                            <h3>Gerar e Visualizar a Linhagem</h3>
+                            <p>Clique em <strong>📖 dbt Docs (Dev)</strong> na barra superior. Isso dispara a compilação do catálogo de metadados. Assim que concluído, o gráfico interativo de linhagem (Lineage Graph) será renderizado automaticamente no iframe inferior direito, permitindo visualizar o fluxo dos dados visualmente.</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- CARD 4: EXECUTAR E GERAR LINHAGEM -->
+            <div class="card">
+                <h2 class="dbt-title"><i class="bi bi-terminal"></i> 3. Testando e Gerando a Linhagem</h2>
+                <p>O console integrado permite rodar os comandos do dbt em contêineres Docker isolados a partir da interface:</p>
+                
+                <ul class="step-list dbt-step">
+                    <li class="step-item">
+                        <span class="step-number">1</span>
+                        <div class="step-content">
+                            <h3>Executar em Homologação <span class="badge badge-dev">Dev</span></h3>
+                            <p>Clique em <strong>▶️ dbt Run (Dev)</strong>. O dbt compilará seus arquivos e executará a transformação, criando as tabelas e views no seu schema de testes exclusivo: <code>user_{seu_id}_homolog_analytics</code>.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <span class="step-number">2</span>
+                        <div class="step-content">
+                            <h3>Testar Consistência</h3>
+                            <p>Clique em <strong>🧪 dbt Test (Dev)</strong>. O dbt executará testes de chaves primárias, integridade referencial e valores nulos declarados no seu arquivo <code>schema.yml</code>.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <span class="step-number">3</span>
+                        <div class="step-content">
+                            <h3>Visualizar Linhagem (Lineage Graph)</h3>
+                            <p>Clique em <strong>📖 dbt Docs (Dev)</strong>. O servidor compilará a documentação de linhagem de dados. Assim que finalizado, o **gráfico interativo** será carregado no iframe inferior do painel, permitindo analisar como as tabelas se conectam.</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- CARD 5: PRODUÇÃO -->
+            <div class="card">
+                <h2 class="dbt-title"><i class="bi bi-rocket-takeoff"></i> 4. Implantando em Produção</h2>
+                <p>Quando seus modelos estiverem validados no ambiente de desenvolvimento, implante-os em produção:</p>
+                
+                <ul class="step-list dbt-step">
+                    <li class="step-item">
+                        <span class="step-number">1</span>
+                        <div class="step-content">
+                            <h3>Deploy no Schema de Produção <span class="badge badge-prod">Prod</span></h3>
+                            <p>Clique no botão <strong>▶️ dbt Run (Prod)</strong>. Os modelos finais serão consolidados no schema de produção: <code>user_{seu_id}_analytics</code>. O painel do Metabase consome os dados diretamente deste schema.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <span class="step-number">2</span>
+                        <div class="step-content">
+                            <h3>Sincronizar no GitHub</h3>
+                            <p>Na aba do Git, digite uma mensagem de commit (ex: <code>"feat: adiciona modelo analítico de vendas"</code>) e clique em <strong>🚀 Commit & Push</strong>. Suas modificações serão enviadas para o seu repositório remoto no GitHub.</p>
+                        </div>
+                    </li>
+                </ul>
+                
+                <div class="alert-box dbt-alert">
+                    <h4 style="color: var(--text-primary); margin-bottom: 4px;">💡 Dica para Relatórios</h4>
+                    No Metabase, configure sua fonte de dados apontando as queries para as tabelas dentro do seu schema de produção (<code>user_{seu_id}_analytics</code>) para montar gráficos dinâmicos de faturamento, vendas e acessos.
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

@@ -102,9 +102,13 @@ class DbtController extends BaseController
             $downloaded = $this->downloadRepoFromMinio($userBucket, $owner, $repo, $tempDir);
         }
 
+        // Encontrar onde dbt_project.yml está no repositório baixado
+        $projectDir = $this->findDbtProjectDir($tempDir);
+
         // Fallback para os templates se não foi conectado/baixado ou dbt_project.yml não existe
-        if (!$downloaded || !file_exists($tempDir . '/dbt_project.yml')) {
+        if (!$downloaded || $projectDir === null) {
             $this->_copyDir('/datalake-root/dbt/analytics', $tempDir);
+            $projectDir = $tempDir;
         }
 
         // 3. Garantir pre-criação dos schemas no PostgreSQL
@@ -150,7 +154,7 @@ analytics:
       keepalives_idle: 0
 YAML;
 
-        file_put_contents($tempDir . '/profiles.yml', $profilesContent);
+        file_put_contents($projectDir . '/profiles.yml', $profilesContent);
 
         // 5. Montar comando dbt
         $dbtCmd = '';
@@ -162,8 +166,15 @@ YAML;
             $dbtCmd = "docs generate --profiles-dir . --target " . $env;
         }
 
+        // Determinar o diretório de trabalho correto no container com base no caminho relativo
+        $relativePath = ltrim(str_replace($tempDir, '', $projectDir), '\\/');
+        $workDir = '/usr/app';
+        if (!empty($relativePath)) {
+            $workDir = '/usr/app/' . str_replace('\\', '/', $relativePath);
+        }
+
         // Comando Docker com limite de recurso
-        $dockerCmd = "docker run --rm --network=" . escapeshellarg($network) . " --memory=\"512m\" -v " . escapeshellarg($hostTempDir) . ":/usr/app -w /usr/app ghcr.io/dbt-labs/dbt-postgres:1.5.0 " . $dbtCmd . " 2>&1";
+        $dockerCmd = "docker run --rm --network=" . escapeshellarg($network) . " --memory=\"512m\" -v " . escapeshellarg($hostTempDir) . ":/usr/app -w " . escapeshellarg($workDir) . " ghcr.io/dbt-labs/dbt-postgres:1.5.0 " . $dbtCmd . " 2>&1";
 
         log_message('info', 'DbtController: Executando comando: ' . $dockerCmd);
         
@@ -202,7 +213,12 @@ YAML;
         }
 
         $userId = SessionHelper::getUserId();
-        $path = '/datalake-root/writable/dbt-tmp/user_' . $userId . '/target/' . $file;
+        $tempDir = '/datalake-root/writable/dbt-tmp/user_' . $userId;
+        $projectDir = $this->findDbtProjectDir($tempDir);
+        if ($projectDir === null) {
+            $projectDir = $tempDir;
+        }
+        $path = $projectDir . '/target/' . $file;
 
         if (!file_exists($path)) {
             return $this->response->setStatusCode(404)->setBody('A documentação do dbt ainda não foi gerada para este usuário. Por favor, execute "dbt Docs" primeiro.');
@@ -325,5 +341,35 @@ YAML;
         }
 
         return @rmdir($directory);
+    }
+
+    /**
+     * Encontra recursivamente a pasta contendo dbt_project.yml
+     */
+    private function findDbtProjectDir($dir)
+    {
+        if (file_exists($dir . '/dbt_project.yml')) {
+            return $dir;
+        }
+
+        $items = @scandir($dir);
+        if ($items === false) {
+            return null;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..' || $item === '.git') {
+                continue;
+            }
+            $path = $dir . '/' . $item;
+            if (is_dir($path)) {
+                $found = $this->findDbtProjectDir($path);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+
+        return null;
     }
 }

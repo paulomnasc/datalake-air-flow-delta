@@ -289,24 +289,42 @@
             </ul>
         </div>
 
-        <!-- CARD 3: CRIAR E EDITAR MODELOS -->
+        <!-- CARD 3: CRIAR E EDITAR MODELOS NO MONACO -->
         <div class="card">
-            <h2 class="dbt-title"><i class="bi bi-database-gear"></i> 2. Criando e Editando Modelos dbt</h2>
-            <p>O dbt lê dados brutos do schema público (sincronizados pelo Airflow) e materializa tabelas analíticas organizadas.</p>
+            <h2 class="dbt-title"><i class="bi bi-database-gear"></i> 2. Guia de Uso do dbt no Monaco Editor</h2>
+            <p>O dbt lê dados brutos do schema público (sincronizados pelo Airflow) e materializa tabelas analíticas organizadas. Siga o passo a passo detalhado abaixo para utilizar a interface do Monaco Editor:</p>
             
             <ul class="step-list dbt-step">
                 <li class="step-item">
                     <span class="step-number">1</span>
                     <div class="step-content">
-                        <h3>Acessar a aba dbt</h3>
-                        <p>Clique no botão <strong>📊 dbt Analytics</strong> no topo do editor Monaco. A barra lateral do Git será atualizada automaticamente exibindo apenas arquivos com extensão <code>.sql</code> e <code>.yml</code> da pasta do dbt.</p>
+                        <h3>Selecionar a Aba dbt Analytics</h3>
+                        <p>No painel do editor de código, clique no botão <strong>📊 dbt Analytics</strong> no menu superior de abas. A interface será configurada para carregar o editor Monaco com suporte à sintaxe SQL/YAML e a barra lateral do Git filtrará automaticamente para exibir apenas arquivos <code>.sql</code> e <code>.yml</code> do seu repositório.</p>
                     </div>
                 </li>
                 <li class="step-item">
                     <span class="step-number">2</span>
                     <div class="step-content">
-                        <h3>Criar uma Nova View/Tabela (Model)</h3>
-                        <p>Use a barra lateral para criar arquivos na pasta correspondente (ex: <code>models/dim_usuarios.sql</code> ou <code>models/fato_vendas.sql</code>). Escreva sua lógica SQL utilizando a sintaxe Jinja para referenciar as fontes brutas, por exemplo:</p>
+                        <h3>Navegar e Abrir Arquivos</h3>
+                        <p>Caso a barra lateral esquerda esteja fechada, clique no botão <strong>📁 GitHub</strong> na barra de ferramentas do painel. Navegue pela estrutura de pastas (como <code>models/</code>) e dê um clique no arquivo que deseja editar para carregá-lo no Monaco Editor.</p>
+                    </div>
+                </li>
+                <li class="step-item">
+                    <span class="step-number">3</span>
+                    <div class="step-content">
+                        <h3>Criar uma Nova Pasta ou Arquivo</h3>
+                        <p>Você pode estruturar seu projeto criando novos diretórios ou arquivos diretamente na barra lateral do Git:</p>
+                        <ul>
+                            <li><strong>Para criar uma pasta:</strong> Digite o nome da pasta no campo <em>📁 Criar Pasta</em> e clique no botão. Ela será criada abaixo do diretório selecionado ou na raiz se nada estiver selecionado.</li>
+                            <li><strong>Para criar um arquivo SQL:</strong> Selecione a pasta de destino na árvore, digite o nome do arquivo (ex: <code>dim_usuarios.sql</code>) no campo <em>➕ Criar Novo Arquivo</em> e clique em <em>Criar do Editor</em>.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="step-item">
+                    <span class="step-number">4</span>
+                    <div class="step-content">
+                        <h3>Escrever e Formatar seu Código SQL</h3>
+                        <p>Edite o arquivo SQL no Monaco Editor central utilizando sintaxe SQL e Jinja. O editor oferece destaque de sintaxe, numeração de linhas e autocomplete. Exemplo de modelo:</p>
                         <pre><code>select 
     id_usuario, 
     nome, 
@@ -316,10 +334,28 @@ from {{ source('public', 'usuario') }}</code></pre>
                     </div>
                 </li>
                 <li class="step-item">
-                    <span class="step-number">3</span>
+                    <span class="step-number">5</span>
                     <div class="step-content">
-                        <h3>Salvar alterações</h3>
-                        <p>Com o arquivo aberto no editor, clique no botão <strong>Salvar</strong> na barra do Git. O arquivo será atualizado de forma persistente no seu bucket.</p>
+                        <h3>Salvar seu Progresso no MinIO</h3>
+                        <p>Após realizar alterações no editor, localize a seção <strong>📝 Arquivo Atual</strong> na barra lateral do Git e clique no botão <strong>💾 Salvar</strong>. O sistema irá enviar o código alterado para o armazenamento seguro do MinIO e exibirá uma confirmação verde de sucesso.</p>
+                    </div>
+                </li>
+                <li class="step-item">
+                    <span class="step-number">6</span>
+                    <div class="step-content">
+                        <h3>Executar Comandos dbt e Acompanhar Logs</h3>
+                        <p>Use os botões de controle na barra de ferramentas superior para interagir com o container do dbt:</p>
+                        <ul>
+                            <li>Clique em <strong>▶️ dbt Run (Dev)</strong> para compilar e materializar o modelo no seu schema de testes.</li>
+                            <li>Os logs detalhados do processamento serão exibidos em tempo real no painel <strong>💻 Terminal dbt Console</strong> no canto superior direito.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="step-item">
+                    <span class="step-number">7</span>
+                    <div class="step-content">
+                        <h3>Gerar e Visualizar a Linhagem</h3>
+                        <p>Clique em <strong>📖 dbt Docs (Dev)</strong> na barra superior. Isso dispara a compilação do catálogo de metadados. Assim que concluído, o gráfico interativo de linhagem (Lineage Graph) será renderizado automaticamente no iframe inferior direito, permitindo visualizar o fluxo dos dados visualmente.</p>
                     </div>
                 </li>
             </ul>

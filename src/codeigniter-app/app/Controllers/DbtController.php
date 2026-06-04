@@ -68,12 +68,19 @@ class DbtController extends BaseController
         $userId = SessionHelper::getUserId();
         $userBucket = SessionHelper::getUserBucket();
 
-        // 1. Obter caminho do host de forma dinâmica (Docker-in-Docker)
+        // 1. Obter caminho do host de forma dinâmica e detectar a rede (Docker-in-Docker)
         $containerId = trim(@file_get_contents('/etc/hostname'));
         $hostPath = '';
+        $network = 'airflow_net'; // default fallback
         if (!empty($containerId)) {
             $cmd = "docker inspect " . escapeshellarg($containerId) . " --format " . escapeshellarg('{{ range .Mounts }}{{ if eq .Destination "/datalake-root" }}{{ .Source }}{{ end }}{{ end }}');
             $hostPath = trim(@shell_exec($cmd));
+            
+            $netCmd = "docker inspect " . escapeshellarg($containerId) . " --format " . escapeshellarg('{{ range $net, $val := .NetworkSettings.Networks }}{{ $net }}{{ end }}');
+            $detectedNetwork = trim(@shell_exec($netCmd));
+            if (!empty($detectedNetwork)) {
+                $network = $detectedNetwork;
+            }
         }
         if (empty($hostPath)) {
             $hostPath = realpath(APPPATH . '../../');
@@ -156,7 +163,7 @@ YAML;
         }
 
         // Comando Docker com limite de recurso
-        $dockerCmd = "docker run --rm --network=airflow_net --memory=\"512m\" -v " . escapeshellarg($hostTempDir) . ":/usr/app -w /usr/app ghcr.io/dbt-labs/dbt-postgres:1.5.0 " . $dbtCmd . " 2>&1";
+        $dockerCmd = "docker run --rm --network=" . escapeshellarg($network) . " --memory=\"512m\" -v " . escapeshellarg($hostTempDir) . ":/usr/app -w /usr/app ghcr.io/dbt-labs/dbt-postgres:1.5.0 " . $dbtCmd . " 2>&1";
 
         log_message('info', 'DbtController: Executando comando: ' . $dockerCmd);
         

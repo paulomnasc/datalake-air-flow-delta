@@ -111,7 +111,7 @@ class DbtController extends BaseController
             $projectDir = $tempDir;
         } elseif ($projectDir === null) {
             // Se foi baixado, mas não tem dbt_project.yml, copiamos apenas a estrutura básica de suporte
-            // (dbt_project.yml, macros e metadados se não existirem) SEM copiar os modelos SQL de template.
+            // (dbt_project.yml e macros) SEM copiar os modelos SQL ou arquivos de configuração do template.
             $projectDir = $tempDir;
             
             if (!file_exists($projectDir . '/dbt_project.yml')) {
@@ -121,18 +121,6 @@ class DbtController extends BaseController
             if (!is_dir($projectDir . '/macros')) {
                 @mkdir($projectDir . '/macros', 0777, true);
                 $this->_copyDir('/datalake-root/dbt/analytics/macros', $projectDir . '/macros');
-            }
-            
-            if (!is_dir($projectDir . '/models')) {
-                @mkdir($projectDir . '/models', 0777, true);
-            }
-            
-            if (!file_exists($projectDir . '/models/sources.yml')) {
-                copy('/datalake-root/dbt/analytics/models/sources.yml', $projectDir . '/models/sources.yml');
-            }
-            
-            if (!file_exists($projectDir . '/models/schema.yml')) {
-                copy('/datalake-root/dbt/analytics/models/schema.yml', $projectDir . '/models/schema.yml');
             }
         }
 

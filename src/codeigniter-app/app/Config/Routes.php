@@ -141,6 +141,9 @@ $routes->post('/code-editor/tables', 'CodeEditorController::listTables', ['as'=>
 $routes->post('/code-editor/schema', 'CodeEditorController::getSchema', ['as'=>'code-editor.schema']);
 $routes->post('/code-editor/files', 'CodeEditorController::listParquetFiles', ['as'=>'code-editor.files']);
 $routes->post('/code-editor/delete-files', 'CodeEditorController::deleteFiles', ['as'=>'code-editor.delete-files']);
+$routes->post('/code-editor/dbt-execute', 'DbtController::execute', ['as'=>'code-editor.dbt-execute']);
+$routes->get('/code-editor/dbt-docs-serve', 'DbtController::serveDocs', ['as'=>'code-editor.dbt-docs-serve-index']);
+$routes->get('/code-editor/dbt-docs-serve/(:any)', 'DbtController::serveDocs/$1', ['as'=>'code-editor.dbt-docs-serve']);
 $routes->get('/test-git-sidebar', 'CodeEditorController::testGitSidebar', ['as'=>'test-git-sidebar']);
 
 // Validation Rules API endpoints

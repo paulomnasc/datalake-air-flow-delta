@@ -1,4 +1,3 @@
-```python
 import os
 from weasyprint import HTML
 
@@ -8,7 +7,7 @@ html_content = """
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Plano de Implantação de Arquitetura de Dados</title>
+    <title>Plano de Implantação de Arquitetura de Dados - MyDataFlow</title>
     <style>
         @page {
             size: A4;
@@ -21,7 +20,7 @@ html_content = """
                 color: #8892b0;
             }
             @bottom-left {
-                content: "MyDataFlow & EstudoTabela — Privado e Confidencial";
+                content: "MyDataFlow — Privado e Confidencial";
                 font-family: 'Helvetica Neue', Arial, sans-serif;
                 font-size: 9pt;
                 color: #8892b0;
@@ -184,189 +183,104 @@ html_content = """
 
     <div class="doc-header">
         <h1>Documento de Visão e Plano de Implantação</h1>
-        <p>Desenvolvimento e Engenharia de Dados — Pivot Educacional & Analytics</p>
-        <div class="doc-metadata">Stack: dbt Core + PostgreSQL + Metabase</div>
+        <p>Desenvolvimento e Engenharia de Dados — Pivot dbt Core + Metabase</p>
+        <div class="doc-metadata">Stack: Dag Factory (S3) + sync DAG + dbt Core (Postgres-BI) + Metabase</div>
     </div>
 
     <h2>1. Visão Geral da Mudança Estratégica</h2>
     <p>
-        Este documento orienta o desenvolvedor responsável na reestruturação técnica da plataforma de estudos. Visando mitigar barreiras de desconfiança observadas no modelo de pagamento via PIX direto, migramos a gestão de assinaturas, checkout e o ecossistema de afiliados integralmente para a <strong>Hotmart</strong>. 
+        Este documento orienta a reestruturação da camada de negócios analítica do <strong>MyDataFlow</strong>. O nosso pipeline principal de processamento do Data Lakehouse (ingestão e transformações pesadas da Bronze à Gold) já está homologado e roda de forma altamente escalável via código no S3/MinIO utilizando a classe <code>medallion_pipeline_v2.py</code> orquestrada pela Dag Factory.
     </p>
     <p>
-        Em paralelo, a stack interna abandona ferramentas visuais legadas de modelagem em favor do ecossistema moderno de dados (Modern Data Stack). Centralizaremos nossa inteligência de negócios estruturando um <strong>Data Lakehouse</strong> gerenciado por código, garantindo governança, histórico via Git e relatórios eficientes de alta performance.
+        Esta evolutiva acopla o ecossistema moderno de dados (Modern Data Stack) focado estritamente em <strong>Governança, Linhagem (Lineage Graph), Testes de Qualidade de Dados e Modelagem de Cubos DW</strong>. Centralizaremos as definições dimensionais no PostgreSQL analítico (banco <code>datalake_bi</code>), consumido de forma rápida e segura pelo visualizador <strong>Metabase</strong>.
     </p>
 
     <h2>2. Alinhamento Arquitetural (Explicação Técnica Analítica)</h2>
     <p>
-        Para alinhar o entendimento do time de desenvolvimento, reproduzimos o detalhamento de como a stack opera de ponta a ponta e o papel exato de cada componente, desfazendo mitos sobre a substituição de motores de bancos relacionais por frameworks analíticos:
+        Para alinhar o entendimento do time de desenvolvimento, reproduzimos o detalhamento de como a stack opera de ponta a ponta e o papel de cada componente, definindo claramente a separação de responsabilidades e evitando retrabalho do pipeline existente:
     </p>
 
     <div class="architecture-box">
-        <h3>Como funciona a Engenharia e Modelagem Dimensional Desejada</h3>
-        <p><strong>O dbt substitui o PostgreSQL?</strong></p>
+        <h3>Como funciona a Engenharia e Modelagem Dimensional Lógica</h3>
+        <p><strong>O dbt substitui a classe medallion_pipeline_v2.py?</strong></p>
         <p>
-            Não, o dbt <em>(Data Build Tool)</em> <strong>não</strong> vai substituir o seu PostgreSQL. Na verdade, eles trabalham juntos, como parceiros inseparáveis. A divisão clara de papéis na nossa stack é definida como:
+            Não. O processamento pesado de arquivos colunares Parquet no S3 continua sob responsabilidade exclusiva da Dag Factory e do <code>medallion_pipeline_v2.py</code>. O papel do dbt na nossa arquitetura é puramente <strong>lógico e declarativo</strong>. Ele entra na ponta final sobre o banco analítico Postgres para mapear a linhagem e formatar as views para o BI.
         </p>
         <ul>
-            <li><strong>PostgreSQL (O Motor / O Músculo):</strong> Continua sendo o seu banco de dados físico, onde os dados de fato ficam armazenados no disco rígido. É ele quem cede o poder de processamento, a memória e guarda as tabelas físicas.</li>
-            <li><strong>dbt (O Maestro / O Cérebro):</strong> Ele não guarda dados. Ele é o framework que você usa para <strong>comandar</strong> o PostgreSQL. Em vez de você entrar no banco e criar tabelas ou views na mão usando SQL bruto, você escreve a lógica no dbt, e ele vai até o PostgreSQL e cria a estrutura dimensional (os cubos/tabelas estruturadas) de forma organizada, testada e documentada.</li>
-            <li><strong>Metabase (Os Olhos / O Frontend):</strong> É a sua camada de visualização. Ele se conecta no seu PostgreSQL (especificamente nas tabelas de Fato e Dimensão que o dbt organizou por lá) e exibe os gráficos e dashboards bonitos para o usuário final de maneira ágil.</li>
+            <li><strong>Dag Factory & medallion_pipeline_v2.py (O Storage / Motor do Lakehouse):</strong> Processa os arquivos RAW e grava Parquets no S3/MinIO.</li>
+            <li><strong>DAG de Sincronização (sync_delta_to_postgres.py) (O Transportador):</strong> Copia as tabelas Gold estruturadas do S3/MinIO para o schema <code>public</code> do PostgreSQL analítico.</li>
+            <li><strong>dbt Core (O Maestro / A Camada de Governança):</strong> Lê as tabelas Gold sincronizadas no schema <code>public</code> do Postgres, roda os testes de integridade, gera a linhagem visual (Lineage Graph) e materializa as dimensões e fatos finais no schema <code>analytics</code>.</li>
+            <li><strong>Metabase (Os Olhos / O Frontend):</strong> Conecta no PostgreSQL, mapeando estritamente as tabelas geradas no schema <code>analytics</code> do dbt para alimentar gráficos e dashboards de forma ultra-rápida.</li>
         </ul>
 
         <h3>O Fluxo de Processamento de Dados na Prática (Pipeline ELT)</h3>
         <pre>
-[Dados Brutos / Origem] (Logs de Atividade, APIs Hotmart)
-          │
-          ▼
-[PostgreSQL (Camada RAW / Bronze)]  ───► O dbt entra aqui, lê o RAW, processa e cria...
-          │
-          ▼
-[PostgreSQL (Camada Dimensional)]   ◄─── ... tabelas Fato e Dimensão bem estruturadas (Gold).
-          │
-          ▼
-[Metabase (Frontend Analítico)]     ◄─── Lê as tabelas limpas e entrega os cubos visuais.
+[Dag Factory / medallion_pipeline_v2.py] ──► Grava Parquets no S3/MinIO (Bronze → Silver → Gold)
+                                                    │
+                                                    ▼
+[DAG sync_delta_to_postgres.py]          ──► Copia Gold do S3 para o PostgreSQL (Schema public)
+                                                    │
+                                                    ▼
+[dbt Core (dbt-postgres)]                 ──► Lê do public, valida e modela no Schema analytics
+                                                    │
+                                                    ▼
+[Metabase v0.50.4 (Frontend)]             ──► Consome o Schema analytics para dashboards
         </pre>
     </div>
 
     <h2>3. Plano de Implantação Passo a Passo</h2>
     <p>O desenvolvedor deverá executar o provisionamento e configuração seguindo estritamente as etapas abaixo:</p>
 
-
-    <h3><span class="step-badge">Fase 1</span>Inicialização e Estruturação do Projeto dbt Core</h3>
-    <p>O dbt operará via CLI, orquestrado nativamente. Instalar o adaptador do Postgres e iniciar a estrutura de diretórios padrão de engenharia de software:</p>
+    <h3><span class="step-badge">Fase 1</span>Inicialização, Dependências e Sandbox Lógico</h3>
+    <p>O dbt operará via CLI local no host, isolado em um ambiente virtual Python para não poluir o sistema:</p>
     <ol>
-        <li>Instalar dependências no ambiente virtual Python: <code>pip install dbt-core dbt-postgres</code></li>
-        <li>Executar <code>dbt init meu_projeto_dbt</code> para criar a árvore de diretórios.</li>
-        <li>Configurar o arquivo <code>profiles.yml</code> apontando as credenciais de desenvolvimento e produção para o container Postgres que já está instanciado na stack sgbd identificado como datalake_bi.</li>
+        <li>Adicionar dependências no <code>requirements.txt</code>: <code>dbt-core>=1.5.0</code> e <code>dbt-postgres>=1.5.0</code>.</li>
+        <li>Instalar dependências no ambiente virtual Python executando o script automatizado: <code>./install_dbt.sh</code>.</li>
+        <li>
+            Configurar o arquivo <code>profiles.yml</code> contendo isolamento lógico de segurança:
+            <ul>
+                <li><strong>Target dev:</strong> Aponta para o schema <code>homolog_analytics</code> no Postgres (parquinho de testes).</li>
+                <li><strong>Target prod:</strong> Aponta para o schema <code>analytics</code> no Postgres (produção/Metabase oficial).</li>
+            </ul>
+        </li>
+        <li>
+            Implementar a macro <code>macros/generate_schema_name.sql</code> para garantir que o dbt execute o roteamento direto e limpo de cada ambiente de execução sem concatenar nomes de forma indesejada.
+        </li>
     </ol>
 
-    <h3><span class="step-badge">Fase 2</span>Padronização da Modelagem de Dados no dbt</h3>
-    <p>O desenvolvedor não deve criar tabelas diretamente via DDL. Toda a criação de tabelas fato (ex: <code>fato_acessos</code>, <code>fato_vendas</code>) e tabelas dimensão (ex: <code>dim_usuarios</code>, <code>dim_cursos</code>) deve ser escrita como consultas <code>SELECT</code> dentro da pasta <code>models/</code> do dbt.</p>
-    <p>Exemplo de configuração de uma Dimensão protegendo a integridade no arquivo <code>schema.yml</code>:</p>
-    <pre>
-version: 2
-
-models:
-  - name: dim_usuarios
-    description: "Tabela dimensional de alunos da plataforma mapeados por perfis"
-    columns:
-      - name: id
-        description: "Chave primária do usuário"
-        tests:
-          - unique
-          - not_null
-      - name: perfil_comportamental
-        description: "Status do perfil (Power User, Interessados, Oportunista)"
-    </pre>
+    <h3><span class="step-badge">Fase 2</span>Modelagem Lógica Declarativa e Testes</h3>
+    <p>Toda a modelagem dimensional deve ser declarada como arquivos SQL na pasta <code>models/</code> do dbt:</p>
+    <ul>
+        <li><code>dim_usuarios.sql</code>: Mapeamento lógico de clientes com perfil comportamental a partir da tabela <code>customers</code>.</li>
+        <li><code>dim_cursos.sql</code>: Mapeamento de produtos e cursos a partir da tabela <code>products</code>.</li>
+        <li><code>fato_vendas.sql</code>: Consolidado de transações derivado de <code>orders</code>.</li>
+        <li><code>fato_acessos.sql</code>: Consolidado de acessos diários derivado de <code>activity_logs</code>.</li>
+        <li>
+            Configurar validações básicas e integridade analítica no arquivo <code>schema.yml</code> (ex: chaves primárias <code>unique</code> e <code>not_null</code>).
+        </li>
+    </ul>
 
     <div class="callout">
-        <div class="callout-title">Nota de Engenharia — Rodando o Pipeline</div>
-        <p>Para aplicar as alterações e construir as tabelas estruturadas e cubos no Postgres, execute no terminal: <code>dbt run</code>. Para validar as regras de integridade e unicidade dos dados, execute: <code>dbt test</code>.</p>
+        <div class="callout-title">Nota de Engenharia — Rodando o Pipeline dbt</div>
+        <p>Para testar localmente no schema de homologação, execute: <code>dbt run --profiles-dir . --target dev</code>. Para validar as regras de integridade nos dados de teste: <code>dbt test --profiles-dir . --target dev</code>. Em produção oficial, utilize a flag <code>--target prod</code>.</p>
     </div>
 
-    <h3><span class="step-badge">Fase 3</span>Implantação e Acoplamento do Metabase (Camada Visual)</h3>
-    <p>Subir o Metabase conectado à mesma rede Docker do PostgreSQL analítico. Evitar apontá-lo para tabelas brutas. O Metabase lerá unicamente o schema gerenciado pelo dbt.</p>
-    <pre>
-# Comando rápido para levantar a camada analítica frontend
-docker run -d -p 3000:3000 \
-  --net=host \
-  --name metabase_frontend \
-  metabase/metabase:latest
-    </pre>
-    <p><strong>Configuração no painel administrativo do Metabase:</strong></p>
+    <h3><span class="step-badge">Fase 3</span>Implantação e Configuração do Metabase</h3>
+    <p>O Metabase é implantado via Docker Compose sob a imagem oficial fixada <code>metabase/metabase:v0.50.4</code> na mesma rede interna <code>airflow_net</code> do banco analítico.</p>
+    <p><strong>Configuração de Portas nos Ambientes (.env):</strong></p>
     <ul>
-        <li>Adicionar banco de dados do tipo <strong>PostgreSQL</strong>.</li>
-        <li>No menu <em>Data Model</em> (Camada Semântica), documentar as chaves estrangeiras virtuais que unem os acessos dos logs à dimensão de usuários e categorizar granularidades temporais de acessos.</li>
+        <li><strong>Dev/Local:</strong> Declarar <code>METABASE_PORT=3000</code>.</li>
+        <li><strong>Produção:</strong> Declarar <code>METABASE_PORT=28300</code> (porta alta para evitar qualquer conflito no host de produção da AWS).</li>
     </ul>
+    <p>O docker-compose utilizará o mapeamento dinâmico <code>"${METABASE_PORT:-3000}:3000"</code>, garantindo segurança total e isolamento.</p>
 
     <h2>4. Governança, Linhagem e Próximas Implementações</h2>
     <p>
-        Com a conclusão deste plano, o desenvolvedor poderá rodar o comando <code>dbt docs generate</code> seguido de <code>dbt docs serve</code>. Isso renderizará uma documentação web completa com o gráfico de linhagem (Lineage Graph), permitindo visualizar visualmente o fluxo do dado desde sua ingestão bruta até o consumo final pelo painel do Metabase. 
+        Com o dbt configurado, execute o comando <code>dbt docs generate --profiles-dir .</code> seguido de <code>dbt docs serve --profiles-dir . --port 8001</code>. Isso renderizará a documentação web interativa contendo o gráfico de linhagem (Lineage Graph) que ilustra de forma transparente o caminho das tabelas desde a sua cópia inicial do lakehouse até a entrega visual no Metabase.
     </p>
     <p>
-        Esta arquitetura garante que a lógica de negócio fique centralizada sob controle de versão (Git), permitindo manutenções seguras e escalabilidade total para as futuras integrações via webhook dos eventos de vendas gerados na Hotmart.
-		
-		Essa é uma excelente dúvida de quem está acostumado com a cultura do Docker, onde costumamos centralizar todas as variáveis de ambiente, usuários e senhas dentro do `docker-compose.yml`.
-
-No entanto, o **`profiles.yml` não fica dentro do Docker Compose**. Ele é um arquivo de configuração próprio e exclusivo do ecossistema do dbt.
-
-Aqui está a explicação de onde ele vem, por que ele existe e como ele se conecta ao seu Docker:
-
----
-
-### 1. De onde vem esse arquivo?
-
-O `profiles.yml` é gerado automaticamente na sua máquina (ou dentro do container) no momento em que você executa o comando **`dbt init`** para começar um projeto.
-
-Por padrão, o dbt cria esse arquivo em uma pasta oculta no diretório do seu usuário no sistema operacional:
-
-* No Linux/WSL/Docker: `~/.dbt/profiles.yml`
-* No Windows: `C:\Users\SeuUsuario\.dbt\profiles.yml`
-
-Ele funciona como o **"gerenciador de conexões"** do dbt. É nele que você diz: *"Olha dbt, o meu ambiente de 'dev' aponta para o Postgres local na porta 5432, mas o meu ambiente de 'prod' aponta para o Redshift ou Athena na AWS"*.
-
----
-
-### 2. Por que ele não fica direto no `docker-compose.yml`?
-
-Por uma questão de **segurança** e **arquitetura**:
-
-1. **Isolamento de Credenciais:** O seu projeto dbt (os códigos SQL, as tabelas fato e dimensão) vai ser dropado dentro de um repositório Git. Você **nunca** deve subir senhas de banco de dados para o Git. Como o `profiles.yml` fica guardado fora da pasta do projeto (na pasta do usuário `~/.dbt/`), você evita o risco de expor suas senhas por acidente.
-2. **O dbt roda fora do banco:** O `docker-compose.yml` serve para o Docker saber como levantar o contêiner do PostgreSQL e do Metabase. O dbt é apenas um cliente (como se fosse o DBeaver ou o PGAdmin) que vai se conectar neles. Ele precisa do seu próprio arquivo de configuração para saber onde o banco está rodando.
-
----
-
-### 3. Como integrar o `profiles.yml` com o seu Docker Compose?
-
-Para o desenvolvedor que vai implementar, existem duas formas elegantes de fazer isso rodar em harmonia com o Docker:
-
-#### Abordagem A: Passando as variáveis do Docker para o `profiles.yml` (Mais Recomendada)
-
-Você pode criar o `profiles.yml` e deixá-lo ler as credenciais diretamente das variáveis de ambiente que o seu Docker Compose injetar. O dbt aceita Jinja (a engine de template do Python) para ler variáveis de ambiente.
-
-O arquivo `profiles.yml` do desenvolvedor ficaria assim:
-
-```yaml
-meu_projeto_dbt:
-  target: dev
-  outputs:
-    dev:
-      type: postgres
-      host: localhost
-      user: "{{ env_var('DB_USER') }}"       # Puxa o usuário do ambiente do Docker
-      pass: "{{ env_var('DB_PASSWORD') }}"   # Puxa a senha do ambiente do Docker
-      port: 5432
-      dbname: data_lakehouse
-      schema: analytics
-      threads: 4
-
-```
-
-#### Abordagem B: Mapeando por Volume no Docker
-
-Se você for rodar o dbt dentro de um container Docker (orquestrado pelo Airflow, por exemplo), você pode simplesmente criar o `profiles.yml` na sua máquina local e mapeá-lo como um volume dentro do service do dbt no seu `docker-compose.yml`:
-
-```yaml
-services:
-  dbt_runner:
-    image: ghcr.io/dbt-labs/dbt-postgres:1.5.0
-    volumes:
-      - ./meu_projeto_dbt:/usr/app/dbt
-      - ~/.dbt:/root/.dbt  # Mapeia a pasta do perfil para dentro do container
-    environment:
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-
-```
-
-### Resumo da ópera:
-
-O `docker-compose.yml` levanta a infraestrutura (Postgres). O `profiles.yml` é o crachá de acesso que o dbt usa para conseguir entrar nessa infraestrutura e criar os cubos.
-		
-		
+        Esta arquitetura unificada de governança garante escalabilidade e facilidade nas alterações analíticas, mantendo o controle sob controle de versão (Git) e sem afetar a robustez do pipeline de dados orquestrado pela Dag Factory.
     </p>
-
-	
 
 </body>
 </html>
@@ -388,6 +302,3 @@ if os.path.exists("temp_plan.html"):
 
 print(f"PDF gerado com sucesso: {output_pdf}")
 print(f"[file-tag: {output_pdf}]")
-}
-
-```

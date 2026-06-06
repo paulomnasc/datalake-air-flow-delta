@@ -433,7 +433,7 @@ YAML;
         }
 
         try {
-            $declaredTables = []; // Mapeamento clean_name => exact_declared_name
+            $declaredTables = []; // Mapeamento clean_name => ['exact_name' => ..., 'source_name' => ...]
 
             // Procura em todos os arquivos .yml ou .yaml dentro da pasta models/ de forma robusta
             if (is_dir($modelsDir)) {
@@ -443,24 +443,43 @@ YAML;
                     if ($file->isFile() && in_array(strtolower($file->getExtension()), ['yml', 'yaml'])) {
                         $content = file_get_contents($file->getPathname());
                         $lines = explode("\n", $content);
+                        $currentSource = 'raw_lakehouse';
+                        $sourceIndent = -1;
+
                         foreach ($lines as $line) {
                             // Ignora comentários
                             if (preg_match('/^\s*#/', $line)) {
                                 continue;
                             }
-                            // Captura qualquer entrada no formato '- name: tabela'
-                            if (preg_match('/^\s*-\s*name\s*:\s*[\'"]?([a-zA-Z0-9_-]+)[\'"]?/', $line, $matches)) {
-                                $exactName = trim($matches[1]);
-                                // Remove sufixos comuns de camadas (ex: 'customers_gold' -> 'customers')
-                                $cleanName = strtolower(str_replace(['_gold', '_silver', '_bronze', '_raw'], '', $exactName));
-                                $declaredTables[$cleanName] = $exactName;
+                            // Captura qualquer entrada no formato '- name: tabela' ou '- name: fonte'
+                            if (preg_match('/^(\s*)-\s*name\s*:\s*[\'"]?([a-zA-Z0-9_-]+)[\'"]?/', $line, $matches)) {
+                                $indent = strlen($matches[1]);
+                                $name = trim($matches[2]);
+
+                                if ($sourceIndent == -1 || $indent <= $sourceIndent) {
+                                    // Novo source encontrado (menor ou igual indentação que o anterior)
+                                    $currentSource = $name;
+                                    $sourceIndent = $indent;
+                                } else {
+                                    // Tabela sob o source atual (maior indentação)
+                                    $exactName = $name;
+                                    $cleanName = strtolower(str_replace(['_gold', '_silver', '_bronze', '_raw'], '', $exactName));
+                                    $declaredTables[$cleanName] = [
+                                        'exact_name' => $exactName,
+                                        'source_name' => $currentSource
+                                    ];
+                                }
                             }
                         }
                     }
                 }
             }
 
-            $debug[] = "- Tabelas declaradas no dbt (arquivos YML): " . json_encode(array_values($declaredTables));
+            $displayTables = [];
+            foreach ($declaredTables as $k => $v) {
+                $displayTables[] = "source('{$v['source_name']}', '{$v['exact_name']}')";
+            }
+            $debug[] = "- Tabelas declaradas no dbt (arquivos YML): " . json_encode($displayTables);
 
             // Se nenhuma tabela estiver declarada nos arquivos .yml, não há o que gerar
             if (empty($declaredTables)) {
@@ -483,8 +502,11 @@ YAML;
             $generatedFiles = [];
             
             // Para cada tabela declarada no dbt, tentamos encontrar o pipeline correspondente no MySQL
-            foreach ($declaredTables as $cleanName => $exactDbtName) {
-                // Pulamos o próprio nome do schema/source que às vezes é capturado (ex: 'public', 'raw_lakehouse')
+            foreach ($declaredTables as $cleanName => $tableMeta) {
+                $exactDbtName = $tableMeta['exact_name'];
+                $sourceName = $tableMeta['source_name'];
+
+                // Pulamos o próprio nome do schema/source que às vezes é capturado por falsa indentação
                 if (in_array($cleanName, ['public', 'raw_lakehouse'])) {
                     continue;
                 }
@@ -551,11 +573,11 @@ YAML;
                 }
 
                 if ($matchedConfig === null) {
-                    $debug[] = "  * Tabela '{$cleanName}' (declarada como '{$exactDbtName}'): ↳ [PULADO] Nenhuma pipeline ativa encontrada no MySQL.";
+                    $debug[] = "  * Tabela '{$cleanName}' (declarada como '{$exactDbtName}' no source '{$sourceName}'): ↳ [PULADO] Nenhuma pipeline ativa encontrada no MySQL.";
                     continue;
                 }
 
-                $debug[] = "  * Tabela '{$cleanName}' (declarada como '{$exactDbtName}'): ↳ Match tipo: {$matchType} com pipeline/DAG '{$matchedConfig['dag_id']}' | Arquivo: '{$specificFile}'";
+                $debug[] = "  * Tabela '{$cleanName}' (declarada como '{$exactDbtName}' no source '{$sourceName}'): ↳ Match tipo: {$matchType} com pipeline/DAG '{$matchedConfig['dag_id']}' | Arquivo: '{$specificFile}'";
 
                 // Caminhos dos arquivos SQL
                 $tableName = $cleanName;
@@ -569,7 +591,7 @@ YAML;
                     $rawSql = "{{ config(materialized='ephemeral') }}\n\n" .
                                "-- Camada Raw: Arquivo de origem original carregado no MinIO\n" .
                                "-- Caminho da Origem MySQL: " . $specificFile . " (DAG: " . $matchedConfig['dag_id'] . ")\n" .
-                               "select * from {{ source('raw_lakehouse', '" . $exactDbtName . "') }}";
+                               "select * from {{ source('" . $sourceName . "', '" . $exactDbtName . "') }}";
                     if (file_put_contents($rawFile, $rawSql) !== false) {
                         $generatedFiles[] = "raw_{$tableName}.sql";
                     }

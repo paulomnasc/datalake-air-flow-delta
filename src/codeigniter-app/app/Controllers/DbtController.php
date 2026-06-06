@@ -423,6 +423,43 @@ YAML;
         }
 
         try {
+            // 1. Procurar o arquivo sources.yml no projeto para identificar quais fontes estão declaradas
+            $sourcesPath = null;
+            if (is_dir($modelsDir)) {
+                $directory = new \RecursiveDirectoryIterator($modelsDir);
+                $iterator = new \RecursiveIteratorIterator($directory);
+                foreach ($iterator as $file) {
+                    if ($file->isFile() && $file->getFilename() === 'sources.yml') {
+                        $sourcesPath = $file->getPathname();
+                        break;
+                    }
+                }
+            }
+
+            $declaredTables = [];
+            if ($sourcesPath && file_exists($sourcesPath)) {
+                $content = file_get_contents($sourcesPath);
+                $lines = explode("\n", $content);
+                $inTablesSection = false;
+                foreach ($lines as $line) {
+                    if (preg_match('/^\s*tables\s*:/', $line)) {
+                        $inTablesSection = true;
+                        continue;
+                    }
+                    if ($inTablesSection && preg_match('/^\s*[a-zA-Z]/', $line) && !preg_match('/^\s*tables\s*:/', $line)) {
+                        $inTablesSection = false;
+                    }
+                    if ($inTablesSection && preg_match('/^\s*-\s*name\s*:\s*[\'"]?([a-zA-Z0-9_-]+)[\'"]?/', $line, $matches)) {
+                        $declaredTables[] = strtolower(trim($matches[1]));
+                    }
+                }
+            }
+
+            // Se nenhuma tabela estiver declarada no sources.yml, não há o que gerar (evita quebrar compilação por fontes inexistentes)
+            if (empty($declaredTables)) {
+                return;
+            }
+
             $db = \Config\Database::connect();
             // Busca todas as configurações de pipeline ativas do usuário
             $configs = $db->query("
@@ -435,6 +472,15 @@ YAML;
             foreach ($configs as $config) {
                 $rawTargetTable = trim($config['target_table_name']);
                 if (empty($rawTargetTable)) {
+                    continue;
+                }
+
+                // Definimos o nome base para o dbt
+                $tableName = strtolower($rawTargetTable);
+
+                // IMPORTANTE: Só gera se a tabela estiver explicitamente declarada no sources.yml
+                // para evitar erros de compilação do dbt de fontes não mapeadas no projeto (ex: api-place)
+                if (!in_array($tableName, $declaredTables)) {
                     continue;
                 }
 
@@ -464,9 +510,6 @@ YAML;
                         }
                     }
                 }
-
-                // Definimos o nome base para o dbt
-                $tableName = strtolower($rawTargetTable);
 
                 // Caminhos dos arquivos SQL
                 $rawFile = $modelsDir . '/raw_' . $tableName . '.sql';

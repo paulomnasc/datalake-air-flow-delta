@@ -38,6 +38,7 @@ class DbtController extends BaseController
      */
     public function execute()
     {
+        $buildDebug = "";
         if (!SessionHelper::isLoggedIn()) {
             return $this->response->setStatusCode(403)->setJSON([
                 'success' => false,
@@ -87,14 +88,19 @@ class DbtController extends BaseController
         }
 
         // 1b. Garantir build da imagem Docker do dbt-duckdb local
-        $checkImage = trim(@shell_exec("docker images -q dbt-duckdb-local:latest"));
+        $checkImage = trim(@shell_exec("docker images -q dbt-duckdb-local:latest 2>&1"));
+        $buildDebug .= "Docker Image Check (initially): '" . $checkImage . "'\n";
         if (empty($checkImage)) {
             log_message('info', 'DbtController: Compilando imagem dbt-duckdb-local:latest...');
+            $buildDebug .= "Compilando imagem dbt-duckdb-local:latest...\n";
             // Usamos a entrada padrão (<) para enviar o conteúdo do Dockerfile, contornando incompatibilidades de caminhos absolutos do Docker-in-Docker
-            @shell_exec("docker build -t dbt-duckdb-local:latest - < /datalake-root/dbt/Dockerfile.dbt-duckdb 2>&1");
-            $checkImage = trim(@shell_exec("docker images -q dbt-duckdb-local:latest"));
+            $buildResult = @shell_exec("docker build -t dbt-duckdb-local:latest - < /datalake-root/dbt/Dockerfile.dbt-duckdb 2>&1");
+            $buildDebug .= "Build Output:\n" . $buildResult . "\n";
+            $checkImage = trim(@shell_exec("docker images -q dbt-duckdb-local:latest 2>&1"));
+            $buildDebug .= "Docker Image Check (after build): '" . $checkImage . "'\n";
             if (empty($checkImage)) {
                 log_message('error', 'DbtController: Falha crítica ao compilar imagem dbt-duckdb-local:latest.');
+                $buildDebug .= "⚠️ Falha crítica: imagem dbt-duckdb-local:latest não foi criada.\n";
             }
         }
 
@@ -266,6 +272,10 @@ YAML;
 
         if (!empty($generationDebug)) {
             $outputText = $generationDebug . "\n\n" . $outputText;
+        }
+
+        if (!empty($buildDebug)) {
+            $outputText = $buildDebug . "\n\n" . $outputText;
         }
 
         return $this->response->setJSON([

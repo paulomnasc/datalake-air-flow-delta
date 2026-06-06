@@ -660,7 +660,8 @@ YAML;
 
                 // Caminhos dos arquivos SQL
                 $tableName = $cleanName;
-                $cleanFile = ltrim($specificFile, '/\\');
+                $cleanFile = stripslashes(trim($specificFile ?? '', '"\' '));
+                $cleanFile = ltrim($cleanFile, '/\\');
                 $basename = basename($cleanFile);
                 $basenameNoExt = pathinfo($basename, PATHINFO_FILENAME);
                 $ext = strtolower(pathinfo($cleanFile, PATHINFO_EXTENSION));
@@ -678,7 +679,14 @@ YAML;
                 }
 
                 $cleanDagId = preg_replace('/\d+$/', '', $matchedConfig['dag_id']);
-                $goldPath = "s3://{$bucket}/gold/{$cleanDagId}/{$tableName}_delta/*.parquet";
+                
+                // Caminhos corretos baseados na estrutura física observada no MinIO S3
+                $bronzeS3SubDir = str_replace('raw/', 'bronze/', pathinfo($cleanFile, PATHINFO_DIRNAME));
+                $bronzeS3Path = "s3://{$bucket}/{$bronzeS3SubDir}/{$basenameNoExt}.parquet";
+                
+                $silverS3Path = "s3://{$bucket}/silver/{$tableName}/{$basenameNoExt}.parquet";
+                
+                $goldS3Path = "s3://{$bucket}/gold/{$basenameNoExt}_gold/{$basenameNoExt}_gold_delta/*.parquet";
 
                 $rawFile = $modelsDir . '/raw_' . $tableName . '.sql';
                 $bronzeFile = $modelsDir . '/bronze_' . $tableName . '.sql';
@@ -697,8 +705,8 @@ YAML;
                 // 2. Gerar bronze_{table}.sql
                 $bronzeSql = "{{ config(materialized='view') }}\n\n" .
                              "-- Camada Bronze: Conversão do arquivo original em formato Parquet\n" .
-                             "-- Localização MinIO: bronze/" . $basenameNoExt . "/*.parquet\n" .
-                             "select * from read_parquet('s3://" . $bucket . "/bronze/" . $basenameNoExt . "/*.parquet')";
+                             "-- Localização MinIO: " . str_replace('raw/', 'bronze/', pathinfo($cleanFile, PATHINFO_DIRNAME)) . "/" . $basenameNoExt . ".parquet\n" .
+                             "select * from read_parquet('" . $bronzeS3Path . "')";
                 if (file_put_contents($bronzeFile, $bronzeSql) !== false) {
                     $generatedFiles[] = "bronze_{$tableName}.sql";
                 }
@@ -706,8 +714,8 @@ YAML;
                 // 3. Gerar silver_{table}.sql
                 $silverSql = "{{ config(materialized='view') }}\n\n" .
                              "-- Camada Silver: Limpeza dos dados brutos (remover duplicatas e nulos)\n" .
-                             "-- Localização MinIO: silver/" . $basenameNoExt . "/*.parquet\n" .
-                             "select * from read_parquet('s3://" . $bucket . "/silver/" . $basenameNoExt . "/*.parquet')";
+                             "-- Localização MinIO: silver/" . $tableName . "/" . $basenameNoExt . ".parquet\n" .
+                             "select * from read_parquet('" . $silverS3Path . "')";
                 if (file_put_contents($silverFile, $silverSql) !== false) {
                     $generatedFiles[] = "silver_{$tableName}.sql";
                 }
@@ -715,8 +723,8 @@ YAML;
                 // 4. Gerar gold_{table}.sql
                 $goldSql = "{{ config(materialized='view') }}\n\n" .
                            "-- Camada Gold: Tabela final consolidada para consumo analítico (Delta Lake)\n" .
-                           "-- Localização MinIO: " . $goldPath . "\n" .
-                           "select * from read_parquet('" . $goldPath . "')";
+                           "-- Localização MinIO: gold/" . $basenameNoExt . "_gold/" . $basenameNoExt . "_gold_delta/*.parquet\n" .
+                           "select * from read_parquet('" . $goldS3Path . "')";
                 if (file_put_contents($goldFile, $goldSql) !== false) {
                     $generatedFiles[] = "gold_{$tableName}.sql";
                 }

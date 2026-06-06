@@ -490,6 +490,57 @@ function renderGitFileTree(files) {
     }
 }
 
+async function gitPull() {
+    const status = document.getElementById('gitStatus');
+    if (!gitConfig) {
+        alert('Git não configurado. Conecte primeiro.');
+        return;
+    }
+    
+    status.innerText = 'Sincronizando do GitHub (Git Pull)...';
+    
+    try {
+        let safeBucket = userBucket;
+        if (!safeBucket || typeof safeBucket !== 'string' || safeBucket.trim() === '') {
+            safeBucket = 'lab01';
+        }
+        
+        const response = await fetch('/api/git-clone', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userBucket: safeBucket,
+                username: gitConfig.username || gitConfig.owner,
+                token: gitConfig.token || undefined,
+                owner: gitConfig.owner,
+                repo: gitConfig.repo,
+                branch: gitConfig.branch || 'main'
+            })
+        });
+
+        if (!response.ok) {
+            let errorData = {};
+            try {
+                errorData = await response.json();
+            } catch (e) {
+                errorData = { error: `HTTP ${response.status}` };
+            }
+            throw new Error(errorData.message || errorData.error || 'Erro ao sincronizar do servidor');
+        }
+
+        const result = await response.json();
+        status.innerText = `✓ Repositório atualizado! ${result.uploadedCount} arquivos sincronizados.`;
+        
+        // Recarregar os arquivos na UI
+        await loadGitFiles();
+        
+    } catch (e) {
+        console.error('❌ Erro no git pull:', e);
+        status.innerText = 'Erro ao atualizar: ' + e.message;
+        alert('Erro ao atualizar: ' + e.message);
+    }
+}
+
 
 // ============================================
 // INICIALIZAR LISTENERS

@@ -219,10 +219,17 @@ YAML;
 
         file_put_contents($projectDir . '/profiles.yml', $profilesContent);
 
-        // 4.1. Ajustar dbt_project.yml dinamicamente para mapear modelos finais para o Postgres attached
+        // 4.1. Ajustar dbt_project.yml dinamicamente
         $dbtProjectFile = $projectDir . '/dbt_project.yml';
         if (file_exists($dbtProjectFile)) {
             $projectContent = file_get_contents($dbtProjectFile);
+            
+            // Garantir que exista o on-run-start para criar os schemas no DuckDB
+            if (strpos($projectContent, 'on-run-start:') === false) {
+                $projectContent .= "\n\non-run-start:\n  - \"create schema if not exists {{ target.schema }}\"\n";
+            }
+            
+            // Redirecionamento para o banco Postgres attached
             if (strpos($projectContent, 'postgres_db') === false) {
                 $redirectConfig = "\n    # Redirecionamento dinâmico para tabelas PostgreSQL\n" .
                                   "    dim_customers:\n" .
@@ -241,8 +248,8 @@ YAML;
                 } else {
                     $projectContent .= "\nmodels:\n  analytics:" . $redirectConfig;
                 }
-                file_put_contents($dbtProjectFile, $projectContent);
             }
+            file_put_contents($dbtProjectFile, $projectContent);
         }
 
         // 5. Montar comando dbt

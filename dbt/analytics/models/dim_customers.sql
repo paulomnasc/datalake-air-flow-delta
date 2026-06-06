@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 with source_data as (
-    select * from {{ source('public', 'customers_gold') }}
+    select * from {{ ref('gold_customers') }}
 )
 
 select

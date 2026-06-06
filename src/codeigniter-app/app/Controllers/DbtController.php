@@ -184,6 +184,7 @@ analytics:
     dev:
       type: duckdb
       path: /tmp/datalake.duckdb
+      schema: '{$schemaDev}'
       extensions:
         - httpfs
         - postgres
@@ -200,6 +201,7 @@ analytics:
     prod:
       type: duckdb
       path: /tmp/datalake.duckdb
+      schema: '{$schemaProd}'
       extensions:
         - httpfs
         - postgres

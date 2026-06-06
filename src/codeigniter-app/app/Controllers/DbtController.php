@@ -90,7 +90,12 @@ class DbtController extends BaseController
         $checkImage = trim(@shell_exec("docker images -q dbt-duckdb-local:latest"));
         if (empty($checkImage)) {
             log_message('info', 'DbtController: Compilando imagem dbt-duckdb-local:latest...');
-            shell_exec("docker build -t dbt-duckdb-local:latest -f /datalake-root/dbt/Dockerfile.dbt-duckdb /datalake-root/dbt");
+            // Usamos a entrada padrão (<) para enviar o conteúdo do Dockerfile, contornando incompatibilidades de caminhos absolutos do Docker-in-Docker
+            @shell_exec("docker build -t dbt-duckdb-local:latest - < /datalake-root/dbt/Dockerfile.dbt-duckdb 2>&1");
+            $checkImage = trim(@shell_exec("docker images -q dbt-duckdb-local:latest"));
+            if (empty($checkImage)) {
+                log_message('error', 'DbtController: Falha crítica ao compilar imagem dbt-duckdb-local:latest.');
+            }
         }
 
         // Caminhos de execução
@@ -458,7 +463,13 @@ YAML;
                 if ($found !== null) {
                     return $found;
                 }
-        /**
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Gera dinamicamente os modelos intermediários do pipeline Medallion (raw, bronze, silver, gold)
      * a partir das tabelas configuradas no MySQL (dag_configurations) do usuário ativo,
      * lendo diretamente os arquivos físicos do MinIO S3.

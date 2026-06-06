@@ -466,7 +466,7 @@ YAML;
             $db = \Config\Database::connect();
             // Busca todas as configurações de pipeline (ativas e inativas) do usuário para depuração
             $configs = $db->query("
-                SELECT dc.dag_id, dc.source_filename, dc.target_table_name, dc.is_active, p.nome as pasta_nome
+                SELECT dc.dag_id, dc.source_filename, dc.target_table_name, dc.is_active, p.descricao as pasta_nome
                 FROM dag_configurations dc
                 INNER JOIN pasta p ON p.id = dc.id_pasta
                 WHERE p.id_usuario = ?

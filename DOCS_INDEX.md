@@ -129,6 +129,21 @@ Agora: Sidebar completa, isomorphic-git, persistência ✓
 
 ---
 
+### 📊 Guia e Arquitetura do dbt Core Multi-Tenant
+
+**Arquivo**: [`DBT_MULTI_TENANT_ARCHITECTURE.md`](./DBT_MULTI_TENANT_ARCHITECTURE.md) ⭐ **NOVO**
+
+**Conteúdo**:
+- ✅ Diagrama de fluxo de dados Monaco → S3 → Docker → Postgres
+- ✅ Detalhes de isolamento lógico (Dev/Prod) e controle de recursos (512MB RAM)
+- ✅ Esquema de relações entre artefatos (`dbt_project.yml`, `profiles.yml`, `sources.yml`, `schema.yml`, `.sql` models)
+- ✅ Customização de nomes dinâmicos de schema via macros dbt
+- ✅ Troubleshooting de erros comuns (`relation does not exist`, `source not found`)
+
+**Quando ler**: Antes de configurar seu ambiente de dbt, ao criar novos modelos SQL ou quando encontrar problemas de compilação/direcionamento de schemas no banco PostgreSQL.
+
+---
+
 **Arquivo**: [`PowerBI_Conexao_DeltaLake_ODBC.md`](./PowerBI_Conexao_DeltaLake_ODBC.md) ⚠️ **OBSOLETO** (Spark Thrift Server)
 
 **Status**: Descontinuado em favor da solução PostgreSQL

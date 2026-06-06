@@ -480,13 +480,23 @@
                         <span class="step-number">4</span>
                         <div class="step-content">
                             <h3>Escrever e Formatar seu Código SQL</h3>
-                            <p>Edite o arquivo SQL no Monaco Editor central utilizando sintaxe SQL e Jinja. O editor oferece destaque de sintaxe, numeração de linhas e autocomplete. Exemplo de modelo:</p>
+                            <p>Edite o arquivo SQL no Monaco Editor central utilizando sintaxe SQL e Jinja. Exemplo de modelo baseado na fonte padrão do lab (<code>raw_lakehouse.customers</code>):</p>
                             <pre><code>select 
-    id_usuario, 
-    nome, 
-    email,
-    perfil
-from {{ source('public', 'usuario') }}</code></pre>
+    customernumber as id_usuario, 
+    customername as nome, 
+    contactemail as email,
+    'Client' as perfil
+from {{ source('raw_lakehouse', 'customers') }}</code></pre>
+
+                            <div class="alert-box dbt-alert" style="margin: 10px 0 0 0; padding: 12px; background: rgba(255, 111, 0, 0.05); border-left: 4px solid var(--accent-dbt, #ff6f00);">
+                                <h4 style="margin: 0 0 4px 0; font-size: 0.95rem; color: #f1f5f9;"><i class="bi bi-exclamation-triangle"></i> Uso de Fontes Customizadas (Ex: public.usuario)</h4>
+                                <p style="margin: 0 0 8px 0; font-size: 0.9rem; color: #94a3b8;">Se você deseja mapear uma fonte diferente do padrão (ex: <code>public.usuario</code>), você <strong>deve</strong> criar um arquivo <code>models/sources.yml</code> no seu repositório Git com o seguinte conteúdo:</p>
+                                <pre style="margin: 0; padding: 12px; font-size: 0.85rem; background: #050811; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); overflow-x: auto;"><code style="color: #a5b4fc; background: none; padding: 0;">version: 2
+sources:
+  - name: public
+    tables:
+      - name: usuario</code></pre>
+                            </div>
                         </div>
                     </li>
                     <li class="step-item">

@@ -255,7 +255,8 @@ YAML;
         // 5. Montar comando dbt
         $dbtCmd = '';
         if ($action === 'run') {
-            $dbtCmd = "run --profiles-dir . --target " . $env;
+            // Roda o dbt run e, se obtiver sucesso, gera os docs para manter a linhagem e colunas atualizadas na interface
+            $dbtCmd = "sh -c \"dbt run --profiles-dir . --target {$env} && dbt docs generate --profiles-dir . --target {$env}\"";
         } elseif ($action === 'test') {
             $dbtCmd = "test --profiles-dir . --target " . $env;
         } elseif ($action === 'docs') {
@@ -270,7 +271,12 @@ YAML;
         }
 
         // Comando Docker com limite de recurso usando a imagem local dbt-duckdb-local:latest
-        $dockerCmd = "docker run --rm --network=" . escapeshellarg($network) . " --memory=\"512m\" -v " . escapeshellarg($hostTempDir) . ":/usr/app -w " . escapeshellarg($workDir) . " dbt-duckdb-local:latest dbt " . $dbtCmd . " 2>&1";
+        $dockerCmd = "docker run --rm --network=" . escapeshellarg($network) . " --memory=\"512m\" -v " . escapeshellarg($hostTempDir) . ":/usr/app -w " . escapeshellarg($workDir) . " dbt-duckdb-local:latest ";
+        if (strpos($dbtCmd, 'sh -c') === 0) {
+            $dockerCmd .= $dbtCmd . " 2>&1";
+        } else {
+            $dockerCmd .= "dbt " . $dbtCmd . " 2>&1";
+        }
 
         log_message('info', 'DbtController: Executando comando: ' . $dockerCmd);
         
@@ -713,6 +719,7 @@ YAML;
 
                 // 2. Gerar bronze_{table}.sql
                 $bronzeSql = "{{ config(materialized='view') }}\n\n" .
+                             "-- depends_on: {{ ref('raw_" . $tableName . "') }}\n\n" .
                              "-- Camada Bronze: Conversão do arquivo original em formato Parquet\n" .
                              "-- Localização MinIO: " . str_replace('raw/', 'bronze/', pathinfo($cleanFile, PATHINFO_DIRNAME)) . "/" . $basenameNoExt . ".parquet\n" .
                              "select * from read_parquet('" . $bronzeS3Path . "')";
@@ -722,6 +729,7 @@ YAML;
 
                 // 3. Gerar silver_{table}.sql
                 $silverSql = "{{ config(materialized='view') }}\n\n" .
+                             "-- depends_on: {{ ref('bronze_" . $tableName . "') }}\n\n" .
                              "-- Camada Silver: Limpeza dos dados brutos (remover duplicatas e nulos)\n" .
                              "-- Localização MinIO: silver/" . $tableName . "/" . $basenameNoExt . ".parquet\n" .
                              "select * from read_parquet('" . $silverS3Path . "')";
@@ -731,6 +739,7 @@ YAML;
 
                 // 4. Gerar gold_{table}.sql
                 $goldSql = "{{ config(materialized='view') }}\n\n" .
+                           "-- depends_on: {{ ref('silver_" . $tableName . "') }}\n\n" .
                            "-- Camada Gold: Tabela final consolidada para consumo analítico (Delta Lake)\n" .
                            "-- Localização MinIO: gold/" . $basenameNoExt . "_gold/" . $basenameNoExt . "_gold_delta/*.parquet\n" .
                            "select * from read_parquet('" . $goldS3Path . "')";

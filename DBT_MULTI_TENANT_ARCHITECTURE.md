@@ -146,3 +146,71 @@ analytics:
 ### B. Erro: `depends on a source named 'public.xxx' which was not found`
 * **Causa**: O modelo SQL usa `{{ source('public', 'xxx') }}` mas a tabela `xxx` não está listada no seu arquivo `models/sources.yml`.
 * **Solução**: Crie ou atualize o arquivo `models/sources.yml` no seu repositório Git incluindo a tabela sob a fonte correspondente.
+
+---
+
+## 🔄 5. Linhagem de Dados Ponta a Ponta (Medallion Lineage Pattern)
+
+Para mapear todo o fluxo do pipeline no gráfico de linhagem (lineage graph) do dbt, desde a origem de dados inicial (definida na tabela `dag_configurations` do MySQL) até os modelos multidimensionais, implementamos o padrão de **Modelos Ephemerais (Ephemeral Models)**.
+
+### A. Fluxo Conceitual da Linhagem
+A orquestração do Data Lake (Raw ➔ Bronze ➔ Silver ➔ Gold) é gerenciada pelo Airflow e DuckDB externamente. No entanto, para visualização de linhagem e governança de dados no dbt Docs, mapeamos cada camada como um nó virtual:
+
+```
+[Origem: MySQL dag_configurations (source_filename)]
+                    │
+                    ▼
+   [raw_lakehouse.customers (Source Postgres)]
+                    │
+                    ▼
+     [raw_customers (Ephemeral Model)]
+                    │
+                    ▼
+    [bronze_customers (Ephemeral Model)]
+                    │
+                    ▼
+    [silver_customers (Ephemeral Model)]
+                    │
+                    ▼
+     [gold_customers (Ephemeral Model)]
+                    │
+                    ▼
+     [dim_usuarios (Table / View Model)]
+```
+
+### B. Implementação com Modelos Ephemerais
+Para evitar a criação desnecessária de tabelas intermediárias no PostgreSQL e garantir que o comando `dbt run` compile com máxima performance sem duplicar dados físicos, configuramos as camadas intermediárias como `materialized='ephemeral'`:
+
+1. **Camada Raw (`raw_customers.sql`)**:
+   Representa o upload inicial do arquivo de origem específico (extraído do array JSON contido na coluna `source_filename` da tabela `dag_configurations` no MySQL correspondente à DAG `pipe-northwind`, buscando o arquivo que termina em `_customers.csv`).
+   ```sql
+   {{ config(materialized='ephemeral') }}
+   select * from {{ source('raw_lakehouse', 'customers') }}
+   ```
+2. **Camada Bronze (`bronze_customers.sql`)**:
+   Representa a ingestão bruta em formato Parquet.
+   ```sql
+   {{ config(materialized='ephemeral') }}
+   select * from {{ ref('raw_customers') }}
+   ```
+3. **Camada Silver (`silver_customers.sql`)**:
+   Representa a limpeza (deduplicação e remoção de nulos).
+   ```sql
+   {{ config(materialized='ephemeral') }}
+   select * from {{ ref('bronze_customers') }}
+   ```
+4. **Camada Gold (`gold_customers.sql`)**:
+   Representa a agregação analítica final.
+   ```sql
+   {{ config(materialized='ephemeral') }}
+   select * from {{ ref('silver_customers') }}
+   ```
+5. **Modelo Dimensional (`dim_usuarios.sql`)**:
+   O modelo analítico final consome diretamente de `gold_customers`:
+   ```sql
+   {{ config(materialized='table') }}
+   select * from {{ ref('gold_customers') }}
+   ```
+
+Durante a compilação do dbt, todas as expressões CTE ephemerais (`WITH ... AS`) são unificadas diretamente em uma única consulta final apontando para a tabela física `public.customers` do PostgreSQL. Isso resolve o problema de dependências sem exigir tabelas físicas intermediárias.
+

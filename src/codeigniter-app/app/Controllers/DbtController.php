@@ -135,6 +135,9 @@ class DbtController extends BaseController
             }
         }
 
+        // Gerar dinamicamente os modelos ephemerais intermediários (raw, bronze, silver, gold) para todas as tabelas ativas do MySQL do usuário
+        $this->generateDynamicEphemeralModels($projectDir, $userId);
+
         // 3. Garantir pre-criação dos schemas no PostgreSQL
         $schemaDev = "user_{$userId}_homolog_analytics";
         $schemaProd = "user_{$userId}_analytics";
@@ -406,5 +409,109 @@ YAML;
         }
 
         return null;
+    }
+
+    /**
+     * Gera dinamicamente os modelos ephemerais intermediários do pipeline Medallion (raw, bronze, silver, gold)
+     * a partir das tabelas configuradas no MySQL (dag_configurations) do usuário ativo.
+     */
+    private function generateDynamicEphemeralModels($projectDir, $userId)
+    {
+        $modelsDir = $projectDir . '/models';
+        if (!is_dir($modelsDir)) {
+            @mkdir($modelsDir, 0777, true);
+        }
+
+        try {
+            $db = \Config\Database::connect();
+            // Busca todas as configurações de pipeline ativas do usuário
+            $configs = $db->query("
+                SELECT dc.dag_id, dc.source_filename, dc.target_table_name
+                FROM dag_configurations dc
+                INNER JOIN pasta p ON p.id = dc.id_pasta
+                WHERE p.id_usuario = ? AND dc.is_active = 1
+            ", [$userId])->getResultArray();
+
+            foreach ($configs as $config) {
+                $rawTargetTable = trim($config['target_table_name']);
+                if (empty($rawTargetTable)) {
+                    continue;
+                }
+
+                // Identifica se é um pipeline multi-table (array JSON ou string com múltiplos arquivos)
+                $sourceFilename = trim($config['source_filename']);
+                $specificFile = $sourceFilename;
+
+                // Tenta decodificar como JSON array
+                $decoded = json_decode($sourceFilename, true);
+                if (is_array($decoded)) {
+                    // Procura o arquivo correspondente a esta tabela específica no array
+                    foreach ($decoded as $file) {
+                        if (stripos($file, $rawTargetTable) !== false) {
+                            $specificFile = $file;
+                            break;
+                        }
+                    }
+                } else {
+                    // Tenta explodir por vírgula se for lista separada
+                    $files = explode(',', $sourceFilename);
+                    if (count($files) > 1) {
+                        foreach ($files as $file) {
+                            if (stripos(trim($file), $rawTargetTable) !== false) {
+                                $specificFile = trim($file);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Definimos o nome base para o dbt
+                $tableName = strtolower($rawTargetTable);
+
+                // Caminhos dos arquivos SQL
+                $rawFile = $modelsDir . '/raw_' . $tableName . '.sql';
+                $bronzeFile = $modelsDir . '/bronze_' . $tableName . '.sql';
+                $silverFile = $modelsDir . '/silver_' . $tableName . '.sql';
+                $goldFile = $modelsDir . '/gold_' . $tableName . '.sql';
+
+                // 1. Gerar raw_{table}.sql (somente se não existir fisicamente no repositório do aluno)
+                if (!file_exists($rawFile)) {
+                    $rawSql = "{{ config(materialized='ephemeral') }}\n\n" .
+                              "-- Camada Raw: Arquivo de origem original carregado no MinIO\n" .
+                              "-- Caminho da Origem MySQL: " . $specificFile . " (DAG: " . $config['dag_id'] . ")\n" .
+                              "select * from {{ source('raw_lakehouse', '" . $tableName . "') }}";
+                    file_put_contents($rawFile, $rawSql);
+                }
+
+                // 2. Gerar bronze_{table}.sql
+                if (!file_exists($bronzeFile)) {
+                    $bronzeSql = "{{ config(materialized='ephemeral') }}\n\n" .
+                                 "-- Camada Bronze: Conversão do arquivo original em formato Parquet\n" .
+                                 "-- Localização MinIO: bronze/" . $config['dag_id'] . "/" . $tableName . "/*.parquet\n" .
+                                 "select * from {{ ref('raw_" . $tableName . "') }}";
+                    file_put_contents($bronzeFile, $bronzeSql);
+                }
+
+                // 3. Gerar silver_{table}.sql
+                if (!file_exists($silverFile)) {
+                    $silverSql = "{{ config(materialized='ephemeral') }}\n\n" .
+                                 "-- Camada Silver: Limpeza dos dados brutos (remover duplicatas e nulos)\n" .
+                                 "-- Localização MinIO: silver/" . $config['dag_id'] . "/" . $tableName . "/*.parquet\n" .
+                                 "select * from {{ ref('bronze_" . $tableName . "') }}";
+                    file_put_contents($silverFile, $silverSql);
+                }
+
+                // 4. Gerar gold_{table}.sql
+                if (!file_exists($goldFile)) {
+                    $goldSql = "{{ config(materialized='ephemeral') }}\n\n" .
+                               "-- Camada Gold: Tabela final consolidada para consumo analítico\n" .
+                               "-- Localização MinIO: gold/" . $config['dag_id'] . "/" . $tableName . "/*.parquet\n" .
+                               "select * from {{ ref('silver_" . $tableName . "') }}";
+                    file_put_contents($goldFile, $goldSql);
+                }
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'DbtController: Erro ao gerar modelos ephemerais dinâmicos: ' . $e->getMessage());
+        }
     }
 }

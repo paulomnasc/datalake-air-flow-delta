@@ -1,0 +1,51 @@
+root@ubuntu-16gb-nbg1-2:~/datalake-air-flow-delta# docker exec -it codeigniter-app tail -n 50 /var/www/html/writable/logs/log-2026-06-06.log
+ 9 FCPATH/index.php(56): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+WARNING - 2026-06-06 20:42:55 --> [DEPRECATED] Passing lowercase HTTP method "options" is deprecated. Use uppercase HTTP method like "OPTIONS". in SYSTEMPATH/Router/RouteCollection.php on line 1027.
+ 1 SYSTEMPATH/Router/RouteCollection.php(1027): trigger_error('Passing lowercase HTTP method "options" is deprecated. Use uppercase HTTP method like "OPTIONS".', 16384)
+ 2 APPPATH/Config/Routes.php(161): CodeIgniter\Router\RouteCollection->match([...], '/git-proxy', 'GitProxyController::index')
+ 3 SYSTEMPATH/Router/RouteCollection.php(340): require('/var/www/html/app/Config/Routes.php')
+ 4 SYSTEMPATH/CodeIgniter.php(823): CodeIgniter\Router\RouteCollection->loadRoutes()
+ 5 SYSTEMPATH/CodeIgniter.php(457): CodeIgniter\CodeIgniter->tryToRouteIt(null)
+ 6 SYSTEMPATH/CodeIgniter.php(355): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH/Boot.php(325): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH/Boot.php(67): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH/index.php(56): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+WARNING - 2026-06-06 20:42:55 --> [DEPRECATED] Passing lowercase HTTP method "delete" is deprecated. Use uppercase HTTP method like "DELETE". in SYSTEMPATH/Router/RouteCollection.php on line 1027.
+ 1 SYSTEMPATH/Router/RouteCollection.php(1027): trigger_error('Passing lowercase HTTP method "delete" is deprecated. Use uppercase HTTP method like "DELETE".', 16384)
+ 2 APPPATH/Config/Routes.php(171): CodeIgniter\Router\RouteCollection->match([...], '/api/git-file-delete', 'GitServerController::deleteFileContent', [...])
+ 3 SYSTEMPATH/Router/RouteCollection.php(340): require('/var/www/html/app/Config/Routes.php')
+ 4 SYSTEMPATH/CodeIgniter.php(823): CodeIgniter\Router\RouteCollection->loadRoutes()
+ 5 SYSTEMPATH/CodeIgniter.php(457): CodeIgniter\CodeIgniter->tryToRouteIt(null)
+ 6 SYSTEMPATH/CodeIgniter.php(355): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH/Boot.php(325): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH/Boot.php(67): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH/index.php(56): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+WARNING - 2026-06-06 20:42:55 --> [DEPRECATED] Passing lowercase HTTP method "post" is deprecated. Use uppercase HTTP method like "POST". in SYSTEMPATH/Router/RouteCollection.php on line 1027.
+ 1 SYSTEMPATH/Router/RouteCollection.php(1027): trigger_error('Passing lowercase HTTP method "post" is deprecated. Use uppercase HTTP method like "POST".', 16384)
+ 2 APPPATH/Config/Routes.php(171): CodeIgniter\Router\RouteCollection->match([...], '/api/git-file-delete', 'GitServerController::deleteFileContent', [...])
+ 3 SYSTEMPATH/Router/RouteCollection.php(340): require('/var/www/html/app/Config/Routes.php')
+ 4 SYSTEMPATH/CodeIgniter.php(823): CodeIgniter\Router\RouteCollection->loadRoutes()
+ 5 SYSTEMPATH/CodeIgniter.php(457): CodeIgniter\CodeIgniter->tryToRouteIt(null)
+ 6 SYSTEMPATH/CodeIgniter.php(355): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH/Boot.php(325): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH/Boot.php(67): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH/index.php(56): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+INFO - 2026-06-06 20:42:55 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
+WARNING - 2026-06-06 20:42:55 --> [DEPRECATED] Creation of dynamic property App\Controllers\DbtController::$session is deprecated in APPPATH/Controllers/BaseController.php on line 56.
+ 1 SYSTEMPATH/CodeIgniter.php(904): App\Controllers\BaseController->initController(Object(CodeIgniter\HTTP\IncomingRequest), Object(CodeIgniter\HTTP\Response), Object(CodeIgniter\Log\Logger))
+ 2 SYSTEMPATH/CodeIgniter.php(500): CodeIgniter\CodeIgniter->createController()
+ 3 SYSTEMPATH/CodeIgniter.php(355): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 4 SYSTEMPATH/Boot.php(325): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH/Boot.php(67): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH/index.php(56): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2026-06-06 20:42:56 --> ErrorException: copy(/datalake-root/writable/dbt-tmp/user_146/target/compiled/analytics/macros/generate_schema_name.sql): Failed to open stream: No such file or directory
+[Method: POST, Route: code-editor/dbt-execute]
+in APPPATH/Controllers/DbtController.php on line 152.
+ 1 [internal function]: CodeIgniter\Debug\Exceptions->errorHandler(2, 'copy(/datalake-root/writable/dbt-tmp/user_146/target/compiled/analytics/macros/generate_schema_name.sql): Failed to open stream: No such file or directory', '/var/www/html/app/Controllers/DbtController.php', 152)
+ 2 APPPATH/Controllers/DbtController.php(152): copy('/datalake-root/dbt/analytics/macros/generate_schema_name.sql', '/datalake-root/writable/dbt-tmp/user_146/target/compiled/analytics/macros/generate_schema_name.sql')
+ 3 SYSTEMPATH/CodeIgniter.php(933): App\Controllers\DbtController->execute()
+ 4 SYSTEMPATH/CodeIgniter.php(509): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\DbtController))
+ 5 SYSTEMPATH/CodeIgniter.php(355): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 6 SYSTEMPATH/Boot.php(325): CodeIgniter\CodeIgniter->run()
+ 7 SYSTEMPATH/Boot.php(67): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 8 FCPATH/index.php(56): CodeIgniter\Boot::bootWeb(Object(Config\Paths))

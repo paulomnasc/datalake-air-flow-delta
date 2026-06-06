@@ -1,0 +1,31 @@
+=========================================================================
+⚙️ [DEBUG] SISTEMA DE GERAÇÃO DINÂMICA DE MODELOS EPHEMERAIS
+- Usuário ID: 146
+- Pasta do Projeto: /datalake-root/writable/dbt-tmp/user_146
+- Tabelas declaradas no dbt (arquivos YML): ["source('public', 'customers_gold')"]
+- Total de pipelines no MySQL para este usuário: 3
+  * Tabela 'customers' (declarada como 'customers_gold' no source 'public'): ↳ Match tipo: Arquivo (Multi-Table) com pipeline/DAG 'pipe-northwind' | Arquivo: '"raw\/pipe-northwind\/20260405203705_6ad42056_customers.csv"'
+- Arquivos ephemerais gerados nesta execução: ["raw_customers.sql","bronze_customers.sql","silver_customers.sql","gold_customers.sql"]
+=========================================================================
+
+[0m17:43:29  Running with dbt=1.5.0
+[0m17:43:29  Found 5 models, 0 tests, 0 snapshots, 0 analyses, 308 macros, 0 operations, 0 seed files, 1 source, 0 exposures, 0 metrics, 0 groups
+[0m17:43:29
+[0m17:43:29  Concurrency: 4 threads (target='dev')
+[0m17:43:29
+[0m17:43:29  1 of 1 START sql table model user_146_homolog_analytics.dim_customers .......... [RUN]
+[0m17:43:30  1 of 1 ERROR creating sql table model user_146_homolog_analytics.dim_customers . [[31mERROR[0m in 0.08s]
+[0m17:43:30
+[0m17:43:30  Finished running 1 table model in 0 hours 0 minutes and 0.26 seconds (0.26s).
+[0m17:43:30
+[0m17:43:30  [31mCompleted with 1 error and 0 warnings:[0m
+[0m17:43:30
+[0m17:43:30  [33mDatabase Error in model dim_customers (models/dim_customers.sql)[0m
+[0m17:43:30    column "customernumber" does not exist
+[0m17:43:30    LINE 44:     customernumber as id_usuario,
+[0m17:43:30                 ^
+[0m17:43:30    compiled Code at target/run/analytics/models/dim_customers.sql
+[0m17:43:30
+[0m17:43:30  Done. PASS=0 WARN=0 ERROR=1 SKIP=0 TOTAL=1
+
+❌ dbt run falhou. Verifique os erros acima.

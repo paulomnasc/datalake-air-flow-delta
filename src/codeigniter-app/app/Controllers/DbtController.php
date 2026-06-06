@@ -479,7 +479,7 @@ YAML;
         }
 
         foreach ($items as $item) {
-            if ($item === '.' || $item === '..' || $item === '.git') {
+            if ($item === '.' || $item === '..' || $item === '.git' || $item === 'target' || $item === 'logs' || $item === 'dbt_packages') {
                 continue;
             }
             $path = $dir . '/' . $item;

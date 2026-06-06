@@ -481,64 +481,84 @@ YAML;
             $debug[] = "- Total de pipelines no MySQL para este usuário: " . count($configs);
 
             $generatedFiles = [];
-            foreach ($configs as $config) {
-                $rawTargetTable = trim($config['target_table_name']);
-                $isActive = (int)$config['is_active'];
-                
-                $debug[] = "  * Pipeline: target_table='{$rawTargetTable}' | ativa={$isActive} | pasta='{$config['pasta_nome']}' | dag='{$config['dag_id']}'";
-
-                if (empty($rawTargetTable)) {
+            
+            // Para cada tabela declarada no dbt, tentamos encontrar o pipeline correspondente no MySQL
+            foreach ($declaredTables as $cleanName => $exactDbtName) {
+                // Pulamos o próprio nome do schema/source que às vezes é capturado (ex: 'public', 'raw_lakehouse')
+                if (in_array($cleanName, ['public', 'raw_lakehouse'])) {
                     continue;
                 }
 
-                if ($isActive !== 1) {
-                    $debug[] = "    ↳ [PULADO] Pipeline inativo no MySQL.";
-                    continue;
-                }
+                $matchedConfig = null;
+                $specificFile = null;
+                $matchType = "";
 
-                // Remove sufixos comuns do nome da tabela no MySQL
-                $mysqlCleanName = strtolower(str_replace(['_gold', '_silver', '_bronze', '_raw'], '', $rawTargetTable));
+                // Loop para tentar encontrar match nas configurações de pipeline
+                foreach ($configs as $config) {
+                    $rawTargetTable = trim($config['target_table_name']);
+                    $isActive = (int)$config['is_active'];
 
-                // IMPORTANTE: Só gera se a versão limpa do MySQL corresponder a uma tabela no sources.yml
-                if (!array_key_exists($mysqlCleanName, $declaredTables)) {
-                    $debug[] = "    ↳ [PULADO] Nome limpo '{$mysqlCleanName}' não corresponde a nenhuma tabela declarada no dbt.";
-                    continue;
-                }
-
-                // O nome exato da tabela no sources.yml (ex: 'customers_gold')
-                $sourceTableNameInDbt = $declaredTables[$mysqlCleanName];
-                
-                // Nome base usado para criar os modelos dbt ephemerais (ex: 'customers')
-                $tableName = $mysqlCleanName;
-
-                // Identifica se é um pipeline multi-table (array JSON ou string com múltiplos arquivos)
-                $sourceFilename = trim($config['source_filename']);
-                $specificFile = $sourceFilename;
-
-                // Tenta decodificar como JSON array
-                $decoded = json_decode($sourceFilename, true);
-                if (is_array($decoded)) {
-                    // Procura o arquivo correspondente a esta tabela específica no array
-                    foreach ($decoded as $file) {
-                        if (stripos($file, $rawTargetTable) !== false) {
-                            $specificFile = $file;
-                            break;
-                        }
+                    if ($isActive !== 1) {
+                        continue;
                     }
-                } else {
-                    // Tenta explodir por vírgula se for lista separada
-                    $files = explode(',', $sourceFilename);
-                    if (count($files) > 1) {
-                        foreach ($files as $file) {
-                            if (stripos(trim($file), $rawTargetTable) !== false) {
-                                $specificFile = trim($file);
-                                break;
+
+                    if (empty($rawTargetTable)) {
+                        continue;
+                    }
+
+                    // 1. Match exato pelo target_table_name (Single-table)
+                    $mysqlCleanName = strtolower(str_replace(['_gold', '_silver', '_bronze', '_raw'], '', $rawTargetTable));
+                    if ($mysqlCleanName === $cleanName) {
+                        $matchedConfig = $config;
+                        $specificFile = $config['source_filename']; // Usado como fallback
+                        $matchType = "Exato (Single-Table)";
+                        break;
+                    }
+
+                    // 2. Match pelo contéudo do source_filename (Multi-table)
+                    $sourceFilename = trim($config['source_filename']);
+                    
+                    // Verifica se o cleanName aparece na lista de arquivos/JSON (ex: "customers.csv" ou "customers")
+                    if (stripos($sourceFilename, $cleanName) !== false) {
+                        $matchedConfig = $config;
+                        
+                        // Tenta localizar o arquivo específico correspondente à tabela no array/lista
+                        $decoded = json_decode($sourceFilename, true);
+                        if (is_array($decoded)) {
+                            foreach ($decoded as $file) {
+                                if (stripos($file, $cleanName) !== false) {
+                                    $specificFile = $file;
+                                    break;
+                                }
+                            }
+                        } else {
+                            $files = explode(',', $sourceFilename);
+                            foreach ($files as $file) {
+                                if (stripos(trim($file), $cleanName) !== false) {
+                                    $specificFile = trim($file);
+                                    break;
+                                }
                             }
                         }
+
+                        if (empty($specificFile)) {
+                            $specificFile = $sourceFilename;
+                        }
+
+                        $matchType = "Arquivo (Multi-Table)";
+                        break;
                     }
                 }
 
+                if ($matchedConfig === null) {
+                    $debug[] = "  * Tabela '{$cleanName}' (declarada como '{$exactDbtName}'): ↳ [PULADO] Nenhuma pipeline ativa encontrada no MySQL.";
+                    continue;
+                }
+
+                $debug[] = "  * Tabela '{$cleanName}' (declarada como '{$exactDbtName}'): ↳ Match tipo: {$matchType} com pipeline/DAG '{$matchedConfig['dag_id']}' | Arquivo: '{$specificFile}'";
+
                 // Caminhos dos arquivos SQL
+                $tableName = $cleanName;
                 $rawFile = $modelsDir . '/raw_' . $tableName . '.sql';
                 $bronzeFile = $modelsDir . '/bronze_' . $tableName . '.sql';
                 $silverFile = $modelsDir . '/silver_' . $tableName . '.sql';
@@ -548,8 +568,8 @@ YAML;
                 if (!file_exists($rawFile)) {
                     $rawSql = "{{ config(materialized='ephemeral') }}\n\n" .
                                "-- Camada Raw: Arquivo de origem original carregado no MinIO\n" .
-                               "-- Caminho da Origem MySQL: " . $specificFile . " (DAG: " . $config['dag_id'] . ")\n" .
-                               "select * from {{ source('raw_lakehouse', '" . $sourceTableNameInDbt . "') }}";
+                               "-- Caminho da Origem MySQL: " . $specificFile . " (DAG: " . $matchedConfig['dag_id'] . ")\n" .
+                               "select * from {{ source('raw_lakehouse', '" . $exactDbtName . "') }}";
                     if (file_put_contents($rawFile, $rawSql) !== false) {
                         $generatedFiles[] = "raw_{$tableName}.sql";
                     }
@@ -561,7 +581,7 @@ YAML;
                 if (!file_exists($bronzeFile)) {
                     $bronzeSql = "{{ config(materialized='ephemeral') }}\n\n" .
                                  "-- Camada Bronze: Conversão do arquivo original em formato Parquet\n" .
-                                 "-- Localização MinIO: bronze/" . $config['dag_id'] . "/" . $tableName . "/*.parquet\n" .
+                                 "-- Localização MinIO: bronze/" . $matchedConfig['dag_id'] . "/" . $tableName . "/*.parquet\n" .
                                  "select * from {{ ref('raw_" . $tableName . "') }}";
                     if (file_put_contents($bronzeFile, $bronzeSql) !== false) {
                         $generatedFiles[] = "bronze_{$tableName}.sql";
@@ -574,7 +594,7 @@ YAML;
                 if (!file_exists($silverFile)) {
                     $silverSql = "{{ config(materialized='ephemeral') }}\n\n" .
                                  "-- Camada Silver: Limpeza dos dados brutos (remover duplicatas e nulos)\n" .
-                                 "-- Localização MinIO: silver/" . $config['dag_id'] . "/" . $tableName . "/*.parquet\n" .
+                                 "-- Localização MinIO: silver/" . $matchedConfig['dag_id'] . "/" . $tableName . "/*.parquet\n" .
                                  "select * from {{ ref('bronze_" . $tableName . "') }}";
                     if (file_put_contents($silverFile, $silverSql) !== false) {
                         $generatedFiles[] = "silver_{$tableName}.sql";
@@ -587,7 +607,7 @@ YAML;
                 if (!file_exists($goldFile)) {
                     $goldSql = "{{ config(materialized='ephemeral') }}\n\n" .
                                "-- Camada Gold: Tabela final consolidada para consumo analítico\n" .
-                               "-- Localização MinIO: gold/" . $config['dag_id'] . "/" . $tableName . "/*.parquet\n" .
+                               "-- Localização MinIO: gold/" . $matchedConfig['dag_id'] . "/" . $tableName . "/*.parquet\n" .
                                "select * from {{ ref('silver_" . $tableName . "') }}";
                     if (file_put_contents($goldFile, $goldSql) !== false) {
                         $generatedFiles[] = "gold_{$tableName}.sql";

@@ -122,6 +122,17 @@ class DbtController extends BaseController
                 @mkdir($projectDir . '/macros', 0777, true);
                 $this->_copyDir('/datalake-root/dbt/analytics/macros', $projectDir . '/macros');
             }
+        } else {
+            // Se o repositório possui seu próprio dbt_project.yml, garantimos que a macro
+            // generate_schema_name.sql esteja presente na pasta macros/ para respeitar
+            // o schema dinâmico e evitar o comportamento padrão do dbt (concatenar target_schema + custom_schema).
+            $macrosDir = $projectDir . '/macros';
+            if (!is_dir($macrosDir)) {
+                @mkdir($macrosDir, 0777, true);
+            }
+            if (!file_exists($macrosDir . '/generate_schema_name.sql')) {
+                copy('/datalake-root/dbt/analytics/macros/generate_schema_name.sql', $macrosDir . '/generate_schema_name.sql');
+            }
         }
 
         // 3. Garantir pre-criação dos schemas no PostgreSQL
@@ -250,9 +261,20 @@ YAML;
         ];
         $mimeType = $mimeMap[$ext] ?? 'text/plain';
 
+        $content = file_get_contents($path);
+        if ($file === 'index.html' || $ext === 'html') {
+            // Injeta a tag <base href="/code-editor/dbt-docs-serve/"> no header do HTML
+            // para garantir que requisições relativas a assets (catalog.json, manifest.json)
+            // sejam resolvidas na URL base correta, contornando o comportamento de redirecionamento
+            // de trailing slash do .htaccess.
+            if (stripos($content, '<head>') !== false) {
+                $content = str_ireplace('<head>', '<head><base href="/code-editor/dbt-docs-serve/">', $content);
+            }
+        }
+
         return $this->response
             ->setHeader('Content-Type', $mimeType)
-            ->setBody(file_get_contents($path));
+            ->setBody($content);
     }
 
     /**

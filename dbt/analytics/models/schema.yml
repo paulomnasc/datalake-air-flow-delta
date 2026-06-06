@@ -44,3 +44,17 @@ models:
         tests:
           - unique
           - not_null
+
+  - name: dim_customers
+    description: "Tabela dimensional de clientes (Northwind) com dados enriquecidos da camada Gold."
+    columns:
+      - name: id_usuario
+        description: "Código identificador do cliente (customer_id)"
+        tests:
+          - unique
+          - not_null
+      - name: nome
+        description: "Nome do cliente (company_name)"
+      - name: contato
+        description: "Nome do contato principal do cliente (contact_name)"
+

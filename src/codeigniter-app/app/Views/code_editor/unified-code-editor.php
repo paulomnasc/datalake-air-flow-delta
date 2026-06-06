@@ -904,7 +904,10 @@ require VIEWPATH . '/header.php';
                             <div style="flex: 1.2; display: flex; flex-direction: column; overflow: hidden;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: #e2e8f0; padding: 8px 16px; border-radius: 6px 6px 0 0; font-size: 13px; font-weight: bold;">
                                     <span>📊 Linhagem de Dados (Lineage Graph)</span>
-                                    <button onclick="refreshDbtDocs()" style="background: none; border: none; color: #38bdf8; cursor: pointer; font-size: 12px;">🔄 Recarregar</button>
+                                    <div style="display: flex; gap: 10px;">
+                                        <button onclick="refreshDbtDocs()" style="background: none; border: none; color: #38bdf8; cursor: pointer; font-size: 12px;">🔄 Recarregar</button>
+                                        <button onclick="window.open('/code-editor/dbt-docs-serve/', '_blank')" style="background: none; border: none; color: #38bdf8; cursor: pointer; font-size: 12px;">↗️ Abrir em nova aba</button>
+                                    </div>
                                 </div>
                                 <div style="flex: 1; border: 1px solid #0f172a; border-radius: 0 0 6px 6px; background: white; overflow: hidden; position: relative;">
                                     <iframe id="dbtDocsIframe" src="/code-editor/dbt-docs-serve/" style="width: 100%; height: 100%; border: none;"></iframe>

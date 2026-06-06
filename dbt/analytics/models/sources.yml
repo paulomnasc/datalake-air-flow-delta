@@ -15,3 +15,11 @@ sources:
         description: "Produtos da plataforma"
       - name: activity_logs
         description: "Tabela de logs de acessos/atividades dos usuários"
+
+  - name: public
+    schema: public
+    description: "Tabelas no schema public do PostgreSQL"
+    tables:
+      - name: customers_gold
+        description: "Tabela de clientes Gold"
+

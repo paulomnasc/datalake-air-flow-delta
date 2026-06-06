@@ -136,7 +136,7 @@ class DbtController extends BaseController
         }
 
         // Gerar dinamicamente os modelos ephemerais intermediários (raw, bronze, silver, gold) para todas as tabelas ativas do MySQL do usuário
-        $this->generateDynamicEphemeralModels($projectDir, $userId);
+        $generationDebug = $this->generateDynamicEphemeralModels($projectDir, $userId);
 
         // 3. Garantir pre-criação dos schemas no PostgreSQL
         $schemaDev = "user_{$userId}_homolog_analytics";
@@ -209,6 +209,10 @@ YAML;
         $returnCode = 0;
         exec($dockerCmd, $outputLines, $returnCode);
         $outputText = implode("\n", $outputLines);
+
+        if (!empty($generationDebug)) {
+            $outputText = $generationDebug . "\n\n" . $outputText;
+        }
 
         return $this->response->setJSON([
             'success' => ($returnCode === 0),
@@ -405,18 +409,18 @@ YAML;
                 if ($found !== null) {
                     return $found;
                 }
-            }
-        }
-
-        return null;
-    }
-
-    /**
+        /**
      * Gera dinamicamente os modelos ephemerais intermediários do pipeline Medallion (raw, bronze, silver, gold)
      * a partir das tabelas configuradas no MySQL (dag_configurations) do usuário ativo.
      */
     private function generateDynamicEphemeralModels($projectDir, $userId)
     {
+        $debug = [];
+        $debug[] = "=========================================================================";
+        $debug[] = "⚙️ [DEBUG] SISTEMA DE GERAÇÃO DINÂMICA DE MODELOS EPHEMERAIS";
+        $debug[] = "- Usuário ID: " . $userId;
+        $debug[] = "- Pasta do Projeto: " . $projectDir;
+
         $modelsDir = $projectDir . '/models';
         if (!is_dir($modelsDir)) {
             @mkdir($modelsDir, 0777, true);
@@ -450,26 +454,39 @@ YAML;
                 }
             }
 
-            log_message('info', 'DbtController: Tabelas declaradas nos arquivos YML: ' . json_encode($declaredTables));
+            $debug[] = "- Tabelas declaradas no dbt (arquivos YML): " . json_encode(array_values($declaredTables));
 
             // Se nenhuma tabela estiver declarada nos arquivos .yml, não há o que gerar
             if (empty($declaredTables)) {
-                log_message('warning', 'DbtController: Nenhuma tabela declarada encontrada nos arquivos YML em ' . $modelsDir);
-                return;
+                $debug[] = "⚠️ [AVISO] Nenhuma tabela declarada encontrada nos arquivos YML.";
+                $debug[] = "=========================================================================";
+                return implode("\n", $debug);
             }
 
             $db = \Config\Database::connect();
-            // Busca todas as configurações de pipeline ativas do usuário
+            // Busca todas as configurações de pipeline (ativas e inativas) do usuário para depuração
             $configs = $db->query("
-                SELECT dc.dag_id, dc.source_filename, dc.target_table_name
+                SELECT dc.dag_id, dc.source_filename, dc.target_table_name, dc.is_active, p.nome as pasta_nome
                 FROM dag_configurations dc
                 INNER JOIN pasta p ON p.id = dc.id_pasta
-                WHERE p.id_usuario = ? AND dc.is_active = 1
+                WHERE p.id_usuario = ?
             ", [$userId])->getResultArray();
 
+            $debug[] = "- Total de pipelines no MySQL para este usuário: " . count($configs);
+
+            $generatedFiles = [];
             foreach ($configs as $config) {
                 $rawTargetTable = trim($config['target_table_name']);
+                $isActive = (int)$config['is_active'];
+                
+                $debug[] = "  * Pipeline: target_table='{$rawTargetTable}' | ativa={$isActive} | pasta='{$config['pasta_nome']}' | dag='{$config['dag_id']}'";
+
                 if (empty($rawTargetTable)) {
+                    continue;
+                }
+
+                if ($isActive !== 1) {
+                    $debug[] = "    ↳ [PULADO] Pipeline inativo no MySQL.";
                     continue;
                 }
 
@@ -478,6 +495,7 @@ YAML;
 
                 // IMPORTANTE: Só gera se a versão limpa do MySQL corresponder a uma tabela no sources.yml
                 if (!array_key_exists($mysqlCleanName, $declaredTables)) {
+                    $debug[] = "    ↳ [PULADO] Nome limpo '{$mysqlCleanName}' não corresponde a nenhuma tabela declarada no dbt.";
                     continue;
                 }
 
@@ -523,10 +541,14 @@ YAML;
                 // 1. Gerar raw_{table}.sql (somente se não existir fisicamente no repositório do aluno)
                 if (!file_exists($rawFile)) {
                     $rawSql = "{{ config(materialized='ephemeral') }}\n\n" .
-                              "-- Camada Raw: Arquivo de origem original carregado no MinIO\n" .
-                              "-- Caminho da Origem MySQL: " . $specificFile . " (DAG: " . $config['dag_id'] . ")\n" .
-                              "select * from {{ source('raw_lakehouse', '" . $sourceTableNameInDbt . "') }}";
-                    file_put_contents($rawFile, $rawSql);
+                               "-- Camada Raw: Arquivo de origem original carregado no MinIO\n" .
+                               "-- Caminho da Origem MySQL: " . $specificFile . " (DAG: " . $config['dag_id'] . ")\n" .
+                               "select * from {{ source('raw_lakehouse', '" . $sourceTableNameInDbt . "') }}";
+                    if (file_put_contents($rawFile, $rawSql) !== false) {
+                        $generatedFiles[] = "raw_{$tableName}.sql";
+                    }
+                } else {
+                    $generatedFiles[] = "raw_{$tableName}.sql (já existia)";
                 }
 
                 // 2. Gerar bronze_{table}.sql
@@ -535,7 +557,11 @@ YAML;
                                  "-- Camada Bronze: Conversão do arquivo original em formato Parquet\n" .
                                  "-- Localização MinIO: bronze/" . $config['dag_id'] . "/" . $tableName . "/*.parquet\n" .
                                  "select * from {{ ref('raw_" . $tableName . "') }}";
-                    file_put_contents($bronzeFile, $bronzeSql);
+                    if (file_put_contents($bronzeFile, $bronzeSql) !== false) {
+                        $generatedFiles[] = "bronze_{$tableName}.sql";
+                    }
+                } else {
+                    $generatedFiles[] = "bronze_{$tableName}.sql (já existia)";
                 }
 
                 // 3. Gerar silver_{table}.sql
@@ -544,7 +570,11 @@ YAML;
                                  "-- Camada Silver: Limpeza dos dados brutos (remover duplicatas e nulos)\n" .
                                  "-- Localização MinIO: silver/" . $config['dag_id'] . "/" . $tableName . "/*.parquet\n" .
                                  "select * from {{ ref('bronze_" . $tableName . "') }}";
-                    file_put_contents($silverFile, $silverSql);
+                    if (file_put_contents($silverFile, $silverSql) !== false) {
+                        $generatedFiles[] = "silver_{$tableName}.sql";
+                    }
+                } else {
+                    $generatedFiles[] = "silver_{$tableName}.sql (já existia)";
                 }
 
                 // 4. Gerar gold_{table}.sql
@@ -553,11 +583,21 @@ YAML;
                                "-- Camada Gold: Tabela final consolidada para consumo analítico\n" .
                                "-- Localização MinIO: gold/" . $config['dag_id'] . "/" . $tableName . "/*.parquet\n" .
                                "select * from {{ ref('silver_" . $tableName . "') }}";
-                    file_put_contents($goldFile, $goldSql);
+                    if (file_put_contents($goldFile, $goldSql) !== false) {
+                        $generatedFiles[] = "gold_{$tableName}.sql";
+                    }
+                } else {
+                    $generatedFiles[] = "gold_{$tableName}.sql (já existia)";
                 }
             }
+
+            $debug[] = "- Arquivos ephemerais gerados nesta execução: " . json_encode($generatedFiles);
         } catch (\Exception $e) {
+            $debug[] = "❌ Erro ao processar modelos: " . $e->getMessage();
             log_message('error', 'DbtController: Erro ao gerar modelos ephemerais dinâmicos: ' . $e->getMessage());
         }
+
+        $debug[] = "=========================================================================";
+        return implode("\n", $debug);
     }
 }

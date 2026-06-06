@@ -892,7 +892,10 @@ require VIEWPATH . '/header.php';
                             <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 16px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; background: #1e293b; color: #e2e8f0; padding: 8px 16px; border-radius: 6px 6px 0 0; font-family: monospace; font-size: 13px;">
                                     <span>💻 Terminal dbt Console</span>
-                                    <button onclick="clearDbtConsole()" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 12px;">🗑️ Limpar</button>
+                                    <div style="display: flex; gap: 10px;">
+                                        <button onclick="downloadDbtConsoleLog()" style="background: none; border: none; color: #38bdf8; cursor: pointer; font-size: 12px;">📥 Baixar Log</button>
+                                        <button onclick="clearDbtConsole()" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 12px;">🗑️ Limpar</button>
+                                    </div>
                                 </div>
                                 <pre id="dbtConsoleOutput" style="flex: 1; margin: 0; padding: 16px; background: #0f172a; color: #10b981; font-family: 'Fira Code', Consolas, monospace; font-size: 12px; line-height: 1.5; overflow: auto; border-radius: 0 0 6px 6px; border: 1px solid #1e293b; white-space: pre-wrap; word-break: break-all;">Aguardando execução do dbt...</pre>
                             </div>
@@ -3869,6 +3872,21 @@ ORDER BY departamento, rank;`
         function clearDbtConsole() {
             document.getElementById('dbtConsoleOutput').textContent = 'Console limpo. Aguardando execução...';
             document.getElementById('dbtConsoleOutput').style.color = '#10b981';
+        }
+        
+        function downloadDbtConsoleLog() {
+            const consoleEl = document.getElementById('dbtConsoleOutput');
+            if (!consoleEl) return;
+            const text = consoleEl.textContent;
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'dbt_console_log.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
         
         function refreshDbtDocs() {

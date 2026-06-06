@@ -86,6 +86,13 @@ class DbtController extends BaseController
             $hostPath = realpath(APPPATH . '../../');
         }
 
+        // 1b. Garantir build da imagem Docker do dbt-duckdb local
+        $checkImage = trim(@shell_exec("docker images -q dbt-duckdb-local:latest"));
+        if (empty($checkImage)) {
+            log_message('info', 'DbtController: Compilando imagem dbt-duckdb-local:latest...');
+            shell_exec("docker build -t dbt-duckdb-local:latest -f /datalake-root/dbt/Dockerfile.dbt-duckdb /datalake-root/dbt");
+        }
+
         // Caminhos de execução
         $tempDir = '/datalake-root/writable/dbt-tmp/user_' . $userId;
         $hostTempDir = rtrim($hostPath, '\\/') . '/writable/dbt-tmp/user_' . $userId;
@@ -136,7 +143,7 @@ class DbtController extends BaseController
         }
 
         // Gerar dinamicamente os modelos ephemerais intermediários (raw, bronze, silver, gold) para todas as tabelas ativas do MySQL do usuário
-        $generationDebug = $this->generateDynamicEphemeralModels($projectDir, $userId);
+        $generationDebug = $this->generateDynamicEphemeralModels($projectDir, $userId, $userBucket);
 
         // 3. Garantir pre-criação dos schemas no PostgreSQL
         $schemaDev = "user_{$userId}_homolog_analytics";
@@ -154,34 +161,76 @@ class DbtController extends BaseController
             log_message('warning', 'DbtController: Falha ao pré-criar schemas: ' . $e->getMessage());
         }
 
-        // 4. Gerar profiles.yml dinâmico com tenant isolado
+        // 4. Gerar profiles.yml dinâmico com tenant isolado usando DuckDB + Postgres
+        $minioHost = str_replace(['http://', 'https://'], '', getenv('MINIO_ENDPOINT') ?: 'minio:9000');
+        $minioKey = getenv('MINIO_ACCESS_KEY_ID') ?: 'admin';
+        $minioSecret = getenv('MINIO_SECRET_ACCESS_KEY') ?: 'admin123';
+
         $profilesContent = <<<YAML
 analytics:
   target: dev
   outputs:
     dev:
-      type: postgres
-      host: postgres-bi
-      port: 5432
-      user: pbi_user
-      password: pbi_password
-      dbname: datalake_bi
-      schema: {$schemaDev}
-      threads: 4
-      keepalives_idle: 0
+      type: duckdb
+      path: /tmp/datalake.duckdb
+      extensions:
+        - httpfs
+        - postgres
+      settings:
+        s3_endpoint: '{$minioHost}'
+        s3_access_key_id: '{$minioKey}'
+        s3_secret_access_key: '{$minioSecret}'
+        s3_use_ssl: false
+        s3_url_style: 'path'
+      attach:
+        - path: "postgresql://pbi_user:pbi_password@postgres-bi:5432/datalake_bi"
+          type: postgres
+          alias: postgres_db
     prod:
-      type: postgres
-      host: postgres-bi
-      port: 5432
-      user: pbi_user
-      password: pbi_password
-      dbname: datalake_bi
-      schema: {$schemaProd}
-      threads: 4
-      keepalives_idle: 0
+      type: duckdb
+      path: /tmp/datalake.duckdb
+      extensions:
+        - httpfs
+        - postgres
+      settings:
+        s3_endpoint: '{$minioHost}'
+        s3_access_key_id: '{$minioKey}'
+        s3_secret_access_key: '{$minioSecret}'
+        s3_use_ssl: false
+        s3_url_style: 'path'
+      attach:
+        - path: "postgresql://pbi_user:pbi_password@postgres-bi:5432/datalake_bi"
+          type: postgres
+          alias: postgres_db
 YAML;
 
         file_put_contents($projectDir . '/profiles.yml', $profilesContent);
+
+        // 4.1. Ajustar dbt_project.yml dinamicamente para mapear modelos finais para o Postgres attached
+        $dbtProjectFile = $projectDir . '/dbt_project.yml';
+        if (file_exists($dbtProjectFile)) {
+            $projectContent = file_get_contents($dbtProjectFile);
+            if (strpos($projectContent, 'postgres_db') === false) {
+                $redirectConfig = "\n    # Redirecionamento dinâmico para tabelas PostgreSQL\n" .
+                                  "    dim_customers:\n" .
+                                  "      +database: postgres_db\n" .
+                                  "    dim_cursos:\n" .
+                                  "      +database: postgres_db\n" .
+                                  "    dim_usuarios:\n" .
+                                  "      +database: postgres_db\n" .
+                                  "    fato_acessos:\n" .
+                                  "      +database: postgres_db\n" .
+                                  "    fato_vendas:\n" .
+                                  "      +database: postgres_db\n";
+                // Encontra onde está "analytics:" dentro de "models:"
+                if (preg_match('/models\s*:\s*\n\s*analytics\s*:/', $projectContent)) {
+                    $projectContent = preg_replace('/(models\s*:\s*\n\s*analytics\s*:)/', "$1" . $redirectConfig, $projectContent);
+                } else {
+                    $projectContent .= "\nmodels:\n  analytics:" . $redirectConfig;
+                }
+                file_put_contents($dbtProjectFile, $projectContent);
+            }
+        }
 
         // 5. Montar comando dbt
         $dbtCmd = '';
@@ -200,8 +249,8 @@ YAML;
             $workDir = '/usr/app/' . str_replace('\\', '/', $relativePath);
         }
 
-        // Comando Docker com limite de recurso
-        $dockerCmd = "docker run --rm --network=" . escapeshellarg($network) . " --memory=\"512m\" -v " . escapeshellarg($hostTempDir) . ":/usr/app -w " . escapeshellarg($workDir) . " ghcr.io/dbt-labs/dbt-postgres:1.5.0 " . $dbtCmd . " 2>&1";
+        // Comando Docker com limite de recurso usando a imagem local dbt-duckdb-local:latest
+        $dockerCmd = "docker run --rm --network=" . escapeshellarg($network) . " --memory=\"512m\" -v " . escapeshellarg($hostTempDir) . ":/usr/app -w " . escapeshellarg($workDir) . " dbt-duckdb-local:latest dbt " . $dbtCmd . " 2>&1";
 
         log_message('info', 'DbtController: Executando comando: ' . $dockerCmd);
         
@@ -409,21 +458,16 @@ YAML;
                 if ($found !== null) {
                     return $found;
                 }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Gera dinamicamente os modelos ephemerais intermediários do pipeline Medallion (raw, bronze, silver, gold)
-     * a partir das tabelas configuradas no MySQL (dag_configurations) do usuário ativo.
+        /**
+     * Gera dinamicamente os modelos intermediários do pipeline Medallion (raw, bronze, silver, gold)
+     * a partir das tabelas configuradas no MySQL (dag_configurations) do usuário ativo,
+     * lendo diretamente os arquivos físicos do MinIO S3.
      */
-    private function generateDynamicEphemeralModels($projectDir, $userId)
+    private function generateDynamicEphemeralModels($projectDir, $userId, $userBucket)
     {
         $debug = [];
         $debug[] = "=========================================================================";
-        $debug[] = "⚙️ [DEBUG] SISTEMA DE GERAÇÃO DINÂMICA DE MODELOS EPHEMERAIS";
+        $debug[] = "⚙️ [DEBUG] SISTEMA DE GERAÇÃO DINÂMICA DE MODELOS MEDALLION S3";
         $debug[] = "- Usuário ID: " . $userId;
         $debug[] = "- Pasta do Projeto: " . $projectDir;
 
@@ -492,7 +536,7 @@ YAML;
             // Busca todas as configurações de pipeline (ativas e inativas) do usuário para depuração
             $configs = $db->query("
                 SELECT dc.id, dc.dag_id, dc.source_filename, dc.target_table_name, dc.is_active, p.descricao as pasta_nome,
-                       dc.sql_connection_id, dc.is_multi_table
+                       dc.sql_connection_id, dc.is_multi_table, dc.owner
                 FROM dag_configurations dc
                 INNER JOIN pasta p ON p.id = dc.id_pasta
                 WHERE p.id_usuario = ?
@@ -595,65 +639,69 @@ YAML;
 
                 // Caminhos dos arquivos SQL
                 $tableName = $cleanName;
+                $cleanFile = ltrim($specificFile, '/\\');
+                $basename = basename($cleanFile);
+                $basenameNoExt = pathinfo($basename, PATHINFO_FILENAME);
+                $ext = strtolower(pathinfo($cleanFile, PATHINFO_EXTENSION));
+
+                $readFunc = "read_csv_auto";
+                if ($ext === 'json') {
+                    $readFunc = "read_json_auto";
+                } elseif ($ext === 'parquet') {
+                    $readFunc = "read_parquet";
+                }
+
+                $bucket = trim($matchedConfig['owner'] ?? $userBucket);
+                if (empty($bucket)) {
+                    $bucket = 'lab01'; // fallback
+                }
+
+                $cleanDagId = preg_replace('/\d+$/', '', $matchedConfig['dag_id']);
+                $goldPath = "s3://{$bucket}/gold/{$cleanDagId}/{$tableName}_delta/*.parquet";
+
                 $rawFile = $modelsDir . '/raw_' . $tableName . '.sql';
                 $bronzeFile = $modelsDir . '/bronze_' . $tableName . '.sql';
                 $silverFile = $modelsDir . '/silver_' . $tableName . '.sql';
                 $goldFile = $modelsDir . '/gold_' . $tableName . '.sql';
 
-                // 1. Gerar raw_{table}.sql (somente se não existir fisicamente no repositório do aluno)
-                if (!file_exists($rawFile)) {
-                    $rawSql = "{{ config(materialized='ephemeral') }}\n\n" .
-                               "-- Camada Raw: Arquivo de origem original carregado no MinIO\n" .
-                               "-- Caminho da Origem MySQL: " . $specificFile . " (DAG: " . $matchedConfig['dag_id'] . ")\n" .
-                               "select * from {{ source('" . $sourceName . "', '" . $exactDbtName . "') }}";
-                    if (file_put_contents($rawFile, $rawSql) !== false) {
-                        $generatedFiles[] = "raw_{$tableName}.sql";
-                    }
-                } else {
-                    $generatedFiles[] = "raw_{$tableName}.sql (já existia)";
+                // 1. Gerar raw_{table}.sql
+                $rawSql = "{{ config(materialized='view') }}\n\n" .
+                           "-- Camada Raw: Arquivo de origem original carregado no MinIO\n" .
+                           "-- Caminho da Origem MySQL: " . $cleanFile . " (DAG: " . $matchedConfig['dag_id'] . ")\n" .
+                           "select * from " . $readFunc . "('s3://" . $bucket . "/" . $cleanFile . "')";
+                if (file_put_contents($rawFile, $rawSql) !== false) {
+                    $generatedFiles[] = "raw_{$tableName}.sql";
                 }
 
                 // 2. Gerar bronze_{table}.sql
-                if (!file_exists($bronzeFile)) {
-                    $bronzeSql = "{{ config(materialized='ephemeral') }}\n\n" .
-                                 "-- Camada Bronze: Conversão do arquivo original em formato Parquet\n" .
-                                 "-- Localização MinIO: bronze/" . $tableName . "/*.parquet\n" .
-                                 "select * from {{ ref('raw_" . $tableName . "') }}";
-                    if (file_put_contents($bronzeFile, $bronzeSql) !== false) {
-                        $generatedFiles[] = "bronze_{$tableName}.sql";
-                    }
-                } else {
-                    $generatedFiles[] = "bronze_{$tableName}.sql (já existia)";
+                $bronzeSql = "{{ config(materialized='view') }}\n\n" .
+                             "-- Camada Bronze: Conversão do arquivo original em formato Parquet\n" .
+                             "-- Localização MinIO: bronze/" . $basenameNoExt . "/*.parquet\n" .
+                             "select * from read_parquet('s3://" . $bucket . "/bronze/" . $basenameNoExt . "/*.parquet')";
+                if (file_put_contents($bronzeFile, $bronzeSql) !== false) {
+                    $generatedFiles[] = "bronze_{$tableName}.sql";
                 }
 
                 // 3. Gerar silver_{table}.sql
-                if (!file_exists($silverFile)) {
-                    $silverSql = "{{ config(materialized='ephemeral') }}\n\n" .
-                                 "-- Camada Silver: Limpeza dos dados brutos (remover duplicatas e nulos)\n" .
-                                 "-- Localização MinIO: silver/" . $tableName . "/*.parquet\n" .
-                                 "select * from {{ ref('bronze_" . $tableName . "') }}";
-                    if (file_put_contents($silverFile, $silverSql) !== false) {
-                        $generatedFiles[] = "silver_{$tableName}.sql";
-                    }
-                } else {
-                    $generatedFiles[] = "silver_{$tableName}.sql (já existia)";
+                $silverSql = "{{ config(materialized='view') }}\n\n" .
+                             "-- Camada Silver: Limpeza dos dados brutos (remover duplicatas e nulos)\n" .
+                             "-- Localização MinIO: silver/" . $basenameNoExt . "/*.parquet\n" .
+                             "select * from read_parquet('s3://" . $bucket . "/silver/" . $basenameNoExt . "/*.parquet')";
+                if (file_put_contents($silverFile, $silverSql) !== false) {
+                    $generatedFiles[] = "silver_{$tableName}.sql";
                 }
 
                 // 4. Gerar gold_{table}.sql
-                if (!file_exists($goldFile)) {
-                    $goldSql = "{{ config(materialized='ephemeral') }}\n\n" .
-                               "-- Camada Gold: Tabela final consolidada para consumo analítico (Delta Lake)\n" .
-                               "-- Localização MinIO: gold/" . $tableName . "_delta/*.parquet\n" .
-                               "select * from {{ ref('silver_" . $tableName . "') }}";
-                    if (file_put_contents($goldFile, $goldSql) !== false) {
-                        $generatedFiles[] = "gold_{$tableName}.sql";
-                    }
-                } else {
-                    $generatedFiles[] = "gold_{$tableName}.sql (já existia)";
+                $goldSql = "{{ config(materialized='view') }}\n\n" .
+                           "-- Camada Gold: Tabela final consolidada para consumo analítico (Delta Lake)\n" .
+                           "-- Localização MinIO: " . $goldPath . "\n" .
+                           "select * from read_parquet('" . $goldPath . "')";
+                if (file_put_contents($goldFile, $goldSql) !== false) {
+                    $generatedFiles[] = "gold_{$tableName}.sql";
                 }
             }
 
-            $debug[] = "- Arquivos ephemerais gerados nesta execução: " . json_encode($generatedFiles);
+            $debug[] = "- Arquivos medallion gerados fisicamente no S3: " . json_encode($generatedFiles);
         } catch (\Exception $e) {
             $debug[] = "❌ Erro ao processar modelos: " . $e->getMessage();
             log_message('error', 'DbtController: Erro ao gerar modelos ephemerais dinâmicos: ' . $e->getMessage());

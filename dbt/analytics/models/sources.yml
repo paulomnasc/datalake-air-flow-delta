@@ -1,25 +1,10 @@
 version: 2
 
 sources:
-  - name: raw_lakehouse
+  - name: mysql_northwind
     schema: public
-    description: "Tabelas Gold do Data Lakehouse sincronizadas no PostgreSQL public"
+    description: "Conexão de origem original MySQL (configurada no Airflow)"
     tables:
       - name: customers
-        description: "Tabela de clientes/usuários sincronizada da camada Gold"
-      - name: orders
-        description: "Tabela de pedidos/transações sincronizada da camada Gold"
-      - name: employee_privileges
-        description: "Privilégios de funcionários"
-      - name: products
-        description: "Produtos da plataforma"
-      - name: activity_logs
-        description: "Tabela de logs de acessos/atividades dos usuários"
-
-  - name: public
-    schema: public
-    description: "Tabelas no schema public do PostgreSQL"
-    tables:
-      - name: customers_gold
-        description: "Tabela de clientes Gold"
-
+        identifier: customers_gold
+        description: "Tabela conceitual de clientes da origem MySQL mapeada para a tabela física customers_gold no Postgres"

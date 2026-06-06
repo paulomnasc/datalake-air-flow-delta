@@ -491,11 +491,24 @@ YAML;
             $db = \Config\Database::connect();
             // Busca todas as configurações de pipeline (ativas e inativas) do usuário para depuração
             $configs = $db->query("
-                SELECT dc.dag_id, dc.source_filename, dc.target_table_name, dc.is_active, p.descricao as pasta_nome
+                SELECT dc.id, dc.dag_id, dc.source_filename, dc.target_table_name, dc.is_active, p.descricao as pasta_nome,
+                       dc.sql_connection_id, dc.is_multi_table
                 FROM dag_configurations dc
                 INNER JOIN pasta p ON p.id = dc.id_pasta
                 WHERE p.id_usuario = ?
             ", [$userId])->getResultArray();
+
+            // Busca as tabelas selecionadas nas Dags multi-table
+            $selections = $db->query("
+                SELECT dts.id_dag_config, dts.table_name
+                FROM dag_table_selections dts
+                WHERE dts.is_selected = 1
+            ")->getResultArray();
+
+            $selectionsByConfig = [];
+            foreach ($selections as $sel) {
+                $selectionsByConfig[$sel['id_dag_config']][] = strtolower(trim($sel['table_name']));
+            }
 
             $debug[] = "- Total de pipelines no MySQL para este usuário: " . count($configs);
 
@@ -517,60 +530,61 @@ YAML;
 
                 // Loop para tentar encontrar match nas configurações de pipeline
                 foreach ($configs as $config) {
-                    $rawTargetTable = trim($config['target_table_name']);
                     $isActive = (int)$config['is_active'];
-
                     if ($isActive !== 1) {
                         continue;
                     }
 
-                    if (empty($rawTargetTable)) {
-                        continue;
-                    }
+                    $isMultiTable = (int)($config['is_multi_table'] ?? 0);
 
-                    // 1. Match exato pelo target_table_name (Single-table)
-                    $mysqlCleanName = strtolower(str_replace(['_gold', '_silver', '_bronze', '_raw'], '', $rawTargetTable));
-                    if ($mysqlCleanName === $cleanName) {
-                        $matchedConfig = $config;
-                        $specificFile = $config['source_filename']; // Usado como fallback
-                        $matchType = "Exato (Single-Table)";
-                        break;
-                    }
-
-                    // 2. Match pelo contéudo do source_filename (Multi-table)
-                    $sourceFilename = trim($config['source_filename']);
-                    
-                    // Verifica se o cleanName aparece na lista de arquivos/JSON (ex: "customers.csv" ou "customers")
-                    if (stripos($sourceFilename, $cleanName) !== false) {
-                        $matchedConfig = $config;
+                    // 1. Caso Multi-Table: busca nas seleções de tabela associadas
+                    if ($isMultiTable === 1) {
+                        $configId = $config['id'];
+                        $configTables = $selectionsByConfig[$configId] ?? [];
                         
-                        // Tenta localizar o arquivo específico correspondente à tabela no array/lista
-                        $decoded = json_decode($sourceFilename, true);
-                        if (is_array($decoded)) {
-                            foreach ($decoded as $file) {
-                                if (stripos($file, $cleanName) !== false) {
-                                    $specificFile = $file;
-                                    break;
+                        if (in_array($cleanName, $configTables)) {
+                            $matchedConfig = $config;
+                            
+                            // Tenta encontrar o arquivo específico correspondente na lista do source_filename
+                            $sourceFilename = trim($config['source_filename']);
+                            $specificFile = $cleanName . ".csv"; // default fallback
+                            
+                            $decoded = json_decode($sourceFilename, true);
+                            if (is_array($decoded)) {
+                                foreach ($decoded as $file) {
+                                    if (stripos($file, $cleanName) !== false) {
+                                        $specificFile = $file;
+                                        break;
+                                    }
+                                }
+                            } else {
+                                $files = explode(',', $sourceFilename);
+                                foreach ($files as $file) {
+                                    if (stripos(trim($file), $cleanName) !== false) {
+                                        $specificFile = $file;
+                                        break;
+                                    }
                                 }
                             }
-                        } else {
-                            $files = explode(',', $sourceFilename);
-                            foreach ($files as $file) {
-                                if (stripos(trim($file), $cleanName) !== false) {
-                                    $specificFile = trim($file);
-                                    break;
-                                }
+                            $matchType = "Multi-Table (dag_table_selections)";
+                            break;
+                        }
+                    } 
+                    // 2. Caso Single-Table: busca direta no target_table_name
+                    else {
+                        $rawTargetTable = trim($config['target_table_name']);
+                        if (!empty($rawTargetTable)) {
+                            $mysqlCleanName = strtolower(str_replace(['_gold', '_silver', '_bronze', '_raw'], '', $rawTargetTable));
+                            if ($mysqlCleanName === $cleanName) {
+                                $matchedConfig = $config;
+                                $specificFile = $config['source_filename'];
+                                $matchType = "Single-Table (target_table_name)";
+                                break;
                             }
                         }
-
-                        if (empty($specificFile)) {
-                            $specificFile = $sourceFilename;
-                        }
-
-                        $matchType = "Arquivo (Multi-Table)";
-                        break;
                     }
                 }
+
 
                 if ($matchedConfig === null) {
                     $debug[] = "  * Tabela '{$cleanName}' (declarada como '{$exactDbtName}' no source '{$sourceName}'): ↳ [PULADO] Nenhuma pipeline ativa encontrada no MySQL.";

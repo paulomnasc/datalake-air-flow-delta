@@ -436,7 +436,7 @@ YAML;
                 }
             }
 
-            $declaredTables = [];
+            $declaredTables = []; // Mapeamento clean_name => exact_declared_name
             if ($sourcesPath && file_exists($sourcesPath)) {
                 $content = file_get_contents($sourcesPath);
                 $lines = explode("\n", $content);
@@ -450,12 +450,15 @@ YAML;
                         $inTablesSection = false;
                     }
                     if ($inTablesSection && preg_match('/^\s*-\s*name\s*:\s*[\'"]?([a-zA-Z0-9_-]+)[\'"]?/', $line, $matches)) {
-                        $declaredTables[] = strtolower(trim($matches[1]));
+                        $exactName = trim($matches[1]);
+                        // Remove sufixos comuns de camadas para obter o nome limpo (ex: 'customers_gold' -> 'customers')
+                        $cleanName = strtolower(str_replace(['_gold', '_silver', '_bronze', '_raw'], '', $exactName));
+                        $declaredTables[$cleanName] = $exactName;
                     }
                 }
             }
 
-            // Se nenhuma tabela estiver declarada no sources.yml, não há o que gerar (evita quebrar compilação por fontes inexistentes)
+            // Se nenhuma tabela estiver declarada no sources.yml, não há o que gerar
             if (empty($declaredTables)) {
                 return;
             }
@@ -475,14 +478,19 @@ YAML;
                     continue;
                 }
 
-                // Definimos o nome base para o dbt
-                $tableName = strtolower($rawTargetTable);
+                // Remove sufixos comuns do nome da tabela no MySQL
+                $mysqlCleanName = strtolower(str_replace(['_gold', '_silver', '_bronze', '_raw'], '', $rawTargetTable));
 
-                // IMPORTANTE: Só gera se a tabela estiver explicitamente declarada no sources.yml
-                // para evitar erros de compilação do dbt de fontes não mapeadas no projeto (ex: api-place)
-                if (!in_array($tableName, $declaredTables)) {
+                // IMPORTANTE: Só gera se a versão limpa do MySQL corresponder a uma tabela no sources.yml
+                if (!array_key_exists($mysqlCleanName, $declaredTables)) {
                     continue;
                 }
+
+                // O nome exato da tabela no sources.yml (ex: 'customers_gold')
+                $sourceTableNameInDbt = $declaredTables[$mysqlCleanName];
+                
+                // Nome base usado para criar os modelos dbt ephemerais (ex: 'customers')
+                $tableName = $mysqlCleanName;
 
                 // Identifica se é um pipeline multi-table (array JSON ou string com múltiplos arquivos)
                 $sourceFilename = trim($config['source_filename']);
@@ -522,7 +530,7 @@ YAML;
                     $rawSql = "{{ config(materialized='ephemeral') }}\n\n" .
                               "-- Camada Raw: Arquivo de origem original carregado no MinIO\n" .
                               "-- Caminho da Origem MySQL: " . $specificFile . " (DAG: " . $config['dag_id'] . ")\n" .
-                              "select * from {{ source('raw_lakehouse', '" . $tableName . "') }}";
+                              "select * from {{ source('raw_lakehouse', '" . $sourceTableNameInDbt . "') }}";
                     file_put_contents($rawFile, $rawSql);
                 }
 

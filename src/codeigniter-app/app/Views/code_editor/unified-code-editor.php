@@ -904,7 +904,7 @@ require VIEWPATH . '/header.php';
                                     <button onclick="refreshDbtDocs()" style="background: none; border: none; color: #38bdf8; cursor: pointer; font-size: 12px;">🔄 Recarregar</button>
                                 </div>
                                 <div style="flex: 1; border: 1px solid #0f172a; border-radius: 0 0 6px 6px; background: white; overflow: hidden; position: relative;">
-                                    <iframe id="dbtDocsIframe" src="/code-editor/dbt-docs-serve" style="width: 100%; height: 100%; border: none;"></iframe>
+                                    <iframe id="dbtDocsIframe" src="/code-editor/dbt-docs-serve/" style="width: 100%; height: 100%; border: none;"></iframe>
                                 </div>
                             </div>
                         </div>
@@ -3875,7 +3875,7 @@ ORDER BY departamento, rank;`
             const iframe = document.getElementById('dbtDocsIframe');
             if (iframe) {
                 // Forçar recarga atualizando o atributo src com timestamp para ignorar cache do navegador
-                const baseSrc = '/code-editor/dbt-docs-serve';
+                const baseSrc = '/code-editor/dbt-docs-serve/';
                 iframe.src = baseSrc + '?t=' + Date.now();
             }
         }

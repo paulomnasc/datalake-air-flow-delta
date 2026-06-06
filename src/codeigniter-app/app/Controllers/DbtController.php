@@ -423,43 +423,38 @@ YAML;
         }
 
         try {
-            // 1. Procurar o arquivo sources.yml no projeto para identificar quais fontes estão declaradas
-            $sourcesPath = null;
+            $declaredTables = []; // Mapeamento clean_name => exact_declared_name
+
+            // Procura em todos os arquivos .yml ou .yaml dentro da pasta models/ de forma robusta
             if (is_dir($modelsDir)) {
                 $directory = new \RecursiveDirectoryIterator($modelsDir);
                 $iterator = new \RecursiveIteratorIterator($directory);
                 foreach ($iterator as $file) {
-                    if ($file->isFile() && $file->getFilename() === 'sources.yml') {
-                        $sourcesPath = $file->getPathname();
-                        break;
+                    if ($file->isFile() && in_array(strtolower($file->getExtension()), ['yml', 'yaml'])) {
+                        $content = file_get_contents($file->getPathname());
+                        $lines = explode("\n", $content);
+                        foreach ($lines as $line) {
+                            // Ignora comentários
+                            if (preg_match('/^\s*#/', $line)) {
+                                continue;
+                            }
+                            // Captura qualquer entrada no formato '- name: tabela'
+                            if (preg_match('/^\s*-\s*name\s*:\s*[\'"]?([a-zA-Z0-9_-]+)[\'"]?/', $line, $matches)) {
+                                $exactName = trim($matches[1]);
+                                // Remove sufixos comuns de camadas (ex: 'customers_gold' -> 'customers')
+                                $cleanName = strtolower(str_replace(['_gold', '_silver', '_bronze', '_raw'], '', $exactName));
+                                $declaredTables[$cleanName] = $exactName;
+                            }
+                        }
                     }
                 }
             }
 
-            $declaredTables = []; // Mapeamento clean_name => exact_declared_name
-            if ($sourcesPath && file_exists($sourcesPath)) {
-                $content = file_get_contents($sourcesPath);
-                $lines = explode("\n", $content);
-                $inTablesSection = false;
-                foreach ($lines as $line) {
-                    if (preg_match('/^\s*tables\s*:/', $line)) {
-                        $inTablesSection = true;
-                        continue;
-                    }
-                    if ($inTablesSection && preg_match('/^\s*[a-zA-Z]/', $line) && !preg_match('/^\s*tables\s*:/', $line)) {
-                        $inTablesSection = false;
-                    }
-                    if ($inTablesSection && preg_match('/^\s*-\s*name\s*:\s*[\'"]?([a-zA-Z0-9_-]+)[\'"]?/', $line, $matches)) {
-                        $exactName = trim($matches[1]);
-                        // Remove sufixos comuns de camadas para obter o nome limpo (ex: 'customers_gold' -> 'customers')
-                        $cleanName = strtolower(str_replace(['_gold', '_silver', '_bronze', '_raw'], '', $exactName));
-                        $declaredTables[$cleanName] = $exactName;
-                    }
-                }
-            }
+            log_message('info', 'DbtController: Tabelas declaradas nos arquivos YML: ' . json_encode($declaredTables));
 
-            // Se nenhuma tabela estiver declarada no sources.yml, não há o que gerar
+            // Se nenhuma tabela estiver declarada nos arquivos .yml, não há o que gerar
             if (empty($declaredTables)) {
+                log_message('warning', 'DbtController: Nenhuma tabela declarada encontrada nos arquivos YML em ' . $modelsDir);
                 return;
             }
 

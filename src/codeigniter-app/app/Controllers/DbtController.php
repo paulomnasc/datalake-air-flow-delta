@@ -581,7 +581,7 @@ YAML;
                 if (!file_exists($bronzeFile)) {
                     $bronzeSql = "{{ config(materialized='ephemeral') }}\n\n" .
                                  "-- Camada Bronze: Conversão do arquivo original em formato Parquet\n" .
-                                 "-- Localização MinIO: bronze/" . $matchedConfig['dag_id'] . "/" . $tableName . "/*.parquet\n" .
+                                 "-- Localização MinIO: bronze/" . $tableName . "/*.parquet\n" .
                                  "select * from {{ ref('raw_" . $tableName . "') }}";
                     if (file_put_contents($bronzeFile, $bronzeSql) !== false) {
                         $generatedFiles[] = "bronze_{$tableName}.sql";
@@ -594,7 +594,7 @@ YAML;
                 if (!file_exists($silverFile)) {
                     $silverSql = "{{ config(materialized='ephemeral') }}\n\n" .
                                  "-- Camada Silver: Limpeza dos dados brutos (remover duplicatas e nulos)\n" .
-                                 "-- Localização MinIO: silver/" . $matchedConfig['dag_id'] . "/" . $tableName . "/*.parquet\n" .
+                                 "-- Localização MinIO: silver/" . $tableName . "/*.parquet\n" .
                                  "select * from {{ ref('bronze_" . $tableName . "') }}";
                     if (file_put_contents($silverFile, $silverSql) !== false) {
                         $generatedFiles[] = "silver_{$tableName}.sql";
@@ -606,8 +606,8 @@ YAML;
                 // 4. Gerar gold_{table}.sql
                 if (!file_exists($goldFile)) {
                     $goldSql = "{{ config(materialized='ephemeral') }}\n\n" .
-                               "-- Camada Gold: Tabela final consolidada para consumo analítico\n" .
-                               "-- Localização MinIO: gold/" . $matchedConfig['dag_id'] . "/" . $tableName . "/*.parquet\n" .
+                               "-- Camada Gold: Tabela final consolidada para consumo analítico (Delta Lake)\n" .
+                               "-- Localização MinIO: gold/" . $tableName . "_delta/*.parquet\n" .
                                "select * from {{ ref('silver_" . $tableName . "') }}";
                     if (file_put_contents($goldFile, $goldSql) !== false) {
                         $generatedFiles[] = "gold_{$tableName}.sql";

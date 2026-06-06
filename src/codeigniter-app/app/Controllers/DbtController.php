@@ -409,7 +409,13 @@ YAML;
                 if ($found !== null) {
                     return $found;
                 }
-        /**
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Gera dinamicamente os modelos ephemerais intermediários do pipeline Medallion (raw, bronze, silver, gold)
      * a partir das tabelas configuradas no MySQL (dag_configurations) do usuário ativo.
      */

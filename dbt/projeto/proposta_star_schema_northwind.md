@@ -1,6 +1,6 @@
 # Proposta de Modelagem Dimensional Star Schema (Northwind)
 
-Este documento apresenta a especificação técnica para a modelagem do Star Schema de **Vendas (Sales)** a partir do banco de dados relacional OLTP Northwind. Toda a lógica de mapeamento, conversão e regras de negócio foi traduzida para os modelos do **dbt (Data Build Tool)** utilizando a sintaxe SQL combinada com macros Jinja, incluindo a geração de **Surrogate Keys (SK)** recomendadas pelas melhores práticas de Data Warehousing (Kimball).
+Este documento apresenta a especificação técnica para a modelagem do Star Schema de **Vendas (Sales)** a partir do banco de dados relacional OLTP Northwind. Toda a lógica de mapeamento, conversão e regras de negócio foi traduzida para os modelos do **dbt (Data Build Tool)** utilizando a sintaxe SQL combinada com macros Jinja, incluindo a geração de **Surrogate Keys (SK)** nativas e offline-compatible (sem dependência de pacotes externos como `dbt_utils`).
 
 ---
 
@@ -17,20 +17,17 @@ erDiagram
     dim_products }|--|| dim_categories : "fk_categoria = sk_categoria"
 ```
 
-> [!NOTE]
-> Como a tabela original de produtos do Northwind não possui uma tabela separada de categorias (a categoria é guardada como uma string simples na coluna `category` da tabela `products`), nós normalizamos essa informação extraindo uma dimensão separada chamada `dim_categories` ligada via surrogate key `sk_categoria`.
-
 ---
 
 ## 🗺️ Mapeamento de Dados ("De-Para")
 
-| Modelo de Destino | Tipo | Modelos de Origem (dbt Gold) | Surrogate Key (Gerada via dbt_utils) | Descrição |
+| Modelo de Destino | Tipo | Modelos de Origem (dbt Gold) | Geração da Surrogate Key (Nativa / Offline) | Descrição |
 | :--- | :--- | :--- | :--- | :--- |
-| **[fato_sales](file:///c:/Users/cblna/OneDrive/Documentos/datalake-air-flow-delta/dbt/projeto/proposta_star_schema_northwind.md#fato_sales)** | Fato | `gold_orders`, `gold_order_details` | `sk_venda` (chave composta do item e pedido) | Itens de pedidos, quantidades, valores e relacionamentos. |
-| **[dim_customers](file:///c:/Users/cblna/OneDrive/Documentos/datalake-air-flow-delta/dbt/projeto/proposta_star_schema_northwind.md#dim_customers)** | Dimensão | `gold_customers` | `sk_cliente` (hash do `customer_id` de cliente) | Dados cadastrais e de localização dos clientes. |
-| **[dim_employees](file:///c:/Users/cblna/OneDrive/Documentos/datalake-air-flow-delta/dbt/projeto/proposta_star_schema_northwind.md#dim_employees)** | Dimensão | `gold_employees` | `sk_funcionario` (hash do `id` do funcionário) | Informações sobre a equipe de vendas. |
-| **[dim_products](file:///c:/Users/cblna/OneDrive/Documentos/datalake-air-flow-delta/dbt/projeto/proposta_star_schema_northwind.md#dim_products)** | Dimensão | `gold_products` | `sk_produto` (hash do `id` do produto) | Catálogo de produtos com custos e preços sugeridos. |
-| **[dim_categories](file:///c:/Users/cblna/OneDrive/Documentos/datalake-air-flow-delta/dbt/projeto/proposta_star_schema_northwind.md#dim_categories)** | Dimensão | `gold_products` | `sk_categoria` (hash do nome da categoria) | Lista distinta das categorias dos produtos. |
+| **[fato_sales](file:///c:/Users/cblna/OneDrive/Documentos/datalake-air-flow-delta/dbt/projeto/proposta_star_schema_northwind.md#fato_sales)** | Fato | `gold_orders`, `gold_order_details` | `md5(coalesce(cast(od.order_id as varchar), '') \|\| '-' \|\| coalesce(cast(od.product_id as varchar), ''))` | Itens de pedidos, quantidades, valores e relacionamentos. |
+| **[dim_customers](file:///c:/Users/cblna/OneDrive/Documentos/datalake-air-flow-delta/dbt/projeto/proposta_star_schema_northwind.md#dim_customers)** | Dimensão | `gold_customers` | `md5(coalesce(cast(customer_id as varchar), ''))` | Dados cadastrais e de localização dos clientes. |
+| **[dim_employees](file:///c:/Users/cblna/OneDrive/Documentos/datalake-air-flow-delta/dbt/projeto/proposta_star_schema_northwind.md#dim_employees)** | Dimensão | `gold_employees` | `md5(coalesce(cast(employee_id as varchar), ''))` | Informações sobre a equipe de vendas. |
+| **[dim_products](file:///c:/Users/cblna/OneDrive/Documentos/datalake-air-flow-delta/dbt/projeto/proposta_star_schema_northwind.md#dim_products)** | Dimensão | `gold_products` | `md5(coalesce(cast(product_id as varchar), ''))` | Catálogo de produtos com custos e preços sugeridos. |
+| **[dim_categories](file:///c:/Users/cblna/OneDrive/Documentos/datalake-air-flow-delta/dbt/projeto/proposta_star_schema_northwind.md#dim_categories)** | Dimensão | `gold_categories` | `md5(coalesce(cast(category_id as varchar), ''))` | Lista distinta das categorias dos produtos. |
 | **[dim_date](file:///c:/Users/cblna/OneDrive/Documentos/datalake-air-flow-delta/dbt/projeto/proposta_star_schema_northwind.md#dim_date)** | Dimensão | Gerador sintético dbt | `sk_data` (número no formato `YYYYMMDD`) | Dimensão de calendário para análise temporal. |
 
 ---
@@ -40,8 +37,6 @@ erDiagram
 <a id="dim_customers"></a>
 ### 👥 1. Dimensão Clientes (`dim_customers.sql`)
 
-Gera a dimensão de clientes com sua chave substituta (`sk_cliente`) a partir do hash md5 do `customer_id` de origem.
-
 ```sql
 {{ config(materialized='table') }}
 
@@ -50,8 +45,8 @@ with source_customers as (
 )
 
 select
-    -- Geração da Surrogate Key baseada no ID textual natural do Northwind (ex: 'ALFKI')
-    {{ dbt_utils.generate_surrogate_key(['customer_id']) }} as sk_cliente,
+    -- Geração da Surrogate Key nativa (sem pacotes)
+    md5(coalesce(cast(customer_id as varchar), '')) as sk_cliente,
     customer_id as id_cliente,
     company_name as empresa,
     contact_name as nome_completo,
@@ -67,8 +62,6 @@ from source_customers
 <a id="dim_employees"></a>
 ### 👔 2. Dimensão Funcionários (`dim_employees.sql`)
 
-Gera a dimensão de funcionários com sua respectiva chave substituta (`sk_funcionario`).
-
 ```sql
 {{ config(materialized='table') }}
 
@@ -77,15 +70,14 @@ with source_employees as (
 )
 
 select
-    -- Geração da Surrogate Key
-    {{ dbt_utils.generate_surrogate_key(['id']) }} as sk_funcionario,
-    id as id_funcionario,
+    -- Geração da Surrogate Key nativa baseada no employee_id real
+    md5(coalesce(cast(employee_id as varchar), '')) as sk_funcionario,
+    employee_id as id_funcionario,
     concat(first_name, ' ', last_name) as nome_completo,
-    job_title as cargo,
-    business_phone as telefone_comercial,
-    email_address as email,
+    title as cargo,
+    home_phone as telefone,
     city as cidade,
-    country_region as pais_regiao
+    country as pais
 from source_employees
 ```
 
@@ -94,29 +86,26 @@ from source_employees
 <a id="dim_categories"></a>
 ### 🏷️ 3. Dimensão Categorias (`dim_categories.sql`)
 
-Extrai as categorias únicas e gera a surrogate key (`sk_categoria`) com base no nome textual da categoria.
-
 ```sql
 {{ config(materialized='table') }}
 
-with unique_categories as (
-    select distinct category from {{ ref('gold_products') }}
-    where category is not null
+with source_categories as (
+    select * from {{ ref('gold_categories') }}
 )
 
 select
-    -- Geração da Surrogate Key baseada no nome textual único
-    {{ dbt_utils.generate_surrogate_key(['category']) }} as sk_categoria,
-    category as nome_categoria
-from unique_categories
+    -- Geração da Surrogate Key nativa
+    md5(coalesce(cast(category_id as varchar), '')) as sk_categoria,
+    category_id as id_categoria,
+    category_name as nome_categoria,
+    description as descricao
+from source_categories
 ```
 
 ---
 
 <a id="dim_products"></a>
 ### 📦 4. Dimensão Produtos (`dim_products.sql`)
-
-Liga o produto à dimensão de categoria utilizando as respectivas surrogate keys geradas.
 
 ```sql
 {{ config(materialized='table') }}
@@ -130,25 +119,21 @@ categories as (
 )
 
 select
-    -- Geração da Surrogate Key do produto
-    {{ dbt_utils.generate_surrogate_key(['p.id']) }} as sk_produto,
-    p.id as id_produto,
-    p.product_code as codigo_produto,
+    -- Geração da Surrogate Key do produto baseada no product_id
+    md5(coalesce(cast(p.product_id as varchar), '')) as sk_produto,
+    p.product_id as id_produto,
     p.product_name as nome_produto,
-    p.list_price as preco_lista,
-    p.standard_cost as custo_padrao,
+    p.unit_price as preco_venda,
     case when p.discontinued = 1 then 'Sim' else 'Não' end as descontinuado,
     c.sk_categoria as fk_categoria
 from source_products p
-left join categories c on p.category = c.nome_categoria
+left join categories c on p.category_id = c.id_categoria
 ```
 
 ---
 
 <a id="dim_date"></a>
 ### 📅 5. Dimensão Data (`dim_date.sql`)
-
-Gera a dimensão de calendário. O campo numérico `sk_data` (YYYYMMDD) funciona como chave primária natural/substituta da dimensão.
 
 ```sql
 {{ config(materialized='table') }}
@@ -185,8 +170,6 @@ from date_series
 <a id="fato_sales"></a>
 ### 📊 6. Tabela Fato Vendas (`fato_sales.sql`)
 
-A tabela fato consome os dados transacionais de pedidos (`gold_orders`) e detalhes de itens (`gold_order_details`), fazendo as conexões corretas com as colunas reais da camada Gold do Northwind.
-
 ```sql
 {{ config(materialized='table') }}
 
@@ -199,13 +182,13 @@ order_details as (
 )
 
 select
-    -- 1. Chave Primária da Fato (Surrogate Key composta do pedido + produto)
-    {{ dbt_utils.generate_surrogate_key(['od.order_id', 'od.product_id']) }} as sk_venda,
+    -- 1. Chave Primária da Fato nativa (composta do pedido + produto)
+    md5(coalesce(cast(od.order_id as varchar), '') || '-' || coalesce(cast(od.product_id as varchar), '')) as sk_venda,
     
-    -- 2. Chaves Estrangeiras apontando para as SKs das Dimensões
-    {{ dbt_utils.generate_surrogate_key(['o.customer_id']) }} as fk_cliente,
-    {{ dbt_utils.generate_surrogate_key(['o.employee_id']) }} as fk_funcionario,
-    {{ dbt_utils.generate_surrogate_key(['od.product_id']) }} as fk_produto,
+    -- 2. Chaves Estrangeiras nativas apontando para as SKs das Dimensões
+    md5(coalesce(cast(o.customer_id as varchar), '')) as fk_cliente,
+    md5(coalesce(cast(o.employee_id as varchar), '')) as fk_funcionario,
+    md5(coalesce(cast(od.product_id as varchar), '')) as fk_produto,
     cast(strftime(o.order_date, '%Y%m%d') as integer) as fk_data_pedido,
     
     -- 3. Dimensões Degeneradas / Identificadores do Negócio (Rastreabilidade)
@@ -217,7 +200,7 @@ select
     od.unit_price as preco_unitario,
     od.discount as desconto,
     
-    -- Valor total de frete do pedido (vindo do cabeçalho)
+    -- Valor total de frete do pedido
     cast(o.freight as double) as frete_total_pedido,
     
     -- Métricas Analíticas Calculadas
@@ -231,8 +214,6 @@ inner join orders o on od.order_id = o.order_id
 ---
 
 ## 🧪 Validações de Qualidade e Integridade (`schema.yml`)
-
-Este arquivo define os testes no dbt que validarão a consistência e integridade das chaves substitutas no Star Schema:
 
 ```yaml
 version: 2

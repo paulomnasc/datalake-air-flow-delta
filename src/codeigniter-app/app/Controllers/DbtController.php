@@ -675,7 +675,7 @@ YAML;
 
                 // Caminhos dos arquivos SQL
                 $tableName = $cleanName;
-                $cleanFile = stripslashes(trim($specificFile ?? '', '"\' '));
+                $cleanFile = stripslashes(trim($specificFile ?? '', '"\' []{} '));
                 $cleanFile = ltrim($cleanFile, '/\\');
                 $basename = basename($cleanFile);
                 $basenameNoExt = pathinfo($basename, PATHINFO_FILENAME);

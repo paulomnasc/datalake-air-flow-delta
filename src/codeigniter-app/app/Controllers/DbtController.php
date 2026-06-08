@@ -298,6 +298,11 @@ YAML;
         exec($dockerCmd, $outputLines, $returnCode);
         $outputText = implode("\n", $outputLines);
 
+        // Se a execução do dbt run teve sucesso, aplicar as PKs e FKs no PostgreSQL
+        if ($returnCode === 0 && $action === 'run') {
+            $this->applyPostgresConstraints($projectDir, $schemaTarget);
+        }
+
         if (!empty($generationDebug)) {
             $outputText = $generationDebug . "\n\n" . $outputText;
         }
@@ -714,7 +719,9 @@ YAML;
                 
                 $silverS3Path = "s3://{$bucket}/silver/{$tableName}/{$basenameNoExt}.parquet";
                 
-                $goldS3Path = "s3://{$bucket}/gold/{$basenameNoExt}_gold/{$basenameNoExt}_gold_delta/*.parquet";
+                // Buscamos dinamicamente no S3 o arquivo correspondente ao último commit/versão
+                $goldS3Prefix = "gold/{$basenameNoExt}_gold/{$basenameNoExt}_gold_delta/";
+                $latestGoldFile = $this->getLatestGoldParquetFile($bucket, $goldS3Prefix);
 
                 $rawFile = $modelsDir . '/raw_' . $tableName . '.sql';
                 $bronzeFile = $modelsDir . '/bronze_' . $tableName . '.sql';
@@ -754,8 +761,8 @@ YAML;
                 $goldSql = "{{ config(materialized='view') }}\n\n" .
                            "-- depends_on: {{ ref('silver_" . $tableName . "') }}\n\n" .
                            "-- Camada Gold: Tabela final consolidada para consumo analítico (Delta Lake)\n" .
-                           "-- Localização MinIO: gold/" . $basenameNoExt . "_gold/" . $basenameNoExt . "_gold_delta/*.parquet\n" .
-                           "select * from read_parquet('" . $goldS3Path . "')";
+                           "-- Localização MinIO: gold/" . $basenameNoExt . "_gold/" . $basenameNoExt . "_gold_delta/" . basename($latestGoldFile) . "\n" .
+                           "select * from read_parquet('" . $latestGoldFile . "')";
                 if (file_put_contents($goldFile, $goldSql) !== false) {
                     $generatedFiles[] = "gold_{$tableName}.sql";
                 }
@@ -769,5 +776,266 @@ YAML;
 
         $debug[] = "=========================================================================";
         return implode("\n", $debug);
+    }
+
+    /**
+     * Aplica chaves primárias e chaves estrangeiras no PostgreSQL a partir do schema.yml
+     */
+    private function applyPostgresConstraints($projectDir, $schemaTarget)
+    {
+        $yamlPath = $projectDir . '/models/schema.yml';
+        if (!file_exists($yamlPath)) {
+            log_message('warning', 'DbtController: schema.yml não encontrado para aplicação de constraints.');
+            return;
+        }
+
+        $parsed = $this->parseSchemaYaml($yamlPath);
+        if (empty($parsed)) {
+            log_message('info', 'DbtController: Nenhuma constraint encontrada no schema.yml.');
+            return;
+        }
+
+        try {
+            $dsn = "pgsql:host=postgres-bi;port=5432;dbname=datalake_bi";
+            $pdo = new \PDO($dsn, 'pbi_user', 'pbi_password', [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+
+            // 1. Chaves Primárias
+            foreach ($parsed as $tableName => $meta) {
+                $tableName = preg_replace('/[^a-zA-Z0-9_-]/', '', $tableName);
+                $fullTableName = '"' . $schemaTarget . '"."' . $tableName . '"';
+
+                // Verificar se a tabela existe antes de aplicar as chaves
+                $stmt = $pdo->prepare("
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_schema = :schema AND table_name = :table
+                    )
+                ");
+                $stmt->execute(['schema' => $schemaTarget, 'table' => $tableName]);
+                if (!$stmt->fetchColumn()) {
+                    log_message('warning', "DbtController: Tabela {$fullTableName} não existe no PostgreSQL. Pulando constraints.");
+                    continue;
+                }
+
+                if (!empty($meta['pks'])) {
+                    $pkCol = preg_replace('/[^a-zA-Z0-9_-]/', '', $meta['pks'][0]);
+                    $constraintName = 'pk_' . $tableName;
+
+                    // Remover PK existente se houver (CASCADE remove FKs que dependem dela temporariamente para recriar)
+                    try {
+                        $pdo->exec("ALTER TABLE {$fullTableName} DROP CONSTRAINT IF EXISTS \"{$constraintName}\" CASCADE");
+                    } catch (\Exception $e) {
+                        // ignorar
+                    }
+
+                    // Adicionar PK
+                    try {
+                        $pdo->exec("ALTER TABLE {$fullTableName} ADD CONSTRAINT \"{$constraintName}\" PRIMARY KEY (\"{$pkCol}\")");
+                        log_message('info', "DbtController: Criada PK {$constraintName} em {$fullTableName}(\"{$pkCol}\").");
+                    } catch (\Exception $e) {
+                        log_message('error', "DbtController: Falha ao criar PK em {$fullTableName}: " . $e->getMessage());
+                    }
+                }
+            }
+
+            // 2. Chaves Estrangeiras
+            foreach ($parsed as $tableName => $meta) {
+                $tableName = preg_replace('/[^a-zA-Z0-9_-]/', '', $tableName);
+                $fullTableName = '"' . $schemaTarget . '"."' . $tableName . '"';
+
+                // Verificar se a tabela existe
+                $stmt = $pdo->prepare("
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_schema = :schema AND table_name = :table
+                    )
+                ");
+                $stmt->execute(['schema' => $schemaTarget, 'table' => $tableName]);
+                if (!$stmt->fetchColumn()) {
+                    continue;
+                }
+
+                if (!empty($meta['fks'])) {
+                    foreach ($meta['fks'] as $fk) {
+                        $fromCol = preg_replace('/[^a-zA-Z0-9_-]/', '', $fk['from_column']);
+                        $toTable = preg_replace('/[^a-zA-Z0-9_-]/', '', $fk['to_table']);
+                        $toField = preg_replace('/[^a-zA-Z0-9_-]/', '', $fk['to_field']);
+                        
+                        $toFullTableName = '"' . $schemaTarget . '"."' . $toTable . '"';
+                        $constraintName = 'fk_' . $tableName . '_' . $toTable;
+
+                        // Remover FK existente se houver
+                        try {
+                            $pdo->exec("ALTER TABLE {$fullTableName} DROP CONSTRAINT IF EXISTS \"{$constraintName}\"");
+                        } catch (\Exception $e) {
+                            // ignorar
+                        }
+
+                        // Adicionar FK
+                        try {
+                            $pdo->exec("ALTER TABLE {$fullTableName} ADD CONSTRAINT \"{$constraintName}\" FOREIGN KEY (\"{$fromCol}\") REFERENCES {$toFullTableName} (\"{$toField}\")");
+                            log_message('info', "DbtController: Criada FK {$constraintName} em {$fullTableName}(\"{$fromCol}\") -> {$toFullTableName}(\"{$toField}\").");
+                        } catch (\Exception $e) {
+                            log_message('error', "DbtController: Falha ao criar FK em {$fullTableName}: " . $e->getMessage());
+                        }
+                    }
+                }
+            }
+
+        } catch (\Exception $e) {
+            log_message('error', 'DbtController: Erro ao aplicar constraints no PostgreSQL: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Parse simples e eficiente do schema.yml para extrair PKs e FKs
+     */
+    private function parseSchemaYaml($filePath)
+    {
+        if (!file_exists($filePath)) {
+            return [];
+        }
+
+        $lines = file($filePath, FILE_IGNORE_NEW_LINES);
+        $models = [];
+        $currentModel = null;
+        $currentColumn = null;
+        $inTests = false;
+        $inRelationships = false;
+        $relationshipData = [];
+
+        foreach ($lines as $line) {
+            $cleanLine = trim(preg_replace('/#.*/', '', $line));
+            if (empty($cleanLine)) {
+                continue;
+            }
+
+            // Detectar novo modelo
+            if (preg_match('/^\-\s*name\s*:\s*(.*)/', $cleanLine, $matches)) {
+                $modelName = trim($matches[1], "\"' ");
+                
+                // Se a indentação for de coluna ou teste, não é um modelo de primeiro nível
+                $indent = strlen($line) - strlen(ltrim($line));
+                if ($indent <= 4) {
+                    unset($currentModel);
+                    $models[$modelName] = [
+                        'name' => $modelName,
+                        'pks' => [],
+                        'fks' => []
+                    ];
+                    $currentModel = &$models[$modelName];
+                    $currentColumn = null;
+                    $inTests = false;
+                    $inRelationships = false;
+                    continue;
+                }
+            }
+
+            // Colunas
+            if ($cleanLine === 'columns:') {
+                $inTests = false;
+                $inRelationships = false;
+                continue;
+            }
+
+            // Nome do campo
+            if (preg_match('/^\-\s*name\s*:\s*(.*)/', $cleanLine, $matches) && $currentModel !== null) {
+                $columnName = trim($matches[1], "\"' ");
+                $currentColumn = $columnName;
+                $inTests = false;
+                $inRelationships = false;
+                continue;
+            }
+
+            // Entrando nos testes do campo
+            if ($cleanLine === 'tests:' && $currentColumn !== null) {
+                $inTests = true;
+                $inRelationships = false;
+                continue;
+            }
+
+            if ($inTests && $currentModel !== null && $currentColumn !== null) {
+                if (preg_match('/^\-\s*relationships\s*:/', $cleanLine) || $cleanLine === '- relationships') {
+                    $inRelationships = true;
+                    $relationshipData = ['column' => $currentColumn];
+                    continue;
+                }
+
+                if (preg_match('/^\-\s*(unique|not_null)/', $cleanLine, $matches)) {
+                    $testType = $matches[1];
+                    if ($testType === 'unique') {
+                        $currentModel['pks'][] = $currentColumn;
+                    }
+                }
+            }
+
+            if ($inRelationships && $currentModel !== null && $currentColumn !== null) {
+                if (preg_match('/^to\s*:\s*(.*)/', $cleanLine, $matches)) {
+                    $toVal = trim($matches[1], "\"' ");
+                    if (preg_match('/ref\([\'"]([a-zA-Z0-9_-]+)[\'"]\)/', $toVal, $refMatches)) {
+                        $relationshipData['to_table'] = $refMatches[1];
+                    } else {
+                        $relationshipData['to_table'] = $toVal;
+                    }
+                } elseif (preg_match('/field\s*:\s*(.*)/', $cleanLine, $matches)) {
+                    $relationshipData['to_field'] = trim($matches[1], "\"' ");
+                }
+
+                if (isset($relationshipData['to_table']) && isset($relationshipData['to_field'])) {
+                    $currentModel['fks'][] = [
+                        'from_column' => $relationshipData['column'],
+                        'to_table' => $relationshipData['to_table'],
+                        'to_field' => $relationshipData['to_field']
+                    ];
+                    $inRelationships = false;
+                    $relationshipData = [];
+                }
+            }
+        }
+
+        unset($currentModel);
+        return $models;
+    }
+
+    /**
+     * Busca no S3 o arquivo Parquet correspondente à versão mais recente do Delta Lake
+     */
+    private function getLatestGoldParquetFile($userBucket, $prefix)
+    {
+        try {
+            $result = $this->s3Client->listObjectsV2([
+                'Bucket' => $userBucket,
+                'Prefix' => $prefix
+            ]);
+
+            if (isset($result['Contents'])) {
+                $maxIndex = -1;
+                $latestKey = null;
+
+                foreach ($result['Contents'] as $object) {
+                    $key = $object['Key'];
+                    if (substr($key, -8) === '.parquet') {
+                        $filename = basename($key);
+                        // Extrai o índice do commit (ex: '4' de '4-abc.parquet')
+                        if (preg_match('/^(\d+)-/', $filename, $matches)) {
+                            $index = (int)$matches[1];
+                            if ($index > $maxIndex) {
+                                $maxIndex = $index;
+                                $latestKey = $key;
+                            }
+                        }
+                    }
+                }
+
+                if ($latestKey !== null) {
+                    return "s3://{$userBucket}/{$latestKey}";
+                }
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'DbtController: Erro ao listar arquivos no S3 para buscar o último gold: ' . $e->getMessage());
+        }
+
+        // Fallback para wildcard se falhar ou não encontrar arquivos com índice
+        return "s3://{$userBucket}/{$prefix}*.parquet";
     }
 }

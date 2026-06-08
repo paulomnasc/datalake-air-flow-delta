@@ -38,7 +38,12 @@ erDiagram
 ### 👥 1. Dimensão Clientes (`dim_customers.sql`)
 
 ```sql
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    post_hook=[
+        "alter table {{ this }} add primary key (sk_cliente)"
+    ]
+) }}
 
 with source_customers as (
     select * from {{ ref('gold_customers') }}
@@ -63,7 +68,12 @@ from source_customers
 ### 👔 2. Dimensão Funcionários (`dim_employees.sql`)
 
 ```sql
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    post_hook=[
+        "alter table {{ this }} add primary key (sk_funcionario)"
+    ]
+) }}
 
 with source_employees as (
     select * from {{ ref('gold_employees') }}
@@ -87,7 +97,12 @@ from source_employees
 ### 🏷️ 3. Dimensão Categorias (`dim_categories.sql`)
 
 ```sql
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    post_hook=[
+        "alter table {{ this }} add primary key (sk_categoria)"
+    ]
+) }}
 
 with source_categories as (
     select * from {{ ref('gold_categories') }}
@@ -108,7 +123,13 @@ from source_categories
 ### 📦 4. Dimensão Produtos (`dim_products.sql`)
 
 ```sql
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    post_hook=[
+        "alter table {{ this }} add primary key (sk_produto)",
+        "alter table {{ this }} add constraint fk_dim_products_categories foreign key (fk_categoria) references {{ ref('dim_categories') }} (sk_categoria)"
+    ]
+) }}
 
 with source_products as (
     select * from {{ ref('gold_products') }}
@@ -136,7 +157,12 @@ left join categories c on p.category_id = c.id_categoria
 ### 📅 5. Dimensão Data (`dim_date.sql`)
 
 ```sql
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    post_hook=[
+        "alter table {{ this }} add primary key (sk_data)"
+    ]
+) }}
 
 with date_series as (
     select 
@@ -171,7 +197,16 @@ from date_series
 ### 📊 6. Tabela Fato Vendas (`fato_sales.sql`)
 
 ```sql
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    post_hook=[
+        "alter table {{ this }} add primary key (sk_venda)",
+        "alter table {{ this }} add constraint fk_fato_sales_customers foreign key (fk_cliente) references {{ ref('dim_customers') }} (sk_cliente)",
+        "alter table {{ this }} add constraint fk_fato_sales_employees foreign key (fk_funcionario) references {{ ref('dim_employees') }} (sk_funcionario)",
+        "alter table {{ this }} add constraint fk_fato_sales_products foreign key (fk_produto) references {{ ref('dim_products') }} (sk_produto)",
+        "alter table {{ this }} add constraint fk_fato_sales_date foreign key (fk_data_pedido) references {{ ref('dim_date') }} (sk_data)"
+    ]
+) }}
 
 with orders as (
     select * from {{ ref('gold_orders') }}

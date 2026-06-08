@@ -231,17 +231,30 @@ YAML;
             
             // Redirecionamento para o banco Postgres attached
             if (strpos($projectContent, 'postgres_db') === false) {
-                $redirectConfig = "\n    # Redirecionamento dinâmico para tabelas PostgreSQL\n" .
-                                  "    dim_customers:\n" .
-                                  "      +database: postgres_db\n" .
-                                  "    dim_cursos:\n" .
-                                  "      +database: postgres_db\n" .
-                                  "    dim_usuarios:\n" .
-                                  "      +database: postgres_db\n" .
-                                  "    fato_acessos:\n" .
-                                  "      +database: postgres_db\n" .
-                                  "    fato_vendas:\n" .
-                                  "      +database: postgres_db\n";
+                // Escaneia a pasta models para encontrar todos os modelos dim_ e fato_
+                $foundModels = [];
+                $modelsDir = $projectDir . '/models';
+                if (is_dir($modelsDir)) {
+                    $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($modelsDir));
+                    foreach ($iterator as $file) {
+                        if ($file->isFile() && strtolower($file->getExtension()) === 'sql') {
+                            $filename = $file->getBasename('.sql');
+                            if (strpos($filename, 'dim_') === 0 || strpos($filename, 'fato_') === 0) {
+                                $foundModels[] = $filename;
+                            }
+                        }
+                    }
+                }
+                
+                // Fallback padrão se não encontrar arquivos (para garantir retrocompatibilidade)
+                $defaultModels = ['dim_customers', 'dim_cursos', 'dim_usuarios', 'fato_acessos', 'fato_vendas'];
+                $foundModels = array_unique(array_merge($defaultModels, $foundModels));
+
+                $redirectConfig = "\n    # Redirecionamento dinâmico para tabelas PostgreSQL\n";
+                foreach ($foundModels as $model) {
+                    $redirectConfig .= "    {$model}:\n      +database: postgres_db\n";
+                }
+
                 // Encontra onde está "analytics:" dentro de "models:"
                 if (preg_match('/models\s*:\s*\n\s*analytics\s*:/', $projectContent)) {
                     $projectContent = preg_replace('/(models\s*:\s*\n\s*analytics\s*:)/', "$1" . $redirectConfig, $projectContent);

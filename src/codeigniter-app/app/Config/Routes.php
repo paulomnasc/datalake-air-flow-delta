@@ -191,6 +191,9 @@ $routes->post('/subscription/confirmPayment', 'SubscriptionController::confirmPa
 $routes->get('/subscription/pix', 'SubscriptionController::pixPayment', ['as'=>'subscription.pix']); // Página PIX
 $routes->get('/test-subscription', 'TestSubscription::index'); // DEBUG - Teste de subscription
 
+// Rota de acesso ao Metabase Analytics (SSO)
+$routes->get('/analytics/access', 'AnalyticsController::access', ['as'=>'analytics.access']);
+
 // Webhooks
 $routes->post('/api/webhooks/hotmart', 'Api\HotmartWebhookController::index');
 

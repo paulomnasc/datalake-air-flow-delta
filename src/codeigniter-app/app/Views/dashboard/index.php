@@ -175,6 +175,31 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
     <div id="content">
         <div class="container-fluid" style="max-width: 1400px; margin: 0 auto; padding: 2rem;">
 
+            <?php if (session()->getFlashdata('error_analytics')): ?>
+                <div class="alert alert-warning alert-dismissible fade show shadow-sm p-4 mb-4" role="alert" style="border-radius: 12px; border-left: 5px solid #ff9800; background-color: #fffde7; color: #5d4037;">
+                    <div class="d-flex align-items-start">
+                        <span style="font-size: 2.2rem; margin-right: 1.5rem; line-height: 1;">🚧</span>
+                        <div>
+                            <h5 class="alert-heading mb-2" style="font-weight: 700; color: #e65100;">Seu ambiente de Analytics está quase pronto!</h5>
+                            <p class="mb-0" style="font-size: 1.05rem; line-height: 1.6;"><?= session()->getFlashdata('error_analytics') ?></p>
+                            <hr style="border-top: 1px solid #ffe082; margin: 1rem 0;">
+                            <p class="mb-0 small text-muted"><i class="bi bi-info-circle"></i> O Metabase é ativado automaticamente após a materialização de pelo menos um modelo analítico de produção via <strong>dbt Run (Prod)</strong>.</p>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                <script>
+                    // Auto dismiss após 25 segundos (delay bem alto)
+                    setTimeout(function() {
+                        var alertEl = document.querySelector('.alert-dismissible');
+                        if (alertEl) {
+                            var bsAlert = new bootstrap.Alert(alertEl);
+                            bsAlert.close();
+                        }
+                    }, 25000);
+                </script>
+            <?php endif; ?>
+
             <!-- Alpine.js App -->
             <div x-data="dashboardApp()" x-init="init()">
 
@@ -186,14 +211,14 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                         <div class="col-12">
                             <h4 class="mb-3">⚡ Início Rápido</h4>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="quick-action h-100" id="novo-pipeline-action">
                                 <div class="quick-action-icon">🎯</div>
                                 <h5>Novo Pipeline</h5>
                                 <p class="text-muted mb-0">Assistente passo a passo</p>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <?php $airflowExternalUrl = getenv('AIRFLOW_EXTERNAL_URL') ?: 'http://localhost:8080'; ?>
                             <div class="quick-action h-100" onclick="window.open('<?= htmlspecialchars($airflowExternalUrl, ENT_QUOTES, 'UTF-8'); ?>', '_blank', 'noopener,noreferrer')" title="AIRFLOW - Pipelines ELT">
                                 <div class="quick-action-icon d-flex align-items-center justify-content-center" style="min-height: 4.5rem;">
@@ -203,11 +228,18 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
                                 <p class="text-muted mb-0">AIRFLOW - Pipelines ELT</p>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="quick-action h-100" onclick="window.location.href='<?= route_to('listConfig') ?>'">
                                 <div class="quick-action-icon">📊</div>
                                 <h5>Ver Pipelines</h5>
                                 <p class="text-muted mb-0">Gerenciar existentes</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="quick-action h-100" onclick="window.location.href='<?= route_to('analytics.access') ?>'">
+                                <div class="quick-action-icon">📈</div>
+                                <h5>Meu Analytics</h5>
+                                <p class="text-muted mb-0">Dashboards no Metabase</p>
                             </div>
                         </div>
                     </div>

@@ -156,7 +156,7 @@ class DbtController extends BaseController
         // Gerar dinamicamente os modelos ephemerais intermediários (raw, bronze, silver, gold) para todas as tabelas ativas do MySQL do usuário
         $generationDebug = $this->generateDynamicEphemeralModels($projectDir, $userId, $userBucket);
 
-        // 3. Garantir pre-criação dos schemas no PostgreSQL
+        // 3. Garantir pre-criação dos schemas e permissões no PostgreSQL
         $schemaDev = "user_{$userId}_homolog_analytics";
         $schemaProd = "user_{$userId}_analytics";
         $schemaTarget = ($env === 'dev') ? $schemaDev : $schemaProd;
@@ -164,12 +164,44 @@ class DbtController extends BaseController
         try {
             $dsn = "pgsql:host=postgres-bi;port=5432;dbname=datalake_bi";
             $pdo = new \PDO($dsn, 'pbi_user', 'pbi_password', [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+            
+            // Criação dos schemas
             $pdo->exec("CREATE SCHEMA IF NOT EXISTS " . $schemaDev . ";");
             $pdo->exec("CREATE SCHEMA IF NOT EXISTS " . $schemaProd . ";");
             $pdo->exec("GRANT ALL PRIVILEGES ON SCHEMA " . $schemaDev . " TO pbi_user;");
             $pdo->exec("GRANT ALL PRIVILEGES ON SCHEMA " . $schemaProd . " TO pbi_user;");
+
+            // Provisionamento do usuário do inquilino (aluno) com senha determinística
+            $dbSalt = getenv('METABASE_JWT_SHARED_SECRET') ?: 'myflow_metabase_secret_key_sso_123456';
+            $dbPassword = 'pwd_' . substr(hash_hmac('sha256', (string)$userId, $dbSalt), 0, 16);
+
+            $pdo->exec("DO \$\$
+            BEGIN
+                IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'user_aluno_{$userId}') THEN
+                    CREATE ROLE user_aluno_{$userId} WITH LOGIN PASSWORD '{$dbPassword}';
+                END IF;
+            END
+            \$\$;");
+            $pdo->exec("ALTER ROLE user_aluno_{$userId} WITH PASSWORD '{$dbPassword}';");
+
+            // Revogar conexões públicas para garantir isolamento
+            $pdo->exec("REVOKE ALL ON DATABASE datalake_bi FROM public;");
+            $pdo->exec("REVOKE ALL ON SCHEMA public FROM public;");
+
+            // Conceder permissões apenas para o banco e seus schemas exclusivos
+            $pdo->exec("GRANT CONNECT ON DATABASE datalake_bi TO user_aluno_{$userId};");
+            $pdo->exec("GRANT USAGE ON SCHEMA " . $schemaDev . " TO user_aluno_{$userId};");
+            $pdo->exec("GRANT USAGE ON SCHEMA " . $schemaProd . " TO user_aluno_{$userId};");
+            
+            // SELECT em tabelas existentes e futuras
+            $pdo->exec("GRANT SELECT ON ALL TABLES IN SCHEMA " . $schemaDev . " TO user_aluno_{$userId};");
+            $pdo->exec("GRANT SELECT ON ALL TABLES IN SCHEMA " . $schemaProd . " TO user_aluno_{$userId};");
+            $pdo->exec("ALTER DEFAULT PRIVILEGES IN SCHEMA " . $schemaDev . " GRANT SELECT ON TABLES TO user_aluno_{$userId};");
+            $pdo->exec("ALTER DEFAULT PRIVILEGES IN SCHEMA " . $schemaProd . " GRANT SELECT ON TABLES TO user_aluno_{$userId};");
+
+            log_message('info', "DbtController: Schemas e permissões PostgreSQL do aluno {$userId} configurados com sucesso.");
         } catch (\Exception $e) {
-            log_message('warning', 'DbtController: Falha ao pré-criar schemas: ' . $e->getMessage());
+            log_message('warning', 'DbtController: Falha ao pré-criar schemas/roles: ' . $e->getMessage());
         }
 
         // 4. Gerar profiles.yml dinâmico com tenant isolado usando DuckDB + Postgres
@@ -301,6 +333,19 @@ YAML;
         // Se a execução do dbt run teve sucesso, aplicar as PKs e FKs no PostgreSQL
         if ($returnCode === 0 && $action === 'run') {
             $this->applyPostgresConstraints($projectDir, $schemaTarget);
+
+            // Se for execução de produção, provisionar/atualizar no Metabase
+            if ($env === 'prod') {
+                try {
+                    $email = SessionHelper::getUserEmail() ?? "aluno_{$userId}@estudotabela.com.br";
+                    $name = SessionHelper::getUserName() ?? "Aluno {$userId}";
+                    
+                    $metabaseHelper = new \App\Helpers\MetabaseHelper();
+                    $metabaseHelper->provisionTenant($userId, $email, $name);
+                } catch (\Exception $ex) {
+                    log_message('error', 'DbtController: Falha ao provisionar no Metabase: ' . $ex->getMessage());
+                }
+            }
         }
 
         if (!empty($generationDebug)) {

@@ -49,15 +49,20 @@ class AnalyticsController extends BaseController
             return redirect()->to(route_to('dashboard'))->with('error_analytics', '⚠️ Seu Data Warehouse ainda não possui dados. Certifique-se de conectar suas fontes de dados, executar os pipelines medalhão e rodar o dbt Run (Prod) com sucesso.');
         }
 
-        // 2. Gerar o link SSO e redirecionar
+        // 2. Renderizar a tela de credenciais para login manual no Metabase OSS
         try {
             $metabaseHelper = new MetabaseHelper();
-            $ssoUrl = $metabaseHelper->generateSSOLink($email, $name);
+            $password = $metabaseHelper->getTenantPassword($email);
+            $siteUrl = $metabaseHelper->getSiteUrl();
             
-            log_message('info', "AnalyticsController: Usuário {$userId} redirecionado para o Metabase via SSO.");
-            return redirect()->to($ssoUrl);
+            log_message('info', "AnalyticsController: Exibindo tela de login manual no Metabase para o usuário {$userId}.");
+            return view('analytics/login', [
+                'email'    => $email,
+                'password' => $password,
+                'siteUrl'  => $siteUrl
+            ]);
         } catch (\Exception $e) {
-            log_message('error', "AnalyticsController: Erro ao gerar link JWT SSO: " . $e->getMessage());
+            log_message('error', "AnalyticsController: Erro ao carregar credenciais do Metabase: " . $e->getMessage());
             return redirect()->to(route_to('dashboard'))->with('error_analytics', '⚠️ Erro interno ao conectar com o serviço de Analytics. Tente novamente mais tarde.');
         }
     }

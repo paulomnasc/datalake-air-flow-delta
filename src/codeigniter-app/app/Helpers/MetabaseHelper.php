@@ -174,6 +174,8 @@ class MetabaseHelper
      */
     private function getOrCreateUser(string $sessionToken, string $email, string $name): ?int
     {
+        $userPassword = $this->getTenantPassword($email);
+
         // Buscar usuários
         $response = $this->request('GET', '/api/user', null, $sessionToken);
         if ($response->getStatusCode() === 200) {
@@ -188,6 +190,10 @@ class MetabaseHelper
                         $this->request('PUT', "/api/user/{$u['id']}", ['is_active' => true], $sessionToken);
                         log_message('info', "MetabaseHelper: Usuário ID {$u['id']} reativado.");
                     }
+                    
+                    // Resetar a senha para a senha determinística para garantir sincronismo
+                    $this->request('PUT', "/api/user/{$u['id']}/password", ['password' => $userPassword], $sessionToken);
+                    log_message('info', "MetabaseHelper: Senha do usuário ID {$u['id']} sincronizada.");
                     
                     return (int) $u['id'];
                 }
@@ -204,7 +210,7 @@ class MetabaseHelper
             'email'      => $email,
             'first_name' => $firstName,
             'last_name'  => $lastName,
-            'password'   => bin2hex(random_bytes(10)) . 'A1!', // senha inicial randômica e forte
+            'password'   => $userPassword,
         ];
 
         $response = $this->request('POST', '/api/user', $payload, $sessionToken);
@@ -288,17 +294,19 @@ class MetabaseHelper
         // 2. Modificar o Grafo de Permissões:
         //    - Grupo 1 ("All Users") -> Sem Acesso a essa DB
         $graph['groups']['1'][(string) $dbId] = [
-            'data' => [
-                'schemas' => 'none',
-                'native'  => 'none'
+            'view-data'      => 'blocked',
+            'create-queries' => 'none',
+            'download'       => [
+                'schemas' => 'none'
             ]
         ];
 
         //    - Grupo do Aluno -> Acesso Total de Leitura/Escrita nessa DB
         $graph['groups'][(string) $groupId][(string) $dbId] = [
-            'data' => [
-                'schemas' => 'all',
-                'native'  => 'write'
+            'view-data'      => 'unrestricted',
+            'create-queries' => 'query-builder-and-native',
+            'download'       => [
+                'schemas' => 'full'
             ]
         ];
 
@@ -415,5 +423,22 @@ class MetabaseHelper
     private function base64UrlEncode(string $data): string
     {
         return str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($data));
+    }
+
+    /**
+     * Gera a senha determinística para o usuário do Metabase
+     */
+    public function getTenantPassword(string $email): string
+    {
+        $salt = $this->jwtSecret;
+        return 'Mb_' . substr(hash_hmac('sha256', strtolower($email), $salt), 0, 12) . 'A1!';
+    }
+
+    /**
+     * Retorna a URL do site do Metabase
+     */
+    public function getSiteUrl(): string
+    {
+        return $this->siteUrl;
     }
 }

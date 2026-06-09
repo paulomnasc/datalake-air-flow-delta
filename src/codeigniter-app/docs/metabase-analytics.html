@@ -496,7 +496,7 @@
                 <div class="alert-box metabase-alert">
                     <h4 style="color: var(--text-primary); margin-bottom: 6px;"><i class="bi bi-shield-check"></i> Pilares da Arquitetura de Segurança</h4>
                     <ul style="color: var(--text-secondary); margin-bottom: 0;">
-                        <li><strong>SSO Silencioso (Single Sign-On)</strong>: O login no Metabase ocorre automaticamente ao clicar no painel. O backend gera um token JWT assinado digitalmente, autenticando você instantaneamente sem pedir usuário ou senha adicionais.</li>
+                        <li><strong>Credenciais Seguras Sincronizadas</strong>: Para conformidade com a versão Open Source do Metabase, a autenticação utiliza um e-mail de acesso e uma senha determinística gerada de forma segura e criptográfica pela plataforma, mantendo seus dados protegidos.</li>
                         <li><strong>Isolamento Físico de Schemas</strong>: Suas consultas no Metabase conectam-se ao banco de dados PostgreSQL analítico (<code>postgres-bi</code>) utilizando uma role restrita a nível de banco (<code>user_aluno_{id}</code>), com permissão exclusiva de leitura (SELECT) apenas sobre o seu schema de produção <code>user_{id}_analytics</code>.</li>
                     </ul>
                 </div>
@@ -555,8 +555,8 @@
                     <li class="step-item">
                         <span class="step-number">3</span>
                         <div class="step-content">
-                            <h3>Redirecionamento Automático</h3>
-                            <p>O navegador será redirecionado de forma segura e transparente para a URL externa do Metabase (<code>http://myflow.estudotabela.com.br:28300</code>) utilizando a credencial gerada por JWT.</p>
+                            <h3>Copiar Credenciais e Abrir o Metabase</h3>
+                            <p>A plataforma exibirá uma tela de credenciais seguras contendo seu e-mail de acesso e a senha determinística exclusiva. Use os botões de cópia rápida, clique em <strong>"Abrir o Metabase"</strong> e insira os dados na tela de login oficial do Metabase.</p>
                         </div>
                     </li>
                 </ul>

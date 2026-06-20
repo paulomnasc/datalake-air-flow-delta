@@ -302,8 +302,11 @@
 
 <!-- Hero Section -->
 <div class="hero-section">
-    <h1 class="hero-title">🌊 Arquitetura Medalhão para Data Lake</h1>
-    <p class="hero-subtitle">Transforme dados brutos em insights de negócio através de camadas Bronze, Silver e Gold</p>
+    <h1 class="hero-title">📊 Inteligência e Engenharia de Dados</h1>
+    <p class="hero-subtitle">Do seu ERP, CRM e Planilhas direto para Dashboards dinâmicos que impulsionam decisões inteligentes em tempo real.</p>
+    <a href="<?= base_url('contactUs') ?>" class="cta-button" style="margin-top: 15px; margin-bottom: 10px;">
+        <i class="fas fa-paper-plane" style="margin-right: 8px;"></i> Solicitar Diagnóstico de Dados
+    </a>
 </div>
 
 <!-- Banner Call-to-Chat: E-mail Marketing -->
@@ -320,33 +323,30 @@
 <!-- Medallion Architecture Flow -->
 <div class="medallion-flow">
     <div class="medallion-layer bronze-layer">
-        <div class="layer-icon">🥉</div>
-        <h2 class="layer-title">Bronze</h2>
+        <div class="layer-icon">🔌</div>
+        <h2 class="layer-title">1. Conexão e Carga</h2>
         <p class="layer-desc">
-            Ingestão de dados brutos de múltiplas fontes (MySQL, APIs, CSV). 
-            Dados sem transformação, preservando o histórico completo.
+            Conectamos e importamos automaticamente dados brutos de seus CRMs (Bling, Tiny, etc.), planilhas Excel/Google Sheets e APIs externas sem interrupção.
         </p>
     </div>
     
     <div class="flow-arrow">→</div>
     
     <div class="medallion-layer silver-layer">
-        <div class="layer-icon">🥈</div>
-        <h2 class="layer-title">Silver</h2>
+        <div class="layer-icon">⚙️</div>
+        <h2 class="layer-title">2. Limpeza e Validação</h2>
         <p class="layer-desc">
-            Limpeza, validação e enriquecimento de dados. 
-            Aplicação de regras de qualidade e transformações ETL.
+            Limpamos, deduplicamos e aplicamos regras de qualidade automatizadas para garantir que as informações comerciais e financeiras estejam prontas e consolidadas.
         </p>
     </div>
     
     <div class="flow-arrow">→</div>
     
     <div class="medallion-layer gold-layer">
-        <div class="layer-icon">🥇</div>
-        <h2 class="layer-title">Gold</h2>
+        <div class="layer-icon">📊</div>
+        <h2 class="layer-title">3. Dashboards e Decisão</h2>
         <p class="layer-desc">
-            Dados agregados e otimizados para análise. 
-            Feature engineering para ML e dashboards de BI.
+            Entregamos os dados modelados em painéis interativos (Power BI, Metabase) prontos para que seu time tome decisões estratégicas e rápidas em tempo real.
         </p>
     </div>
 </div>
@@ -354,57 +354,57 @@
 <!-- Features Grid -->
 <div class="features-grid">
     <div class="feature-card">
-        <div class="feature-icon">⚡</div>
-        <h3 class="feature-title">Orquestração com Airflow</h3>
+        <div class="feature-icon">🔌</div>
+        <h3 class="feature-title">Integração CRM & ERP</h3>
         <p class="feature-desc">
-            DAGs automatizadas para pipelines de dados com scheduling, monitoramento e retry automático.
+            Conectamos plataformas de gestão (Tiny, Bling, Pipedrive, Salesforce, Hubspot) para unificar suas informações comerciais, fiscais e financeiras de forma nativa.
         </p>
     </div>
     
     <div class="feature-card">
         <div class="feature-icon">🔄</div>
-        <h3 class="feature-title">Processamento Spark</h3>
+        <h3 class="feature-title">Automação Completa</h3>
         <p class="feature-desc">
-            Processamento distribuído de grandes volumes de dados com Apache Spark e Delta Lake.
+            Seus relatórios e dashboards são atualizados de forma automática na frequência desejada. Chega de baixar planilhas manualmente todos os dias.
         </p>
     </div>
     
     <div class="feature-card">
         <div class="feature-icon">📊</div>
-        <h3 class="feature-title">Integração BI</h3>
+        <h3 class="feature-title">Dashboards Interativos</h3>
         <p class="feature-desc">
-            Conecte Power BI, Tableau via Spark SQL Thrift Server para análises em tempo real.
+            Criação de painéis dinâmicos e intuitivos em Power BI ou Metabase com filtros e drill-down completos por data, equipe, produto ou região.
         </p>
     </div>
     
     <div class="feature-card">
-        <div class="feature-icon">🗄️</div>
-        <h3 class="feature-title">Armazenamento MinIO</h3>
+        <div class="feature-icon">🛡️</div>
+        <h3 class="feature-title">Segurança & Conformidade</h3>
         <p class="feature-desc">
-            Storage S3-compatible para Data Lake com alta disponibilidade e baixo custo.
-        </p>
-    </div>
-    
-    <div class="feature-card">
-        <div class="feature-icon">🏷️</div>
-        <h3 class="feature-title">Catálogo Apache Atlas</h3>
-        <p class="feature-desc">
-            Governança de dados com linhagem, metadados e classificação automática.
+            Seus dados consolidados e protegidos em servidores modernos, com controles de acesso rigorosos e total privacidade para sua empresa.
         </p>
     </div>
     
     <div class="feature-card">
         <div class="feature-icon">✅</div>
-        <h3 class="feature-title">Qualidade de Dados</h3>
+        <h3 class="feature-title">Qualidade e Consistência</h3>
         <p class="feature-desc">
-            Validações automáticas, detecção de anomalias e data quality checks em cada camada.
+            Implementamos regras de validação automática nos pipelines de dados, evitando divergências de valores e assegurando relatórios 100% confiáveis.
+        </p>
+    </div>
+    
+    <div class="feature-card">
+        <div class="feature-icon">🤝</div>
+        <h3 class="feature-title">Suporte e Consultoria</h3>
+        <p class="feature-desc">
+            Apoio de engenheiros de dados dedicados para desenhar o modelo analítico perfeito e acompanhar a evolução tecnológica do seu negócio.
         </p>
     </div>
 </div>
 
 <!-- Tech Stack -->
 <div class="tech-stack">
-    <h3>🛠️ Stack Tecnológica</h3>
+    <h3>🛠️ Nossa Stack Tecnológica</h3>
     <div class="tech-list">
         <span class="tech-badge">Apache Airflow</span>
         <span class="tech-badge">Apache Spark</span>
@@ -530,11 +530,13 @@
 
 <!-- CTA Section -->
 <div class="cta-section">
-    <h2 style="font-size: 2.2rem; margin-bottom: 20px;">Pronto para construir seu Data Lake?</h2>
+    <h2 style="font-size: 2.2rem; margin-bottom: 20px;">Pronto para transformar seus dados em faturamento?</h2>
     <p style="font-size: 1.2rem; margin-bottom: 30px; opacity: 0.9;">
-        Configure suas DAGs, conecte suas fontes de dados e comece a transformar dados em valor
+        Elimine os relatórios manuais de uma vez por todas. Fale conosco e crie seus dashboards automatizados.
     </p>
-    
+    <a href="<?= base_url('contactUs') ?>" class="cta-button">
+        <i class="fas fa-paper-plane" style="margin-right: 8px;"></i> Solicitar Demonstração / Orçamento
+    </a>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>

@@ -1,0 +1,304 @@
+import os
+from weasyprint import HTML
+
+# Conteúdo HTML com design profissional e moderno para o plano de implantação da arquitetura dbt + Postgres + Metabase
+html_content = """
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Plano de Implantação de Arquitetura de Dados - MyDataFlow</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 18mm 15mm;
+            background-color: #fcfdfd;
+            @bottom-right {
+                content: counter(page);
+                font-family: 'Helvetica Neue', Arial, sans-serif;
+                font-size: 9pt;
+                color: #8892b0;
+            }
+            @bottom-left {
+                content: "MyDataFlow — Privado e Confidencial";
+                font-family: 'Helvetica Neue', Arial, sans-serif;
+                font-size: 9pt;
+                color: #8892b0;
+            }
+        }
+        
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            color: #232946;
+            line-height: 1.6;
+            font-size: 10.5pt;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Full bleed header for page 1 */
+        .doc-header {
+            margin: -18mm -15mm 25px -15mm;
+            padding: 25px 15mm;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #ffffff;
+            border-bottom: 4px solid #38bdf8;
+        }
+
+        .doc-header h1 {
+            font-size: 20pt;
+            margin: 0 0 8px 0;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #f8fafc;
+        }
+
+        .doc-header p {
+            font-size: 11pt;
+            margin: 0;
+            color: #94a3b8;
+        }
+
+        .doc-metadata {
+            margin-top: 12px;
+            font-size: 9pt;
+            color: #38bdf8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+
+        h2 {
+            font-size: 14pt;
+            color: #0f172a;
+            margin-top: 25px;
+            margin-bottom: 12px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #e2e8f0;
+            page-break-inside: avoid;
+            page-break-after: avoid;
+        }
+
+        h3 {
+            font-size: 11.5pt;
+            color: #1e293b;
+            margin-top: 18px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            page-break-inside: avoid;
+            page-break-after: avoid;
+        }
+
+        p {
+            margin-top: 0;
+            margin-bottom: 12px;
+            text-align: justify;
+        }
+
+        ul, ol {
+            margin-top: 0;
+            margin-bottom: 15px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        /* Codeblock styling */
+        pre, code {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            border-radius: 4px;
+        }
+
+        pre {
+            padding: 12px;
+            font-size: 9.5pt;
+            border-left: 4px solid #64748b;
+            white-space: pre-wrap;
+            margin-top: 8px;
+            margin-bottom: 15px;
+            page-break-inside: avoid;
+        }
+
+        code {
+            padding: 2px 5px;
+            font-size: 9.5pt;
+        }
+
+        /* Callout blocks */
+        .callout {
+            background-color: #f0fdf4;
+            border-left: 4px solid #22c55e;
+            padding: 12px 15px;
+            margin: 15px 0;
+            border-radius: 0 4px 4px 0;
+            page-break-inside: avoid;
+        }
+
+        .callout-title {
+            font-weight: bold;
+            color: #14532d;
+            margin-bottom: 4px;
+            font-size: 10pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .callout p {
+            margin: 0;
+            color: #166534;
+            font-size: 10pt;
+        }
+
+        .architecture-box {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 18px 0;
+            page-break-inside: avoid;
+        }
+
+        /* Step navigation labels */
+        .step-badge {
+            background-color: #0284c7;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 8.5pt;
+            font-weight: bold;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="doc-header">
+        <h1>Documento de Visão e Plano de Implantação</h1>
+        <p>Desenvolvimento e Engenharia de Dados — Pivot dbt Core + Metabase</p>
+        <div class="doc-metadata">Stack: Dag Factory (S3) + sync DAG + dbt Core (Postgres-BI) + Metabase</div>
+    </div>
+
+    <h2>1. Visão Geral da Mudança Estratégica</h2>
+    <p>
+        Este documento orienta a reestruturação da camada de negócios analítica do <strong>MyDataFlow</strong>. O nosso pipeline principal de processamento do Data Lakehouse (ingestão e transformações pesadas da Bronze à Gold) já está homologado e roda de forma altamente escalável via código no S3/MinIO utilizando a classe <code>medallion_pipeline_v2.py</code> orquestrada pela Dag Factory.
+    </p>
+    <p>
+        Esta evolutiva acopla o ecossistema moderno de dados (Modern Data Stack) focado estritamente em <strong>Governança, Linhagem (Lineage Graph), Testes de Qualidade de Dados e Modelagem de Cubos DW</strong>. Centralizaremos as definições dimensionais no PostgreSQL analítico (banco <code>datalake_bi</code>), consumido de forma rápida e segura pelo visualizador <strong>Metabase</strong>.
+    </p>
+
+    <h2>2. Alinhamento Arquitetural (Explicação Técnica Analítica)</h2>
+    <p>
+        Para alinhar o entendimento do time de desenvolvimento, reproduzimos o detalhamento de como a stack opera de ponta a ponta e o papel de cada componente, definindo claramente a separação de responsabilidades e evitando retrabalho do pipeline existente:
+    </p>
+
+    <div class="architecture-box">
+        <h3>Como funciona a Engenharia e Modelagem Dimensional Lógica</h3>
+        <p><strong>O dbt substitui a classe medallion_pipeline_v2.py?</strong></p>
+        <p>
+            Não. O processamento pesado de arquivos colunares Parquet no S3 continua sob responsabilidade exclusiva da Dag Factory e do <code>medallion_pipeline_v2.py</code>. O papel do dbt na nossa arquitetura é puramente <strong>lógico e declarativo</strong>. Ele entra na ponta final sobre o banco analítico Postgres para mapear a linhagem e formatar as views para o BI.
+        </p>
+        <ul>
+            <li><strong>Dag Factory & medallion_pipeline_v2.py (O Storage / Motor do Lakehouse):</strong> Processa os arquivos RAW e grava Parquets no S3/MinIO.</li>
+            <li><strong>DAG de Sincronização (sync_delta_to_postgres.py) (O Transportador):</strong> Copia as tabelas Gold estruturadas do S3/MinIO para o schema <code>public</code> do PostgreSQL analítico.</li>
+            <li><strong>dbt Core (O Maestro / A Camada de Governança):</strong> Lê as tabelas Gold sincronizadas no schema <code>public</code> do Postgres, roda os testes de integridade, gera a linhagem visual (Lineage Graph) e materializa as dimensões e fatos finais no schema <code>analytics</code>.</li>
+            <li><strong>Metabase (Os Olhos / O Frontend):</strong> Conecta no PostgreSQL, mapeando estritamente as tabelas geradas no schema <code>analytics</code> do dbt para alimentar gráficos e dashboards de forma ultra-rápida.</li>
+        </ul>
+
+        <h3>O Fluxo de Processamento de Dados na Prática (Pipeline ELT)</h3>
+        <pre>
+[Dag Factory / medallion_pipeline_v2.py] ──► Grava Parquets no S3/MinIO (Bronze → Silver → Gold)
+                                                    │
+                                                    ▼
+[DAG sync_delta_to_postgres.py]          ──► Copia Gold do S3 para o PostgreSQL (Schema public)
+                                                    │
+                                                    ▼
+[dbt Core (dbt-postgres)]                 ──► Lê do public, valida e modela no Schema analytics
+                                                    │
+                                                    ▼
+[Metabase v0.50.4 (Frontend)]             ──► Consome o Schema analytics para dashboards
+        </pre>
+    </div>
+
+    <h2>3. Plano de Implantação Passo a Passo</h2>
+    <p>O desenvolvedor deverá executar o provisionamento e configuração seguindo estritamente as etapas abaixo:</p>
+
+    <h3><span class="step-badge">Fase 1</span>Inicialização, Dependências e Sandbox Lógico</h3>
+    <p>O dbt operará via CLI local no host, isolado em um ambiente virtual Python para não poluir o sistema:</p>
+    <ol>
+        <li>Adicionar dependências no <code>requirements.txt</code>: <code>dbt-core>=1.5.0</code> e <code>dbt-postgres>=1.5.0</code>.</li>
+        <li>Instalar dependências no ambiente virtual Python executando o script automatizado: <code>./install_dbt.sh</code>.</li>
+        <li>
+            Configurar o arquivo <code>profiles.yml</code> contendo isolamento lógico de segurança:
+            <ul>
+                <li><strong>Target dev:</strong> Aponta para o schema <code>homolog_analytics</code> no Postgres (parquinho de testes).</li>
+                <li><strong>Target prod:</strong> Aponta para o schema <code>analytics</code> no Postgres (produção/Metabase oficial).</li>
+            </ul>
+        </li>
+        <li>
+            Implementar a macro <code>macros/generate_schema_name.sql</code> para garantir que o dbt execute o roteamento direto e limpo de cada ambiente de execução sem concatenar nomes de forma indesejada.
+        </li>
+    </ol>
+
+    <h3><span class="step-badge">Fase 2</span>Modelagem Lógica Declarativa e Testes</h3>
+    <p>Toda a modelagem dimensional deve ser declarada como arquivos SQL na pasta <code>models/</code> do dbt:</p>
+    <ul>
+        <li><code>dim_usuarios.sql</code>: Mapeamento lógico de clientes com perfil comportamental a partir da tabela <code>customers</code>.</li>
+        <li><code>dim_cursos.sql</code>: Mapeamento de produtos e cursos a partir da tabela <code>products</code>.</li>
+        <li><code>fato_vendas.sql</code>: Consolidado de transações derivado de <code>orders</code>.</li>
+        <li><code>fato_acessos.sql</code>: Consolidado de acessos diários derivado de <code>activity_logs</code>.</li>
+        <li>
+            Configurar validações básicas e integridade analítica no arquivo <code>schema.yml</code> (ex: chaves primárias <code>unique</code> e <code>not_null</code>).
+        </li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-title">Nota de Engenharia — Rodando o Pipeline dbt</div>
+        <p>Para testar localmente no schema de homologação, execute: <code>dbt run --profiles-dir . --target dev</code>. Para validar as regras de integridade nos dados de teste: <code>dbt test --profiles-dir . --target dev</code>. Em produção oficial, utilize a flag <code>--target prod</code>.</p>
+    </div>
+
+    <h3><span class="step-badge">Fase 3</span>Implantação e Configuração do Metabase</h3>
+    <p>O Metabase é implantado via Docker Compose sob a imagem oficial fixada <code>metabase/metabase:v0.50.4</code> na mesma rede interna <code>airflow_net</code> do banco analítico.</p>
+    <p><strong>Configuração de Portas nos Ambientes (.env):</strong></p>
+    <ul>
+        <li><strong>Dev/Local:</strong> Declarar <code>METABASE_PORT=3000</code>.</li>
+        <li><strong>Produção:</strong> Declarar <code>METABASE_PORT=28300</code> (porta alta para evitar qualquer conflito no host de produção da AWS).</li>
+    </ul>
+    <p>O docker-compose utilizará o mapeamento dinâmico <code>"${METABASE_PORT:-3000}:3000"</code>, garantindo segurança total e isolamento.</p>
+
+    <h2>4. Governança, Linhagem e Próximas Implementações</h2>
+    <p>
+        Com o dbt configurado, execute o comando <code>dbt docs generate --profiles-dir .</code> seguido de <code>dbt docs serve --profiles-dir . --port 8001</code>. Isso renderizará a documentação web interativa contendo o gráfico de linhagem (Lineage Graph) que ilustra de forma transparente o caminho das tabelas desde a sua cópia inicial do lakehouse até a entrega visual no Metabase.
+    </p>
+    <p>
+        Esta arquitetura unificada de governança garante escalabilidade e facilidade nas alterações analíticas, mantendo o controle sob controle de versão (Git) e sem afetar a robustez do pipeline de dados orquestrado pela Dag Factory.
+    </p>
+
+</body>
+</html>
+"""
+
+# Nome do arquivo de saída
+output_pdf = "plano_implantacao_arquitetura_v2.pdf"
+
+# Criando o arquivo temporário HTML
+with open("temp_plan.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+# Convertendo o HTML para PDF usando WeasyPrint (com suporte nativo ao CSS Paged Media)
+HTML("temp_plan.html").write_pdf(output_pdf)
+
+# Limpando arquivo temporário
+if os.path.exists("temp_plan.html"):
+    os.remove("temp_plan.html")
+
+print(f"PDF gerado com sucesso: {output_pdf}")
+print(f"[file-tag: {output_pdf}]")

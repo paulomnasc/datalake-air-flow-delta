@@ -1,0 +1,60 @@
+Docker Image Check (initially): '6129f13a0a3f'
+
+
+=========================================================================
+⚙️ [DEBUG] SISTEMA DE GERAÇÃO DINÂMICA DE MODELOS MEDALLION S3
+- Usuário ID: 146
+- Pasta do Projeto: /datalake-root/writable/dbt-tmp/user_146
+- Tabelas declaradas no dbt (arquivos YML): ["source('public', 'customers_gold')"]
+- Total de pipelines no MySQL para este usuário: 3
+  * Tabela 'customers' (declarada como 'customers_gold' no source 'public'): ↳ Match tipo: Multi-Table (dag_table_selections) com pipeline/DAG 'pipe-northwind' | Arquivo: '"raw\/pipe-northwind\/20260405203705_6ad42056_customers.csv"'
+- Arquivos medallion gerados fisicamente no S3: ["raw_customers.sql","bronze_customers.sql","silver_customers.sql","gold_customers.sql"]
+=========================================================================
+
+[0m20:24:24  Running with dbt=1.5.0
+[0m20:24:25  [[33mWARNING[0m]: Configuration paths exist in your dbt_project.yml file which do not apply to any resources.
+There are 4 unused configuration paths:
+- models.analytics.fato_acessos
+- models.analytics.dim_usuarios
+- models.analytics.fato_vendas
+- models.analytics.dim_cursos
+[0m20:24:25  Found 5 models, 0 tests, 0 snapshots, 0 analyses, 314 macros, 0 operations, 0 seed files, 1 source, 0 exposures, 0 metrics, 0 groups
+[0m20:24:25
+[0m20:24:26  Concurrency: 1 threads (target='dev')
+[0m20:24:26
+[0m20:24:26  1 of 5 START sql view model user_146_homolog_analytics.bronze_customers ........ [RUN]
+[0m20:24:26  1 of 5 ERROR creating sql view model user_146_homolog_analytics.bronze_customers  [[31mERROR[0m in 0.08s]
+[0m20:24:26  2 of 5 START sql table model postgres_db.user_146_homolog_analytics.dim_customers  [RUN]
+[0m20:24:26  2 of 5 ERROR creating sql table model postgres_db.user_146_homolog_analytics.dim_customers  [[31mERROR[0m in 0.05s]
+[0m20:24:26  3 of 5 START sql view model user_146_homolog_analytics.gold_customers .......... [RUN]
+[0m20:24:26  3 of 5 ERROR creating sql view model user_146_homolog_analytics.gold_customers . [[31mERROR[0m in 0.03s]
+[0m20:24:26  4 of 5 START sql view model user_146_homolog_analytics.raw_customers ........... [RUN]
+[0m20:24:26  4 of 5 ERROR creating sql view model user_146_homolog_analytics.raw_customers .. [[31mERROR[0m in 0.02s]
+[0m20:24:26  5 of 5 START sql view model user_146_homolog_analytics.silver_customers ........ [RUN]
+[0m20:24:26  5 of 5 ERROR creating sql view model user_146_homolog_analytics.silver_customers  [[31mERROR[0m in 0.02s]
+[0m20:24:26
+[0m20:24:26  Finished running 4 view models, 1 table model in 0 hours 0 minutes and 1.34 seconds (1.34s).
+[0m20:24:26
+[0m20:24:26  [31mCompleted with 5 errors and 0 warnings:[0m
+[0m20:24:26
+[0m20:24:26  [33mRuntime Error in model bronze_customers (models/bronze_customers.sql)[0m
+[0m20:24:26    Catalog Error: Schema with name user_146_homolog_analytics does not exist!
+[0m20:24:26
+[0m20:24:26  [33mRuntime Error in model dim_customers (models/dim_customers.sql)[0m
+[0m20:24:26    Catalog Error: Table with name "public.customers_gold" does not exist because schema "public" does not exist.
+[0m20:24:26
+[0m20:24:26    LINE 14:     select * from "datalake"."public"."customers_gold"
+[0m20:24:26                               ^
+[0m20:24:26
+[0m20:24:26  [33mRuntime Error in model gold_customers (models/gold_customers.sql)[0m
+[0m20:24:26    Catalog Error: Schema with name user_146_homolog_analytics does not exist!
+[0m20:24:26
+[0m20:24:26  [33mRuntime Error in model raw_customers (models/raw_customers.sql)[0m
+[0m20:24:26    Catalog Error: Schema with name user_146_homolog_analytics does not exist!
+[0m20:24:26
+[0m20:24:26  [33mRuntime Error in model silver_customers (models/silver_customers.sql)[0m
+[0m20:24:26    Catalog Error: Schema with name user_146_homolog_analytics does not exist!
+[0m20:24:26
+[0m20:24:26  Done. PASS=0 WARN=0 ERROR=5 SKIP=0 TOTAL=5
+
+❌ dbt run falhou. Verifique os erros acima.

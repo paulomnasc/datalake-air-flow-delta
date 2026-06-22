@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: mysql_northwind
+    schema: public
+    description: "Conexão de origem original MySQL (configurada no Airflow)"
+    tables:
+      - name: customers
+        identifier: customers_gold
+        description: "Tabela conceitual de clientes da origem MySQL mapeada para a tabela física customers_gold no Postgres"

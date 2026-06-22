@@ -124,6 +124,9 @@ $userBucket = $userBucket ?? 'lab01';
                 <button class="btn btn-primary" onclick="gitAddCommitPush()" style="width: 100%; margin-bottom: 8px;">
                     🚀 Commit & Push
                 </button>
+                <button class="btn btn-secondary" onclick="gitPull()" style="width: 100%; margin-bottom: 8px; background: #0284c7; color: white;">
+                    📥 Baixar (Git Pull)
+                </button>
             </div>
             
             <div id="gitStatus" style="padding: 10px; background: #0f172a; border-radius: 6px; font-size: 11px; color: #64748b; margin-bottom: 8px; max-height: 150px; overflow-y: auto;"></div>

@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-KD72GH3P');</script>
+    <script>(function (w, d, s, l, i) { w[l] = w[l] || []; w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' }); var f = d.getElementsByTagName(s)[0], j = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : ''; j.async = true; j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl; f.parentNode.insertBefore(j, f); })(window, document, 'script', 'dataLayer', 'GTM-KD72GH3P');</script>
     <!-- End Google Tag Manager -->
-    
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="MyFlow - Plataforma de Datalake e Analytics. Gerencie seus dados com inteligência.">
+    <meta name="description"
+        content="MyFlow - Plataforma de Datalake e Analytics. Gerencie seus dados com inteligência.">
     <meta name="keywords" content="datalake, analytics, big data, myflow, análise de dados">
     <title>MyFlow - Inteligência em Dados</title>
     <style>
@@ -42,6 +44,7 @@
                 opacity: 0;
                 transform: translateY(-30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -50,7 +53,7 @@
 
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 30px 40px 40px;
+            padding: 30px 40px 65px;
             text-align: center;
             color: white;
             position: relative;
@@ -210,7 +213,7 @@
 
         .top-nav {
             position: absolute;
-            bottom: 20px;
+            bottom: 12px;
             right: 40px;
             display: flex;
             align-items: center;
@@ -252,103 +255,134 @@
         }
     </style>
 </head>
+
 <body>
     <!-- Google Tag Manager (noscript) -->
-    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-KD72GH3P"
-    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-KD72GH3P" height="0" width="0"
+            style="display:none;visibility:hidden"></iframe></noscript>
     <!-- End Google Tag Manager (noscript) -->
-    
+
     <div class="container">
         <div class="header">
             <img src="assets/Logo-site.jpg" class="hero-image" alt="MyFlow banner">
-            <div class="logo">📊 Lab from Power ELT Automation</div>
-            <div class="tagline">Inteligência em Dados para Seu Negócio</div>
-            <div class="badge">✨ Plataforma de Datalake & Analytics</div>
+            <div class="logo">📊 Business Analytics</div>
+            <div class="tagline">Inteligência e Engenharia de Dados para seu Negócio</div>
+            <div class="badge">✨ Centralização de CRM, ERP e Dashboards Automatizados</div>
             <div class="top-nav">
-                <a href="https://myflow.estudotabela.com.br:28443/loginUsuario" class="top-nav-link">Faça Login</a>
-                <a href="https://myflow.estudotabela.com.br:28443/sigInUsuario" class="top-nav-button">🎯 Começar Agora</a>
+                <a href="https://myflow.estudotabela.com.br:28443/loginUsuario" class="top-nav-link">Acessar Portal do
+                    Aluno</a>
+                <a href="https://myflow.estudotabela.com.br:28443/contactUs" class="top-nav-button">🎯 Falar com
+                    Especialista</a>
             </div>
         </div>
 
-        <!-- Módulo 1 de Cursos - visitante -->
-        <div class="content" style="margin-top: 30px;">
-            <h2>Curso Básico de Engenharia de Dados</h2>
-            <div style="background: #e0f7fa; color: #00796b; border-radius: 10px; padding: 20px; margin: 20px auto; max-width: 500px; font-size: 18px; font-weight: bold;">
-               
-                Domine a arquitetura de dados moderna aprendendo a construir Data Lakes escaláveis do absoluto zero. Este módulo combina fundamentos teóricos do ecossistema de dados com laboratórios práticos para configurar infraestrutura e camadas Silver com qualidade automatizada. Ideal para quem deseja sair da teoria e resolver problemas reais de ingestão e processamento. Elimine a fricção entre aprender e executar com nosso método assistido passo a passo.
-                
-            </div>
-            <div style="margin: 30px auto; max-width: 700px; text-align: left;">
-                <h3>Ementa do Curso</h3>
-                <div style="font-size: 16px; color: #333;">
-                    <b>1. Fundamentos e Visão Arquitetural</b> <span style="color:#888">mod-fund</span><br>
-                    Foco: Fundamentos, fluxo de informação e transformação de dados em ativo estratégico.<br>
-                    ⏱️ 2 horas estimadas<br>
-                    🎬 4 vídeos<br><br>
-                    <b>2. Infraestrutura e Setup do Ambiente</b> <span style="color:#888">mod-infra</span><br>
-                    Criação de buckets usando MinIO (tecnologia AWS compatível) em ambiente local. Implementação prática via Docker Compose e uso do repositório mini-datalake-stack.<br>
-                    ⏱️ 3 horas estimadas<br>
-                    🎬 3 vídeos<br><br>
-                    <b>3. Orquestração e Fluxo de Trabalho (Workflows)</b> <span style="color:#888">mod-fluxo</span><br>
-                    Funcionamento interno do Airflow, console web e integração entre componentes. Execução de pipeline ELT real e uso do ambiente de laboratório para testes de fluxos.<br>
-                    ⏱️ 5 horas estimadas<br>
-                    🎬 2 vídeos<br><br>
-                    <b>4. Engenharia Avançada e Qualidade</b> <span style="color:#888">mod-eng-mais</span><br>
-                    Criação de classes customizadas de validação para a arquitetura medalhão (Camada Silver). Conectando o Power BI Desktop no Delta Lake.<br>
-                    ⏱️ 5 horas estimadas<br>
-                    🎬 2 vídeos
-                    <div style="margin-top: 30px; text-align: center;">
-                        <a href="https://myflow.estudotabela.com.br:28443/sigInUsuario" class="cta-button" style="background: #ff9800; color: #fff; font-size: 18px; padding: 16px 40px; border-radius: 50px;">Cadastre-se para acessar o curso</a>
-                    </div>
-                </div>
-            </div>
-            
-        </div>
-
-        <div class="content">
-            <h2>Transforme Dados em Decisões Inteligentes</h2>
-            
-            <p class="description">
-                MyFlow é sua plataforma completa de gerenciamento de dados. 
-                Armazene, processe e analise grandes volumes de informação com 
-                segurança e eficiência. Simplifique sua jornada analítica.
+        <div class="hero" style="margin: 40px 0 30px 0; text-align: center;">
+            <h1 style="font-size:2.2rem; color:#667eea; margin-bottom: 12px;">Seus dados centralizados. Decisões em
+                tempo real.</h1>
+            <p
+                style="font-size:1.2rem; color:#444; max-width:850px; margin: 0 auto 18px auto; line-height: 1.6; padding: 0 20px;">
+                Conectamos suas fontes de dados (CRM, ERP, planilhas e APIs) em uma infraestrutura moderna e
+                automatizada.
+                Entregue relatórios dinâmicos e elimine de vez o trabalho manual de consolidação.
             </p>
+            <a href="https://myflow.estudotabela.com.br:28443/contactUs" class="cta-button">📊 Solicitar Diagnóstico de
+                Dados</a>
+        </div>
 
-            <div class="features">
-                <div class="feature">
-                    <div class="feature-icon">🚀</div>
-                    <div class="feature-title">Rápido & Escalável</div>
-                    <div class="feature-text">Processe milhões de registros com performance superior</div>
-                </div>
+        <div class="curriculum-card"
+            style="max-width: 750px; margin: 0 auto 40px; background: #f8f9fa; border-radius: 16px; box-shadow: 0 4px 18px rgba(102,126,234,0.08); padding: 32px 30px;">
+            <h2 style="margin-bottom: 24px; color: #764ba2; text-align: center;">💡 Como ajudamos a sua empresa</h2>
 
-                <div class="feature">
-                    <div class="feature-icon">🔒</div>
-                    <div class="feature-title">Seguro</div>
-                    <div class="feature-text">Seus dados protegidos com criptografia de ponta</div>
-                </div>
-
-                <div class="feature">
-                    <div class="feature-icon">📈</div>
-                    <div class="feature-title">Analytics Avançado</div>
-                    <div class="feature-text">Dashboards e insights em tempo real</div>
+            <div class="module-item" style="display:flex; align-items:flex-start; margin-bottom:20px;">
+                <div class="module-status" style="font-size:1.8rem; margin-right:16px;">🔌</div>
+                <div class="module-info">
+                    <h3 style="margin:0 0 4px 0; font-size:1.2rem; color:#333;">Integração e Carga de Dados (ELT)</h3>
+                    <span style="color:#444; font-size:0.95rem; line-height: 1.5; display:block;">
+                        Conectamos automaticamente as ferramentas que você já usa no dia a dia: CRM (Bling, Tiny,
+                        Pipedrive, Salesforce, Hubspot), bancos de dados locais, planilhas e APIs, consolidando tudo em
+                        um único local.
+                    </span>
                 </div>
             </div>
 
-            <a href="https://myflow.estudotabela.com.br:28443/sigInUsuario" class="cta-button">
-                🎯 Começar Agora!
-            </a>
+            <div class="module-item" style="display:flex; align-items:flex-start; margin-bottom:20px;">
+                <div class="module-status" style="font-size:1.8rem; margin-right:16px;">🗄️</div>
+                <div class="module-info">
+                    <h3 style="margin:0 0 4px 0; font-size:1.2rem; color:#333;">Data Lakehouse Moderno</h3>
+                    <span style="color:#444; font-size:0.95rem; line-height: 1.5; display:block;">
+                        Organizamos suas informações históricas e atuais de forma segura, estruturada e escalável,
+                        utilizando tecnologias modernas e eficientes (Delta Lake, DuckDB) que garantem rapidez nas
+                        consultas.
+                    </span>
+                </div>
+            </div>
 
-            <p style="margin-top: 20px; color: #999; font-size: 14px;">
-                Já tem uma conta? Acesse... <a href="https://myflow.estudotabela.com.br:28443/loginUsuario" style="color: #667eea; text-decoration: none; font-weight: bold;">Faça Login</a>
+            <div class="module-item" style="display:flex; align-items:flex-start; margin-bottom:20px;">
+                <div class="module-status" style="font-size:1.8rem; margin-right:16px;">📊</div>
+                <div class="module-info">
+                    <h3 style="margin:0 0 4px 0; font-size:1.2rem; color:#333;">Relatórios & Dashboards Interativos</h3>
+                    <span style="color:#444; font-size:0.95rem; line-height: 1.5; display:block;">
+                        Desenvolvemos painéis visuais sob medida em Power BI, Metabase ou dashboards customizados. Seu
+                        time passa a visualizar vendas, metas, financeiro e estoque atualizados dinamicamente.
+                    </span>
+                </div>
+            </div>
+
+            <div class="module-item" style="display:flex; align-items:flex-start;">
+                <div class="module-status" style="font-size:1.8rem; margin-right:16px;">⚙️</div>
+                <div class="module-info">
+                    <h3 style="margin:0 0 4px 0; font-size:1.2rem; color:#333;">Qualidade & Governança de Dados</h3>
+                    <span style="color:#444; font-size:0.95rem; line-height: 1.5; display:block;">
+                        Implementamos validações de integridade automáticas nos pipelines para garantir que a informação
+                        exibida nos dashboards esteja 100% correta e livre de inconsistências.
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <h2 style="text-align: center; margin: 50px 0 24px; color:#667eea;">Por que escolher a nossa solução?</h2>
+        <div class="lab-preview"
+            style="display: flex; flex-wrap: wrap; justify-content: center; gap: 30px; margin-bottom: 40px;">
+            <div class="feature-box"
+                style="background:#fff; border-radius:12px; box-shadow:0 2px 10px rgba(102,126,234,0.07); padding: 24px 18px; width: 260px; text-align:center;">
+                <div style="font-size: 2rem; margin-bottom: 10px;">⚡</div>
+                <h3 style="margin-bottom: 8px; color:#764ba2;">Foco no seu Negócio</h3>
+                <p style="color:#444; font-size: 0.9rem; line-height: 1.4;">Cuidamos de toda a infraestrutura técnica e
+                    conexão. Você foca em analisar os KPIs e expandir sua empresa.</p>
+            </div>
+            <div class="feature-box"
+                style="background:#fff; border-radius:12px; box-shadow:0 2px 10px rgba(102,126,234,0.07); padding: 24px 18px; width: 260px; text-align:center;">
+                <div style="font-size: 2rem; margin-bottom: 10px;">🛠️</div>
+                <h3 style="margin-bottom: 8px; color:#764ba2;">Sob Medida</h3>
+                <p style="color:#444; font-size: 0.9rem; line-height: 1.4;">Não usamos moldes genéricos. Criamos
+                    integrações específicas baseadas na complexidade do seu ERP/CRM.</p>
+            </div>
+            <div class="feature-box"
+                style="background:#fff; border-radius:12px; box-shadow:0 2px 10px rgba(102,126,234,0.07); padding: 24px 18px; width: 260px; text-align:center;">
+                <div style="font-size: 2rem; margin-bottom: 10px;">📈</div>
+                <h3 style="margin-bottom: 8px; color:#764ba2;">Automatizado</h3>
+                <p style="color:#444; font-size: 0.9rem; line-height: 1.4;">Seu painel é atualizado sem que ninguém
+                    precise apertar botões, extrair planilhas Excel ou fazer downloads diários.</p>
+            </div>
+        </div>
+
+        <div class="cta-container" style="text-align:center; margin-bottom: 40px;">
+            <p
+                style="margin-bottom: 20px; font-weight: bold; font-size:1.2rem; color:#333; max-width: 600px; margin: 0 auto 20px auto;">
+                Pronto para eliminar os processos manuais e transformar seus dados em decisões inteligentes?
+            </p>
+            <a href="https://myflow.estudotabela.com.br:28443/contactUs" class="cta-button">🎯 Falar com um Consultor de
+                Dados</a>
+            <p style="margin-top: 18px; font-size: 0.95rem; color:#555;">
+                Já é parceiro? <a href="https://myflow.estudotabela.com.br:28443/loginUsuario"
+                    style="color: #667eea; font-weight: bold;">Acessar Portal do Aluno</a>
             </p>
         </div>
 
         <div class="footer">
-            &copy; 2025 MyFlow. Todos os direitos reservados.<br>
-            <!-- a href="http://myflow.estudotabela.com.br:28443/politica" style="color: #667eea; text-decoration: none; margin: 0 10px;">Política de Privacidade</a> | 
-            <a href="http://myflow.estudotabela.com.br:28443/tdu" style="color: #667eea; text-decoration: none; margin: 0 10px;">Termos de Uso</a> | 
-            <a href="http://myflow.estudotabela.com.br:28443/contactUs" style="color: #667eea; text-decoration: none; margin: 0 10px;">Contato</a -->
+            &copy; 2025 MyFlow Analytics - Inteligência e Engenharia de Dados.
         </div>
     </div>
 </body>
+
 </html>

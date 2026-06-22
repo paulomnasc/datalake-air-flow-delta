@@ -340,19 +340,41 @@ async function loadGitFiles() {
 function buildGitFileTree(files) {
     const root = { children: {}, isFile: false };
     files.forEach(file => {
-        const parts = file.path.split('/');
+        const normalizedPath = file.path.replace(/\\/g, '/');
+        const parts = normalizedPath.split('/').filter(Boolean);
+
+        // Ignorar arquivo .gitkeep, mas manter a pasta como nó de pasta
+        let isGitkeepPlaceholder = false;
+        if (parts.length > 0 && parts[parts.length - 1] === '.gitkeep') {
+            parts.pop();
+            if (parts.length === 0) return; // nada a criar
+            isGitkeepPlaceholder = true;
+        }
+
         let current = root;
+        const accumulated = [];
+        
         parts.forEach((part, index) => {
-            if (!part) return;
+            accumulated.push(part);
+            const pathSoFar = accumulated.join('/');
+            const isLast = (index === parts.length - 1);
+            const isFile = isGitkeepPlaceholder ? false : (isLast && !normalizedPath.endsWith('/'));
+            
             if (!current.children[part]) {
                 current.children[part] = {
                     name: part,
-                    fullPath: file.path,
-                    isFile: index === parts.length - 1,
-                    fileData: file,
+                    path: pathSoFar,
+                    fullPath: pathSoFar,
+                    isFile: isFile,
+                    fileData: isFile ? file : null,
                     children: {},
                     expanded: index < 2
                 };
+            } else {
+                if (!isLast) {
+                    current.children[part].isFile = false;
+                    current.children[part].fileData = null;
+                }
             }
             current = current.children[part];
         });
@@ -360,11 +382,13 @@ function buildGitFileTree(files) {
     return root;
 }
 
-function renderGitTree(tree, element, level = 0) {
-    if (!tree.children) return;
+function renderGitTree(node, element, level = 0) {
+    const entries = Object.values(node.children).sort((a, b) => {
+        if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+        return a.name.localeCompare(b.name);
+    });
 
-    Object.keys(tree.children).sort().forEach(name => {
-        const node = tree.children[name];
+    entries.forEach(entry => {
         const div = document.createElement('div');
         div.style.paddingLeft = (level * 15) + 'px';
         div.style.cursor = 'pointer';
@@ -372,14 +396,24 @@ function renderGitTree(tree, element, level = 0) {
         div.style.borderRadius = '3px';
         div.style.userSelect = 'none';
 
-        if (node.isFile) {
-            div.innerHTML = `<span style="color: #94a3b8;">📄 ${node.name}</span>`;
-            div.title = node.fullPath;
+        if (entry.isFile) {
+            // Filtrar em tempo de renderização (se houver restrição configurada)
+            if (window.allowedExtensions) {
+                const allowed = window.allowedExtensions;
+                const name = entry.name.toLowerCase();
+                const isAllowed = allowed.some(ext => name.endsWith(ext));
+                if (!isAllowed) {
+                    return; // Omitir do DOM
+                }
+            }
+
+            div.innerHTML = `<span style="color: #94a3b8;">📄 ${entry.name}</span>`;
+            div.title = entry.fullPath || entry.path;
             div.onclick = (e) => {
                 e.stopPropagation();
-                console.log('📄 Arquivo selecionado:', node);
+                console.log('📄 Arquivo selecionado:', entry);
                 if (window.onGitFileSelected) {
-                    window.onGitFileSelected(node);
+                    window.onGitFileSelected(entry);
                 }
             };
             div.onmouseover = () => {
@@ -388,18 +422,28 @@ function renderGitTree(tree, element, level = 0) {
             div.onmouseout = () => {
                 div.style.backgroundColor = 'transparent';
             };
+            element.appendChild(div);
         } else {
-            const isExpanded = node.expanded || false;
-            div.innerHTML = `<span style="color: #cbd5e1;">${isExpanded ? '▼' : '▶'} 📁 ${node.name}</span>`;
+            // Renderizar pasta
+            const childrenContainer = document.createElement('div');
+            
+            // Renderizar filhos recursivamente primeiro
+            renderGitTree(entry, childrenContainer, level + 1);
+            
+            const hasRenderedChildren = childrenContainer.children.length > 0;
+            const isExpanded = entry.expanded || false;
+            
+            childrenContainer.style.display = isExpanded ? 'block' : 'none';
+            
+            div.innerHTML = `<span class="expand-icon" style="color: #cbd5e1;">${hasRenderedChildren ? (isExpanded ? '▼' : '▶') : ''} 📁 ${entry.name}</span>`;
             div.style.fontWeight = '500';
             div.onclick = (e) => {
                 e.stopPropagation();
-                node.expanded = !node.expanded;
-                const container = element.querySelector(`[data-tree-path="${node.name}"]`);
-                if (container) {
-                    container.style.display = node.expanded ? 'block' : 'none';
-                    const icon = div.querySelector('span');
-                    icon.innerHTML = `<span style="color: #cbd5e1;">${node.expanded ? '▼' : '▶'} 📁 ${node.name}</span>`;
+                entry.expanded = !entry.expanded;
+                childrenContainer.style.display = entry.expanded ? 'block' : 'none';
+                const icon = div.querySelector('.expand-icon');
+                if (icon) {
+                    icon.innerHTML = `${hasRenderedChildren ? (entry.expanded ? '▼' : '▶') : ''} 📁 ${entry.name}`;
                 }
             };
             div.onmouseover = () => {
@@ -408,16 +452,9 @@ function renderGitTree(tree, element, level = 0) {
             div.onmouseout = () => {
                 div.style.backgroundColor = 'transparent';
             };
-        }
-
-        element.appendChild(div);
-
-        if (!node.isFile && node.children && Object.keys(node.children).length > 0) {
-            const container = document.createElement('div');
-            container.setAttribute('data-tree-path', node.name);
-            container.style.display = isExpanded ? 'block' : 'none';
-            renderGitTree(node, container, level + 1);
-            element.appendChild(container);
+            
+            element.appendChild(div);
+            element.appendChild(childrenContainer);
         }
     });
 }
@@ -450,6 +487,57 @@ function renderGitFileTree(files) {
     } catch (error) {
         console.error('❌ Erro ao renderizar árvore:', error);
         gitFileTree.innerHTML = '<div style="color: #dc2626; font-size: 12px;">❌ Erro ao renderizar arquivos</div>';
+    }
+}
+
+async function gitPull() {
+    const status = document.getElementById('gitStatus');
+    if (!gitConfig) {
+        alert('Git não configurado. Conecte primeiro.');
+        return;
+    }
+    
+    status.innerText = 'Sincronizando do GitHub (Git Pull)...';
+    
+    try {
+        let safeBucket = userBucket;
+        if (!safeBucket || typeof safeBucket !== 'string' || safeBucket.trim() === '') {
+            safeBucket = 'lab01';
+        }
+        
+        const response = await fetch('/api/git-clone', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userBucket: safeBucket,
+                username: gitConfig.username || gitConfig.owner,
+                token: gitConfig.token || undefined,
+                owner: gitConfig.owner,
+                repo: gitConfig.repo,
+                branch: gitConfig.branch || 'main'
+            })
+        });
+
+        if (!response.ok) {
+            let errorData = {};
+            try {
+                errorData = await response.json();
+            } catch (e) {
+                errorData = { error: `HTTP ${response.status}` };
+            }
+            throw new Error(errorData.message || errorData.error || 'Erro ao sincronizar do servidor');
+        }
+
+        const result = await response.json();
+        status.innerText = `✓ Repositório atualizado! ${result.uploadedCount} arquivos sincronizados.`;
+        
+        // Recarregar os arquivos na UI
+        await loadGitFiles();
+        
+    } catch (e) {
+        console.error('❌ Erro no git pull:', e);
+        status.innerText = 'Erro ao atualizar: ' + e.message;
+        alert('Erro ao atualizar: ' + e.message);
     }
 }
 

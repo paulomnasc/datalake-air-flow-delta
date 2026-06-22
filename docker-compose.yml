@@ -352,7 +352,7 @@ services:
         # Passa as variáveis para o Dockerfile
         HOST_UID: ${UID:-1000} 
         HOST_GID: ${GID:-1000}
-        DOCKER_GID: 1001  # GID do grupo docker no host
+        DOCKER_GID: ${DOCKER_GID:-1001}  # GID do grupo docker no host
     container_name: codeigniter-app${ENV_SUFFIX:+-${ENV_SUFFIX}}
     restart: always
     depends_on:
@@ -475,7 +475,23 @@ services:
     restart: always
     networks:
       - airflow_net
-  
+
+  metabase:
+    image: metabase/metabase:v0.50.4
+    container_name: metabase_frontend${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    restart: always
+    ports:
+      - "${METABASE_PORT:-3000}:3000"
+    environment:
+      - MB_DB_TYPE=postgres
+      - MB_DB_DBNAME=datalake_bi
+      - MB_DB_PORT=5432
+      - MB_DB_USER=pbi_user
+      - MB_DB_PASS=pbi_password
+      - MB_DB_HOST=postgres-bi
+    networks:
+      - airflow_net
+
 
 networks:
   airflow_net:

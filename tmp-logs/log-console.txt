@@ -1,0 +1,115 @@
+git-file-manager.js:524 ✅ git-file-manager.js carregado e pronto
+code-editor:2137 🔧 CODE EDITOR SCRIPT v2.5.1 - Git Persistence Fix carregado
+code-editor:2138 ⏱️ Timestamp: 07:22:35
+code-editor:2139 📦 localStorage.gitConfig inicial: ✅ EXISTE
+code-editor:2206 ⏱️ script DOMContentLoaded iniciado às 07:22:35
+multi-upload.js:7 🔧 Multi-upload.js carregado - Versão 2.0 com suporte a pastas
+loader.js:1341 Uncaught Error: Can only have one anonymous define call per script file
+git-file-manager.js:461 ⏱️ DOMContentLoaded - git-file-manager.js carregado
+git-file-manager.js:462 🔍 gitConfigKey: gitConfig
+git-file-manager.js:463 🔍 userBucket: admin-146
+git-file-manager.js:466 🔍 DOMContentLoaded - localStorage.gitConfig: ✅ ENCONTRADO
+git-file-manager.js:467    owner: paulomnasc repo: sql-scripts
+code-editor:2160 🔍 restoreGitFromStorage(DOMContentLoaded) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (DOMContentLoaded): Object
+code-editor:2196 📂 Carregando arquivos Git (restore via DOMContentLoaded, isEmpty=true, isSPA=false)...
+code-editor:3674 📂 loadGitFiles() chamado às 07:22:35
+code-editor:3675    gitConfig: Object
+code-editor:3676    userBucket: admin-146
+code-editor:3684 🌐 Buscando arquivos: /api/git-files?userBucket=admin-146&owner=paulomnasc&repo=sql-scripts
+code-editor:2210 ⏱️ DOMContentLoaded event disparado às 07:22:35
+code-editor:2214 🔍 DOMContentLoaded - localStorage.gitConfig: ✅ ENCONTRADO
+code-editor:2215    owner: paulomnasc repo: sql-scripts
+code-editor:2160 🔍 restoreGitFromStorage(DOMContentLoaded) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (DOMContentLoaded): Object
+code-editor:2196 📂 Carregando arquivos Git (restore via DOMContentLoaded, isEmpty=true, isSPA=false)...
+code-editor:3674 📂 loadGitFiles() chamado às 07:22:35
+code-editor:3675    gitConfig: Object
+code-editor:3676    userBucket: admin-146
+code-editor:3684 🌐 Buscando arquivos: /api/git-files?userBucket=admin-146&owner=paulomnasc&repo=sql-scripts
+loader.js:1363 Duplicate definition of module 'vs/editor/editor.main'
+defineModule @ loader.js:1363
+code-editor:2349 ✓ Monaco Editor inicializado com sucesso
+code-editor:3687 ✅ Resposta recebida. Status: 200
+code-editor:3699 ✅ Arquivos recarregados. Quantidade: 25 Dados: Object
+code-editor:3921 🔍 renderGitFileTree chamada com: Array(25)
+code-editor:3923 🔍 Elemento gitFileTree: <ul class=​"file-tree" id=​"gitFileTree">​…​</ul>​flex
+code-editor:3939 ✅ Renderizando árvore para 25 arquivo(s)
+code-editor:3942 ✅ Árvore de arquivos renderizada com sucesso
+feature_collector.js:23 using deprecated parameters for the initialization function; pass a single object instead
+U @ feature_collector.js:23
+code-editor:2160 🔍 restoreGitFromStorage(interval-1) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (interval-1): Object
+code-editor:2160 🔍 restoreGitFromStorage(interval-1) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (interval-1): Object
+git-file-manager.js:482 ⏱️ window.load - tentando restaurar Git
+code-editor:2160 🔍 restoreGitFromStorage(window-load) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (window-load): Object
+code-editor:4653 🔍 window-load event - localStorage.gitConfig: ✅ ENCONTRADO
+code-editor:2160 🔍 restoreGitFromStorage(window-load) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (window-load): Object
+code-editor/catalog.json?cb=1780741357034:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+dbt-docs-serve:67 Objectconfig: {method: 'GET', transformRequest: Array(1), transformResponse: Array(1), jsonpCallbackParam: 'callback', paramSerializer: ƒ, …}data: {title: 'CodeIgniter\\Exceptions\\PageNotFoundException', type: 'CodeIgniter\\Exceptions\\PageNotFoundException', code: 404, message: "Can't find a route for 'GET: code-editor/catalog.json'.", file: '/var/www/html/system/CodeIgniter.php', …}headers: ƒ (n)status: 404statusText: "Not Found"xhrStatus: "complete"[[Prototype]]: Object
+(anonymous) @ dbt-docs-serve:67
+va.tawk.to/v1/session/start:1  Failed to load resource: the server responded with a status of 400 ()
+code-editor:3687 ✅ Resposta recebida. Status: 200
+code-editor/manifest.json?cb=1780741357034:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+dbt-docs-serve:67 Object
+(anonymous) @ dbt-docs-serve:67
+dbt-docs-serve:67 FILE FAILED TO LOAD!
+(anonymous) @ dbt-docs-serve:67
+dbt-docs-serve:67 FILE FAILED TO LOAD!
+(anonymous) @ dbt-docs-serve:67
+dbt-docs-serve:73 TypeError: Cannot read properties of undefined (reading 'adapter_type')
+    at dbt-docs-serve:67:79355
+    at dbt-docs-serve:73:95583
+    at dbt-docs-serve:73:95721
+    at c.$digest (dbt-docs-serve:73:100890)
+    at c.$apply (dbt-docs-serve:73:103069)
+    at dbt-docs-serve:73:66456
+    at A (dbt-docs-serve:73:69360)
+    at b.onload (dbt-docs-serve:73:68723) 'Possibly unhandled rejection: {}'
+(anonymous) @ dbt-docs-serve:73
+code-editor:2160 🔍 restoreGitFromStorage(interval-2) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (interval-2): Object
+code-editor:2160 🔍 restoreGitFromStorage(interval-2) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (interval-2): Object
+code-editor:3225 Iniciando carregamento de Git...
+code-editor:3699 ✅ Arquivos recarregados. Quantidade: 25 Dados: Object
+code-editor:3921 🔍 renderGitFileTree chamada com: Array(25)
+code-editor:3923 🔍 Elemento gitFileTree: <ul class=​"file-tree" id=​"gitFileTree">​…​</ul>​flex
+code-editor:3939 ✅ Renderizando árvore para 25 arquivo(s)
+code-editor:3942 ✅ Árvore de arquivos renderizada com sucesso
+code-editor:3244 ✓ LightningFS carregado
+code-editor:3245 window.LightningFS: undefined
+code-editor:3246 window.module.exports: class {constructor(...t){this.promises=new s(...t),this.init=this.init.bind(this),this.readFile=this.readFile.bind(this),this.writeFile=this.writeFile.bind(this),this.unlink=this.unlink.bind(this),this.rea…
+code-editor:3251 ✓ window.LightningFS atribuído de module.exports
+code-editor:2160 🔍 restoreGitFromStorage(interval-3) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (interval-3): Object
+code-editor:3269 ✓ isomorphic-git carregado
+code-editor:3270 window.git: undefined
+code-editor:3271 window.module.exports: Module
+code-editor:3276 ✓ window.git atribuído de module.exports
+code-editor:3293 🔧 Criando HTTP client inline...
+code-editor:3424 ✓ HTTP client criado
+code-editor:3425 git.http.request: function
+code-editor:3443 Verificando variáveis Git disponíveis...
+code-editor:3444 window.git: object
+code-editor:3445 window.LightningFS: function
+code-editor:3446 window.FS: undefined
+code-editor:3490 ✓ Filesystem inicializado (LightningFS)
+code-editor:3491 fs: Object
+code-editor:3492 pfs: Object
+code-editor:3471 ✓ Git inicializado com sucesso
+code-editor:2160 🔍 restoreGitFromStorage(initGitAfterLoad) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (initGitAfterLoad): Object
+code-editor:2160 🔍 restoreGitFromStorage(interval-3) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (interval-3): Object
+code-editor:2160 🔍 restoreGitFromStorage(interval-4) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (interval-4): Object
+code-editor:2160 🔍 restoreGitFromStorage(interval-4) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (interval-4): Object
+code-editor:2160 🔍 restoreGitFromStorage(interval-5) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (interval-5): Object
+code-editor:2160 🔍 restoreGitFromStorage(interval-5) -> EXISTE
+code-editor:2174 ✅ gitConfig restaurado (interval-5): Object

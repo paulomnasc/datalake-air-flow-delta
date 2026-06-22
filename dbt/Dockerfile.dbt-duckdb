@@ -1,0 +1,9 @@
+FROM python:3.10-slim
+
+# Instala git necessário para possíveis pacotes do dbt
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+# Instala dbt-core e dbt-duckdb compatíveis com a versão 1.5.0
+RUN pip install --no-cache-dir dbt-core==1.5.0 dbt-duckdb==1.5.0
+
+WORKDIR /usr/app

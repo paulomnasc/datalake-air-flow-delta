@@ -1,0 +1,21 @@
+=========================================================================
+⚙️ [DEBUG] SISTEMA DE GERAÇÃO DINÂMICA DE MODELOS EPHEMERAIS
+- Usuário ID: 146
+- Pasta do Projeto: /datalake-root/writable/dbt-tmp/user_146
+- Tabelas declaradas no dbt (arquivos YML): ["public","customers_gold"]
+- Total de pipelines no MySQL para este usuário: 3
+  * Pipeline: target_table='api-place' | ativa=1 | pasta='pasta-padrao' | dag='api-json'
+    ↳ [PULADO] Nome limpo 'api-place' não corresponde a nenhuma tabela declarada no dbt.
+  * Pipeline: target_table='northwind' | ativa=1 | pasta='pasta-padrao' | dag='pipe-northwind'
+    ↳ [PULADO] Nome limpo 'northwind' não corresponde a nenhuma tabela declarada no dbt.
+  * Pipeline: target_table='lista_revisao2' | ativa=1 | pasta='pasta-padrao' | dag='mydataflow'
+    ↳ [PULADO] Nome limpo 'lista_revisao2' não corresponde a nenhuma tabela declarada no dbt.
+- Arquivos ephemerais gerados nesta execução: []
+=========================================================================
+
+[0m16:44:03  Running with dbt=1.5.0
+[0m16:44:04  Encountered an error:
+Compilation Error
+  Model 'model.analytics.dim_customers' (models/dim_customers.sql) depends on a node named 'gold_customers' which was not found
+
+❌ dbt run falhou. Verifique os erros acima.

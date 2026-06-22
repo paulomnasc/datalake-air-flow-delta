@@ -14,3 +14,6 @@ PyMySQL
 debugpy
 psycopg2-binary
  pandasazure-storage-blob==12.19.0
+dbt-core>=1.5.0
+dbt-postgres>=1.5.0
+

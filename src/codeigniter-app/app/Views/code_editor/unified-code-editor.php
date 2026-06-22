@@ -768,6 +768,9 @@ require VIEWPATH . '/header.php';
                     <button class="editor-tab" onclick="switchMainTab('validation')" data-tab="validation" style="flex: 0 1 auto; padding: 10px 20px; border: 1px solid #cbd5e1; background: #e2e8f0; color: #475569; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
                         🛡️ Validações
                     </button>
+                    <button class="editor-tab" onclick="switchMainTab('dbt')" data-tab="dbt" style="flex: 0 1 auto; padding: 10px 20px; border: 1px solid #cbd5e1; background: #e2e8f0; color: #475569; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
+                        📊 dbt Analytics
+                    </button>
                 </div>
 
                 <!-- SQL TAB PANEL -->
@@ -855,6 +858,65 @@ require VIEWPATH . '/header.php';
                     </div>
                 </div>
                 <!-- FIM VALIDATION TAB PANEL -->
+
+                <!-- DBT TAB PANEL -->
+                <div id="dbt-panel" class="tab-panel" style="display: none; flex-direction: column; flex: 1; overflow: hidden;">
+                    <div class="toolbar">
+                        <button class="sidebar-toggle-btn" onclick="toggleEditorSidebar()">
+                            📁 GitHub
+                        </button>
+                        <button class="btn btn-primary" onclick="executeDbt('run', 'dev')" id="dbtRunDevBtn" style="background: #e65100; color: white;">
+                            ▶️ dbt Run (Dev)
+                        </button>
+                        <button class="btn btn-primary" onclick="executeDbt('test', 'dev')" id="dbtTestDevBtn" style="background: #e65100; color: white;">
+                            🧪 dbt Test (Dev)
+                        </button>
+                        <button class="btn btn-primary" onclick="executeDbt('docs', 'dev')" id="dbtDocsDevBtn" style="background: #e65100; color: white;">
+                            📖 dbt Docs (Dev)
+                        </button>
+                        <button class="btn btn-primary" onclick="executeDbt('run', 'prod')" id="dbtRunProdBtn" style="background: #b71c1c; color: white;">
+                            ▶️ dbt Run (Prod)
+                        </button>
+                    </div>
+
+                    <div style="display: flex; gap: 0; flex: 1; overflow: hidden; min-height: 0;">
+                        <!-- Editor Monaco (Left side) -->
+                        <div style="flex: 1; display: flex; flex-direction: column; border-right: 1px solid #e2e8f0; overflow: hidden; padding: 16px;">
+                            <h2 style="margin: 0 0 12px 0; font-size: 18px; color: #1e293b;">✏️ Editor dbt Analytics (SQL / YAML)</h2>
+                            <div id="editor-dbt" style="flex: 1; border: 1px solid #e2e8f0; border-radius: 6px;"></div>
+                        </div>
+
+                        <!-- Console & Lineage (Right side) -->
+                        <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #f8fafc; padding: 16px; min-width: 350px;">
+                            <!-- Top: Dark Terminal Console -->
+                            <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 16px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: #1e293b; color: #e2e8f0; padding: 8px 16px; border-radius: 6px 6px 0 0; font-family: monospace; font-size: 13px;">
+                                    <span>💻 Terminal dbt Console</span>
+                                    <div style="display: flex; gap: 10px;">
+                                        <button onclick="downloadDbtConsoleLog()" style="background: none; border: none; color: #38bdf8; cursor: pointer; font-size: 12px;">📥 Baixar Log</button>
+                                        <button onclick="clearDbtConsole()" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 12px;">🗑️ Limpar</button>
+                                    </div>
+                                </div>
+                                <pre id="dbtConsoleOutput" style="flex: 1; margin: 0; padding: 16px; background: #0f172a; color: #10b981; font-family: 'Fira Code', Consolas, monospace; font-size: 12px; line-height: 1.5; overflow: auto; border-radius: 0 0 6px 6px; border: 1px solid #1e293b; white-space: pre-wrap; word-break: break-all;">Aguardando execução do dbt...</pre>
+                            </div>
+
+                            <!-- Bottom: Lineage Graph / dbt Docs -->
+                            <div style="flex: 1.2; display: flex; flex-direction: column; overflow: hidden;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: #e2e8f0; padding: 8px 16px; border-radius: 6px 6px 0 0; font-size: 13px; font-weight: bold;">
+                                    <span>📊 Linhagem de Dados (Lineage Graph)</span>
+                                    <div style="display: flex; gap: 10px;">
+                                        <button onclick="refreshDbtDocs()" style="background: none; border: none; color: #38bdf8; cursor: pointer; font-size: 12px;">🔄 Recarregar</button>
+                                        <button onclick="window.open('/code-editor/dbt-docs-serve/', '_blank')" style="background: none; border: none; color: #38bdf8; cursor: pointer; font-size: 12px;">↗️ Abrir em nova aba</button>
+                                    </div>
+                                </div>
+                                <div style="flex: 1; border: 1px solid #0f172a; border-radius: 0 0 6px 6px; background: white; overflow: hidden; position: relative;">
+                                    <iframe id="dbtDocsIframe" src="/code-editor/dbt-docs-serve/" style="width: 100%; height: 100%; border: none;"></iframe>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- FIM DBT TAB PANEL -->
             </main>
         </div>
         </div>
@@ -869,7 +931,9 @@ require VIEWPATH . '/header.php';
     <script>
         let editor;
         let editorValidation;
+        let editorDbt;
         let currentTab = 'sql';
+        window.allowedExtensions = ['.sql', '.parquet'];
         // Reuse global userBucket from git-file-manager.js to avoid redeclaration
         userBucket = '<?php echo esc($userBucket ?? 'user-1'); ?>';
         let currentResults = null;
@@ -885,7 +949,7 @@ require VIEWPATH . '/header.php';
             // Update buttons
             document.querySelectorAll('.editor-tab').forEach(btn => {
                 if (btn.dataset.tab === tab) {
-                    btn.style.background = tab === 'sql' ? '#667eea' : '#10b981';
+                    btn.style.background = tab === 'sql' ? '#667eea' : (tab === 'validation' ? '#10b981' : '#e65100');
                     btn.style.color = 'white';
                 } else {
                     btn.style.background = '#e2e8f0';
@@ -896,13 +960,35 @@ require VIEWPATH . '/header.php';
             // Update panels
             document.getElementById('sql-panel').style.display = tab === 'sql' ? 'flex' : 'none';
             document.getElementById('validation-panel').style.display = tab === 'validation' ? 'flex' : 'none';
+            document.getElementById('dbt-panel').style.display = tab === 'dbt' ? 'flex' : 'none';
+            
+            // Update file filters
+            if (tab === 'sql') {
+                window.allowedExtensions = ['.sql', '.parquet'];
+            } else if (tab === 'validation') {
+                window.allowedExtensions = ['.py'];
+            } else if (tab === 'dbt') {
+                window.allowedExtensions = ['.sql', '.yml', '.yaml'];
+            }
+            
+            // Reload files in Git sidebar if connected
+            if (typeof gitConfig !== 'undefined' && gitConfig) {
+                loadGitFiles();
+            }
             
             // Inicializar editor de validação imediatamente
             if (tab === 'validation' && !editorValidation) {
                 console.log('⏳ Inicializando editor de validação...');
-                // Aguardar um pouco para o DOM estar pronto
                 setTimeout(() => {
                     initValidationEditor();
+                }, 50);
+            }
+            
+            // Inicializar editor dbt imediatamente
+            if (tab === 'dbt' && !editorDbt) {
+                console.log('⏳ Inicializando editor dbt...');
+                setTimeout(() => {
+                    initDbtEditor();
                 }, 50);
             }
         }
@@ -1488,6 +1574,32 @@ LIMIT 10;`,
                 loadTemplates();
             } catch (err) {
                 console.error('❌ Erro ao criar editorValidation:', err);
+            }
+        }
+
+        function initDbtEditor() {
+            if (editorDbt) return;
+            try {
+                console.log('🔧 Inicializando editorDbt...');
+                const container = document.getElementById('editor-dbt');
+                if (!container) {
+                    console.error('❌ Container editor-dbt não encontrado!');
+                    return;
+                }
+                
+                editorDbt = monaco.editor.create(container, {
+                    value: `-- Selecione um modelo dbt para editar ou clique em Executar.\n`,
+                    language: 'sql',
+                    theme: 'vs-dark',
+                    automaticLayout: true,
+                    minimap: { enabled: true },
+                    fontSize: 14,
+                    tabSize: 4,
+                });
+                
+                console.log('✓ EditorDbt criado com sucesso');
+            } catch (err) {
+                console.error('❌ Erro ao criar editorDbt:', err);
             }
         }
         
@@ -2758,7 +2870,8 @@ ORDER BY departamento, rank;`
             const root = { children: {}, isFile: false };
             
             files.forEach(file => {
-                const parts = file.path.split('/').filter(Boolean);
+                const normalizedPath = file.path.replace(/\\/g, '/');
+                const parts = normalizedPath.split('/').filter(Boolean);
 
                 // Ignorar arquivo .gitkeep, mas manter a pasta como nó de pasta
                 let isGitkeepPlaceholder = false;
@@ -2774,7 +2887,8 @@ ORDER BY departamento, rank;`
                 parts.forEach((part, index) => {
                     accumulated.push(part);
                     const pathSoFar = accumulated.join('/');
-                    const isFile = isGitkeepPlaceholder ? false : (index === parts.length - 1);
+                    const isLast = (index === parts.length - 1);
+                    const isFile = isGitkeepPlaceholder ? false : (isLast && !normalizedPath.endsWith('/'));
                     
                     if (!current.children[part]) {
                         current.children[part] = {
@@ -2786,6 +2900,13 @@ ORDER BY departamento, rank;`
                             children: {},
                             expanded: index < 2
                         };
+                    } else {
+                        // Se já existia (ex: criado via placeholder/pasta antes), mas agora estamos
+                        // passando por ele para criar um nó filho, garante que seja marcado como pasta.
+                        if (!isLast) {
+                            current.children[part].isFile = false;
+                            current.children[part].fileData = null;
+                        }
                     }
                     current = current.children[part];
                 });
@@ -2806,6 +2927,14 @@ ORDER BY departamento, rank;`
                 item.dataset.type = entry.isFile ? 'file' : 'folder';
                 
                 if (entry.isFile) {
+                    // Filtrar em tempo de renderização
+                    const allowed = window.allowedExtensions || ['.sql', '.parquet'];
+                    const name = entry.name.toLowerCase();
+                    const isAllowed = allowed.some(ext => name.endsWith(ext));
+                    if (!isAllowed) {
+                        return; // Omitir arquivo do DOM
+                    }
+
                     item.className = 'tree-item file';
                     item.draggable = true;
                     item.innerHTML = `
@@ -2832,14 +2961,22 @@ ORDER BY departamento, rank;`
                         item.classList.remove('dragging');
                     });
                 } else {
-                    const hasChildren = Object.keys(entry.children).length > 0;
+                    // Renderizar pasta
                     const childrenContainer = document.createElement('div');
+                    
+                    // Renderizar filhos recursivamente primeiro para saber se a pasta tem filhos visíveis
+                    renderGitTree(entry, childrenContainer, level + 1);
+                    
+                    // Se a pasta não possui filhos renderizados no DOM, mas existiam filhos no modelo,
+                    // ela ainda é exibida como pasta (para que o usuário possa interagir e criar arquivos).
+                    const hasRenderedChildren = childrenContainer.children.length > 0;
+                    
                     childrenContainer.className = `tree-children ${entry.expanded ? 'expanded' : ''}`;
                     
                     item.className = 'tree-item folder';
                     item.draggable = true;
                     item.innerHTML = `
-                        <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasChildren ? '▶' : ''}</span>
+                        <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasRenderedChildren ? (entry.expanded ? '▼' : '▶') : ''}</span>
                         <span class="icon">${entry.expanded ? '📂' : '📁'}</span>
                         <span class="label" title="${entry.name}">${entry.name}</span>
                     `;
@@ -2858,7 +2995,7 @@ ORDER BY departamento, rank;`
                             currentInfo.innerHTML = `📁 ${entry.name} (pasta)`;
                         }
                         
-                        if (hasChildren) {
+                        if (hasRenderedChildren) {
                             toggleGitFolder(item, childrenContainer, entry);
                         }
                     };
@@ -2878,7 +3015,7 @@ ORDER BY departamento, rank;`
                         item.classList.remove('dragging');
                     });
                     
-                    // Drop handlers - allow dropping files/folders into this folder
+                    // Drop handlers
                     item.addEventListener('dragover', (e) => {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = 'move';
@@ -2898,10 +3035,9 @@ ORDER BY departamento, rank;`
                         const targetFolderPath = entry.fullPath || entry.path;
                         
                         if (draggedData.path === targetFolderPath) {
-                            return; // Can't drop into itself
+                            return;
                         }
                         
-                        // Check if trying to drop parent into child
                         if (targetFolderPath.startsWith(draggedData.path + '/')) {
                             alert('❌ Não pode mover uma pasta para dentro de si mesma');
                             return;
@@ -2911,11 +3047,7 @@ ORDER BY departamento, rank;`
                     });
                     
                     container.appendChild(item);
-                    
-                    if (hasChildren) {
-                        renderGitTree(entry, childrenContainer, level + 1);
-                        container.appendChild(childrenContainer);
-                    }
+                    container.appendChild(childrenContainer);
                     return;
                 }
                 
@@ -2929,12 +3061,18 @@ ORDER BY departamento, rank;`
             const isExpanded = childrenContainer.classList.toggle('expanded');
             
             if (isExpanded) {
-                expandIcon.classList.add('expanded');
-                icon.textContent = '📂';
+                if (expandIcon) {
+                    expandIcon.classList.add('expanded');
+                    expandIcon.textContent = '▼';
+                }
+                if (icon) icon.textContent = '📂';
                 entry.expanded = true;
             } else {
-                expandIcon.classList.remove('expanded');
-                icon.textContent = '📁';
+                if (expandIcon) {
+                    expandIcon.classList.remove('expanded');
+                    expandIcon.textContent = '▶';
+                }
+                if (icon) icon.textContent = '📁';
                 entry.expanded = false;
             }
         }
@@ -2958,7 +3096,7 @@ ORDER BY departamento, rank;`
                 return;
             }
             
-            console.log(`✅ Renderizando ${files.length} arquivo(s)`);
+            console.log(`✅ Renderizando árvore para ${files.length} arquivo(s)`);
             const tree = buildGitFileTree(files);
             renderGitTree(tree, gitFileTree, 0);
             console.log('✅ Árvore de arquivos renderizada com sucesso');
@@ -3036,7 +3174,7 @@ ORDER BY departamento, rank;`
                 if (currentTab === 'sql' && editor) {
                     monaco.editor.setModelLanguage(editor.getModel(), language);
                     editor.setValue(result.content || '');
-                } else {
+                } else if (currentTab === 'validation') {
                     // Validação: garantir editorValidation inicializado
                     if (!editorValidation) {
                         initValidationEditor();
@@ -3045,6 +3183,16 @@ ORDER BY departamento, rank;`
                     if (editorValidation) {
                         monaco.editor.setModelLanguage(editorValidation.getModel(), language);
                         editorValidation.setValue(result.content || '');
+                    }
+                } else if (currentTab === 'dbt') {
+                    // dbt: garantir editorDbt inicializado
+                    if (!editorDbt) {
+                        initDbtEditor();
+                        await new Promise(res => setTimeout(res, 100));
+                    }
+                    if (editorDbt) {
+                        monaco.editor.setModelLanguage(editorDbt.getModel(), language);
+                        editorDbt.setValue(result.content || '');
                     }
                 }
                 
@@ -3074,12 +3222,17 @@ ORDER BY departamento, rank;`
                 return;
             }
             
-            if (!editor) {
+            let activeEditor = null;
+            if (currentTab === 'sql') activeEditor = editor;
+            else if (currentTab === 'validation') activeEditor = editorValidation;
+            else if (currentTab === 'dbt') activeEditor = editorDbt;
+            
+            if (!activeEditor) {
                 alert('Editor não inicializado');
                 return;
             }
             
-            const content = editor.getValue();
+            const content = activeEditor.getValue();
             const status = document.getElementById('gitStatus');
             
             try {
@@ -3150,12 +3303,17 @@ ORDER BY departamento, rank;`
                 return;
             }
             
-            if (!editor) {
+            let activeEditor = null;
+            if (currentTab === 'sql') activeEditor = editor;
+            else if (currentTab === 'validation') activeEditor = editorValidation;
+            else if (currentTab === 'dbt') activeEditor = editorDbt;
+            
+            if (!activeEditor) {
                 alert('Editor não inicializado');
                 return;
             }
             
-            const content = editor.getValue();
+            const content = activeEditor.getValue();
             if (!content.trim()) {
                 if (!confirm('O editor está vazio. Criar arquivo vazio?')) {
                     return;
@@ -3655,6 +3813,93 @@ ORDER BY departamento, rank;`
             console.log('🔍 window-load event - localStorage.gitConfig:', saved ? '✅ ENCONTRADO' : '❌ NULL');
             restoreGitFromStorage('window-load');
         });
+
+        // Funções de controle dbt
+        async function executeDbt(action, env) {
+            const consoleEl = document.getElementById('dbtConsoleOutput');
+            const runDevBtn = document.getElementById('dbtRunDevBtn');
+            const testDevBtn = document.getElementById('dbtTestDevBtn');
+            const docsDevBtn = document.getElementById('dbtDocsDevBtn');
+            const runProdBtn = document.getElementById('dbtRunProdBtn');
+            
+            const btns = [runDevBtn, testDevBtn, docsDevBtn, runProdBtn];
+            btns.forEach(b => { if (b) b.disabled = true; });
+            
+            consoleEl.textContent = `⏳ Executando dbt ${action} no ambiente [${env}]...\nIniciando container Docker transiente...\nPor favor aguarde, isso pode levar alguns segundos...\n`;
+            consoleEl.style.color = '#e2e8f0';
+            
+            const payload = {
+                action: action,
+                env: env
+            };
+            
+            if (typeof gitConfig !== 'undefined' && gitConfig) {
+                payload.owner = gitConfig.owner;
+                payload.repo = gitConfig.repo;
+            }
+            
+            try {
+                const response = await fetch('/code-editor/dbt-execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || `HTTP ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                consoleEl.textContent = result.output || 'Executado com sucesso, mas sem logs de saída.';
+                if (result.success) {
+                    consoleEl.style.color = '#10b981'; // Verde
+                    consoleEl.textContent += `\n\n✅ dbt ${action} finalizado COM SUCESSO no schema: ${result.schema || 'n/a'}`;
+                    
+                    if (action === 'docs') {
+                        refreshDbtDocs();
+                    }
+                } else {
+                    consoleEl.style.color = '#f43f5e'; // Vermelho
+                    consoleEl.textContent += `\n\n❌ dbt ${action} falhou. Verifique os erros acima.`;
+                }
+            } catch (error) {
+                consoleEl.style.color = '#f43f5e'; // Vermelho
+                consoleEl.textContent = `❌ Erro de Execução: ${error.message}`;
+            } finally {
+                btns.forEach(b => { if (b) b.disabled = false; });
+            }
+        }
+        
+        function clearDbtConsole() {
+            document.getElementById('dbtConsoleOutput').textContent = 'Console limpo. Aguardando execução...';
+            document.getElementById('dbtConsoleOutput').style.color = '#10b981';
+        }
+        
+        function downloadDbtConsoleLog() {
+            const consoleEl = document.getElementById('dbtConsoleOutput');
+            if (!consoleEl) return;
+            const text = consoleEl.textContent;
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'dbt_console_log.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        function refreshDbtDocs() {
+            const iframe = document.getElementById('dbtDocsIframe');
+            if (iframe) {
+                // Forçar recarga atualizando o atributo src com timestamp para ignorar cache do navegador
+                const baseSrc = '/code-editor/dbt-docs-serve/';
+                iframe.src = baseSrc + '?t=' + Date.now();
+            }
+        }
     </script>
 
 <?php

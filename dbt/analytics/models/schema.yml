@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: dim_usuarios
+    description: "Tabela dimensional de alunos/usuários com perfil comportamental derivado."
+    columns:
+      - name: id_usuario
+        description: "Chave primária do usuário"
+        tests:
+          - unique
+          - not_null
+      - name: email_usuario
+        description: "E-mail único de cadastro do usuário"
+        tests:
+          - unique
+
+  - name: dim_cursos
+    description: "Tabela dimensional de cursos e produtos da plataforma."
+    columns:
+      - name: id_produto
+        description: "Código do produto/curso"
+        tests:
+          - unique
+          - not_null
+
+  - name: fato_vendas
+    description: "Fato de assinaturas, transações e vendas integradas."
+    columns:
+      - name: id_venda
+        description: "Chave primária da transação de venda"
+        tests:
+          - unique
+          - not_null
+      - name: id_usuario
+        description: "ID do usuário associado à venda"
+        tests:
+          - not_null
+
+  - name: fato_acessos
+    description: "Fato consolidando os acessos e logs de navegação de usuários."
+    columns:
+      - name: id_acesso
+        description: "Identificador único do acesso de log"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_customers
+    description: "Tabela dimensional de clientes (Northwind) com dados enriquecidos da camada Gold."
+    columns:
+      - name: id_usuario
+        description: "Código identificador do cliente (customer_id)"
+        tests:
+          - unique
+          - not_null
+      - name: nome
+        description: "Nome do cliente (company_name)"
+      - name: contato
+        description: "Nome do contato principal do cliente (contact_name)"
+

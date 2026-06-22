@@ -152,4 +152,59 @@ class AgileControllerTest extends CIUnitTestCase
 
         $demandaModel->delete($demandaId);
     }
+
+    public function test_sistemas_list_returns_success()
+    {
+        $result = $this->withSession([
+            'id_usuario_logado' => 1,
+            'usuario_logado'    => 1,
+            'nome_usuario_logado'=> 'Admin Test'
+        ])->call('get', 'agile/sistemas');
+
+        $result->assertStatus(200);
+        $result->assertSee('Cadastro de Sistemas');
+    }
+
+    public function test_salvar_sistema_and_bind_to_demanda()
+    {
+        $session = [
+            'id_usuario_logado' => 1,
+            'usuario_logado'    => 1,
+            'nome_usuario_logado'=> 'Admin Test'
+        ];
+
+        // 1. Cadastra o sistema
+        $result = $this->withSession($session)->call('post', 'agile/sistemas/salvar', [
+            'sigla' => 'TSIS',
+            'nome' => 'Sistema de Teste Relacionamento',
+            'descricao' => 'Descrição do sistema de teste'
+        ]);
+
+        $result->assertRedirectTo(route_to('agile.sistemas'));
+
+        // Verifica no BD se o sistema foi criado
+        $sistemaModel = new \App\Models\SistemaModel();
+        $sistema = $sistemaModel->where('sigla', 'TSIS')->first();
+        $this->assertNotNull($sistema);
+
+        // 2. Cadastra demanda vinculada ao sistema criado
+        $resultDemanda = $this->withSession($session)->call('post', 'agile/demanda/insert', [
+            'id_sistema' => $sistema->id,
+            'titulo' => 'Demanda Vinculada Teste',
+            'descricao' => 'Descrição da demanda vinculada',
+            'sistema_critico' => 0
+        ]);
+
+        $resultDemanda->assertRedirectTo(route_to('agile.demandas'));
+
+        // Verifica no BD se a demanda está associada ao ID do sistema
+        $demandaModel = new DemandaModel();
+        $demanda = $demandaModel->where('titulo', 'Demanda Vinculada Teste')->first();
+        $this->assertNotNull($demanda);
+        $this->assertEquals($sistema->id, $demanda->id_sistema);
+
+        // Limpa
+        $demandaModel->delete($demanda->id);
+        $sistemaModel->delete($sistema->id);
+    }
 }

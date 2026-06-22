@@ -18,6 +18,18 @@ $isEdit = isset($demanda);
                     <?php endif; ?>
 
                     <div class="mb-3">
+                        <label for="id_sistema" class="form-label">Sistema Associado</label>
+                        <select class="form-select" id="id_sistema" name="id_sistema" required>
+                            <option value="">Selecione o Sistema...</option>
+                            <?php foreach ($sistemas as $sis): ?>
+                                <option value="<?= $sis->id ?>" <?= ($isEdit && $demanda->id_sistema == $sis->id) ? 'selected' : '' ?>>
+                                    [<?= htmlspecialchars($sis->sigla) ?>] <?= htmlspecialchars($sis->nome) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
                         <label for="titulo" class="form-label">Título da Demanda</label>
                         <input type="text" class="form-control form-control-lg" id="titulo" name="titulo" value="<?= $isEdit ? htmlspecialchars($demanda->titulo) : '' ?>" placeholder="Ex: Módulo de Relatórios de Impostos" required>
                     </div>

@@ -11,6 +11,7 @@ use App\Models\CerimoniaModel;
 use App\Models\ParecerHomologacaoModel;
 use App\Models\ReleaseModel;
 use App\Models\UsuarioModel;
+use App\Models\SistemaModel;
 
 class AgileController extends BaseController
 {
@@ -21,6 +22,7 @@ class AgileController extends BaseController
     protected $parecerHomologacaoModel;
     protected $releaseModel;
     protected $usuarioModel;
+    protected $sistemaModel;
 
     public function __construct()
     {
@@ -31,6 +33,7 @@ class AgileController extends BaseController
         $this->parecerHomologacaoModel = new ParecerHomologacaoModel();
         $this->releaseModel = new ReleaseModel();
         $this->usuarioModel = new UsuarioModel();
+        $this->sistemaModel = new SistemaModel();
     }
 
     /**
@@ -39,7 +42,6 @@ class AgileController extends BaseController
     public function dashboard()
     {
         // 1. Tempo Médio de Tramitação (Lead Time) por raia/status
-        // Média de dias que as demandas passam em cada status
         $db = \Config\Database::connect();
         $leadTimeQuery = $db->query("
             SELECT status, 
@@ -89,7 +91,11 @@ class AgileController extends BaseController
      */
     public function index()
     {
-        $demandas = $this->demandaModel->orderBy('criado_em', 'DESC')->findAll();
+        $demandas = $this->demandaModel
+            ->select('agile_demandas.*, agile_sistemas.sigla as sistema_sigla, agile_sistemas.nome as sistema_nome')
+            ->join('agile_sistemas', 'agile_sistemas.id = agile_demandas.id_sistema', 'left')
+            ->orderBy('agile_demandas.criado_em', 'DESC')
+            ->findAll();
         return view('agile/list_demandas', ['demandas' => $demandas]);
     }
 
@@ -98,7 +104,8 @@ class AgileController extends BaseController
      */
     public function add()
     {
-        return view('agile/demanda_form');
+        $sistemas = $this->sistemaModel->orderBy('sigla', 'ASC')->findAll();
+        return view('agile/demanda_form', ['sistemas' => $sistemas]);
     }
 
     /**
@@ -112,8 +119,10 @@ class AgileController extends BaseController
         // Se SIM: fluxo COSIS -> "Preparar Demanda SERPRO"
         // Se NÃO: fluxo -> "Alocar Time Fábricas"
         $statusInicial = $sistemaCritico ? 'Preparar Demanda SERPRO' : 'Alocar Time Fábricas';
+        $id_sistema = $this->request->getPost('id_sistema') ?: null;
 
         $data = [
+            'id_sistema' => $id_sistema,
             'titulo' => $this->request->getPost('titulo'),
             'descricao' => $this->request->getPost('descricao'),
             'sistema_critico' => $sistemaCritico,
@@ -139,7 +148,8 @@ class AgileController extends BaseController
             return redirect()->to(route_to('agile.demandas'))->with('error', 'Demanda não encontrada.');
         }
 
-        return view('agile/demanda_form', ['demanda' => $demanda]);
+        $sistemas = $this->sistemaModel->orderBy('sigla', 'ASC')->findAll();
+        return view('agile/demanda_form', ['demanda' => $demanda, 'sistemas' => $sistemas]);
     }
 
     /**
@@ -148,9 +158,11 @@ class AgileController extends BaseController
     public function update()
     {
         $id = $this->request->getPost('id');
+        $id_sistema = $this->request->getPost('id_sistema') ?: null;
         $sistemaCritico = $this->request->getPost('sistema_critico') ? 1 : 0;
 
         $data = [
+            'id_sistema' => $id_sistema,
             'titulo' => $this->request->getPost('titulo'),
             'descricao' => $this->request->getPost('descricao'),
             'sistema_critico' => $sistemaCritico,
@@ -483,5 +495,48 @@ class AgileController extends BaseController
         }
 
         return redirect()->to(route_to('agile.kanban', $id_demanda))->with('success', $msg);
+    }
+
+    /**
+     * Listagem de Sistemas
+     */
+    public function sistemas()
+    {
+        $sistemas = $this->sistemaModel->orderBy('sigla', 'ASC')->findAll();
+        return view('agile/sistemas_list', ['sistemas' => $sistemas]);
+    }
+
+    /**
+     * Salvar/Criar Sistema
+     */
+    public function salvarSistema()
+    {
+        $id = $this->request->getPost('id');
+        $data = [
+            'nome' => $this->request->getPost('nome'),
+            'sigla' => $this->request->getPost('sigla'),
+            'descricao' => $this->request->getPost('descricao')
+        ];
+
+        if (empty($id)) {
+            $this->sistemaModel->insert($data);
+            $msg = 'Sistema cadastrado com sucesso!';
+        } else {
+            $this->sistemaModel->update($id, $data);
+            $msg = 'Sistema atualizado com sucesso!';
+        }
+
+        return redirect()->to(route_to('agile.sistemas'))->with('success', $msg);
+    }
+
+    /**
+     * Deletar Sistema via AJAX
+     */
+    public function deletarSistema($id)
+    {
+        if ($this->sistemaModel->delete($id)) {
+            return $this->response->setJSON(['status' => 'success', 'mensagem' => 'Sistema excluído com sucesso!']);
+        }
+        return $this->response->setJSON(['status' => 'error', 'mensagem' => 'Erro ao excluir o sistema.']);
     }
 }

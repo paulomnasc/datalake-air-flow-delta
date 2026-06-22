@@ -45,6 +45,9 @@ require VIEWPATH.'/header.php';
                         <tr id="row-<?= $demanda->id ?>">
                             <td style="display:none;"><?= $demanda->id ?></td>
                             <td>
+                                <?php if (!empty($demanda->sistema_sigla)): ?>
+                                    <span class="badge bg-secondary font-monospace" style="vertical-align: middle; margin-right: 4px;"><?= htmlspecialchars($demanda->sistema_sigla) ?></span>
+                                <?php endif; ?>
                                 <strong><?= htmlspecialchars($demanda->titulo) ?></strong>
                                 <br>
                                 <small class="text-muted"><?= htmlspecialchars(substr($demanda->descricao ?? '', 0, 80)) ?>...</small>

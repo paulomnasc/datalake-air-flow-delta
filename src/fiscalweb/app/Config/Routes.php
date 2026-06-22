@@ -370,6 +370,11 @@ $routes->group('agile', function($routes) {
     $routes->post('demanda/update', 'AgileController::update', ['as' => 'agile.demanda.update']);
     $routes->delete('demanda/delete/(:num)', 'AgileController::delete/$1', ['as' => 'agile.demanda.delete']);
     
+    // Cadastro de Sistemas
+    $routes->get('sistemas', 'AgileController::sistemas', ['as' => 'agile.sistemas']);
+    $routes->post('sistemas/salvar', 'AgileController::salvarSistema', ['as' => 'agile.sistemas.salvar']);
+    $routes->delete('sistemas/deletar/(:num)', 'AgileController::deletarSistema/$1', ['as' => 'agile.sistemas.deletar']);
+    
     // Backlog do Produto
     $routes->get('backlog/(:num)', 'AgileController::backlog/$1', ['as' => 'agile.backlog']);
     $routes->post('backlog/salvar-item', 'AgileController::salvarBacklogItem', ['as' => 'agile.backlog.salvar_item']);

@@ -1,12 +1,24 @@
--- Criação da Tabela de Demandas
+-- Criação da Tabela de Sistemas
+CREATE TABLE IF NOT EXISTS agile_sistemas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    sigla VARCHAR(20) NOT NULL,
+    descricao TEXT,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Criação da Tabela de Demandas (com FK de Sistema)
 CREATE TABLE IF NOT EXISTS agile_demandas (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    id_sistema INT NULL, -- FK de relacionamento 1:N
     titulo VARCHAR(255) NOT NULL,
     descricao TEXT,
     sistema_critico TINYINT(1) DEFAULT 0,
     status VARCHAR(50) DEFAULT 'Triagem', -- 'Triagem', 'Preparar Demanda SERPRO', 'Alocar Time Fábricas', 'Refinamento Backlog', 'Sprint Planning', 'Em Execução', 'Homologação', 'Sprint Review', 'Submissão Release', 'CCM', 'SERPRO', 'Atualizado Produção'
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_sistema) REFERENCES agile_sistemas(id) ON DELETE SET NULL
 );
 
 -- Tabela de Itens de Backlog (Histórias de Usuário / Requisitos)

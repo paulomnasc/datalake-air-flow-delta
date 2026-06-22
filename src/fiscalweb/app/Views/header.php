@@ -572,6 +572,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 <a class="dropdown-item" href="<?= base_url('agile/dashboard') ?>">📊 Painel Ágil</a>
                                 <a class="dropdown-item" href="<?= base_url('agile/demandas') ?>">📋 Demandas</a>
                                 <a class="dropdown-item" href="<?= base_url('agile/sistemas') ?>">🖥️ Sistemas</a>
+                                <a class="dropdown-item" href="<?= base_url('docs/index.html') ?>" target="_blank">📖 Manual do Usuário</a>
                             </div>
                         </div>
                     </li>
@@ -621,7 +622,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
                 <li>
                     <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                        <a href="/docs/index.html" class="nav-link px-2 px-lg-2" target="_blank" style="color: #87ceeb;">
+                        <a href="<?= base_url('docs/index.html') ?>" class="nav-link px-2 px-lg-2" target="_blank" style="color: #87ceeb;">
                             📚 Documentação
                         </a>
                     <?php else: ?>
@@ -888,6 +889,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             <a href="<?= base_url('agile/dashboard') ?>" class="dropdown-item">Painel Ágil</a>
                             <a href="<?= base_url('agile/demandas') ?>" class="dropdown-item">Demandas</a>
                             <a href="<?= base_url('agile/sistemas') ?>" class="dropdown-item">Sistemas</a>
+                            <a href="<?= base_url('docs/index.html') ?>" class="dropdown-item" target="_blank">📖 Manual do Usuário</a>
                         </div>
                     </div>
 

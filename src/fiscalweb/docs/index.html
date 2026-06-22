@@ -3,505 +3,739 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyDataFlow - Solução Low Code Datalake - Documentação Datalake</title>
+    <title>Manual do Usuário: Módulo de Gestão Ágil - Plataforma Minha Fiscalização</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
     <style>
         :root {
-            --sidebar-width: 280px;
+            --bg-color: #0b0f19;
+            --card-bg: rgba(20, 27, 45, 0.75);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --primary: #7c3aed; /* Violet/Purple Accent */
+            --accent-green: #10b981; /* Emerald for approvals/success */
+            --accent-amber: #f59e0b; /* Amber for pending/planning */
+            --accent-red: #ef4444; /* Red for critical/rejections */
+            --accent-blue: #0ea5e9; /* Blue for releases */
+            --font-main: 'Outfit', sans-serif;
+            --font-code: 'Fira Code', monospace;
         }
+
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 5% 15%, rgba(124, 58, 237, 0.12) 0%, transparent 45%),
+                              radial-gradient(circle at 95% 85%, rgba(16, 185, 129, 0.08) 0%, transparent 45%);
+            color: var(--text-primary);
+            font-family: var(--font-main);
             line-height: 1.6;
-            color: #333;
-            background: #f5f5f5;
+            padding: 40px 20px;
         }
 
         .container {
-            display: flex;
-            min-height: 100vh;
+            max-width: 1050px;
+            margin: 0 auto;
         }
 
-        .sidebar {
-            width: var(--sidebar-width);
-            background: #2c3e50;
-            color: #ecf0f1;
-            padding: 20px;
-            position: fixed;
-            height: 100vh;
-            overflow-y: auto;
-            transition: transform 0.3s ease;
-            transform: translateX(0);
-            z-index: 1000;
-        }
-
-        .sidebar.collapsed {
-            transform: translateX(-100%);
-        }
-
-        .sidebar h2 {
-            font-size: 1.4rem;
-            margin-bottom: 20px;
-            color: #3498db;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 10px;
-        }
-
-        .sidebar nav ul {
-            list-style: none;
-        }
-
-        .sidebar nav ul li {
-            margin-bottom: 8px;
-        }
-
-        .sidebar nav ul li a {
-            color: #ecf0f1;
-            text-decoration: none;
-            display: block;
-            padding: 8px 12px;
-            border-radius: 4px;
-            transition: background 0.3s;
-        }
-
-        .sidebar nav ul li a:hover {
-            background: #34495e;
-            color: #3498db;
-        }
-
-        .sidebar nav ul li a.active {
-            background: #3498db;
-            color: white;
-        }
-
-        .content {
-            margin-left: var(--sidebar-width);
-            padding: 40px;
-            flex: 1;
-            background: white;
-            max-width: 1400px;
-            transition: margin-left 0.3s ease;
-        }
-
-        .content.collapsed {
-            margin-left: 0;
-        }
-
-        .sidebar-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.45);
-            z-index: 900;
-            display: none;
-        }
-
-        .sidebar-overlay.active {
-            display: block;
-        }
-
-        .sidebar-toggle {
-            position: fixed;
-            top: 16px;
-            left: 16px;
-            z-index: 1100;
-            background: #3498db;
-            color: #fff;
-            border: none;
-            padding: 10px 14px;
-            border-radius: 6px;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            font-size: 0.95rem;
-            transition: left 0.3s ease;
-        }
-
-        @media (min-width: 1100px) {
-            .sidebar-toggle {
-                left: calc(var(--sidebar-width) + 16px);
-            }
-        }
-
-        .content h1 {
-            color: #2c3e50;
-            margin-bottom: 20px;
-            font-size: 2.5rem;
-            border-bottom: 3px solid #3498db;
-            padding-bottom: 10px;
-        }
-
-        .content h2 {
-            color: #34495e;
-            margin-top: 30px;
-            margin-bottom: 15px;
-            font-size: 1.8rem;
-            border-bottom: 2px solid #ddd;
-            padding-bottom: 5px;
-        }
-
-        .content h3 {
-            color: #555;
-            margin-top: 20px;
-            margin-bottom: 10px;
-            font-size: 1.4rem;
-        }
-
-        .content h4 {
-            color: #666;
-            margin-top: 15px;
-            margin-bottom: 8px;
-            font-size: 1.2rem;
-        }
-
-        .content p {
-            margin-bottom: 15px;
-            color: #555;
-        }
-
-        .content ul {
-            margin-bottom: 15px;
-            margin-left: 20px;
-        }
-
-        .content ul li {
-            margin-bottom: 8px;
-        }
-
-        .content ol {
-            margin-bottom: 15px;
-            margin-left: 20px;
-        }
-
-        .content ol li {
-            margin-bottom: 8px;
-        }
-
-        .content a {
-            color: #3498db;
+        .nav-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--primary);
             text-decoration: none;
             font-weight: 500;
+            margin-bottom: 25px;
+            transition: color 0.2s, transform 0.2s;
         }
 
-        .content a:hover {
-            text-decoration: underline;
+        .nav-back:hover {
+            color: #a78bfa;
+            transform: translateX(-3px);
         }
 
-        .badge {
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        header .logo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(124, 58, 237, 0.15);
+            border: 1px solid rgba(124, 58, 237, 0.3);
+            padding: 6px 14px;
+            border-radius: 30px;
+            color: #c084fc;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        header h1 {
+            font-size: 2.8rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #c084fc 0%, #6366f1 50%, #10b981 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: var(--text-secondary);
+            font-size: 1.15rem;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        /* Ciclo Visual */
+        .lifecycle-container {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .lifecycle-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .lifecycle-title i {
+            color: var(--primary);
+        }
+
+        .lifecycle-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 12px;
+            position: relative;
+        }
+
+        .lifecycle-step {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px 8px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .lifecycle-step:hover {
+            background: rgba(124, 58, 237, 0.08);
+            border-color: rgba(124, 58, 237, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .lifecycle-step i {
+            font-size: 1.4rem;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .step-gatelink i { color: #f43f5e; }
+        .step-backlog i { color: #f59e0b; }
+        .step-planning i { color: #a855f7; }
+        .step-execution i { color: #3b82f6; }
+        .step-homologation i { color: #eab308; }
+        .step-release i { color: #06b6d4; }
+        .step-prod i { color: #10b981; }
+
+        .lifecycle-step span {
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: block;
+            color: var(--text-primary);
+        }
+
+        .lifecycle-step small {
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            display: block;
+            margin-top: 2px;
+        }
+
+        /* Cards do Passo a Passo */
+        .step-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 35px;
+            margin-bottom: 35px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s;
+        }
+
+        .step-card:hover {
+            border-color: rgba(124, 58, 237, 0.25);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .step-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 15px;
+        }
+
+        .step-title-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .step-badge {
+            background: linear-gradient(135deg, var(--primary) 0%, #4f46e5 100%);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        .step-card h2 {
+            font-size: 1.6rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .access-info {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .access-info strong {
+            color: #c084fc;
+        }
+
+        .step-intro {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        /* Box de Destaque / Regras de Negócio */
+        .rule-box {
+            background: rgba(124, 58, 237, 0.05);
+            border-left: 4px solid var(--primary);
+            padding: 20px;
+            border-radius: 0 12px 12px 0;
+            margin: 20px 0;
+        }
+
+        .rule-box h4 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rule-box h4 i {
+            color: var(--primary);
+        }
+
+        .rule-box p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 0;
+        }
+
+        /* Variações das caixas de regras */
+        .rule-box.rule-amber {
+            background: rgba(245, 158, 11, 0.05);
+            border-left-color: var(--accent-amber);
+        }
+        .rule-box.rule-amber h4 i { color: var(--accent-amber); }
+
+        .rule-box.rule-red {
+            background: rgba(239, 68, 68, 0.05);
+            border-left-color: var(--accent-red);
+        }
+        .rule-box.rule-red h4 i { color: var(--accent-red); }
+
+        .rule-box.rule-green {
+            background: rgba(16, 185, 129, 0.05);
+            border-left-color: var(--accent-green);
+        }
+        .rule-box.rule-green h4 i { color: var(--accent-green); }
+
+        .rule-box.rule-blue {
+            background: rgba(14, 165, 233, 0.05);
+            border-left-color: var(--accent-blue);
+        }
+        .rule-box.rule-blue h4 i { color: var(--accent-blue); }
+
+        /* Listas de Ações */
+        .action-list {
+            list-style: none;
+            margin-top: 20px;
+        }
+
+        .action-item {
+            position: relative;
+            padding-left: 28px;
+            margin-bottom: 12px;
+            font-size: 0.98rem;
+            color: var(--text-secondary);
+        }
+
+        .action-item::before {
+            content: "→";
+            position: absolute;
+            left: 5px;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        .action-item strong {
+            color: var(--text-primary);
+        }
+
+        /* Badges de Status do Fluxo */
+        .status-badge {
             display: inline-block;
             padding: 3px 8px;
-            background: #3498db;
-            color: white;
-            border-radius: 3px;
-            font-size: 0.85rem;
-            margin-left: 5px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border: 1px solid transparent;
         }
 
-        .badge.star {
-            background: #f39c12;
+        .badge-gray {
+            background-color: rgba(148, 163, 184, 0.1);
+            color: #94a3b8;
+            border-color: rgba(148, 163, 184, 0.2);
         }
 
-        .badge.warning {
-            background: #e74c3c;
+        .badge-blue {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            border-color: rgba(59, 130, 246, 0.2);
         }
 
-        .badge.success {
-            background: #27ae60;
+        .badge-purple {
+            background-color: rgba(168, 85, 247, 0.1);
+            color: #a855f7;
+            border-color: rgba(168, 85, 247, 0.2);
         }
 
-        code {
-            background: #f4f4f4;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: 'Courier New', monospace;
+        .badge-orange {
+            background-color: rgba(249, 115, 22, 0.1);
+            color: #f97116;
+            border-color: rgba(249, 115, 22, 0.2);
+        }
+
+        .badge-amber {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+            border-color: rgba(245, 158, 11, 0.2);
+        }
+
+        .badge-red {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .badge-green {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        /* Grid de Colunas Especiais */
+        .col-md-2-4 {
+            width: 20%;
+        }
+
+        @media (max-width: 768px) {
+            .col-md-2-4 {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+
+        /* Rodapé */
+        footer {
+            text-align: center;
+            margin-top: 60px;
+            color: var(--text-secondary);
             font-size: 0.9rem;
-            color: #c7254e;
+            border-top: 1px solid var(--border-color);
+            padding-top: 25px;
         }
 
-        pre {
-            background: #f4f4f4;
-            padding: 15px;
-            border-radius: 5px;
-            overflow-x: auto;
-            margin-bottom: 15px;
-            border-left: 4px solid #3498db;
-        }
-
-        pre code {
-            background: none;
-            padding: 0;
-            color: #333;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-
-        table th {
-            background: #3498db;
-            color: white;
-            padding: 10px;
-            text-align: left;
-            border: 1px solid #2980b9;
-        }
-
-        table td {
-            padding: 10px;
-            border: 1px solid #ddd;
-        }
-
-        table tr:nth-child(even) {
-            background: #f9f9f9;
-        }
-
-        blockquote {
-            border-left: 4px solid #3498db;
-            padding-left: 15px;
-            margin: 15px 0;
-            color: #555;
-            font-style: italic;
-        }
-
-        hr {
-            border: none;
-            border-top: 1px solid #ddd;
-            margin: 30px 0;
-        }
-
-        .alert {
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-        }
-
-        .alert-info {
-            background: #d9edf7;
-            border-left: 4px solid #31708f;
-            color: #31708f;
-        }
-
-        .alert-warning {
-            background: #fcf8e3;
-            border-left: 4px solid #8a6d3b;
-            color: #8a6d3b;
-        }
-
-        .alert-success {
-            background: #dff0d8;
-            border-left: 4px solid #3c763d;
-            color: #3c763d;
-        }
-
-        .alert-danger {
-            background: #f2dede;
-            border-left: 4px solid #a94442;
-            color: #a94442;
-        }
-
-        .masked-value {
-            font-family: 'Courier New', monospace;
-            user-select: none;
-            cursor: pointer;
-            padding: 2px 6px;
-            border-radius: 3px;
-            background: #f4f4f4;
-            transition: all 0.3s ease;
-        }
-
-        .masked-value:hover {
-            background: #e0e0e0;
-            text-decoration: underline;
-        }
-
-        .masked-value.revealed {
-            background: #ffffcc;
+        /* Responsividade */
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2.1rem;
+            }
+            .step-card {
+                padding: 20px;
+            }
+            .step-header {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-start;
+            }
+            .access-info {
+                align-self: stretch;
+                justify-content: center;
+            }
         }
     </style>
-    <script>
-        // Mascara valores sensíveis (passwords, tokens, secrets)
-        function maskSensitiveValues() {
-            const sensitivePatterns = [
-                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
-                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
-                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
-                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
-                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
-            ];
-
-            const codeBlocks = document.querySelectorAll('code, pre');
-            
-            codeBlocks.forEach(block => {
-                let content = block.innerHTML;
-                
-                sensitivePatterns.forEach(pattern => {
-                    content = content.replace(pattern.regex, (match, value) => {
-                        if (!value) return match;
-                        
-                        const prefix = match.substring(0, match.indexOf(value));
-                        const masked = '*'.repeat(Math.min(value.length, 12));
-                        const tooltip = `Clique para revelar o valor`;
-                        
-                        return `${prefix}<span class="masked-value" title="${tooltip}" data-original="${value}" onclick="toggleMask(event)">${masked}</span>`;
-                    });
-                });
-                
-                block.innerHTML = content;
-            });
-        }
-
-        // Toggle visibilidade de valores mascarados
-        function toggleMask(event) {
-            event.stopPropagation();
-            const span = event.target;
-            
-            if (span.classList.contains('revealed')) {
-                const original = span.getAttribute('data-original');
-                span.textContent = '*'.repeat(Math.min(original.length, 12));
-                span.classList.remove('revealed');
-            } else {
-                const original = span.getAttribute('data-original');
-                span.textContent = original;
-                span.classList.add('revealed');
-            }
-        }
-
-        function setSidebarState(isOpen) {
-            const sidebar = document.querySelector('.sidebar');
-            const content = document.querySelector('.content');
-            const overlay = document.getElementById('sidebarOverlay');
-            const toggleBtn = document.getElementById('toggleSidebar');
-            if (!sidebar || !content || !toggleBtn) return;
-
-            sidebar.classList.toggle('collapsed', !isOpen);
-            content.classList.toggle('collapsed', !isOpen);
-
-            const useOverlay = window.innerWidth < 1100;
-            if (overlay) {
-                overlay.classList.toggle('active', isOpen && useOverlay);
-            }
-
-            toggleBtn.textContent = isOpen ? '✕' : '☰';
-            
-            // Ajusta posição do botão em telas maiores
-            if (window.innerWidth >= 1100) {
-                toggleBtn.style.left = isOpen ? 'calc(var(--sidebar-width) + 16px)' : '16px';
-            } else {
-                toggleBtn.style.left = '16px';
-            }
-        }
-
-        function initSidebarToggle() {
-            const sidebar = document.querySelector('.sidebar');
-            const content = document.querySelector('.content');
-            const overlay = document.getElementById('sidebarOverlay');
-            const toggleBtn = document.getElementById('toggleSidebar');
-            if (!sidebar || !content || !toggleBtn) return;
-
-            const initialOpen = window.innerWidth >= 1100;
-            setSidebarState(initialOpen);
-
-            toggleBtn.addEventListener('click', function() {
-                const isOpen = !sidebar.classList.contains('collapsed');
-                setSidebarState(!isOpen);
-            });
-
-            if (overlay) {
-                overlay.addEventListener('click', function() {
-                    setSidebarState(false);
-                });
-            }
-
-            window.addEventListener('resize', function() {
-                const shouldBeOpen = window.innerWidth >= 1100;
-                setSidebarState(shouldBeOpen);
-            });
-        }
-
-        // Executar quando documento carregar
-        document.addEventListener('DOMContentLoaded', function() {
-            maskSensitiveValues();
-            initSidebarToggle();
-        });
-    </script>
 </head>
 <body>
-    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰</button>
-    <div id="sidebarOverlay" class="sidebar-overlay"></div>
     <div class="container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <h2>📚 Documentação</h2>
-            <nav>
-                <ul>
-                    <li><a href="index.html" class="active">🏠 Home</a></li>
-                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
-                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
-                    <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
-                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
-                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
-                    <li><a href="MyDataFloConfigurandoAPI.html">🛠️ Configurando API (Exemplo)</a></li>
+        <!-- Botão Voltar -->
+        <a href="/" class="nav-back"><i class="bi bi-arrow-left"></i> Voltar ao Dashboard</a>
+        
+        <!-- Header -->
+        <header>
+            <div class="logo-badge">
+                <i class="fas fa-project-diagram"></i> Módulo Ágil Integrado
+            </div>
+            <h1>Manual de Uso do Usuário</h1>
+            <p>Conheça as regras de negócio, integrações, travas de segurança e o passo a passo operacional para a gestão de demandas em nossa esteira ágil.</p>
+        </header>
+
+        <!-- Seção Visual do Ciclo de Vida -->
+        <div class="lifecycle-container">
+            <div class="lifecycle-title">
+                <i class="fas fa-circle-notch fa-spin"></i> Linha do Tempo e Estados da Demanda
+            </div>
+            <div class="lifecycle-steps">
+                <div class="lifecycle-step step-gatelink">
+                    <i class="fas fa-filter"></i>
+                    <span>1. Triagem</span>
+                    <small>Gatelink Inicial</small>
+                </div>
+                <div class="lifecycle-step step-backlog">
+                    <i class="fas fa-list-check"></i>
+                    <span>2. Backlog</span>
+                    <small>Histórias & Ritos</small>
+                </div>
+                <div class="lifecycle-step step-planning">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>3. Planejar</span>
+                    <small>Ata & Presenças</small>
+                </div>
+                <div class="lifecycle-step step-execution">
+                    <i class="fas fa-tasks"></i>
+                    <span>4. Execução</span>
+                    <small>Quadro Kanban</small>
+                </div>
+                <div class="lifecycle-step step-homologation">
+                    <i class="fas fa-check-double"></i>
+                    <span>5. Homologar</span>
+                    <small>Avaliação PO</small>
+                </div>
+                <div class="lifecycle-step step-release">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <span>6. Release</span>
+                    <small>Ticket & Janela</small>
+                </div>
+                <div class="lifecycle-step step-prod">
+                    <i class="fas fa-rocket"></i>
+                    <span>7. Produção</span>
+                    <small>CCM ou SERPRO</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASSO 1: CADASTRO DE SISTEMAS -->
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-title-group">
+                    <div class="step-badge">1</div>
+                    <h2>Cadastro de Sistemas de Software</h2>
+                </div>
+                <div class="access-info">
+                    Acesso: <strong>Gestão Ágil → Sistemas</strong>
+                </div>
+            </div>
+            <div class="step-intro">
+                Antes de iniciar a criação de demandas, certifique-se de que o sistema de software afetado esteja cadastrado. O cadastro de sistemas centraliza o mapeamento de riscos e criticidade.
+            </div>
+            
+            <div class="rule-box rule-blue">
+                <h4><i class="fas fa-info-circle"></i> O que é gerenciado neste cadastro?</h4>
+                <p>Cada sistema exige uma <strong>Sigla Única</strong> (ex: <code>SGF</code>, <code>GTE</code>), <strong>Nome do Sistema</strong> e uma <strong>Descrição de Propósito</strong>. O vínculo do sistema à demanda é o que determina a classificação de criticidade no Gatelink.</p>
+            </div>
+
+            <ul class="action-list">
+                <li class="action-item">Para cadastrar um sistema, clique no menu <strong>Sistemas</strong> e selecione <strong>Adicionar Sistema</strong>.</li>
+                <li class="action-item">Preencha os campos e salve. Os sistemas cadastrados ficarão imediatamente disponíveis no dropdown do formulário de criação de demandas.</li>
+            </ul>
+        </div>
+
+        <!-- PASSO 2: CRIAÇÃO DE DEMANDAS & REGRA DE GATELINK -->
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-title-group">
+                    <div class="step-badge">2</div>
+                    <h2>Abertura de Demandas & Regra de Gatelink</h2>
+                </div>
+                <div class="access-info">
+                    Acesso: <strong>Gestão Ágil → Demandas → Nova Demanda</strong>
+                </div>
+            </div>
+            <div class="step-intro">
+                A triagem inicial de demandas é automatizada através de uma regra de negócio chamada <strong>Gatelink</strong>. Essa regra analisa as propriedades da demanda e a direciona para a esteira adequada.
+            </div>
+            
+            <div class="rule-box rule-red">
+                <h4><i class="fas fa-shield-halved"></i> Regra de Gatelink (Definição Automática de Status)</h4>
+                <p>Ao cadastrar uma demanda, você deve marcar se ela afeta um <strong>Sistema Crítico</strong>:</p>
+                <ul class="mt-2 text-white-50" style="margin-left: 20px;">
+                    <li><strong>Se SIM (Sistema Crítico):</strong> O Gatelink direciona a demanda para a esteira <strong>COSIS / SERPRO</strong>, definindo o status inicial como <span class="status-badge badge-red">Preparar Demanda SERPRO</span>.</li>
+                    <li><strong>Se NÃO (Comum/Não Crítico):</strong> O Gatelink direciona para o fluxo padrão de <strong>Fábricas de Software</strong>, definindo o status como <span class="status-badge badge-blue">Alocar Time Fábricas</span>.</li>
                 </ul>
-            </nav>
-        </aside>
+            </div>
 
-        <!-- Main Content -->
-        <main class="content">
-<h1 id="solucao-hibrida-apache-airflow-postgresql-minio-delta-lake">🚀 Solução Lowcode - Contrução de Delta Lake</h1>
+            <ul class="action-list">
+                <li class="action-item"><strong>Título e Descrição:</strong> Devem ser claros e especificar o escopo do incremento de software solicitado.</li>
+                <li class="action-item"><strong>Associação:</strong> Selecione o Sistema relacionado no dropdown antes de salvar.</li>
+            </ul>
+        </div>
 
-<p>Este projeto integra três componentes principais para orquestração de dados e armazenamento:</p>
+        <!-- PASSO 3: REFINAMENTO DO BACKLOG DO PRODUTO & CERIMÔNIAS -->
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-title-group">
+                    <div class="step-badge">3</div>
+                    <h2>Refinamento do Backlog do Produto & Cerimônias</h2>
+                </div>
+                <div class="access-info">
+                    Acesso: <strong>Demandas → Botão "Backlog"</strong>
+                </div>
+            </div>
+            <div class="step-intro">
+                A fase de Backlog é onde os requisitos de negócio são decompostos em itens acionáveis (Histórias de Usuário) e as cerimônias de alinhamento são agendadas e documentadas.
+            </div>
+            
+            <div class="rule-box rule-purple">
+                <h4><i class="fas fa-sync-alt"></i> Transição Automática de Fase</h4>
+                <p>Quando a demanda está nos status iniciais (<span class="badge-red font-monospace">Preparar Demanda SERPRO</span> ou <span class="badge-blue font-monospace">Alocar Time Fábricas</span>), a simples abertura da tela de Backlog pelo usuário <strong>promove automaticamente</strong> a demanda para o status <span class="status-badge badge-purple">Refinamento Backlog</span>.</p>
+            </div>
 
-<ul>
-<li><strong>Apache Airflow</strong>: Orquestração de workflows</li>
-<li><strong>PostgreSQL</strong>: Banco de dados relacional para metadados do Airflow <strong>+ BI endpoint</strong> (postgres-bi)</li>
-<li><strong>MinIO</strong>: Armazenamento de objetos compatível com S3</li>
-<li><strong>Delta Lake</strong>: Camada ACID sobre Data Lake com versionamento e time travel</li>
-<li><strong>Apache Atlas</strong>: Catálogo de dados e governança (standalone)</li>
-<li><strong>Jupyter + PySpark (Lab Atlas)</strong>: Ambiente interativo para análise e integração com Atlas</li>
-</ul>
+            <div class="rule-box rule-blue">
+                <h4><i class="fas fa-arrows-up-down-left-right"></i> Drag-and-Drop de Priorização</h4>
+                <p>Na lista de Histórias de Usuário, você pode <strong>arrastar e soltar (priorizar)</strong> os itens usando o ícone lateral. A ordem de prioridade no banco de dados é atualizada em tempo real via AJAX.</p>
+            </div>
 
-<p>A base foi adaptada para incluir os três serviços integrados. Os artefatos de código (DAGs, scripts, configurações) estão versionados neste repositório.</p>
+            <ul class="action-list">
+                <li class="action-item"><strong>Adicionar Histórias/Requisitos:</strong> Informe o Título, Critérios de Aceite e os <strong>Story Points (SP)</strong> (pontuação de esforço estimada).</li>
+                <li class="action-item"><strong>Agendar Ritos e Cerimônias:</strong> Clique em <em>Agendar</em> no histórico lateral. É possível cadastrar e registrar atas para ritos como: <code>Kick-Off</code>, <code>Refinamento</code>, <code>Sprint Planning</code>, <code>Daily</code>, <code>Sprint Review</code>, <code>Retrospectiva</code>, <code>Homologação</code>, e <code>Reunião Alinhamento CCM</code>.</li>
+            </ul>
+        </div>
 
-<h2 id="documentacao-completa">📚 Documentação Completa</h2>
+        <!-- PASSO 4: PLANEJAMENTO DA SPRINT & BLOQUEIO DE SEGURANÇA -->
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-title-group">
+                    <div class="step-badge">4</div>
+                    <h2>Planejamento da Sprint & Bloqueio de Planejamento</h2>
+                </div>
+                <div class="access-info">
+                    Acesso: <strong>Demandas → Botão "Kanban"</strong>
+                </div>
+            </div>
+            <div class="step-intro">
+                Antes de iniciar a execução técnica das tarefas, a equipe deve formalizar o planejamento da iteração através de um rito estruturado. O sistema possui travas rígidas de governança para evitar o início de trabalhos sem alinhamento prévio.
+            </div>
+            
+            <div class="rule-box rule-red">
+                <h4><i class="fas fa-lock"></i> Bloqueio de Planejamento (Regras Mandatórias)</h4>
+                <p>O botão <strong>Iniciar Sprint</strong> retornará um erro e impedirá o avanço caso as seguintes condições não sejam atendidas:</p>
+                <ul class="mt-2 text-white-50" style="margin-left: 20px;">
+                    <li>Deve existir uma cerimônia de <strong>"Sprint Planning"</strong> agendada e <strong>concluída</strong> (ou seja, com a Data/Hora Realizada e Ata Descritiva devidamente registradas).</li>
+                    <li>A cerimônia de Sprint Planning concluída deve ter <strong>no mínimo 2 participantes presentes marcados</strong> (garantindo a representação obrigatória do Product Owner (PO) e da Fábrica de Software).</li>
+                </ul>
+            </div>
 
-<p>Para entender a arquitetura Medallion (Bronze → Silver → Gold) e todas as transformações aplicadas, consulte o <strong><a href="docs-index.html">Índice de Documentação</a></strong>.</p>
+            <ul class="action-list">
+                <li class="action-item">Para liberar a Sprint, acesse a aba de Backlog, crie a cerimônia <strong>Sprint Planning</strong>, adicione os participantes presentes, preencha a ata detalhada do plano e informe a data de realização.</li>
+                <li class="action-item">Com o rito concluído, acerte a <strong>Meta da Sprint</strong>, as datas de início/fim na tela Kanban e clique em <strong>Iniciar Sprint</strong>. A demanda avançará para <span class="status-badge badge-purple">Em Execução</span>.</li>
+            </ul>
+        </div>
 
-<h3 id="guias-de-uso">🎯 Guias de Uso</h3>
+        <!-- PASSO 5: QUADRO KANBAN & EXECUÇÃO -->
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-title-group">
+                    <div class="step-badge">5</div>
+                    <h2>Quadro Kanban & Execução Operacional</h2>
+                </div>
+                <div class="access-info">
+                    Acesso: <strong>Demandas → Botão "Kanban" (Modo Execução)</strong>
+                </div>
+            </div>
+            <div class="step-intro">
+                Durante o ciclo da Sprint, o andamento das histórias de usuário é gerenciado visualmente no quadro Kanban de 5 colunas.
+            </div>
 
-<ul>
-<li><strong><a href="guide-webapp-config.html">📋 Guia da Interface Web</a></strong>: Como preencher formulário de configuração de DAGs, multi-tabela, conexões SQL, validações</li>
-<li><strong><a href="migracao-duckdb-postgresql.html">🔌 Conexão Power BI</a></strong> <span class="badge star">⭐</span>: PostgreSQL para BI (solução robusta, múltiplas tabelas simultâneas)</li>
-</ul>
+            <div class="d-flex flex-wrap gap-2 my-3 justify-content-between">
+                <div style="flex: 1; min-width: 120px; text-align: center;"><div class="p-2 border rounded bg-dark-subtle text-dark font-monospace fw-bold small">A Fazer</div></div>
+                <div style="flex: 1; min-width: 120px; text-align: center;"><div class="p-2 border rounded bg-primary-subtle text-primary font-monospace fw-bold small">Em Desenvolvimento</div></div>
+                <div style="flex: 1; min-width: 120px; text-align: center;"><div class="p-2 border rounded bg-warning-subtle text-warning-emphasis font-monospace fw-bold small">Teste / QA</div></div>
+                <div style="flex: 1; min-width: 120px; text-align: center;"><div class="p-2 border rounded bg-danger-subtle text-danger font-monospace fw-bold small">Impedimento</div></div>
+                <div style="flex: 1; min-width: 120px; text-align: center;"><div class="p-2 border rounded bg-success-subtle text-success font-monospace fw-bold small">Pronto</div></div>
+            </div>
+            
+            <div class="rule-box rule-blue">
+                <h4><i class="fas fa-hand-pointer"></i> Movimentação Drag-and-Drop</h4>
+                <p>Os cartões das histórias de usuário podem ser arrastados livremente entre as colunas. O status é atualizado dinamicamente via requisição AJAX sem necessidade de recarregar a tela.</p>
+            </div>
 
-<h3 id="documentacao-por-camada">Documentação por Camada</h3>
+            <ul class="action-list">
+                <li class="action-item"><strong>Impedimentos:</strong> Histórias bloqueadas por fatores externos ou técnicos devem ser movidas para a coluna <strong>Impedimento</strong> para visibilidade imediata no dashboard diário.</li>
+                <li class="action-item"><strong>Finalização:</strong> Ao atingir a meta e concluir as atividades, clique no botão <strong>Finalizar Sprint (Review)</strong> para encerrar o ciclo. Isso moverá a demanda para a etapa de <span class="status-badge badge-amber">Homologação</span>.</li>
+            </ul>
+        </div>
 
-<ul>
-<li><strong><a href="transformacoes-silver.html">Transformações Silver</a></strong>: Data Quality, validações, dicionário de dados</li>
-<li><strong><a href="delta-lake-implementation.html">Delta Lake & Gold</a></strong>: Feature Engineering, Delta Lake, ML/BI integration</li>
-</ul>
+        <!-- PASSO 6: HOMOLOGAÇÃO PELO PO & REGRA DE REJEIÇÃO -->
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-title-group">
+                    <div class="step-badge">6</div>
+                    <h2>Homologação do Produto pelo Product Owner (PO)</h2>
+                </div>
+                <div class="access-info">
+                    Acesso: <strong>Demandas → Botão "Kanban" (Fase Homologação)</strong>
+                </div>
+            </div>
+            <div class="step-intro">
+                Uma vez concluído o trabalho técnico, o incremento gerado deve ser homologado formalmente pelo Product Owner antes de ser empacotado para deploy.
+            </div>
+            
+            <div class="rule-box rule-red">
+                <h4><i class="fas fa-undo"></i> Regra de Rejeição de Homologação (Correção Crítica)</h4>
+                <p>O PO tem autonomia para aprovar ou reprovar a entrega:</p>
+                <ul class="mt-2 text-white-50" style="margin-left: 20px;">
+                    <li><strong>Se Parecer = "Favorável":</strong> A demanda é considerada aprovada e avança para a fase de <span class="status-badge badge-blue">Submissão Release</span>.</li>
+                    <li><strong>Se Parecer = "Rejeitado":</strong> O sistema dispara uma rotina automática de correção:
+                        <ol class="mt-1" style="margin-left: 20px;">
+                            <li>O status da demanda é rebaixado de volta para <span class="status-badge badge-purple">Em Execução</span>.</li>
+                            <li><strong>Todas as histórias de usuário que estavam na coluna "Pronto" são reiniciadas automaticamente para "A Fazer"</strong> para que a equipe revise os critérios de aceite rejeitados.</li>
+                        </ol>
+                    </li>
+                </ul>
+            </div>
 
-<h3 id="navegacao-rapida-por-caso-de-uso">Navegação Rápida por Caso de Uso</h3>
+            <ul class="action-list">
+                <li class="action-item">Para homologar, selecione o Parecer (Favorável ou Rejeitado) e preencha as <strong>Observações e Feedback</strong> com os pontos validados ou motivos de rejeição. Clique em <em>Enviar Parecer</em>.</li>
+            </ul>
+        </div>
 
-<ul>
-<li><strong>Machine Learning</strong>: <a href="delta-lake-implementation.html#dicionario-de-dados-camada-gold-delta-lake">Feature Engineering Guide</a></li>
-<li><strong>Análise Temporal</strong>: <a href="delta-lake-implementation.html#5-features-temporais-date-columns">Temporal Features</a></li>
-<li><strong>Qualidade de Dados</strong>: <a href="transformacoes-silver.html#dicionario-de-dados-camadas-silver">Data Quality Dictionary</a></li>
-<li><strong>Segmentação</strong>: <a href="delta-lake-implementation.html#4-features-categoricas-categorical-columns">Categorical Features</a></li>
-<li><strong>Detecção de Outliers</strong>: <a href="delta-lake-implementation.html#3-features-numericas-numeric-columns">Statistical Features</a></li>
-</ul>
+        <!-- PASSO 7: SUBMISSÃO DE RELEASE & DUPLA ESTEIRA -->
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-title-group">
+                    <div class="step-badge">7</div>
+                    <h2>Submissão de Release & Dupla Esteira de Implantação</h2>
+                </div>
+                <div class="access-info">
+                    Acesso: <strong>Demandas → Botão "Kanban" (Fase Submissão Release)</strong>
+                </div>
+            </div>
+            <div class="step-intro">
+                A fase final do ciclo de vida consiste na preparação do pacote de implantação e direcionamento para a esteira de liberação em produção.
+            </div>
 
-<p>---</p>
+            <div class="rule-box rule-red">
+                <h4><i class="fas fa-lock"></i> Garantia de Homologação Mandatória</h4>
+                <p>O formulário de <strong>Submeter Release</strong> valida se existe um Parecer de Homologação <strong>Favorável</strong> cadastrado para a demanda. Sem essa aprovação do PO, o envio do deploy é bloqueado.</p>
+            </div>
+            
+            <div class="rule-box rule-purple">
+                <h4><i class="fas fa-code-branch"></i> Regra da Dupla Esteira de Aprovação de Produção</h4>
+                <p>Ao submeter a release (informando o Ticket RDM, Servidor Destino e Janela de Homologação), o sistema roteia o deploy automaticamente baseando-se no Gatelink de criticidade:</p>
+                <ul class="mt-2 text-white-50" style="margin-left: 20px;">
+                    <li><strong>Se Sistema Crítico:</strong> A demanda vai para a <strong>Esteira SERPRO</strong> (status <span class="status-badge badge-red">SERPRO</span>), exigindo auditoria de prontidão e testes automatizados de segurança na esteira ALM do fornecedor.</li>
+                    <li><strong>Se Sistema Não-Crítico:</strong> A demanda vai para o <strong>Comitê de Controle de Mudanças (CCM)</strong> (status <span class="status-badge badge-orange">CCM</span>), passando por avaliação técnica comum de impacto e rollback.</li>
+                </ul>
+            </div>
 
-        </main>
+            <ul class="action-list">
+                <li class="action-item"><strong>Aprovação Final:</strong> Em ambos os fluxos, após as auditorias (simuladas por painéis na interface), clique em <em>Autorizar Implantação</em> ou <em>Liberar na Esteira SERPRO</em> para mover o status definitivo da demanda para <span class="status-badge badge-green">Atualizado Produção</span>.</li>
+            </ul>
+        </div>
+
+        <!-- SEÇÃO EXTRA: DASHBOARD E MÉTRICAS -->
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-title-group">
+                    <div class="step-badge"><i class="fas fa-chart-line"></i></div>
+                    <h2>Painel Ágil & Métricas do Sistema</h2>
+                </div>
+                <div class="access-info">
+                    Acesso: <strong>Gestão Ágil → Painel Ágil</strong>
+                </div>
+            </div>
+            <div class="step-intro">
+                O Dashboard centraliza métricas de produtividade, gargalos no fluxo de valor e agendamento de reuniões.
+            </div>
+
+            <div class="rule-box rule-green">
+                <h4><i class="fas fa-gauge-high"></i> Indicadores Disponíveis no Painel</h4>
+                <ul class="text-white-50 mt-2" style="margin-left: 20px;">
+                    <li><strong>Lead Time Médio por Raia (Dias):</strong> Gráfico de barras que calcula o tempo médio (em dias) que as demandas permanecem em cada status do fluxo (desde a criação até a última atualização da raia). Permite identificar gargalos analíticos ou atrasos em homologação.</li>
+                    <li><strong>Taxa de Rejeição (PO):</strong> Percentual de pareceres reprovados pelo PO em relação ao total de homologações enviadas. Útil para medir a qualidade do alinhamento inicial.</li>
+                    <li><strong>Calendário de Cerimônias:</strong> Painel mensal interativo (via FullCalendar). Reuniões com atas preenchidas aparecem em <span class="text-success fw-bold">Verde</span> e reuniões pendentes de ata/conclusão aparecem em <span class="text-warning fw-bold">Amarelo</span>.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <p>&copy; 2026 - Plataforma Minha Fiscalização. Todos os direitos reservados.</p>
+        </footer>
     </div>
 </body>
 </html>

@@ -539,4 +539,15 @@ class AgileController extends BaseController
         }
         return $this->response->setJSON(['status' => 'error', 'mensagem' => 'Erro ao excluir o sistema.']);
     }
+
+    /**
+     * Deletar Cerimônia via AJAX
+     */
+    public function deletarCerimonia($id)
+    {
+        if ($this->cerimoniaModel->delete($id)) {
+            return $this->response->setJSON(['status' => 'success', 'mensagem' => 'Cerimônia excluída com sucesso!']);
+        }
+        return $this->response->setJSON(['status' => 'error', 'mensagem' => 'Erro ao excluir a cerimônia.']);
+    }
 }

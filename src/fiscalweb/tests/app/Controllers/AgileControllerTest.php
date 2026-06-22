@@ -207,4 +207,39 @@ class AgileControllerTest extends CIUnitTestCase
         $demandaModel->delete($demanda->id);
         $sistemaModel->delete($sistema->id);
     }
+
+    public function test_deletar_cerimonia_returns_success()
+    {
+        $demandaModel = new DemandaModel();
+        $demandaId = $demandaModel->insert([
+            'titulo' => 'Demanda Teste Cerimonia',
+            'descricao' => 'Descricao de teste',
+            'sistema_critico' => 0,
+            'status' => 'Refinamento Backlog'
+        ]);
+
+        $cerimoniaModel = new CerimoniaModel();
+        $cerimoniaId = $cerimoniaModel->insert([
+            'id_demanda' => $demandaId,
+            'tipo_cerimonia' => 'Daily',
+            'data_hora_agendada' => '2026-06-22 10:00:00'
+        ]);
+
+        $result = $this->withSession([
+            'id_usuario_logado' => 1,
+            'usuario_logado'    => 1,
+            'nome_usuario_logado'=> 'Admin Test'
+        ])->call('delete', 'agile/cerimonia/deletar/' . $cerimoniaId);
+
+        // Assert response status
+        $result->assertStatus(200);
+        $result->assertJSONFragment(['status' => 'success']);
+
+        // Assert record is deleted from db
+        $cerimoniaObj = $cerimoniaModel->find($cerimoniaId);
+        $this->assertNull($cerimoniaObj);
+
+        // Clean up
+        $demandaModel->delete($demandaId);
+    }
 }

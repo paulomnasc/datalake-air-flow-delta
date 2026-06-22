@@ -390,6 +390,7 @@ $routes->group('agile', function($routes) {
     // Cerimônias e Ritos
     $routes->post('cerimonia/agendar', 'AgileController::agendarCerimonia', ['as' => 'agile.cerimonia.agendar']);
     $routes->post('cerimonia/salvar', 'AgileController::salvarCerimonia', ['as' => 'agile.cerimonia.salvar']);
+    $routes->delete('cerimonia/deletar/(:num)', 'AgileController::deletarCerimonia/$1', ['as' => 'agile.cerimonia.deletar']);
     
     // Homologação e Releases
     $routes->post('demanda/homologar', 'AgileController::salvarHomologacao', ['as' => 'agile.demanda.homologar']);

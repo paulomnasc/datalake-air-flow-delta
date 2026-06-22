@@ -147,7 +147,10 @@ require VIEWPATH.'/header.php';
                                                     <div class="small text-warning"><i class="fas fa-clock"></i> Pendente de ata</div>
                                                 <?php endif; ?>
                                             </div>
-                                            <button class="btn btn-outline-secondary btn-sm" onclick="editarCerimonia(<?= htmlspecialchars(json_encode($c)) ?>)"><i class="fas fa-signature"></i></button>
+                                            <div class="btn-group" role="group">
+                                                <button class="btn btn-outline-secondary btn-sm" onclick="editarCerimonia(<?= htmlspecialchars(json_encode($c)) ?>)" title="Editar/Registrar Ata"><i class="fas fa-signature"></i></button>
+                                                <button class="btn btn-outline-danger btn-sm" onclick="deletarCerimonia(<?= $c->id ?>)" title="Excluir Cerimônia"><i class="fas fa-trash"></i></button>
+                                            </div>
                                         </div>
                                     </li>
                                 <?php endforeach; ?>
@@ -328,6 +331,26 @@ function editarCerimonia(c) {
 
     const myModal = new bootstrap.Modal(document.getElementById('cerimoniaModal'));
     myModal.show();
+}
+
+function deletarCerimonia(id) {
+    if (confirm('Deseja realmente remover esta cerimônia/ata?')) {
+        $.ajax({
+            url: '<?= base_url('agile/cerimonia/deletar') ?>/' + id,
+            type: 'POST',
+            data: { _method: 'DELETE' },
+            success: function(res) {
+                if (res.status === 'success') {
+                    window.location.reload();
+                } else {
+                    alert(res.mensagem || 'Erro ao excluir a cerimônia.');
+                }
+            },
+            error: function() {
+                alert('Falha de conexão ao excluir a cerimônia.');
+            }
+        });
+    }
 }
 </script>
 

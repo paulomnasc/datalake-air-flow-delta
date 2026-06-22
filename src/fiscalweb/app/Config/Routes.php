@@ -359,3 +359,35 @@ $routes->get('api/servicos/(:num)', 'ApiController::getServicosByAtividade/$1');
 $routes->get('api/itens_os/(:num)', 'ApiController::getItensByOs/$1');
 
 $routes->get('api/os_details/(:num)', 'ApiController::getOsDetails/$1');
+
+// --- ROTAS DO MÓDULO ÁGIL (Sem RBAC) ---
+$routes->group('agile', function($routes) {
+    $routes->get('dashboard', 'AgileController::dashboard', ['as' => 'agile.dashboard']);
+    $routes->get('demandas', 'AgileController::index', ['as' => 'agile.demandas']);
+    $routes->get('demanda/add', 'AgileController::add', ['as' => 'agile.demanda.add']);
+    $routes->post('demanda/insert', 'AgileController::insert', ['as' => 'agile.demanda.insert']);
+    $routes->post('demanda/upd', 'AgileController::upd', ['as' => 'agile.demanda.upd']);
+    $routes->post('demanda/update', 'AgileController::update', ['as' => 'agile.demanda.update']);
+    $routes->delete('demanda/delete/(:num)', 'AgileController::delete/$1', ['as' => 'agile.demanda.delete']);
+    
+    // Backlog do Produto
+    $routes->get('backlog/(:num)', 'AgileController::backlog/$1', ['as' => 'agile.backlog']);
+    $routes->post('backlog/salvar-item', 'AgileController::salvarBacklogItem', ['as' => 'agile.backlog.salvar_item']);
+    $routes->post('backlog/salvar-ordem', 'AgileController::salvarBacklogOrdem', ['as' => 'agile.backlog.salvar_ordem']);
+    $routes->delete('backlog/deletar-item/(:num)', 'AgileController::deletarBacklogItem/$1', ['as' => 'agile.backlog.deletar_item']);
+    
+    // Kanban e Sprints
+    $routes->get('kanban/(:num)', 'AgileController::kanban/$1', ['as' => 'agile.kanban']);
+    $routes->post('kanban/update-status', 'AgileController::updateKanbanStatus', ['as' => 'agile.kanban.update_status']);
+    $routes->post('sprint/salvar', 'AgileController::salvarSprint', ['as' => 'agile.sprint.salvar']);
+    $routes->post('sprint/review', 'AgileController::salvarSprintReview', ['as' => 'agile.sprint.review']);
+    
+    // Cerimônias e Ritos
+    $routes->post('cerimonia/agendar', 'AgileController::agendarCerimonia', ['as' => 'agile.cerimonia.agendar']);
+    $routes->post('cerimonia/salvar', 'AgileController::salvarCerimonia', ['as' => 'agile.cerimonia.salvar']);
+    
+    // Homologação e Releases
+    $routes->post('demanda/homologar', 'AgileController::salvarHomologacao', ['as' => 'agile.demanda.homologar']);
+    $routes->post('demanda/release', 'AgileController::salvarRelease', ['as' => 'agile.demanda.release']);
+});
+

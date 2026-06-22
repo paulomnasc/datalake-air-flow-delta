@@ -566,6 +566,18 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <li>
                         <div class="dropdown">
                             <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
+                                🚀 Gestão Ágil
+                            </a>
+                            <div class="dropdown-menu">
+                                <a class="dropdown-item" href="<?= base_url('agile/dashboard') ?>">📊 Painel Ágil</a>
+                                <a class="dropdown-item" href="<?= base_url('agile/demandas') ?>">📋 Demandas</a>
+                            </div>
+                        </div>
+                    </li>
+
+                    <li>
+                        <div class="dropdown">
+                            <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
                                 📊 Relatórios
                             </a>
                             <div class="dropdown-menu">
@@ -866,6 +878,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             <a href="<?= base_url('listServico') ?>" class="dropdown-item">Serviços</a>
                             <a href="<?= base_url('listOrdemServico') ?>" class="dropdown-item">Ordens de Serviço (OS)</a>
                             <a href="<?= base_url('listDocumentoRecebimento') ?>" class="dropdown-item">Docs Recebimento</a>
+                        </div>
+                    </div>
+
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">GESTÃO ÁGIL</a>
+                        <div class="dropdown-menu">
+                            <a href="<?= base_url('agile/dashboard') ?>" class="dropdown-item">Painel Ágil</a>
+                            <a href="<?= base_url('agile/demandas') ?>" class="dropdown-item">Demandas</a>
                         </div>
                     </div>
 

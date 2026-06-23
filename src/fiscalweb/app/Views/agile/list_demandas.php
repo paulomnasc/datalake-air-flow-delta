@@ -48,6 +48,9 @@ require VIEWPATH.'/header.php';
                                 <?php if (!empty($demanda->sistema_sigla)): ?>
                                     <span class="badge bg-secondary font-monospace" style="vertical-align: middle; margin-right: 4px;"><?= htmlspecialchars($demanda->sistema_sigla) ?></span>
                                 <?php endif; ?>
+                                <?php if (!empty($demanda->nup_sei)): ?>
+                                    <span class="badge bg-info text-dark font-monospace" style="vertical-align: middle; margin-right: 4px;" title="Ordem de Serviço">OS: <?= htmlspecialchars($demanda->nup_sei) ?></span>
+                                <?php endif; ?>
                                 <strong><?= htmlspecialchars($demanda->titulo) ?></strong>
                                 <br>
                                 <small class="text-muted"><?= htmlspecialchars(substr($demanda->descricao ?? '', 0, 80)) ?>...</small>

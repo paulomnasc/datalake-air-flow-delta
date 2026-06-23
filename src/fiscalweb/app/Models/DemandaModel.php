@@ -14,6 +14,7 @@ class DemandaModel extends Model
     protected $protectFields    = true;
     protected $allowedFields    = [
         'id_sistema',
+        'id_ordem_servico',
         'titulo',
         'descricao',
         'sistema_critico',

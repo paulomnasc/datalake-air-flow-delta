@@ -30,6 +30,18 @@ $isEdit = isset($demanda);
                     </div>
 
                     <div class="mb-3">
+                        <label for="id_ordem_servico" class="form-label">Ordem de Serviço (Requisito Obrigatório)</label>
+                        <select class="form-select" id="id_ordem_servico" name="id_ordem_servico" required>
+                            <option value="">Selecione a Ordem de Serviço...</option>
+                            <?php foreach ($ordens_servico as $os): ?>
+                                <option value="<?= $os->id ?>" <?= ($isEdit && isset($demanda->id_ordem_servico) && $demanda->id_ordem_servico == $os->id) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($os->descricao) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
                         <label for="titulo" class="form-label">Título da Demanda</label>
                         <input type="text" class="form-control form-control-lg" id="titulo" name="titulo" value="<?= $isEdit ? htmlspecialchars($demanda->titulo) : '' ?>" placeholder="Ex: Módulo de Relatórios de Impostos" required>
                     </div>

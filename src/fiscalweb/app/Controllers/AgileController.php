@@ -92,8 +92,9 @@ class AgileController extends BaseController
     public function index()
     {
         $demandas = $this->demandaModel
-            ->select('agile_demandas.*, agile_sistemas.sigla as sistema_sigla, agile_sistemas.nome as sistema_nome')
+            ->select('agile_demandas.*, agile_sistemas.sigla as sistema_sigla, agile_sistemas.nome as sistema_nome, ordem_servico.nup_sei')
             ->join('agile_sistemas', 'agile_sistemas.id = agile_demandas.id_sistema', 'left')
+            ->join('ordem_servico', 'ordem_servico.id = agile_demandas.id_ordem_servico', 'left')
             ->orderBy('agile_demandas.criado_em', 'DESC')
             ->findAll();
         return view('agile/list_demandas', ['demandas' => $demandas]);
@@ -105,7 +106,11 @@ class AgileController extends BaseController
     public function add()
     {
         $sistemas = $this->sistemaModel->orderBy('sigla', 'ASC')->findAll();
-        return view('agile/demanda_form', ['sistemas' => $sistemas]);
+        $ordens_servico = (new \App\Models\OrdemServicoModel())->listToCombo();
+        return view('agile/demanda_form', [
+            'sistemas' => $sistemas,
+            'ordens_servico' => $ordens_servico
+        ]);
     }
 
     /**
@@ -120,9 +125,16 @@ class AgileController extends BaseController
         // Se NÃO: fluxo -> "Alocar Time Fábricas"
         $statusInicial = $sistemaCritico ? 'Preparar Demanda SERPRO' : 'Alocar Time Fábricas';
         $id_sistema = $this->request->getPost('id_sistema') ?: null;
+        $id_ordem_servico = $this->request->getPost('id_ordem_servico') ?: null;
+
+        // Pré-requisito obrigatório
+        if (empty($id_ordem_servico)) {
+            return redirect()->back()->withInput()->with('error', 'O preenchimento da Ordem de Serviço é obrigatório.');
+        }
 
         $data = [
             'id_sistema' => $id_sistema,
+            'id_ordem_servico' => $id_ordem_servico,
             'titulo' => $this->request->getPost('titulo'),
             'descricao' => $this->request->getPost('descricao'),
             'sistema_critico' => $sistemaCritico,
@@ -149,7 +161,12 @@ class AgileController extends BaseController
         }
 
         $sistemas = $this->sistemaModel->orderBy('sigla', 'ASC')->findAll();
-        return view('agile/demanda_form', ['demanda' => $demanda, 'sistemas' => $sistemas]);
+        $ordens_servico = (new \App\Models\OrdemServicoModel())->listToCombo();
+        return view('agile/demanda_form', [
+            'demanda' => $demanda, 
+            'sistemas' => $sistemas,
+            'ordens_servico' => $ordens_servico
+        ]);
     }
 
     /**
@@ -159,10 +176,17 @@ class AgileController extends BaseController
     {
         $id = $this->request->getPost('id');
         $id_sistema = $this->request->getPost('id_sistema') ?: null;
+        $id_ordem_servico = $this->request->getPost('id_ordem_servico') ?: null;
         $sistemaCritico = $this->request->getPost('sistema_critico') ? 1 : 0;
+
+        // Pré-requisito obrigatório
+        if (empty($id_ordem_servico)) {
+            return redirect()->back()->withInput()->with('error', 'O preenchimento da Ordem de Serviço é obrigatório.');
+        }
 
         $data = [
             'id_sistema' => $id_sistema,
+            'id_ordem_servico' => $id_ordem_servico,
             'titulo' => $this->request->getPost('titulo'),
             'descricao' => $this->request->getPost('descricao'),
             'sistema_critico' => $sistemaCritico,

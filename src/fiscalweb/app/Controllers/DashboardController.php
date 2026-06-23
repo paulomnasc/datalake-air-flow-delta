@@ -791,9 +791,10 @@ class DashboardController extends BaseController
         $pastas = $this->pastaModel->listToCombo($userId);
         // Carregar tipos de fonte
         $sourceTypes = $this->sourceTypeModel->listToCombo();
-        // Carregar funções Python disponíveis
-        $usuarioFuncionModel = new UsuarioFuncionConfigurationModel();
-        $funcoesAgrupadas = $usuarioFuncionModel->getFuncoesFormatadas($userId);
+        // Carregar funções Python disponíveis (desativado para fiscalweb)
+        // $usuarioFuncionModel = new UsuarioFuncionConfigurationModel();
+        // $funcoesAgrupadas = $usuarioFuncionModel->getFuncoesFormatadas($userId);
+        $funcoesAgrupadas = [];
 
         // Definir username do dono
         $ownerUsername = isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : '';

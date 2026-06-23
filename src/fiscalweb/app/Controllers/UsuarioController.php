@@ -62,7 +62,8 @@ class UsuarioController extends BaseController
                 $_SESSION['usuario_logado'] = 1;
                 $_SESSION['is_admin'] = (strcasecmp($usuario->perfil_descricao, 'Admin') === 0);
                 
-                // Registra evento de login
+                // Registra evento de login (desativado para fiscalweb)
+                /*
                 if (empty($_SESSION['is_admin'])) {
                     try {
                         $logModel = new ActivityLogModel();
@@ -81,8 +82,10 @@ class UsuarioController extends BaseController
                         log_message('warning', '[ActivityLog] Falha ao registrar login: ' . $e->getMessage());
                     }
                 }
+                */
                 
-                // Sincroniza funções Python do usuário (garante que tem as funções padrão)
+                // Sincronização de funções Python desativada para fiscalweb
+                /*
                 try {
                     $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
                     $countFuncoes = $usuarioFuncionModel->contarFuncoesDoUsuario($usuario->id);
@@ -99,6 +102,7 @@ class UsuarioController extends BaseController
                 } catch (\Throwable $e) {
                     log_message('warning', "Erro ao sincronizar funções no login: " . $e->getMessage());
                 }
+                */
                 
                 // Garante que o bucket do usuário existe no MinIO; falha bloqueia o login
                 $bucketResult = MinioHelper::createUserBucket($usuario->id, $usuario->email ?? '');
@@ -211,7 +215,8 @@ class UsuarioController extends BaseController
                 $_SESSION['usuario_logado'] = 1;
                 $_SESSION['is_admin'] = (strcasecmp($usuario->perfil_descricao, 'Admin') === 0);
                 
-                // Sincroniza funções Python do usuário (garante que tem as funções padrão)
+                // Sincronização de funções Python desativada para fiscalweb
+                /*
                 try {
                     $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
                     $countFuncoes = $usuarioFuncionModel->contarFuncoesDoUsuario($usuario->id);
@@ -228,6 +233,7 @@ class UsuarioController extends BaseController
                 } catch (\Exception $e) {
                     log_message('warning', "Erro ao sincronizar funções no login: " . $e->getMessage());
                 }
+                */
                 
                 // Garante que o bucket do usuário existe no MinIO; falha bloqueia o login
                 $bucketResult = MinioHelper::createUserBucket($usuario->id, $usuario->email ?? '');
@@ -483,7 +489,6 @@ class UsuarioController extends BaseController
         ];
         
         $model = new UsuarioModel();
-        $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
         
         $db = \Config\Database::connect();
         $db->transStart();
@@ -499,7 +504,8 @@ class UsuarioController extends BaseController
                 }
             }
             
-            // Sincronizar funções Python padrão do novo usuário
+            // Sincronização de funções Python desativada para fiscalweb
+            /*
             if ($idUsuario) {
                 try {
                     $syncResult = $usuarioFuncionModel->sincronizarComPadrao($idUsuario);
@@ -511,6 +517,7 @@ class UsuarioController extends BaseController
                     log_message('warning', "Exceção ao sincronizar funções: " . $e->getMessage());
                 }
             }
+            */
             
             $db->transComplete();
             
@@ -534,7 +541,7 @@ class UsuarioController extends BaseController
     public function insertSigIn() {
 
         $nome = $this->request->getPost('nome');
-        $email= $this->request->getPost('email');
+        $email = $this->request->getPost('email');
 
         $data = [
             'id' => $this->request->getPost('id'),
@@ -544,7 +551,6 @@ class UsuarioController extends BaseController
         ];
         
         $model = new UsuarioModel();
-        $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
         
         $db = \Config\Database::connect();
         $db->transStart();
@@ -552,7 +558,6 @@ class UsuarioController extends BaseController
         try {
             
             //Enviando e-mail de confirmação
-
             if($this->sendMailNoSecurity($nome, $email))    
             {
                 $idUsuario = $model->insert($data);
@@ -564,7 +569,8 @@ class UsuarioController extends BaseController
                         $usuarioPerfilModel->savePerfisUsuario($idUsuario, (array) $perfis);
                     }
                     
-                    // Sincronizar funções Python padrão do novo usuário
+                    // Sincronização de funções Python desativada para fiscalweb
+                    /*
                     try {
                         $syncResult = $usuarioFuncionModel->sincronizarComPadrao($idUsuario);
                         if (!$syncResult) {
@@ -574,6 +580,7 @@ class UsuarioController extends BaseController
                     } catch (\Throwable $e) {
                         log_message('warning', "Exceção ao sincronizar funções: " . $e->getMessage());
                     }
+                    */
                     
                     $db->transComplete();
                     
@@ -588,7 +595,7 @@ class UsuarioController extends BaseController
                         'status' => 'success',
                         'mensagem' => $mensagem,
                         'redirect' => base_url('loginUsuario')
-                        ]);
+                    ]);
                 }
                 else{
                     $db->transRollback();
@@ -601,9 +608,6 @@ class UsuarioController extends BaseController
             
             }
              
-
-
-
         } catch (\Exception $e) {
             $db->transRollback();
             return $this->response->setJSON([

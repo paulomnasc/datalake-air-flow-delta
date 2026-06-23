@@ -103,7 +103,8 @@ class AuthController extends BaseController
             $perfilDescricao = $perfis[0]->perfil_descricao ?? 'Teste';
             $_SESSION['perfil_usuario_logado'] = $perfilDescricao;
 
-            // Registra login no activity log
+            // Registra login no activity log (desativado para fiscalweb)
+            /*
             if (empty($_SESSION['is_admin'])) {
                 try {
                     $logModel = new ActivityLogModel();
@@ -122,6 +123,7 @@ class AuthController extends BaseController
                     log_message('warning', '[ActivityLog] Falha ao registrar login: ' . $e->getMessage());
                 }
             }
+            */
 
             // Garante bucket no MinIO; falha bloqueia o login via Google
             $bucketResult = MinioHelper::createUserBucket($usuario->id, $usuario->email ?? '');
@@ -134,7 +136,8 @@ class AuthController extends BaseController
                 return redirect()->to('/loginUsuario');
             }
 
-            // Sincroniza funções Python do usuário (garante que tem as funções padrão)
+            // Sincronização de funções Python desativada para fiscalweb
+            /*
             try {
                 $usuarioFuncionModel = new \App\Models\UsuarioFuncionConfigurationModel();
                 $countFuncoes = $usuarioFuncionModel->contarFuncoesDoUsuario($usuario->id);
@@ -151,6 +154,7 @@ class AuthController extends BaseController
             } catch (\Exception $e) {
                 log_message('warning', "Erro ao sincronizar funções no Google Auth: " . $e->getMessage());
             }
+            */
 
             // Sincroniza com Airflow usando a senha do banco
             if (AirflowHelper::isAirflowAvailable()) {

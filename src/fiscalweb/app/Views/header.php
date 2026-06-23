@@ -531,9 +531,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <li>
                         <div class="dropdown">
                             <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
-                                📝 Cadastros
+                                🔍 FISCALIZAÇÃO
                             </a>
                             <div class="dropdown-menu">
+                                <h6 class="dropdown-header text-primary fw-bold">📝 Cadastros</h6>
                                 <a class="dropdown-item" href="<?= base_url('listAreaAtuacao') ?>">🏢 Áreas de Atuação</a>
                                 <a class="dropdown-item" href="<?= base_url('listAtividadeMacro') ?>">📊 Atividades Macro</a>
                                 <a class="dropdown-item" href="<?= base_url('listAvaliacaoQualidadeSla') ?>">⭐ Avaliação SLA</a>
@@ -547,16 +548,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 <a class="dropdown-item" href="<?= base_url('listStatusRecebimento') ?>">✅ Status Recebimento</a>
                                 <a class="dropdown-item" href="<?= base_url('listTipoDocumento') ?>">📑 Tipos de Documento</a>
                                 <a class="dropdown-item" href="<?= base_url('listUsuario') ?>">👤 Usuários</a>
-                            </div>
-                        </div>
-                    </li>
-
-                    <li>
-                        <div class="dropdown">
-                            <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
-                                ⚡ Execução
-                            </a>
-                            <div class="dropdown-menu">
+                                
+                                <div class="dropdown-divider"></div>
+                                <h6 class="dropdown-header text-primary fw-bold">⚡ Execução</h6>
                                 <a class="dropdown-item" href="<?= base_url('listServico') ?>">🛠️ Serviços</a>
                                 <a class="dropdown-item" href="<?= base_url('listOrdemServico') ?>">📋 Ordens de Serviço (OS)</a>
                                 <a class="dropdown-item" href="<?= base_url('listDocumentoRecebimento') ?>">📄 Docs Recebimento</a>
@@ -860,8 +854,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     -->
                     
                     <div class="nav-item dropdown">
-                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">CADASTROS</a>
+                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">FISCALIZAÇÃO</a>
                         <div class="dropdown-menu">
+                            <h6 class="dropdown-header text-primary fw-bold">CADASTROS</h6>
                             <a href="<?= base_url('listTipoDocumento') ?>" class="dropdown-item">Tipos de Documento</a>
                             <a href="<?= base_url('listStatus') ?>" class="dropdown-item">Status</a>
                             <a href="<?= base_url('listStatusRecebimento') ?>" class="dropdown-item">Status Recebimento</a>
@@ -873,12 +868,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             <a href="<?= base_url('listItemContrato') ?>" class="dropdown-item">Itens de Contrato</a>
                             <a href="<?= base_url('listReajusteItemContrato') ?>" class="dropdown-item">Reajustes de Contrato</a>
                             <a href="<?= base_url('listAvaliacaoQualidadeSla') ?>" class="dropdown-item">Avaliação SLA</a>
-                        </div>
-                    </div>
-                    
-                    <div class="nav-item dropdown">
-                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">EXECUÇÃO</a>
-                        <div class="dropdown-menu">
+                            
+                            <div class="dropdown-divider"></div>
+                            <h6 class="dropdown-header text-primary fw-bold">EXECUÇÃO</h6>
                             <a href="<?= base_url('listServico') ?>" class="dropdown-item">Serviços</a>
                             <a href="<?= base_url('listOrdemServico') ?>" class="dropdown-item">Ordens de Serviço (OS)</a>
                             <a href="<?= base_url('listDocumentoRecebimento') ?>" class="dropdown-item">Docs Recebimento</a>

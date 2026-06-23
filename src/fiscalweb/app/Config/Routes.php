@@ -322,6 +322,14 @@ $routes->post('updCatalogoServicos', 'CatalogoServicosController::upd');
 $routes->post('insertCatalogoServicos', 'CatalogoServicosController::insert');
 $routes->post('updateCatalogoServicos', 'CatalogoServicosController::update');
 $routes->delete('deleteCatalogoServicos/(:num)', 'CatalogoServicosController::delete/$1');
+$routes->get('listContrato', 'ContratoController::index');
+$routes->post('addContrato', 'ContratoController::add');
+$routes->get('addContrato', 'ContratoController::add');
+$routes->post('updContrato', 'ContratoController::upd');
+$routes->post('insertContrato', 'ContratoController::insert');
+$routes->post('updateContrato', 'ContratoController::update');
+$routes->delete('deleteContrato/(:num)', 'ContratoController::delete/$1');
+
 $routes->get('listItemContrato', 'ItemContratoController::index');
 $routes->post('addItemContrato', 'ItemContratoController::add');
 $routes->get('addItemContrato', 'ItemContratoController::add');

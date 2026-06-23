@@ -6,12 +6,12 @@ require VIEWPATH.'/header.php';
 ?>
 <div id="content">        
     <div class="container">
-        <h4 style="text-align: center;">Listagem de ItemContrato</h4>
+        <h4 style="text-align: center;">Listagem de Contrato</h4>
         
-        <input type="text" id="filtro-gestor_substituto" placeholder="Filtrar">
+        <input type="text" id="filtro-descricao" placeholder="Filtrar">
         <img src="../assets/img/lupa.jpg" >
         
-        <form action="<?php echo site_url('addItemContrato'); ?>" method="post">
+        <form action="<?php echo site_url('addContrato'); ?>" method="post">
             <button type="submit" class="add-button">Incluir</button>
         </form>
 
@@ -19,7 +19,8 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>GestorSubstituto</th><th>NumeroContrato</th><th>Objeto</th><th>TotalHorasContratadas</th><th>SaldoHoras</th><th>DataInicio</th><th>DataFim</th><th>Contrato</th>
+                    <th>Descrição</th>
+                    <th>Empresa</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -27,15 +28,16 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    <td> <?php echo $item->gestor_substituto ?> </td><td> <?php echo $item->Numero_Contrato ?> </td><td> <?php echo $item->Objeto ?> </td><td> <?php echo $item->Total_Horas_Contratadas ?> </td><td> <?php echo $item->Saldo_Horas ?> </td><td> <?php echo $item->Data_Inicio ?> </td><td> <?php echo $item->Data_Fim ?> </td><td> <?php echo isset($item->contrato_descricao) ? $item->contrato_descricao : 'N/A' ?> </td>
+                    <td> <?php echo $item->descricao ?> </td>
+                    <td> <?php echo $item->empresa ?> </td>
                     <td> 
                         <div class="sidebyside-container">
-                            <form action="<?php echo site_url('updItemContrato'); ?>" method="post">
+                            <form action="<?php echo site_url('updContrato'); ?>" method="post">
                                 <input type="hidden" name="id" value="<?php echo $item->id ?>">
                                 <button class="edit-button" type="submit">✏️</button>
                             </form>
                             <form id="deleteForm-<?php echo $item->id; ?>">
-                                <button class="delete-button" type="button" onclick="confirmDelete('<?php echo $item->id; ?>', '<?php echo site_url('deleteItemContrato/' . $item->id); ?>', 'deleteForm-<?php echo $item->id; ?>')">🗑️</button>
+                                <button class="delete-button" type="button" onclick="confirmDelete('<?php echo $item->id; ?>', '<?php echo site_url('deleteContrato/' . $item->id); ?>', 'deleteForm-<?php echo $item->id; ?>')">🗑️</button>
                             </form>
                         </div>
                     </td>
@@ -56,7 +58,7 @@ require VIEWPATH.'/header.php';
                                 $('#row-' + id).remove();
                                 $('#success-message').html(result.mensagem).show().delay(6000).fadeOut();
                             } else {
-                                $('#error-message').html('Erro ao excluir o registro.').show().delay(6000).fadeOut();
+                                $('#error-message').html(result.mensagem || 'Erro ao excluir o registro.').show().delay(6000).fadeOut();
                             }
                         },
                         error: function(err) {
@@ -74,7 +76,7 @@ require VIEWPATH.'/header.php';
                     language: { "sEmptyTable": "Nenhum registro encontrado" }
                 });
 
-                $('#filtro-gestor_substituto').on('keyup', function() {
+                $('#filtro-descricao').on('keyup', function() {
                     table.search(this.value).draw();
                 });
             });

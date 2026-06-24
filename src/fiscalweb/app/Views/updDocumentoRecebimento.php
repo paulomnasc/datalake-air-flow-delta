@@ -287,6 +287,9 @@ require VIEWPATH.'/header.php';
                 } else {
                     $('#item_os_select').html('<option value="">Primeiro, selecione uma OS no cabeçalho...</option>').prop('disabled', true);
                     if (callback) callback();
+                }
+            }
+
             function loadOsDemands(idOs, callback) {
                 if (idOs) {
                     $.get('<?php echo site_url('api/demandas_os/'); ?>' + idOs, function(data) {
@@ -327,6 +330,9 @@ require VIEWPATH.'/header.php';
                 // Carrega a combo de Itens da OS inicial com base no valor carregado
                 const initialOsId = $('#id_os').val();
                 loadOsItems(initialOsId);
+                if (initialOsId) {
+                    loadOsDemands(initialOsId);
+                }
 
                 // Ao trocar a OS, recarregar itens da combo e repopular a grid
                 $('#id_os').change(function() {

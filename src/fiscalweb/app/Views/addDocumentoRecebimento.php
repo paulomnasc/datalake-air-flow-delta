@@ -265,7 +265,10 @@ require VIEWPATH.'/header.php';
 
             function removeItem(index) {
                 docItems.splice(index, 1);
-                renderIt            function loadOsDemands(idOs, callback) {
+                renderItems();
+            }
+
+            function loadOsDemands(idOs, callback) {
                 if (idOs) {
                     $.get('<?php echo site_url('api/demandas_os/'); ?>' + idOs, function(data) {
                         $('#demanda_list').empty();

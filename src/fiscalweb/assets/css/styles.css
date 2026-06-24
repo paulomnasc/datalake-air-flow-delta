@@ -26,6 +26,33 @@ p {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
+.container-menor {
+    width: 50%;
+    max-width: 800px;
+    min-width: 320px;
+    margin: 40px auto;
+    background-color: #fff;
+    padding: 25px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+@media (min-width: 1200px) {
+    .container-menor {
+        width: 66.6%;
+        max-width: 1100px;
+    }
+}
+
+@media (max-width: 768px) {
+    .container-menor {
+        width: 90%;
+        margin: 20px auto;
+        padding: 15px;
+    }
+}
+
 
 h1 {
     text-align: center;

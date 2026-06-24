@@ -5,7 +5,7 @@ if (! defined('VIEWPATH')) {
 require VIEWPATH.'/header.php';
 ?>
 <div id="content">        
-    <div class="container">
+    <div class="container-menor">
         <h4 style="text-align: center;">Listagem de DocumentoRecebimento</h4>
         
         <input type="text" id="filtro-id_os" placeholder="Filtrar">
@@ -15,6 +15,7 @@ require VIEWPATH.'/header.php';
             <button type="submit" class="add-button">Incluir</button>
         </form>
 
+        <div class="table-responsive" style="overflow-x: auto; width: 100%; margin-top: 15px;">
         <table class="data-table" id="data-table">
             <thead>
                 <tr>
@@ -98,6 +99,7 @@ require VIEWPATH.'/header.php';
                 <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
 
         <script>
             function confirmDelete(id, deleteUrl, formId) {

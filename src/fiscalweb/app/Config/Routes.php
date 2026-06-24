@@ -302,6 +302,7 @@ $routes->post('updateServico', 'ServicoController::update');
 $routes->delete('deleteServico/(:num)', 'ServicoController::delete/$1');
 $routes->get('getServicoByMacro/(:num)', 'ServicoController::getByMacro/$1');
 $routes->get('getMacroByServico/(:num)', 'ServicoController::getMacroByServico/$1');
+$routes->get('listAtividadeMacro', 'AtividadeMacroController::index');
 $routes->post('addAtividadeMacro', 'AtividadeMacroController::add');
 $routes->get('addAtividadeMacro', 'AtividadeMacroController::add');
 $routes->post('updAtividadeMacro', 'AtividadeMacroController::upd');

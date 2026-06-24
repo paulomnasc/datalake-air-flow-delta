@@ -23,7 +23,6 @@ class CatalogoServicosController extends BaseController
     {
         $data = [];
         $data['id_item_contrato_list'] = (new ItemContratoModel())->listToCombo();
-        $data['catalogo_servicos_list'] = (new CatalogoServicosModel())->listToArray();
 
         return view('addCatalogoServicos', $data);
     }
@@ -36,7 +35,6 @@ class CatalogoServicosController extends BaseController
 
         $data = ['record' => $record];
         $data['id_item_contrato_list'] = (new ItemContratoModel())->listToCombo();
-        $data['catalogo_servicos_list'] = (new CatalogoServicosModel())->listToArray();
 
         return view('updCatalogoServicos', $data);
     }

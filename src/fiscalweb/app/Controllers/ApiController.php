@@ -73,4 +73,11 @@ class ApiController extends Controller
         $os = $db->table('ordem_servico')->where('id', $id_os)->get()->getRow();
         return $this->response->setJSON($os);
     }
+
+    public function getDemandasByOs($id_os)
+    {
+        $db = \Config\Database::connect();
+        $demandas = $db->table('agile_demandas')->where('id_ordem_servico', $id_os)->get()->getResult();
+        return $this->response->setJSON($demandas);
+    }
 }

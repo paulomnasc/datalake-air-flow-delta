@@ -4,22 +4,23 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
-class DocumentoRecebimentoModel extends Model
+class ListaVerificacaoModel extends Model
 {
-    protected $table            = 'documento_recebimento';
+    protected $table            = 'lista_verificacao';
     protected $primaryKey       = 'id';
     protected $useAutoIncrement = true;
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['id_os', 'id_demanda', 'data_assinatura', 'nup_sei', 'id_tipo_documento', 'id_usuario_fiscal_tecnico', 'id_usuario_fiscal_requisitante', 'id_usuario_gestor'];
+    protected $allowedFields    = [
+        'descricao'
+    ];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;
 
     public function listToCombo()
     {
-        $data = $this->select('id, nup_sei as descricao')->findAll();
-        return $data;
+        return $this->select('id, descricao')->findAll();
     }
 }

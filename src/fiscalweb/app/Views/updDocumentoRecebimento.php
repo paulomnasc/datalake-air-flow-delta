@@ -24,6 +24,17 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group">
+                <label for="id_demanda_input">Demanda (Requisito Obrigatório):</label>
+                <input type="text" id="id_demanda_input" list="demanda_list" placeholder="Digite parte do título para filtrar..." required autocomplete="off" style="width: 100%; max-width: 100%;" value="<?php echo isset($selected_demanda_title) ? $selected_demanda_title : ''; ?>">
+                <datalist id="demanda_list">
+                    <?php if(isset($demanda_list)): foreach($demanda_list as $opt): ?>
+                        <option data-id="<?php echo $opt->id; ?>" value="<?php echo "Demanda #{$opt->id} - {$opt->titulo}"; ?>"></option>
+                    <?php endforeach; endif; ?>
+                </datalist>
+                <input type="hidden" id="id_demanda" name="id_demanda" value="<?php echo isset($record->id_demanda) ? $record->id_demanda : ''; ?>" required>
+            </div>
+
+            <div class="form-group">
                 <label for="Data_Assinatura">DataAssinatura:</label>
                 <input type="datetime-local" id="Data_Assinatura" name="Data_Assinatura" value="<?php echo isset($record->Data_Assinatura) ? $record->Data_Assinatura : ''; ?>" required>
             </div>
@@ -125,6 +136,7 @@ require VIEWPATH.'/header.php';
                     <th>Glosa (Horas)</th>
                     <th>Horas do Item</th>
                     <th>Observações</th>
+                    <th>Verificações</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -135,7 +147,7 @@ require VIEWPATH.'/header.php';
                 <tr>
                     <td colspan="8" style="text-align: right; font-weight: bold;">Total do Documento:</td>
                     <td id="totalValorDoc" style="font-weight: bold;">0,00</td>
-                    <td colspan="2"></td>
+                    <td colspan="3"></td>
                 </tr>
             </tfoot>
         </table>
@@ -144,6 +156,8 @@ require VIEWPATH.'/header.php';
             let docItems = <?php echo isset($items_json) ? $items_json : '[]'; ?>;
             let currentOsItems = [];
             let editingIndex = -1;
+            let checklistOptions = <?php echo isset($checklist_options) ? json_encode($checklist_options) : '[]'; ?>;
+            let currentItemIndexForChecklist = -1;
 
             function formatCurrency(value) {
                 return parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -165,6 +179,8 @@ require VIEWPATH.'/header.php';
                     }
                     totalDoc += valorItem;
 
+                    let checklistCount = item.checklist ? item.checklist.length : 0;
+
                     tbody.append(`
                         <tr>
                             <td>${item.quantidade_entregue}</td>
@@ -178,6 +194,10 @@ require VIEWPATH.'/header.php';
                             <td>${formatCurrency(valorItem)}</td>
                             <td>${item.observacoes || '-'}</td>
                             <td>
+                                <span class="badge ${checklistCount > 0 ? 'bg-success' : 'bg-secondary'}">${checklistCount} verificações</span>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-info text-white" style="padding: 2px 6px;" onclick="openChecklist(${index})" title="Verificar Checklist">📋</button>
                                 <button type="button" class="edit-button" onclick="editItem(${index})">✏️</button>
                                 <button type="button" class="delete-button" onclick="removeItem(${index})">🗑️</button>
                             </td>
@@ -185,6 +205,57 @@ require VIEWPATH.'/header.php';
                     `);
                 });
                 $('#totalValorDoc').text(formatCurrency(totalDoc));
+            }
+
+            function openChecklist(index) {
+                currentItemIndexForChecklist = index;
+                const item = docItems[index];
+                $('#checklist_item_desc').text(item.desc_servico || item.descricao || `Item OS #${item.id_item_os}`);
+                
+                const tbody = $('#modalChecklistTable tbody');
+                tbody.empty();
+                
+                if (!item.checklist) {
+                    item.checklist = [];
+                }
+                
+                checklistOptions.forEach(opt => {
+                    const assoc = item.checklist.find(c => c.id_lista_verificacao == opt.id);
+                    const isChecked = assoc ? 'checked' : '';
+                    const isConforme = assoc && assoc.conforme == 1;
+                    
+                    const conformeChecked = isConforme || !assoc ? 'checked' : '';
+                    const naoConformeChecked = assoc && assoc.conforme == 0 ? 'checked' : '';
+                    const disabledClass = assoc ? '' : 'disabled';
+                    
+                    tbody.append(`
+                        <tr>
+                            <td style="text-align: center; vertical-align: middle;">
+                                <input type="checkbox" class="chk-apply" data-id="${opt.id}" ${isChecked}>
+                            </td>
+                            <td style="vertical-align: middle;">${opt.descricao}</td>
+                            <td style="text-align: center; vertical-align: middle;">
+                                <div class="form-check form-check-inline" style="display: inline-block; margin-right: 10px;">
+                                    <input class="form-check-input chk-conforme-radio" type="radio" name="conforme_${opt.id}" id="conf_yes_${opt.id}" value="1" ${conformeChecked} ${disabledClass}>
+                                    <label class="form-check-label" for="conf_yes_${opt.id}">Conforme</label>
+                                </div>
+                                <div class="form-check form-check-inline" style="display: inline-block;">
+                                    <input class="form-check-input chk-conforme-radio" type="radio" name="conforme_${opt.id}" id="conf_no_${opt.id}" value="0" ${naoConformeChecked} ${disabledClass}>
+                                    <label class="form-check-label" for="conf_no_${opt.id}">Não Conforme</label>
+                                </div>
+                            </td>
+                        </tr>
+                    `);
+                });
+                
+                $('.chk-apply').change(function() {
+                    const optId = $(this).attr('data-id');
+                    const isChecked = $(this).is(':checked');
+                    $(`input[name="conforme_${optId}"]`).prop('disabled', !isChecked);
+                });
+                
+                const myModal = new bootstrap.Modal(document.getElementById('checklistModal'));
+                myModal.show();
             }
 
             function editItem(index) {
@@ -216,10 +287,40 @@ require VIEWPATH.'/header.php';
                 } else {
                     $('#item_os_select').html('<option value="">Primeiro, selecione uma OS no cabeçalho...</option>').prop('disabled', true);
                     if (callback) callback();
+            function loadOsDemands(idOs, callback) {
+                if (idOs) {
+                    $.get('<?php echo site_url('api/demandas_os/'); ?>' + idOs, function(data) {
+                        $('#demanda_list').empty();
+                        data.forEach(function(demanda) {
+                            const title = `Demanda #${demanda.id} - ${demanda.titulo}`;
+                            $('#demanda_list').append(`<option data-id="${demanda.id}" value="${title}"></option>`);
+                        });
+                        $('#id_demanda_input').prop('disabled', false);
+                        if (callback) callback();
+                    });
+                } else {
+                    $('#demanda_list').empty();
+                    $('#id_demanda_input').val('').prop('disabled', true);
+                    $('#id_demanda').val('');
+                    if (callback) callback();
                 }
             }
 
             $(document).ready(function() {
+                // Evento para atualizar id_demanda ao selecionar da lista
+                $('#id_demanda_input').on('input', function() {
+                    const val = $(this).val();
+                    const option = $('#demanda_list option').filter(function() {
+                        return this.value === val;
+                    });
+                    if (option.length) {
+                        const id = option.attr('data-id');
+                        $('#id_demanda').val(id);
+                    } else {
+                        $('#id_demanda').val('');
+                    }
+                });
+
                 // Carrega os itens da grid inicialmente
                 renderItems();
 
@@ -237,6 +338,9 @@ require VIEWPATH.'/header.php';
                         docItems = []; // Limpar grid ao trocar OS
                         
                         if (idOs) {
+                            // Carregar demandas associadas à nova OS
+                            loadOsDemands(idOs);
+
                             // Buscar detalhes do Cabeçalho da OS
                             $.get('<?php echo site_url('api/os_details/'); ?>' + idOs, function(osData) {
                                 if(osData && osData.nup_sei) {
@@ -268,7 +372,8 @@ require VIEWPATH.'/header.php';
                                         sla_dias: item.sla_dias,
                                         remuneracao: item.remuneracao,
                                         valor_item_contrato: item.valor_item_contrato,
-                                        valor_remuneracao_item: item.valor_remuneracao_item || 0
+                                        valor_remuneracao_item: item.valor_remuneracao_item || 0,
+                                        checklist: []
                                     });
                                 });
                                 
@@ -278,6 +383,7 @@ require VIEWPATH.'/header.php';
                         } else {
                             $('#item_os_select').html('<option value="">Primeiro, selecione uma OS no cabeçalho...</option>').prop('disabled', true);
                             $('#nup_sei').val('');
+                            loadOsDemands('');
                             renderItems();
                         }
                     } else {
@@ -303,6 +409,7 @@ require VIEWPATH.'/header.php';
                     const profissional = osItemObj.profissional_alocado || '';
 
                     if (editingIndex >= 0) {
+                        const existingChecklist = docItems[editingIndex].checklist || [];
                         docItems[editingIndex] = {
                             id_item_os: idItemOs,
                             quantidade_entregue: qtd,
@@ -316,7 +423,8 @@ require VIEWPATH.'/header.php';
                             descricao: osItemObj.descricao,
                             sla_dias: osItemObj.sla_dias,
                             remuneracao: osItemObj.remuneracao,
-                            valor_item_contrato: osItemObj.valor_item_contrato
+                            valor_item_contrato: osItemObj.valor_item_contrato,
+                            checklist: existingChecklist
                         };
                         editingIndex = -1;
                         $('#addItemBtn').text('Adicionar Item').css('background-color', '').css('color', '');
@@ -334,7 +442,8 @@ require VIEWPATH.'/header.php';
                             descricao: osItemObj.descricao,
                             sla_dias: osItemObj.sla_dias,
                             remuneracao: osItemObj.remuneracao,
-                            valor_item_contrato: osItemObj.valor_item_contrato
+                            valor_item_contrato: osItemObj.valor_item_contrato,
+                            checklist: []
                         });
                     }
                     
@@ -346,7 +455,35 @@ require VIEWPATH.'/header.php';
                     renderItems();
                 });
 
+                $('#saveChecklistBtn').click(function() {
+                    if (currentItemIndexForChecklist >= 0) {
+                        const item = docItems[currentItemIndexForChecklist];
+                        item.checklist = [];
+                        
+                        $('.chk-apply:checked').each(function() {
+                            const optId = $(this).attr('data-id');
+                            const conforme = $(`input[name="conforme_${optId}"]:checked`).val() == '1' ? 1 : 0;
+                            item.checklist.push({
+                                id_lista_verificacao: optId,
+                                conforme: conforme
+                            });
+                        });
+                        
+                        const modalEl = document.getElementById('checklistModal');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) {
+                            modal.hide();
+                        }
+                        
+                        renderItems();
+                    }
+                });
+
                 $('#saveDocBtn').click(function() {
+                    if (!$('#id_demanda').val()) {
+                        alert('Por favor, selecione uma demanda válida digitando e escolhendo uma opção da lista.');
+                        return;
+                    }
                     let formData = $('#updForm').serializeArray();
                     formData.push({name: "items", value: JSON.stringify(docItems)});
                     
@@ -371,4 +508,36 @@ require VIEWPATH.'/header.php';
         </script>
     </div>
 </div>
+
+<!-- Modal de Checklist para o Item -->
+<div class="modal fade" id="checklistModal" tabindex="-1" aria-labelledby="checklistModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="border-radius: 8px;">
+      <div class="modal-header" style="background-color: #f8f9fa; border-bottom: 1px solid #dee2e6;">
+        <h5 class="modal-title" id="checklistModalLabel" style="font-weight: 600;">📋 Lista de Verificação (Checklist)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <p style="font-size: 1.05em; margin-bottom: 15px;"><strong>Item Recebido:</strong> <span id="checklist_item_desc" class="text-primary"></span></p>
+        <table class="table table-bordered table-striped" id="modalChecklistTable" style="margin-bottom: 0;">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 80px; text-align: center;">Aplicar</th>
+                    <th>Descrição do Item de Checklist</th>
+                    <th style="width: 250px; text-align: center;">Conformidade</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Checklists options dynamically rendered here -->
+            </tbody>
+        </table>
+      </div>
+      <div class="modal-footer" style="background-color: #f8f9fa; border-top: 1px solid #dee2e6;">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="btn btn-primary" id="saveChecklistBtn">Confirmar Verificação</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <?php require VIEWPATH.'/footer.php'; ?>

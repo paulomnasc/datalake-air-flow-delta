@@ -414,14 +414,22 @@ class AgileController extends BaseController
         $id = $this->request->getPost('id');
 
         $participantes = $this->request->getPost('participantes') ?: [];
+        $ata = $this->request->getPost('ata_descritiva');
+        $realizada = $this->request->getPost('data_hora_realizada');
+
+        // Se a ata foi preenchida, mas a data_hora_realizada foi deixada em branco,
+        // assume que a cerimônia foi realizada no momento atual.
+        if (!empty($ata) && empty($realizada)) {
+            $realizada = date('Y-m-d H:i:s');
+        }
 
         $data = [
             'id_demanda' => $id_demanda,
             'tipo_cerimonia' => $this->request->getPost('tipo_cerimonia'),
             'data_hora_agendada' => $this->request->getPost('data_hora_agendada'),
-            'data_hora_realizada' => $this->request->getPost('data_hora_realizada') ?: null,
+            'data_hora_realizada' => !empty($realizada) ? $realizada : null,
             'participantes_presentes' => json_encode($participantes),
-            'ata_descritiva' => $this->request->getPost('ata_descritiva'),
+            'ata_descritiva' => $ata,
             'link_gravacao' => $this->request->getPost('link_gravacao')
         ];
 

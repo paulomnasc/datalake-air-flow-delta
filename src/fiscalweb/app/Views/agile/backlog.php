@@ -126,7 +126,7 @@ require VIEWPATH.'/header.php';
                 <div class="card shadow-sm border-0">
                     <div class="card-header bg-secondary text-white py-3 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 card-title"><i class="fas fa-history"></i> Cerimônias e Ritos</h5>
-                        <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#cerimoniaModal"><i class="fas fa-calendar-plus"></i> Agendar</button>
+                        <button class="btn btn-light btn-sm" onclick="novaCerimonia()"><i class="fas fa-calendar-plus"></i> Agendar</button>
                     </div>
                     <div class="card-body p-0">
                         <ul class="list-group list-group-flush">
@@ -199,7 +199,7 @@ require VIEWPATH.'/header.php';
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="data_hora_realizada" class="form-label">Data/Hora Realizada (Apenas se já concluída)</label>
+                            <label for="data_hora_realizada" class="form-label" id="lbl-realizada">Data/Hora Realizada (Apenas se já concluída)</label>
                             <input type="datetime-local" class="form-control" id="cer-realizada" name="data_hora_realizada">
                         </div>
                         <div class="col-md-6 mb-3">
@@ -303,6 +303,42 @@ function deleteItem(id) {
 }
 
 // Funções da Cerimônia
+function toggleRealizadaRequired() {
+    const ataVal = document.getElementById('cer-ata').value.trim();
+    const realizadaInput = document.getElementById('cer-realizada');
+    const label = document.getElementById('lbl-realizada');
+    
+    if (ataVal !== '') {
+        realizadaInput.setAttribute('required', 'required');
+        label.innerHTML = 'Data/Hora Realizada <span class="text-danger">*</span>';
+    } else {
+        realizadaInput.removeAttribute('required');
+        label.innerHTML = 'Data/Hora Realizada (Apenas se já concluída)';
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    const ataTextarea = document.getElementById('cer-ata');
+    if (ataTextarea) {
+        ataTextarea.addEventListener('input', toggleRealizadaRequired);
+    }
+});
+
+function novaCerimonia() {
+    document.getElementById('cer-id').value = '';
+    document.getElementById('cer-tipo').value = '';
+    document.getElementById('cer-agendada').value = '';
+    document.getElementById('cer-realizada').value = '';
+    document.getElementById('cer-link').value = '';
+    document.getElementById('cer-ata').value = '';
+    $('.check-participante').prop('checked', false);
+    
+    toggleRealizadaRequired();
+    
+    const myModal = new bootstrap.Modal(document.getElementById('cerimoniaModal'));
+    myModal.show();
+}
+
 function editarCerimonia(c) {
     document.getElementById('cer-id').value = c.id;
     document.getElementById('cer-tipo').value = c.tipo_cerimonia;
@@ -328,6 +364,8 @@ function editarCerimonia(c) {
             $('#part-' + pid).prop('checked', true);
         });
     } catch(e) {}
+
+    toggleRealizadaRequired();
 
     const myModal = new bootstrap.Modal(document.getElementById('cerimoniaModal'));
     myModal.show();

@@ -344,6 +344,14 @@ $routes->post('updDocumentoRecebimento', 'DocumentoRecebimentoController::upd');
 $routes->post('insertDocumentoRecebimento', 'DocumentoRecebimentoController::insert');
 $routes->post('updateDocumentoRecebimento', 'DocumentoRecebimentoController::update');
 $routes->delete('deleteDocumentoRecebimento/(:num)', 'DocumentoRecebimentoController::delete/$1');
+
+$routes->get('listListaVerificacao', 'ListaVerificacaoController::index');
+$routes->post('addListaVerificacao', 'ListaVerificacaoController::add');
+$routes->get('addListaVerificacao', 'ListaVerificacaoController::add');
+$routes->post('updListaVerificacao', 'ListaVerificacaoController::upd');
+$routes->post('insertListaVerificacao', 'ListaVerificacaoController::insert');
+$routes->post('updateListaVerificacao', 'ListaVerificacaoController::update');
+$routes->delete('deleteListaVerificacao/(:num)', 'ListaVerificacaoController::delete/$1');
 $routes->get('listAvaliacaoQualidadeSla', 'AvaliacaoQualidadeSlaController::index');
 $routes->post('addAvaliacaoQualidadeSla', 'AvaliacaoQualidadeSlaController::add');
 $routes->get('addAvaliacaoQualidadeSla', 'AvaliacaoQualidadeSlaController::add');
@@ -367,6 +375,7 @@ $routes->get('api/servicos/(:num)', 'ApiController::getServicosByAtividade/$1');
 $routes->get('api/itens_os/(:num)', 'ApiController::getItensByOs/$1');
 
 $routes->get('api/os_details/(:num)', 'ApiController::getOsDetails/$1');
+$routes->get('api/demandas_os/(:num)', 'ApiController::getDemandasByOs/$1');
 
 // --- ROTAS DO MÓDULO ÁGIL (Sem RBAC) ---
 $routes->group('agile', function($routes) {

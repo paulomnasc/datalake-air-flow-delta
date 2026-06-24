@@ -165,6 +165,12 @@ require VIEWPATH.'/header.php';
 
 <!-- Modal para Registro de Cerimônias -->
 <div class="modal fade" id="cerimoniaModal" tabindex="-1" aria-labelledby="cerimoniaModalLabel" aria-hidden="true">
+    <style>
+        .mb-3-cerimonia {
+            margin-bottom: 1rem !important;
+            display: block !important;
+        }
+    </style>
     <div class="modal-dialog modal-lg">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-primary text-white">
@@ -177,7 +183,7 @@ require VIEWPATH.'/header.php';
                     <input type="hidden" name="id_demanda" value="<?= $demanda->id ?>">
 
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-6 mb-3-cerimonia">
                             <label for="tipo_cerimonia" class="form-label">Tipo de Cerimônia</label>
                             <select class="form-select" id="cer-tipo" name="tipo_cerimonia" required>
                                 <option value="">Selecione...</option>
@@ -191,40 +197,38 @@ require VIEWPATH.'/header.php';
                                 <option value="Reunião Alinhamento CCM">Reunião Alinhamento CCM</option>
                             </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-6 mb-3-cerimonia">
                             <label for="data_hora_agendada" class="form-label">Data/Hora Agendada</label>
                             <input type="datetime-local" class="form-control" id="cer-agendada" name="data_hora_agendada" required>
                         </div>
                     </div>
 
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-6 mb-3-cerimonia">
                             <label for="data_hora_realizada" class="form-label" id="lbl-realizada">Data/Hora Realizada (Apenas se já concluída)</label>
                             <input type="datetime-local" class="form-control" id="cer-realizada" name="data_hora_realizada">
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-6 mb-3-cerimonia">
                             <label for="link_gravacao" class="form-label">Link da Gravação (Conferência)</label>
                             <input type="url" class="form-control" id="cer-link" name="link_gravacao" placeholder="Ex: https://teams.microsoft.com/...">
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Participantes Presentes (Confirmação de Presença)</label>
-                        <div class="row border p-3 rounded bg-light" style="max-height: 150px; overflow-y: auto; margin: 0;">
+                    <div class="mb-3-cerimonia">
+                        <label class="form-label font-weight-bold">Participantes Presentes (Confirmação de Presença)</label>
+                        <ul class="list-group" style="max-height: 150px; overflow-y: auto;">
                             <?php foreach ($usuarios as $u): ?>
-                                <div class="col-md-4 mb-2">
-                                    <div class="form-check">
-                                        <input class="form-check-input check-participante" type="checkbox" name="participantes[]" value="<?= $u->id ?>" id="part-<?= $u->id ?>">
-                                        <label class="form-check-label" for="part-<?= $u->id ?>">
-                                            <?= htmlspecialchars($u->nome) ?>
-                                        </label>
-                                    </div>
-                                </div>
+                                <li class="list-group-item d-flex align-items-center py-2 px-3" style="gap: 10px !important;">
+                                    <input class="check-participante" type="checkbox" name="participantes[]" value="<?= $u->id ?>" id="part-<?= $u->id ?>" style="width: 18px !important; height: 18px !important; min-width: 18px !important; min-height: 18px !important; margin: 0 !important; padding: 0 !important; cursor: pointer !important; -webkit-appearance: checkbox !important; appearance: checkbox !important; display: inline-block !important; visibility: visible !important; opacity: 1 !important; flex-shrink: 0 !important;">
+                                    <label class="mb-0 w-100" for="part-<?= $u->id ?>" style="cursor: pointer; user-select: none; font-size: 14px; font-weight: normal; color: #333; display: inline-block !important;">
+                                        <?= htmlspecialchars($u->nome) ?>
+                                    </label>
+                                </li>
                             <?php endforeach; ?>
-                        </div>
+                        </ul>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3-cerimonia">
                         <label for="ata_descritiva" class="form-label">Ata Descritiva / Deliberações e Acordos</label>
                         <textarea class="form-control" id="cer-ata" name="ata_descritiva" rows="4" placeholder="Escreva os detalhes e deliberações acordadas..."></textarea>
                     </div>

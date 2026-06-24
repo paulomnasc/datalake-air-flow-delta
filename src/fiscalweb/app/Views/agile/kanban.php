@@ -61,7 +61,7 @@ foreach ($items as $item) {
             <div class="col-12">
                 
                 <!-- Fase: Triagem, Preparar SERPRO ou Alocar Fábrica (Ainda não em backlog completo) -->
-                <?php if (in_array($demanda->status, ['Triagem', 'Preparar Demanda SERPRO', 'Alocar Time Fábricas', 'Refinamento Backlog', 'Sprint Planning']) && !$sprintAtiva): ?>
+                <?php if (in_array($demanda->status, ['Triagem', 'Preparar Demanda SERPRO', 'Alocar Time Fábricas', 'Refinamento Backlog', 'Sprint Planning', 'Em Execução']) && !$sprintAtiva): ?>
                     <div class="card border-warning shadow-sm">
                         <div class="card-body">
                             <h5 class="text-warning-emphasis"><i class="fas fa-play-circle"></i> Iniciar Planejamento da Sprint</h5>

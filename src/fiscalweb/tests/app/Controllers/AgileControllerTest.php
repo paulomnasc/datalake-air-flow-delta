@@ -14,9 +14,24 @@ class AgileControllerTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use FeatureTestTrait;
 
+    protected $ordemServicoId;
+
     protected function setUp(): void
     {
         parent::setUp();
+        
+        $osModel = new \App\Models\OrdemServicoModel();
+        $os = $osModel->first();
+        if (!$os) {
+            $this->ordemServicoId = $osModel->insert([
+                'horas_alocadas' => 100,
+                'nup_sei' => 'OS-SEI-12345',
+                'data_emissao' => '2026-06-22',
+                'data_aceite' => '2026-06-22'
+            ]);
+        } else {
+            $this->ordemServicoId = $os->id;
+        }
     }
 
     public function test_dashboard_returns_success()
@@ -52,7 +67,8 @@ class AgileControllerTest extends CIUnitTestCase
         ])->call('post', 'agile/demanda/insert', [
             'titulo' => 'Demanda Crítica Teste',
             'descricao' => 'Teste de criticidade Gatelink',
-            'sistema_critico' => 1
+            'sistema_critico' => 1,
+            'id_ordem_servico' => $this->ordemServicoId
         ]);
 
         // Verifica redirecionamento
@@ -78,7 +94,8 @@ class AgileControllerTest extends CIUnitTestCase
         ])->call('post', 'agile/demanda/insert', [
             'titulo' => 'Demanda Comum Teste',
             'descricao' => 'Teste de criticidade Gatelink comum',
-            'sistema_critico' => 0
+            'sistema_critico' => 0,
+            'id_ordem_servico' => $this->ordemServicoId
         ]);
 
         $result->assertRedirectTo(route_to('agile.demandas'));
@@ -100,7 +117,8 @@ class AgileControllerTest extends CIUnitTestCase
             'titulo' => 'Lock Sprint Test',
             'descricao' => 'Teste de trava de planejamento',
             'sistema_critico' => 0,
-            'status' => 'Refinamento Backlog'
+            'status' => 'Refinamento Backlog',
+            'id_ordem_servico' => $this->ordemServicoId
         ]);
 
         // Tenta iniciar Sprint sem cerimônia de planejamento cadastrada
@@ -131,7 +149,8 @@ class AgileControllerTest extends CIUnitTestCase
             'titulo' => 'Lock Release Test',
             'descricao' => 'Teste de trava de homologação',
             'sistema_critico' => 0,
-            'status' => 'Homologação'
+            'status' => 'Homologação',
+            'id_ordem_servico' => $this->ordemServicoId
         ]);
 
         // Tenta submeter release sem parecer favorável do PO
@@ -192,7 +211,8 @@ class AgileControllerTest extends CIUnitTestCase
             'id_sistema' => $sistema->id,
             'titulo' => 'Demanda Vinculada Teste',
             'descricao' => 'Descrição da demanda vinculada',
-            'sistema_critico' => 0
+            'sistema_critico' => 0,
+            'id_ordem_servico' => $this->ordemServicoId
         ]);
 
         $resultDemanda->assertRedirectTo(route_to('agile.demandas'));
@@ -215,7 +235,8 @@ class AgileControllerTest extends CIUnitTestCase
             'titulo' => 'Demanda Teste Cerimonia',
             'descricao' => 'Descricao de teste',
             'sistema_critico' => 0,
-            'status' => 'Refinamento Backlog'
+            'status' => 'Refinamento Backlog',
+            'id_ordem_servico' => $this->ordemServicoId
         ]);
 
         $cerimoniaModel = new CerimoniaModel();
@@ -240,6 +261,172 @@ class AgileControllerTest extends CIUnitTestCase
         $this->assertNull($cerimoniaObj);
 
         // Clean up
+        $demandaModel->delete($demandaId);
+    }
+
+    public function test_sprint_review_fails_with_non_pronto_items()
+    {
+        // Cria demanda
+        $demandaModel = new DemandaModel();
+        $demandaId = $demandaModel->insert([
+            'titulo' => 'Review Fail Test',
+            'descricao' => 'Teste de falha no review',
+            'sistema_critico' => 0,
+            'status' => 'Em Execução',
+            'id_ordem_servico' => $this->ordemServicoId
+        ]);
+
+        // Cria sprint ativa
+        $sprintModel = new \App\Models\SprintModel();
+        $sprintId = $sprintModel->insert([
+            'id_demanda' => $demandaId,
+            'meta' => 'Test Meta',
+            'data_inicio' => '2026-06-22',
+            'data_fim' => '2026-07-06',
+            'status' => 'Ativa'
+        ]);
+
+        // Cria item de backlog com status_kanban != 'Pronto' (por exemplo, 'A Fazer')
+        $backlogItemModel = new \App\Models\BacklogItemModel();
+        $itemId = $backlogItemModel->insert([
+            'id_demanda' => $demandaId,
+            'titulo' => 'Tarefa Impedida ou A Fazer',
+            'status_kanban' => 'A Fazer',
+            'pontuacao' => 3
+        ]);
+
+        // Tenta encerrar a sprint
+        $result = $this->withSession([
+            'id_usuario_logado' => 1,
+            'usuario_logado'    => 1,
+            'nome_usuario_logado'=> 'Admin Test'
+        ])->call('post', 'agile/sprint/review', [
+            'id_sprint' => $sprintId,
+            'id_demanda' => $demandaId
+        ]);
+
+        // Deve falhar e redirecionar com erro na sessão
+        $result->assertSessionHas('error');
+        $this->assertStringContainsString('devem estar na coluna Pronto', session()->getFlashdata('error'));
+
+        // Limpa
+        $backlogItemModel->delete($itemId);
+        $sprintModel->delete($sprintId);
+        $demandaModel->delete($demandaId);
+    }
+
+    public function test_sprint_review_success_when_all_items_are_pronto()
+    {
+        // Cria demanda
+        $demandaModel = new DemandaModel();
+        $demandaId = $demandaModel->insert([
+            'titulo' => 'Review Success Test',
+            'descricao' => 'Teste de sucesso no review',
+            'sistema_critico' => 0,
+            'status' => 'Em Execução',
+            'id_ordem_servico' => $this->ordemServicoId
+        ]);
+
+        // Cria sprint ativa
+        $sprintModel = new \App\Models\SprintModel();
+        $sprintId = $sprintModel->insert([
+            'id_demanda' => $demandaId,
+            'meta' => 'Test Meta',
+            'data_inicio' => '2026-06-22',
+            'data_fim' => '2026-07-06',
+            'status' => 'Ativa'
+        ]);
+
+        // Cria item de backlog com status_kanban = 'Pronto'
+        $backlogItemModel = new \App\Models\BacklogItemModel();
+        $itemId = $backlogItemModel->insert([
+            'id_demanda' => $demandaId,
+            'titulo' => 'Tarefa Concluida',
+            'status_kanban' => 'Pronto',
+            'pontuacao' => 3
+        ]);
+
+        // Tenta encerrar a sprint
+        $result = $this->withSession([
+            'id_usuario_logado' => 1,
+            'usuario_logado'    => 1,
+            'nome_usuario_logado'=> 'Admin Test'
+        ])->call('post', 'agile/sprint/review', [
+            'id_sprint' => $sprintId,
+            'id_demanda' => $demandaId
+        ]);
+
+        // Deve redirecionar para o kanban sem erros
+        $result->assertRedirectTo(route_to('agile.kanban', $demandaId));
+
+        // Limpa
+        $backlogItemModel->delete($itemId);
+        $sprintModel->delete($sprintId);
+        $demandaModel->delete($demandaId);
+    }
+
+    public function test_update_status_only_does_not_require_ordem_servico()
+    {
+        // Cria demanda vinculada a essa ordem de serviço
+        $demandaModel = new DemandaModel();
+        $demandaId = $demandaModel->insert([
+            'titulo' => 'Status Update Test',
+            'descricao' => 'Teste de transição de status via kanban',
+            'sistema_critico' => 0,
+            'status' => 'CCM',
+            'id_ordem_servico' => $this->ordemServicoId
+        ]);
+
+        // Simula request do CCM/Kanban enviando apenas id, titulo, descricao, sistema_critico e status (sem id_ordem_servico)
+        $result = $this->withSession([
+            'id_usuario_logado' => 1,
+            'usuario_logado'    => 1,
+            'nome_usuario_logado'=> 'Admin Test'
+        ])->call('post', 'agile/demanda/update', [
+            'id' => $demandaId,
+            'titulo' => 'Status Update Test',
+            'descricao' => 'Teste de transição de status via kanban',
+            'sistema_critico' => 0,
+            'status' => 'Atualizado Produção'
+        ]);
+
+        // Deve ter sucesso e redirecionar para a lista de demandas
+        $result->assertRedirectTo(route_to('agile.demandas'));
+
+        // Verifica se a demanda foi atualizada para "Atualizado Produção" e a ordem de serviço foi preservada
+        $demandaObj = $demandaModel->find($demandaId);
+        $this->assertNotNull($demandaObj);
+        $this->assertEquals('Atualizado Produção', $demandaObj->status);
+        $this->assertEquals($this->ordemServicoId, $demandaObj->id_ordem_servico);
+
+        // Limpa
+        $demandaModel->delete($demandaId);
+    }
+
+    public function test_sprint_planning_card_appears_in_execution_status_without_active_sprint()
+    {
+        // Cria demanda em execução sem sprint ativa
+        $demandaModel = new DemandaModel();
+        $demandaId = $demandaModel->insert([
+            'titulo' => 'Planning Card Test',
+            'descricao' => 'Teste de exibição do card de planejamento no status de execução',
+            'sistema_critico' => 0,
+            'status' => 'Em Execução',
+            'id_ordem_servico' => $this->ordemServicoId
+        ]);
+
+        // Acessa o Kanban da demanda
+        $result = $this->withSession([
+            'id_usuario_logado' => 1,
+            'usuario_logado'    => 1,
+            'nome_usuario_logado'=> 'Admin Test'
+        ])->call('get', 'agile/kanban/' . $demandaId);
+
+        $result->assertStatus(200);
+        // Deve ver a caixa de "Iniciar Planejamento da Sprint"
+        $result->assertSee('Iniciar Planejamento da Sprint');
+
+        // Limpa
         $demandaModel->delete($demandaId);
     }
 }

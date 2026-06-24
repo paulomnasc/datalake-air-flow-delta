@@ -175,22 +175,61 @@ class AgileController extends BaseController
     public function update()
     {
         $id = $this->request->getPost('id');
-        $id_sistema = $this->request->getPost('id_sistema') ?: null;
-        $id_ordem_servico = $this->request->getPost('id_ordem_servico') ?: null;
-        $sistemaCritico = $this->request->getPost('sistema_critico') ? 1 : 0;
+        $demandaObj = $this->demandaModel->find($id);
+        if (!$demandaObj) {
+            return redirect()->to(route_to('agile.demandas'))->with('error', 'Demanda não encontrada.');
+        }
+
+        // Resolvendo id_sistema (se não enviado no POST, preserva do banco; se enviado, converte vazio para null)
+        $id_sistema = $this->request->getPost('id_sistema');
+        if ($id_sistema === null) {
+            $id_sistema = $demandaObj->id_sistema;
+        } else {
+            $id_sistema = $id_sistema ?: null;
+        }
+
+        // Resolvendo id_ordem_servico (se não enviado no POST, preserva do banco; se enviado, converte vazio para null)
+        $id_ordem_servico = $this->request->getPost('id_ordem_servico');
+        if ($id_ordem_servico === null) {
+            $id_ordem_servico = $demandaObj->id_ordem_servico;
+        } else {
+            $id_ordem_servico = $id_ordem_servico ?: null;
+        }
 
         // Pré-requisito obrigatório
         if (empty($id_ordem_servico)) {
             return redirect()->back()->withInput()->with('error', 'O preenchimento da Ordem de Serviço é obrigatório.');
         }
 
+        $titulo = $this->request->getPost('titulo');
+        if ($titulo === null) {
+            $titulo = $demandaObj->titulo;
+        }
+
+        $descricao = $this->request->getPost('descricao');
+        if ($descricao === null) {
+            $descricao = $demandaObj->descricao;
+        }
+
+        $sistemaCritico = $this->request->getPost('sistema_critico');
+        if ($sistemaCritico === null) {
+            $sistemaCritico = $demandaObj->sistema_critico;
+        } else {
+            $sistemaCritico = $sistemaCritico ? 1 : 0;
+        }
+
+        $status = $this->request->getPost('status');
+        if ($status === null) {
+            $status = $demandaObj->status;
+        }
+
         $data = [
             'id_sistema' => $id_sistema,
             'id_ordem_servico' => $id_ordem_servico,
-            'titulo' => $this->request->getPost('titulo'),
-            'descricao' => $this->request->getPost('descricao'),
+            'titulo' => $titulo,
+            'descricao' => $descricao,
             'sistema_critico' => $sistemaCritico,
-            'status' => $this->request->getPost('status')
+            'status' => $status
         ];
 
         if ($this->demandaModel->update($id, $data)) {
@@ -381,6 +420,16 @@ class AgileController extends BaseController
     {
         $id_sprint = $this->request->getPost('id_sprint');
         $id_demanda = $this->request->getPost('id_demanda');
+
+        // Valida se todas as Histórias de Usuário estão na coluna "Pronto"
+        $itensNaoProntos = $this->backlogItemModel
+            ->where('id_demanda', $id_demanda)
+            ->where('status_kanban !=', 'Pronto')
+            ->countAllResults();
+
+        if ($itensNaoProntos > 0) {
+            return redirect()->back()->with('error', 'Não é possível encerrar a Sprint: todas as Histórias de Usuário devem estar na coluna Pronto.');
+        }
 
         // Atualiza a Sprint para Concluída
         $this->sprintModel->update($id_sprint, ['status' => 'Concluída']);

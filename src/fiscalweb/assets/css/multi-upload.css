@@ -5,7 +5,7 @@
 
 /* Checkboxes de controle */
 .form-group .mb-3,
-.mb-3 {
+#multi_upload_section .mb-3 {
     display: flex !important;
     align-items: flex-start !important;
     flex-wrap: nowrap !important;
@@ -15,7 +15,7 @@
 }
 
 .form-group .mb-3 input[type="checkbox"],
-.mb-3 input[type="checkbox"] {
+#multi_upload_section .mb-3 input[type="checkbox"] {
     margin-right: 0 !important;
     margin-top: 3px !important;
     margin-bottom: 0 !important;
@@ -26,7 +26,7 @@
 }
 
 .form-group .mb-3 label,
-.mb-3 label {
+#multi_upload_section .mb-3 label {
     display: inline-block !important;
     margin-bottom: 0 !important;
     margin-top: 0 !important;
@@ -41,7 +41,7 @@
     width: auto !important;
 }
 
-.mb-3 small.text-muted {
+#multi_upload_section .mb-3 small.text-muted {
     width: 100%;
     margin-left: 28px;
     margin-top: 5px;

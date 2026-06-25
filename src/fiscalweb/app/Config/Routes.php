@@ -369,6 +369,14 @@ $routes->post('insertReajusteItemContrato', 'ReajusteItemContratoController::ins
 $routes->post('updateReajusteItemContrato', 'ReajusteItemContratoController::update');
 $routes->delete('deleteReajusteItemContrato/(:num)', 'ReajusteItemContratoController::delete/$1');
 
+$routes->get('listMetrica', 'MetricaController::index');
+$routes->post('addMetrica', 'MetricaController::add');
+$routes->get('addMetrica', 'MetricaController::add');
+$routes->post('updMetrica', 'MetricaController::upd');
+$routes->post('insertMetrica', 'MetricaController::insert');
+$routes->post('updateMetrica', 'MetricaController::update');
+$routes->delete('deleteMetrica/(:num)', 'MetricaController::delete/$1');
+
 $routes->get('api/areas/(:num)', 'ApiController::getAreasByCatalogo/$1');
 $routes->get('api/atividades/(:num)', 'ApiController::getAtividadesByArea/$1');
 $routes->get('api/servicos/(:num)', 'ApiController::getServicosByAtividade/$1');

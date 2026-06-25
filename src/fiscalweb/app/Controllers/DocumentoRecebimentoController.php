@@ -62,7 +62,6 @@ class DocumentoRecebimentoController extends BaseController
         }
 
         // Buscar itens existentes do documento
-        $db = \Config\Database::connect();
         $builder = $db->table('item_documento_recebimento idr');
         $builder->select('
             idr.id, 
@@ -76,6 +75,7 @@ class DocumentoRecebimentoController extends BaseController
             s.sla_dias,
             io.id_servico,
             io.Profissional_Alocado as profissional_alocado,
+            mc.sigla as sigla_metrica,
             (SELECT valor_item_contrato 
              FROM reajuste_item_contrato 
              WHERE id_item_contrato = cs.id_item_contrato 
@@ -89,6 +89,8 @@ class DocumentoRecebimentoController extends BaseController
         $builder->join('atividade_macro am', 'am.id = s.id_atividade_macro', 'left');
         $builder->join('area_atuacao aa', 'aa.id = am.id_area_atuacao', 'left');
         $builder->join('catalogo_servicos cs', 'cs.id = aa.id_catalogo_servicos', 'left');
+        $builder->join('item_contrato ic', 'ic.id = cs.id_item_contrato', 'left');
+        $builder->join('metrica_contrato mc', 'mc.id = ic.id_metrica', 'left');
         $builder->where('idr.id_documento_recebimento', $id);
         $itens = $builder->get()->getResult();
         
@@ -97,7 +99,14 @@ class DocumentoRecebimentoController extends BaseController
             $remun = isset($item->remuneracao) ? (float)$item->remuneracao : 0;
             $qtd = isset($item->quantidade_entregue) ? (float)$item->quantidade_entregue : 0;
             $glosa = isset($item->glosa_horas) ? (float)$item->glosa_horas : 0;
-            $item->valor_remuneracao_item = ($qtd - $glosa) * $remun * $valContrato;
+            
+            $sigla = isset($item->sigla_metrica) ? strtoupper($item->sigla_metrica) : 'H';
+            if ($sigla === 'PF' || $sigla === 'PROF') {
+                $item->valor_remuneracao_item = ($qtd - $glosa) * $valContrato;
+            } else {
+                $item->valor_remuneracao_item = ($qtd - $glosa) * $remun * $valContrato;
+            }
+            
             $item->desc_servico = $item->descricao ? "Item {$item->numero_item} - {$item->descricao}" : "Item OS #{$item->id_item_os}";
             $item->profissional = $item->profissional_alocado;
 

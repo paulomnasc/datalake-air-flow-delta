@@ -22,7 +22,27 @@ class ApiController extends Controller
     public function getServicosByAtividade($id_atividade)
     {
         $db = \Config\Database::connect();
-        $servicos = $db->table('servico')->where('id_atividade_macro', $id_atividade)->get()->getResult();
+        
+        $dataReferencia = date('Y-m-d');
+        
+        $builder = $db->table('servico s');
+        $builder->select('
+            s.*, 
+            mc.sigla as sigla_metrica,
+            (SELECT valor_item_contrato 
+             FROM reajuste_item_contrato 
+             WHERE id_item_contrato = ic.id 
+             AND data_reajuste_item_contrato <= ' . $db->escape($dataReferencia) . ' 
+             ORDER BY data_reajuste_item_contrato DESC LIMIT 1) as valor_item_contrato
+        ');
+        $builder->join('atividade_macro am', 'am.id = s.id_atividade_macro', 'left');
+        $builder->join('area_atuacao aa', 'aa.id = am.id_area_atuacao', 'left');
+        $builder->join('catalogo_servicos cs', 'cs.id = aa.id_catalogo_servicos', 'left');
+        $builder->join('item_contrato ic', 'ic.id = cs.id_item_contrato', 'left');
+        $builder->join('metrica_contrato mc', 'mc.id = ic.id_metrica', 'left');
+        $builder->where('s.id_atividade_macro', $id_atividade);
+        $servicos = $builder->get()->getResult();
+        
         return $this->response->setJSON($servicos);
     }
 
@@ -43,6 +63,7 @@ class ApiController extends Controller
             s.descricao,
             s.remuneracao,
             s.sla_dias,
+            mc.sigla as sigla_metrica,
             (SELECT valor_item_contrato 
              FROM reajuste_item_contrato 
              WHERE id_item_contrato = cs.id_item_contrato 
@@ -54,6 +75,8 @@ class ApiController extends Controller
         $builder->join('atividade_macro am', 'am.id = s.id_atividade_macro', 'left');
         $builder->join('area_atuacao aa', 'aa.id = am.id_area_atuacao', 'left');
         $builder->join('catalogo_servicos cs', 'cs.id = aa.id_catalogo_servicos', 'left');
+        $builder->join('item_contrato ic', 'ic.id = cs.id_item_contrato', 'left');
+        $builder->join('metrica_contrato mc', 'mc.id = ic.id_metrica', 'left');
         $builder->where('oio.id_os', $id_os);
         $itens = $builder->get()->getResult();
         
@@ -61,7 +84,13 @@ class ApiController extends Controller
             $valContrato = isset($item->valor_item_contrato) ? (float)$item->valor_item_contrato : 0;
             $remun = isset($item->remuneracao) ? (float)$item->remuneracao : 0;
             $qtd = isset($item->quantidade_horas) ? (float)$item->quantidade_horas : 0;
-            $item->valor_remuneracao_item = $qtd * $remun * $valContrato;
+            
+            $sigla = isset($item->sigla_metrica) ? strtoupper($item->sigla_metrica) : 'H';
+            if ($sigla === 'PF' || $sigla === 'PROF') {
+                $item->valor_remuneracao_item = $qtd * $valContrato;
+            } else {
+                $item->valor_remuneracao_item = $qtd * $remun * $valContrato;
+            }
         }
 
         return $this->response->setJSON($itens);

@@ -127,9 +127,9 @@ require VIEWPATH.'/header.php';
                     <th>Nº Item</th>
                     <th>Descrição</th>
                     <th>SLA (Dias)</th>
-                    <th>Horas (Base)</th>
-                    <th>Glosa (Horas)</th>
-                    <th>Horas do Item</th>
+                    <th>Base (Métrica)</th>
+                    <th>Glosa (Métrica)</th>
+                    <th>Valor do Item</th>
                     <th>Observações</th>
                     <th>Verificações</th>
                     <th>Ações</th>
@@ -164,12 +164,17 @@ require VIEWPATH.'/header.php';
                 let totalDoc = 0;
                 docItems.forEach((item, index) => {
                     let valorItem = 0;
+                    let sigla = item.sigla_metrica ? item.sigla_metrica.toUpperCase() : 'H';
                     if (item.valor_remuneracao_item) {
                         valorItem = parseFloat(item.valor_remuneracao_item);
                     } else if (item.valor_item_contrato && item.remuneracao) {
                         let qtd = parseFloat(item.quantidade_entregue) || 0;
                         let glosa = parseFloat(item.glosa_horas) || 0;
-                        valorItem = (qtd - glosa) * parseFloat(item.remuneracao) * parseFloat(item.valor_item_contrato);
+                        if (sigla === 'PF' || sigla === 'PROF') {
+                            valorItem = (qtd - glosa) * parseFloat(item.valor_item_contrato);
+                        } else {
+                            valorItem = (qtd - glosa) * parseFloat(item.remuneracao) * parseFloat(item.valor_item_contrato);
+                        }
                         item.valor_remuneracao_item = valorItem;
                     }
                     totalDoc += valorItem;
@@ -178,15 +183,15 @@ require VIEWPATH.'/header.php';
 
                     tbody.append(`
                         <tr>
-                            <td>${item.quantidade_entregue}</td>
+                            <td>${item.quantidade_entregue} ${sigla}</td>
                             <td>${item.profissional || item.profissional_alocado || '-'}</td>
                             <td>${item.id_servico || '-'}</td>
                             <td>${item.numero_item || '-'}</td>
                             <td>${item.descricao || item.desc_servico || '-'}</td>
                             <td>${item.sla_dias || '-'}</td>
-                            <td>${item.remuneracao ? parseFloat(item.remuneracao).toFixed(2).replace('.', ',') : '-'}</td>
-                            <td>${item.glosa_horas || '0'}</td>
-                            <td>${formatCurrency(valorItem)}</td>
+                            <td>${item.remuneracao ? parseFloat(item.remuneracao).toFixed(2).replace('.', ',') + ' ' + sigla : '-'}</td>
+                            <td>${item.glosa_horas || '0'} ${sigla}</td>
+                            <td>R$ ${formatCurrency(valorItem)}</td>
                             <td>${item.observacoes || '-'}</td>
                             <td>
                                 <span class="badge ${checklistCount > 0 ? 'bg-success' : 'bg-secondary'}">${checklistCount} verificações</span>
@@ -345,6 +350,7 @@ require VIEWPATH.'/header.php';
                                     remuneracao: item.remuneracao,
                                     valor_item_contrato: item.valor_item_contrato,
                                     valor_remuneracao_item: item.valor_remuneracao_item || 0,
+                                    sigla_metrica: item.sigla_metrica,
                                     checklist: []
                                 });
                             });
@@ -391,6 +397,7 @@ require VIEWPATH.'/header.php';
                             sla_dias: osItemObj.sla_dias,
                             remuneracao: osItemObj.remuneracao,
                             valor_item_contrato: osItemObj.valor_item_contrato,
+                            sigla_metrica: osItemObj.sigla_metrica,
                             checklist: existingChecklist
                         };
                         editingIndex = -1;
@@ -409,6 +416,7 @@ require VIEWPATH.'/header.php';
                             sla_dias: osItemObj.sla_dias,
                             remuneracao: osItemObj.remuneracao,
                             valor_item_contrato: osItemObj.valor_item_contrato,
+                            sigla_metrica: osItemObj.sigla_metrica,
                             checklist: []
                         });
                     }

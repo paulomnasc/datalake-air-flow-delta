@@ -97,14 +97,14 @@ require VIEWPATH.'/header.php';
         <table class="data-table" id="itemsTable">
             <thead>
                 <tr>
-                    <th>Quantidade</th>
                     <th>Profissional</th>
                     <th>ID Serviço</th>
                     <th>Nº Item</th>
                     <th>Descrição</th>
                     <th>SLA (Dias)</th>
-                    <th>Horas (Base)</th>
-                    <th>Horas do Item</th>
+                    <th>Base (Métrica)</th>
+                    <th>Quantidade</th>
+                    <th>Valor do Item</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -135,16 +135,17 @@ require VIEWPATH.'/header.php';
                 osItems.forEach((item, index) => {
                     let valorItem = item.valor_remuneracao_item ? parseFloat(item.valor_remuneracao_item) : 0;
                     totalOs += valorItem;
+                    let sigla = item.sigla_metrica ? item.sigla_metrica.toUpperCase() : 'H';
                     tbody.append(`
                         <tr>
-                            <td>${item.quantidade_horas}</td>
                             <td>${item.profissional_alocado}</td>
                             <td>${item.id_servico}</td>
                             <td>${item.numero_item || '-'}</td>
                             <td>${item.descricao || '-'}</td>
                             <td>${item.sla_dias || '-'}</td>
-                            <td>${item.remuneracao ? parseFloat(item.remuneracao).toFixed(2).replace('.', ',') : '-'}</td>
-                            <td>${formatCurrency(valorItem)}</td>
+                            <td>${item.remuneracao ? parseFloat(item.remuneracao).toFixed(2).replace('.', ',') + ' ' + sigla : '-'}</td>
+                            <td>${item.quantidade_horas} ${sigla}</td>
+                            <td>R$ ${formatCurrency(valorItem)}</td>
                             <td>
                                 <button type="button" class="edit-button" onclick="editItem(${index})">✏️</button>
                                 <button type="button" class="delete-button" onclick="removeItem(${index})">🗑️</button>
@@ -265,6 +266,16 @@ require VIEWPATH.'/header.php';
                             servicoObj = currentServicos.find(s => s.id == servicoId) || {};
                             finalServicoId = servicoId;
                         }
+
+                        const valContrato = servicoObj.valor_item_contrato ? parseFloat(servicoObj.valor_item_contrato) : 0;
+                        const remun = servicoObj.remuneracao ? parseFloat(servicoObj.remuneracao) : 0;
+                        const sigla = servicoObj.sigla_metrica ? servicoObj.sigla_metrica.toUpperCase() : 'H';
+                        let valorCalculado = 0;
+                        if (sigla === 'PF' || sigla === 'PROF') {
+                            valorCalculado = parseFloat(qtd) * valContrato;
+                        } else {
+                            valorCalculado = parseFloat(qtd) * remun * valContrato;
+                        }
                         
                         osItems[editingIndex] = {
                             quantidade_horas: qtd,
@@ -276,7 +287,9 @@ require VIEWPATH.'/header.php';
                             numero_item: servicoObj.numero_item,
                             descricao: servicoObj.descricao,
                             sla_dias: servicoObj.sla_dias,
-                            remuneracao: servicoObj.remuneracao
+                            remuneracao: servicoObj.remuneracao,
+                            valor_remuneracao_item: valorCalculado,
+                            sigla_metrica: sigla
                         };
                         
                         editingIndex = -1;
@@ -289,6 +302,15 @@ require VIEWPATH.'/header.php';
                         }
                         
                         const servicoObj = currentServicos.find(s => s.id == servicoId) || {};
+                        const valContrato = servicoObj.valor_item_contrato ? parseFloat(servicoObj.valor_item_contrato) : 0;
+                        const remun = servicoObj.remuneracao ? parseFloat(servicoObj.remuneracao) : 0;
+                        const sigla = servicoObj.sigla_metrica ? servicoObj.sigla_metrica.toUpperCase() : 'H';
+                        let valorCalculado = 0;
+                        if (sigla === 'PF' || sigla === 'PROF') {
+                            valorCalculado = parseFloat(qtd) * valContrato;
+                        } else {
+                            valorCalculado = parseFloat(qtd) * remun * valContrato;
+                        }
                         
                         osItems.push({
                             quantidade_horas: qtd,
@@ -300,7 +322,9 @@ require VIEWPATH.'/header.php';
                             numero_item: servicoObj.numero_item,
                             descricao: servicoObj.descricao,
                             sla_dias: servicoObj.sla_dias,
-                            remuneracao: servicoObj.remuneracao
+                            remuneracao: servicoObj.remuneracao,
+                            valor_remuneracao_item: valorCalculado,
+                            sigla_metrica: sigla
                         });
                     }
                     

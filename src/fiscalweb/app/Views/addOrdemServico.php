@@ -269,9 +269,12 @@ require VIEWPATH.'/header.php';
 
                         const valContrato = servicoObj.valor_item_contrato ? parseFloat(servicoObj.valor_item_contrato) : 0;
                         const remun = servicoObj.remuneracao ? parseFloat(servicoObj.remuneracao) : 0;
+                        const baseHoras = servicoObj.base_horas_complexidade ? parseFloat(servicoObj.base_horas_complexidade) : 0;
                         const sigla = servicoObj.sigla_metrica ? servicoObj.sigla_metrica.toUpperCase() : 'H';
                         let valorCalculado = 0;
-                        if (sigla === 'PF' || sigla === 'PROF') {
+                        if (sigla === 'PROF') {
+                            valorCalculado = parseFloat(qtd) * baseHoras;
+                        } else if (sigla === 'PF') {
                             valorCalculado = parseFloat(qtd) * valContrato;
                         } else {
                             valorCalculado = parseFloat(qtd) * remun * valContrato;
@@ -288,6 +291,7 @@ require VIEWPATH.'/header.php';
                             descricao: servicoObj.descricao,
                             sla_dias: servicoObj.sla_dias,
                             remuneracao: servicoObj.remuneracao,
+                            base_horas_complexidade: servicoObj.base_horas_complexidade,
                             valor_remuneracao_item: valorCalculado,
                             sigla_metrica: sigla
                         };
@@ -304,9 +308,12 @@ require VIEWPATH.'/header.php';
                         const servicoObj = currentServicos.find(s => s.id == servicoId) || {};
                         const valContrato = servicoObj.valor_item_contrato ? parseFloat(servicoObj.valor_item_contrato) : 0;
                         const remun = servicoObj.remuneracao ? parseFloat(servicoObj.remuneracao) : 0;
+                        const baseHoras = servicoObj.base_horas_complexidade ? parseFloat(servicoObj.base_horas_complexidade) : 0;
                         const sigla = servicoObj.sigla_metrica ? servicoObj.sigla_metrica.toUpperCase() : 'H';
                         let valorCalculado = 0;
-                        if (sigla === 'PF' || sigla === 'PROF') {
+                        if (sigla === 'PROF') {
+                            valorCalculado = parseFloat(qtd) * baseHoras;
+                        } else if (sigla === 'PF') {
                             valorCalculado = parseFloat(qtd) * valContrato;
                         } else {
                             valorCalculado = parseFloat(qtd) * remun * valContrato;
@@ -323,6 +330,7 @@ require VIEWPATH.'/header.php';
                             descricao: servicoObj.descricao,
                             sla_dias: servicoObj.sla_dias,
                             remuneracao: servicoObj.remuneracao,
+                            base_horas_complexidade: servicoObj.base_horas_complexidade,
                             valor_remuneracao_item: valorCalculado,
                             sigla_metrica: sigla
                         });

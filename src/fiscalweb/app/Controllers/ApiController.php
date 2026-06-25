@@ -62,6 +62,7 @@ class ApiController extends Controller
             s.numero_item, 
             s.descricao,
             s.remuneracao,
+            s.base_horas_complexidade,
             s.sla_dias,
             mc.sigla as sigla_metrica,
             (SELECT valor_item_contrato 
@@ -83,10 +84,13 @@ class ApiController extends Controller
         foreach($itens as &$item) {
             $valContrato = isset($item->valor_item_contrato) ? (float)$item->valor_item_contrato : 0;
             $remun = isset($item->remuneracao) ? (float)$item->remuneracao : 0;
+            $baseHoras = isset($item->base_horas_complexidade) ? (float)$item->base_horas_complexidade : 0;
             $qtd = isset($item->quantidade_horas) ? (float)$item->quantidade_horas : 0;
             
             $sigla = isset($item->sigla_metrica) ? strtoupper($item->sigla_metrica) : 'H';
-            if ($sigla === 'PF' || $sigla === 'PROF') {
+            if ($sigla === 'PROF') {
+                $item->valor_remuneracao_item = $qtd * $baseHoras;
+            } elseif ($sigla === 'PF') {
                 $item->valor_remuneracao_item = $qtd * $valContrato;
             } else {
                 $item->valor_remuneracao_item = $qtd * $remun * $valContrato;

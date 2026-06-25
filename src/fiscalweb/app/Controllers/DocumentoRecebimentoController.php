@@ -72,6 +72,7 @@ class DocumentoRecebimentoController extends BaseController
             s.numero_item, 
             s.descricao, 
             s.remuneracao,
+            s.base_horas_complexidade,
             s.sla_dias,
             io.id_servico,
             io.Profissional_Alocado as profissional_alocado,
@@ -97,11 +98,14 @@ class DocumentoRecebimentoController extends BaseController
         foreach($itens as &$item) {
             $valContrato = isset($item->valor_item_contrato) ? (float)$item->valor_item_contrato : 0;
             $remun = isset($item->remuneracao) ? (float)$item->remuneracao : 0;
+            $baseHoras = isset($item->base_horas_complexidade) ? (float)$item->base_horas_complexidade : 0;
             $qtd = isset($item->quantidade_entregue) ? (float)$item->quantidade_entregue : 0;
             $glosa = isset($item->glosa_horas) ? (float)$item->glosa_horas : 0;
             
             $sigla = isset($item->sigla_metrica) ? strtoupper($item->sigla_metrica) : 'H';
-            if ($sigla === 'PF' || $sigla === 'PROF') {
+            if ($sigla === 'PROF') {
+                $item->valor_remuneracao_item = ($qtd - $glosa) * $baseHoras;
+            } elseif ($sigla === 'PF') {
                 $item->valor_remuneracao_item = ($qtd - $glosa) * $valContrato;
             } else {
                 $item->valor_remuneracao_item = ($qtd - $glosa) * $remun * $valContrato;

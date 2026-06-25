@@ -126,7 +126,6 @@ require VIEWPATH.'/header.php';
         <table class="data-table" id="itemsTable">
             <thead>
                 <tr>
-                    <th>Qtd Entregue</th>
                     <th>Profissional</th>
                     <th>ID Serviço</th>
                     <th>Nº Item</th>
@@ -134,6 +133,7 @@ require VIEWPATH.'/header.php';
                     <th>SLA (Dias)</th>
                     <th>Base (Métrica)</th>
                     <th>Glosa (Métrica)</th>
+                    <th>Qtd Entregue</th>
                     <th>Valor do Item</th>
                     <th>Observações</th>
                     <th>Verificações</th>
@@ -172,13 +172,16 @@ require VIEWPATH.'/header.php';
                     let sigla = item.sigla_metrica ? item.sigla_metrica.toUpperCase() : 'H';
                     if (item.valor_remuneracao_item) {
                         valorItem = parseFloat(item.valor_remuneracao_item);
-                    } else if (item.valor_item_contrato && item.remuneracao) {
+                    } else if (item.valor_item_contrato) {
                         let qtd = parseFloat(item.quantidade_entregue) || 0;
                         let glosa = parseFloat(item.glosa_horas) || 0;
-                        if (sigla === 'PF' || sigla === 'PROF') {
+                        let baseHoras = item.base_horas_complexidade ? parseFloat(item.base_horas_complexidade) : 0;
+                        if (sigla === 'PROF') {
+                            valorItem = (qtd - glosa) * baseHoras;
+                        } else if (sigla === 'PF') {
                             valorItem = (qtd - glosa) * parseFloat(item.valor_item_contrato);
                         } else {
-                            valorItem = (qtd - glosa) * parseFloat(item.remuneracao) * parseFloat(item.valor_item_contrato);
+                            valorItem = (qtd - glosa) * (parseFloat(item.remuneracao) || 0) * parseFloat(item.valor_item_contrato);
                         }
                         item.valor_remuneracao_item = valorItem;
                     }
@@ -188,7 +191,6 @@ require VIEWPATH.'/header.php';
 
                     tbody.append(`
                         <tr>
-                            <td>${item.quantidade_entregue} ${sigla}</td>
                             <td>${item.profissional || item.profissional_alocado || '-'}</td>
                             <td>${item.id_servico || '-'}</td>
                             <td>${item.numero_item || '-'}</td>
@@ -196,6 +198,7 @@ require VIEWPATH.'/header.php';
                             <td>${item.sla_dias || '-'}</td>
                             <td>${item.remuneracao ? parseFloat(item.remuneracao).toFixed(2).replace('.', ',') + ' ' + sigla : '-'}</td>
                             <td>${item.glosa_horas || '0'} ${sigla}</td>
+                            <td>${item.quantidade_entregue} ${sigla}</td>
                             <td>R$ ${formatCurrency(valorItem)}</td>
                             <td>${item.observacoes || '-'}</td>
                             <td>
@@ -382,6 +385,7 @@ require VIEWPATH.'/header.php';
                                         descricao: item.descricao,
                                         sla_dias: item.sla_dias,
                                         remuneracao: item.remuneracao,
+                                        base_horas_complexidade: item.base_horas_complexidade,
                                         valor_item_contrato: item.valor_item_contrato,
                                         valor_remuneracao_item: item.valor_remuneracao_item || 0,
                                         sigla_metrica: item.sigla_metrica,
@@ -435,6 +439,7 @@ require VIEWPATH.'/header.php';
                             descricao: osItemObj.descricao,
                             sla_dias: osItemObj.sla_dias,
                             remuneracao: osItemObj.remuneracao,
+                            base_horas_complexidade: osItemObj.base_horas_complexidade,
                             valor_item_contrato: osItemObj.valor_item_contrato,
                             sigla_metrica: osItemObj.sigla_metrica,
                             checklist: existingChecklist
@@ -455,6 +460,7 @@ require VIEWPATH.'/header.php';
                             descricao: osItemObj.descricao,
                             sla_dias: osItemObj.sla_dias,
                             remuneracao: osItemObj.remuneracao,
+                            base_horas_complexidade: osItemObj.base_horas_complexidade,
                             valor_item_contrato: osItemObj.valor_item_contrato,
                             sigla_metrica: osItemObj.sigla_metrica,
                             checklist: []

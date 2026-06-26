@@ -472,14 +472,21 @@ class AgileController extends BaseController
             $realizada = date('Y-m-d H:i:s');
         }
 
+        $tipo = $this->request->getPost('tipo_cerimonia');
+        $aprovado = null;
+        if ($tipo === 'Homologação') {
+            $aprovado = $this->request->getPost('aprovado') ? 1 : 0;
+        }
+
         $data = [
             'id_demanda' => $id_demanda,
-            'tipo_cerimonia' => $this->request->getPost('tipo_cerimonia'),
+            'tipo_cerimonia' => $tipo,
             'data_hora_agendada' => $this->request->getPost('data_hora_agendada'),
             'data_hora_realizada' => !empty($realizada) ? $realizada : null,
             'participantes_presentes' => json_encode($participantes),
             'ata_descritiva' => $ata,
-            'link_gravacao' => $this->request->getPost('link_gravacao')
+            'link_gravacao' => $this->request->getPost('link_gravacao'),
+            'aprovado' => $aprovado
         ];
 
         if (empty($id)) {

@@ -143,6 +143,13 @@ require VIEWPATH.'/header.php';
                                                 <div class="small text-muted">Agendado: <?= date('d/m/Y H:i', strtotime($c->data_hora_agendada)) ?></div>
                                                 <?php if ($c->data_hora_realizada): ?>
                                                     <div class="small text-success"><i class="fas fa-check-circle"></i> Realizado: <?= date('d/m/Y H:i', strtotime($c->data_hora_realizada)) ?></div>
+                                                    <?php if ($c->tipo_cerimonia === 'Homologação'): ?>
+                                                        <?php if (isset($c->aprovado) && $c->aprovado == 1): ?>
+                                                            <div class="small text-success fw-bold"><i class="fas fa-check"></i> Aprovado</div>
+                                                        <?php else: ?>
+                                                            <div class="small text-danger fw-bold"><i class="fas fa-times"></i> Reprovado</div>
+                                                        <?php endif; ?>
+                                                    <?php endif; ?>
                                                 <?php else: ?>
                                                     <div class="small text-warning"><i class="fas fa-clock"></i> Pendente de ata</div>
                                                 <?php endif; ?>
@@ -200,6 +207,17 @@ require VIEWPATH.'/header.php';
                         <div class="col-md-6 mb-3-cerimonia">
                             <label for="data_hora_agendada" class="form-label">Data/Hora Agendada</label>
                             <input type="datetime-local" class="form-control" id="cer-agendada" name="data_hora_agendada" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3" id="div-homologacao-check" style="display: none;">
+                        <div class="card bg-light border-0 py-2 px-3 mb-2">
+                            <div class="form-check form-switch d-flex align-items-center gap-2 mb-0">
+                                <input class="form-check-input" type="checkbox" name="aprovado" id="cer-aprovado" value="1" style="width: 40px; height: 20px; cursor: pointer; margin: 0;">
+                                <label class="form-check-label mb-0" for="cer-aprovado" style="cursor: pointer; user-select: none; font-size: 14px; font-weight: bold; padding-left: 5px;">
+                                    Homologação Aprovada? <span class="text-muted font-weight-normal">(Desmarque se Reprovada)</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
 
@@ -326,6 +344,19 @@ document.addEventListener("DOMContentLoaded", function() {
     if (ataTextarea) {
         ataTextarea.addEventListener('input', toggleRealizadaRequired);
     }
+
+    const cerTipoSelect = document.getElementById('cer-tipo');
+    if (cerTipoSelect) {
+        cerTipoSelect.addEventListener('change', function() {
+            const checkDiv = document.getElementById('div-homologacao-check');
+            if (this.value === 'Homologação') {
+                checkDiv.style.display = 'block';
+            } else {
+                checkDiv.style.display = 'none';
+                document.getElementById('cer-aprovado').checked = false;
+            }
+        });
+    }
 });
 
 function novaCerimonia() {
@@ -335,6 +366,8 @@ function novaCerimonia() {
     document.getElementById('cer-realizada').value = '';
     document.getElementById('cer-link').value = '';
     document.getElementById('cer-ata').value = '';
+    document.getElementById('div-homologacao-check').style.display = 'none';
+    document.getElementById('cer-aprovado').checked = false;
     $('.check-participante').prop('checked', false);
     
     toggleRealizadaRequired();
@@ -346,6 +379,15 @@ function novaCerimonia() {
 function editarCerimonia(c) {
     document.getElementById('cer-id').value = c.id;
     document.getElementById('cer-tipo').value = c.tipo_cerimonia;
+    
+    const checkDiv = document.getElementById('div-homologacao-check');
+    if (c.tipo_cerimonia === 'Homologação') {
+        checkDiv.style.display = 'block';
+        document.getElementById('cer-aprovado').checked = (c.aprovado == 1);
+    } else {
+        checkDiv.style.display = 'none';
+        document.getElementById('cer-aprovado').checked = false;
+    }
     
     // Formata datas
     if (c.data_hora_agendada) {

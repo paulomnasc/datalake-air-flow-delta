@@ -19,7 +19,8 @@ class CerimoniaModel extends Model
         'data_hora_realizada',
         'participantes_presentes',
         'ata_descritiva',
-        'link_gravacao'
+        'link_gravacao',
+        'aprovado'
     ];
 
     // Dates

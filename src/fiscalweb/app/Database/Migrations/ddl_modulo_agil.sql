@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS agile_cerimonias (
     participantes_presentes JSON NULL, -- Lista de IDs de usuários presentes
     ata_descritiva TEXT NULL,
     link_gravacao VARCHAR(512) NULL,
+    aprovado TINYINT(1) NULL DEFAULT NULL,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (id_demanda) REFERENCES agile_demandas(id) ON DELETE CASCADE

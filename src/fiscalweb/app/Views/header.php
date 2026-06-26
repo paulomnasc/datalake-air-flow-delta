@@ -542,6 +542,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 <a class="dropdown-item" href="<?= base_url('listContrato') ?>">📜 Contratos</a>
                                 <a class="dropdown-item" href="<?= base_url('listItemContrato') ?>">📝 Itens de Contrato</a>
                                 <a class="dropdown-item" href="<?= base_url('listReajusteItemContrato') ?>">📈 Reajustes de Contrato</a>
+                                <a class="dropdown-item" href="<?= base_url('listMetrica') ?>">📏 Métricas</a>
                                 <a class="dropdown-item" href="<?= base_url('listItemOs') ?>">🔧 Itens OS</a>
                                 <a class="dropdown-item" href="<?= base_url('listPerfil') ?>">🔐 Perfis</a>
                                 <a class="dropdown-item" href="<?= base_url('listStatus') ?>">📊 Status</a>
@@ -555,6 +556,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 <a class="dropdown-item" href="<?= base_url('listServico') ?>">🛠️ Serviços</a>
                                 <a class="dropdown-item" href="<?= base_url('listOrdemServico') ?>">📋 Ordens de Serviço (OS)</a>
                                 <a class="dropdown-item" href="<?= base_url('listDocumentoRecebimento') ?>">📄 Docs Recebimento</a>
+
+                                <div class="dropdown-divider"></div>
+                                <h6 class="dropdown-header text-primary fw-bold">📖 Ajuda</h6>
+                                <a class="dropdown-item" href="<?= base_url('docs/feature/fiscalizacao/manual_operacional_fiscalizacao.html') ?>" target="_blank">📖 Manual de Fiscalização</a>
                             </div>
                         </div>
                     </li>
@@ -869,6 +874,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             <a href="<?= base_url('listContrato') ?>" class="dropdown-item">Contratos</a>
                             <a href="<?= base_url('listItemContrato') ?>" class="dropdown-item">Itens de Contrato</a>
                             <a href="<?= base_url('listReajusteItemContrato') ?>" class="dropdown-item">Reajustes de Contrato</a>
+                            <a href="<?= base_url('listMetrica') ?>" class="dropdown-item">Métricas</a>
                             <a href="<?= base_url('listAvaliacaoQualidadeSla') ?>" class="dropdown-item">Avaliação SLA</a>
                             
                             <div class="dropdown-divider"></div>
@@ -876,6 +882,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             <a href="<?= base_url('listServico') ?>" class="dropdown-item">Serviços</a>
                             <a href="<?= base_url('listOrdemServico') ?>" class="dropdown-item">Ordens de Serviço (OS)</a>
                             <a href="<?= base_url('listDocumentoRecebimento') ?>" class="dropdown-item">Docs Recebimento</a>
+
+                            <div class="dropdown-divider"></div>
+                            <h6 class="dropdown-header text-primary fw-bold">AJUDA</h6>
+                            <a href="<?= base_url('docs/feature/fiscalizacao/manual_operacional_fiscalizacao.html') ?>" class="dropdown-item" target="_blank">📖 Manual de Fiscalização</a>
                         </div>
                     </div>
 

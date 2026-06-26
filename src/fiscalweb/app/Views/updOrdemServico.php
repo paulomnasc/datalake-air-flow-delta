@@ -54,45 +54,61 @@ require VIEWPATH.'/header.php';
         <hr style="margin: 30px 0;">
         
         <h4 style="text-align: center;">Itens da Ordem de Serviço</h4>
-        <div style="display: flex; gap: 10px; margin-bottom: 20px; align-items: flex-end;">
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_qtd">Quantidade:</label>
-                <input type="number" step="0.01" id="item_qtd" style="width: 100px;">
+        <div class="card p-3 mb-4 shadow-sm" style="background-color: #fdfdfd; border: 1px solid #e3e3e3; border-radius: 8px;">
+            <div class="row g-3">
+                <div class="col-12 col-sm-3 col-md-2">
+                    <div class="form-group mb-0">
+                        <label for="item_qtd" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Quantidade:</label>
+                        <input type="number" step="0.01" id="item_qtd" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                </div>
+                <div class="col-12 col-sm-9 col-md-10">
+                    <div class="form-group mb-0">
+                        <label for="item_prof" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Profissional:</label>
+                        <input type="text" id="item_prof" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="form-group mb-0">
+                        <label for="item_catalogo" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Catálogo:</label>
+                        <select id="item_catalogo" class="form-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;">
+                            <option value="">Selecione...</option>
+                            <?php if(isset($catalogos_list)): foreach($catalogos_list as $opt): ?>
+                                <option value="<?php echo $opt->id; ?>">
+                                    <?php echo $opt->descricao; ?>
+                                </option>
+                            <?php endforeach; endif; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="form-group mb-0">
+                        <label for="item_area" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Área:</label>
+                        <select id="item_area" class="form-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;" disabled>
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="form-group mb-0">
+                        <label for="item_macro" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Macro:</label>
+                        <select id="item_macro" class="form-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;" disabled>
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="form-group mb-0">
+                        <label for="item_servico" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Serviço:</label>
+                        <select id="item_servico" class="form-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;" disabled>
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-12 text-end mt-3">
+                    <button type="button" class="add-button" id="addItemBtn" style="margin: 0; padding: 10px 20px; display: inline-block; width: auto; font-weight: 600;">Adicionar Item</button>
+                </div>
             </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_prof">Profissional:</label>
-                <input type="text" id="item_prof" style="width: 200px;">
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_catalogo">Catálogo:</label>
-                <select id="item_catalogo" style="width: 120px;">
-                    <option value="">Selecione...</option>
-                    <?php if(isset($catalogos_list)): foreach($catalogos_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>">
-                            <?php echo $opt->descricao; ?>
-                        </option>
-                    <?php endforeach; endif; ?>
-                </select>
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_area">Área:</label>
-                <select id="item_area" style="width: 120px;" disabled>
-                    <option value="">Selecione...</option>
-                </select>
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_macro">Macro:</label>
-                <select id="item_macro" style="width: 120px;" disabled>
-                    <option value="">Selecione...</option>
-                </select>
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_servico">Serviço:</label>
-                <select id="item_servico" style="width: 120px;" disabled>
-                    <option value="">Selecione...</option>
-                </select>
-            </div>
-            <button type="button" class="add-button" id="addItemBtn" style="margin-bottom: 0; padding: 10px 15px;">Adicionar Item</button>
         </div>
 
         <table class="data-table" id="itemsTable">

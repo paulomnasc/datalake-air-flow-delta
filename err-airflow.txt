@@ -1,0 +1,98 @@
+meu airflow passou a exibir a seguinte mensagem ao invés de exibir a console:
+
+Ooops!
+Something bad has happened. For security reasons detailed information about the error is not logged.
+
+  * You should check your webserver logs and retrieve details of this error.
+
+  * When you get the logs, it might explain the reasons, you should also Look for similar issues using:
+
+     * GitHub Discussions
+     * GitHub Issues
+     * Stack Overflow
+     * the usual search engine you use on a daily basis
+
+    All those resources might help you to find a solution to your problem.
+
+  * if you run Airflow on a Managed Service, consider opening an issue using the service support channels
+
+  * only after you tried it all, and have difficulty with diagnosing and fixing the problem yourself,
+    get the logs with errors, describe results of your investigation so far, and consider creating a
+    bug report including this information.
+
+Python version: 3.10.14
+Airflow version: 2.9.1
+Node: redacted
+-------------------------------------------------------------------------------
+Error! Please contact server admin.
+Esse erro no Airflow 2.9.1 geralmente significa que o webserver não conseguiu renderizar a interface por causa de falhas internas — quase sempre ligadas a problemas de configuração, banco de dados, permissões ou dependências quebradas. O próximo passo é verificar os logs do webserver para identificar a causa exata.
+
+🔎 Passos imediatos de diagnóstico
+Verifique os logs do webserver  
+Normalmente ficam em:
+
+$AIRFLOW_HOME/logs/webserver.log
+
+Ou no serviço gerenciado (Kubernetes, Docker, systemd), via docker logs <container> ou journalctl -u airflow-webserver.
+
+Cheque o banco de dados
+
+Airflow depende de um banco (Postgres/MySQL).
+
+Erros comuns: connection refused, timeout, ou credenciais inválidas.
+
+Teste a conexão com airflow db check.
+
+Confirme versão e dependências
+
+Python 3.10.14 é suportado, mas pacotes extras podem estar faltando.
+
+Rode pip check para ver conflitos.
+
+Se atualizou recentemente, pode ser necessário airflow db upgrade.
+
+⚠️ Causas comuns
+Problema	Sintoma	Solução
+Banco de dados inacessível	Mensagens de timeout ou refused nos logs	Verifique sql_alchemy_conn no airflow.cfg
+Permissões de arquivo	“Permission denied” em logs	Ajuste permissões em $AIRFLOW_HOME
+Dependências quebradas	“ModuleNotFoundError”	Reinstale pacotes com pip install apache-airflow[all]
+Recursos insuficientes	Webserver reiniciando ou travando	Aumente memória/CPU ou ajuste workers
+Configuração incorreta	Erro ao carregar DAGs	Revise airflow.cfg e variáveis de ambiente
+
+
+🛠️ Ações recomendadas
+Rodar o webserver em modo debug
+
+bash
+airflow webserver --debug
+Isso mostra o erro diretamente no console.
+
+Checar DAGs problemáticos  
+Um DAG com erro de sintaxe pode travar a UI. Teste com:
+
+bash
+airflow dags list
+airflow dags show <dag_id>
+Reiniciar serviços
+
+airflow db reset (cuidado: apaga metadados)
+
+Reinicie scheduler e webserver.
+
+Ambiente isolado  
+Se nada funcionar, recrie o ambiente virtual:
+
+bash
+python -m venv venv
+source venv/bin/activate
+pip install apache-airflow==2.9.1
+🚨 Riscos e próximos passos
+Se estiver em Kubernetes/Docker, verifique se os pods não estão em CrashLoopBackOff ou OOMKilled.
+
+Se for serviço gerenciado (Astronomer, MWAA, etc.), abra chamado com suporte.
+
+Se for bug real, colete os logs e abra issue no GitHub do Airflow.
+
+👉 Minha sugestão prática: abra imediatamente o arquivo webserver.log e procure mensagens como 
+database connection timeout, permission denied ou ModuleNotFoundError. Isso vai indicar se o problema é infraestrutura, configuração ou código.
+Coletar esses logs no Linux Docker

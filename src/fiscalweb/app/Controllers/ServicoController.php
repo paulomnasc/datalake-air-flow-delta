@@ -66,7 +66,11 @@ class ServicoController extends BaseController
         $model = new ServicoModel();
         
         try {
-            $model->insert($data);
+            if ($model->insert($data) === false) {
+                $errors = $model->errors();
+                $errorMessage = !empty($errors) ? implode('<br>', $errors) : 'Falha ao inserir o registro.';
+                throw new \Exception($errorMessage);
+            }
             return $this->response->setJSON([
                 'status' => 'success',
                 'mensagem' => 'Registro inserido com sucesso!'
@@ -74,7 +78,7 @@ class ServicoController extends BaseController
         } catch (\Exception $e) {
             return $this->response->setJSON([
                 'status' => 'error',
-                'mensagem' => 'Falha ao inserir o registro: ' . $this->buildExceptionMessage($e)
+                'mensagem' => 'Falha ao inserir o registro:<br>' . $this->buildExceptionMessage($e)
             ]);
         }
     }
@@ -97,7 +101,11 @@ class ServicoController extends BaseController
         ];
         
         try {
-            $model->update($id, $data);
+            if ($model->update($id, $data) === false) {
+                $errors = $model->errors();
+                $errorMessage = !empty($errors) ? implode('<br>', $errors) : 'Falha ao atualizar o registro.';
+                throw new \Exception($errorMessage);
+            }
             return $this->response->setJSON([
                 'status' => 'success',
                 'mensagem' => 'Registro atualizado com sucesso!'
@@ -105,7 +113,7 @@ class ServicoController extends BaseController
         } catch (\Exception $e) {
             return $this->response->setJSON([
                 'status' => 'error',
-                'mensagem' => 'Falha ao atualizar o registro: ' . $this->buildExceptionMessage($e)
+                'mensagem' => 'Falha ao atualizar o registro:<br>' . $this->buildExceptionMessage($e)
             ]);
         }
     }

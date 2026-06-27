@@ -17,6 +17,8 @@ class ItemContratoController extends BaseController
     public function add()
     {
         $data = [];
+        $data['contrato_list'] = (new \App\Models\ContratoModel())->listToCombo();
+        $data['metrica_list'] = (new \App\Models\MetricaModel())->listToCombo();
 
         return view('addItemContrato', $data);
     }
@@ -28,6 +30,8 @@ class ItemContratoController extends BaseController
         $record = $model->find($id);
 
         $data = ['record' => $record];
+        $data['contrato_list'] = (new \App\Models\ContratoModel())->listToCombo();
+        $data['metrica_list'] = (new \App\Models\MetricaModel())->listToCombo();
 
         return view('updItemContrato', $data);
     }
@@ -35,11 +39,16 @@ class ItemContratoController extends BaseController
     public function list()  
     {
         $model = new ItemContratoModel();
-        return $model->findAll();
+        return $model->select('item_contrato.*, contrato.descricao as contrato_descricao, mc.nome as metrica_nome, mc.sigla as metrica_sigla')
+                     ->join('contrato', 'contrato.id = item_contrato.id_contrato', 'left')
+                     ->join('metrica_contrato mc', 'mc.id = item_contrato.id_metrica', 'left')
+                     ->findAll();
     }
 
     public function insert() 
     {
+        $id_contrato = $this->request->getPost('id_contrato');
+        $id_metrica = $this->request->getPost('id_metrica');
         $data = [
             'gestor_substituto' => $this->request->getPost('gestor_substituto'),
             'Numero_Contrato' => $this->request->getPost('Numero_Contrato'),
@@ -47,7 +56,9 @@ class ItemContratoController extends BaseController
             'Total_Horas_Contratadas' => $this->request->getPost('Total_Horas_Contratadas'),
             'Saldo_Horas' => $this->request->getPost('Saldo_Horas'),
             'Data_Inicio' => $this->request->getPost('Data_Inicio'),
-            'Data_Fim' => $this->request->getPost('Data_Fim')
+            'Data_Fim' => $this->request->getPost('Data_Fim'),
+            'id_contrato' => $id_contrato !== '' ? $id_contrato : null,
+            'id_metrica' => $id_metrica !== '' ? $id_metrica : 1
         ];
         
         $model = new ItemContratoModel();
@@ -70,6 +81,8 @@ class ItemContratoController extends BaseController
     {
         $model = new ItemContratoModel();
         $id = $this->request->getPost('id');
+        $id_contrato = $this->request->getPost('id_contrato');
+        $id_metrica = $this->request->getPost('id_metrica');
         $data = [
             'gestor_substituto' => $this->request->getPost('gestor_substituto'),
             'Numero_Contrato' => $this->request->getPost('Numero_Contrato'),
@@ -77,7 +90,9 @@ class ItemContratoController extends BaseController
             'Total_Horas_Contratadas' => $this->request->getPost('Total_Horas_Contratadas'),
             'Saldo_Horas' => $this->request->getPost('Saldo_Horas'),
             'Data_Inicio' => $this->request->getPost('Data_Inicio'),
-            'Data_Fim' => $this->request->getPost('Data_Fim')
+            'Data_Fim' => $this->request->getPost('Data_Fim'),
+            'id_contrato' => $id_contrato !== '' ? $id_contrato : null,
+            'id_metrica' => $id_metrica !== '' ? $id_metrica : 1
         ];
         
         try {

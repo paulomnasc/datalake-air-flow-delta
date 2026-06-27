@@ -531,21 +531,35 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <li>
                         <div class="dropdown">
                             <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
-                                📝 Cadastros
+                                🔍 FISCALIZAÇÃO
                             </a>
                             <div class="dropdown-menu">
+                                <h6 class="dropdown-header text-primary fw-bold">📝 Cadastros</h6>
                                 <a class="dropdown-item" href="<?= base_url('listAreaAtuacao') ?>">🏢 Áreas de Atuação</a>
                                 <a class="dropdown-item" href="<?= base_url('listAtividadeMacro') ?>">📊 Atividades Macro</a>
                                 <a class="dropdown-item" href="<?= base_url('listAvaliacaoQualidadeSla') ?>">⭐ Avaliação SLA</a>
                                 <a class="dropdown-item" href="<?= base_url('listCatalogoServicos') ?>">📚 Catálogo de Serviços</a>
+                                <a class="dropdown-item" href="<?= base_url('listContrato') ?>">📜 Contratos</a>
                                 <a class="dropdown-item" href="<?= base_url('listItemContrato') ?>">📝 Itens de Contrato</a>
                                 <a class="dropdown-item" href="<?= base_url('listReajusteItemContrato') ?>">📈 Reajustes de Contrato</a>
+                                <a class="dropdown-item" href="<?= base_url('listMetrica') ?>">📏 Métricas</a>
                                 <a class="dropdown-item" href="<?= base_url('listItemOs') ?>">🔧 Itens OS</a>
                                 <a class="dropdown-item" href="<?= base_url('listPerfil') ?>">🔐 Perfis</a>
                                 <a class="dropdown-item" href="<?= base_url('listStatus') ?>">📊 Status</a>
                                 <a class="dropdown-item" href="<?= base_url('listStatusRecebimento') ?>">✅ Status Recebimento</a>
                                 <a class="dropdown-item" href="<?= base_url('listTipoDocumento') ?>">📑 Tipos de Documento</a>
+                                <a class="dropdown-item" href="<?= base_url('listListaVerificacao') ?>">📋 Lista de Verificação</a>
                                 <a class="dropdown-item" href="<?= base_url('listUsuario') ?>">👤 Usuários</a>
+                                
+                                <div class="dropdown-divider"></div>
+                                <h6 class="dropdown-header text-primary fw-bold">⚡ Execução</h6>
+                                <a class="dropdown-item" href="<?= base_url('listServico') ?>">🛠️ Serviços</a>
+                                <a class="dropdown-item" href="<?= base_url('listOrdemServico') ?>">📋 Ordens de Serviço (OS)</a>
+                                <a class="dropdown-item" href="<?= base_url('listDocumentoRecebimento') ?>">📄 Docs Recebimento</a>
+
+                                <div class="dropdown-divider"></div>
+                                <h6 class="dropdown-header text-primary fw-bold">📖 Ajuda</h6>
+                                <a class="dropdown-item" href="<?= base_url('docs/feature/fiscalizacao/manual_operacional_fiscalizacao.html') ?>" target="_blank">📖 Manual de Fiscalização</a>
                             </div>
                         </div>
                     </li>
@@ -553,12 +567,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <li>
                         <div class="dropdown">
                             <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
-                                ⚡ Execução
+                                🚀 Gestão Ágil
                             </a>
                             <div class="dropdown-menu">
-                                <a class="dropdown-item" href="<?= base_url('listServico') ?>">🛠️ Serviços</a>
-                                <a class="dropdown-item" href="<?= base_url('listOrdemServico') ?>">📋 Ordens de Serviço (OS)</a>
-                                <a class="dropdown-item" href="<?= base_url('listDocumentoRecebimento') ?>">📄 Docs Recebimento</a>
+                                <a class="dropdown-item" href="<?= base_url('agile/dashboard') ?>">📊 Painel Ágil</a>
+                                <a class="dropdown-item" href="<?= base_url('agile/demandas') ?>">📋 Demandas</a>
+                                <a class="dropdown-item" href="<?= base_url('agile/sistemas') ?>">🖥️ Sistemas</a>
+                                <a class="dropdown-item" href="<?= base_url('docs/index.html') ?>" target="_blank">📖 Manual do Usuário</a>
                             </div>
                         </div>
                     </li>
@@ -608,7 +623,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
                 <li>
                     <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                        <a href="/docs/index.html" class="nav-link px-2 px-lg-2" target="_blank" style="color: #87ceeb;">
+                        <a href="<?= base_url('docs/index.html') ?>" class="nav-link px-2 px-lg-2" target="_blank" style="color: #87ceeb;">
                             📚 Documentação
                         </a>
                     <?php else: ?>
@@ -845,27 +860,42 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     -->
                     
                     <div class="nav-item dropdown">
-                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">CADASTROS</a>
+                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">FISCALIZAÇÃO</a>
                         <div class="dropdown-menu">
+                            <h6 class="dropdown-header text-primary fw-bold">CADASTROS</h6>
                             <a href="<?= base_url('listTipoDocumento') ?>" class="dropdown-item">Tipos de Documento</a>
+                            <a href="<?= base_url('listListaVerificacao') ?>" class="dropdown-item">Lista de Verificação</a>
                             <a href="<?= base_url('listStatus') ?>" class="dropdown-item">Status</a>
                             <a href="<?= base_url('listStatusRecebimento') ?>" class="dropdown-item">Status Recebimento</a>
                             <a href="<?= base_url('listItemOs') ?>" class="dropdown-item">Itens OS</a>
                             <a href="<?= base_url('listAtividadeMacro') ?>" class="dropdown-item">Atividades Macro</a>
                             <a href="<?= base_url('listAreaAtuacao') ?>" class="dropdown-item">Áreas de Atuação</a>
                             <a href="<?= base_url('listCatalogoServicos') ?>" class="dropdown-item">Catálogo de Serviços</a>
+                            <a href="<?= base_url('listContrato') ?>" class="dropdown-item">Contratos</a>
                             <a href="<?= base_url('listItemContrato') ?>" class="dropdown-item">Itens de Contrato</a>
                             <a href="<?= base_url('listReajusteItemContrato') ?>" class="dropdown-item">Reajustes de Contrato</a>
+                            <a href="<?= base_url('listMetrica') ?>" class="dropdown-item">Métricas</a>
                             <a href="<?= base_url('listAvaliacaoQualidadeSla') ?>" class="dropdown-item">Avaliação SLA</a>
-                        </div>
-                    </div>
-                    
-                    <div class="nav-item dropdown">
-                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">EXECUÇÃO</a>
-                        <div class="dropdown-menu">
+                            
+                            <div class="dropdown-divider"></div>
+                            <h6 class="dropdown-header text-primary fw-bold">EXECUÇÃO</h6>
                             <a href="<?= base_url('listServico') ?>" class="dropdown-item">Serviços</a>
                             <a href="<?= base_url('listOrdemServico') ?>" class="dropdown-item">Ordens de Serviço (OS)</a>
                             <a href="<?= base_url('listDocumentoRecebimento') ?>" class="dropdown-item">Docs Recebimento</a>
+
+                            <div class="dropdown-divider"></div>
+                            <h6 class="dropdown-header text-primary fw-bold">AJUDA</h6>
+                            <a href="<?= base_url('docs/feature/fiscalizacao/manual_operacional_fiscalizacao.html') ?>" class="dropdown-item" target="_blank">📖 Manual de Fiscalização</a>
+                        </div>
+                    </div>
+
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">GESTÃO ÁGIL</a>
+                        <div class="dropdown-menu">
+                            <a href="<?= base_url('agile/dashboard') ?>" class="dropdown-item">Painel Ágil</a>
+                            <a href="<?= base_url('agile/demandas') ?>" class="dropdown-item">Demandas</a>
+                            <a href="<?= base_url('agile/sistemas') ?>" class="dropdown-item">Sistemas</a>
+                            <a href="<?= base_url('docs/index.html') ?>" class="dropdown-item" target="_blank">📖 Manual do Usuário</a>
                         </div>
                     </div>
 

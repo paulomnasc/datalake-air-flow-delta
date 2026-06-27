@@ -34,6 +34,7 @@ class DocumentoRecebimentoController extends BaseController
         $data['id_usuario_fiscal_tecnico_list'] = (new UsuarioModel())->listToCombo();
         $data['id_usuario_fiscal_requisitante_list'] = (new UsuarioModel())->listToCombo();
         $data['id_usuario_gestor_list'] = (new UsuarioModel())->listToCombo();
+        $data['checklist_options'] = (new \App\Models\ListaVerificacaoModel())->findAll();
 
         return view('addDocumentoRecebimento', $data);
     }
@@ -50,9 +51,17 @@ class DocumentoRecebimentoController extends BaseController
         $data['id_usuario_fiscal_tecnico_list'] = (new UsuarioModel())->listToCombo();
         $data['id_usuario_fiscal_requisitante_list'] = (new UsuarioModel())->listToCombo();
         $data['id_usuario_gestor_list'] = (new UsuarioModel())->listToCombo();
+        $data['checklist_options'] = (new \App\Models\ListaVerificacaoModel())->findAll();
+
+        $idOs = $record->id_os;
+        $demandaModel = new \App\Models\DemandaModel();
+        $data['demanda_list'] = $demandaModel->where('id_ordem_servico', $idOs)->findAll();
+        $selectedDemanda = $demandaModel->find($record->id_demanda);
+        if ($selectedDemanda) {
+            $data['selected_demanda_title'] = "Demanda #{$selectedDemanda->id} - {$selectedDemanda->titulo}";
+        }
 
         // Buscar itens existentes do documento
-        $db = \Config\Database::connect();
         $builder = $db->table('item_documento_recebimento idr');
         $builder->select('
             idr.id, 
@@ -63,9 +72,11 @@ class DocumentoRecebimentoController extends BaseController
             s.numero_item, 
             s.descricao, 
             s.remuneracao,
+            s.base_horas_complexidade,
             s.sla_dias,
             io.id_servico,
             io.Profissional_Alocado as profissional_alocado,
+            mc.sigla as sigla_metrica,
             (SELECT valor_item_contrato 
              FROM reajuste_item_contrato 
              WHERE id_item_contrato = cs.id_item_contrato 
@@ -79,17 +90,33 @@ class DocumentoRecebimentoController extends BaseController
         $builder->join('atividade_macro am', 'am.id = s.id_atividade_macro', 'left');
         $builder->join('area_atuacao aa', 'aa.id = am.id_area_atuacao', 'left');
         $builder->join('catalogo_servicos cs', 'cs.id = aa.id_catalogo_servicos', 'left');
+        $builder->join('item_contrato ic', 'ic.id = cs.id_item_contrato', 'left');
+        $builder->join('metrica_contrato mc', 'mc.id = ic.id_metrica', 'left');
         $builder->where('idr.id_documento_recebimento', $id);
         $itens = $builder->get()->getResult();
         
         foreach($itens as &$item) {
             $valContrato = isset($item->valor_item_contrato) ? (float)$item->valor_item_contrato : 0;
             $remun = isset($item->remuneracao) ? (float)$item->remuneracao : 0;
+            $baseHoras = isset($item->base_horas_complexidade) ? (float)$item->base_horas_complexidade : 0;
             $qtd = isset($item->quantidade_entregue) ? (float)$item->quantidade_entregue : 0;
             $glosa = isset($item->glosa_horas) ? (float)$item->glosa_horas : 0;
-            $item->valor_remuneracao_item = ($qtd - $glosa) * $remun * $valContrato;
+            
+            $sigla = isset($item->sigla_metrica) ? strtoupper($item->sigla_metrica) : 'H';
+            if ($sigla === 'PROF') {
+                $item->valor_remuneracao_item = ($qtd - $glosa) * $baseHoras;
+            } elseif ($sigla === 'PF') {
+                $item->valor_remuneracao_item = ($qtd - $glosa) * $valContrato;
+            } else {
+                $item->valor_remuneracao_item = ($qtd - $glosa) * $remun * $valContrato;
+            }
+            
             $item->desc_servico = $item->descricao ? "Item {$item->numero_item} - {$item->descricao}" : "Item OS #{$item->id_item_os}";
             $item->profissional = $item->profissional_alocado;
+
+            // Buscar checklists cadastrados para o item
+            $checklists = $db->table('item_doc_rec_lista_ver')->where('id_item_doc_origem', $item->id)->get()->getResult();
+            $item->checklist = $checklists;
         }
         $data['items_json'] = json_encode($itens);
 
@@ -106,6 +133,7 @@ class DocumentoRecebimentoController extends BaseController
     {
         $data = [
             'id_os' => $this->request->getPost('id_os'),
+            'id_demanda' => $this->request->getPost('id_demanda'),
             'data_assinatura' => $this->request->getPost('data_assinatura'),
             'nup_sei' => $this->request->getPost('nup_sei'),
             'id_tipo_documento' => $this->request->getPost('id_tipo_documento'),
@@ -135,7 +163,17 @@ class DocumentoRecebimentoController extends BaseController
                             'glosa_horas' => $item['glosa_horas'] ?? 0,
                             'observacoes' => $item['observacoes'] ?? ''
                         ];
-                        $itemModel->insert($itemData);
+                        $idItemDoc = $itemModel->insert($itemData);
+                        
+                        if (!empty($item['checklist']) && is_array($item['checklist'])) {
+                            foreach ($item['checklist'] as $chk) {
+                                $db->table('item_doc_rec_lista_ver')->insert([
+                                    'id_lista_verificacao' => $chk['id_lista_verificacao'],
+                                    'id_item_doc_origem' => $idItemDoc,
+                                    'conforme' => $chk['conforme'] ? 1 : 0
+                                ]);
+                            }
+                        }
                     }
                 }
             }
@@ -165,6 +203,7 @@ class DocumentoRecebimentoController extends BaseController
         $id = $this->request->getPost('id');
         $data = [
             'id_os' => $this->request->getPost('id_os'),
+            'id_demanda' => $this->request->getPost('id_demanda'),
             'data_assinatura' => $this->request->getPost('data_assinatura'),
             'nup_sei' => $this->request->getPost('nup_sei'),
             'id_tipo_documento' => $this->request->getPost('id_tipo_documento'),
@@ -195,7 +234,17 @@ class DocumentoRecebimentoController extends BaseController
                             'glosa_horas' => $item['glosa_horas'] ?? 0,
                             'observacoes' => $item['observacoes'] ?? ''
                         ];
-                        $itemModel->insert($itemData);
+                        $idItemDoc = $itemModel->insert($itemData);
+                        
+                        if (!empty($item['checklist']) && is_array($item['checklist'])) {
+                            foreach ($item['checklist'] as $chk) {
+                                $db->table('item_doc_rec_lista_ver')->insert([
+                                    'id_lista_verificacao' => $chk['id_lista_verificacao'],
+                                    'id_item_doc_origem' => $idItemDoc,
+                                    'conforme' => $chk['conforme'] ? 1 : 0
+                                ]);
+                            }
+                        }
                     }
                 }
             }

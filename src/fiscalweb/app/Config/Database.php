@@ -53,8 +53,7 @@ class Database extends Config
             'failover' => [],
             'port'     => 3306,
         ];
-    
-
+        $this->tests['password'] = env('database.default.password', 'root');
     }
 
 

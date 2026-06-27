@@ -12,7 +12,7 @@ class DocumentoRecebimentoModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['id_os', 'data_assinatura', 'nup_sei', 'id_tipo_documento', 'id_usuario_fiscal_tecnico', 'id_usuario_fiscal_requisitante', 'id_usuario_gestor'];
+    protected $allowedFields    = ['id_os', 'id_demanda', 'data_assinatura', 'nup_sei', 'id_tipo_documento', 'id_usuario_fiscal_tecnico', 'id_usuario_fiscal_requisitante', 'id_usuario_gestor'];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;

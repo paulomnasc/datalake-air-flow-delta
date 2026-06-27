@@ -46,6 +46,26 @@ require VIEWPATH.'/header.php';
                 <input type="datetime-local" id="Data_Fim" name="Data_Fim" value="<?php echo isset($record->Data_Fim) ? $record->Data_Fim : ''; ?>" required>
             </div>
 
+            <div class="form-group">
+                <label for="id_contrato">Contrato:</label>
+                <select id="id_contrato" name="id_contrato">
+                    <option value="">Selecione um Contrato</option>
+                    <?php if(isset($contrato_list)): foreach($contrato_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if(isset($record->id_contrato) && $record->id_contrato == $opt->id) echo 'selected'; ?>><?php echo $opt->descricao; ?></option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_metrica">Métrica:</label>
+                <select id="id_metrica" name="id_metrica" required>
+                    <option value="">Selecione uma Métrica</option>
+                    <?php if(isset($metrica_list)): foreach($metrica_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if(isset($record->id_metrica) && $record->id_metrica == $opt->id) echo 'selected'; ?>><?php echo $opt->descricao; ?> (<?php echo $opt->sigla; ?>)</option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+
             <div class="button-group">
                 <button class="add-button" type="submit">Atualizar</button>
                 <a href="<?php echo site_url('listItemContrato'); ?>" class="add-button" style="text-decoration: none; background-color: #6c757d;">Voltar</a>

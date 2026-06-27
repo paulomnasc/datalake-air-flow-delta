@@ -53,58 +53,74 @@ require VIEWPATH.'/header.php';
         <hr style="margin: 30px 0;">
         
         <h4 style="text-align: center;">Itens da Ordem de Serviço</h4>
-        <div style="display: flex; gap: 10px; margin-bottom: 20px; align-items: flex-end;">
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_qtd">Quantidade:</label>
-                <input type="number" step="0.01" id="item_qtd" style="width: 100px;">
+        <div class="card p-3 mb-4 shadow-sm" style="background-color: #fdfdfd; border: 1px solid #e3e3e3; border-radius: 8px;">
+            <div class="row g-3">
+                <div class="col-12 col-sm-3 col-md-2">
+                    <div class="form-group mb-0">
+                        <label for="item_qtd" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Quantidade:</label>
+                        <input type="number" step="0.01" id="item_qtd" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                </div>
+                <div class="col-12 col-sm-9 col-md-10">
+                    <div class="form-group mb-0">
+                        <label for="item_prof" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Profissional:</label>
+                        <input type="text" id="item_prof" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="form-group mb-0">
+                        <label for="item_catalogo" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Catálogo:</label>
+                        <select id="item_catalogo" class="form-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;">
+                            <option value="">Selecione...</option>
+                            <?php if(isset($catalogos_list)): foreach($catalogos_list as $opt): ?>
+                                <option value="<?php echo $opt->id; ?>">
+                                    <?php echo $opt->descricao; ?>
+                                </option>
+                            <?php endforeach; endif; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="form-group mb-0">
+                        <label for="item_area" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Área:</label>
+                        <select id="item_area" class="form-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;" disabled>
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="form-group mb-0">
+                        <label for="item_macro" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Macro:</label>
+                        <select id="item_macro" class="form-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;" disabled>
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="form-group mb-0">
+                        <label for="item_servico" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Serviço:</label>
+                        <select id="item_servico" class="form-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;" disabled>
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-12 text-end mt-3">
+                    <button type="button" class="add-button" id="addItemBtn" style="margin: 0; padding: 10px 20px; display: inline-block; width: auto; font-weight: 600;">Adicionar Item</button>
+                </div>
             </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_prof">Profissional:</label>
-                <input type="text" id="item_prof" style="width: 200px;">
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_catalogo">Catálogo:</label>
-                <select id="item_catalogo" style="width: 120px;">
-                    <option value="">Selecione...</option>
-                    <?php if(isset($catalogos_list)): foreach($catalogos_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>">
-                            <?php echo $opt->descricao; ?>
-                        </option>
-                    <?php endforeach; endif; ?>
-                </select>
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_area">Área:</label>
-                <select id="item_area" style="width: 120px;" disabled>
-                    <option value="">Selecione...</option>
-                </select>
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_macro">Macro:</label>
-                <select id="item_macro" style="width: 120px;" disabled>
-                    <option value="">Selecione...</option>
-                </select>
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="item_servico">Serviço:</label>
-                <select id="item_servico" style="width: 120px;" disabled>
-                    <option value="">Selecione...</option>
-                </select>
-            </div>
-            <button type="button" class="add-button" id="addItemBtn" style="margin-bottom: 0; padding: 10px 15px;">Adicionar Item</button>
         </div>
 
         <table class="data-table" id="itemsTable">
             <thead>
                 <tr>
-                    <th>Quantidade</th>
                     <th>Profissional</th>
                     <th>ID Serviço</th>
                     <th>Nº Item</th>
                     <th>Descrição</th>
                     <th>SLA (Dias)</th>
-                    <th>Horas (Base)</th>
-                    <th>Horas do Item</th>
+                    <th>Base (Métrica)</th>
+                    <th>Quantidade</th>
+                    <th>Valor do Item</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -135,16 +151,17 @@ require VIEWPATH.'/header.php';
                 osItems.forEach((item, index) => {
                     let valorItem = item.valor_remuneracao_item ? parseFloat(item.valor_remuneracao_item) : 0;
                     totalOs += valorItem;
+                    let sigla = item.sigla_metrica ? item.sigla_metrica.toUpperCase() : 'H';
                     tbody.append(`
                         <tr>
-                            <td>${item.quantidade_horas}</td>
                             <td>${item.profissional_alocado}</td>
                             <td>${item.id_servico}</td>
                             <td>${item.numero_item || '-'}</td>
                             <td>${item.descricao || '-'}</td>
                             <td>${item.sla_dias || '-'}</td>
-                            <td>${item.remuneracao ? parseFloat(item.remuneracao).toFixed(2).replace('.', ',') : '-'}</td>
-                            <td>${formatCurrency(valorItem)}</td>
+                            <td>${item.remuneracao ? parseFloat(item.remuneracao).toFixed(2).replace('.', ',') + ' ' + sigla : '-'}</td>
+                            <td>${item.quantidade_horas} ${sigla}</td>
+                            <td>R$ ${formatCurrency(valorItem)}</td>
                             <td>
                                 <button type="button" class="edit-button" onclick="editItem(${index})">✏️</button>
                                 <button type="button" class="delete-button" onclick="removeItem(${index})">🗑️</button>
@@ -265,6 +282,19 @@ require VIEWPATH.'/header.php';
                             servicoObj = currentServicos.find(s => s.id == servicoId) || {};
                             finalServicoId = servicoId;
                         }
+
+                        const valContrato = servicoObj.valor_item_contrato ? parseFloat(servicoObj.valor_item_contrato) : 0;
+                        const remun = servicoObj.remuneracao ? parseFloat(servicoObj.remuneracao) : 0;
+                        const baseHoras = servicoObj.base_horas_complexidade ? parseFloat(servicoObj.base_horas_complexidade) : 0;
+                        const sigla = servicoObj.sigla_metrica ? servicoObj.sigla_metrica.toUpperCase() : 'H';
+                        let valorCalculado = 0;
+                        if (sigla === 'PROF') {
+                            valorCalculado = parseFloat(qtd) * baseHoras;
+                        } else if (sigla === 'PF') {
+                            valorCalculado = parseFloat(qtd) * valContrato;
+                        } else {
+                            valorCalculado = parseFloat(qtd) * remun * valContrato;
+                        }
                         
                         osItems[editingIndex] = {
                             quantidade_horas: qtd,
@@ -276,7 +306,10 @@ require VIEWPATH.'/header.php';
                             numero_item: servicoObj.numero_item,
                             descricao: servicoObj.descricao,
                             sla_dias: servicoObj.sla_dias,
-                            remuneracao: servicoObj.remuneracao
+                            remuneracao: servicoObj.remuneracao,
+                            base_horas_complexidade: servicoObj.base_horas_complexidade,
+                            valor_remuneracao_item: valorCalculado,
+                            sigla_metrica: sigla
                         };
                         
                         editingIndex = -1;
@@ -289,6 +322,18 @@ require VIEWPATH.'/header.php';
                         }
                         
                         const servicoObj = currentServicos.find(s => s.id == servicoId) || {};
+                        const valContrato = servicoObj.valor_item_contrato ? parseFloat(servicoObj.valor_item_contrato) : 0;
+                        const remun = servicoObj.remuneracao ? parseFloat(servicoObj.remuneracao) : 0;
+                        const baseHoras = servicoObj.base_horas_complexidade ? parseFloat(servicoObj.base_horas_complexidade) : 0;
+                        const sigla = servicoObj.sigla_metrica ? servicoObj.sigla_metrica.toUpperCase() : 'H';
+                        let valorCalculado = 0;
+                        if (sigla === 'PROF') {
+                            valorCalculado = parseFloat(qtd) * baseHoras;
+                        } else if (sigla === 'PF') {
+                            valorCalculado = parseFloat(qtd) * valContrato;
+                        } else {
+                            valorCalculado = parseFloat(qtd) * remun * valContrato;
+                        }
                         
                         osItems.push({
                             quantidade_horas: qtd,
@@ -300,7 +345,10 @@ require VIEWPATH.'/header.php';
                             numero_item: servicoObj.numero_item,
                             descricao: servicoObj.descricao,
                             sla_dias: servicoObj.sla_dias,
-                            remuneracao: servicoObj.remuneracao
+                            remuneracao: servicoObj.remuneracao,
+                            base_horas_complexidade: servicoObj.base_horas_complexidade,
+                            valor_remuneracao_item: valorCalculado,
+                            sigla_metrica: sigla
                         });
                     }
                     

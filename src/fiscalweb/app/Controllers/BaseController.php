@@ -107,6 +107,16 @@ abstract class BaseController extends Controller
             $message = $previous->getMessage();
         }
 
+        if (str_contains($message, 'Duplicate entry') || $e->getCode() == 1062) {
+            if (str_contains($message, 'servico_unique') || str_contains($message, 'numero_item')) {
+                return 'O Nº Item informado já está cadastrado para outro serviço.';
+            }
+            if (str_contains($message, 'servico_descr_unique_1') || str_contains($message, 'descricao')) {
+                return 'A Descrição informada já está cadastrada para outro serviço.';
+            }
+            return 'Um registro com estes dados já está cadastrado no sistema.';
+        }
+
         return trim($message) ?: 'Erro desconhecido no servidor.';
     }
 }

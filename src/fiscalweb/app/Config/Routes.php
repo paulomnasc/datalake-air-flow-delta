@@ -302,6 +302,7 @@ $routes->post('updateServico', 'ServicoController::update');
 $routes->delete('deleteServico/(:num)', 'ServicoController::delete/$1');
 $routes->get('getServicoByMacro/(:num)', 'ServicoController::getByMacro/$1');
 $routes->get('getMacroByServico/(:num)', 'ServicoController::getMacroByServico/$1');
+$routes->get('listAtividadeMacro', 'AtividadeMacroController::index');
 $routes->post('addAtividadeMacro', 'AtividadeMacroController::add');
 $routes->get('addAtividadeMacro', 'AtividadeMacroController::add');
 $routes->post('updAtividadeMacro', 'AtividadeMacroController::upd');
@@ -322,6 +323,14 @@ $routes->post('updCatalogoServicos', 'CatalogoServicosController::upd');
 $routes->post('insertCatalogoServicos', 'CatalogoServicosController::insert');
 $routes->post('updateCatalogoServicos', 'CatalogoServicosController::update');
 $routes->delete('deleteCatalogoServicos/(:num)', 'CatalogoServicosController::delete/$1');
+$routes->get('listContrato', 'ContratoController::index');
+$routes->post('addContrato', 'ContratoController::add');
+$routes->get('addContrato', 'ContratoController::add');
+$routes->post('updContrato', 'ContratoController::upd');
+$routes->post('insertContrato', 'ContratoController::insert');
+$routes->post('updateContrato', 'ContratoController::update');
+$routes->delete('deleteContrato/(:num)', 'ContratoController::delete/$1');
+
 $routes->get('listItemContrato', 'ItemContratoController::index');
 $routes->post('addItemContrato', 'ItemContratoController::add');
 $routes->get('addItemContrato', 'ItemContratoController::add');
@@ -336,6 +345,14 @@ $routes->post('updDocumentoRecebimento', 'DocumentoRecebimentoController::upd');
 $routes->post('insertDocumentoRecebimento', 'DocumentoRecebimentoController::insert');
 $routes->post('updateDocumentoRecebimento', 'DocumentoRecebimentoController::update');
 $routes->delete('deleteDocumentoRecebimento/(:num)', 'DocumentoRecebimentoController::delete/$1');
+
+$routes->get('listListaVerificacao', 'ListaVerificacaoController::index');
+$routes->post('addListaVerificacao', 'ListaVerificacaoController::add');
+$routes->get('addListaVerificacao', 'ListaVerificacaoController::add');
+$routes->post('updListaVerificacao', 'ListaVerificacaoController::upd');
+$routes->post('insertListaVerificacao', 'ListaVerificacaoController::insert');
+$routes->post('updateListaVerificacao', 'ListaVerificacaoController::update');
+$routes->delete('deleteListaVerificacao/(:num)', 'ListaVerificacaoController::delete/$1');
 $routes->get('listAvaliacaoQualidadeSla', 'AvaliacaoQualidadeSlaController::index');
 $routes->post('addAvaliacaoQualidadeSla', 'AvaliacaoQualidadeSlaController::add');
 $routes->get('addAvaliacaoQualidadeSla', 'AvaliacaoQualidadeSlaController::add');
@@ -352,6 +369,14 @@ $routes->post('insertReajusteItemContrato', 'ReajusteItemContratoController::ins
 $routes->post('updateReajusteItemContrato', 'ReajusteItemContratoController::update');
 $routes->delete('deleteReajusteItemContrato/(:num)', 'ReajusteItemContratoController::delete/$1');
 
+$routes->get('listMetrica', 'MetricaController::index');
+$routes->post('addMetrica', 'MetricaController::add');
+$routes->get('addMetrica', 'MetricaController::add');
+$routes->post('updMetrica', 'MetricaController::upd');
+$routes->post('insertMetrica', 'MetricaController::insert');
+$routes->post('updateMetrica', 'MetricaController::update');
+$routes->delete('deleteMetrica/(:num)', 'MetricaController::delete/$1');
+
 $routes->get('api/areas/(:num)', 'ApiController::getAreasByCatalogo/$1');
 $routes->get('api/atividades/(:num)', 'ApiController::getAtividadesByArea/$1');
 $routes->get('api/servicos/(:num)', 'ApiController::getServicosByAtividade/$1');
@@ -359,3 +384,42 @@ $routes->get('api/servicos/(:num)', 'ApiController::getServicosByAtividade/$1');
 $routes->get('api/itens_os/(:num)', 'ApiController::getItensByOs/$1');
 
 $routes->get('api/os_details/(:num)', 'ApiController::getOsDetails/$1');
+$routes->get('api/demandas_os/(:num)', 'ApiController::getDemandasByOs/$1');
+
+// --- ROTAS DO MÓDULO ÁGIL (Sem RBAC) ---
+$routes->group('agile', function($routes) {
+    $routes->get('dashboard', 'AgileController::dashboard', ['as' => 'agile.dashboard']);
+    $routes->get('demandas', 'AgileController::index', ['as' => 'agile.demandas']);
+    $routes->get('demanda/add', 'AgileController::add', ['as' => 'agile.demanda.add']);
+    $routes->post('demanda/insert', 'AgileController::insert', ['as' => 'agile.demanda.insert']);
+    $routes->post('demanda/upd', 'AgileController::upd', ['as' => 'agile.demanda.upd']);
+    $routes->post('demanda/update', 'AgileController::update', ['as' => 'agile.demanda.update']);
+    $routes->delete('demanda/delete/(:num)', 'AgileController::delete/$1', ['as' => 'agile.demanda.delete']);
+    
+    // Cadastro de Sistemas
+    $routes->get('sistemas', 'AgileController::sistemas', ['as' => 'agile.sistemas']);
+    $routes->post('sistemas/salvar', 'AgileController::salvarSistema', ['as' => 'agile.sistemas.salvar']);
+    $routes->delete('sistemas/deletar/(:num)', 'AgileController::deletarSistema/$1', ['as' => 'agile.sistemas.deletar']);
+    
+    // Backlog do Produto
+    $routes->get('backlog/(:num)', 'AgileController::backlog/$1', ['as' => 'agile.backlog']);
+    $routes->post('backlog/salvar-item', 'AgileController::salvarBacklogItem', ['as' => 'agile.backlog.salvar_item']);
+    $routes->post('backlog/salvar-ordem', 'AgileController::salvarBacklogOrdem', ['as' => 'agile.backlog.salvar_ordem']);
+    $routes->delete('backlog/deletar-item/(:num)', 'AgileController::deletarBacklogItem/$1', ['as' => 'agile.backlog.deletar_item']);
+    
+    // Kanban e Sprints
+    $routes->get('kanban/(:num)', 'AgileController::kanban/$1', ['as' => 'agile.kanban']);
+    $routes->post('kanban/update-status', 'AgileController::updateKanbanStatus', ['as' => 'agile.kanban.update_status']);
+    $routes->post('sprint/salvar', 'AgileController::salvarSprint', ['as' => 'agile.sprint.salvar']);
+    $routes->post('sprint/review', 'AgileController::salvarSprintReview', ['as' => 'agile.sprint.review']);
+    
+    // Cerimônias e Ritos
+    $routes->post('cerimonia/agendar', 'AgileController::agendarCerimonia', ['as' => 'agile.cerimonia.agendar']);
+    $routes->post('cerimonia/salvar', 'AgileController::salvarCerimonia', ['as' => 'agile.cerimonia.salvar']);
+    $routes->delete('cerimonia/deletar/(:num)', 'AgileController::deletarCerimonia/$1', ['as' => 'agile.cerimonia.deletar']);
+    
+    // Homologação e Releases
+    $routes->post('demanda/homologar', 'AgileController::salvarHomologacao', ['as' => 'agile.demanda.homologar']);
+    $routes->post('demanda/release', 'AgileController::salvarRelease', ['as' => 'agile.demanda.release']);
+});
+

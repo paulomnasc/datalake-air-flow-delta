@@ -51,10 +51,12 @@ class OrdemServicoController extends BaseController
             s.descricao, 
             s.sla_dias, 
             s.remuneracao, 
+            s.base_horas_complexidade,
             s.id_atividade_macro as id_macro, 
             am.id_area_atuacao as id_area, 
             aa.id_catalogo_servicos as id_catalogo,
             cs.id_item_contrato,
+            mc.sigla as sigla_metrica,
             (SELECT valor_item_contrato 
              FROM reajuste_item_contrato 
              WHERE id_item_contrato = cs.id_item_contrato 
@@ -66,14 +68,25 @@ class OrdemServicoController extends BaseController
         $builder->join('atividade_macro am', 'am.id = s.id_atividade_macro', 'left');
         $builder->join('area_atuacao aa', 'aa.id = am.id_area_atuacao', 'left');
         $builder->join('catalogo_servicos cs', 'cs.id = aa.id_catalogo_servicos', 'left');
+        $builder->join('item_contrato ic', 'ic.id = cs.id_item_contrato', 'left');
+        $builder->join('metrica_contrato mc', 'mc.id = ic.id_metrica', 'left');
         $builder->where('oio.id_os', $id);
         $itens = $builder->get()->getResult();
         
         foreach($itens as &$item) {
             $valContrato = isset($item->valor_item_contrato) ? (float)$item->valor_item_contrato : 0;
             $remun = isset($item->remuneracao) ? (float)$item->remuneracao : 0;
+            $baseHoras = isset($item->base_horas_complexidade) ? (float)$item->base_horas_complexidade : 0;
             $qtd = isset($item->quantidade_horas) ? (float)$item->quantidade_horas : 0;
-            $item->valor_remuneracao_item = $qtd * $remun * $valContrato;
+            
+            $sigla = isset($item->sigla_metrica) ? strtoupper($item->sigla_metrica) : 'H';
+            if ($sigla === 'PROF') {
+                $item->valor_remuneracao_item = $qtd * $baseHoras;
+            } elseif ($sigla === 'PF') {
+                $item->valor_remuneracao_item = $qtd * $valContrato;
+            } else {
+                $item->valor_remuneracao_item = $qtd * $remun * $valContrato;
+            }
         }
         $data['items_json'] = json_encode($itens);
 

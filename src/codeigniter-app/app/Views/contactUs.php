@@ -31,21 +31,21 @@ require VIEWPATH . '/header.php';
                                 <p class="mb-0">Brasilia, DF, BR</p>
                             </div>
                         </div>
-                        <div class="d-flex align-items-center mb-3">
+                        <!-- div class="d-flex align-items-center mb-3">
                             <div class="d-flex align-items-center justify-content-center flex-shrink-0 bg-primary" style="width: 50px; height: 50px;">
                                 <i class="fa fa-phone-alt text-white"></i>
                             </div>
-                            <!-- div class="ms-3">
+                            <div class="ms-3">
                                 <h5 class="text-primary">Mobile</h5>
                                 <p class="mb-0">+012 345 67890</p>
-                            </div-->
+                            </div>
                         </div>
                         <div class="d-flex align-items-center">
                             <div class="d-flex align-items-center justify-content-center flex-shrink-0 bg-primary" style="width: 50px; height: 50px;">
                                 <i class="fa fa-envelope-open text-white"></i>
                             </div>
                             
-                        </div>
+                        </div-->
                     </div>
                     <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.3s">
                         <iframe class="position-relative rounded w-100 h-100"

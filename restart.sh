@@ -23,7 +23,7 @@ docker compose -f $COMPOSE_FILE build --no-cache airflow-webserver airflow-sched
 
 echo ""
 echo "3. 🚀 Iniciando serviços base (Postgres, MySQL, Redis, MinIO)..."
-docker compose -f $COMPOSE_FILE up -d postgres mysql redis minio
+docker compose -f $COMPOSE_FILE up -d postgres postgres-bi mysql redis minio
 
 echo ""
 echo "4. ⏳ Aguardando bancos de dados (15s)..."
@@ -59,6 +59,10 @@ echo "9.1. ✅ Spark Thrift desativado. DuckDB é o endpoint SQL."
 echo ""
 echo "9. 🌐 Iniciando CodeIgniter App..."
 docker compose -f $COMPOSE_FILE up -d codeigniter-app
+
+echo ""
+echo "9.2. 🌐 Iniciando FiscalWeb e Metabase..."
+docker compose -f $COMPOSE_FILE up -d fiscalweb metabase
 
 echo ""
 echo "10. 📚 [OPCIONAL] Subindo Jupyter Lab (profile: atlas)..."

@@ -13,7 +13,8 @@ pyyaml
 PyMySQL
 debugpy
 psycopg2-binary
- pandasazure-storage-blob==12.19.0
+pandas
+azure-storage-blob==12.19.1
 dbt-core>=1.5.0
 dbt-postgres>=1.5.0
 

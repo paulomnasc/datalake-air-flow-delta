@@ -85,6 +85,7 @@ services:
     image: postgres:13
     container_name: postgres${ENV_SUFFIX:+-${ENV_SUFFIX}}
     restart: always
+    command: postgres -c max_connections=300
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -198,7 +199,6 @@ services:
     restart: always
     depends_on:
       - postgres
-      - atlas
     environment:
       - ENV_SUFFIX=${ENV_SUFFIX:-dev}
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
@@ -436,6 +436,8 @@ services:
   atlas:
     image: sburn/apache-atlas:latest
     container_name: apache-atlas${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    profiles:
+      - atlas
     ports:
       - "${ATLAS_PORT}:21000"
     environment:

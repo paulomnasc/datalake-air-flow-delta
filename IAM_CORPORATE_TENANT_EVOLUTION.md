@@ -167,3 +167,49 @@ A VM atual que hospeda a stack MyDataFlow executa um ecossistema denso de servi�
 
 > [!TIP]
 > **Recomendação de Escalar Horizontalmente**: Conforme o MVP ganhe tração, a estratégia ideal de hardware é mover os contêineres transientes dbt, Workers do Airflow e Apache Spark de uma VM central para um cluster Kubernetes gerenciado (como EKS ou GKE). Isso permite que o processamento pesado de dados escale horizontalmente sob demanda, mantendo a VM principal apenas para a aplicação CodeIgniter, PostgreSQL e MySQL.
+
+---
+
+## 🛡️ 6. Estratégia de Ambientes DTH (Desenvolvimento, Teste, Homologação) e Mitigação de Riscos
+
+Concordamos plenamente com a preocupação. Realizar uma evolução de arquitetura deste porte (transição de modelo mono-inquilino para corporativo + implantação de IAM/SSO) diretamente em um único ambiente de produção envolve riscos críticos, como indisponibilidade da plataforma para os alunos ativos, corrupção de schemas analíticos e vazamento de permissões.
+
+Para mitigar esses riscos, é indispensável adotar um pipeline estruturado de ambientes **DTH (Dev ➔ Test ➔ Homolog ➔ Prod)**:
+
+```mermaid
+graph LR
+    Dev[1. Dev Local / VM Dev] -->|Git PR| Test[2. Test / VM QA]
+    Test -->|Aprovação QA| Staging[3. Staging / Homolog]
+    Staging -->|Promover / Release| Prod[4. Produção]
+```
+
+### A. Papel de cada Ambiente no Pipeline
+
+1. **Desenvolvimento (Dev - Local / VM Isolada)**:
+   * **Objetivo**: Implementação inicial das migrations, ajustes nas classes `SessionHelper` e `MetabaseHelper`, e criação do driver SSO.
+   * **Isolamento**: Utilização do Docker Compose local. Nenhuma alteração afeta outros desenvolvedores ou usuários reais.
+2. **Testes / QA (VM de Teste dedicada)**:
+   * **Objetivo**: Execução de baterias de testes automatizados unitários e de integração (Python, PHPUnit, validação de integridade de schemas).
+   * **Isolamento**: Limpeza de banco e reinstalação a cada bateria de testes.
+3. **Homologação / Staging (Réplica da Produção)**:
+   * **Objetivo**: Validar a coexistência do modelo mono-inquilino com a versão corporativa.
+   * **Estratégia de Risco Zero**: Esta VM deve conter uma cópia anonimizada dos dados da produção atual. É aqui que o script de migração para o **Tenant Polimórfico** será homologado.
+   * **Testes Críticos**: Testes de concorrência com múltiplos usuários corporativos simulados e auditoria fina de logs no Metabase e PostgreSQL.
+4. **Produção (Prod)**:
+   * **Objetivo**: Entrega segura para o cliente final.
+   * **Regra de Deploy**: Apenas código exaustivamente testado e aprovado em Staging é deployado em produção.
+
+### B. Protocolo de Implantação e Plano de Rollback
+
+No dia da migração em Produção, o seguinte protocolo de mitigação deve ser seguido rigorosamente:
+
+1. **Janela de Manutenção**: Agendar período de menor uso do sistema.
+2. **Backup Completo e Físico (Ponto de Restauração)**:
+   * Snapshot da VM de produção.
+   * Dump do banco MySQL (`backup.sql`) e PostgreSQL (`datalake_bi`).
+   * Cópia de segurança dos metadados do Airflow.
+3. **Aplicação das Migrations em Modo Transacional**:
+   * As migrations do banco MySQL que alteram as tabelas `usuarios` e adicionam `tenants` devem rodar sob transações SQL (`START TRANSACTION`), permitindo rollback automático em caso de erro no script.
+4. **Deploy por Blue-Green ou Feature Flags**:
+   * A lógica de redirecionamento corporativo no CodeIgniter pode ser protegida por uma *Feature Flag* (ex: `enable_corporate_tenant = true`). Em caso de qualquer comportamento anômalo, a flag pode ser desligada instantaneamente via painel admin, retornando 100% dos usuários ao comportamento monousuário legado sem necessidade de novo deploy.
+5. **Rollback Rápido**: Caso a feature flag não sane o problema e ocorram falhas catastróficas, o snapshot da VM é restaurado imediatamente.

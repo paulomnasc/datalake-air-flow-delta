@@ -147,26 +147,28 @@ O plano de desenvolvimento do MVP está dividido em **5 Sprints de 1 a 2 semanas
 
 ---
 
-## ⚡ 5. Pré-requisitos de Evolução de Hardware
+## ⚡ 5. Pré-requisitos de Evolução de Hardware e Avaliação do Host Atual
 
-A VM atual que hospeda a stack MyDataFlow executa um ecossistema denso de serviços (Nginx, Spark Master/Worker, PostgreSQL Airflow, PostgreSQL BI, Redis, MySQL, Airflow, MinIO, DuckDB API e Metabase) em um único nó. A evolução para multi-usuários ativos simultaneamente rodando pipelines e compilações dbt exige um redimensionamento de infraestrutura:
+A VM host atual que hospeda a stack MyDataFlow executa um ecossistema denso de serviços (Nginx, Spark Master/Worker, PostgreSQL Airflow, PostgreSQL BI, Redis, MySQL, Airflow, MinIO, DuckDB API e Metabase) em um único nó. A evolução para a versão corporativa com multi-usuários ativos rodando pipelines e contêineres dbt exige avaliarmos a capacidade do servidor:
 
-### A. Gargalos Identificados na Infraestrutura Atual
-1. **CPU**: A compilação do dbt Core em contêineres temporários concorre diretamente com as execuções de workers do Airflow e as threads do Spark local.
-2. **Memória (RAM)**: Cada executor Spark consome entre 1GB a 2GB, e cada container transiente dbt consome 512MB. Com 5 a 10 desenvolvedores de uma mesma empresa ativos no dbt, o servidor central pode sofrer exaustão de memória.
-3. **Escrita/Leitura em Disco (IOPS)**: O processamento de dados Delta/Parquet via DuckDB/Spark no MinIO gera alto volume de I/O local nos volumes montados do Docker.
+### A. Gargalos de Recursos com Múltiplos Usuários
+1. **CPU**: A compilação concorrente do dbt Core em contêineres temporários concorre com o processamento do Spark local.
+2. **Memória (RAM)**: Com 5 a 10 desenvolvedores de uma mesma empresa ativos no dbt, o consumo de RAM dos contêineres transientes dbt (512MB cada) e executores Spark local (1GB a 2GB cada) pode gerar picos de uso.
+3. **Escrita em Disco (IOPS)**: O processamento de dados Parquet/Delta no MinIO local gera picos de I/O de disco.
 
-### B. Especificação Recomendada para a VM
+### B. Avaliação da VM Host Atual vs. Requisitos do MVP e Escala
 
-| Recurso | VM Atual (Mono-usuário) | VM Recomendada (Suporte Corporativo MVP) |
-| :--- | :--- | :--- |
-| **vCPUs** | 4 vCPUs | **8 a 16 vCPUs** (otimizadas para computação) |
-| **Memória RAM** | 8 GB | **16 a 32 GB RAM** (evita falhas de OOM no dbt/Spark) |
-| **Armazenamento** | SSD Padrão | **SSD NVMe (Min. 3000 IOPS)** |
-| **Rede** | 1 Gbps | **5 a 10 Gbps** (comunicação interna MinIO ➔ Spark ➔ Postgres) |
+Com base nas especificações do seu host atual, avaliamos o cenário de implantação do MVP:
+
+| Recurso | VM Host Atual | Capacidade para MVP | Próximo Upgrade (Escalar Pós-MVP) |
+| :--- | :--- | :--- | :--- |
+| **vCPUs** | **8 vCPUs** | ✅ **Suficiente**. Ideal para rodar o Core da stack e até 3 execuções simultâneas de dbt/Spark. | **16 vCPUs** (para suportar múltiplos tenants corporativos simultâneos). |
+| **Memória RAM** | **16 GB** | ✅ **Suficiente**. Mantém os containers básicos ativos e fornece margem para sandbox de desenvolvimento do MVP. | **32 GB RAM** (evita falhas de Out-Of-Memory com concorrência alta). |
+| **Armazenamento**| **160 GB SSD** | ✅ **Suficiente**. Espaço amplo para o início da operação analítica. | **500 GB+ NVMe** (conforme volumetria do Data Lake corporativo crescer). |
+| **Rede/Tráfego** | **20 TB Out** (Uso: ~14 TB) | ✅ **Suficiente**. Tráfego confortável para ingestão e consumo do Metabase. | Monitorar uso. |
 
 > [!TIP]
-> **Recomendação de Escalar Horizontalmente**: Conforme o MVP ganhe tração, a estratégia ideal de hardware é mover os contêineres transientes dbt, Workers do Airflow e Apache Spark de uma VM central para um cluster Kubernetes gerenciado (como EKS ou GKE). Isso permite que o processamento pesado de dados escale horizontalmente sob demanda, mantendo a VM principal apenas para a aplicação CodeIgniter, PostgreSQL e MySQL.
+> **Veredito**: A sua VM atual com **8 vCPUs e 16 GB de RAM** é perfeitamente adequada para hospedar o desenvolvimento e o lançamento inicial (MVP) da versão corporativa de forma estável. Para crescer além do MVP, a recomendação é a migração dos contêineres transientes do dbt e do Spark para um cluster Kubernetes (ex: EKS ou GKE), desacoplando a carga pesada de processamento analítico do host de aplicação web.
 
 ---
 

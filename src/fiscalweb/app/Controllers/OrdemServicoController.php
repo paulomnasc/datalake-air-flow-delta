@@ -23,6 +23,7 @@ class OrdemServicoController extends BaseController
         $data = [];
         $data['servicos_list'] = (new ServicoModel())->findAll();
         $data['catalogos_list'] = (new CatalogoServicosModel())->findAll();
+        $data['contratos_list'] = (new \App\Models\ContratoModel())->listToCombo();
         return view('addOrdemServico', $data);
     }
 
@@ -35,6 +36,7 @@ class OrdemServicoController extends BaseController
         $data = ['record' => $record];
         $data['servicos_list'] = (new ServicoModel())->findAll();
         $data['catalogos_list'] = (new CatalogoServicosModel())->findAll();
+        $data['contratos_list'] = (new \App\Models\ContratoModel())->listToCombo();
         
         // Buscar itens existentes
         $db = \Config\Database::connect();
@@ -108,11 +110,21 @@ class OrdemServicoController extends BaseController
     public function list()  
     {
         $model = new OrdemServicoModel();
-        return $model->findAll();
+        return $model->select('ordem_servico.*, contrato.descricao as Numero_Contrato')
+                     ->join('contrato', 'contrato.id = ordem_servico.id_contrato', 'left')
+                     ->findAll();
     }
 
     public function insert() 
     {
+        $id_contrato = $this->post('id_contrato');
+        if (empty($id_contrato)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'O Contrato é obrigatório.'
+            ]);
+        }
+
         $notaEmpenho = $this->post('nota_empenho');
         if ($notaEmpenho !== null) {
             $notaEmpenho = trim($notaEmpenho);
@@ -138,7 +150,8 @@ class OrdemServicoController extends BaseController
             'realizada_estimativa' => $this->post('realizada_estimativa'),
             'metodologia_estimativa' => $this->post('metodologia_estimativa'),
             'status' => $status,
-            'nota_empenho' => $notaEmpenho ?: null
+            'nota_empenho' => $notaEmpenho ?: null,
+            'id_contrato' => $id_contrato
         ];
         
         $model = new OrdemServicoModel();
@@ -199,6 +212,14 @@ class OrdemServicoController extends BaseController
             return $this->response->setJSON([
                 'status' => 'error',
                 'mensagem' => 'Ordem de serviço não encontrada.'
+            ]);
+        }
+
+        $id_contrato = $this->post('id_contrato');
+        if (empty($id_contrato)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'O Contrato é obrigatório.'
             ]);
         }
 
@@ -270,7 +291,8 @@ class OrdemServicoController extends BaseController
             'realizada_estimativa' => $this->post('realizada_estimativa'),
             'metodologia_estimativa' => $this->post('metodologia_estimativa'),
             'status' => $newStatus,
-            'nota_empenho' => $notaEmpenho ?: null
+            'nota_empenho' => $notaEmpenho ?: null,
+            'id_contrato' => $id_contrato
         ];
         
         $db = \Config\Database::connect();

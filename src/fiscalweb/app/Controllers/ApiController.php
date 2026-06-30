@@ -113,4 +113,16 @@ class ApiController extends Controller
         $demandas = $db->table('agile_demandas')->where('id_ordem_servico', $id_os)->get()->getResult();
         return $this->response->setJSON($demandas);
     }
+
+    public function getCatalogosByContrato($id_contrato)
+    {
+        $db = \Config\Database::connect();
+        $catalogos = $db->table('catalogo_servicos cs')
+                        ->select('cs.*')
+                        ->join('item_contrato ic', 'ic.id = cs.id_item_contrato')
+                        ->where('ic.id_contrato', $id_contrato)
+                        ->get()
+                        ->getResult();
+        return $this->response->setJSON($catalogos);
+    }
 }

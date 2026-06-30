@@ -11,6 +11,18 @@ require VIEWPATH.'/header.php';
         <form id="updForm">
             <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
+            <div class="form-group" style="margin-top: 15px;">
+                <label for="id_contrato">Contrato:</label>
+                <select id="id_contrato" name="id_contrato" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($contratos_list)): foreach($contratos_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_contrato) && $record->id_contrato == $opt->id) ? 'selected' : ''; ?>>
+                            <?php echo esc($opt->descricao); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+
             <div class="form-group">
                 <label for="Horas_Alocadas">HorasAlocadas:</label>
                 <input type="number" step="0.01" id="Horas_Alocadas" name="Horas_Alocadas" value="<?php echo isset($record->Horas_Alocadas) ? $record->Horas_Alocadas : ''; ?>" required>
@@ -98,13 +110,8 @@ require VIEWPATH.'/header.php';
                 <div class="col-12 col-md-6">
                     <div class="form-group mb-0">
                         <label for="item_catalogo" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; display: block;">Catálogo:</label>
-                        <select id="item_catalogo" class="form-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;">
+                        <select id="item_catalogo" class="form-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;" disabled>
                             <option value="">Selecione...</option>
-                            <?php if(isset($catalogos_list)): foreach($catalogos_list as $opt): ?>
-                                <option value="<?php echo $opt->id; ?>">
-                                    <?php echo $opt->descricao; ?>
-                                </option>
-                            <?php endforeach; endif; ?>
                         </select>
                     </div>
                 </div>
@@ -213,6 +220,7 @@ require VIEWPATH.'/header.php';
                 
                 // Carregar cascata se os IDs estiverem disponíveis
                 if (item.id_catalogo) {
+                    await carregarCatalogos($('#id_contrato').val());
                     $('#item_catalogo').val(item.id_catalogo);
                     await carregarAreas(item.id_catalogo);
                     $('#item_area').val(item.id_area);
@@ -229,6 +237,24 @@ require VIEWPATH.'/header.php';
             }
 
             // Funções Promisificadas para Cascata
+            function carregarCatalogos(id_contrato) {
+                return new Promise((resolve) => {
+                    $('#item_catalogo').html('<option value="">Selecione...</option>').prop('disabled', true);
+                    $('#item_area').html('<option value="">Selecione...</option>').prop('disabled', true);
+                    $('#item_macro').html('<option value="">Selecione...</option>').prop('disabled', true);
+                    $('#item_servico').html('<option value="">Selecione...</option>').prop('disabled', true);
+                    if(!id_contrato) return resolve();
+                    
+                    $.get('<?php echo site_url('api/catalogos/'); ?>' + id_contrato, function(data) {
+                        data.forEach(function(item) {
+                            $('#item_catalogo').append(`<option value="${item.id}">${item.descricao}</option>`);
+                        });
+                        $('#item_catalogo').prop('disabled', false);
+                        resolve();
+                    });
+                });
+            }
+
             function carregarAreas(id_catalogo) {
                 return new Promise((resolve) => {
                     $('#item_area').html('<option value="">Selecione...</option>').prop('disabled', true);
@@ -281,6 +307,35 @@ require VIEWPATH.'/header.php';
 
             $(document).ready(function() {
                 renderItems(); // Render initial items
+
+                // Inicializar os catálogos do contrato selecionado
+                let initialContratoId = $('#id_contrato').val();
+                if (initialContratoId) {
+                    carregarCatalogos(initialContratoId);
+                }
+
+                // Monitoramento de alteração do Contrato
+                let currentContratoId = $('#id_contrato').val();
+                $('#id_contrato').change(function() {
+                    let newContratoId = $(this).val();
+                    /* COMENTADO TEMPORARIAMENTE
+                    if (osItems.length > 0) {
+                        if (confirm('Alterar o contrato removerá todos os itens atuais da Ordem de Serviço. Deseja continuar?')) {
+                            osItems = [];
+                            renderItems();
+                            carregarCatalogos(newContratoId);
+                            currentContratoId = newContratoId;
+                        } else {
+                            $(this).val(currentContratoId);
+                        }
+                    } else {
+                        carregarCatalogos(newContratoId);
+                        currentContratoId = newContratoId;
+                    }
+                    */
+                    carregarCatalogos(newContratoId);
+                    currentContratoId = newContratoId;
+                });
 
                 // Filtros em Cascata usando as funções acima
                 $('#item_catalogo').change(function() { carregarAreas($(this).val()); });

@@ -380,6 +380,7 @@ $routes->post('updateMetrica', 'MetricaController::update');
 $routes->delete('deleteMetrica/(:num)', 'MetricaController::delete/$1');
 
 $routes->get('api/areas/(:num)', 'ApiController::getAreasByCatalogo/$1');
+$routes->get('api/catalogos/(:num)', 'ApiController::getCatalogosByContrato/$1');
 $routes->get('api/atividades/(:num)', 'ApiController::getAtividadesByArea/$1');
 $routes->get('api/servicos/(:num)', 'ApiController::getServicosByAtividade/$1');
 

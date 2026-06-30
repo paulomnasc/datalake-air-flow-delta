@@ -12,7 +12,7 @@ class OrdemServicoModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['horas_alocadas', 'nup_sei', 'data_emissao', 'data_aceite', 'data_vencimento', 'realizada_estimativa', 'metodologia_estimativa', 'status', 'nota_empenho'];
+    protected $allowedFields    = ['horas_alocadas', 'nup_sei', 'data_emissao', 'data_aceite', 'data_vencimento', 'realizada_estimativa', 'metodologia_estimativa', 'status', 'nota_empenho', 'id_contrato'];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;

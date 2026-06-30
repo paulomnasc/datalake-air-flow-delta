@@ -19,6 +19,7 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
+                    <th>Contrato</th>
                     <th>HorasAlocadas</th><th>NupSei</th><th>DataEmissao</th><th>DataAceite</th><th>Status</th>
                     <th>Ações</th>
                 </tr>
@@ -27,6 +28,7 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
+                    <td> <?php echo esc($item->Numero_Contrato ?? 'Nenhum') ?> </td>
                     <td> <?php echo $item->Horas_Alocadas ?> </td><td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->Data_Emissao ?> </td><td> <?php echo $item->Data_Aceite ?> </td><td> <?php echo esc($item->status ?? 'Rascunho') ?> </td>
                     <td> 
                         <div class="sidebyside-container">

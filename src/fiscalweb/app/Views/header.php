@@ -331,7 +331,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     }
 
     #head-bar {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #00ced1 0%, #007a87 100%);
         border: none;
         border-radius: 0;
         width: 100%;

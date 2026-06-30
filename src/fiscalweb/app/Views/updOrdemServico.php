@@ -32,6 +32,27 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group" style="margin-top: 15px;">
+                <label for="nota_empenho">Nota de Empenho:</label>
+                <input type="text" id="nota_empenho" name="nota_empenho" value="<?php echo isset($record->nota_empenho) ? htmlspecialchars($record->nota_empenho) : ''; ?>" placeholder="Alfanumérico" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" <?php echo (isset($record->status) && $record->status !== 'Rascunho') ? 'required' : ''; ?>>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label for="status">Status:</label>
+                <?php 
+                $currentStatus = isset($record->status) ? $record->status : 'Rascunho';
+                if ($currentStatus === 'Aguardando assinatura'): 
+                ?>
+                    <select id="status" name="status" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;">
+                        <option value="Aguardando assinatura" selected>Aguardando assinatura</option>
+                        <option value="Execução">Execução</option>
+                    </select>
+                <?php else: ?>
+                    <input type="text" id="status_display" value="<?php echo htmlspecialchars($currentStatus); ?>" readonly disabled style="width: 100%; padding: 8px; background-color: #e9ecef; border: 1px solid #ddd; border-radius: 4px;">
+                    <input type="hidden" name="status" value="<?php echo htmlspecialchars($currentStatus); ?>">
+                <?php endif; ?>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
                 <label for="realizada_estimativa">Realizada Estimativa?</label>
                 <select id="realizada_estimativa" name="realizada_estimativa" class="form-control" required style="width: 100%; padding: 8px;">
                     <option value="">Selecione...</option>
@@ -47,8 +68,14 @@ require VIEWPATH.'/header.php';
 
             <div class="button-group">
                 <button class="add-button" type="button" id="saveOrdemServicoBtn">Atualizar Ordem de Serviço</button>
+                <?php if (isset($record->status) && $record->status === 'Recebido definitivo'): ?>
+                    <button class="add-button" type="button" id="concluirOsBtn" style="background-color: #28a745; <?php echo (isset($trp_exists) && $trp_exists && isset($trd_exists) && $trd_exists) ? '' : 'background-color: #6c757d; cursor: not-allowed;'; ?>" <?php echo (isset($trp_exists) && $trp_exists && isset($trd_exists) && $trd_exists) ? '' : 'disabled title="Necessário ter TRD e TRP cadastrados"'; ?>>Concluir Ordem de Serviço</button>
+                <?php endif; ?>
                 <a href="<?php echo site_url('listOrdemServico'); ?>" class="add-button" style="text-decoration: none; background-color: #6c757d;">Voltar</a>
             </div>
+            <?php if (isset($record->status) && $record->status === 'Recebido definitivo' && !(isset($trp_exists) && $trp_exists && isset($trd_exists) && $trd_exists)): ?>
+                <p style="color: #dc3545; font-size: 0.9rem; margin-top: 10px; text-align: center;">Nota: A OS só pode ser concluída quando possuir documentos TRD e TRP cadastrados.</p>
+            <?php endif; ?>
         </form>
 
         <hr style="margin: 30px 0;">
@@ -393,6 +420,26 @@ require VIEWPATH.'/header.php';
                             $('#error-message').html('Ocorreu um erro ao salvar os dados.').show().delay(5000).fadeOut();
                         }
                     });
+                });
+
+                $('#concluirOsBtn').click(function() {
+                    if (confirm('Deseja realmente concluir esta Ordem de Serviço?')) {
+                        $.ajax({
+                            url: '<?php echo site_url('concluirOrdemServico/' . (isset($record->id) ? $record->id : 0)); ?>',
+                            type: 'POST',
+                            success: function(response) {
+                                if (response.status === 'success') {
+                                    alert(response.mensagem);
+                                    window.location.href = '<?php echo site_url('listOrdemServico'); ?>';
+                                } else {
+                                    alert(response.mensagem);
+                                }
+                            },
+                            error: function() {
+                                alert('Ocorreu um erro ao concluir a Ordem de Serviço.');
+                            }
+                        });
+                    }
                 });
             });
         </script>

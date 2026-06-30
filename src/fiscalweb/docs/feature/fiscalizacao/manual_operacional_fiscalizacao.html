@@ -834,6 +834,62 @@
         </li>
     </ul>
 
+    <h3>5.2.1 Máquina de Estado e Ciclo de Vida da OS</h3>
+    <p>
+        A Ordem de Serviço possui um ciclo de vida controlado por uma máquina de estados com transições estritamente sequenciais:
+    </p>
+    <div class="flow-container" style="margin-top: 10px;">
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">1. Rascunho</div>
+            <div class="flow-step-desc">
+                Definido automaticamente assim que uma nova ordem de serviço é cadastrada no sistema (sem Nota de Empenho).
+            </div>
+        </div>
+        <div class="flow-arrow">&darr;</div>
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">2. Aguardando assinatura</div>
+            <div class="flow-step-desc">
+                Definido automaticamente assim que uma <strong>Nota de Empenho</strong> (campo alfanumérico obrigatório) é atribuída à OS.
+            </div>
+        </div>
+        <div class="flow-arrow">&darr;</div>
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">3. Execução</div>
+            <div class="flow-step-desc">
+                Alterado <strong>manualmente</strong> pelo usuário fiscal na tela de edição da Ordem de Serviço (a Nota de Empenho deve estar previamente preenchida).
+            </div>
+        </div>
+        <div class="flow-arrow">&darr;</div>
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">4. Recebido Provisório</div>
+            <div class="flow-step-desc">
+                Definido automaticamente quando um Documento de Recebimento do tipo <strong>TRP</strong> (Termo de Recebimento Provisório) é cadastrado para a OS.
+            </div>
+        </div>
+        <div class="flow-arrow">&darr;</div>
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">5. Recebido definitivo</div>
+            <div class="flow-step-desc">
+                Definido automaticamente quando um Documento de Recebimento do tipo <strong>TRD</strong> (Termo de Recebimento Definitivo) é cadastrado para a OS.
+            </div>
+        </div>
+        <div class="flow-arrow">&darr;</div>
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">6. Concluído</div>
+            <div class="flow-step-desc">
+                Alterado através de um botão de ação rápida (<strong>Concluir Ordem de Serviço</strong>) na tela de edição, disponível apenas quando ambos os documentos <strong>TRP e TRD</strong> estiverem cadastrados e vinculados à OS.
+            </div>
+        </div>
+    </div>
+    
+    <div class="alert alert-important">
+        <strong>Validações e Regras de Transição Sequencial:</strong>
+        <ul>
+            <li><strong>Bloqueio de Salto de Estados:</strong> O sistema impede qualquer transição fora de ordem. Por exemplo, não é permitido cadastrar um TRD para uma OS que não esteja no status <em>Recebido Provisório</em>.</li>
+            <li><strong>Nota de Empenho Obrigatória:</strong> A partir do momento em que a OS sai do status <em>Rascunho</em>, a Nota de Empenho torna-se obrigatória e deve ser um valor estritamente alfanumérico.</li>
+        </ul>
+    </div>
+
     <!-- ITEM: Docs Recebimento -->
     <h2>5.3 Registro de Documentos de Recebimento (<code>documento_recebimento</code>)</h2>
     <p><strong>Rota Associada:</strong> <span class="route-badge">listDocumentoRecebimento</span> | <span class="route-badge">addDocumentoRecebimento</span> | <span class="route-badge">updDocumentoRecebimento</span></p>

@@ -149,6 +149,26 @@ class DocumentoRecebimentoController extends BaseController
         $db->transStart();
         
         try {
+            // Validar transição de status da OS de acordo com o tipo de documento de recebimento
+            $osModel = new \App\Models\OrdemServicoModel();
+            $os = $osModel->find($data['id_os']);
+            
+            if (!$os) {
+                throw new \Exception('Ordem de serviço não encontrada.');
+            }
+
+            if ($data['id_tipo_documento'] == 1) { // TRP
+                if ($os->status !== 'Execução') {
+                    throw new \Exception("A Ordem de Serviço deve estar no status 'Execução' para cadastrar um documento TRP.");
+                }
+                $osModel->update($data['id_os'], ['status' => 'Recebido Provisorio']);
+            } elseif ($data['id_tipo_documento'] == 2) { // TRD
+                if ($os->status !== 'Recebido Provisorio') {
+                    throw new \Exception("A Ordem de Serviço deve estar no status 'Recebido Provisorio' para cadastrar um documento TRD.");
+                }
+                $osModel->update($data['id_os'], ['status' => 'Recebido definitivo']);
+            }
+
             $idDoc = $model->insert($data);
             
             $itemsJson = $this->request->getPost('items');
@@ -216,6 +236,33 @@ class DocumentoRecebimentoController extends BaseController
         $db->transStart();
         
         try {
+            // Se o OS ou tipo do documento mudou, ou se for a primeira atribuição
+            $oldDoc = $model->find($id);
+            if ($oldDoc) {
+                $osChanged = ($oldDoc->id_os != $data['id_os']);
+                $typeChanged = ($oldDoc->id_tipo_documento != $data['id_tipo_documento']);
+                
+                if ($osChanged || $typeChanged) {
+                    $osModel = new \App\Models\OrdemServicoModel();
+                    $os = $osModel->find($data['id_os']);
+                    if (!$os) {
+                        throw new \Exception('Ordem de serviço não encontrada.');
+                    }
+
+                    if ($data['id_tipo_documento'] == 1) { // TRP
+                        if ($os->status !== 'Execução') {
+                            throw new \Exception("A Ordem de Serviço deve estar no status 'Execução' para associar um documento TRP.");
+                        }
+                        $osModel->update($data['id_os'], ['status' => 'Recebido Provisorio']);
+                    } elseif ($data['id_tipo_documento'] == 2) { // TRD
+                        if ($os->status !== 'Recebido Provisorio') {
+                            throw new \Exception("A Ordem de Serviço deve estar no status 'Recebido Provisorio' para associar um documento TRD.");
+                        }
+                        $osModel->update($data['id_os'], ['status' => 'Recebido definitivo']);
+                    }
+                }
+            }
+
             $model->update($id, $data);
 
 

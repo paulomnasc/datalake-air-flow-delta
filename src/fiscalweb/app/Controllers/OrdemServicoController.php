@@ -41,6 +41,18 @@ class OrdemServicoController extends BaseController
         $os = $db->table('ordem_servico')->where('id', $id)->get()->getRow();
         $dataEmissao = $os ? $os->Data_Emissao : date('Y-m-d');
 
+        // Buscar se existem TRP e TRD
+        $trpExists = $db->table('documento_recebimento')
+                        ->where('id_os', $id)
+                        ->where('id_tipo_documento', 1)
+                        ->countAllResults() > 0;
+        $trdExists = $db->table('documento_recebimento')
+                        ->where('id_os', $id)
+                        ->where('id_tipo_documento', 2)
+                        ->countAllResults() > 0;
+        $data['trp_exists'] = $trpExists;
+        $data['trd_exists'] = $trdExists;
+
         $builder = $db->table('os_item_os oio');
         $builder->select('
             io.id as id_item_os, 
@@ -101,13 +113,32 @@ class OrdemServicoController extends BaseController
 
     public function insert() 
     {
+        $notaEmpenho = $this->post('nota_empenho');
+        if ($notaEmpenho !== null) {
+            $notaEmpenho = trim($notaEmpenho);
+        }
+
+        if (!empty($notaEmpenho) && !preg_match('/^[a-zA-Z0-9]+$/', $notaEmpenho)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A nota de empenho deve ser alfanumérica.'
+            ]);
+        }
+
+        $status = 'Rascunho';
+        if (!empty($notaEmpenho)) {
+            $status = 'Aguardando assinatura';
+        }
+
         $data = [
             'horas_alocadas' => $this->post('horas_alocadas'),
             'nup_sei' => $this->post('nup_sei'),
             'data_emissao' => $this->normalizeDatetime($this->post('data_emissao')),
             'data_aceite' => $this->normalizeDatetime($this->post('data_aceite')),
             'realizada_estimativa' => $this->post('realizada_estimativa'),
-            'metodologia_estimativa' => $this->post('metodologia_estimativa')
+            'metodologia_estimativa' => $this->post('metodologia_estimativa'),
+            'status' => $status,
+            'nota_empenho' => $notaEmpenho ?: null
         ];
         
         $model = new OrdemServicoModel();
@@ -162,13 +193,84 @@ class OrdemServicoController extends BaseController
         $model = new OrdemServicoModel();
         $itemOsModel = new ItemOsModel();
         $id = $this->request->getPost('id');
+
+        $record = $model->find($id);
+        if (!$record) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Ordem de serviço não encontrada.'
+            ]);
+        }
+
+        $currentStatus = $record->status ?? 'Rascunho';
+        $newStatus = $this->post('status') ?: $currentStatus;
+        $notaEmpenho = $this->post('nota_empenho');
+
+        if ($notaEmpenho !== null) {
+            $notaEmpenho = trim($notaEmpenho);
+        }
+
+        // Validação da nota de empenho: se informada, deve ser alfanumérica
+        if (!empty($notaEmpenho) && !preg_match('/^[a-zA-Z0-9]+$/', $notaEmpenho)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A nota de empenho deve ser alfanumérica.'
+            ]);
+        }
+
+        // Se saiu do Rascunho, ou se tenta atualizar, nota_empenho é obrigatória se status for Aguardando assinatura ou superior
+        if ($currentStatus !== 'Rascunho' && empty($notaEmpenho)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A nota de empenho é obrigatória após a Ordem de Serviço sair do status Rascunho.'
+            ]);
+        }
+
+        // Regra: Rascunho -> Aguardando assinatura
+        if ($currentStatus === 'Rascunho') {
+            if (!empty($notaEmpenho)) {
+                $newStatus = 'Aguardando assinatura';
+            } else {
+                $newStatus = 'Rascunho';
+            }
+        }
+
+        // Regra: Aguardando assinatura -> Execução (manual)
+        if ($newStatus === 'Execução' && $currentStatus === 'Aguardando assinatura') {
+            if (empty($notaEmpenho)) {
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => 'É necessário uma Nota de Empenho para colocar a Ordem de Serviço em Execução.'
+                ]);
+            }
+        }
+
+        // Garantir que a transição seja válida e sequencial (não retroceder nem saltar estados manualmente)
+        $allowedManualTransitions = [
+            'Rascunho' => ['Rascunho', 'Aguardando assinatura'],
+            'Aguardando assinatura' => ['Aguardando assinatura', 'Execução'],
+            'Execução' => ['Execução'],
+            'Recebido Provisorio' => ['Recebido Provisorio'],
+            'Recebido definitivo' => ['Recebido definitivo'],
+            'Concluido' => ['Concluido']
+        ];
+
+        if (!in_array($newStatus, $allowedManualTransitions[$currentStatus])) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => "Transição de status inválida de '{$currentStatus}' para '{$newStatus}'."
+            ]);
+        }
+
         $data = [
             'horas_alocadas' => $this->post('horas_alocadas'),
             'nup_sei' => $this->post('nup_sei'),
             'data_emissao' => $this->normalizeDatetime($this->post('data_emissao')),
             'data_aceite' => $this->normalizeDatetime($this->post('data_aceite')),
             'realizada_estimativa' => $this->post('realizada_estimativa'),
-            'metodologia_estimativa' => $this->post('metodologia_estimativa')
+            'metodologia_estimativa' => $this->post('metodologia_estimativa'),
+            'status' => $newStatus,
+            'nota_empenho' => $notaEmpenho ?: null
         ];
         
         $db = \Config\Database::connect();
@@ -259,6 +361,49 @@ class OrdemServicoController extends BaseController
         return $value;
     }
     
+    public function concluir($id)
+    {
+        $model = new OrdemServicoModel();
+        $record = $model->find($id);
+        if (!$record) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Ordem de serviço não encontrada.'
+            ]);
+        }
+
+        if ($record->status !== 'Recebido definitivo') {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A ordem de serviço deve estar no status Recebido definitivo para ser concluída.'
+            ]);
+        }
+
+        $db = \Config\Database::connect();
+        $trpExists = $db->table('documento_recebimento')
+                        ->where('id_os', $id)
+                        ->where('id_tipo_documento', 1)
+                        ->countAllResults() > 0;
+        $trdExists = $db->table('documento_recebimento')
+                        ->where('id_os', $id)
+                        ->where('id_tipo_documento', 2)
+                        ->countAllResults() > 0;
+
+        if (!$trpExists || !$trdExists) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'A ordem de serviço deve possuir pelo menos um documento TRP e um TRD cadastrados para ser concluída.'
+            ]);
+        }
+
+        $model->update($id, ['status' => 'Concluido']);
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'mensagem' => 'Ordem de serviço concluída com sucesso!'
+        ]);
+    }
+
     public function delete($id)  
     {
         $model = new OrdemServicoModel();

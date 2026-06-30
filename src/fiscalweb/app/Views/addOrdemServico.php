@@ -31,6 +31,17 @@ require VIEWPATH.'/header.php';
             </div>
 
             <div class="form-group" style="margin-top: 15px;">
+                <label for="nota_empenho">Nota de Empenho:</label>
+                <input type="text" id="nota_empenho" name="nota_empenho" placeholder="Alfanumérico (Opcional no rascunho)" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label for="status">Status:</label>
+                <input type="text" id="status_display" value="Rascunho" readonly disabled style="width: 100%; padding: 8px; background-color: #e9ecef; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="hidden" name="status" value="Rascunho">
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
                 <label for="realizada_estimativa">Realizada Estimativa?</label>
                 <select id="realizada_estimativa" name="realizada_estimativa" class="form-control" required style="width: 100%; padding: 8px;">
                     <option value="">Selecione...</option>

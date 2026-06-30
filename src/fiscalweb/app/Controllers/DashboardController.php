@@ -130,6 +130,9 @@ class DashboardController extends BaseController
             'top_students' => [],
         ];
 
+        $osModel = new \App\Models\OrdemServicoModel();
+        $data['list'] = $osModel->findAll();
+
         return view('dashboard/index', $data);
     }
 

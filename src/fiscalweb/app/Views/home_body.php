@@ -306,6 +306,138 @@
     <p class="hero-subtitle">Transforme dados brutos em insights de negócio através de camadas Bronze, Silver e Gold</p>
 </div>
 
+<?php
+// Group OS by status
+$statuses = ['Rascunho', 'Aguardando assinatura', 'Execução', 'Recebido Provisorio', 'Recebido definitivo', 'Concluido'];
+$osGroups = [];
+foreach ($statuses as $st) {
+    $osGroups[$st] = [];
+}
+// Fallback if list is not defined
+if (!isset($list)) {
+    $osModel = new \App\Models\OrdemServicoModel();
+    $list = $osModel->findAll();
+}
+if (isset($list) && is_array($list)) {
+    foreach ($list as $item) {
+        $st = $item->status ?? 'Rascunho';
+        if (in_array($st, $statuses)) {
+            $osGroups[$st][] = $item;
+        } else {
+            $osGroups['Rascunho'][] = $item;
+        }
+    }
+}
+?>
+
+<style>
+    /* Estilos personalizados para as abas */
+    .nav-tabs {
+        border-bottom: 2px solid var(--accent-blue) !important;
+    }
+    .nav-tabs .nav-link {
+        color: var(--text-light) !important;
+        border: none !important;
+        background: transparent !important;
+        transition: all 0.3s ease;
+        border-bottom: 3px solid transparent !important;
+        font-weight: 600;
+        padding: 10px 20px;
+    }
+    .nav-tabs .nav-link:hover {
+        color: var(--gold) !important;
+        border-bottom: 3px solid rgba(255, 215, 0, 0.5) !important;
+    }
+    .nav-tabs .nav-link.active {
+        color: var(--gold) !important;
+        font-weight: bold;
+        border-bottom: 3px solid var(--gold) !important;
+    }
+    .tab-content-panel {
+        background-color: rgba(255, 255, 255, 0.02);
+        padding: 20px;
+        border-radius: 0 0 12px 12px;
+        border: 1px solid rgba(74, 144, 226, 0.1);
+        border-top: none;
+        margin-bottom: 30px;
+    }
+    .badge-count {
+        margin-left: 5px;
+        background-color: var(--accent-blue) !important;
+    }
+</style>
+
+<div class="container mt-4" style="background: var(--card-bg); padding: 30px; border-radius: 12px; margin-top: 30px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);">
+    <h3 style="color: var(--gold); text-align: center; margin-bottom: 25px; font-weight: 700;">Ordens de Serviço por Status</h3>
+    
+    <!-- Nav tabs -->
+    <ul class="nav nav-tabs" id="osTabs" role="tablist">
+        <?php foreach ($statuses as $index => $st): ?>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $index === 0 ? 'active' : ''; ?>" 
+                        id="tab-<?php echo str_replace(' ', '-', $st); ?>" 
+                        data-bs-toggle="tab" 
+                        data-bs-target="#panel-<?php echo str_replace(' ', '-', $st); ?>" 
+                        type="button" 
+                        role="tab" 
+                        aria-controls="panel-<?php echo str_replace(' ', '-', $st); ?>" 
+                        aria-selected="<?php echo $index === 0 ? 'true' : 'false'; ?>">
+                    <?php echo $st; ?> 
+                    <span class="badge badge-count"><?php echo count($osGroups[$st]); ?></span>
+                </button>
+            </li>
+        <?php endforeach; ?>
+    </ul>
+
+    <!-- Tab panes -->
+    <div class="tab-content tab-content-panel" id="osTabsContent">
+        <?php foreach ($statuses as $index => $st): ?>
+            <div class="tab-pane fade <?php echo $index === 0 ? 'show active' : ''; ?>" 
+                 id="panel-<?php echo str_replace(' ', '-', $st); ?>" 
+                 role="tabpanel" 
+                 aria-labelledby="tab-<?php echo str_replace(' ', '-', $st); ?>">
+                
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle" style="color: var(--text-light);">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, var(--accent-blue), #3a7bc8); color: white;">
+                                <th>ID</th>
+                                <th>NUP SEI</th>
+                                <th>Horas Alocadas</th>
+                                <th>Data de Emissão</th>
+                                <th>Data de Aceite</th>
+                                <th>Nota de Empenho</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($osGroups[$st])): ?>
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted" style="padding: 20px; background-color: transparent;">Nenhuma Ordem de Serviço neste status.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($osGroups[$st] as $os): ?>
+                                    <tr>
+                                        <td><?php echo $os->id; ?></td>
+                                        <td>
+                                            <a href="<?php echo site_url('updOrdemServico?id=' . $os->id); ?>" style="color: var(--accent-blue); font-weight: bold; text-decoration: underline;">
+                                                <?php echo esc($os->nup_sei); ?>
+                                            </a>
+                                        </td>
+                                        <td><?php echo $os->Horas_Alocadas; ?></td>
+                                        <td><?php echo date('d/m/Y H:i', strtotime($os->Data_Emissao)); ?></td>
+                                        <td><?php echo $os->Data_Aceite ? date('d/m/Y H:i', strtotime($os->Data_Aceite)) : '-'; ?></td>
+                                        <td><?php echo esc($os->nota_empenho ?? '-'); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+
 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>

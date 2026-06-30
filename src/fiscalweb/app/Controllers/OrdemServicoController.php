@@ -28,7 +28,7 @@ class OrdemServicoController extends BaseController
 
     public function upd()
     {
-        $id = $this->request->getPost('id');
+        $id = $this->request->getPost('id') ?: $this->request->getGet('id');
         $model = new OrdemServicoModel();
         $record = $model->find($id);
 

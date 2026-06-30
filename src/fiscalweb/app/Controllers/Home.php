@@ -26,7 +26,9 @@ class Home extends BaseController
 
         helper(['array','form','html']);
 
-        return $this->loadView('menu_smart',[]);
+        $osModel = new \App\Models\OrdemServicoModel();
+        $list = $osModel->findAll();
+        return $this->loadView('menu_smart', ['list' => $list]);
 
         
 

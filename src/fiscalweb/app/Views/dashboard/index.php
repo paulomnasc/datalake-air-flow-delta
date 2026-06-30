@@ -180,41 +180,184 @@ $ownerUsername = \App\Helpers\AirflowHelper::buildUsernameFromEmail(
 
                 <!-- DASHBOARD VIEW -->
                 <div x-show="currentView === 'dashboard'">
-                    
-                    <!-- Quick Actions (Início Rápido) -->
-                    <div class="row g-4 mb-5">
-                        <div class="col-12">
-                            <h4 class="mb-3">⚡ Início Rápido</h4>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="quick-action h-100" id="novo-pipeline-action">
-                                <div class="quick-action-icon">🎯</div>
-                                <h5>Novo Recebimento</h5>
-                                <p class="text-muted mb-0">Assistente passo a passo</p>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <?php $airflowExternalUrl = getenv('AIRFLOW_EXTERNAL_URL') ?: 'http://localhost:8080'; ?>
-                            <div class="quick-action h-100" onclick="window.open('<?= htmlspecialchars($airflowExternalUrl, ENT_QUOTES, 'UTF-8'); ?>', '_blank', 'noopener,noreferrer')" title="AIRFLOW - Pipelines ELT">
-                                <div class="quick-action-icon d-flex align-items-center justify-content-center" style="min-height: 4.5rem;">
-                                    <!--img src="<?= base_url('assets/img/airflow-logo.png') ?>" alt="Airflow" style="height: 4rem; object-fit: contain; transform: scale(2.2); transform-origin: center;">
+
+
+                    <!-- Ordens de Serviço por Status -->
+                    <?php
+                    // Group OS by status
+                    $statuses = ['Rascunho', 'Aguardando assinatura', 'Execução', 'Recebido Provisorio', 'Recebido definitivo', 'Concluido'];
+                    $osGroups = [];
+                    foreach ($statuses as $st) {
+                        $osGroups[$st] = [];
+                    }
+                    if (isset($list) && is_array($list)) {
+                        foreach ($list as $item) {
+                            $st = $item->status ?? 'Rascunho';
+                            if (in_array($st, $statuses)) {
+                                $osGroups[$st][] = $item;
+                            } else {
+                                $osGroups['Rascunho'][] = $item;
+                            }
+                        }
+                    }
+                    ?>
+
+                    <style>
+                        #osDashboardTabs .nav-link {
+                            transition: all 0.2s ease;
+                            color: #555;
+                            border: none;
+                            background: transparent;
+                            padding: 10px 15px;
+                            border-bottom: 3px solid transparent;
+                        }
+                        #osDashboardTabs .nav-link:hover {
+                            color: #1976d2 !important;
+                            border-bottom: 3px solid rgba(25, 118, 210, 0.5) !important;
+                        }
+                        #osDashboardTabs .nav-link.active {
+                            color: #1976d2 !important;
+                            border-bottom: 3px solid #1976d2 !important;
+                        }
+                        .sidebyside-container {
+                            display: flex;
+                            gap: 5px;
+                            align-items: center;
+                        }
+                    </style>
+
+                    <div class="mt-4 mb-4">
+                        <h4 class="mb-4 text-primary" style="font-weight: 600;"><i class="bi bi-briefcase me-2"></i>Ordens de Serviço por Status</h4>
+
+                        <!-- Nav tabs -->
+                        <ul class="nav nav-tabs mb-4" id="osDashboardTabs" role="tablist" style="border-bottom: 2px solid #1976d2;">
+                            <?php foreach ($statuses as $index => $st): ?>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link <?php echo $index === 0 ? 'active' : ''; ?>" 
+                                            id="dash-tab-<?php echo str_replace(' ', '-', $st); ?>" 
+                                            data-bs-toggle="tab" 
+                                            data-bs-target="#dash-panel-<?php echo str_replace(' ', '-', $st); ?>" 
+                                            type="button" 
+                                            role="tab" 
+                                            aria-controls="dash-panel-<?php echo str_replace(' ', '-', $st); ?>" 
+                                            aria-selected="<?php echo $index === 0 ? 'true' : 'false'; ?>">
+                                        <?php echo $st; ?> 
+                                        <span class="badge bg-primary ms-1"><?php echo count($osGroups[$st]); ?></span>
+                                    </button>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+
+                        <!-- Tab panes -->
+                        <div class="tab-content" id="osDashboardTabsContent" style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+                            <?php foreach ($statuses as $index => $st): ?>
+                                <div class="tab-pane fade <?php echo $index === 0 ? 'show active' : ''; ?>" 
+                                     id="dash-panel-<?php echo str_replace(' ', '-', $st); ?>" 
+                                     role="tabpanel" 
+                                     aria-labelledby="dash-tab-<?php echo str_replace(' ', '-', $st); ?>">
+                                    
+                                    <div class="table-responsive">
+                                        <table class="data-table os-data-table table table-striped table-hover align-middle" style="width: 100%;">
+                                            <thead>
+                                                <tr>
+                                                    <th>ID</th>
+                                                    <th>Horas Alocadas</th>
+                                                    <th>NUP SEI</th>
+                                                    <th>Data de Emissão</th>
+                                                    <th>Data de Aceite</th>
+                                                    <th>Status</th>
+                                                    <th>Ações</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($osGroups[$st] as $os): ?>
+                                                    <tr id="row-<?php echo $os->id; ?>">
+                                                        <td><?php echo $os->id; ?></td>
+                                                        <td><?php echo $os->Horas_Alocadas; ?></td>
+                                                        <td>
+                                                            <a href="<?php echo site_url('updOrdemServico?id=' . $os->id); ?>" class="text-decoration-none fw-bold text-primary">
+                                                                <?php echo esc($os->nup_sei); ?>
+                                                            </a>
+                                                        </td>
+                                                        <td><?php echo $os->Data_Emissao; ?></td>
+                                                        <td><?php echo $os->Data_Aceite ? $os->Data_Aceite : '-'; ?></td>
+                                                        <td><?php echo esc($os->status ?? 'Rascunho'); ?></td>
+                                                        <td>
+                                                            <div class="sidebyside-container">
+                                                                <a class="edit-button text-decoration-none d-inline-block text-center" style="line-height: normal; padding: 5px 10px;" href="<?php echo site_url('updOrdemServico?id=' . $os->id); ?>">✏️</a>
+                                                                <form id="deleteForm-<?php echo $os->id; ?>" class="d-inline">
+                                                                    <button class="delete-button" style="padding: 5px 10px;" type="button" onclick="confirmDelete('<?php echo $os->id; ?>', '<?php echo site_url('deleteOrdemServico/' . $os->id); ?>', 'deleteForm-<?php echo $os->id; ?>')">🗑️</button>
+                                                                </form>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                                <h5>Gerenciar</h5>
-                                <p class="text-muted mb-0">AIRFLOW - Pipelines ELT</p>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="quick-action h-100" onclick="window.location.href='<?= route_to('listConfig') ?>'">
-                                <div class="quick-action-icon">📊</div>
-                                <h5>Ver Pipelines</h5>
-                                <p class="text-muted mb-0">Gerenciar existentes</p>
-                            </div>
+                            <?php endforeach; ?>
                         </div>
                     </div>
 
+                    <!-- Botão Novo Recebimento abaixo da lista fixado à direita -->
+                    <div class="d-flex justify-content-end mt-3 mb-5">
+                        <button type="button" class="btn btn-success px-4 py-2 fw-bold shadow-sm" id="novo-pipeline-action" @click="currentView = 'wizard'" style="border-radius: 8px; font-size: 1.1rem; background-color: var(--success-color); border: none;">
+                            <i class="bi bi-plus-circle me-2"></i>Novo Recebimento
+                        </button>
+                    </div>
 
+                    <script>
+                        function confirmDelete(id, deleteUrl, formId) {
+                            if (confirm("Você tem certeza que deseja deletar este registro?")) {
+                                $.ajax({
+                                    url: deleteUrl,
+                                    type: 'POST',
+                                    data: { _method: 'DELETE' },
+                                    success: function(result) {
+                                        if (result.status === 'success') {
+                                            $('#row-' + id).remove();
+                                            // Usar sistema de mensagens do dashboard se existir
+                                            if (typeof alert !== 'undefined') {
+                                                alert(result.mensagem);
+                                            }
+                                        } else {
+                                            alert('Erro ao excluir o registro.');
+                                        }
+                                    },
+                                    error: function(err) {
+                                        alert('Erro ao excluir o registro.');
+                                        console.log(err);
+                                    }
+                                });
+                            }
+                        }
 
-                </div>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            $('.os-data-table').each(function() {
+                                $(this).DataTable({
+                                    dom: 'lfrtip',
+                                    language: {
+                                        "sEmptyTable": "Nenhum registro encontrado",
+                                        "sInfo": "Mostrando de _START_ até _END_ de _TOTAL_ registros",
+                                        "sInfoEmpty": "Mostrando 0 até 0 de 0 registros",
+                                        "sInfoFiltered": "(filtrado de _MAX_ registros no total)",
+                                        "sLengthMenu": "Mostrar _MENU_ registros",
+                                        "sLoadingRecords": "Carregando...",
+                                        "sProcessing": "Processando...",
+                                        "sSearch": "Pesquisar:",
+                                        "sZeroRecords": "Nenhum registro encontrado",
+                                        "oPaginate": {
+                                            "sNext": "Próximo",
+                                            "sPrevious": "Anterior",
+                                            "sFirst": "Primeiro",
+                                            "sLast": "Último"
+                                        }
+                                    }
+                                });
+                            });
+                        });
+                    </script>             </div>
                 </div>
 
                 <!-- WIZARD VIEW -->

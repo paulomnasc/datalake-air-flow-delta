@@ -12,7 +12,7 @@ class ContratoModel extends Model
     protected $returnType       = 'object';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['descricao', 'empresa'];
+    protected $allowedFields    = ['descricao', 'empresa', 'data_inicio_vigencia', 'data_fim_vigencia', 'qtd_meses_total'];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;

@@ -125,6 +125,32 @@ class OrdemServicoController extends BaseController
             ]);
         }
 
+        // Validação da vigência do contrato (faltando 30 dias para o fim)
+        $contratoModel = new \App\Models\ContratoModel();
+        $contrato = $contratoModel->find($id_contrato);
+        if ($contrato && !empty($contrato->data_fim_vigencia)) {
+            $osDate = $this->normalizeDatetime($this->post('data_emissao')) ?: date('Y-m-d');
+            $dateOs = new \DateTime(date('Y-m-d', strtotime($osDate)));
+            $dateFim = new \DateTime($contrato->data_fim_vigencia);
+            
+            if ($dateOs > $dateFim) {
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => 'A data de emissão da ordem de serviço não pode ser posterior ao fim da vigência do contrato (' . date('d/m/Y', strtotime($contrato->data_fim_vigencia)) . ').'
+                ]);
+            }
+            
+            $interval = $dateOs->diff($dateFim);
+            $daysRemaining = $interval->days;
+            
+            if ($daysRemaining <= 30) {
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => 'Não é possível cadastrar ordem de serviço faltando 30 dias ou menos para o fim da vigência do contrato (' . date('d/m/Y', strtotime($contrato->data_fim_vigencia)) . ').'
+                ]);
+            }
+        }
+
         $notaEmpenho = $this->post('nota_empenho');
         if ($notaEmpenho !== null) {
             $notaEmpenho = trim($notaEmpenho);
@@ -221,6 +247,32 @@ class OrdemServicoController extends BaseController
                 'status' => 'error',
                 'mensagem' => 'O Contrato é obrigatório.'
             ]);
+        }
+
+        // Validação da vigência do contrato (faltando 30 dias para o fim)
+        $contratoModel = new \App\Models\ContratoModel();
+        $contrato = $contratoModel->find($id_contrato);
+        if ($contrato && !empty($contrato->data_fim_vigencia)) {
+            $osDate = $this->normalizeDatetime($this->post('data_emissao')) ?: date('Y-m-d');
+            $dateOs = new \DateTime(date('Y-m-d', strtotime($osDate)));
+            $dateFim = new \DateTime($contrato->data_fim_vigencia);
+            
+            if ($dateOs > $dateFim) {
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => 'A data de emissão da ordem de serviço não pode ser posterior ao fim da vigência do contrato (' . date('d/m/Y', strtotime($contrato->data_fim_vigencia)) . ').'
+                ]);
+            }
+            
+            $interval = $dateOs->diff($dateFim);
+            $daysRemaining = $interval->days;
+            
+            if ($daysRemaining <= 30) {
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'mensagem' => 'Não é possível cadastrar ordem de serviço faltando 30 dias ou menos para o fim da vigência do contrato (' . date('d/m/Y', strtotime($contrato->data_fim_vigencia)) . ').'
+                ]);
+            }
         }
 
         $currentStatus = $record->status ?? 'Rascunho';

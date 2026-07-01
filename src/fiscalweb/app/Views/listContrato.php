@@ -21,6 +21,9 @@ require VIEWPATH.'/header.php';
                     <th>ID</th>
                     <th>Descrição</th>
                     <th>Empresa</th>
+                    <th>Início Vigência</th>
+                    <th>Fim Vigência</th>
+                    <th>Meses Total</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -30,6 +33,9 @@ require VIEWPATH.'/header.php';
                     <td> <?php echo $item->id ?> </td>
                     <td> <?php echo $item->descricao ?> </td>
                     <td> <?php echo $item->empresa ?> </td>
+                    <td> <?php echo !empty($item->data_inicio_vigencia) ? date('d/m/Y', strtotime($item->data_inicio_vigencia)) : '' ?> </td>
+                    <td> <?php echo !empty($item->data_fim_vigencia) ? date('d/m/Y', strtotime($item->data_fim_vigencia)) : '' ?> </td>
+                    <td> <?php echo $item->qtd_meses_total ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updContrato'); ?>" method="post">

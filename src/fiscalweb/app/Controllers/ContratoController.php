@@ -40,7 +40,10 @@ class ContratoController extends BaseController
     {
         $data = [
             'descricao' => $this->request->getPost('descricao'),
-            'empresa' => $this->request->getPost('empresa')
+            'empresa' => $this->request->getPost('empresa'),
+            'data_inicio_vigencia' => $this->request->getPost('data_inicio_vigencia') ?: null,
+            'data_fim_vigencia' => $this->request->getPost('data_fim_vigencia') ?: null,
+            'qtd_meses_total' => $this->request->getPost('qtd_meses_total') ?: null
         ];
         
         $model = new ContratoModel();
@@ -65,7 +68,10 @@ class ContratoController extends BaseController
         $id = $this->request->getPost('id');
         $data = [
             'descricao' => $this->request->getPost('descricao'),
-            'empresa' => $this->request->getPost('empresa')
+            'empresa' => $this->request->getPost('empresa'),
+            'data_inicio_vigencia' => $this->request->getPost('data_inicio_vigencia') ?: null,
+            'data_fim_vigencia' => $this->request->getPost('data_fim_vigencia') ?: null,
+            'qtd_meses_total' => $this->request->getPost('qtd_meses_total') ?: null
         ];
         
         try {

@@ -543,7 +543,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 <a class="dropdown-item" href="<?= base_url('listItemContrato') ?>">📝 Itens de Contrato</a>
                                 <a class="dropdown-item" href="<?= base_url('listReajusteItemContrato') ?>">📈 Reajustes de Contrato</a>
                                 <a class="dropdown-item" href="<?= base_url('listMetrica') ?>">📏 Métricas</a>
-                                <a class="dropdown-item" href="<?= base_url('listItemOs') ?>">🔧 Itens OS</a>
+                                <!-- <a class="dropdown-item" href="<?= base_url('listItemOs') ?>">🔧 Itens OS</a> -->
                                 <a class="dropdown-item" href="<?= base_url('listPerfil') ?>">🔐 Perfis</a>
                                 <a class="dropdown-item" href="<?= base_url('listStatus') ?>">📊 Status</a>
                                 <a class="dropdown-item" href="<?= base_url('listStatusRecebimento') ?>">✅ Status Recebimento</a>
@@ -867,7 +867,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                             <a href="<?= base_url('listListaVerificacao') ?>" class="dropdown-item">Lista de Verificação</a>
                             <a href="<?= base_url('listStatus') ?>" class="dropdown-item">Status</a>
                             <a href="<?= base_url('listStatusRecebimento') ?>" class="dropdown-item">Status Recebimento</a>
-                            <a href="<?= base_url('listItemOs') ?>" class="dropdown-item">Itens OS</a>
+                            <!-- <a href="<?= base_url('listItemOs') ?>" class="dropdown-item">Itens OS</a> -->
                             <a href="<?= base_url('listAtividadeMacro') ?>" class="dropdown-item">Atividades Macro</a>
                             <a href="<?= base_url('listAreaAtuacao') ?>" class="dropdown-item">Áreas de Atuação</a>
                             <a href="<?= base_url('listCatalogoServicos') ?>" class="dropdown-item">Catálogo de Serviços</a>

@@ -20,7 +20,14 @@ require VIEWPATH.'/header.php';
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>IdOs</th><th>DataAssinatura</th><th>NupSei</th><th>IdTipoDocumento</th><th>IdUsuarioFiscalTecnico</th><th>IdUsuarioFiscalRequisitante</th><th>IdUsuarioGestor</th>
+                    <th>Contrato</th>
+                    <th>Ordem de Serviço (OS)</th>
+                    <th>Nup Sei</th>
+                    <th>Tipo Documento</th>
+                    <th>Data Assinatura</th>
+                    <th>Fiscal Técnico</th>
+                    <th>Fiscal Requisitante</th>
+                    <th>Gestor</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -28,62 +35,14 @@ require VIEWPATH.'/header.php';
                 <?php foreach($list as $item): ?>
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
-                    
-            <td>
-                <select name="id_os" id="id_os-<?php echo $item->id ?>">
-                    <option value="">Selecione...</option>
-                    <?php if(isset($id_os_list)): foreach($id_os_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_os) echo 'selected'; ?>>
-                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
-                        </option>
-                    <?php endforeach; endif; ?>
-                </select>
-            </td>
-<td> <?php echo $item->Data_Assinatura ?> </td><td> <?php echo $item->nup_sei ?> </td>
-            <td>
-                <select name="id_tipo_documento" id="id_tipo_documento-<?php echo $item->id ?>">
-                    <option value="">Selecione...</option>
-                    <?php if(isset($id_tipo_documento_list)): foreach($id_tipo_documento_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_tipo_documento) echo 'selected'; ?>>
-                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
-                        </option>
-                    <?php endforeach; endif; ?>
-                </select>
-            </td>
-
-            <td>
-                <select name="id_usuario_fiscal_tecnico" id="id_usuario_fiscal_tecnico-<?php echo $item->id ?>">
-                    <option value="">Selecione...</option>
-                    <?php if(isset($id_usuario_fiscal_tecnico_list)): foreach($id_usuario_fiscal_tecnico_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_usuario_fiscal_tecnico) echo 'selected'; ?>>
-                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
-                        </option>
-                    <?php endforeach; endif; ?>
-                </select>
-            </td>
-
-            <td>
-                <select name="id_usuario_fiscal_requisitante" id="id_usuario_fiscal_requisitante-<?php echo $item->id ?>">
-                    <option value="">Selecione...</option>
-                    <?php if(isset($id_usuario_fiscal_requisitante_list)): foreach($id_usuario_fiscal_requisitante_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_usuario_fiscal_requisitante) echo 'selected'; ?>>
-                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
-                        </option>
-                    <?php endforeach; endif; ?>
-                </select>
-            </td>
-
-            <td>
-                <select name="id_usuario_gestor" id="id_usuario_gestor-<?php echo $item->id ?>">
-                    <option value="">Selecione...</option>
-                    <?php if(isset($id_usuario_gestor_list)): foreach($id_usuario_gestor_list as $opt): ?>
-                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_usuario_gestor) echo 'selected'; ?>>
-                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
-                        </option>
-                    <?php endforeach; endif; ?>
-                </select>
-            </td>
-
+                    <td> <?php echo esc($item->Numero_Contrato ?? 'Nenhum') ?> </td>
+                    <td> <?php echo esc($item->os_nup_sei ?? 'Nenhum') ?> </td>
+                    <td> <?php echo esc($item->nup_sei ?? '') ?> </td>
+                    <td> <?php echo esc($item->tipo_documento_descricao ?? '') ?> </td>
+                    <td> <?php echo !empty($item->Data_Assinatura) ? date('d/m/Y', strtotime($item->Data_Assinatura)) : '' ?> </td>
+                    <td> <?php echo esc($item->fiscal_tecnico_nome ?? '') ?> </td>
+                    <td> <?php echo esc($item->fiscal_requisitante_nome ?? '') ?> </td>
+                    <td> <?php echo esc($item->gestor_nome ?? '') ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updDocumentoRecebimento'); ?>" method="post">

@@ -126,7 +126,20 @@ class DocumentoRecebimentoController extends BaseController
     public function list()  
     {
         $model = new DocumentoRecebimentoModel();
-        return $model->findAll();
+        return $model->select('documento_recebimento.*, 
+                               ordem_servico.nup_sei as os_nup_sei, 
+                               contrato.descricao as Numero_Contrato,
+                               tipo_documento.descricao as tipo_documento_descricao,
+                               u_tecnico.nome as fiscal_tecnico_nome,
+                               u_requisitante.nome as fiscal_requisitante_nome,
+                               u_gestor.nome as gestor_nome')
+                     ->join('ordem_servico', 'ordem_servico.id = documento_recebimento.id_os', 'left')
+                     ->join('contrato', 'contrato.id = ordem_servico.id_contrato', 'left')
+                     ->join('tipo_documento', 'tipo_documento.id = documento_recebimento.id_tipo_documento', 'left')
+                     ->join('usuario u_tecnico', 'u_tecnico.id = documento_recebimento.id_usuario_fiscal_tecnico', 'left')
+                     ->join('usuario u_requisitante', 'u_requisitante.id = documento_recebimento.id_usuario_fiscal_requisitante', 'left')
+                     ->join('usuario u_gestor', 'u_gestor.id = documento_recebimento.id_usuario_gestor', 'left')
+                     ->findAll();
     }
 
     public function insert() 

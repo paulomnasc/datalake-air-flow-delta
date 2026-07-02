@@ -35,7 +35,11 @@ class ReajusteItemContratoController extends BaseController
     public function list()  
     {
         $model = new ReajusteItemContratoModel();
-        return $model->findAll();
+        return $model->select('reajuste_item_contrato.*, contrato.empresa, metrica_contrato.sigla as metrica_sigla')
+                     ->join('item_contrato', 'item_contrato.id = reajuste_item_contrato.id_item_contrato', 'left')
+                     ->join('contrato', 'contrato.id = item_contrato.id_contrato', 'left')
+                     ->join('metrica_contrato', 'metrica_contrato.id = item_contrato.id_metrica', 'left')
+                     ->findAll();
     }
 
     public function insert() 

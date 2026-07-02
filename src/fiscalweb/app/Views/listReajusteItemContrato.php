@@ -20,8 +20,10 @@ require VIEWPATH.'/header.php';
                 <tr>
                     <th>ID</th>
                     <th>ID Item Contrato</th>
+                    <th>Empresa</th>
                     <th>Data Reajuste</th>
                     <th>Valor</th>
+                    <th>Métrica</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -30,8 +32,10 @@ require VIEWPATH.'/header.php';
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
                     <td> <?php echo $item->id_item_contrato ?> </td>
+                    <td> <?php echo $item->empresa ?? '' ?> </td>
                     <td> <?php echo date('d/m/Y', strtotime($item->data_reajuste_item_contrato)) ?> </td>
                     <td> <?php echo number_format($item->valor_item_contrato, 2, ',', '.') ?> </td>
+                    <td> <?php echo $item->metrica_sigla ?? '' ?> </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updReajusteItemContrato'); ?>" method="post">

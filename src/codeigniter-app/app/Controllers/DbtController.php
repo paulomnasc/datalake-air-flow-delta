@@ -153,6 +153,9 @@ class DbtController extends BaseController
             }
         }
 
+        // Copy data quality validation report script to the execution directory
+        copy('/datalake-root/dbt/analytics/dbt_validation_report.py', $projectDir . '/dbt_validation_report.py');
+
         // Gerar dinamicamente os modelos ephemerais intermediários (raw, bronze, silver, gold) para todas as tabelas ativas do MySQL do usuário
         $generationDebug = $this->generateDynamicEphemeralModels($projectDir, $userId, $userBucket);
 
@@ -300,8 +303,8 @@ YAML;
         // 5. Montar comando dbt
         $dbtCmd = '';
         if ($action === 'run') {
-            // Roda o dbt run e, se obtiver sucesso, gera os docs para manter a linhagem e colunas atualizadas na interface
-            $dbtCmd = "sh -c \"dbt run --profiles-dir . --target {$env} && dbt docs generate --profiles-dir . --target {$env}\"";
+            // Roda o dbt run, gera os docs e executa a validação de dados injetando os relatórios no manifest.json
+            $dbtCmd = "sh -c \"dbt run --profiles-dir . --target {$env} && dbt docs generate --profiles-dir . --target {$env} && python3 dbt_validation_report.py --target {$env}\"";
         } elseif ($action === 'test') {
             $dbtCmd = "test --profiles-dir . --target " . $env;
         } elseif ($action === 'docs') {

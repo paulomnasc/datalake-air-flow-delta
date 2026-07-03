@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home - Solução Híbrida Datalake - Documentação Datalake</title>
+    <title>Relatórios de Qualidade dbt - Documentação Datalake</title>
     <style>
         :root {
             --sidebar-width: 280px;
@@ -174,33 +174,17 @@
             font-size: 1.4rem;
         }
 
-        .content h4 {
-            color: #666;
-            margin-top: 15px;
-            margin-bottom: 8px;
-            font-size: 1.2rem;
-        }
-
         .content p {
             margin-bottom: 15px;
             color: #555;
         }
 
-        .content ul {
+        .content ul, .content ol {
             margin-bottom: 15px;
             margin-left: 20px;
         }
 
-        .content ul li {
-            margin-bottom: 8px;
-        }
-
-        .content ol {
-            margin-bottom: 15px;
-            margin-left: 20px;
-        }
-
-        .content ol li {
+        .content ul li, .content ol li {
             margin-bottom: 8px;
         }
 
@@ -212,28 +196,6 @@
 
         .content a:hover {
             text-decoration: underline;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            background: #3498db;
-            color: white;
-            border-radius: 3px;
-            font-size: 0.85rem;
-            margin-left: 5px;
-        }
-
-        .badge.star {
-            background: #f39c12;
-        }
-
-        .badge.warning {
-            background: #e74c3c;
-        }
-
-        .badge.success {
-            background: #27ae60;
         }
 
         code {
@@ -283,20 +245,6 @@
             background: #f9f9f9;
         }
 
-        blockquote {
-            border-left: 4px solid #3498db;
-            padding-left: 15px;
-            margin: 15px 0;
-            color: #555;
-            font-style: italic;
-        }
-
-        hr {
-            border: none;
-            border-top: 1px solid #ddd;
-            margin: 30px 0;
-        }
-
         .alert {
             padding: 15px;
             margin-bottom: 20px;
@@ -309,94 +257,13 @@
             color: #31708f;
         }
 
-        .alert-warning {
-            background: #fcf8e3;
-            border-left: 4px solid #8a6d3b;
-            color: #8a6d3b;
-        }
-
         .alert-success {
             background: #dff0d8;
             border-left: 4px solid #3c763d;
             color: #3c763d;
         }
-
-        .alert-danger {
-            background: #f2dede;
-            border-left: 4px solid #a94442;
-            color: #a94442;
-        }
-
-        .masked-value {
-            font-family: 'Courier New', monospace;
-            user-select: none;
-            cursor: pointer;
-            padding: 2px 6px;
-            border-radius: 3px;
-            background: #f4f4f4;
-            transition: all 0.3s ease;
-        }
-
-        .masked-value:hover {
-            background: #e0e0e0;
-            text-decoration: underline;
-        }
-
-        .masked-value.revealed {
-            background: #ffffcc;
-        }
     </style>
     <script>
-        // Mascara valores sensíveis (passwords, tokens, secrets)
-        function maskSensitiveValues() {
-            const sensitivePatterns = [
-                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
-                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
-                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
-                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
-                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
-            ];
-
-            const codeBlocks = document.querySelectorAll('code, pre');
-            
-            codeBlocks.forEach(block => {
-                let content = block.innerHTML;
-                
-                sensitivePatterns.forEach(pattern => {
-                    content = content.replace(pattern.regex, (match, value) => {
-                        if (!value) return match;
-                        
-                        const prefix = match.substring(0, match.indexOf(value));
-                        const masked = '*'.repeat(Math.min(value.length, 12));
-                        const tooltip = `Clique para revelar o valor`;
-                        
-                        return `${prefix}<span class="masked-value" title="${tooltip}" data-original="${value}" onclick="toggleMask(event)">${masked}</span>`;
-                    });
-                });
-                
-                block.innerHTML = content;
-            });
-        }
-
-        // Toggle visibilidade de valores mascarados
-        function toggleMask(event) {
-            event.stopPropagation();
-            const span = event.target;
-            
-            if (span.classList.contains('revealed')) {
-                const original = span.getAttribute('data-original');
-                span.textContent = '*'.repeat(Math.min(original.length, 12));
-                span.classList.remove('revealed');
-            } else {
-                const original = span.getAttribute('data-original');
-                span.textContent = original;
-                span.classList.add('revealed');
-            }
-        }
-
         function setSidebarState(isOpen) {
             const sidebar = document.querySelector('.sidebar');
             const content = document.querySelector('.content');
@@ -414,7 +281,6 @@
 
             toggleBtn.textContent = isOpen ? '✕' : '☰';
             
-            // Ajusta posição do botão em telas maiores
             if (window.innerWidth >= 1100) {
                 toggleBtn.style.left = isOpen ? 'calc(var(--sidebar-width) + 16px)' : '16px';
             } else {
@@ -449,11 +315,7 @@
             });
         }
 
-        // Executar quando documento carregar
-        document.addEventListener('DOMContentLoaded', function() {
-            maskSensitiveValues();
-            initSidebarToggle();
-        });
+        document.addEventListener('DOMContentLoaded', initSidebarToggle);
     </script>
 </head>
 <body>
@@ -466,64 +328,112 @@
             <h2>📚 Documentação</h2>
             <nav>
                 <ul>
-                    <li><a href="index.html" class="active">🏠 Home</a></li>
-                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
-                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
-                    <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
-                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
-                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
-                    <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                    <li><a href="index.html">🏠 Home</a></li>
+                    <li><a href="docs-index.html">📋 Índice Completo</a></li>
+                    <li><a href="guide-webapp-config.html">🖥️ Guia Interface Web</a></li>
+                    <li><a href="powerbi-conexao-duckdb-odbc.html">🔌 Conexão Power BI</a></li>
+                    <li><a href="transformacoes-silver.html">🥈 Transformações Silver</a></li>
+                    <li><a href="delta-lake-implementation.html">🥇 Delta Lake & Gold</a></li>
+                    <li><a href="dbt-quality-reports.html" class="active">📊 Relatórios de Qualidade dbt</a></li>
                 </ul>
             </nav>
         </aside>
 
         <!-- Main Content -->
         <main class="content">
-<h1 id="solucao-hibrida-apache-airflow-postgresql-minio-delta-lake">🚀 Solução Híbrida: Apache Airflow + PostgreSQL + MinIO + Delta Lake</h1>
+            <h1>📊 Relatórios de Qualidade de Dados (Data Quality) Integrados no dbt</h1>
 
-<p>Este projeto integra três componentes principais para orquestração de dados e armazenamento:</p>
+            <p>Esta seção documenta a arquitetura de **Data Quality Observability** integrada nativamente ao fluxo de compilação do **dbt (Data Build Tool)** do projeto. Esta solução valida métricas, regras de negócio e volumes entre a base de origem e o destino final do DW, apresentando os resultados diretamente no Console e na interface de documentação do dbt Docs para os analistas e usuários de UX.</p>
 
-<ul>
-<li><strong>Apache Airflow</strong>: Orquestração de workflows</li>
-<li><strong>PostgreSQL</strong>: Banco de dados relacional para metadados do Airflow <strong>+ BI endpoint</strong> (postgres-bi)</li>
-<li><strong>MinIO</strong>: Armazenamento de objetos compatível com S3</li>
-<li><strong>Delta Lake</strong>: Camada ACID sobre Data Lake com versionamento e time travel</li>
-<li><strong>Apache Atlas</strong>: Catálogo de dados e governança (standalone)</li>
-<li><strong>Jupyter + PySpark (Lab Atlas)</strong>: Ambiente interativo para análise e integração com Atlas</li>
-</ul>
+            <div class="alert alert-info">
+                <strong>Funcionamento Automático:</strong> Toda vez que um usuário clica em <code>dbt Run</code> no editor de código da interface web, a validação é executada no fim do processo e injetada de forma invisível nos metadados.
+            </div>
 
-<p>A base foi adaptada para incluir os três serviços integrados. Os artefatos de código (DAGs, scripts, configurações) estão versionados neste repositório.</p>
+            <h2>🏗️ Arquitetura e Fluxo de Execução</h2>
+            <p>O fluxo de processamento funciona de maneira encadeada dentro do container docker do dbt:</p>
+            <ol>
+                <li><strong>dbt Run</strong>: Compila e grava os modelos SQL no PostgreSQL analítico (<code>datalake_bi</code>).</li>
+                <li><strong>dbt Docs Generate</strong>: Gera a documentação do projeto e cria os arquivos <code>manifest.json</code> e <code>catalog.json</code> em <code>target/</code>.</li>
+                <li><strong>Validador (Python)</strong>: Executa o script <code>dbt_validation_report.py</code>, que realiza consultas analíticas de auditoria cruzando a origem (<code>northwind</code>) com o destino (<code>datalake_bi</code>).</li>
+                <li><strong>Injeção de Metadados</strong>: O script atualiza o campo <code>description</code> dos nós do dbt dentro de <code>target/manifest.json</code>, inserindo tabelas comparativas detalhadas em Markdown e LaTeX.</li>
+                <li><strong>Publicação na UX</strong>: O log do terminal exibe os relatórios formatados em formato limpo, e a interface gráfica do <strong>dbt Docs</strong> (carregada via iframe na UX) renderiza os relatórios completos e formatados com equações matemáticas.</li>
+            </ol>
 
-<h2 id="documentacao-completa">📚 Documentação Completa</h2>
+            <h2>📐 Regras de Qualidade e Mapeamento de Tabelas</h2>
+            <p>O validador realiza auditorias diferenciadas com base nas entidades processadas:</p>
 
-<p>Para entender a arquitetura Medallion (Bronze → Silver → Gold) e todas as transformações aplicadas, consulte o <strong><a href="docs-index.html">Índice de Documentação</a></strong>.</p>
+            <h3>1. Validação de Fato (<code>fato_sales</code>)</h3>
+            <p>Compara e valida a integridade da tabela de fatos principal:</p>
+            <ul>
+                <li><strong>Volumetria</strong>: Compara a quantidade total de linhas contra o banco de origem (<code>order_details</code>).</li>
+                <li><strong>Chaves Nulas</strong>: Garante que nenhuma chave primária (SK) ou estrangeira (FK) está nula.</li>
+                <li><strong>Duplicidade</strong>: Confirma que não existem surrogate keys repetidas.</li>
+                <li><strong>Auditoria de Cálculos</strong>: Recalcula linha a linha o valor bruto e líquido e compara com o destino para garantir 100% de exatidão nas fórmulas:
+                    <ul>
+                        <li><code>receita_bruta = quantidade * preco_unitario</code></li>
+                        <li><code>receita_liquida = quantidade * preco_unitario * (1 - desconto)</code></li>
+                    </ul>
+                </li>
+            </ul>
 
-<h3 id="guias-de-uso">🎯 Guias de Uso</h3>
+            <h3>2. Validação de Dimensões (<code>dim_customers</code>, <code>dim_products</code>, <code>dim_employees</code>, <code>dim_categories</code>)</h3>
+            <p>Garante que a carga dimensional ocorreu sem corrupção:</p>
+            <ul>
+                <li><strong>Match de Volumetria</strong>: Compara a contagem total de registros da dimensão contra sua tabela original no OLTP.</li>
+                <li><strong>Integridade de Chaves</strong>: Identifica chaves primárias duplicadas ou registros com SKs nulas.</li>
+            </ul>
 
-<ul>
-<li><strong><a href="guide-webapp-config.html">📋 Guia da Interface Web</a></strong>: Como preencher formulário de configuração de DAGs, multi-tabela, conexões SQL, validações</li>
-<li><strong><a href="migracao-duckdb-postgresql.html">🔌 Conexão Power BI</a></strong> <span class="badge star">⭐</span>: PostgreSQL para BI (solução robusta, múltiplas tabelas simultâneas)</li>
-</ul>
+            <h3>3. Suporte Genérico (Fallback)</h3>
+            <p>Para qualquer outro modelo customizado criado pelo usuário do dbt, o sistema de validação aciona uma auditoria genérica automatizada. Ele calcula o total de registros e integridade estrutural no banco de destino analítico, garantindo que o script <strong>nunca quebre</strong> e que novos modelos também recebam relatórios de volumetria automaticamente.</p>
 
-<h3 id="documentacao-por-camada">Documentação por Camada</h3>
+            <h2>🧮 Demonstração do Relatório e Exemplo de Cálculo Prático</h2>
+            <p>Abaixo está um exemplo de como o relatório de qualidade de dados é gerado para a tabela de fatos, exibindo o passo a passo matemático com valores reais retirados dinamicamente das tabelas:</p>
 
-<ul>
-<li><strong><a href="transformacoes-silver.html">Transformações Silver</a></strong>: Data Quality, validações, dicionário de dados</li>
-<li><strong><a href="delta-lake-implementation.html">Delta Lake & Gold</a></strong>: Feature Engineering, Delta Lake, ML/BI integration</li>
-</ul>
+            <pre><code>### 📊 Relatório de Validação de Dados (fato_sales)
+* **Status de Qualidade**: 🟢 Aprovado
+* **Data da Validação**: 2026-07-03 10:41:08
 
-<h3 id="navegacao-rapida-por-caso-de-uso">Navegação Rápida por Caso de Uso</h3>
+#### ⚙️ Comparativo de Registros
+| Métrica | Origem (order_details) | Destino (fato_sales) | Status |
+| :--- | :--- | :--- | :--- |
+| **Total de Linhas** | 2155 | 2155 | ✅ Match |
+| **Linhas Duplicadas** | - | 0 | ✅ Sem Duplicatas |
+| **Chaves Nulas** | - | 0 | ✅ Sem Nulos |
+| **Erros de Cálculo** | - | 0 | ✅ Cálculos 100% Corretos |
 
-<ul>
-<li><strong>Machine Learning</strong>: <a href="delta-lake-implementation.html#dicionario-de-dados-camada-gold-delta-lake">Feature Engineering Guide</a></li>
-<li><strong>Análise Temporal</strong>: <a href="delta-lake-implementation.html#5-features-temporais-date-columns">Temporal Features</a></li>
-<li><strong>Qualidade de Dados</strong>: <a href="transformacoes-silver.html#dicionario-de-dados-camadas-silver">Data Quality Dictionary</a></li>
-<li><strong>Segmentação</strong>: <a href="delta-lake-implementation.html#4-features-categoricas-categorical-columns">Categorical Features</a></li>
-<li><strong>Detecção de Outliers</strong>: <a href="delta-lake-implementation.html#3-features-numericas-numeric-columns">Statistical Features</a></li>
-</ul>
+#### 📐 Regras de Cálculo Aplicadas
+* **receita_bruta** = quantidade * preco_unitario (Multiplicação direta de quantity e unit_price)
+* **receita_liquida** = quantidade * preco_unitario * (1 - desconto) (Valor bruto aplicando o redutor de desconto)
 
-<p>---</p>
+#### 🧮 Exemplo Prático de Cálculo (Com Dados Reais do Banco)
+Auditamos o seguinte registro real para demonstrar como as colunas calculadas foram geradas:
+* **Quantidade Vendida (`quantidade`)**: 35 unidades
+* **Preço Unitário (`preco_unitario`)**: R$ 42.40
+* **Percentual de Desconto (`desconto`)**: 15% (fração: 0.15)
 
+**Passo a Passo do Cálculo:**
+1. **Receita Bruta**:
+   Receita Bruta = Quantidade * Preço Unitário
+   Receita Bruta = 35 * R$ 42.40 = R$ 1484.00
+   *(Valor armazenado no destino: R$ 1484.00 - ✅ Confirmado)*
+
+2. **Receita Líquida**:
+   Receita Líquida = Receita Bruta * (1 - Desconto)
+   Receita Líquida = R$ 1484.00 * (1 - 0.15) = R$ 1484.00 * 0.85 = R$ 1261.40
+   *(Valor armazenado no destino: R$ 1261.40 - ✅ Confirmado)*</code></pre>
+
+            <h2>🛠️ Como Estender as Validações</h2>
+            <p>O arquivo de validação está localizado em <code>dbt/analytics/dbt_validation_report.py</code> no repositório de templates. Para adicionar auditorias de regras de negócio personalizadas para novas tabelas:</p>
+            <ol>
+                <li>Abra o arquivo <code>dbt_validation_report.py</code>.</li>
+                <li>Adicione um novo bloco condicional verificando se a nova tabela existe no destino:
+                    <pre><code>if 'fato_financeiro' in dest_tables:
+    # 1. Faça as consultas no banco dest_db e src_db usando conn.sql()
+    # 2. Crie a string markdown com os comparativos e cálculos
+    # 3. Guarde o relatório no dicionário: reports['fato_financeiro'] = report</code></pre>
+                </li>
+                <li>Ao rodar o dbt, o script automaticamente aplicará as novas regras e as integrará na interface de usuário.</li>
+            </ol>
         </main>
     </div>
 </body>

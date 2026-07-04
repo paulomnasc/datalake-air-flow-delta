@@ -46,7 +46,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .container {{
-            display: flex;
             min-height: 100vh;
         }}
 
@@ -105,10 +104,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .content {{
             margin-left: var(--sidebar-width);
             padding: 40px;
-            flex: 1;
             background: white;
             max-width: 1400px;
+            min-height: 100vh;
             transition: margin-left 0.3s ease;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }}
 
         .content.collapsed {{
@@ -245,6 +246,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-family: 'Courier New', monospace;
             font-size: 0.85rem;
             color: #c7254e;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }}
 
         pre {{
@@ -262,12 +265,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             padding: 0;
             color: #333;
             font-size: 0.85rem;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: pre;
         }}
 
         table {{
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }}
 
         table th {{
@@ -600,6 +608,7 @@ def md_to_html(md_content):
             'PowerBI_Conexao_DuckDB_ODBC.md': 'powerbi-conexao-duckdb-odbc.html',
             'TRANSFORMACOES_SILVER.md': 'transformacoes-silver.html',
             'DELTA_LAKE_IMPLEMENTATION.md': 'delta-lake-implementation.html',
+            'DELTA_SHARING_OPERATIONAL.md': 'delta-sharing-operational.html',
         }
 
         # Se for um .md conhecido, troca para .html correspondente

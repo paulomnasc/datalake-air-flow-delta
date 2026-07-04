@@ -22,7 +22,6 @@
         }
 
         .container {
-            display: flex;
             min-height: 100vh;
         }
 
@@ -81,10 +80,12 @@
         .content {
             margin-left: var(--sidebar-width);
             padding: 40px;
-            flex: 1;
             background: white;
             max-width: 1400px;
+            min-height: 100vh;
             transition: margin-left 0.3s ease;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
 
         .content.collapsed {
@@ -221,6 +222,8 @@
             font-family: 'Courier New', monospace;
             font-size: 0.85rem;
             color: #c7254e;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         pre {
@@ -238,12 +241,17 @@
             padding: 0;
             color: #333;
             font-size: 0.85rem;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: pre;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         table th {
@@ -2121,7 +2129,7 @@
 <li><strong>Leitura Incremental</strong>: Por consumir diretamente as tabelas Delta (<code>gold/{dag_id}/{target_table_name}_delta/</code>), os analistas herdam o controle transacional e o histórico das tabelas do Data Lake.</li>
 </ol>
 
-<p>Para saber como configurar, gerenciar e conectar clientes ao servidor do Delta Sharing, consulte o <strong><a href="DELTA_SHARING_OPERATIONAL.html">Guia Operacional - Delta Sharing</a></strong>.</p>
+<p>Para saber como configurar, gerenciar e conectar clientes ao servidor do Delta Sharing, consulte o <strong><a href="delta-sharing-operational.html">Guia Operacional - Delta Sharing</a></strong>.</p>
 
 
         </main>

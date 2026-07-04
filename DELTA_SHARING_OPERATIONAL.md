@@ -84,14 +84,24 @@ Envie este arquivo de perfil `.share` para o analista de BI ou cientista de dado
 
 ## 🔌 Conectando do Power BI (Analistas de BI)
 
-O Power BI possui um conector nativo para o Delta Sharing que facilita o consumo:
+O Power BI possui um conector nativo para o Delta Sharing. Como o conector solicita as credenciais e o endpoint de conexão diretamente em vez de importar o arquivo `.share`, siga os passos abaixo para conectar:
 
-1. Abra o **Power BI Desktop**.
-2. Clique em **Obter Dados** → **Mais...**
-3. Pesquise por **Delta Sharing** e selecione o conector.
-4. No campo de conexão, o Power BI solicitará o arquivo de perfil. Selecione o arquivo `gold_share_recipient.share` que você recebeu do administrador.
-5. O Power BI lerá as configurações e listará as tabelas disponíveis (`dim_usuarios`, `dim_cursos` e `fato_vendas`).
-6. Selecione as tabelas desejadas e clique em **Carregar**.
+1. Abra o arquivo de perfil `gold_share_recipient.share` que você recebeu em um editor de texto (como Bloco de Notas ou VS Code) para copiar as credenciais:
+   ```json
+   {
+     "shareCredentialsVersion": 1,
+     "endpoint": "http://localhost:28085/share",
+     "bearerToken": "dbtSharingToken2026Secure"
+   }
+   ```
+2. Abra o **Power BI Desktop**.
+3. Clique em **Obter Dados** → **Mais...**
+4. Pesquise por **Delta Sharing** e selecione o conector.
+5. Na janela de configuração, insira no campo **URL do Servidor Delta Sharing** (Delta Sharing Server URL) o valor do campo `endpoint` do arquivo (ex: `http://localhost:28085/share`) e clique em **OK**.
+6. Na janela de autenticação subsequente, selecione a opção **Token de Portador** (Bearer Token) no menu lateral esquerdo.
+7. Insira o valor do campo `bearerToken` do arquivo (ex: `dbtSharingToken2026Secure`) e clique em **Conectar**.
+8. O Power BI listará as tabelas disponíveis (`dim_usuarios`, `dim_cursos` e `fato_vendas`).
+9. Selecione as tabelas desejadas e clique em **Carregar**.
 
 ---
 

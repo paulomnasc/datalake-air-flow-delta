@@ -22,7 +22,6 @@
         }
 
         .container {
-            display: flex;
             min-height: 100vh;
         }
 
@@ -81,10 +80,12 @@
         .content {
             margin-left: var(--sidebar-width);
             padding: 40px;
-            flex: 1;
             background: white;
             max-width: 1400px;
+            min-height: 100vh;
             transition: margin-left 0.3s ease;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
 
         .content.collapsed {
@@ -221,6 +222,8 @@
             font-family: 'Courier New', monospace;
             font-size: 0.85rem;
             color: #c7254e;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         pre {
@@ -238,12 +241,17 @@
             padding: 0;
             color: #333;
             font-size: 0.85rem;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: pre;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         table th {
@@ -550,14 +558,25 @@
 
 <h2 id="conectando-do-power-bi-analistas-de-bi">🔌 Conectando do Power BI (Analistas de BI)</h2>
 
-<p>O Power BI possui um conector nativo para o Delta Sharing que facilita o consumo:</p>
+<p>O Power BI possui um conector nativo para o Delta Sharing. Como o conector solicita as credenciais e o endpoint de conexão diretamente em vez de importar o arquivo <code>.share</code>, siga os passos abaixo para conectar:</p>
 
+<ol>
+<li>Abra o arquivo de perfil <code>gold_share_recipient.share</code> que você recebeu em um editor de texto (como Bloco de Notas ou VS Code) para copiar as credenciais:</li>
+</ol>
+<p>   <pre><code>   {</p>
+<p>     "shareCredentialsVersion": 1,</p>
+<p>     "endpoint": "http://localhost:28085/share",</p>
+<p>     "bearerToken": "dbtSharingToken2026Secure"</p>
+<p>   }</p>
+<p>   ``<code></p>
 <ol>
 <li>Abra o <strong>Power BI Desktop</strong>.</li>
 <li>Clique em <strong>Obter Dados</strong> → <strong>Mais...</strong></li>
 <li>Pesquise por <strong>Delta Sharing</strong> e selecione o conector.</li>
-<li>No campo de conexão, o Power BI solicitará o arquivo de perfil. Selecione o arquivo <code>gold_share_recipient.share</code> que você recebeu do administrador.</li>
-<li>O Power BI lerá as configurações e listará as tabelas disponíveis (<code>dim_usuarios</code>, <code>dim_cursos</code> e <code>fato_vendas</code>).</li>
+<li>Na janela de configuração, insira no campo <strong>URL do Servidor Delta Sharing</strong> (Delta Sharing Server URL) o valor do campo </code>endpoint<code> do arquivo (ex: </code>http://localhost:28085/share<code>) e clique em <strong>OK</strong>.</li>
+<li>Na janela de autenticação subsequente, selecione a opção <strong>Token de Portador</strong> (Bearer Token) no menu lateral esquerdo.</li>
+<li>Insira o valor do campo </code>bearerToken<code> do arquivo (ex: </code>dbtSharingToken2026Secure<code>) e clique em <strong>Conectar</strong>.</li>
+<li>O Power BI listará as tabelas disponíveis (</code>dim_usuarios<code>, </code>dim_cursos<code> e </code>fato_vendas<code>).</li>
 <li>Selecione as tabelas desejadas e clique em <strong>Carregar</strong>.</li>
 </ol>
 
@@ -565,13 +584,13 @@
 
 <h2 id="conectando-de-notebooks-python-cientistas-de-dados">🐍 Conectando de Notebooks Python (Cientistas de Dados)</h2>
 
-<p>Cientistas de dados podem importar e interagir com os dados compartilhados usando a biblioteca <code>delta-sharing</code>:</p>
+<p>Cientistas de dados podem importar e interagir com os dados compartilhados usando a biblioteca </code>delta-sharing<code>:</p>
 
-<h3 id="1-instalacao">1. Instalação</h3>
-<pre><code>pip install delta-sharing</code></pre>
-
-<h3 id="2-codigo-python-para-leitura">2. Código Python para Leitura</h3>
-<pre><code>import delta_sharing
+<h3 id="1-instalacao">1. Instalação</h3></code></pre>bash
+<p>pip install delta-sharing</p>
+<pre><code>
+<h3 id="2-codigo-python-para-leitura">2. Código Python para Leitura</h3></code></pre>python
+<p>import delta_sharing</p>
 
 <h1 id="1-caminho-para-o-arquivo-de-perfil-recebido">1. Caminho para o arquivo de perfil recebido</h1>
 <p>profile_file = "gold_share_recipient.share"</p>
@@ -593,7 +612,8 @@
 <p>table_url = f"{profile_file}#gold_share.analytics.fato_vendas"</p>
 <p>df = delta_sharing.load_as_pandas(table_url)</p>
 
-<p>print(df.head())</code></pre></p>
+<p>print(df.head())</p>
+</code>``
 
         </main>
     </div>

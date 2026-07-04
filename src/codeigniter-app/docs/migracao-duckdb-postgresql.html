@@ -22,7 +22,6 @@
         }
 
         .container {
-            display: flex;
             min-height: 100vh;
         }
 
@@ -81,10 +80,12 @@
         .content {
             margin-left: var(--sidebar-width);
             padding: 40px;
-            flex: 1;
             background: white;
             max-width: 1400px;
+            min-height: 100vh;
             transition: margin-left 0.3s ease;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
 
         .content.collapsed {
@@ -219,8 +220,10 @@
             padding: 2px 6px;
             border-radius: 3px;
             font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: #c7254e;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         pre {
@@ -230,18 +233,25 @@
             overflow-x: auto;
             margin-bottom: 15px;
             border-left: 4px solid #3498db;
+            font-size: 0.9rem;
         }
 
         pre code {
             background: none;
             padding: 0;
             color: #333;
+            font-size: 0.85rem;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: pre;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         table th {
@@ -443,17 +453,18 @@
             <h2>📚 Documentação</h2>
             <nav>
                 <ul>
-<li><a href="index.html">🏠 Home</a></li>
-<li><a href="docs-index.html">📋 Índice Completo</a></li>
-<li><a href="guide-webapp-config.html">🖥️ Guia Interface Web</a></li>
-<li><a href="powerbi-conexao-duckdb-odbc.html">🔌 Conexão Power BI</a></li>
-<li><a href="transformacoes-silver.html">🥈 Transformações Silver</a></li>
-<li><a href="delta-lake-implementation.html">🥇 Delta Lake & Gold</a></li>
-<li><a href="git-dbt-analytics.html">📊 Git & dbt Analytics</a></li>
-<li><a href="dbt-quality-reports.html">📊 Relatórios dbt</a></li>
-<li><a href="metabase-analytics.html">📈 Metabase Analytics</a></li>
-<li><a href="MyDataFloConfigurandoAPI.html">🛠️ Configurando API (Exemplo)</a></li>
-</ul>
+                    <li><a href="index.html" >🏠 Home</a></li>
+                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    <li><a href="powerbi-conexao-duckdb-odbc.html" class="active">🔌 Conexão Power BI</a></li>
+                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                    <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                    <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
+                    <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                    <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
+                    <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
+                </ul>
             </nav>
         </aside>
 

@@ -12,7 +12,8 @@ services:
       - "${NGINX_PORT_HTTP}:${NGINX_PORT_HTTP}"
       - "${NGINX_PORT_HTTPS}:${NGINX_PORT_HTTPS}"
       - "80:80"
-      - "443:443"
+      - "443:${NGINX_PORT_HTTPS}"
+      - "${MINIO_API_PORT}:${MINIO_API_PORT}"
     volumes:
       - ./nginx/myflow.conf.template:/etc/nginx/templates/myflow.conf.template:ro
       - ./nginx/error-pages:/etc/nginx/error-pages:ro
@@ -28,6 +29,8 @@ services:
       - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
       - NGINX_SSL_CERT=${NGINX_SSL_CERT}
       - NGINX_SSL_KEY=${NGINX_SSL_KEY}
+      - MINIO_API_PORT=${MINIO_API_PORT}
+      - MINIO_API_PORT_HTTP=${MINIO_API_PORT_HTTP}
       - AIRFLOW_WEBSERVER_PORT=${AIRFLOW_WEBSERVER_PORT}
     depends_on:
       - codeigniter-app
@@ -248,7 +251,7 @@ services:
       MINIO_ROOT_PASSWORD: admin123
     command: server /data --console-address ":9001"
     ports:
-      - "${MINIO_API_PORT}:9000"
+      - "29002:9000"
       - "${MINIO_CONSOLE_PORT}:9001"
     volumes:
       - /var/oled/minio_data:/data
@@ -494,6 +497,25 @@ services:
     networks:
       - airflow_net
 
+  # 🤝 Delta Sharing Server (Segurança de acesso aos dados Gold no MinIO)
+  delta-sharing-server:
+    image: deltaio/delta-sharing-server:0.6.0
+    container_name: delta_sharing_server${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    command: ["--config", "/config/delta-sharing-server.yaml"]
+    restart: always
+    ports:
+      - "28085:8080"
+    volumes:
+      - ./delta-sharing/delta-sharing-server.yaml:/config/delta-sharing-server.yaml
+      - ./delta-sharing/core-site.xml:/opt/docker/conf/core-site.xml:ro
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=admin123
+      - AWS_REGION=us-east-1
+    depends_on:
+      - minio
+    networks:
+      - airflow_net
 
 networks:
   airflow_net:

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyDataFlow - Solução Low Code Datalake - Documentação Datalake</title>
+    <title>Home - Solução Híbrida Datalake - Documentação Datalake</title>
     <style>
         :root {
             --sidebar-width: 280px;
@@ -22,7 +22,6 @@
         }
 
         .container {
-            display: flex;
             min-height: 100vh;
         }
 
@@ -81,10 +80,12 @@
         .content {
             margin-left: var(--sidebar-width);
             padding: 40px;
-            flex: 1;
             background: white;
             max-width: 1400px;
+            min-height: 100vh;
             transition: margin-left 0.3s ease;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
 
         .content.collapsed {
@@ -219,8 +220,10 @@
             padding: 2px 6px;
             border-radius: 3px;
             font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: #c7254e;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         pre {
@@ -230,18 +233,25 @@
             overflow-x: auto;
             margin-bottom: 15px;
             border-left: 4px solid #3498db;
+            font-size: 0.9rem;
         }
 
         pre code {
             background: none;
             padding: 0;
             color: #333;
+            font-size: 0.85rem;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: pre;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         table th {
@@ -443,23 +453,24 @@
             <h2>📚 Documentação</h2>
             <nav>
                 <ul>
-<li><a href="index.html" class="active">🏠 Home</a></li>
-<li><a href="docs-index.html">📋 Índice Completo</a></li>
-<li><a href="guide-webapp-config.html">🖥️ Guia Interface Web</a></li>
-<li><a href="powerbi-conexao-duckdb-odbc.html">🔌 Conexão Power BI</a></li>
-<li><a href="transformacoes-silver.html">🥈 Transformações Silver</a></li>
-<li><a href="delta-lake-implementation.html">🥇 Delta Lake & Gold</a></li>
-<li><a href="git-dbt-analytics.html">📊 Git & dbt Analytics</a></li>
-<li><a href="dbt-quality-reports.html">📊 Relatórios dbt</a></li>
-<li><a href="metabase-analytics.html">📈 Metabase Analytics</a></li>
-<li><a href="MyDataFloConfigurandoAPI.html">🛠️ Configurando API (Exemplo)</a></li>
-</ul>
+                    <li><a href="index.html" class="active">🏠 Home</a></li>
+                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
+                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                    <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                    <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
+                    <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                    <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
+                    <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
+                </ul>
             </nav>
         </aside>
 
         <!-- Main Content -->
         <main class="content">
-<h1 id="solucao-hibrida-apache-airflow-postgresql-minio-delta-lake">🚀 Solução Lowcode - Contrução de Delta Lake</h1>
+<h1 id="solucao-hibrida-apache-airflow-postgresql-minio-delta-lake">🚀 Solução Híbrida: Apache Airflow + PostgreSQL + MinIO + Delta Lake</h1>
 
 <p>Este projeto integra três componentes principais para orquestração de dados e armazenamento:</p>
 
@@ -483,8 +494,6 @@
 <ul>
 <li><strong><a href="guide-webapp-config.html">📋 Guia da Interface Web</a></strong>: Como preencher formulário de configuração de DAGs, multi-tabela, conexões SQL, validações</li>
 <li><strong><a href="migracao-duckdb-postgresql.html">🔌 Conexão Power BI</a></strong> <span class="badge star">⭐</span>: PostgreSQL para BI (solução robusta, múltiplas tabelas simultâneas)</li>
-<li><strong><a href="git-dbt-analytics.html">📊 Git & dbt Analytics</a></strong>: Como versionar modelos, criar tabelas no dbt e acompanhar logs e linhagem</li>
-<li><strong><a href="metabase-analytics.html">📈 Metabase Analytics</a></strong>: Acesso ao Metabase, segurança de schemas e criação de dashboards</li>
 </ul>
 
 <h3 id="documentacao-por-camada">Documentação por Camada</h3>

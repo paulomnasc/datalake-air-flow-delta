@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home - Solução Híbrida Datalake - Documentação Datalake</title>
+    <title>Guia Operacional - Delta Sharing Server - Documentação Datalake</title>
     <style>
         :root {
             --sidebar-width: 280px;
@@ -453,13 +453,13 @@
             <h2>📚 Documentação</h2>
             <nav>
                 <ul>
-                    <li><a href="index.html" class="active">🏠 Home</a></li>
+                    <li><a href="index.html" >🏠 Home</a></li>
                     <li><a href="docs-index.html" >📋 Índice Completo</a></li>
                     <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
                     <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
                     <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
                     <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
-                    <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                    <li><a href="delta-sharing-operational.html" class="active">🤝 Delta Sharing Gold</a></li>
                     <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
                     <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
                     <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
@@ -470,50 +470,164 @@
 
         <!-- Main Content -->
         <main class="content">
-<h1 id="solucao-hibrida-apache-airflow-postgresql-minio-delta-lake">🚀 Solução Híbrida: Apache Airflow + PostgreSQL + MinIO + Delta Lake</h1>
+<h1 id="guia-operacional-delta-sharing-server">Guia Operacional - Delta Sharing Server</h1>
 
-<p>Este projeto integra três componentes principais para orquestração de dados e armazenamento:</p>
+<h2 id="introducao-ao-delta-sharing">🎯 Introdução ao Delta Sharing</h2>
 
-<ul>
-<li><strong>Apache Airflow</strong>: Orquestração de workflows</li>
-<li><strong>PostgreSQL</strong>: Banco de dados relacional para metadados do Airflow <strong>+ BI endpoint</strong> (postgres-bi)</li>
-<li><strong>MinIO</strong>: Armazenamento de objetos compatível com S3</li>
-<li><strong>Delta Lake</strong>: Camada ACID sobre Data Lake com versionamento e time travel</li>
-<li><strong>Apache Atlas</strong>: Catálogo de dados e governança (standalone)</li>
-<li><strong>Jupyter + PySpark (Lab Atlas)</strong>: Ambiente interativo para análise e integração com Atlas</li>
-</ul>
-
-<p>A base foi adaptada para incluir os três serviços integrados. Os artefatos de código (DAGs, scripts, configurações) estão versionados neste repositório.</p>
-
-<h2 id="documentacao-completa">📚 Documentação Completa</h2>
-
-<p>Para entender a arquitetura Medallion (Bronze → Silver → Gold) e todas as transformações aplicadas, consulte o <strong><a href="docs-index.html">Índice de Documentação</a></strong>.</p>
-
-<h3 id="guias-de-uso">🎯 Guias de Uso</h3>
-
-<ul>
-<li><strong><a href="guide-webapp-config.html">📋 Guia da Interface Web</a></strong>: Como preencher formulário de configuração de DAGs, multi-tabela, conexões SQL, validações</li>
-<li><strong><a href="migracao-duckdb-postgresql.html">🔌 Conexão Power BI</a></strong> <span class="badge star">⭐</span>: PostgreSQL para BI (solução robusta, múltiplas tabelas simultâneas)</li>
-</ul>
-
-<h3 id="documentacao-por-camada">Documentação por Camada</h3>
-
-<ul>
-<li><strong><a href="transformacoes-silver.html">Transformações Silver</a></strong>: Data Quality, validações, dicionário de dados</li>
-<li><strong><a href="delta-lake-implementation.html">Delta Lake & Gold</a></strong>: Feature Engineering, Delta Lake, ML/BI integration</li>
-</ul>
-
-<h3 id="navegacao-rapida-por-caso-de-uso">Navegação Rápida por Caso de Uso</h3>
-
-<ul>
-<li><strong>Machine Learning</strong>: <a href="delta-lake-implementation.html#dicionario-de-dados-camada-gold-delta-lake">Feature Engineering Guide</a></li>
-<li><strong>Análise Temporal</strong>: <a href="delta-lake-implementation.html#5-features-temporais-date-columns">Temporal Features</a></li>
-<li><strong>Qualidade de Dados</strong>: <a href="transformacoes-silver.html#dicionario-de-dados-camadas-silver">Data Quality Dictionary</a></li>
-<li><strong>Segmentação</strong>: <a href="delta-lake-implementation.html#4-features-categoricas-categorical-columns">Categorical Features</a></li>
-<li><strong>Detecção de Outliers</strong>: <a href="delta-lake-implementation.html#3-features-numericas-numeric-columns">Statistical Features</a></li>
-</ul>
+<p>O <strong>Delta Sharing</strong> é um protocolo aberto para o compartilhamento seguro e controlado de tabelas do <strong>Delta Lake</strong> (armazenadas na camada Gold do MinIO/S3) para ferramentas analíticas de terceiros (como Power BI, Python Jupyter Notebooks e Apache Spark) sem a necessidade de expor credenciais brutas de infraestrutura (chaves de acesso do S3/MinIO) e sem impacto ou concorrência com o processamento do Banco de Dados PostgreSQL analítico.</p>
 
 <p>---</p>
+
+<h2 id="arquitetura-de-consumo">🏗️ Arquitetura de Consumo</h2>
+
+<pre><code>                       ┌─────────────────────────┐
+<p>                       │      MinIO / S3         │</p>
+<p>                       │  (Camada Gold Delta)    │</p>
+<p>                       └────────────▲────────────┘</p>
+<p>                                    │ (Leitura Direta)</p>
+<p>┌──────────────┐       ┌────────────┴────────────┐       ┌──────────────┐</p>
+<p>│ Analista BI  │       │  Delta Sharing Server   │       │  Cientista   │</p>
+<p>│ (Power BI)   │ ◄───► │      (Porta 28085)      │ ◄───► │   de Dados   │</p>
+<p>│              │ (JWT) │                         │ (JWT) │   (Python)   │</p>
+<p>└──────────────┘       └─────────────────────────┘       └──────────────┘</code></pre></p>
+
+<p>---</p>
+
+<h2 id="configuracao-e-inicializacao">🛠️ Configuração e Inicialização</h2>
+
+<p>O servidor do Delta Sharing é implantado como um container Docker integrado à nossa rede de dados.</p>
+
+<h3 id="1-arquivo-de-configuracao-do-servidor">1. Arquivo de Configuração do Servidor</h3>
+
+<p>As definições de tabelas compartilhadas ficam no arquivo <a href="./delta-sharing/delta-sharing-server.yaml"><code>delta-sharing-server.yaml</code></a>:</p>
+
+<pre><code>version: 1
+<p>host: "0.0.0.0"</p>
+<p>port: 8080</p>
+
+<p>authorization:</p>
+<p>  bearerToken: "dbtSharingToken2026Secure"  # Token de autenticação</p>
+
+<p>shares:</p>
+<ul>
+<li>name: "gold_share"</li>
+</ul>
+<p>    schemas:</p>
+<ul>
+<li>name: "analytics"</li>
+</ul>
+<p>        tables:</p>
+<ul>
+<li>name: "dim_usuarios"</li>
+</ul>
+<p>            location: "s3a://{bucket}/gold/{clean_dag_id}/dim_usuarios_delta"</p>
+<ul>
+<li>name: "dim_cursos"</li>
+</ul>
+<p>            location: "s3a://{bucket}/gold/{clean_dag_id}/dim_cursos_delta"</p>
+<ul>
+<li>name: "fato_vendas"</li>
+</ul>
+<p>            location: "s3a://{bucket}/gold/{clean_dag_id}/fato_vendas_delta"</code></pre></p>
+
+<p>> [!IMPORTANT]</p>
+<p>> <strong>Resolução do Nome do Bucket no Ambiente Multi-tenant</strong>:</p>
+<p>> O bucket <code>lab01</code> é utilizado como um placeholder para desenvolvimento local. Em ambiente de produção com contas corporativas ou multi-tenant, o bucket do usuário é derivado dinamicamente a partir do proprietário (*owner*) da DAG do Airflow, seguindo a convenção <code>user-{userId}</code> ou <code>company-{tenantId}</code>.</p>
+<p>></p>
+<p>> Para habilitar o Delta Sharing, o administrador do sistema deve editar o arquivo <code>delta-sharing-server.yaml</code> e substituir os placeholders <code>{bucket}</code> e <code>{clean_dag_id}</code> pelos nomes reais do tenant e do pipeline (ex: <code>s3a://user-usr_abc/gold/ingestao_usuarios/dim_usuarios_delta</code>).</p>
+
+<h3 id="2-executando-o-container">2. Executando o Container</h3>
+
+<p>Adicione o bloco abaixo no <code>docker-compose.yml</code> e suba o serviço:</p>
+
+<pre><code>docker compose up -d delta-sharing-server</code></pre>
+
+<p>---</p>
+
+<h2 id="roteiro-de-uso-para-o-usuario-admin">👥 Roteiro de Uso para o Usuário Admin</h2>
+
+<p>Como administrador da plataforma MyDataFlow, você é responsável por conceder o acesso aos parceiros e analistas de BI.</p>
+
+<h3 id="passo-1-localizar-as-credenciais-do-recipiente">Passo 1: Localizar as Credenciais do Recipiente</h3>
+<p>Na pasta <code>./delta-sharing/</code>, o sistema disponibiliza o arquivo de perfil do recipiente chamado <a href="./delta-sharing/gold_share_recipient.share"><code>gold_share_recipient.share</code></a>. </p>
+
+<p>> [!WARNING]</p>
+<p>> <strong>Requisito Obrigatório de HTTPS no Power BI</strong>:</p>
+<p>> O Power BI exige que conexões externas de Delta Sharing e transferências de dados S3 utilizem o protocolo seguro <strong>HTTPS</strong>. Conexões diretas em HTTP (como <code>http://localhost:28085</code> ou <code>http://localhost:29000</code>) serão abortadas com o erro *"A conexão subjacente estava fechada"*.</p>
+<p>></p>
+<p>> Para solucionar isso, a stack MyDataFlow está configurada para rotear e criptografar o tráfego do Delta Sharing (porta segura <strong><code>28443</code></strong> no caminho <code>/delta-sharing</code>) e da API do MinIO S3 (porta <strong><code>29000</code></strong> via Nginx) através de SSL/TLS com o certificado válido.</p>
+
+<p>Desta forma, o arquivo de perfil em ambiente de produção possui o seguinte conteúdo estruturado com endpoints seguros:</p>
+
+<pre><code>{
+<p>  "shareCredentialsVersion": 1,</p>
+<p>  "endpoint": "https://myflow.estudotabela.com.br:28443/delta-sharing",</p>
+<p>  "bearerToken": "dbtSharingToken2026Secure"</p>
+<p>}</code></pre></p>
+
+<h3 id="passo-2-enviar-o-arquivo-para-o-usuario-destinatario">Passo 2: Enviar o Arquivo para o Usuário Destinatário</h3>
+<p>Envie este arquivo de perfil <code>.share</code> (ou as chaves <code>endpoint</code> e <code>bearerToken</code> extraídas dele) para o analista de BI ou cientista de dados. Este arquivo é tudo o que eles precisam para se conectar aos dados de forma segura.</p>
+
+<p>---</p>
+
+<h2 id="conectando-do-power-bi-analistas-de-bi">🔌 Conectando do Power BI (Analistas de BI)</h2>
+
+<p>O Power BI possui um conector nativo para o Delta Sharing. Como o conector solicita as credenciais e o endpoint de conexão diretamente em vez de importar o arquivo <code>.share</code>, siga os passos abaixo para conectar:</p>
+
+<ol>
+<li>Abra o arquivo de perfil <code>gold_share_recipient.share</code> que você recebeu em um editor de texto (como Bloco de Notas ou VS Code) para copiar as credenciais:</li>
+</ol>
+<p>   <pre><code>   {</p>
+<p>     "shareCredentialsVersion": 1,</p>
+<p>     "endpoint": "https://myflow.estudotabela.com.br:28443/delta-sharing",</p>
+<p>     "bearerToken": "dbtSharingToken2026Secure"</p>
+<p>   }</p>
+<p>   ``<code></p>
+<ol>
+<li>Abra o <strong>Power BI Desktop</strong>.</li>
+<li>Clique em <strong>Obter Dados</strong> → <strong>Mais...</strong></li>
+<li>Pesquise por <strong>Delta Sharing</strong> e selecione o conector.</li>
+<li>Na janela de configuração, insira no campo <strong>URL do Servidor Delta Sharing</strong> (Delta Sharing Server URL) o valor do campo </code>endpoint<code> do arquivo (ex: </code>https://myflow.estudotabela.com.br:28443/delta-sharing<code>) e clique em <strong>OK</strong>.</li>
+<li>Na janela de autenticação subsequente, selecione a opção <strong>Token de Portador</strong> (Bearer Token) no menu lateral esquerdo.</li>
+<li>Insira o valor do campo </code>bearerToken<code> do arquivo (ex: </code>dbtSharingToken2026Secure<code>) e clique em <strong>Conectar</strong>.</li>
+<li>O Power BI listará as tabelas disponíveis (</code>dim_usuarios<code>, </code>dim_cursos<code> e </code>fato_vendas<code>).</li>
+<li>Selecione as tabelas desejadas e clique em <strong>Carregar</strong>.</li>
+</ol>
+
+<p>---</p>
+
+<h2 id="conectando-de-notebooks-python-cientistas-de-dados">🐍 Conectando de Notebooks Python (Cientistas de Dados)</h2>
+
+<p>Cientistas de dados podem importar e interagir com os dados compartilhados usando a biblioteca </code>delta-sharing<code>:</p>
+
+<h3 id="1-instalacao">1. Instalação</h3></code></pre>bash
+<p>pip install delta-sharing</p>
+<pre><code>
+<h3 id="2-codigo-python-para-leitura">2. Código Python para Leitura</h3></code></pre>python
+<p>import delta_sharing</p>
+
+<h1 id="1-caminho-para-o-arquivo-de-perfil-recebido">1. Caminho para o arquivo de perfil recebido</h1>
+<p>profile_file = "gold_share_recipient.share"</p>
+
+<h1 id="2-criar-cliente-do-delta-sharing">2. Criar cliente do Delta Sharing</h1>
+<p>client = delta_sharing.SharingClient(profile_file)</p>
+
+<h1 id="3-listar-tabelas-compartilhadas">3. Listar tabelas compartilhadas</h1>
+<p>shares = client.list_shares()</p>
+<p>for share in shares:</p>
+<p>    print(f"Share: {share.name}")</p>
+<p>    for schema in client.list_schemas(share):</p>
+<p>        print(f"  Schema: {schema.name}")</p>
+<p>        for table in client.list_tables(schema):</p>
+<p>            print(f"    Table: {table.name}")</p>
+
+<h1 id="4-carregar-tabela-diretamente-como-um-dataframe-pandas">4. Carregar tabela diretamente como um DataFrame Pandas</h1>
+<h1 id="formato-do-path-profile-fileshare-nameschema-nametable-name">Formato do path: <profile_file>#<share_name>.<schema_name>.<table_name></h1>
+<p>table_url = f"{profile_file}#gold_share.analytics.fato_vendas"</p>
+<p>df = delta_sharing.load_as_pandas(table_url)</p>
+
+<p>print(df.head())</p>
+</code>``
 
         </main>
     </div>

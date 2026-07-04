@@ -10,6 +10,7 @@ from pathlib import Path
 # Configurações
 PROJECT_ROOT = Path("/root/datalake-air-flow-delta")
 DOCS_DIR = PROJECT_ROOT / "docs"
+DOCS_DIR_APP = PROJECT_ROOT / "src" / "codeigniter-app" / "docs"
 MD_FILES = {
     "DOCS_INDEX.md": "docs-index.html",
     "GUIDE_WEBAPP_CONFIG.md": "guide-webapp-config.html",
@@ -17,6 +18,7 @@ MD_FILES = {
     "PowerBI_Conexao_DuckDB_ODBC.md": "powerbi-conexao-duckdb-odbc.html",
     "TRANSFORMACOES_SILVER.md": "transformacoes-silver.html",
     "DELTA_LAKE_IMPLEMENTATION.md": "delta-lake-implementation.html",
+    "DELTA_SHARING_OPERATIONAL.md": "delta-sharing-operational.html",
 }
 
 # Template HTML base
@@ -44,7 +46,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }}
 
         .container {{
-            display: flex;
             min-height: 100vh;
         }}
 
@@ -103,10 +104,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .content {{
             margin-left: var(--sidebar-width);
             padding: 40px;
-            flex: 1;
             background: white;
             max-width: 1400px;
+            min-height: 100vh;
             transition: margin-left 0.3s ease;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }}
 
         .content.collapsed {{
@@ -243,6 +246,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-family: 'Courier New', monospace;
             font-size: 0.85rem;
             color: #c7254e;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }}
 
         pre {{
@@ -260,12 +265,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             padding: 0;
             color: #333;
             font-size: 0.85rem;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: pre;
         }}
 
         table {{
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }}
 
         table th {{
@@ -473,6 +483,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <li><a href="powerbi-conexao-duckdb-odbc.html" {migracao_active}>🔌 Conexão Power BI</a></li>
                     <li><a href="transformacoes-silver.html" {silver_active}>🥈 Transformações Silver</a></li>
                     <li><a href="delta-lake-implementation.html" {delta_active}>🥇 Delta Lake & Gold</a></li>
+                    <li><a href="delta-sharing-operational.html" {sharing_active}>🤝 Delta Sharing Gold</a></li>
+                    <li><a href="git-dbt-analytics.html" {git_active}>📊 Git & dbt Analytics</a></li>
+                    <li><a href="dbt-quality-reports.html" {dbt_reports_active}>📊 Relatórios dbt</a></li>
+                    <li><a href="metabase-analytics.html" {metabase_active}>📈 Metabase Analytics</a></li>
+                    <li><a href="MyDataFloConfigurandoAPI.html" {api_active}>🛠️ Configurando API (Exemplo)</a></li>
                 </ul>
             </nav>
         </aside>
@@ -593,6 +608,7 @@ def md_to_html(md_content):
             'PowerBI_Conexao_DuckDB_ODBC.md': 'powerbi-conexao-duckdb-odbc.html',
             'TRANSFORMACOES_SILVER.md': 'transformacoes-silver.html',
             'DELTA_LAKE_IMPLEMENTATION.md': 'delta-lake-implementation.html',
+            'DELTA_SHARING_OPERATIONAL.md': 'delta-sharing-operational.html',
         }
 
         # Se for um .md conhecido, troca para .html correspondente
@@ -688,7 +704,12 @@ def generate_index_html():
         'guide_active': '',
         'migracao_active': '',
         'silver_active': '',
-        'delta_active': ''
+        'delta_active': '',
+        'sharing_active': '',
+        'git_active': '',
+        'dbt_reports_active': '',
+        'metabase_active': '',
+        'api_active': ''
     }
     
     # Gerar HTML final
@@ -701,6 +722,11 @@ def generate_index_html():
     # Salvar
     output_path = DOCS_DIR / "index.html"
     with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(final_html)
+    
+    # Salvar na pasta da webapp também
+    output_path_app = DOCS_DIR_APP / "index.html"
+    with open(output_path_app, 'w', encoding='utf-8') as f:
         f.write(final_html)
     
     print(f"✅ index.html criado")
@@ -732,7 +758,12 @@ def generate_html_from_md(md_file, html_file):
         'guide_active': '',
         'migracao_active': '',
         'silver_active': '',
-        'delta_active': ''
+        'delta_active': '',
+        'sharing_active': '',
+        'git_active': '',
+        'dbt_reports_active': '',
+        'metabase_active': '',
+        'api_active': ''
     }
     
     if 'docs-index' in html_file:
@@ -745,6 +776,8 @@ def generate_html_from_md(md_file, html_file):
         active_flags['silver_active'] = 'class="active"'
     elif 'delta-lake' in html_file:
         active_flags['delta_active'] = 'class="active"'
+    elif 'delta-sharing-operational' in html_file:
+        active_flags['sharing_active'] = 'class="active"'
     
     # Gerar HTML final
     final_html = HTML_TEMPLATE.format(
@@ -757,6 +790,11 @@ def generate_html_from_md(md_file, html_file):
     output_path = DOCS_DIR / html_file
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(final_html)
+        
+    # Salvar na pasta da webapp também
+    output_path_app = DOCS_DIR_APP / html_file
+    with open(output_path_app, 'w', encoding='utf-8') as f:
+        f.write(final_html)
     
     print(f"✅ {html_file} criado")
 
@@ -767,8 +805,9 @@ def main():
     print("🔧 GERADOR DE DOCUMENTAÇÃO HTML")
     print("="*70 + "\n")
     
-    # Criar diretório se não existir
+    # Criar diretórios se não existirem
     DOCS_DIR.mkdir(exist_ok=True)
+    DOCS_DIR_APP.mkdir(exist_ok=True)
     
     # Gerar index.html primeiro
     generate_index_html()

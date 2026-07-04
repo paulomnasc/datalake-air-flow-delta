@@ -135,7 +135,11 @@ def gold_to_delta(source_filename: str, target_table_name: str, **kwargs):
                 table,
                 mode="append",
                 storage_options=storage_options,
-                schema_mode="merge"  # Permite evolução de schema
+                schema_mode="merge",  # Permite evolução de schema
+                configuration={
+                    "delta.minReaderVersion": "1",
+                    "delta.minWriterVersion": "2"
+                }
             )
             log.info(f"[DELTA] ✅ Dados adicionados à tabela Delta (append)")
             current_version = dt.version() + 1
@@ -148,7 +152,11 @@ def gold_to_delta(source_filename: str, target_table_name: str, **kwargs):
                 delta_path,
                 table,
                 mode="overwrite",
-                storage_options=storage_options
+                storage_options=storage_options,
+                configuration={
+                    "delta.minReaderVersion": "1",
+                    "delta.minWriterVersion": "2"
+                }
             )
             log.info(f"[DELTA] ✅ Nova tabela Delta criada")
             current_version = 0

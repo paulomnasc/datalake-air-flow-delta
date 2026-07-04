@@ -1,0 +1,160 @@
+# Guia Operacional - Delta Sharing Server
+
+## 🎯 Introdução ao Delta Sharing
+
+O **Delta Sharing** é um protocolo aberto para o compartilhamento seguro e controlado de tabelas do **Delta Lake** (armazenadas na camada Gold do MinIO/S3) para ferramentas analíticas de terceiros (como Power BI, Python Jupyter Notebooks e Apache Spark) sem a necessidade de expor credenciais brutas de infraestrutura (chaves de acesso do S3/MinIO) e sem impacto ou concorrência com o processamento do Banco de Dados PostgreSQL analítico.
+
+---
+
+## 🏗️ Arquitetura de Consumo
+
+```
+                       ┌─────────────────────────┐
+                       │      MinIO / S3         │
+                       │  (Camada Gold Delta)    │
+                       └────────────▲────────────┘
+                                    │ (Leitura Direta)
+┌──────────────┐       ┌────────────┴────────────┐       ┌──────────────┐
+│ Analista BI  │       │  Delta Sharing Server   │       │  Cientista   │
+│ (Power BI)   │ ◄───► │      (Porta 28085)      │ ◄───► │   de Dados   │
+│              │ (JWT) │                         │ (JWT) │   (Python)   │
+└──────────────┘       └─────────────────────────┘       └──────────────┘
+```
+
+---
+
+## 🛠️ Configuração e Inicialização
+
+O servidor do Delta Sharing é implantado como um container Docker integrado à nossa rede de dados.
+
+### 1. Arquivo de Configuração do Servidor
+
+As definições de tabelas compartilhadas ficam no arquivo [`delta-sharing-server.yaml`](./delta-sharing/delta-sharing-server.yaml):
+
+```yaml
+version: 1
+host: "0.0.0.0"
+port: 8080
+
+authorization:
+  bearerToken: "dbtSharingToken2026Secure"  # Token de autenticação
+
+hadoopConf:
+  fs.s3a.endpoint: "https://myflow.estudotabela.com.br:29000"
+  fs.s3a.path.style.access: "true"
+  fs.s3a.access.key: "admin"
+  fs.s3a.secret.key: "admin123"
+
+shares:
+  - name: "gold_share"
+    schemas:
+      - name: "analytics"
+        tables:
+          - name: "customers"
+            location: "s3a://admin-146/gold/20260412200111_9d4363f3_customers_gold/20260412200111_9d4363f3_customers_gold_delta"
+          - name: "orders"
+            location: "s3a://admin-146/gold/20260412200111_828f9341_orders_gold/20260412200111_828f9341_orders_gold_delta"
+```
+
+> [!IMPORTANT]
+> **Resolução do Nome do Bucket no Ambiente Multi-tenant**:
+> O bucket `lab01` é utilizado como um placeholder para desenvolvimento local. Em ambiente de produção com contas corporativas ou multi-tenant, o bucket do usuário é derivado dinamicamente a partir do proprietário (*owner*) da DAG do Airflow, seguindo a convenção `user-{userId}` ou `company-{tenantId}`.
+>
+> Para habilitar o Delta Sharing, o administrador do sistema deve editar o arquivo `delta-sharing-server.yaml` e substituir os placeholders `{bucket}` e `{clean_dag_id}` pelos nomes reais do tenant e do pipeline (ex: `s3a://user-usr_abc/gold/ingestao_usuarios/dim_usuarios_delta`).
+
+### 2. Executando o Container
+
+Adicione o bloco abaixo no `docker-compose.yml` e suba o serviço:
+
+```bash
+docker compose up -d delta-sharing-server
+```
+
+---
+
+## 👥 Roteiro de Uso para o Usuário Admin
+
+Como administrador da plataforma MyDataFlow, você é responsável por conceder o acesso aos parceiros e analistas de BI.
+
+### Passo 1: Localizar as Credenciais do Recipiente
+Na pasta `./delta-sharing/`, o sistema disponibiliza o arquivo de perfil do recipiente chamado [`gold_share_recipient.share`](./delta-sharing/gold_share_recipient.share). 
+
+> [!WARNING]
+> **Requisito Obrigatório de HTTPS no Power BI**:
+> O Power BI exige que conexões externas de Delta Sharing e transferências de dados S3 utilizem o protocolo seguro **HTTPS**. Conexões diretas em HTTP (como `http://localhost:28085` ou `http://localhost:29000`) serão abortadas com o erro *"A conexão subjacente estava fechada"*.
+>
+> Para solucionar isso, a stack MyDataFlow está configurada para rotear e criptografar o tráfego do Delta Sharing (porta segura **`443`** no caminho `/delta-sharing`) e da API do MinIO S3 (porta **`29000`** via Nginx) através de SSL/TLS com o certificado válido.
+ 
+ Desta forma, o arquivo de perfil em ambiente de produção possui o seguinte conteúdo estruturado com endpoints seguros:
+ 
+ ```json
+ {
+   "shareCredentialsVersion": 1,
+   "endpoint": "https://myflow.estudotabela.com.br/delta-sharing",
+   "bearerToken": "dbtSharingToken2026Secure"
+ }
+ ```
+
+### Passo 2: Enviar o Arquivo para o Usuário Destinatário
+Envie este arquivo de perfil `.share` (ou as chaves `endpoint` e `bearerToken` extraídas dele) para o analista de BI ou cientista de dados. Este arquivo é tudo o que eles precisam para se conectar aos dados de forma segura.
+
+---
+
+## 🔌 Conectando do Power BI (Analistas de BI)
+
+O Power BI possui um conector nativo para o Delta Sharing. Como o conector solicita as credenciais e o endpoint de conexão diretamente em vez de importar o arquivo `.share`, siga os passos abaixo para conectar:
+
+1. Abra o arquivo de perfil `gold_share_recipient.share` que você recebeu em um editor de texto (como Bloco de Notas ou VS Code) para copiar as credenciais:
+   ```json
+    {
+      "shareCredentialsVersion": 1,
+      "endpoint": "https://myflow.estudotabela.com.br/delta-sharing",
+      "bearerToken": "dbtSharingToken2026Secure"
+    }
+    ```
+2. Abra o **Power BI Desktop**.
+3. Clique em **Obter Dados** → **Mais...**
+4. Pesquise por **Delta Sharing** e selecione o conector.
+5. Na janela de configuração, insira no campo **URL do Servidor Delta Sharing** (Delta Sharing Server URL) o valor do campo `endpoint` do arquivo (ex: `https://myflow.estudotabela.com.br/delta-sharing`) e clique em **OK**.
+6. Na janela de autenticação subsequente, selecione a opção **Token de Portador** (Bearer Token) no menu lateral esquerdo.
+7. Insira o valor do campo `bearerToken` do arquivo (ex: `dbtSharingToken2026Secure`) e clique em **Conectar**.
+8. O Power BI listará as tabelas disponíveis (como `customers`, `orders`, `products`, etc.).
+9. Selecione as tabelas desejadas e clique em **Carregar**.
+
+---
+
+## 🐍 Conectando de Notebooks Python (Cientistas de Dados)
+
+Cientistas de dados podem importar e interagir com os dados compartilhados usando a biblioteca `delta-sharing`:
+
+### 1. Instalação
+```bash
+pip install delta-sharing
+```
+
+### 2. Código Python para Leitura
+```python
+import delta_sharing
+
+# 1. Caminho para o arquivo de perfil recebido
+profile_file = "gold_share_recipient.share"
+
+# 2. Criar cliente do Delta Sharing
+client = delta_sharing.SharingClient(profile_file)
+
+# 3. Listar tabelas compartilhadas
+shares = client.list_shares()
+for share in shares:
+    print(f"Share: {share.name}")
+    for schema in client.list_schemas(share):
+        print(f"  Schema: {schema.name}")
+        for table in client.list_tables(schema):
+            print(f"    Table: {table.name}")
+
+# 4. Carregar tabela diretamente como um DataFrame Pandas
+# Formato do path: <profile_file>#<share_name>.<schema_name>.<table_name>
+table_url = f"{profile_file}#gold_share.analytics.fato_vendas"
+df = delta_sharing.load_as_pandas(table_url)
+
+print(df.head())
+```

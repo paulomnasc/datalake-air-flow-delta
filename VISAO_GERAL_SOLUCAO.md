@@ -21,6 +21,7 @@ Esta é uma **solução de Data Lake completa** baseada na **arquitetura Medalli
 7. **MySQL** - Fonte de dados transacionais
 8. **Power BI** - Integração para visualização e analytics
 9. **WebApp CodeIgniter** - Interface visual para configuração de pipelines
+10. **Delta Sharing Server** - Compartilhamento de dados analíticos seguro com BI/Cientistas sem expor credenciais de S3/MinIO
 
 ### Arquitetura Medallion:
 
@@ -34,7 +35,8 @@ Esta é uma **solução de Data Lake completa** baseada na **arquitetura Medalli
 - Transformações de Data Quality
 - Feature Engineering para Machine Learning
 - Análise de dados com governança e lineage
-- Integração com ferramentas de BI
+- Integração com ferramentas de BI (Metabase / Power BI)
+- Compartilhamento seguro de tabelas Gold em tempo real (Delta Sharing)
 
 ### Características:
 
@@ -105,6 +107,7 @@ Para mais detalhes sobre como usar a WebApp, consulte:
 - **[Arquitetura do Data Lake](DATALAKE_LAYERS.md)**: Estrutura de camadas e fluxo de dados
 - **[Transformações Silver](TRANSFORMACOES_SILVER.md)**: Data Quality e validações
 - **[Delta Lake & Gold](DELTA_LAKE_IMPLEMENTATION.md)**: Feature Engineering e ML
+- **[Guia Operacional - Delta Sharing](DELTA_SHARING_OPERATIONAL.md)**: Compartilhamento de dados da camada Gold
 - **[Índice de Documentação](DOCS_INDEX.md)**: Visão geral de toda a documentação
 
 ---

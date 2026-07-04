@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Migração: DuckDB → PostgreSQL para Power BI - Documentação Datalake</title>
+    <title>Guia Operacional - Delta Sharing Server - Documentação Datalake</title>
     <style>
         :root {
             --sidebar-width: 280px;
@@ -448,10 +448,10 @@
                     <li><a href="index.html" >🏠 Home</a></li>
                     <li><a href="docs-index.html" >📋 Índice Completo</a></li>
                     <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
-                    <li><a href="powerbi-conexao-duckdb-odbc.html" class="active">🔌 Conexão Power BI</a></li>
+                    <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
                     <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
                     <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
-                    <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                    <li><a href="delta-sharing-operational.html" class="active">🤝 Delta Sharing Gold</a></li>
                     <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
                     <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
                     <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
@@ -462,322 +462,138 @@
 
         <!-- Main Content -->
         <main class="content">
-<h1 id="migracao-duckdb-postgresql-para-power-bi">Migração: DuckDB → PostgreSQL para Power BI</h1>
+<h1 id="guia-operacional-delta-sharing-server">Guia Operacional - Delta Sharing Server</h1>
 
-<h2 id="data-da-migracao">Data da Migração</h2>
-<strong>25/12/2024</strong>
+<h2 id="introducao-ao-delta-sharing">🎯 Introdução ao Delta Sharing</h2>
 
-<h2 id="problema-original">Problema Original</h2>
+<p>O <strong>Delta Sharing</strong> é um protocolo aberto para o compartilhamento seguro e controlado de tabelas do <strong>Delta Lake</strong> (armazenadas na camada Gold do MinIO/S3) para ferramentas analíticas de terceiros (como Power BI, Python Jupyter Notebooks e Apache Spark) sem a necessidade de expor credenciais brutas de infraestrutura (chaves de acesso do S3/MinIO) e sem impacto ou concorrência com o processamento do Banco de Dados PostgreSQL analítico.</p>
 
-<h3 id="duckdb-com-locks-de-arquivo">DuckDB com Locks de Arquivo</h3>
+<p>---</p>
+
+<h2 id="arquitetura-de-consumo">🏗️ Arquitetura de Consumo</h2>
+
+<pre><code>                       ┌─────────────────────────┐
+<p>                       │      MinIO / S3         │</p>
+<p>                       │  (Camada Gold Delta)    │</p>
+<p>                       └────────────▲────────────┘</p>
+<p>                                    │ (Leitura Direta)</p>
+<p>┌──────────────┐       ┌────────────┴────────────┐       ┌──────────────┐</p>
+<p>│ Analista BI  │       │  Delta Sharing Server   │       │  Cientista   │</p>
+<p>│ (Power BI)   │ ◄───► │      (Porta 28085)      │ ◄───► │   de Dados   │</p>
+<p>│              │ (JWT) │                         │ (JWT) │   (Python)   │</p>
+<p>└──────────────┘       └─────────────────────────┘       └──────────────┘</code></pre></p>
+
+<p>---</p>
+
+<h2 id="configuracao-e-inicializacao">🛠️ Configuração e Inicialização</h2>
+
+<p>O servidor do Delta Sharing é implantado como um container Docker integrado à nossa rede de dados.</p>
+
+<h3 id="1-arquivo-de-configuracao-do-servidor">1. Arquivo de Configuração do Servidor</h3>
+
+<p>As definições de tabelas compartilhadas ficam no arquivo <a href="./delta-sharing/delta-sharing-server.yaml"><code>delta-sharing-server.yaml</code></a>:</p>
+
+<pre><code>version: 1
+<p>host: "0.0.0.0"</p>
+<p>port: 8080</p>
+
+<p>authorization:</p>
+<p>  bearerToken: "dbtSharingToken2026Secure"  # Token de autenticação</p>
+
+<p>shares:</p>
 <ul>
-<li>Power BI abria arquivo <code>.duckdb</code> e mantinha conexão ativa</li>
-<li>Ao tentar adicionar segunda tabela, ocorria erro: "O arquivo já está sendo usado por outro processo"</li>
-<li>DuckDB não foi projetado para múltiplas conexões simultâneas em arquivo único</li>
+<li>name: "gold_share"</li>
 </ul>
+<p>    schemas:</p>
+<ul>
+<li>name: "analytics"</li>
+</ul>
+<p>        tables:</p>
+<ul>
+<li>name: "dim_usuarios"</li>
+</ul>
+<p>            location: "s3a://{bucket}/gold/{clean_dag_id}/dim_usuarios_delta"  # Mapeado dinamicamente em tempo de execução</p>
+<ul>
+<li>name: "dim_cursos"</li>
+</ul>
+<p>            location: "s3a://{bucket}/gold/{clean_dag_id}/dim_cursos_delta"</p>
+<ul>
+<li>name: "fato_vendas"</li>
+</ul>
+<p>            location: "s3a://{bucket}/gold/{clean_dag_id}/fato_vendas_delta"</code></pre></p>
 
-<h3 id="tentativas-anteriores-nao-funcionaram">Tentativas Anteriores (NÃO FUNCIONARAM)</h3>
+<h3 id="2-executando-o-container">2. Executando o Container</h3>
+
+<p>Adicione o bloco abaixo no <code>docker-compose.yml</code> e suba o serviço:</p>
+
+<pre><code>docker compose up -d delta-sharing-server</code></pre>
+
+<p>---</p>
+
+<h2 id="roteiro-de-uso-para-o-usuario-admin">👥 Roteiro de Uso para o Usuário Admin</h2>
+
+<p>Como administrador da plataforma MyDataFlow, você é responsável por conceder o acesso aos parceiros e analistas de BI.</p>
+
+<h3 id="passo-1-localizar-as-credenciais-do-recipiente">Passo 1: Localizar as Credenciais do Recipiente</h3>
+<p>Na pasta <code>./delta-sharing/</code>, o sistema disponibiliza o arquivo de perfil do recipiente chamado <a href="./delta-sharing/gold_share_recipient.share"><code>gold_share_recipient.share</code></a>. O arquivo possui o seguinte conteúdo JSON:</p>
+
+<pre><code>{
+<p>  "shareCredentialsVersion": 1,</p>
+<p>  "endpoint": "http://localhost:28085/share",</p>
+<p>  "bearerToken": "dbtSharingToken2026Secure"</p>
+<p>}</code></pre></p>
+
+<h3 id="passo-2-enviar-o-arquivo-para-o-usuario-destinatario">Passo 2: Enviar o Arquivo para o Usuário Destinatário</h3>
+<p>Envie este arquivo de perfil <code>.share</code> para o analista de BI ou cientista de dados. Este arquivo é tudo o que eles precisam para se conectar aos dados de forma segura.</p>
+
+<p>---</p>
+
+<h2 id="conectando-do-power-bi-analistas-de-bi">🔌 Conectando do Power BI (Analistas de BI)</h2>
+
+<p>O Power BI possui um conector nativo para o Delta Sharing que facilita o consumo:</p>
+
 <ol>
-<li><span class="badge warning">❌</span> Múltiplos arquivos DuckDB (datalake_bi_1, datalake_bi_2, datalake_bi_3)</li>
-<li><span class="badge warning">❌</span> Try/finally para fechar conexões</li>
-<li><span class="badge warning">❌</span> PRAGMA enable_object_cache</li>
-<li><span class="badge warning">❌</span> Arquivo de cópia separado (datalake_bi.duckdb)</li>
+<li>Abra o <strong>Power BI Desktop</strong>.</li>
+<li>Clique em <strong>Obter Dados</strong> → <strong>Mais...</strong></li>
+<li>Pesquise por <strong>Delta Sharing</strong> e selecione o conector.</li>
+<li>No campo de conexão, o Power BI solicitará o arquivo de perfil. Selecione o arquivo <code>gold_share_recipient.share</code> que você recebeu do administrador.</li>
+<li>O Power BI lerá as configurações e listará as tabelas disponíveis (<code>dim_usuarios</code>, <code>dim_cursos</code> e <code>fato_vendas</code>).</li>
+<li>Selecione as tabelas desejadas e clique em <strong>Carregar</strong>.</li>
 </ol>
 
-<strong>Conclusão:</strong> DuckDB em arquivo local não suporta múltiplos acessos simultâneos do Power BI.
-
 <p>---</p>
 
-<h2 id="solucao-implementada-postgresql">Solução Implementada: PostgreSQL</h2>
+<h2 id="conectando-de-notebooks-python-cientistas-de-dados">🐍 Conectando de Notebooks Python (Cientistas de Dados)</h2>
 
-<h3 id="arquitetura">Arquitetura</h3>
+<p>Cientistas de dados podem importar e interagir com os dados compartilhados usando a biblioteca <code>delta-sharing</code>:</p>
 
-<pre><code>┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-<p>│   MinIO     │────▶│   Airflow    │────▶│  PostgreSQL  │◀────│   Power BI   │</p>
-<p>│  (Delta)    │     │   DAG        │     │   (BI DB)    │     │  (Windows)   │</p>
-<p>└─────────────┘     └──────────────┘     └──────────────┘     └──────────────┘</p>
-<p>  s3://lab01/         DuckDB             postgres-bi:5432       localhost:5433</p>
-<p>  delta/              (em-memória)       datalake_bi            Múltiplas</p>
-<p>                                         pbi_user               Conexões</p>
-<p>                                                                Simultâneas <span class="badge success">✅</span></code></pre></p>
+<h3 id="1-instalacao">1. Instalação</h3>
+<pre><code>pip install delta-sharing</code></pre>
 
-<h3 id="componentes">Componentes</h3>
+<h3 id="2-codigo-python-para-leitura">2. Código Python para Leitura</h3>
+<pre><code>import delta_sharing
 
-<h4 id="1-postgresql-para-bi-postgres-bi">1. PostgreSQL para BI (<code>postgres-bi</code>)</h4>
-<pre><code><h1 id="docker-composeyml">docker-compose.yml</h1>
-<p>postgres-bi:</p>
-<p>  image: postgres:13</p>
-<p>  container_name: postgres-bi</p>
-<p>  environment:</p>
-<p>    POSTGRES_USER: pbi_user</p>
-<p>    POSTGRES_PASSWORD: pbi_password</p>
-<p>    POSTGRES_DB: datalake_bi</p>
-<p>  ports:</p>
-<ul>
-<li>"5433:5432"  # Porta externa para Power BI</li>
-</ul>
-<p>  volumes:</p>
-<ul>
-<li>pg_bi_data:/var/lib/postgresql/data</li>
-</ul>
-<p>  networks:</p>
-<ul>
-<li>airflow_net</code></pre></li>
-</ul>
+<h1 id="1-caminho-para-o-arquivo-de-perfil-recebido">1. Caminho para o arquivo de perfil recebido</h1>
+<p>profile_file = "gold_share_recipient.share"</p>
 
-<h4 id="2-dag-de-sincronizacao-sync-delta-to-postgrespy">2. DAG de Sincronização (<code>sync_delta_to_postgres.py</code>)</h4>
+<h1 id="2-criar-cliente-do-delta-sharing">2. Criar cliente do Delta Sharing</h1>
+<p>client = delta_sharing.SharingClient(profile_file)</p>
 
-<strong>Fluxo:</strong>
-<ol>
-<li><strong>setup_postgres</strong>: Valida conexão com PostgreSQL</li>
-<li><strong>sync_delta_to_postgres</strong>: </li>
-<ul>
-<li>Conecta DuckDB em-memória (<code>:memory:</code>)</li>
-<li>Descobre tabelas Delta no MinIO</li>
-<li>Lê Parquet via DuckDB</li>
-<li>Insere dados em PostgreSQL</li>
-<li><strong>verify_postgres_tables</strong>: Lista tabelas criadas</li>
-</ul>
-</ol>
+<h1 id="3-listar-tabelas-compartilhadas">3. Listar tabelas compartilhadas</h1>
+<p>shares = client.list_shares()</p>
+<p>for share in shares:</p>
+<p>    print(f"Share: {share.name}")</p>
+<p>    for schema in client.list_schemas(share):</p>
+<p>        print(f"  Schema: {schema.name}")</p>
+<p>        for table in client.list_tables(schema):</p>
+<p>            print(f"    Table: {table.name}")</p>
 
-<strong>Dependências:</strong>
-<pre><code><h1 id="requirementstxt">requirements.txt</h1>
-<p>psycopg2-binary  # Driver PostgreSQL</p>
-<p>duckdb==0.10.2   # Leitura de Parquet/S3 (em-memória apenas)</code></pre></p>
+<h1 id="4-carregar-tabela-diretamente-como-um-dataframe-pandas">4. Carregar tabela diretamente como um DataFrame Pandas</h1>
+<h1 id="formato-do-path-profile-fileshare-nameschema-nametable-name">Formato do path: <profile_file>#<share_name>.<schema_name>.<table_name></h1>
+<p>table_url = f"{profile_file}#gold_share.analytics.fato_vendas"</p>
+<p>df = delta_sharing.load_as_pandas(table_url)</p>
 
-<h3 id="configuracao-power-bi">Configuração Power BI</h3>
-
-<strong>Connection String:</strong>
-<pre><code>Server: localhost
-<p>Port: 5433</p>
-<p>Database: datalake_bi</p>
-<p>Authentication: Database</p>
-<p>Username: pbi_user</p>
-<p>Password: pbi_password</code></pre></p>
-
-<strong>Tabelas Disponíveis:</strong>
-<ul>
-<li><code>delta_customers_202512230532</code> (29 registros)</li>
-<li><code>delta_employee_privileges_202512230532</code> (1 registro)</li>
-<li><code>delta_orders_202512241315</code> (48 registros)</li>
-<li><code>delta_products_202512241315</code> (45 registros)</li>
-</ul>
-
-<p>---</p>
-
-<h2 id="comparacao-antes-vs-depois">Comparação: Antes vs Depois</h2>
-
-<table>
-<thead><tr>
-<th>Aspecto</th>
-<th>DuckDB (Antigo) <span class="badge warning">❌</span></th>
-<th>PostgreSQL (Novo) <span class="badge success">✅</span></th>
-</tr></thead>
-<tbody>
-<tr>
-<td><strong>Múltiplos acessos</strong></td>
-<td><span class="badge warning">❌</span> Lock de arquivo</td>
-<td><span class="badge success">✅</span> Nativo</td>
-</tr>
-<tr>
-<td><strong>Power BI multi-table</strong></td>
-<td><span class="badge warning">❌</span> Erro na 2ª tabela</td>
-<td><span class="badge success">✅</span> Funciona</td>
-</tr>
-<tr>
-<td><strong>Persistência</strong></td>
-<td>Arquivo <code>.duckdb</code></td>
-<td>Volume Docker</td>
-</tr>
-<tr>
-<td><strong>Gerenciamento conexões</strong></td>
-<td>Manual (try/finally)</td>
-<td>Automático</td>
-</tr>
-<tr>
-<td><strong>Escalabilidade</strong></td>
-<td>Limitada</td>
-<td>Alta</td>
-</tr>
-<tr>
-<td><strong>Backup</strong></td>
-<td>Cópia de arquivo</td>
-<td>pg_dump</td>
-</tr>
-<tr>
-<td><strong>Porta de acesso</strong></td>
-<td>Arquivo UNC WSL</td>
-<td>TCP localhost:5433</td>
-</tr>
-</tbody>
-</table>
-
-<p>---</p>
-
-<h2 id="mudancas-em-arquivos">Mudanças em Arquivos</h2>
-
-<h3 id="criados">Criados</h3>
-<ul>
-<li><span class="badge success">✅</span> <code>src/dags/sync_delta_to_postgres.py</code> (DAG nova)</li>
-<li><span class="badge success">✅</span> <code>MIGRACAO_DUCKDB_POSTGRESQL.md</code> (este arquivo)</li>
-</ul>
-
-<h3 id="modificados">Modificados</h3>
-<ul>
-<li><span class="badge success">✅</span> <code>docker-compose.yml</code> → Adicionado <code>postgres-bi</code> service</li>
-<li><span class="badge success">✅</span> <code>requirements.txt</code> → Adicionado <code>psycopg2-binary</code></li>
-</ul>
-
-<h3 id="desativados">Desativados</h3>
-<ul>
-<li>🔴 <code>src/dags/sync_duckdb_views.py</code> → Renomeado para <code>.bak</code></li>
-<li>🔴 <code>/opt/duckdb/datalake*.duckdb</code> → Obsoletos (não apagar ainda, histórico)</li>
-</ul>
-
-<p>---</p>
-
-<h2 id="migracao-de-dados">Migração de Dados</h2>
-
-<h3 id="executar-dag-manualmente">Executar DAG Manualmente</h3>
-<pre><code><h1 id="trigger-dag">Trigger DAG</h1>
-<p>docker compose exec -T airflow-scheduler \</p>
-<p>  airflow dags trigger sync_delta_to_postgres</p>
-
-<h1 id="verificar-tabelas-criadas">Verificar tabelas criadas</h1>
-<p>docker compose exec -T postgres-bi \</p>
-<p>  psql -U pbi_user -d datalake_bi \</p>
-<p>  -c "SELECT tablename FROM pg_tables WHERE schemaname='public';"</code></pre></p>
-
-<h3 id="agendamento">Agendamento</h3>
-<ul>
-<li><strong>Schedule:</strong> Diário às 02:00 AM</li>
-<li><strong>Retry:</strong> 1 tentativa com 5 min de delay</li>
-<li><strong>Catchup:</strong> Desabilitado</li>
-</ul>
-
-<p>---</p>
-
-<h2 id="manutencao">Manutenção</h2>
-
-<h3 id="verificar-status-postgresql">Verificar Status PostgreSQL</h3>
-<pre><code>docker compose exec -T postgres-bi \
-<p>  psql -U pbi_user -d datalake_bi \</p>
-<p>  -c "SELECT tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size </p>
-<p>      FROM pg_tables WHERE schemaname='public';"</code></pre></p>
-
-<h3 id="limpar-tabelas-antigas">Limpar Tabelas Antigas</h3>
-<pre><code>docker compose exec -T postgres-bi \
-<p>  psql -U pbi_user -d datalake_bi \</p>
-<p>  -c "DROP TABLE IF EXISTS delta_<table_name> CASCADE;"</code></pre></p>
-
-<h3 id="backup-postgresql">Backup PostgreSQL</h3>
-<pre><code>docker compose exec -T postgres-bi \
-<p>  pg_dump -U pbi_user datalake_bi > backup_datalake_bi_$(date +%Y%m%d).sql</code></pre></p>
-
-<h3 id="restaurar-backup">Restaurar Backup</h3>
-<pre><code>cat backup_datalake_bi_YYYYMMDD.sql | \
-<p>  docker compose exec -T postgres-bi \</p>
-<p>  psql -U pbi_user -d datalake_bi</code></pre></p>
-
-<p>---</p>
-
-<h2 id="troubleshooting">Troubleshooting</h2>
-
-<h3 id="power-bi-nao-conecta">Power BI não conecta</h3>
-<pre><code><h1 id="verificar-se-postgresql-esta-rodando">Verificar se PostgreSQL está rodando</h1>
-<p>docker compose ps postgres-bi</p>
-
-<h1 id="verificar-porta-5433-esta-aberta">Verificar porta 5433 está aberta</h1>
-<p>netstat -an | grep 5433</p>
-
-<h1 id="testar-conexao-do-host">Testar conexão do host</h1>
-<p>psql -h localhost -p 5433 -U pbi_user -d datalake_bi</code></pre></p>
-
-<h3 id="dag-falha-ao-inserir-dados">DAG falha ao inserir dados</h3>
-<pre><code><h1 id="verificar-logs">Verificar logs</h1>
-<p>docker compose logs airflow-scheduler | grep sync_delta_to_postgres</p>
-
-<h1 id="testar-conexao-manual">Testar conexão manual</h1>
-<p>docker compose exec -T airflow-scheduler python3 -c "</p>
-<p>import psycopg2</p>
-<p>conn = psycopg2.connect(</p>
-<p>    host='postgres-bi', port=5432,</p>
-<p>    database='datalake_bi', user='pbi_user', password='pbi_password'</p>
-<p>)</p>
-<p>print('<span class="badge success">✅</span> Conectado!')</p>
-<p>conn.close()</p>
-<p>"</code></pre></p>
-
-<h3 id="minio-inacessivel">MinIO inacessível</h3>
-<pre><code><h1 id="verificar-rede-docker">Verificar rede Docker</h1>
-<p>docker network inspect datalake-air-flow_airflow_net</p>
-
-<h1 id="testar-s3-do-airflow">Testar S3 do Airflow</h1>
-<p>docker compose exec -T airflow-scheduler python3 -c "</p>
-<p>import duckdb</p>
-<p>con = duckdb.connect(':memory:')</p>
-<p>con.execute('LOAD httpfs;')</p>
-<p>con.execute(\"SET s3_endpoint='minio:9000';\")</p>
-<p>con.execute(\"SET s3_access_key_id='admin';\")</p>
-<p>con.execute(\"SET s3_secret_access_key='admin123';\")</p>
-<p>con.execute(\"SET s3_use_ssl=false;\")</p>
-<p>result = con.execute(\"SELECT COUNT(*) FROM read_parquet('s3://lab01/delta/customers_202512230532/*.parquet')\").fetchone()</p>
-<p>print(f'<span class="badge success">✅</span> {result[0]} registros')</p>
-<p>"</code></pre></p>
-
-<p>---</p>
-
-<h2 id="proximos-passos-opcional">Próximos Passos (Opcional)</h2>
-
-<h3 id="1-indexacao-para-performance">1. Indexação para Performance</h3>
-<pre><code>-- Criar índices em colunas frequentes
-<p>CREATE INDEX idx_customers_id ON delta_customers_202512230532(customer_id);</p>
-<p>CREATE INDEX idx_orders_date ON delta_orders_202512241315(order_date);</code></pre></p>
-
-<h3 id="2-views-materializadas">2. Views Materializadas</h3>
-<pre><code>-- Para agregações complexas
-<p>CREATE MATERIALIZED VIEW mv_sales_summary AS</p>
-<p>SELECT DATE(order_date) as date, SUM(total) as total_sales</p>
-<p>FROM delta_orders_202512241315</p>
-<p>GROUP BY DATE(order_date);</code></pre></p>
-
-<h3 id="3-particionamento">3. Particionamento</h3>
-<pre><code>-- Para tabelas grandes (milhões de registros)
-<p>CREATE TABLE delta_orders_partitioned (</p>
-<p>    -- colunas</p>
-<p>) PARTITION BY RANGE (order_date);</code></pre></p>
-
-<p>---</p>
-
-<h2 id="observacoes-finais">Observações Finais</h2>
-
-<h3 id="por-que-postgresql">Por que PostgreSQL?</h3>
-<ol>
-<li><span class="badge success">✅</span> <strong>Padrão de mercado</strong> para BI/Analytics</li>
-<li><span class="badge success">✅</span> <strong>Gerenciamento nativo</strong> de múltiplas conexões</li>
-<li><span class="badge success">✅</span> <strong>Compatibilidade total</strong> com Power BI ODBC/PostgreSQL driver</li>
-<li><span class="badge success">✅</span> <strong>Escalável</strong> (suporta milhões de registros)</li>
-<li><span class="badge success">✅</span> <strong>Ferramentas maduras</strong> (backup, replicação, monitoramento)</li>
-</ol>
-
-<h3 id="duckdb-ainda-e-util">DuckDB ainda é útil?</h3>
-<strong>Sim!</strong> Mas apenas para:
-<ul>
-<li><span class="badge success">✅</span> Análises ad-hoc em notebooks</li>
-<li><span class="badge success">✅</span> Leitura rápida de Parquet/CSV</li>
-<li><span class="badge success">✅</span> Processamento em-memória (sem persistência)</li>
-</ul>
-
-<strong>Não usar para:</strong>
-<ul>
-<li><span class="badge warning">❌</span> Servir múltiplos clientes (Power BI, Tableau, etc.)</li>
-<li><span class="badge warning">❌</span> Banco de dados compartilhado</li>
-<li><span class="badge warning">❌</span> Aplicações com concorrência</li>
-</ul>
-
-<p>---</p>
-
-<strong>Migração concluída com sucesso em 25/12/2024</strong> <span class="badge success">✅</span>
+<p>print(df.head())</code></pre></p>
 
         </main>
     </div>

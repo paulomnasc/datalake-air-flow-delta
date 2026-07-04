@@ -1,0 +1,5 @@
+{
+  "shareCredentialsVersion": 1,
+  "endpoint": "http://localhost:28085/share",
+  "bearerToken": "dbtSharingToken2026Secure"
+}

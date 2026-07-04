@@ -1296,8 +1296,23 @@ Ou seja:
 - Não é obrigatório ter apenas uma pasta gold/. Separar gold/ (Parquet) e gold/{table}_delta/ (Delta Lake) é uma prática para facilitar a transição e a compatibilidade.
 - A existência de delta/ pode ser um resquício de versões anteriores, testes, ou para uso com Spark/Thrift Server, como citado nos comentários do código.
 
+- O ideal é padronizar: ou usar gold/{table}_delta/ para Delta Lake, ou migrar tudo para gold/ se só houver Delta Lake.
+- A existência de delta/ pode ser um resquício de versões anteriores, testes, ou para uso com Spark/Thrift Server, como citado nos comentários do código.
+
 Resumo:
 - O ideal é padronizar: ou usar gold/{table}_delta/ para Delta Lake, ou migrar tudo para gold/ se só houver Delta Lake.
 - Ter ambas as pastas não é um erro, mas pode gerar confusão. O importante é documentar claramente qual pasta representa a camada Gold oficial do pipeline.
 
 ---
+
+## 🤝 Segurança e Compartilhamento de Dados via Delta Sharing
+
+Com a evolução para o formato transacional Delta Lake na camada Gold, o compartilhamento de dados com analistas de BI (Power BI) e Cientistas de Dados (Python, Spark) foi integrado com o protocolo **Delta Sharing**.
+
+### Benefícios no nosso Ecossistema:
+1. **Segurança de Acesso**: Os usuários externos não recebem as chaves do MinIO/S3 (Access Key e Secret Key). Eles usam apenas um Bearer Token temporário.
+2. **Isolamento de Infraestrutura**: O Delta Sharing lê os dados diretamente do MinIO/S3 e expõe via REST API, eliminando qualquer tipo de lock (bloqueio) ou lentidão no banco PostgreSQL analítico (`postgres-bi` / `datalake_bi`).
+3. **Leitura Incremental**: Por consumir diretamente as tabelas Delta (`gold/{dag_id}/{target_table_name}_delta/`), os analistas herdam o controle transacional e o histórico das tabelas do Data Lake.
+
+Para saber como configurar, gerenciar e conectar clientes ao servidor do Delta Sharing, consulte o **[Guia Operacional - Delta Sharing](DELTA_SHARING_OPERATIONAL.md)**.
+

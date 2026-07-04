@@ -3,204 +3,917 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔗 Conexão Power BI Desktop ao PostgreSQL Datalake BI</title>
+    <title>🔗 Conexão do Power BI Desktop ao DuckDB via ODBC - Documentação Datalake</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; padding: 20px; }
-        .container { max-width: 1000px; margin: 0 auto; }
-        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        h1 { color: #0078d4; margin-bottom: 20px; }
-        h2 { color: #2c3e50; margin: 25px 0 15px 0; border-left: 5px solid #f2c811; padding-left: 15px; }
-        h3 { color: #0078d4; margin: 15px 0 10px 0; }
-        .step-box { background: #f8f9fa; border: 1px solid #e9ecef; padding: 20px; border-radius: 6px; margin-bottom: 20px; }
-        .path-text { color: #d63384; font-weight: bold; font-family: monospace; }
-        pre { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 6px; overflow-x: auto; margin: 10px 0; }
-        .cred-box { background: #eef2f7; border-left: 4px solid #0078d4; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 0.9rem; }
-        .alert-success { background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 15px 0; }
-        .alert-warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; }
-        .alert-info { background: #e7f3ff; border-left: 4px solid #0078d4; padding: 15px; margin: 15px 0; }
-        .index { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .index h2 { color: #f2c811; border: none; padding: 0; margin-bottom: 15px; }
-        .index ul { list-style: none; }
-        .index ul li { margin-bottom: 10px; }
-        .index ul li a { color: #bdc3c7; text-decoration: none; font-size: 0.95rem; }
-        .index ul li a:hover { color: #f2c811; text-decoration: underline; }
+        :root {
+            --sidebar-width: 280px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar h2 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .sidebar nav ul {
+            list-style: none;
+        }
+
+        .sidebar nav ul li {
+            margin-bottom: 8px;
+        }
+
+        .sidebar nav ul li a {
+            color: #ecf0f1;
+            text-decoration: none;
+            display: block;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .sidebar nav ul li a:hover {
+            background: #34495e;
+            color: #3498db;
+        }
+
+        .sidebar nav ul li a.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            flex: 1;
+            background: white;
+            max-width: 1400px;
+            transition: margin-left 0.3s ease;
+        }
+
+        .content.collapsed {
+            margin-left: 0;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 900;
+            display: none;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+            transition: left 0.3s ease;
+        }
+
+        @media (min-width: 1100px) {
+            .sidebar-toggle {
+                left: calc(var(--sidebar-width) + 16px);
+            }
+        }
+
+        .content h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .content h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.8rem;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .content h3 {
+            color: #555;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+        }
+
+        .content h4 {
+            color: #666;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        .content ul {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ul li {
+            margin-bottom: 8px;
+        }
+
+        .content ol {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ol li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #3498db;
+            color: white;
+            border-radius: 3px;
+            font-size: 0.85rem;
+            margin-left: 5px;
+        }
+
+        .badge.star {
+            background: #f39c12;
+        }
+
+        .badge.warning {
+            background: #e74c3c;
+        }
+
+        .badge.success {
+            background: #27ae60;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #c7254e;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+            font-size: 0.9rem;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #333;
+            font-size: 0.85rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        table th {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #2980b9;
+        }
+
+        table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        blockquote {
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #555;
+            font-style: italic;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .alert-info {
+            background: #d9edf7;
+            border-left: 4px solid #31708f;
+            color: #31708f;
+        }
+
+        .alert-warning {
+            background: #fcf8e3;
+            border-left: 4px solid #8a6d3b;
+            color: #8a6d3b;
+        }
+
+        .alert-success {
+            background: #dff0d8;
+            border-left: 4px solid #3c763d;
+            color: #3c763d;
+        }
+
+        .alert-danger {
+            background: #f2dede;
+            border-left: 4px solid #a94442;
+            color: #a94442;
+        }
+
+        .masked-value {
+            font-family: 'Courier New', monospace;
+            user-select: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #f4f4f4;
+            transition: all 0.3s ease;
+        }
+
+        .masked-value:hover {
+            background: #e0e0e0;
+            text-decoration: underline;
+        }
+
+        .masked-value.revealed {
+            background: #ffffcc;
+        }
     </style>
+    <script>
+        // Mascara valores sensíveis (passwords, tokens, secrets)
+        function maskSensitiveValues() {
+            const sensitivePatterns = [
+                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
+            ];
+
+            const codeBlocks = document.querySelectorAll('code, pre');
+            
+            codeBlocks.forEach(block => {
+                let content = block.innerHTML;
+                
+                sensitivePatterns.forEach(pattern => {
+                    content = content.replace(pattern.regex, (match, value) => {
+                        if (!value) return match;
+                        
+                        const prefix = match.substring(0, match.indexOf(value));
+                        const masked = '*'.repeat(Math.min(value.length, 12));
+                        const tooltip = `Clique para revelar o valor`;
+                        
+                        return `${prefix}<span class="masked-value" title="${tooltip}" data-original="${value}" onclick="toggleMask(event)">${masked}</span>`;
+                    });
+                });
+                
+                block.innerHTML = content;
+            });
+        }
+
+        // Toggle visibilidade de valores mascarados
+        function toggleMask(event) {
+            event.stopPropagation();
+            const span = event.target;
+            
+            if (span.classList.contains('revealed')) {
+                const original = span.getAttribute('data-original');
+                span.textContent = '*'.repeat(Math.min(original.length, 12));
+                span.classList.remove('revealed');
+            } else {
+                const original = span.getAttribute('data-original');
+                span.textContent = original;
+                span.classList.add('revealed');
+            }
+        }
+
+        function setSidebarState(isOpen) {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            sidebar.classList.toggle('collapsed', !isOpen);
+            content.classList.toggle('collapsed', !isOpen);
+
+            const useOverlay = window.innerWidth < 1100;
+            if (overlay) {
+                overlay.classList.toggle('active', isOpen && useOverlay);
+            }
+
+            toggleBtn.textContent = isOpen ? '✕' : '☰';
+            
+            // Ajusta posição do botão em telas maiores
+            if (window.innerWidth >= 1100) {
+                toggleBtn.style.left = isOpen ? 'calc(var(--sidebar-width) + 16px)' : '16px';
+            } else {
+                toggleBtn.style.left = '16px';
+            }
+        }
+
+        function initSidebarToggle() {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            const initialOpen = window.innerWidth >= 1100;
+            setSidebarState(initialOpen);
+
+            toggleBtn.addEventListener('click', function() {
+                const isOpen = !sidebar.classList.contains('collapsed');
+                setSidebarState(!isOpen);
+            });
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    setSidebarState(false);
+                });
+            }
+
+            window.addEventListener('resize', function() {
+                const shouldBeOpen = window.innerWidth >= 1100;
+                setSidebarState(shouldBeOpen);
+            });
+        }
+
+        // Executar quando documento carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            maskSensitiveValues();
+            initSidebarToggle();
+        });
+    </script>
 </head>
 <body>
-
-<div class="container">
-    <div class="index">
-        <h2>📑 Índice</h2>
-        <ul>
-            <li><a href="#intro">Introdução</a></li>
-            <li><a href="#conexao">1. Configurar Conexão</a></li>
-            <li><a href="#autenticacao">2. Autenticação</a></li>
-            <li><a href="#tabelas">3. Selecionar Tabelas</a></li>
-            <li><a href="#modo">4. Modo de Conectividade</a></li>
-        </ul>
-    </div>
-
-    <div id="intro" class="card">
-            <h1>🔗 Conexão Power BI Desktop ao PostgreSQL Datalake BI</h1>
-            <p>Este guia mostra como conectar o Power BI Desktop diretamente ao banco de dados PostgreSQL do Datalake.</p>
-            
-            <div class="alert-success">
-                ✅ <strong>Vantagens desta abordagem:</strong><br>
-                • Conexão direta ao banco de dados<br>
-                • Múltiplas conexões simultâneas<br>
-                • Melhor performance<br>
-                • Suporta DirectQuery para dados em tempo real<br>
-                • Integração nativa com Power BI
-            </div>
-        </div>
-
-        <div id="conexao" class="card">
-            <h1>1. Configurar Conexão PostgreSQL</h1>
-            <div class="step-box">
-                <ol style="margin-left: 20px;">
-                    <li>Abra o <strong>Power BI Desktop</strong></li>
-                    <li>Vá em <strong>Obter Dados</strong> > <strong>Banco de Dados</strong> > <strong>Banco de Dados PostgreSQL</strong></li>
-                    <li>Na janela de conexão, preencha:</li>
-                </ol>
-                
-                <div class="cred-box" style="margin-top: 15px;">
-                    <strong>Servidor:</strong> 46.224.156.251:25433<br>
-                    <strong>Banco de dados:</strong> datalake_bi
-                </div>
-
-                <div class="alert-warning">
-                    ⚠️ <strong>Importante:</strong> Substitua <span class="path-text">SEU_HOST_REMOTO</span> pelo IP ou hostname do seu servidor PostgreSQL.<br>
-                    Exemplos: <span class="path-text">46.224.156.251:25433</span> ou <span class="path-text">meuservidor.com:25433</span><br>
-                    Se estiver na mesma máquina: <span class="path-text">localhost:25433</span>
-                </div>
-            </div>
-        </div>
-
-        <div id="autenticacao" class="card">
-            <h2>2. Configurar Autenticação</h2>
-            <div class="step-box">
-                <h3>Resolver Erro de SSL/Criptografia</h3>
-                <p>Se aparecer erro relacionado a SSL ou criptografia, clique em <strong>Opções Avançadas</strong> e desabilite o SSL.</p>
-
-                <h3 style="margin-top: 25px;">Credenciais de Acesso</h3>
-                <p>Na janela de autenticação, selecione a aba <strong>Banco de Dados</strong> e insira:</p>
-                <div class="cred-box">
-                    <strong>Banco de Dados:</strong> datalake_bi<br>
-                    <strong>Nome de usuário:</strong> pbi_user<br>
-                    <strong>Senha:</strong> pbi_password
-                </div>
-                <p style="margin-top: 10px;">Clique em <strong>Conectar</strong></p>
-            </div>
-        </div>
-
-        <div id="tabelas" class="card">
-            <h2>3. Selecionar Tabelas</h2>
-            <div class="step-box">
-                <p>Após conectar, você verá a lista de tabelas disponíveis no schema <strong>public</strong>, por exemplo :</p>
-                <ul style="margin-left: 20px; margin-top: 10px;">
-                    <li><span class="path-text">delta_artist</span></li>
-                    <li><span class="path-text">delta_invoice</span></li>
-                    <li><span class="path-text">delta_employee</span></li>
-                    <li><span class="path-text">delta_customer</span></li>
-                    <li>... e outras tabelas disponíveis</li>
+    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰</button>
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>📚 Documentação</h2>
+            <nav>
+                <ul>
+                    <li><a href="index.html" >🏠 Home</a></li>
+                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    <li><a href="powerbi-conexao-duckdb-odbc.html" class="active">🔌 Conexão Power BI</a></li>
+                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                    <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                    <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
+                    <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                    <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
+                    <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
                 </ul>
-                <p style="margin-top: 15px;">Selecione as tabelas que deseja importar ou consultar.</p>
-            </div>
-        </div>
+            </nav>
+        </aside>
 
-        <div id="modo" class="card">
-            <h2>4. Escolher Modo de Conectividade</h2>
-            <div class="step-box">
-                <p>Antes de carregar os dados, escolha entre <strong>Import</strong> ou <strong>DirectQuery</strong>:</p>
+        <!-- Main Content -->
+        <main class="content">
+<h1 id="conexao-do-power-bi-desktop-ao-duckdb-via-odbc">🔗 Conexão do Power BI Desktop ao DuckDB via ODBC</h1>
 
-                <!-- Pré-requisito para Import -->
-                <div class="alert-warning" style="margin-top: 20px;">
-                    <h3>🔧 Pré-requisito para conexão Import (PostgreSQL)</h3>
-                    <ol style="margin-left: 20px;">
-                        <li>Baixe o instalador oficial: <a href="https://github.com/npgsql/npgsql/releases/tag/v4.0.10" target="_blank">Release 4.0.10 do Npgsql no GitHub</a>.</li>
-                        <li>Procure por <strong>Npgsql-4.0.10.msi</strong>.</li>
-                        <li>Instalação Customizada: Durante a instalação, quando aparecer a lista de itens, clique no ícone ao lado de <strong>"Npgsql GAC Installation"</strong> e selecione <strong>"Will be installed on local hard drive"</strong>.</li>
-                        <li>Sem isso, o Power BI continuará dizendo que o driver não existe.</li>
-                        <li>Reinicie o Power BI (e se possível o PC): O Windows precisa atualizar a tabela de drivers globais.</li>
-                    </ol>
-                </div>
+<p>Guia completo para conectar o Power BI Desktop ao DuckDB usando o driver ODBC, permitindo consultar dados em Parquet, Delta Lake, MinIO (S3) e bancos locais.</p>
 
-                <div class="alert-info" style="margin-top: 20px;">
-                    <h3 style="margin-top: 0;">📊 Import (Importar - Padrão)</h3>
-                    <p><strong>Quando usar:</strong></p>
-                    <ul style="margin-left: 20px;">
-                        <li>✅ Dashboards e relatórios com dados que não mudam constantemente</li>
-                        <li>✅ Quando precisa de melhor performance nas visualizações</li>
-                        <li>✅ Quando usa muitas funções DAX complexas</li>
-                        <li>✅ Para trabalhar offline</li>
-                    </ul>
-                    <p style="margin-top: 10px;"><strong>Características:</strong></p>
-                    <ul style="margin-left: 20px;">
-                        <li>✅ Melhor performance nas visualizações</li>
-                        <li>✅ Funciona offline</li>
-                        <li>✅ Todos os recursos DAX disponíveis</li>
-                        <li>❌ Precisa atualizar manualmente para ver novos dados</li>
-                        <li>❌ Consome memória local (dados são copiados)</li>
-                    </ul>
-                </div>
+<h2 id="visao-geral">📋 Visão Geral</h2>
 
-                <div class="alert-info">
-                    <h3 style="margin-top: 0;">⚡ DirectQuery (Consulta Direta)</h3>
-                    <p><strong>Quando usar:</strong></p>
-                    <ul style="margin-left: 20px;">
-                        <li>✅ Dados que mudam frequentemente e precisam estar sempre atualizados</li>
-                        <li>✅ Volumes muito grandes de dados (GB/TB)</li>
-                        <li>✅ Quando não pode copiar dados por questões de governança</li>
-                        <li>✅ Para dashboards em tempo real</li>
-                    </ul>
-                    <p style="margin-top: 10px;"><strong>Características:</strong></p>
-                    <ul style="margin-left: 20px;">
-                        <li>✅ Sempre mostra dados atualizados em tempo real</li>
-                        <li>✅ Não consome memória local (dados ficam no servidor)</li>
-                        <li>✅ Ideal para grandes volumes de dados</li>
-                        <li>❌ Mais lento (cada visualização faz query no banco)</li>
-                        <li>❌ Requer conexão constante com o servidor</li>
-                        <li>❌ Algumas funções DAX não funcionam</li>
-                    </ul>
-                </div>
+<ul>
+<li><strong>DuckDB</strong>: Engine SQL leve em-processo (in-process), sem servidor separado.</li>
+<li><strong>ODBC</strong>: Protocolo padrão de acesso a dados; o Power BI suporta nativamente.</li>
+<li><strong>Fluxo</strong>: Power BI → Driver ODBC → DuckDB (arquivo <code>.duckdb</code> local/rede) → Dados (Parquet/S3/Local).</li>
+<li><strong>Sincronização automática</strong>: DAG Airflow mantém views atualizadas diariamente.</li>
+</ul>
 
-                <div class="alert-warning">
-                    💡 <strong>Recomendação:</strong><br>
-                    • Use <strong>Import</strong> para desenvolvimento, testes e dashboards pequenos/médios<br>
-                    • Use <strong>DirectQuery</strong> para dados que mudam frequentemente ou volumes muito grandes<br>
-                    • Você pode combinar ambos em um mesmo relatório (modo <strong>Composite</strong>)
-                </div>
+<h2 id="sincronizacao-automatica-via-airflow-recomendado">🤖 Sincronização Automática via Airflow (Recomendado)</h2>
 
-                <h3 style="margin-top: 25px;">Como Escolher:</h3>
-                <ol style="margin-left: 20px;">
-                    <li>Após selecionar as tabelas, clique em <strong>Carregar</strong> (para Import) ou <strong>OK</strong> (aparecerá opção para DirectQuery)</li>
-                    <li>Para mudar o modo depois, vá em <strong>Modelagem</strong> > <strong>Configurações de modelo</strong></li>
-                </ol>
-            </div>
-        </div>
+<h3 id="por-que-usar-a-dag">Por que usar a DAG?</h3>
 
-        <div class="card">
-            <h2>✅ Pronto!</h2>
-            <div class="step-box">
-                <p>Agora você está conectado ao Datalake BI e pode:</p>
-                <ul style="margin-left: 20px; margin-top: 10px;">
-                    <li>Criar relacionamentos entre tabelas</li>
-                    <li>Criar medidas DAX</li>
-                    <li>Construir visualizações</li>
-                    <li>Publicar no Power BI Service (se usar Import)</li>
-                </ul>
+<p><span class="badge success">✅</span> <strong>Sem configuração manual</strong>: Views criadas/atualizadas automaticamente  </p>
+<p><span class="badge success">✅</span> <strong>Sempre atualizado</strong>: Roda diariamente ou sob demanda  </p>
+<p><span class="badge success">✅</span> <strong>Monitoramento</strong>: Logs e status no Airflow UI  </p>
+<p><span class="badge success">✅</span> <strong>Multi-datasets</strong>: Sincroniza bronze, silver e delta automaticamente  </p>
 
-                <div class="alert-success" style="margin-top: 20px;">
-                    📚 <strong>Próximos passos:</strong><br>
-                    • Configure atualizações agendadas no Power BI Service (modo Import)<br>
-                    • Otimize queries usando o Editor de Consultas Avançadas<br>
-                    • Configure RLS (Row-Level Security) se necessário
-                </div>
-            </div>
-        </div>
+<h3 id="configuracao-rapida">Configuração Rápida</h3>
+
+<ol>
+<li><strong>Ative a DAG no Airflow</strong>:</li>
+<ul>
+<li>Acesse: http://localhost:8085</li>
+<li>Procure: <code>sync_duckdb_views</code></li>
+<li>Toggle para <strong>ON</strong></li>
+<li>Clique em <strong>Trigger DAG</strong> (play ▶️) para executar agora</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Aguarde execução</strong> (1-2 minutos):</li>
+<ul>
+<li>Acompanhe logs em tempo real no Airflow</li>
+<li>Arquivo gerado: <code>/home/cblna123456/datalake-air-flow/ddb/datalake.duckdb</code></li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Views criadas automaticamente</strong>:</li>
+<ul>
+<li><code>orders_bronze</code> → <code>s3://lab01/processed/raw/orders/*.parquet</code></li>
+<li><code>customers_bronze</code> → <code>s3://lab01/processed/raw/customers/*.parquet</code></li>
+<li><code>orders_silver</code> → <code>s3://lab01/processed/silver/orders/*.parquet</code></li>
+<li><code>customers_silver</code> → <code>s3://lab01/processed/silver/customers/*.parquet</code></li>
+<li><code>orders_delta</code> → <code>s3://lab01/delta/orders/*.parquet</code></li>
+<li><code>customers_delta</code> → <code>s3://lab01/delta/customers/*.parquet</code></li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Personalize datasets</strong> (opcional):</li>
+<ul>
+<li>Edite: <code>src/dags/sync_duckdb_views.py</code></li>
+<li>Modifique lista <code>DATASETS</code> com seus paths</li>
+<li>Salve e a DAG será recarregada automaticamente</li>
+</ul>
+</ol>
+
+<h3 id="agenda-de-execucao">Agenda de Execução</h3>
+
+<ul>
+<li><strong>Automático</strong>: Diariamente às 2h AM (horário do servidor)</li>
+<li><strong>Manual</strong>: Clique "Trigger DAG" no Airflow UI quando necessário</li>
+<li><strong>Customizar</strong>: Edite <code>schedule_interval</code> na DAG para alterar frequência</li>
+</ul>
+
+<h3 id="monitoramento">Monitoramento</h3>
+
+<strong>Verificar última execução</strong>:
+<ol>
+<li>Airflow UI → DAGs → <code>sync_duckdb_views</code></li>
+<li>Verifique status: <span class="badge success">✅</span> Success / <span class="badge warning">❌</span> Failed</li>
+<li>Clique em uma run → logs detalhados</li>
+</ol>
+
+<strong>Logs mostram</strong>:
+<ul>
+<li>Quantas views foram criadas</li>
+<li>Número de registros em cada view</li>
+<li>Erros (se houver)</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="pre-requisitos"><span class="badge success">✅</span> Pré-requisitos</h2>
+
+<ul>
+<li><strong>Power BI Desktop</strong> instalado (Windows, versão 64-bit recomendada).</li>
+<li><strong>Sistema operacional</strong>: Windows 10 ou superior.</li>
+<li><strong>Driver ODBC do DuckDB</strong> instalado (veja passo 1).</li>
+<li><strong>Acesso a dados</strong>: Um arquivo <code>.duckdb</code> acessível (local, rede compartilhada ou arquivo Parquet/S3 que o DuckDB possa consultar).</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="passo-1-instalar-o-driver-odbc-do-duckdb">🛠️ Passo 1: Instalar o Driver ODBC do DuckDB</h2>
+
+<h3 id="windows-recomendado">Windows (Recomendado)</h3>
+
+<ol>
+<li>Acesse o site oficial do DuckDB:</li>
+<ul>
+<li>https://duckdb.org/docs/guides/odbc/installation</li>
+<li>Ou baixe direto: https://github.com/duckdb/duckdb/releases</li>
+</ul>
+</ol>
+
+<ol>
+<li>Baixe o instalador ODBC (64-bit):</li>
+<ul>
+<li>Procure por algo como <code>duckdb_odbc_x64.msi</code> ou semelhante.</li>
+</ul>
+</ol>
+
+<ol>
+<li>Execute o instalador <code>.msi</code> e siga as instruções de instalação padrão.</li>
+</ol>
+
+<ol>
+<li>Verifique a instalação:</li>
+<ul>
+<li>Abra <strong>Administrador ODBC</strong> (Painel de Controle → Ferramentas Administrativas → Fontes de Dados ODBC, ou <code>odbcad32.exe</code> na barra de pesquisa).</li>
+<li>Guia: <strong>Drivers</strong></li>
+<li>Você deve ver um driver chamado <code>DuckDB</code> listado.</li>
+</ul>
+</ol>
+
+<h3 id="macos-linux-alternativa">macOS / Linux (Alternativa)</h3>
+
+<p>Se estiver em macOS/Linux:</p>
+<pre><code><h1 id="macos-via-homebrew">macOS (via Homebrew)</h1>
+<p>brew install duckdb</p>
+
+<h1 id="linux-compile-from-source-ou-use-pacote-distro">Linux (compile from source ou use pacote distro)</h1>
+<h1 id="consulte-httpsduckdborgdocsinstallationindex">Consulte: https://duckdb.org/docs/installation/index</h1></code></pre>
+
+<p>---</p>
+
+<h2 id="passo-2-configurar-dsn-data-source-name">📝 Passo 2: Configurar DSN (Data Source Name)</h2>
+
+<p>Um DSN aponta para um banco de dados específico. Você pode criar um para cada projeto.</p>
+
+<h3 id="windows-criar-um-dsn-via-administrador-odbc">Windows: Criar um DSN via Administrador ODBC</h3>
+
+<ol>
+<li>Abra <strong>Administrador ODBC</strong> (<code>odbcad32.exe</code>).</li>
+</ol>
+
+<ol>
+<li>Guia: <strong>DSN do Usuário</strong> (ou <strong>DSN do Sistema</strong> se quiser compartilhado).</li>
+</ol>
+
+<ol>
+<li>Clique em <strong>Adicionar</strong>.</li>
+</ol>
+
+<ol>
+<li>Selecione <strong>DuckDB</strong> como driver.</li>
+</ol>
+
+<ol>
+<li>Preencha os campos:</li>
+</ol>
+
+<p>   | Campo | Valor | Descrição |</p>
+<p>   |-------|-------|-----------|</p>
+<p>   | <strong>Data Source Name</strong> | <code>DuckDB_BI</code> (ou escolha um nome) | Nome amigável que aparecerá no Power BI |</p>
+<p>   | <strong>Database</strong> | <code>C:\data\datalake.duckdb</code> (exemplo) | Caminho completo para um arquivo <code>.duckdb</code> |</p>
+<p>   | <strong>Read Only</strong> | ☐ (desmarque) | Se o Power BI precisar fazer cache/temp tables |</p>
+
+<ol>
+<li><strong>Teste a conexão</strong> (botão "Test" se disponível).</li>
+</ol>
+
+<ol>
+<li>Clique <strong>OK</strong> para salvar.</li>
+</ol>
+
+<h3 id="alternativa-conexao-sem-dsn-sql-native-client">Alternativa: Conexão sem DSN (SQL Native Client)</h3>
+
+<p>Se preferir não criar um DSN, você pode conectar diretamente no Power BI, mas requer a pasta/arquivo acessível no caminho exato.</p>
+
+<p>---</p>
+
+<h2 id="passo-3-preparar-o-arquivo-duckdb">💾 Passo 3: Preparar o Arquivo DuckDB</h2>
+
+<h3 id="opcao-a-criar-um-arquivo-duckdb-vazio-desenvolvimento">Opção A: Criar um arquivo <code>.duckdb</code> vazio (Desenvolvimento)</h3>
+
+<pre><code><h1 id="na-maquina-com-duckdb-instalado-ou-via-terminal">Na máquina com DuckDB instalado ou via terminal</h1>
+<p>duckdb /path/to/datalake.duckdb</code></pre></p>
+
+<p>Isso criará um arquivo <code>datalake.duckdb</code> que o DSN apontará.</p>
+
+<h3 id="opcao-b-criar-tabelasviews-a-partir-de-parquets3-mais-comum">Opção B: Criar tabelas/views a partir de Parquet/S3 (Mais Comum)</h3>
+
+<p>Dentro do DuckDB, você pode:</p>
+
+<pre><code>-- Criar uma VIEW que consulta um Parquet local
+<p>CREATE VIEW customers AS</p>
+<p>SELECT * FROM read_parquet('C:\data\assets\customers\*.parquet');</p>
+
+<p>-- Ou consultar S3/MinIO</p>
+<p>CREATE VIEW orders_s3 AS</p>
+<p>SELECT * FROM read_parquet('s3://lab01/processed/raw/orders/*.parquet')</p>
+<p>WITH (</p>
+<p>  's3_endpoint' = 'http://minio:9000',</p>
+<p>  's3_access_key_id' = 'admin',</p>
+<p>  's3_secret_access_key' = 'admin123'</p>
+<p>);</code></pre></p>
+
+<p>Essas views ficarão persistidas no arquivo <code>.duckdb</code>.</p>
+
+<h3 id="opcao-c-compartilhar-via-smbnfs-equipe">Opção C: Compartilhar via SMB/NFS (Equipe)</h3>
+
+<p>Coloque o arquivo <code>.duckdb</code> em uma pasta compartilhada:</p>
+<pre><code>\\servidor\compartilhado\bi\datalake.duckdb</code></pre>
+
+<p>E aponte o DSN para esse caminho UNC.</p>
+
+<p>---</p>
+
+<h2 id="passo-4-conectar-no-power-bi-desktop">🔌 Passo 4: Conectar no Power BI Desktop</h2>
+
+<h3 id="1-abrir-power-bi-desktop">1. Abrir Power BI Desktop</h3>
+
+<ol>
+<li>Inicie <strong>Power BI Desktop</strong>.</li>
+<li>Clique em <strong>Obter Dados</strong> (Get Data) ou use o menu <strong>Arquivo → Obter Dados</strong>.</li>
+</ol>
+
+<h3 id="2-selecionar-a-origem-odbc">2. Selecionar a Origem ODBC</h3>
+
+<ol>
+<li>Na caixa de busca, procure por <strong>ODBC</strong> ou role até encontrá-lo.</li>
+<li>Clique em <strong>ODBC</strong> e depois <strong>Conectar</strong>.</li>
+</ol>
+
+<p>   !<a href="./imgs/powerbi_odbc_select.png">Obter Dados → ODBC</a> *(ilustrativo)*</p>
+
+<h3 id="3-escolher-o-dsn">3. Escolher o DSN</h3>
+
+<p>Uma caixa de diálogo aparecerá:</p>
+<ul>
+<li><strong>Data source name (DSN)</strong>: Selecione <code>DuckDB_BI</code> (ou o nome que criou).</li>
+<li>Deixe <strong>Advanced options</strong> em branco (a menos que tenha SQL customizado).</li>
+<li>Clique <strong>OK</strong>.</li>
+</ul>
+
+<h3 id="4-credenciais-se-necessario">4. Credenciais (se necessário)</h3>
+<p>Se o arquivo <code>.duckdb</code> estiver em rede protegida, o Power BI mostrará um prompt de autenticação. Preencha:</p>
+
+<ul>
+<li><strong>Método</strong>: Windows (ou Basic, conforme sua rede).</li>
+<li><strong>Usuário</strong>: <code>DOMINIO\usuario</code> ou o usuário de rede.</li>
+<li><strong>Senha</strong>: senha de rede.</li>
+<li>Marque <strong>Lembrar minhas credenciais</strong> se quiser evitar novos prompts.</li>
+</ul>
+
+<p>> Não é necessário informar credenciais do PostgreSQL aqui; esta conexão é apenas ODBC para o arquivo DuckDB.</p>
+
+<h3 id="5-navigator-escolher-tabelasviews">5. Navigator - Escolher Tabelas/Views</h3>
+
+<p>A janela <strong>Navigator</strong> abrirá listando todas as tabelas e views no banco DuckDB:</p>
+<ul>
+<li>Selecione as tabelas desejadas.</li>
+<li>Visualize os dados clicando <strong>Load</strong> ou <strong>Edit</strong> (para transformações Power Query).</li>
+</ul>
+
+<h3 id="6-carregar-dados">6. Carregar Dados</h3>
+
+<p>Clique <strong>Load</strong> para importar os dados no Power BI.</p>
+
+<p>---</p>
+
+<h2 id="consultas-sql-avancadas">🎯 Consultas SQL Avançadas</h2>
+
+<p>Se o Navigator não mostrar exatamente o que precisa, use <strong>SQL Native Query</strong> no Power BI:</p>
+
+<h3 id="no-power-bi-power-query-editor">No Power BI (Power Query Editor)</h3>
+
+<ol>
+<li>Guia <strong>Home</strong> → <strong>New Source</strong> → <strong>ODBC</strong>.</li>
+<li>Escolha o DSN.</li>
+<li>Em <strong>Advanced options</strong>, escreva uma consulta SQL:</li>
+</ol>
+
+<pre><code>SELECT 
+<p>  customer_id,</p>
+<p>  CAST(order_date AS DATE) AS order_date,</p>
+<p>  total_amount</p>
+<p>FROM read_parquet('C:\data\orders\*.parquet')</p>
+<p>WHERE EXTRACT(YEAR FROM order_date) = 2024</code></pre></p>
+
+<ol>
+<li>Clique <strong>OK</strong>.</li>
+</ol>
+
+<h3 id="exemplos-de-consultas-uteis">Exemplos de Consultas Úteis</h3>
+
+<h4 id="consultar-parquet-local">Consultar Parquet Local</h4>
+<pre><code>SELECT * FROM read_parquet('C:\data\assets\*.parquet');</code></pre>
+
+<h4 id="ler-s3minio-com-autenticacao-inline">Ler S3/MinIO (com autenticação inline)</h4>
+<pre><code>SELECT * 
+<p>FROM read_parquet(</p>
+<p>  's3://lab01/processed/raw/customers/*.parquet',</p>
+<p>  s3_access_key_id='admin',</p>
+<p>  s3_secret_access_key='admin123',</p>
+<p>  s3_endpoint='http://minio:9000',</p>
+<p>  s3_url_style='path'</p>
+<p>);</code></pre></p>
+
+<h4 id="agruparagregar-no-duckdb-antes-de-enviar-para-power-bi">Agrupar/Agregar no DuckDB antes de enviar para Power BI</h4>
+<pre><code>SELECT 
+<p>  category,</p>
+<p>  COUNT(*) as total_products,</p>
+<p>  AVG(price) as avg_price,</p>
+<p>  MAX(price) as max_price</p>
+<p>FROM read_parquet('s3://lab01/products/*.parquet')</p>
+<p>GROUP BY category;</code></pre></p>
+
+<p>---</p>
+
+<h2 id="seguranca-e-boas-praticas">🔐 Segurança e Boas Práticas</h2>
+
+<ol>
+<li><strong>Arquivo <code>.duckdb</code> em rede compartilhada</strong>:</li>
+<ul>
+<li>Use NTFS com permissões adequadas.</li>
+<li>Limitar a cópia do arquivo ou usar VPN.</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Credenciais S3/MinIO</strong>:</li>
+<ul>
+<li><strong>NÃO</strong> coloque credenciais hardcoded em queries visíveis.</li>
+<li>Considere usar perfis AWS ou variáveis de ambiente no servidor DuckDB (se escalável).</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Backup</strong>:</li>
+<ul>
+<li>Faça backup regular do arquivo <code>.duckdb</code>.</li>
+<li>Versionize o arquivo em Git (se pequeno) ou em backup central.</li>
+</ul>
+</ol>
+
+<ol>
+<li><strong>Performance</strong>:</li>
+<ul>
+<li>Para grandes datasets, crie indexes ou partições no DuckDB antes de expor ao Power BI.</li>
+<li>Use <code>DirectQuery</code> (se suportado) para dados muito grandes, em vez de <code>Import</code>.</li>
+</ul>
+</ol>
+
+<p>---</p>
+
+<h2 id="troubleshooting">🐛 Troubleshooting</h2>
+
+<h3 id="erro-driver-nao-encontrado">Erro: "Driver não encontrado"</h3>
+
+<strong>Causa</strong>: Driver ODBC do DuckDB não está instalado.
+
+<strong>Solução</strong>:
+<pre><code><h1 id="verificar-drivers-disponiveis-windows-powershell">Verificar drivers disponíveis (Windows PowerShell)</h1>
+<p>Get-OdbcDriver | Select-Object Name</p>
+
+<h1 id="se-duckdb-nao-aparecer-reinstale-o-driver">Se DuckDB não aparecer, reinstale o driver</h1></code></pre>
+
+<h3 id="erro-arquivo-nao-encontrado">Erro: "Arquivo não encontrado"</h3>
+
+<strong>Causa</strong>: O arquivo <code>.duckdb</code> especificado no DSN não existe ou o caminho está incorreto.
+
+<strong>Solução</strong>:
+<ul>
+<li>Verifique o caminho no DSN.</li>
+<li>Use um caminho UNC completo se em rede: <code>\\servidor\compartilhado\datalake.duckdb</code>.</li>
+<li>Teste com um arquivo local primeiro.</li>
+</ul>
+
+<h3 id="erro-acesso-negado-ao-arquivo-de-rede">Erro: "Acesso negado" ao arquivo de rede</h3>
+
+<strong>Causa</strong>: Permissões insuficientes na pasta compartilhada.
+
+<strong>Solução</strong>:
+<pre><code><h1 id="no-windows-defina-permissoes-ntfs">No Windows, defina permissões NTFS</h1>
+<p>icacls "\\servidor\compartilhado\bi" /grant "usuario:%USERNAME%":F</code></pre></p>
+
+<h3 id="erro-s3-connection-failed">Erro: "S3 connection failed"</h3>
+
+<strong>Causa</strong>: Credenciais S3/MinIO incorretas ou endpoint inválido.
+
+<strong>Solução</strong>:
+<ul>
+<li>Teste manualmente em um cliente DuckDB:</li>
+</ul>
+<p>  ``<code>sql</p>
+<p>  SELECT * FROM read_parquet('s3://lab01/test/*.parquet',</p>
+<p>    s3_access_key_id='admin',</p>
+<p>    s3_secret_access_key='admin123',</p>
+<p>    s3_endpoint='http://minio:9000',</p>
+<p>    s3_url_style='path'</p>
+<p>  ) LIMIT 1;</p>
+<p>  </code>`<code></p>
+<ul>
+<li>Valide host/porta do MinIO.</li>
+</ul>
+
+<h3 id="power-bi-importa-lentamente">Power BI importa lentamente</h3>
+
+<strong>Causa</strong>: Arquivo </code>.duckdb<code> grande ou consulta não otimizada.
+
+<strong>Solução</strong>:
+<ul>
+<li>Use </code>DirectQuery<code> em vez de </code>Import<code> (se suportado).</li>
+<li>Pré-agrege dados no DuckDB (crie views resumidas).</li>
+<li>Comprima o arquivo com ZIP antes de compartilhar.</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="recursos-adicionais">📚 Recursos Adicionais</h2>
+
+<ul>
+<li><a href="https://duckdb.org/docs/guides/odbc">Documentação DuckDB ODBC</a></li>
+<li><a href="https://learn.microsoft.com/en-us/power-bi/connect-data/desktop-connect-to-data">Power BI - Conectar via ODBC</a></li>
+<li><a href="https://duckdb.org/docs/sql/introduction">DuckDB - SQL Reference</a></li>
+<li><a href="https://docs.min.io/">MinIO para S3 Local</a></li>
+</ul>
+
+<p>---</p>
+
+<h2 id="proximos-passos"><span class="badge success">✅</span> Próximos Passos</h2>
+
+<ol>
+<li>✓ Instalar driver ODBC DuckDB.</li>
+<li>✓ Criar um DSN.</li>
+<li>✓ Preparar um arquivo </code>.duckdb` com views/tabelas.</li>
+<li>✓ Conectar do Power BI.</li>
+<li>✓ Criar relatórios e dashboards.</li>
+</ol>
+
+<strong>Sucesso!</strong> 🎉 Você agora tem uma pipeline SQL leve e flexível para BI.
+
+        </main>
     </div>
-
 </body>
 </html>
- 

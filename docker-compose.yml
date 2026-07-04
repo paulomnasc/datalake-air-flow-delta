@@ -494,6 +494,25 @@ services:
     networks:
       - airflow_net
 
+  # 🤝 Delta Sharing Server (Segurança de acesso aos dados Gold no MinIO)
+  delta-sharing-server:
+    image: deltaio/delta-sharing-server:0.6.0
+    container_name: delta_sharing_server${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    command: ["--config", "/config/delta-sharing-server.yaml"]
+    restart: always
+    ports:
+      - "28085:8080"
+    volumes:
+      - ./delta-sharing/delta-sharing-server.yaml:/config/delta-sharing-server.yaml
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=admin123
+      - AWS_REGION=us-east-1
+      - JAVA_OPTS=-Dfs.s3a.endpoint=http://minio:9000 -Dfs.s3a.path.style.access=true -Dfs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+    depends_on:
+      - minio
+    networks:
+      - airflow_net
 
 networks:
   airflow_net:

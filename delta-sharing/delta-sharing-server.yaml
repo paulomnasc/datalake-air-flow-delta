@@ -1,0 +1,21 @@
+# Configuration file for Delta Sharing Server
+version: 1
+host: "0.0.0.0"
+port: 8080
+
+# Token used to authenticate requests from BI tools or python scripts
+authorization:
+  bearerToken: "dbtSharingToken2026Secure"
+
+# Shared Gold Layer Delta tables
+shares:
+  - name: "gold_share"
+    schemas:
+      - name: "analytics"
+        tables:
+          - name: "dim_usuarios"
+            location: "s3a://lab01/gold/ingestao_usuarios/dim_usuarios_delta"
+          - name: "dim_cursos"
+            location: "s3a://lab01/gold/ingestao_cursos/dim_cursos_delta"
+          - name: "fato_vendas"
+            location: "s3a://lab01/gold/ingestao_vendas/fato_vendas_delta"

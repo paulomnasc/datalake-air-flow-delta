@@ -219,7 +219,7 @@
             padding: 2px 6px;
             border-radius: 3px;
             font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: #c7254e;
         }
 
@@ -230,12 +230,14 @@
             overflow-x: auto;
             margin-bottom: 15px;
             border-left: 4px solid #3498db;
+            font-size: 0.9rem;
         }
 
         pre code {
             background: none;
             padding: 0;
             color: #333;
+            font-size: 0.85rem;
         }
 
         table {
@@ -449,7 +451,11 @@
                     <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
                     <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
                     <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                    <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                    <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
                     <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                    <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
+                    <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
                 </ul>
             </nav>
         </aside>
@@ -489,6 +495,81 @@
 
 <strong>Quando ler</strong>: Sempre que precisar de comandos rápidos para acessar, diagnosticar ou restaurar bancos MySQL/PostgreSQL na stack Docker.
 
+<p>---</p>
+
+<h3 id="guia-de-validacoes-customizadas-medallion">🛡️ Guia de Validações Customizadas - Medallion</h3>
+
+<strong>Arquivo</strong>: <a href="GUIA_VALIDACOES_CUSTOMIZADAS.html"><code>GUIA_VALIDACOES_CUSTOMIZADAS.md</code></a> <span class="badge star">⭐</span> <strong>RECOMENDADO</strong>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> Editor web visual para criar regras de validação Python</li>
+<li><span class="badge success">✅</span> 4 templates prontos (Nulos, Duplicatas, Quality Score, Regras de Negócio)</li>
+<li><span class="badge success">✅</span> Guia rápido de 5 minutos para primeira validação</li>
+<li><span class="badge success">✅</span> Casos de uso práticos (LGPD, SLA, Anomalias, Integridade Referencial)</li>
+<li><span class="badge success">✅</span> API completa da função <code>validate(df, **context)</code></li>
+<li><span class="badge success">✅</span> Boas práticas e anti-patterns</li>
+<li><span class="badge success">✅</span> Troubleshooting de problemas comuns</li>
+<li><span class="badge success">✅</span> Validações isoladas por camada (Bronze/Silver/Gold) e tabela</li>
+<li><span class="badge success">✅</span> Zero necessidade de editar código Python das DAGs</li>
+</ul>
+
+<strong>Quando ler</strong>: 
+<ul>
+<li>Quando precisar validar qualidade de dados nos pipelines Medallion</li>
+<li>Para criar regras de negócio específicas sem tocar na dag_factory</li>
+<li>Ao implementar governança de dados (LGPD, SLAs, auditoria)</li>
+<li>Para detectar anomalias ou valores suspeitos automaticamente</li>
+</ul>
+
+<strong>Documentação Técnica Completa</strong>: <a href="CUSTOM_VALIDATIONS_README.html"><code>CUSTOM_VALIDATIONS_README.md</code></a>
+
+<p>---</p>
+
+<h3 id="github-synchronization-validation-rules-editor">� GitHub Synchronization - Validation Rules Editor</h3>
+
+<strong>Arquivo</strong>: <a href="GIT_VALIDATION_SYNC_UPGRADE.html"><code>GIT_VALIDATION_SYNC_UPGRADE.md</code></a> <span class="badge star">⭐</span> <strong>NOVO</strong>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> Integração isomorphic-git (mesmo que Code Editor SQL)</li>
+<li><span class="badge success">✅</span> Sincronização persistente com GitHub</li>
+<li><span class="badge success">✅</span> Sidebar retrátil com interface intuitiva</li>
+<li><span class="badge success">✅</span> Hierarquia de pastas e arquivos</li>
+<li><span class="badge success">✅</span> Salvamento automático em localStorage</li>
+<li><span class="badge success">✅</span> Carregamento automático ao abrir página</li>
+<li><span class="badge success">✅</span> Criar, editar, salvar e deletar arquivos</li>
+<li><span class="badge success">✅</span> Commit e push automatizados</li>
+<li><span class="badge success">✅</span> Troubleshooting e migração de versões anteriores</li>
+</ul>
+
+<strong>Funcionalidades</strong>:
+<ul>
+<li><strong>Persistência</strong>: Sessão GitHub mantida entre páginas</li>
+<li><strong>File Tree</strong>: Visualização hierárquica de arquivos do repositório</li>
+<li><strong>Storage</strong>: localStorage + MinIO para redundância</li>
+<li><strong>Sincronização</strong>: Commit/push automático ao GitHub</li>
+<li><strong>Validation</strong>: Testes de código Python no editor</li>
+</ul>
+
+<strong>Quando ler</strong>: 
+<ul>
+<li>Para versionar suas regras de validação no GitHub</li>
+<li>Para manter backup e histórico de mudanças</li>
+<li>Para trabalhar em equipe com controle de versão</li>
+<li>Para integrar validações customizadas em CI/CD</li>
+</ul>
+
+<strong>Comparação com versão anterior</strong>:
+<pre><code>Antes: Formulário simples, REST API, sem persistência ✗
+<p>Agora: Sidebar completa, isomorphic-git, persistência ✓</code></pre></p>
+
+<strong>Migração</strong>: Zero esforço - tudo é backward compatible!
+
+<p>---</p>
+
+<h3 id="guia-da-interface-web-de-configuracao">�📋 Guia da Interface Web de Configuração</h3>
+
 <strong>Arquivo</strong>: <a href="guide-webapp-config.html"><code>GUIDE_WEBAPP_CONFIG.md</code></a>
 
 <strong>Conteúdo</strong>:
@@ -524,6 +605,23 @@
 
 <p>---</p>
 
+<h3 id="guia-e-arquitetura-do-dbt-core-multi-tenant">📊 Guia e Arquitetura do dbt Core Multi-Tenant</h3>
+
+<strong>Arquivo</strong>: <a href="DBT_MULTI_TENANT_ARCHITECTURE.html"><code>DBT_MULTI_TENANT_ARCHITECTURE.md</code></a> <span class="badge star">⭐</span> <strong>NOVO</strong>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> Diagrama de fluxo de dados Monaco → S3 → Docker → Postgres</li>
+<li><span class="badge success">✅</span> Detalhes de isolamento lógico (Dev/Prod) e controle de recursos (512MB RAM)</li>
+<li><span class="badge success">✅</span> Esquema de relações entre artefatos (<code>dbt_project.yml</code>, <code>profiles.yml</code>, <code>sources.yml</code>, <code>schema.yml</code>, <code>.sql</code> models)</li>
+<li><span class="badge success">✅</span> Customização de nomes dinâmicos de schema via macros dbt</li>
+<li><span class="badge success">✅</span> Troubleshooting de erros comuns (<code>relation does not exist</code>, <code>source not found</code>)</li>
+</ul>
+
+<strong>Quando ler</strong>: Antes de configurar seu ambiente de dbt, ao criar novos modelos SQL ou quando encontrar problemas de compilação/direcionamento de schemas no banco PostgreSQL.
+
+<p>---</p>
+
 <strong>Arquivo</strong>: <a href="PowerBI_Conexao_DeltaLake_ODBC.html"><code>PowerBI_Conexao_DeltaLake_ODBC.md</code></a> <span class="badge warning">⚠️</span> <strong>OBSOLETO</strong> (Spark Thrift Server)
 
 <strong>Status</strong>: Descontinuado em favor da solução PostgreSQL
@@ -537,6 +635,37 @@
 </ul>
 
 <strong>Quando ler</strong>: Apenas para referência histórica. Use PostgreSQL para novos projetos.
+
+<p>---</p>
+
+<h3 id="guias-de-analytics-bi-dbt-metabase">📊 Guias de Analytics & BI (dbt & Metabase)</h3>
+
+<strong>Arquivo</strong>: <a href="./git-dbt-analytics.html"><code>git-dbt-analytics.html</code></a>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> Versionamento de modelos SQL com Git & GitHub</li>
+<li><span class="badge success">✅</span> Execução do dbt Core no Monaco Editor (Dev vs Prod)</li>
+<li><span class="badge success">✅</span> Geração de documentação e gráfico de linhagem (Lineage Graph)</li>
+<li><span class="badge success">✅</span> Visualização de logs de compilação em tempo real</li>
+</ul>
+
+<strong>Quando ler</strong>: Sempre que precisar criar novas tabelas e visões analíticas agregadas (camada Gold) a partir de fontes estruturadas.
+
+<p>---</p>
+
+<strong>Arquivo</strong>: <a href="./metabase-analytics.html"><code>metabase-analytics.html</code></a>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> Autenticação automática por Single Sign-On (SSO) com JWT</li>
+<li><span class="badge success">✅</span> Isolamento de dados multi-inquilino (multi-tenant) via schemas exclusivos</li>
+<li><span class="badge success">✅</span> Construção de perguntas visuais e consultas SQL no Metabase</li>
+<li><span class="badge success">✅</span> Criação e compartilhamento de dashboards de BI</li>
+<li><span class="badge success">✅</span> Integração de permissões com controle de status da assinatura</li>
+</ul>
+
+<strong>Quando ler</strong>: Ao iniciar a criação de painéis visuais, relatórios de BI e cartões KPI usando seus dados processados.
 
 <p>---</p>
 
@@ -564,6 +693,24 @@
 <p>---</p>
 
 <h2 id="documentacao-por-camada">📖 Documentação por Camada</h2>
+
+
+<h3 id="consideracoes-para-auditoria-de-processamento-dos-dados">Considerações para auditoria de processamento dos dados</h3>
+
+<p>Para garantir rastreabilidade e auditoria em cada etapa do pipeline Medallion (bronze, silver, gold, delta), o sistema registra no log:</p>
+
+<ol>
+<li><strong>Total de arquivos a serem processados</strong> na etapa.</li>
+<li><strong>Na entrada de cada arquivo</strong>: nome do arquivo, nome do processo (bronze, silver, gold, delta), e quantidade de registros originais.</li>
+<li><strong>Na finalização de cada arquivo</strong>: nome do arquivo e total de registros processados (ou total acumulado no caso do Delta).</li>
+</ol>
+<p>No caso do Delta Lake, cada arquivo processado pode ser adicionado à mesma tabela Delta, que acumula registros de múltiplos arquivos. Por isso, ao final de cada processamento, o log pode mostrar:</p>
+
+<p>O nome do arquivo processado.</p>
+<p>O total de registros processados naquele arquivo.</p>
+<p>E, opcionalmente, o total de registros acumulados na tabela Delta (somando todos os arquivos já inseridos).</p>
+
+<p>Esse padrão de logging permite auditoria detalhada, facilita troubleshooting e garante transparência no fluxo de dados.</p>
 
 <h3 id="1-camada-silver-qualidade-e-transformacoes">1️⃣ Camada Silver (Qualidade e Transformações)</h3>
 
@@ -614,6 +761,23 @@
 </ul>
 
 <strong>Quando ler</strong>: Para entender como funciona o Delta Lake, quais features analíticas são criadas e como usar para ML/BI.
+
+<p>---</p>
+
+<h3 id="guia-operacional-delta-sharing-gold">🤝 Guia Operacional - Delta Sharing Gold</h3>
+
+<strong>Arquivo</strong>: <a href="DELTA_SHARING_OPERATIONAL.html"><code>DELTA_SHARING_OPERATIONAL.md</code></a> <span class="badge star">⭐</span> <strong>NOVO</strong>
+
+<strong>Conteúdo</strong>:
+<ul>
+<li><span class="badge success">✅</span> Compartilhamento seguro de tabelas Gold do Delta Lake</li>
+<li><span class="badge success">✅</span> Geração e distribuição de credenciais (<code>gold_share_recipient.share</code>)</li>
+<li><span class="badge success">✅</span> Instruções de conexão nativa do Power BI (analistas de BI)</li>
+<li><span class="badge success">✅</span> Script de consumo no Python usando Pandas/Delta Sharing (cientistas de dados)</li>
+<li><span class="badge success">✅</span> Garantia de isolamento e zero concorrência com o PostgreSQL analítico</li>
+</ul>
+
+<strong>Quando ler</strong>: Quando precisar conceder acesso aos dados da camada Gold para analistas de BI ou Cientistas de Dados externos sem comprometer a segurança da infraestrutura do S3/MinIO ou PostgreSQL.
 
 <p>---</p>
 
@@ -726,6 +890,43 @@
 
 <p>---</p>
 
+<h3 id="sincronizacao-delta-lake-postgresql-bi">🔄 Sincronização Delta Lake → PostgreSQL (BI)</h3>
+
+<p>Após o processamento da camada Gold (Delta Lake), a sincronização das tabelas Delta para o banco PostgreSQL é realizada pelo script Python [<code>src/dags/sync_delta_to_postgres.py</code>], e não de forma automática pelo pipeline.</p>
+
+<strong>Fluxo:</strong>
+<ol>
+<li>Para cada pasta em <code>delta/{uid}_{nome_tabela}/</code>, o script identifica a tabela Delta.</li>
+<li>O arquivo Parquet mais recente é lido e processado.</li>
+<li>A tabela correspondente é criada no PostgreSQL com nome <code>delta_{nome_tabela}</code> (apenas o nome lógico, sem UID).</li>
+<li>Todos os registros são inseridos na tabela, sobrescrevendo versões anteriores (DROP TABLE + CREATE TABLE).</li>
+<li>O processo é auditado e registrado em log.</li>
+</ol>
+
+<strong>Características:</strong>
+<ul>
+<li>Tabelas no PostgreSQL são sempre recriadas do zero a cada sincronização.</li>
+<li>Não há atualização incremental: cada execução sobrescreve a tabela.</li>
+<li>Permite múltiplas tabelas simultâneas para BI.</li>
+<li>Suporte nativo a tipos de dados, schema dinâmico e auditoria.</li>
+</ul>
+
+<strong>Quando ler:</strong>
+<ul>
+<li>Para entender como conectar Power BI ao datalake via PostgreSQL.</li>
+<li>Para saber como funciona a atualização das tabelas BI.</li>
+<li>Para troubleshooting de sincronização Delta → PostgreSQL.</li>
+</ul>
+
+<strong>Documentação Técnica:</strong>
+<ul>
+<li><a href="delta-lake-implementation.html"><code>DELTA_LAKE_IMPLEMENTATION.md</code></a> (detalhes da camada Gold)</li>
+<li><a href="migracao-duckdb-postgresql.html"><code>MIGRACAO_DUCKDB_POSTGRESQL.md</code></a> (guia de conexão BI)</li>
+<li>Código: [<code>src/dags/sync_delta_to_postgres.py</code>]</li>
+</ul>
+
+<p>---</p>
+
 <h2 id="resumo-de-colunas-por-camada">📊 Resumo de Colunas por Camada</h2>
 
 <h3 id="bronze">Bronze</h3>
@@ -824,6 +1025,18 @@
 <tr>
 <td><code>src/dags/factory_master.py</code></td>
 <td>Factory de DAGs (cria DAGs automaticamente)</td>
+</tr>
+<tr>
+<td><code>SECURITY_PENDENCIAS.md</code></td>
+<td>Pendências e riscos de segurança atuais</td>
+</tr>
+<tr>
+<td><code>SECURITY_MINIO_ACTION_PLAN.md</code></td>
+<td>Plano de ação para rotação de credenciais e hardening do MinIO</td>
+</tr>
+<tr>
+<td><code>SECURITY_POSTGRES_ACTION_PLAN.md</code></td>
+<td>Plano de ação para rotação de credenciais e hardening do PostgreSQL</td>
 </tr>
 </tbody>
 </table>

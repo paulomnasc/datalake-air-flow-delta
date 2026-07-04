@@ -158,6 +158,33 @@ Agora: Sidebar completa, isomorphic-git, persistência ✓
 
 ---
 
+### 📊 Guias de Analytics & BI (dbt & Metabase)
+
+**Arquivo**: [`git-dbt-analytics.html`](./git-dbt-analytics.html)
+
+**Conteúdo**:
+- ✅ Versionamento de modelos SQL com Git & GitHub
+- ✅ Execução do dbt Core no Monaco Editor (Dev vs Prod)
+- ✅ Geração de documentação e gráfico de linhagem (Lineage Graph)
+- ✅ Visualização de logs de compilação em tempo real
+
+**Quando ler**: Sempre que precisar criar novas tabelas e visões analíticas agregadas (camada Gold) a partir de fontes estruturadas.
+
+---
+
+**Arquivo**: [`metabase-analytics.html`](./metabase-analytics.html)
+
+**Conteúdo**:
+- ✅ Autenticação automática por Single Sign-On (SSO) com JWT
+- ✅ Isolamento de dados multi-inquilino (multi-tenant) via schemas exclusivos
+- ✅ Construção de perguntas visuais e consultas SQL no Metabase
+- ✅ Criação e compartilhamento de dashboards de BI
+- ✅ Integração de permissões com controle de status da assinatura
+
+**Quando ler**: Ao iniciar a criação de painéis visuais, relatórios de BI e cartões KPI usando seus dados processados.
+
+---
+
 ### 🚀 Guia de Scripts de Gerenciamento
 
 **Arquivo**: [`GUIA_SCRIPTS_GERENCIAMENTO.md`](./GUIA_SCRIPTS_GERENCIAMENTO.md)
@@ -240,6 +267,21 @@ Esse padrão de logging permite auditoria detalhada, facilita troubleshooting e 
 - **Rankings**: {col}_rank
 
 **Quando ler**: Para entender como funciona o Delta Lake, quais features analíticas são criadas e como usar para ML/BI.
+
+---
+
+### 🤝 Guia Operacional - Delta Sharing Gold
+
+**Arquivo**: [`DELTA_SHARING_OPERATIONAL.md`](./DELTA_SHARING_OPERATIONAL.md) ⭐ **NOVO**
+
+**Conteúdo**:
+- ✅ Compartilhamento seguro de tabelas Gold do Delta Lake
+- ✅ Geração e distribuição de credenciais (`gold_share_recipient.share`)
+- ✅ Instruções de conexão nativa do Power BI (analistas de BI)
+- ✅ Script de consumo no Python usando Pandas/Delta Sharing (cientistas de dados)
+- ✅ Garantia de isolamento e zero concorrência com o PostgreSQL analítico
+
+**Quando ler**: Quando precisar conceder acesso aos dados da camada Gold para analistas de BI ou Cientistas de Dados externos sem comprometer a segurança da infraestrutura do S3/MinIO ou PostgreSQL.
 
 ---
 

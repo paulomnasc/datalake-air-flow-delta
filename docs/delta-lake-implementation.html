@@ -219,7 +219,7 @@
             padding: 2px 6px;
             border-radius: 3px;
             font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: #c7254e;
         }
 
@@ -230,12 +230,14 @@
             overflow-x: auto;
             margin-bottom: 15px;
             border-left: 4px solid #3498db;
+            font-size: 0.9rem;
         }
 
         pre code {
             background: none;
             padding: 0;
             color: #333;
+            font-size: 0.85rem;
         }
 
         table {
@@ -449,7 +451,11 @@
                     <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
                     <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
                     <li><a href="delta-lake-implementation.html" class="active">🥇 Delta Lake & Gold</a></li>
+                    <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                    <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
                     <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                    <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
+                    <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
                 </ul>
             </nav>
         </aside>
@@ -574,16 +580,16 @@
 
 <h3 id="no-minio-s3">No MinIO (S3)</h3>
 
-<pre><code>s3://lab01/
+<pre><code>s3://<owner da dag>/
 <p>├── raw/{dag_id}/{timestamp}_{hash}.csv</p>
-<p>├── bronze/{table}/{timestamp}_{hash}.csv</p>
-<p>├── silver/{table}/{timestamp}_{hash}.parquet</p>
+<p>├── bronze/{dag_id}/{timestamp}_{hash}.csv</p>
+<p>├── silver/{dag_id}/{timestamp}_{hash}.parquet</p>
 <p>│   ├── [Colunas originais]</p>
 <p>│   ├── DataQualityRulesPass</p>
 <p>│   ├── DataQualityRulesFail</p>
 <p>│   ├── DataQualityRulesSkip</p>
 <p>│   └── DataQualityEvaluationResult</p>
-<p>└── gold/{table}_delta/</p>
+<p>└── gold/{dag_id}/</p>
 <p>    ├── _delta_log/</p>
 <p>    │   ├── 00000000000000000000.json  ← Transaction log (versão 0)</p>
 <p>    │   └── 00000000000000000001.json  ← Próximas transações</p>
@@ -644,6 +650,29 @@
 <p>    mode="append",  # ← Adiciona sem reescrever</p>
 <p>    storage_options=storage_options</p>
 <p>)</code></pre></p>
+
+<h1 id="section">===============================================================</h1>
+<h1 id="duvidas-frequentes-delta-lake-e-postgres">Dúvidas Frequentes - Delta Lake e Postgres</h1>
+<h1 id="section">===============================================================</h1>
+
+<h2 id="1-como-e-definido-o-nome-da-tabela-no-postgres">1. Como é definido o nome da tabela no Postgres?</h2>
+<p>O nome da tabela no Postgres é derivado diretamente do parâmetro <code>target_table_name</code> passado para a função <code>gold_to_delta</code>. </p>
+<ul>
+<li>Se você passar <code>target_table_name="usuario"</code>, a pasta será <code>delta/usuario/</code> e a tabela no Postgres será <code>delta_usuario</code>.</li>
+<li>Se você passar <code>target_table_name="20260222193644_573a6878_usuario"</code>, a pasta será <code>delta/20260222193644_573a6878_usuario/</code> e a tabela no Postgres será <code>delta_20260222193644_573a6878_usuario</code>.</li>
+</ul>
+
+<h2 id="2-os-arquivos-delta-sao-incrementais-ou-completos">2. Os arquivos Delta são incrementais ou completos?</h2>
+<p>O comportamento depende do modo de gravação:</p>
+<ul>
+<li>Se a tabela Delta já existe, o modo é <code>append</code> (novos dados são adicionados, não sobrescreve os anteriores).</li>
+<li>Se não existe, o modo é <code>overwrite</code> (cria uma nova tabelacreated_at_year Delta, sobrescrevendo qualquer dado anterior).</li>
+</ul>
+
+<p>Portanto, os arquivos Delta podem ser incrementais (append) ou completos (overwrite), conforme o fluxo implementado. O Delta Lake suporta versionamento e merge automático, então cada arquivo pode conter apenas novos registros ou o resultado de um merge, dependendo de como o <code>gold_to_delta</code> é chamado.</p>
+
+<h1 id="section">===============================================================</h1>
+
 
 <h4 id="exemplo-real">📊 Exemplo Real</h4>
 
@@ -1988,6 +2017,112 @@
 </tr>
 </tbody>
 </table>
+
+<p>---</p>
+
+<h2 id="duvidas-frequentes-sobre-a-implementacao">Dúvidas frequentes sobre a implementação</h2>
+
+<h2 id="rastreamento-por-nome-de-arquivo-source-filename">🔎 Rastreamento por nome de arquivo (source_filename)</h2>
+
+<p>Para garantir rastreabilidade total, cada linha da tabela Delta Lake possui a coluna <code>source_filename</code>, que preserva o nome original do arquivo de origem (mesmo em uploads múltiplos ou merges). Isso permite identificar a origem de cada registro em todas as camadas (Bronze, Silver, Gold, Delta).</p>
+
+<strong>Exemplo de consulta por nome de arquivo:</strong>
+
+<pre><code>from deltalake import DeltaTable
+
+<p>dt = DeltaTable("s3://lab01/gold/orders_delta/", storage_options=storage_options)</p>
+<p>df = dt.to_pandas()</p>
+
+<h1 id="filtrar-registros-de-um-arquivo-especifico">Filtrar registros de um arquivo específico</h1>
+<p>df_filtrado = df[df['source_filename'] == 'silver/orders/20251124_abc123.parquet']</p>
+<p>print(df_filtrado)</p>
+
+<h1 id="consultar-todos-os-arquivos-de-origem-presentes">Consultar todos os arquivos de origem presentes</h1>
+<p>print(df['source_filename'].unique())</p>
+
+<h1 id="agrupar-por-arquivo-de-origem">Agrupar por arquivo de origem</h1>
+<p>df.groupby('source_filename').size()</code></pre></p>
+
+<strong>SQL (DuckDB, Trino, Spark):</strong>
+<pre><code>SELECT * FROM orders_delta WHERE source_filename = 'silver/orders/20251124_abc123.parquet';
+<p>SELECT source_filename, COUNT(*) FROM orders_delta GROUP BY source_filename;</code></pre></p>
+
+<strong>Resumo:</strong>
+<ul>
+<li>A coluna <code>source_filename</code> é preservada em todas as etapas do pipeline.</li>
+<li>Permite rastreabilidade, auditoria e análise por arquivo de origem.</li>
+<li>Consultas, filtros e agrupamentos podem ser feitos facilmente.</li>
+</ul>
+
+<p>---</p>
+<strong>Pergunta:</strong>
+<p>O documento diz: "Este documento descreve a implementação real de Delta Lake no projeto datalake-air-flow, usando <code>deltalake-python</code> integrado com Airflow, MinIO e arquitetura Medallion." Mas não encontrei o import de deltalake-python nas classes que estão em anexo ou em sua pasta.</p>
+
+<strong>Resposta:</strong>
+<p>O import do deltalake-python está presente, mas ocorre dentro das funções, não no topo do arquivo. Exemplo: Dentro das funções gold_to_delta e silver_to_gold_delta, há blocos como:</p>
+
+<pre><code>try:
+<p>    from airflow.providers.amazon.aws.hooks.s3 import S3Hook</p>
+<p>    from deltalake import write_deltalake, DeltaTable</p>
+<p>    ...</p>
+<p>except ImportError as e:</p>
+<p>    ...</code></pre></p>
+
+<p>Ou seja, o deltalake-python é importado de forma dinâmica, dentro das funções, para permitir fallback ou tratamento de erro caso o pacote não esteja disponível (por exemplo, para rodar em ambientes sem Delta Lake).</p>
+
+<p>---</p>
+
+<strong>Pergunta:</strong>
+<p>O documento também diz: "Delta Lake foi implementado como a camada Gold do pipeline", mas ao olhar a estrutura de pastas no minio s3 existe uma pasta gold e uma delta, não deveria existir apenas uma pasta gold?</p>
+
+<strong>Resposta:</strong>
+<p>No documento e no código, há dois caminhos distintos:</p>
+<ul>
+<li>gold/ — tradicionalmente usado para armazenar os dados Gold, geralmente em Parquet.</li>
+<li>delta/ — usado para armazenar tabelas Delta Lake, que são uma evolução do Gold, com versionamento e ACID.</li>
+</ul>
+
+<p>No código anexo (gold_delta_layer.py), a função gold_to_delta salva os dados Delta Lake em delta/{target_table_name}/, enquanto a função silver_to_gold_delta salva em gold/{dag_id}/{target_table_name}_delta/.</p>
+
+<p>Por que isso acontece?</p>
+<ul>
+<li>gold/ pode ser usado para Gold em Parquet (legado ou fallback).</li>
+<li>delta/ pode ser usado para Gold em formato Delta Lake, separando fisicamente os formatos.</li>
+<li>gold/{table}_delta/ (como no silver_to_gold_delta) é uma convenção para indicar que ali está a Gold em formato Delta Lake, mantendo a semântica da camada Gold, mas explicitando o formato.</li>
+</ul>
+
+<p>Ou seja:</p>
+<ul>
+<li>Não é obrigatório ter apenas uma pasta gold/. Separar gold/ (Parquet) e gold/{table}_delta/ (Delta Lake) é uma prática para facilitar a transição e a compatibilidade.</li>
+<li>A existência de delta/ pode ser um resquício de versões anteriores, testes, ou para uso com Spark/Thrift Server, como citado nos comentários do código.</li>
+</ul>
+
+<ul>
+<li>O ideal é padronizar: ou usar gold/{table}_delta/ para Delta Lake, ou migrar tudo para gold/ se só houver Delta Lake.</li>
+<li>A existência de delta/ pode ser um resquício de versões anteriores, testes, ou para uso com Spark/Thrift Server, como citado nos comentários do código.</li>
+</ul>
+
+<p>Resumo:</p>
+<ul>
+<li>O ideal é padronizar: ou usar gold/{table}_delta/ para Delta Lake, ou migrar tudo para gold/ se só houver Delta Lake.</li>
+<li>Ter ambas as pastas não é um erro, mas pode gerar confusão. O importante é documentar claramente qual pasta representa a camada Gold oficial do pipeline.</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="seguranca-e-compartilhamento-de-dados-via-delta-sharing">🤝 Segurança e Compartilhamento de Dados via Delta Sharing</h2>
+
+<p>Com a evolução para o formato transacional Delta Lake na camada Gold, o compartilhamento de dados com analistas de BI (Power BI) e Cientistas de Dados (Python, Spark) foi integrado com o protocolo <strong>Delta Sharing</strong>.</p>
+
+<h3 id="beneficios-no-nosso-ecossistema">Benefícios no nosso Ecossistema:</h3>
+<ol>
+<li><strong>Segurança de Acesso</strong>: Os usuários externos não recebem as chaves do MinIO/S3 (Access Key e Secret Key). Eles usam apenas um Bearer Token temporário.</li>
+<li><strong>Isolamento de Infraestrutura</strong>: O Delta Sharing lê os dados diretamente do MinIO/S3 e expõe via REST API, eliminando qualquer tipo de lock (bloqueio) ou lentidão no banco PostgreSQL analítico (<code>postgres-bi</code> / <code>datalake_bi</code>).</li>
+<li><strong>Leitura Incremental</strong>: Por consumir diretamente as tabelas Delta (<code>gold/{dag_id}/{target_table_name}_delta/</code>), os analistas herdam o controle transacional e o histórico das tabelas do Data Lake.</li>
+</ol>
+
+<p>Para saber como configurar, gerenciar e conectar clientes ao servidor do Delta Sharing, consulte o <strong><a href="DELTA_SHARING_OPERATIONAL.html">Guia Operacional - Delta Sharing</a></strong>.</p>
+
 
         </main>
     </div>

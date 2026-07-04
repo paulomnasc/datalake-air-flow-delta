@@ -1,6 +1,14 @@
 <?php
 // Garante timezone correto para todas as funções de data/hora neste arquivo
 date_default_timezone_set('America/Sao_Paulo');
+
+$isProfessionalMode = filter_var(getenv('PROFESSIONAL_MODE'), FILTER_VALIDATE_BOOLEAN);
+if (!$isProfessionalMode && defined('ROOTPATH') && is_file(ROOTPATH . '.env')) {
+    $envContent = file_get_contents(ROOTPATH . '.env');
+    if (preg_match('/^\s*PROFESSIONAL_MODE\s*=\s*true/m', $envContent)) {
+        $isProfessionalMode = true;
+    }
+}
 ?>
 <!-- Modal de Termos de Uso -->
 <div id="termsModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
@@ -590,7 +598,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         </div>
 
         <!-- Botão YouTube -->
-        <?php if (isset($_SESSION['nome_usuario_logado'])): ?>
+        <?php if (isset($_SESSION['nome_usuario_logado']) && !$isProfessionalMode): ?>
         <a id="youtubeBtn" href="/cursos">
             <i class="fab fa-youtube"></i>
             <span>Videoaulas</span>

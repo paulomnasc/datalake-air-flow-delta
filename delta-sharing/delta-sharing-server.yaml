@@ -7,15 +7,42 @@ port: 8080
 authorization:
   bearerToken: "dbtSharingToken2026Secure"
 
+# Hadoop configurations for S3/MinIO
+hadoopConf:
+  fs.s3a.endpoint: "https://myflow.estudotabela.com.br:29000"
+  fs.s3a.path.style.access: "true"
+  fs.s3a.access.key: "admin"
+  fs.s3a.secret.key: "admin123"
+  fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+  fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
+
 # Shared Gold Layer Delta tables
 shares:
   - name: "gold_share"
     schemas:
       - name: "analytics"
         tables:
-          - name: "dim_usuarios"
-            location: "s3a://lab01/gold/ingestao_usuarios/dim_usuarios_delta"
-          - name: "dim_cursos"
-            location: "s3a://lab01/gold/ingestao_cursos/dim_cursos_delta"
-          - name: "fato_vendas"
-            location: "s3a://lab01/gold/ingestao_vendas/fato_vendas_delta"
+          - name: "categories"
+            location: "s3a://admin-146/gold/20260412200111_cbd4dad1_categories_gold/20260412200111_cbd4dad1_categories_gold_delta"
+          - name: "customers"
+            location: "s3a://admin-146/gold/20260412200111_9d4363f3_customers_gold/20260412200111_9d4363f3_customers_gold_delta"
+          - name: "employee_territories"
+            location: "s3a://admin-146/gold/20260412200111_7b8c178d_employee_territories_gold/20260412200111_7b8c178d_employee_territories_gold_delta"
+          - name: "employees"
+            location: "s3a://admin-146/gold/20260412200111_da6b0455_employees_gold/20260412200111_da6b0455_employees_gold_delta"
+          - name: "order_details"
+            location: "s3a://admin-146/gold/20260412200111_952e313f_order_details_gold/20260412200111_952e313f_order_details_gold_delta"
+          - name: "orders"
+            location: "s3a://admin-146/gold/20260412200111_828f9341_orders_gold/20260412200111_828f9341_orders_gold_delta"
+          - name: "products"
+            location: "s3a://admin-146/gold/20260412200111_04492ea4_products_gold/20260412200111_04492ea4_products_gold_delta"
+          - name: "region"
+            location: "s3a://admin-146/gold/20260412200111_430d08bf_region_gold/20260412200111_430d08bf_region_gold_delta"
+          - name: "shippers"
+            location: "s3a://admin-146/gold/20260412200111_e71c95b5_shippers_gold/20260412200111_e71c95b5_shippers_gold_delta"
+          - name: "suppliers"
+            location: "s3a://admin-146/gold/20260412200111_1a06f4d3_suppliers_gold/20260412200111_1a06f4d3_suppliers_gold_delta"
+          - name: "territories"
+            location: "s3a://admin-146/gold/20260412200111_822ce08f_territories_gold/20260412200111_822ce08f_territories_gold_delta"
+          - name: "us_states"
+            location: "s3a://admin-146/gold/20260412200111_4289dd9a_us_states_gold/20260412200111_4289dd9a_us_states_gold_delta"

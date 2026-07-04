@@ -1,5 +1,5 @@
 {
   "shareCredentialsVersion": 1,
-  "endpoint": "http://localhost:28085/share",
+  "endpoint": "https://myflow.estudotabela.com.br:28443/delta-sharing",
   "bearerToken": "dbtSharingToken2026Secure"
 }

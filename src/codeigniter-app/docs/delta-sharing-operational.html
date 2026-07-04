@@ -549,16 +549,24 @@
 <p>Como administrador da plataforma MyDataFlow, você é responsável por conceder o acesso aos parceiros e analistas de BI.</p>
 
 <h3 id="passo-1-localizar-as-credenciais-do-recipiente">Passo 1: Localizar as Credenciais do Recipiente</h3>
-<p>Na pasta <code>./delta-sharing/</code>, o sistema disponibiliza o arquivo de perfil do recipiente chamado <a href="./delta-sharing/gold_share_recipient.share"><code>gold_share_recipient.share</code></a>. O arquivo possui o seguinte conteúdo JSON:</p>
+<p>Na pasta <code>./delta-sharing/</code>, o sistema disponibiliza o arquivo de perfil do recipiente chamado <a href="./delta-sharing/gold_share_recipient.share"><code>gold_share_recipient.share</code></a>. </p>
+
+<p>> [!WARNING]</p>
+<p>> <strong>Requisito Obrigatório de HTTPS no Power BI</strong>:</p>
+<p>> O Power BI exige que conexões externas de Delta Sharing e transferências de dados S3 utilizem o protocolo seguro <strong>HTTPS</strong>. Conexões diretas em HTTP (como <code>http://localhost:28085</code> ou <code>http://localhost:29000</code>) serão abortadas com o erro *"A conexão subjacente estava fechada"*.</p>
+<p>></p>
+<p>> Para solucionar isso, a stack MyDataFlow está configurada para rotear e criptografar o tráfego do Delta Sharing (porta segura <strong><code>28443</code></strong> no caminho <code>/delta-sharing</code>) e da API do MinIO S3 (porta <strong><code>29000</code></strong> via Nginx) através de SSL/TLS com o certificado válido.</p>
+
+<p>Desta forma, o arquivo de perfil em ambiente de produção possui o seguinte conteúdo estruturado com endpoints seguros:</p>
 
 <pre><code>{
 <p>  "shareCredentialsVersion": 1,</p>
-<p>  "endpoint": "http://localhost:28085/share",</p>
+<p>  "endpoint": "https://myflow.estudotabela.com.br:28443/delta-sharing",</p>
 <p>  "bearerToken": "dbtSharingToken2026Secure"</p>
 <p>}</code></pre></p>
 
 <h3 id="passo-2-enviar-o-arquivo-para-o-usuario-destinatario">Passo 2: Enviar o Arquivo para o Usuário Destinatário</h3>
-<p>Envie este arquivo de perfil <code>.share</code> para o analista de BI ou cientista de dados. Este arquivo é tudo o que eles precisam para se conectar aos dados de forma segura.</p>
+<p>Envie este arquivo de perfil <code>.share</code> (ou as chaves <code>endpoint</code> e <code>bearerToken</code> extraídas dele) para o analista de BI ou cientista de dados. Este arquivo é tudo o que eles precisam para se conectar aos dados de forma segura.</p>
 
 <p>---</p>
 
@@ -571,7 +579,7 @@
 </ol>
 <p>   <pre><code>   {</p>
 <p>     "shareCredentialsVersion": 1,</p>
-<p>     "endpoint": "http://localhost:28085/share",</p>
+<p>     "endpoint": "https://myflow.estudotabela.com.br:28443/delta-sharing",</p>
 <p>     "bearerToken": "dbtSharingToken2026Secure"</p>
 <p>   }</p>
 <p>   ``<code></p>
@@ -579,7 +587,7 @@
 <li>Abra o <strong>Power BI Desktop</strong>.</li>
 <li>Clique em <strong>Obter Dados</strong> → <strong>Mais...</strong></li>
 <li>Pesquise por <strong>Delta Sharing</strong> e selecione o conector.</li>
-<li>Na janela de configuração, insira no campo <strong>URL do Servidor Delta Sharing</strong> (Delta Sharing Server URL) o valor do campo </code>endpoint<code> do arquivo (ex: </code>http://localhost:28085/share<code>) e clique em <strong>OK</strong>.</li>
+<li>Na janela de configuração, insira no campo <strong>URL do Servidor Delta Sharing</strong> (Delta Sharing Server URL) o valor do campo </code>endpoint<code> do arquivo (ex: </code>https://myflow.estudotabela.com.br:28443/delta-sharing<code>) e clique em <strong>OK</strong>.</li>
 <li>Na janela de autenticação subsequente, selecione a opção <strong>Token de Portador</strong> (Bearer Token) no menu lateral esquerdo.</li>
 <li>Insira o valor do campo </code>bearerToken<code> do arquivo (ex: </code>dbtSharingToken2026Secure<code>) e clique em <strong>Conectar</strong>.</li>
 <li>O Power BI listará as tabelas disponíveis (</code>dim_usuarios<code>, </code>dim_cursos<code> e </code>fato_vendas<code>).</li>

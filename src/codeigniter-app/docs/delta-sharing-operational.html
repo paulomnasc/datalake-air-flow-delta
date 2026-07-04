@@ -520,7 +520,7 @@
 <ul>
 <li>name: "dim_usuarios"</li>
 </ul>
-<p>            location: "s3a://{bucket}/gold/{clean_dag_id}/dim_usuarios_delta"  # Mapeado dinamicamente em tempo de execução</p>
+<p>            location: "s3a://{bucket}/gold/{clean_dag_id}/dim_usuarios_delta"</p>
 <ul>
 <li>name: "dim_cursos"</li>
 </ul>
@@ -529,6 +529,12 @@
 <li>name: "fato_vendas"</li>
 </ul>
 <p>            location: "s3a://{bucket}/gold/{clean_dag_id}/fato_vendas_delta"</code></pre></p>
+
+<p>> [!IMPORTANT]</p>
+<p>> <strong>Resolução do Nome do Bucket no Ambiente Multi-tenant</strong>:</p>
+<p>> O bucket <code>lab01</code> é utilizado como um placeholder para desenvolvimento local. Em ambiente de produção com contas corporativas ou multi-tenant, o bucket do usuário é derivado dinamicamente a partir do proprietário (*owner*) da DAG do Airflow, seguindo a convenção <code>user-{userId}</code> ou <code>company-{tenantId}</code>.</p>
+<p>></p>
+<p>> Para habilitar o Delta Sharing, o administrador do sistema deve editar o arquivo <code>delta-sharing-server.yaml</code> e substituir os placeholders <code>{bucket}</code> e <code>{clean_dag_id}</code> pelos nomes reais do tenant e do pipeline (ex: <code>s3a://user-usr_abc/gold/ingestao_usuarios/dim_usuarios_delta</code>).</p>
 
 <h3 id="2-executando-o-container">2. Executando o Container</h3>
 

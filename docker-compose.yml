@@ -88,7 +88,7 @@ services:
     command: postgres -c max_connections=300
     environment:
       POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
+      POSTGRES_PASSWORD: K9fL2s7xPwQ8d92A
       POSTGRES_DB: airflow
     ports:
       - "${POSTGRES_PORT}:5432"
@@ -160,7 +160,7 @@ services:
     environment:
       - ENV_SUFFIX=${ENV_SUFFIX:-dev}
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:K9fL2s7xPwQ8d92A@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=${AIRFLOW_WEBSERVER_PORT}
       - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:${AIRFLOW_WEBSERVER_PORT}
@@ -202,7 +202,7 @@ services:
     environment:
       - ENV_SUFFIX=${ENV_SUFFIX:-dev}
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:K9fL2s7xPwQ8d92A@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
       - AIRFLOW__WEBSERVER__FILTER_BY_OWNER=True
@@ -297,8 +297,8 @@ services:
       - postgres
     environment:
       AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
-      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:K9fL2s7xPwQ8d92A@postgres:5432/airflow
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:K9fL2s7xPwQ8d92A@postgres/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       ENABLE_ATLAS: "false"
       ZUMBI_EMAIL_DRY_RUN: ${ZUMBI_EMAIL_DRY_RUN:-true}

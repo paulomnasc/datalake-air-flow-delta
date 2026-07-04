@@ -44,11 +44,6 @@ class AnalyticsController extends BaseController
             log_message('error', "AnalyticsController: Erro ao validar tabelas no PostgreSQL: " . $e->getMessage());
         }
 
-        if (!$hasAnalytics) {
-            // Caso não possua tabelas, redireciona ao dashboard com erro formatado
-            return redirect()->to(route_to('dashboard'))->with('error_analytics', '⚠️ Seu Data Warehouse ainda não possui dados. Certifique-se de conectar suas fontes de dados, executar os pipelines medalhão e rodar o dbt Run (Prod) com sucesso.');
-        }
-
         // 2. Renderizar a tela de credenciais para login manual no Metabase OSS
         try {
             $metabaseHelper = new MetabaseHelper();
@@ -57,9 +52,10 @@ class AnalyticsController extends BaseController
             
             log_message('info', "AnalyticsController: Exibindo tela de login manual no Metabase para o usuário {$userId}.");
             return view('analytics/login', [
-                'email'    => $email,
-                'password' => $password,
-                'siteUrl'  => $siteUrl
+                'email'         => $email,
+                'password'      => $password,
+                'siteUrl'       => $siteUrl,
+                'noOlapWarning' => !$hasAnalytics
             ]);
         } catch (\Exception $e) {
             log_message('error', "AnalyticsController: Erro ao carregar credenciais do Metabase: " . $e->getMessage());

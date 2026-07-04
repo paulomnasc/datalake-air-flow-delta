@@ -14,47 +14,65 @@ require VIEWPATH . '/header.php';
                     <p class="mb-0 mt-2 opacity-75">Acesso Seguro ao seu Data Warehouse</p>
                 </div>
                 <div class="card-body p-5 bg-light">
-                    <p class="text-muted text-center mb-4">
-                        Por motivos de conformidade da versão Open Source, o acesso ao Metabase requer login manual. Copie suas credenciais exclusivas abaixo para entrar no painel:
-                    </p>
-
-                    <!-- EMAIL FIELD -->
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold text-secondary">E-mail de Acesso</label>
-                        <div class="input-group shadow-sm">
-                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-envelope-fill text-primary"></i></span>
-                            <input type="text" class="form-control bg-white border-start-0" id="metabaseEmail" value="<?= esc($email) ?>" readonly>
-                            <button class="btn btn-outline-primary" type="button" onclick="copyToClipboard('metabaseEmail', 'btnCopyEmail')">
-                                <span id="btnCopyEmail"><i class="bi bi-clipboard"></i> Copiar</span>
-                            </button>
+                    <?php if (isset($noOlapWarning) && $noOlapWarning): ?>
+                        <!-- AVISO DE SCHEMA OLAP AUSENTE -->
+                        <div class="alert alert-warning border-0 rounded-3 shadow-sm d-flex align-items-start mb-4">
+                            <i class="bi bi-exclamation-triangle-fill fs-4 text-warning me-3 mt-1"></i>
+                            <div>
+                                <h6 class="alert-heading fw-bold mb-1">Aviso: Data Warehouse não inicializado</h6>
+                                <p class="mb-0 text-muted" style="font-size: 0.9rem;">
+                                    Você ainda não executou o processo do <strong>dbt run</strong> para gerar seus dados analíticos pessoais. 
+                                    Suas tabelas de análise individuais não estarão visíveis no Metabase.
+                                </p>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- PASSWORD FIELD -->
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold text-secondary">Senha Determinística</label>
-                        <div class="input-group shadow-sm">
-                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-lock-fill text-primary"></i></span>
-                            <input type="password" class="form-control bg-white border-start-0 border-end-0" id="metabasePassword" value="<?= esc($password) ?>" readonly>
-                            <button class="btn btn-outline-secondary border-start-0 border-end-0 bg-white text-muted" type="button" onclick="togglePasswordVisibility()">
-                                <i id="eyeIcon" class="bi bi-eye-fill"></i>
-                            </button>
-                            <button class="btn btn-outline-primary" type="button" onclick="copyToClipboard('metabasePassword', 'btnCopyPassword')">
-                                <span id="btnCopyPassword"><i class="bi bi-clipboard"></i> Copiar</span>
-                            </button>
-                        </div>
-                    </div>
+                        <p class="text-muted text-center mb-4">
+                            No entanto, você pode prosseguir normalmente para o Metabase para visualizar os dashboards e bases de dados que foram compartilhados com você utilizando suas credenciais de acesso existentes.
+                        </p>
+                    <?php else: ?>
+                        <p class="text-muted text-center mb-4">
+                            Por motivos de conformidade da versão Open Source, o acesso ao Metabase requer login manual. Copie suas credenciais exclusivas abaixo para entrar no painel:
+                        </p>
 
-                    <!-- INFORMATION BOX -->
-                    <div class="alert alert-info border-0 rounded-3 shadow-sm d-flex align-items-start mb-4">
-                        <i class="bi bi-info-circle-fill fs-4 text-primary me-3 mt-1"></i>
-                        <div>
-                            <h6 class="alert-heading fw-bold mb-1">Como funciona?</h6>
-                            <p class="mb-0 text-muted" style="font-size: 0.9rem;">
-                                Seu usuário e permissões no Metabase estão isolados no banco de dados analítico PostgreSQL (<code>postgres-bi</code>). A senha é gerada de forma criptográfica e sincronizada com a plataforma.
-                            </p>
+                        <!-- EMAIL FIELD -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold text-secondary">E-mail de Acesso</label>
+                            <div class="input-group shadow-sm">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-envelope-fill text-primary"></i></span>
+                                <input type="text" class="form-control bg-white border-start-0" id="metabaseEmail" value="<?= esc($email) ?>" readonly>
+                                <button class="btn btn-outline-primary" type="button" onclick="copyToClipboard('metabaseEmail', 'btnCopyEmail')">
+                                    <span id="btnCopyEmail"><i class="bi bi-clipboard"></i> Copiar</span>
+                                </button>
+                            </div>
                         </div>
-                    </div>
+
+                        <!-- PASSWORD FIELD -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold text-secondary">Senha Determinística</label>
+                            <div class="input-group shadow-sm">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-lock-fill text-primary"></i></span>
+                                <input type="password" class="form-control bg-white border-start-0 border-end-0" id="metabasePassword" value="<?= esc($password) ?>" readonly>
+                                <button class="btn btn-outline-secondary border-start-0 border-end-0 bg-white text-muted" type="button" onclick="togglePasswordVisibility()">
+                                    <i id="eyeIcon" class="bi bi-eye-fill"></i>
+                                </button>
+                                <button class="btn btn-outline-primary" type="button" onclick="copyToClipboard('metabasePassword', 'btnCopyPassword')">
+                                    <span id="btnCopyPassword"><i class="bi bi-clipboard"></i> Copiar</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- INFORMATION BOX -->
+                        <div class="alert alert-info border-0 rounded-3 shadow-sm d-flex align-items-start mb-4">
+                            <i class="bi bi-info-circle-fill fs-4 text-primary me-3 mt-1"></i>
+                            <div>
+                                <h6 class="alert-heading fw-bold mb-1">Como funciona?</h6>
+                                <p class="mb-0 text-muted" style="font-size: 0.9rem;">
+                                    Seu usuário e permissões no Metabase estão isolados no banco de dados analítico PostgreSQL (<code>postgres-bi</code>). A senha é gerada de forma criptográfica e sincronizada com a plataforma.
+                                </p>
+                            </div>
+                        </div>
+                    <?php endif; ?>
 
                     <!-- ACTION BUTTON -->
                     <div class="d-grid mt-4">

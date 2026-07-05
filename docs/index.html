@@ -471,50 +471,44 @@
 
         <!-- Main Content -->
         <main class="content">
-<h1 id="solucao-hibrida-apache-airflow-postgresql-minio-delta-lake">🚀 Solução Híbrida: Apache Airflow + PostgreSQL + MinIO + Delta Lake</h1>
+<p>Copyright (C) 2026 Paulo Nascimento - Este programa é um software livre licenciado sob a GNU Affero General Public License v3.</p>
 
-<p>Este projeto integra três componentes principais para orquestração de dados e armazenamento:</p>
+<h1 id="modern-data-stack-solucao-hibrida-apache-airflow-postgresql-minio-delta-lake-metabase">Modern Data Stack - Solução Híbrida: Apache Airflow + PostgreSQL + MinIO + Delta Lake + Metabase</h1>
+
+
+<p>Este projeto integra componentes principais de uma Modern Data Stack para orquestração de dados, armazenamento e visualização:</p>
 
 <ul>
-<li><strong>Apache Airflow</strong>: Orquestração de workflows</li>
+<li><strong>Apache Airflow</strong>: Orquestração de workflows e pipelines de dados</li>
 <li><strong>PostgreSQL</strong>: Banco de dados relacional para metadados do Airflow <strong>+ BI endpoint</strong> (postgres-bi)</li>
-<li><strong>MinIO</strong>: Armazenamento de objetos compatível com S3</li>
-<li><strong>Delta Lake</strong>: Camada ACID sobre Data Lake com versionamento e time travel</li>
-<li><strong>Apache Atlas</strong>: Catálogo de dados e governança (standalone)</li>
-<li><strong>Jupyter + PySpark (Lab Atlas)</strong>: Ambiente interativo para análise e integração com Atlas</li>
+<li><strong>MinIO</strong>: Armazenamento de objetos compatível com S3 (Data Lake)</li>
+<li><strong>Delta Lake</strong>: Camada ACID sobre Data Lake com versionamento e time travel (camada Gold)</li>
+<li><strong>dbt (Data Build Tool)</strong>: Transformações de dados, qualidade de dados e documentação/linhagem de metadados</li>
+<li><strong>Metabase</strong>: Ferramenta de Business Intelligence e visualização de dados analíticos</li>
 </ul>
 
 <p>A base foi adaptada para incluir os três serviços integrados. Os artefatos de código (DAGs, scripts, configurações) estão versionados neste repositório.</p>
+
+<h2 id="visao-arquitetural">🏗️ Visão Arquitetural</h2>
+
+<p>Abaixo estão os diagramas conceituais e arquiteturais do projeto:</p>
+
+<h3 id="1-arquitetura-de-dados-com-dbt">1. Arquitetura de Dados com dbt</h3>
+<img src="./imgs/arquitetura%20com%20dbt.jpg" alt="Arquitetura de Dados com dbt" style="max-width: 100%; height: auto; margin: 15px 0; border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+
+<h3 id="2-fluxo-de-dados-e-camadas-do-datalake">2. Fluxo de Dados e Camadas do Datalake</h3>
+<img src="./imgs/FluxoDatalake.png" alt="Fluxo de Dados e Camadas do Datalake" style="max-width: 100%; height: auto; margin: 15px 0; border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+
+<h3 id="3-painel-de-orquestracao-e-analytics-airflow">3. Painel de Orquestração e Analytics (Airflow)</h3>
+<img src="./imgs/airflow-dbr-analytcs.png" alt="Painel de Orquestração e Analytics (Airflow)" style="max-width: 100%; height: auto; margin: 15px 0; border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+
+<p>---</p>
 
 <h2 id="documentacao-completa">📚 Documentação Completa</h2>
 
 <p>Para entender a arquitetura Medallion (Bronze → Silver → Gold) e todas as transformações aplicadas, consulte o <strong><a href="docs-index.html">Índice de Documentação</a></strong>.</p>
 
 <h3 id="guias-de-uso">🎯 Guias de Uso</h3>
-
-<ul>
-<li><strong><a href="guide-webapp-config.html">📋 Guia da Interface Web</a></strong>: Como preencher formulário de configuração de DAGs, multi-tabela, conexões SQL, validações</li>
-<li><strong><a href="migracao-duckdb-postgresql.html">🔌 Conexão Power BI</a></strong> <span class="badge star">⭐</span>: PostgreSQL para BI (solução robusta, múltiplas tabelas simultâneas)</li>
-</ul>
-
-<h3 id="documentacao-por-camada">Documentação por Camada</h3>
-
-<ul>
-<li><strong><a href="transformacoes-silver.html">Transformações Silver</a></strong>: Data Quality, validações, dicionário de dados</li>
-<li><strong><a href="delta-lake-implementation.html">Delta Lake & Gold</a></strong>: Feature Engineering, Delta Lake, ML/BI integration</li>
-</ul>
-
-<h3 id="navegacao-rapida-por-caso-de-uso">Navegação Rápida por Caso de Uso</h3>
-
-<ul>
-<li><strong>Machine Learning</strong>: <a href="delta-lake-implementation.html#dicionario-de-dados-camada-gold-delta-lake">Feature Engineering Guide</a></li>
-<li><strong>Análise Temporal</strong>: <a href="delta-lake-implementation.html#5-features-temporais-date-columns">Temporal Features</a></li>
-<li><strong>Qualidade de Dados</strong>: <a href="transformacoes-silver.html#dicionario-de-dados-camadas-silver">Data Quality Dictionary</a></li>
-<li><strong>Segmentação</strong>: <a href="delta-lake-implementation.html#4-features-categoricas-categorical-columns">Categorical Features</a></li>
-<li><strong>Detecção de Outliers</strong>: <a href="delta-lake-implementation.html#3-features-numericas-numeric-columns">Statistical Features</a></li>
-</ul>
-
-<p>---</p>
 
         </main>
     </div>

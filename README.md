@@ -1,15 +1,33 @@
-# 🚀 Solução Híbrida: Apache Airflow + PostgreSQL + MinIO + Delta Lake
+Copyright (C) 2026 Paulo Nascimento - Este programa é um software livre licenciado sob a GNU Affero General Public License v3.
 
-Este projeto integra três componentes principais para orquestração de dados e armazenamento:
+# Modern Data Stack - Solução Híbrida: Apache Airflow + PostgreSQL + MinIO + Delta Lake + Metabase
 
-- **Apache Airflow**: Orquestração de workflows
+
+Este projeto integra componentes principais de uma Modern Data Stack para orquestração de dados, armazenamento e visualização:
+
+- **Apache Airflow**: Orquestração de workflows e pipelines de dados
 - **PostgreSQL**: Banco de dados relacional para metadados do Airflow **+ BI endpoint** (postgres-bi)
-- **MinIO**: Armazenamento de objetos compatível com S3
-- **Delta Lake**: Camada ACID sobre Data Lake com versionamento e time travel
-- **Apache Atlas**: Catálogo de dados e governança (standalone)
-- **Jupyter + PySpark (Lab Atlas)**: Ambiente interativo para análise e integração com Atlas
+- **MinIO**: Armazenamento de objetos compatível com S3 (Data Lake)
+- **Delta Lake**: Camada ACID sobre Data Lake com versionamento e time travel (camada Gold)
+- **dbt (Data Build Tool)**: Transformações de dados, qualidade de dados e documentação/linhagem de metadados
+- **Metabase**: Ferramenta de Business Intelligence e visualização de dados analíticos
 
 A base foi adaptada para incluir os três serviços integrados. Os artefatos de código (DAGs, scripts, configurações) estão versionados neste repositório.
+
+## 🏗️ Visão Arquitetural
+
+Abaixo estão os diagramas conceituais e arquiteturais do projeto:
+
+### 1. Arquitetura de Dados com dbt
+![Arquitetura de Dados com dbt](./imgs/arquitetura%20com%20dbt.jpg)
+
+### 2. Fluxo de Dados e Camadas do Datalake
+![Fluxo de Dados e Camadas do Datalake](./imgs/FluxoDatalake.png)
+
+### 3. Painel de Orquestração e Analytics (Airflow)
+![Painel de Orquestração e Analytics (Airflow)](./imgs/airflow-dbr-analytcs.png)
+
+---
 
 ## 📚 Documentação Completa
 
@@ -45,9 +63,9 @@ Esta solução executa simultaneamente:
 - **MySQL** (banco de dados de origem para ingestão)
 - **MinIO** (armazenamento S3-compatible)
 - **Apache Spark** (processamento distribuído)
-- **Apache Atlas** (catálogo de dados com HBase + Solr embarcados) ⚠️ **Componente mais pesado**
-- **Jupyter + PySpark** (ambiente interativo)
+- **dbt (Data Build Tool)** (modelagem analítica, qualidade e linhagem de dados)
 - **Delta Lake** (camada ACID sobre data lake)
+- **Metabase** (ferramenta de BI e dashboards de negócio)
 
 #### 🐳 Serviços Docker
 
@@ -62,8 +80,8 @@ Esta solução executa simultaneamente:
 | `minio` | MinIO | Armazenamento S3-compatible para data lake |
 | `spark` | Apache Spark (Master) | Nó master do cluster de processamento distribuído |
 | `spark-worker` | Spark Worker | Nó worker do cluster Spark |
-| `atlas` | Apache Atlas | Catálogo de dados e governança (HBase + Solr) |
-| `pyspark-aula` | Jupyter + PySpark (Lab) | Ambiente interativo para análise e experimentação |
+| `dbt` | dbt Core | Modelagem analítica, qualidade e documentação de metadados |
+| `metabase` | Metabase | Ferramenta de BI e visualização de dados analíticos |
 | `redis` | Redis | Broker de mensagens para Celery Executor |
 | `codeigniter-app` | CodeIgniter WebApp | Interface web para configuração de DAGs |
 
@@ -72,24 +90,18 @@ Esta solução executa simultaneamente:
 **Stack Completa (todos os serviços ativos):**
 - **Disco:** 50 GB mínimo (recomendado 100 GB)
   - Imagens Docker: ~10-15 GB
-  - Apache Atlas (HBase/Solr): ~10-15 GB
   - MinIO storage: ~10-20 GB
-  - Logs e Delta Lake: ~10-20 GB
-- **Memória:** 24 GB de RAM
+  - Logs, dbt e Delta Lake: ~10-20 GB
+- **Memória:** 16 GB de RAM
   - Airflow: ~3 GB
   - PostgreSQL (Airflow + BI): ~3 GB
   - MySQL: ~1 GB
   - MinIO: ~512 MB
-  - **Apache Atlas: ~8 GB** (HBase + Solr)
-  - Spark + PySpark: ~6 GB
+  - Metabase: ~1.5 GB
+  - dbt e Spark: ~4.5 GB
   - DuckDB pgwire: leve (<1 GB em uso típico)
   - Sistema: ~2 GB
-- **Processador:** 4 CPUs (ou vCPUs)
-
-**Stack Reduzida (sem Atlas/Jupyter):**
-- **Disco:** 40 GB
-- **Memória:** 16 GB de RAM *(funcional mas com performance reduzida)*
-- **Processador:** 2-4 CPUs
+- **Processador:** 2-4 CPUs (ou vCPUs)
 
 ### 🚀 Requisitos Recomendados (Produção)
 
@@ -101,7 +113,6 @@ Esta solução executa simultaneamente:
 ### 📝 Considerações Adicionais
 
 **Otimização de Recursos:**
-- Para ambientes limitados, desabilite o Apache Atlas durante desenvolvimento: não execute `--profile atlas`
 - Configure limites de memória no docker-compose.yml para cada serviço
 - Use swap apenas como fallback (pode degradar performance)
 
@@ -149,8 +160,6 @@ chmod +x entrypoint.sh
 docker compose down --remove-orphans
 docker compose build
 docker compose up -d
-# Subir serviços de catálogo e Jupyter (perfil atlas)
-docker compose --profile atlas up -d atlas pyspark-aula
 ```
 
 ## 2.1 Verifique os containers ativos
@@ -194,7 +203,7 @@ docker exec -it airflow-webserver airflow users create \
   --lastname Flow \
   --role Admin \
   --email admin@example.com \
-  --password admin
+  --password *******
 ```
 
 #### 4.1 Governança de Acesso: Roles por Usuário (prefixo-idusuario)
@@ -230,26 +239,26 @@ A conexão com o MinIO é **obrigatória** para que as DAGs possam acessar o arm
 docker exec airflow-webserver airflow connections add minio_conn \
   --conn-type aws \
   --conn-login admin \
-  --conn-password admin123 \
+  --conn-password ******* \
   --conn-extra '{"endpoint_url": "http://minio:9000"}'
 ```
 
 **Opção 2: Via Interface Web do Airflow**
 
-1. Acesse: [http://localhost:8085](http://localhost:8085) → Login: `admin` / `admin`
+1. Acesse: [http://localhost:8085](http://localhost:8085) → Login: `admin` / `*******`
 2. Menu: **Admin** → **Connections** → **+** (Add a new record)
 3. Preencha os campos:
    - **Connection Id**: `minio_conn`
    - **Connection Type**: `Amazon Web Services`
    - **AWS Access Key ID**: `admin`
-   - **AWS Secret Access Key**: `admin123`
+   - **AWS Secret Access Key**: `*******`
    - **Extra**: `{"endpoint_url": "http://minio:9000"}`
 4. Clique em **Save**
 
 **Parâmetros:**
 - `conn-type`: `aws` (MinIO é compatível com S3)
 - `conn-login`: `admin` (usuário configurado no docker-compose)
-- `conn-password`: `admin123` (senha configurada no docker-compose)
+- `conn-password`: `*******` (senha configurada no docker-compose)
 - `endpoint_url`: `http://minio:9000` (endpoint interno do container)
 
 #### 5.2 Conexão MySQL para DAGs Dinâmicas (mysql_dag_metadata)
@@ -264,7 +273,7 @@ docker exec airflow-webserver airflow connections add mysql_dag_metadata \
   --conn-host mysql \
   --conn-schema lista_revisao2 \
   --conn-login root \
-  --conn-password root \
+  --conn-password ******* \
   --conn-port 3306
 ```
 
@@ -277,7 +286,7 @@ docker exec airflow-webserver airflow connections add mysql_dag_metadata \
    - **Host**: `mysql`
    - **Schema**: `lista_revisao2`
    - **Login**: `root`
-   - **Password**: `root`
+   - **Password**: `*******`
    - **Port**: `3306`
 3. Clique em **Save**
 
@@ -286,7 +295,7 @@ docker exec airflow-webserver airflow connections add mysql_dag_metadata \
 - `conn-host`: `mysql` (nome do container)
 - `conn-schema`: `lista_revisao2` (banco de dados com tabela `dag_configurations`)
 - `conn-login`: `root`
-- `conn-password`: `root`
+- `conn-password`: `*******`
 - `conn-port`: `3306`
 
 > 📝 **Nota:** Essas conexões são persistidas no banco de metadados do Airflow (PostgreSQL) e sobrevivem a reinicializações dos containers. Porém, se você executar `docker-compose down -v` (que remove volumes), será necessário recriá-las.
@@ -395,14 +404,14 @@ E sua stack estiver containerizada (Docker), siga os passos abaixo para aumentar
 
 | Serviço             | Endereço de Acesso                     | Porta | Usuário / Senha           | Banco de Dados     | Observações                          |
 |---------------------|----------------------------------------|-------|----------------------------|--------------------|--------------------------------------|
-| **Portainer**       | [http://localhost:9000](http://localhost:9000) | 9000  | `admin` / `kJ#212394Paulo` | —                  | Console web para monitoramento Docker |
-| **Airflow UI**      | [http://localhost:8085](http://localhost:8085) | 8085  | `admin` / `admin`          | —                  | Criado após `airflow db init` e `users create` |
-| **MinIO Console**   | [http://localhost:9001](http://localhost:9001) | 9001  | `admin` / `admin123`       | —                  | Interface web de armazenamento S3   |
-| **MinIO API S3**    | `http://localhost:9000`                | 9000  | `admin` / `admin123`       | —                  | Usado por boto3, S3Hook, etc.        |
-| **PostgreSQL (Airflow)** | via cliente externo ou terminal   | 5432  | `airflow` / `airflow`      | `airflow`          | Banco de metadados do Airflow        |
-| **PostgreSQL (BI)** | via Power BI/cliente SQL               | 5433  | `pbi_user` / `pbi_password`| `datalake_bi`      | Endpoint para ferramentas de analytics (múltiplas conexões) |
-| **Apache Atlas**    | [http://localhost:21000](http://localhost:21000) | 21000 | `admin` / `admin`          | —                  | Catálogo de dados standalone (HBase/Solr embarcados) |
-| **Jupyter Notebook**| [http://localhost:8888](http://localhost:8888) | 8888  | Token: `tavares1234`       | —                  | Lab de integração Atlas (pyspark-notebook) |
+| **Portainer**       | [http://localhost:9000](http://localhost:9000) | 9000  | `admin` / `*******`        | —                  | Console web para monitoramento Docker |
+| **Airflow UI**      | [http://localhost:8085](http://localhost:8085) | 8085  | `admin` / `*******`        | —                  | Criado após `airflow db init` e `users create` |
+| **MinIO Console**   | [http://localhost:9001](http://localhost:9001) | 9001  | `admin` / `*******`        | —                  | Interface web de armazenamento S3   |
+| **MinIO API S3**    | `http://localhost:9000`                | 9000  | `admin` / `*******`        | —                  | Usado por boto3, S3Hook, etc.        |
+| **PostgreSQL (Airflow)** | via cliente externo ou terminal   | 5432  | `airflow` / `*******`      | `airflow`          | Banco de metadados do Airflow        |
+| **PostgreSQL (BI)** | via Power BI/cliente SQL               | 5433  | `pbi_user` / `*******`     | `datalake_bi`      | Endpoint para ferramentas de analytics (múltiplas conexões) |
+| **dbt Docs**        | Acessível via painel webapp / dbt Docs  | —     | —                          | —                  | Documentação e linhagem de metadados |
+| **Metabase**        | [http://localhost:3000](http://localhost:3000) | 3000  | `admin@estudotabela.com.br` / `*******` | `datalake_bi` | Ferramenta de BI e painéis analíticos |
 | **CodeIgniter WebApp** | [http://localhost:8088](http://localhost:8088) | 8088  | Configurável via aplicação | `lista_revisao2`   | Interface web para configuração de DAGs |
 
 ---
@@ -444,7 +453,7 @@ A DAG `sync_delta_to_postgres` mantém as tabelas do PostgreSQL sempre atualizad
 3. **Autenticação**:
    - Tipo: Database
    - Username: `pbi_user`
-   - Password: `pbi_password`
+   - Password: `*******`
 
 4. **Selecionar Tabelas**:
    - Navigator mostrará todas as tabelas `delta_*`
@@ -592,7 +601,7 @@ Certifique-se de que o arquivo `src/codeigniter-app/.env` está configurado para
 database.default.hostname = mysql
 database.default.database = lista_revisao2
 database.default.username = root
-database.default.password = root
+database.default.password = *******
 ```
 
 > ⚠️ **Importante**: Não use `localhost` como hostname dentro do container. Use o nome do serviço Docker (`mysql`).
@@ -626,9 +635,7 @@ docker exec -it postgres psql -U airflow -d airflow
 ### Caso precise reiniciar os serviços:
 
 ```bash
-docker compose restart airflow-webserver airflow-scheduler minio mysql spark atlas
-# Jupyter/PySpark (perfil atlas)
-docker compose --profile atlas restart pyspark-aula
+docker compose restart airflow-webserver airflow-scheduler minio mysql spark
 ```
 
 
@@ -756,7 +763,7 @@ Para que o Airflow consiga enviar arquivos para o MinIO usando `S3Hook`, é nece
 - **Conn Id**: `minio_conn`
 - **Conn Type**: `Amazon Web Serices`
 - **Login**: `admin` *(Access Key do MinIO)*
-- **Password**: `admin123` *(Secret Key do MinIO)*
+- **Password**: `*******` *(Secret Key do MinIO)*
 
 ### ⚙️ Campo Extra (JSON)
 

@@ -488,6 +488,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <li><a href="dbt-quality-reports.html" {dbt_reports_active}>📊 Relatórios dbt</a></li>
                     <li><a href="metabase-analytics.html" {metabase_active}>📈 Metabase Analytics</a></li>
                     <li><a href="MyDataFloConfigurandoAPI.html" {api_active}>🛠️ Configurando API (Exemplo)</a></li>
+                    {sidebar_extra}
                 </ul>
             </nav>
         </aside>
@@ -680,6 +681,162 @@ def md_to_html(md_content):
     return html
 
 
+# Substituições de credenciais sensíveis por *******
+SENSITIVE_REPLACEMENTS = {
+    "dbtSharingToken2026Secure": "*******",
+    "admin123": "*******",
+    "minio123": "*******",
+    "minioadmin": "*******",
+    "pbi_password": "*******",
+    "58NOR7zPJBtUBvA7": "*******"
+}
+
+
+def mask_secrets_statically(text):
+    """Substitui senhas e tokens expostos por ******* de forma estática"""
+    result = text
+    # Dicionário ordenado por tamanho decrescente da chave para evitar substituições parciais
+    replacements = sorted(SENSITIVE_REPLACEMENTS.items(), key=lambda x: len(x[0]), reverse=True)
+    for original, masked in replacements:
+        result = result.replace(original, masked)
+    return result
+
+
+def save_html_files(html_file, title, html_content, active_flags):
+    """Auxiliar para salvar a versão externa (mascarada) e interna (com link extra)"""
+    all_flags = {
+        'index_active': '',
+        'docs_index_active': '',
+        'guide_active': '',
+        'migracao_active': '',
+        'silver_active': '',
+        'delta_active': '',
+        'sharing_active': '',
+        'git_active': '',
+        'dbt_reports_active': '',
+        'metabase_active': '',
+        'api_active': '',
+        'credenciais_active': '',
+    }
+    all_flags.update(active_flags)
+    
+    # 1. Aplicar mascaramento estático para a versão externa
+    masked_content = mask_secrets_statically(html_content)
+    
+    # 2. Versão externa (docs/) - sem link de credenciais na sidebar (apenas para arquivos públicos)
+    if html_file != 'credenciais.html':
+        external_flags = all_flags.copy()
+        external_flags['sidebar_extra'] = ''
+        
+        final_html_external = HTML_TEMPLATE.format(
+            title=title,
+            content=masked_content,
+            **external_flags
+        )
+        
+        output_path = DOCS_DIR / html_file
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(final_html_external)
+        
+    # 3. Versão interna (src/codeigniter-app/docs/) - com link de credenciais
+    internal_flags = all_flags.copy()
+    cred_active = 'class="active"' if html_file == 'credenciais.html' else ''
+    internal_flags['sidebar_extra'] = f'<li><a href="credenciais.html" {cred_active}>🔑 Credenciais Internas</a></li>'
+    
+    content_to_write = html_content if html_file == 'credenciais.html' else masked_content
+    
+    final_html_internal = HTML_TEMPLATE.format(
+        title=title,
+        content=content_to_write,
+        **internal_flags
+    )
+    
+    output_path_app = DOCS_DIR_APP / html_file
+    with open(output_path_app, 'w', encoding='utf-8') as f:
+        f.write(final_html_internal)
+        
+    print(f"✅ {html_file} criado (externo e interno)")
+
+
+def generate_credentials_html():
+    """Gera o arquivo de credenciais internas no formato Markdown e salva como HTML"""
+    md_content = """# 🔑 Credenciais e Segredos do Datalake
+
+Esta página centraliza todas as credenciais e segredos configurados e utilizados na infraestrutura e nos pipelines do MyDataFlow.
+
+> [!WARNING]
+> **Acesso Confidencial**: Estas credenciais são de uso exclusivamente interno. Não as compartilhe nem as exponha em ambientes públicos ou commits do Git.
+
+---
+
+## 🔌 Delta Sharing Server
+
+O Delta Sharing permite que analistas externos leiam dados da camada Gold de forma controlada.
+
+- **Endpoint de Conexão**: `https://myflow.estudotabela.com.br/delta-sharing`
+- **Bearer Token**: `dbtSharingToken2026Secure`
+
+---
+
+## 🗂️ MinIO / S3 Object Storage
+
+O MinIO armazena todas as camadas do Data Lake (Raw, Bronze, Silver, Gold).
+
+### Credenciais Administrativas (Console e Servidores)
+- **Host / Endpoint**: `http://minio:9000` / `https://myflow.estudotabela.com.br:29000`
+- **Access Key**: `admin`
+- **Secret Key**: `admin123`
+
+### Credenciais da Aplicação (Camada Silver)
+- **Access Key**: `minio`
+- **Secret Key**: `minio123`
+
+### Credenciais Spark Local (Camada Gold / Spark SQL Thrift)
+- **Access Key**: `minioadmin`
+- **Secret Key**: `minioadmin`
+
+---
+
+## 🐘 Banco de Dados PostgreSQL (BI / Analytics)
+
+O PostgreSQL armazena dados de modelagem analítica e de BI.
+
+- **Database**: `datalake_bi`
+- **Usuário**: `pbi_user`
+- **Senha**: `pbi_password`
+- **Porta Externa**: `25433` / `5433`
+
+---
+
+## ✈️ APIs de Terceiros (Exemplos)
+
+### Amadeus Flights API (Integração Kiwi / Voos)
+- **Client ID**: `EAVO8QrhAjfmbdM5tuXLsFgRY2uJQsK6`
+- **Client Secret**: `58NOR7zPJBtUBvA7`
+- **Auth Endpoint**: `https://test.api.amadeus.com/v1/security/oauth2/token`
+
+---
+
+## ⚙️ Variáveis de Ambiente da Aplicação (.env)
+
+Outros segredos estão definidos no arquivo `.env` na raiz do CodeIgniter:
+- **Senha Root MySQL**: `YM11rMrT32xH0E6N`
+- **Chave de Criptografia CI4**: `hex2bin:3682f0d41371c328b887285ed623b8c65d49d1f9174d6d6a512cc9f2c4afd05b`
+- **SMTP Production Password**: `kJ#212394`
+- **Google Client Secret (OAuth2)**: `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`
+- **Hotmart Hottok**: `"P86JGEKszx0x6ZdpZC9AEEkoH0s9uL33784478"`
+- **Metabase Admin Password**: `kJ#212394`
+- **Metabase JWT Shared Secret**: `myflow_metabase_secret_key_sso_123456`
+"""
+
+    html_content = md_to_html(md_content)
+    active_flags = {
+        'credenciais_active': 'class="active"'
+    }
+    
+    save_html_files('credenciais.html', "Credenciais Internas", html_content, active_flags)
+
+
 def generate_index_html():
     """Gera o index.html especificamente a partir das linhas 1-36 do README.md"""
     readme_path = PROJECT_ROOT / "README.md"
@@ -697,39 +854,11 @@ def generate_index_html():
     # Converter para HTML
     html_content = md_to_html(md_content)
     
-    # Determinar qual link está ativo
     active_flags = {
         'index_active': 'class="active"',
-        'docs_index_active': '',
-        'guide_active': '',
-        'migracao_active': '',
-        'silver_active': '',
-        'delta_active': '',
-        'sharing_active': '',
-        'git_active': '',
-        'dbt_reports_active': '',
-        'metabase_active': '',
-        'api_active': ''
     }
     
-    # Gerar HTML final
-    final_html = HTML_TEMPLATE.format(
-        title="Home - Solução Híbrida Datalake",
-        content=html_content,
-        **active_flags
-    )
-    
-    # Salvar
-    output_path = DOCS_DIR / "index.html"
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(final_html)
-    
-    # Salvar na pasta da webapp também
-    output_path_app = DOCS_DIR_APP / "index.html"
-    with open(output_path_app, 'w', encoding='utf-8') as f:
-        f.write(final_html)
-    
-    print(f"✅ index.html criado")
+    save_html_files('index.html', "Home - Solução Híbrida Datalake", html_content, active_flags)
 
 
 def generate_html_from_md(md_file, html_file):
@@ -752,19 +881,7 @@ def generate_html_from_md(md_file, html_file):
     title = title_match.group(1) if title_match else html_file.replace('.html', '')
     
     # Determinar qual link está ativo
-    active_flags = {
-        'index_active': '',
-        'docs_index_active': '',
-        'guide_active': '',
-        'migracao_active': '',
-        'silver_active': '',
-        'delta_active': '',
-        'sharing_active': '',
-        'git_active': '',
-        'dbt_reports_active': '',
-        'metabase_active': '',
-        'api_active': ''
-    }
+    active_flags = {}
     
     if 'docs-index' in html_file:
         active_flags['docs_index_active'] = 'class="active"'
@@ -779,24 +896,7 @@ def generate_html_from_md(md_file, html_file):
     elif 'delta-sharing-operational' in html_file:
         active_flags['sharing_active'] = 'class="active"'
     
-    # Gerar HTML final
-    final_html = HTML_TEMPLATE.format(
-        title=title,
-        content=html_content,
-        **active_flags
-    )
-    
-    # Salvar
-    output_path = DOCS_DIR / html_file
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(final_html)
-        
-    # Salvar na pasta da webapp também
-    output_path_app = DOCS_DIR_APP / html_file
-    with open(output_path_app, 'w', encoding='utf-8') as f:
-        f.write(final_html)
-    
-    print(f"✅ {html_file} criado")
+    save_html_files(html_file, title, html_content, active_flags)
 
 
 def main():
@@ -815,15 +915,13 @@ def main():
     # Gerar HTMLs dos demais markdown
     for md_file, html_file in MD_FILES.items():
         generate_html_from_md(md_file, html_file)
+        
+    # Gerar o arquivo único de credenciais internas
+    generate_credentials_html()
     
     print("\n" + "="*70)
-    print(f"✅ {len(MD_FILES) + 1} arquivos HTML gerados em: {DOCS_DIR}")
+    print(f"✅ Arquivos HTML gerados em: {DOCS_DIR} e {DOCS_DIR_APP}")
     print("="*70 + "\n")
-    print("📂 Arquivos criados:")
-    print("   - index.html")
-    for html_file in MD_FILES.values():
-        print(f"   - {html_file}")
-    print()
 
 
 if __name__ == "__main__":

@@ -464,6 +464,7 @@
                     <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
                     <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
                     <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
+                    <li><a href="credenciais.html" >🔑 Credenciais Internas</a></li>
                 </ul>
             </nav>
         </aside>
@@ -518,7 +519,7 @@
 <p>  container_name: postgres-bi</p>
 <p>  environment:</p>
 <p>    POSTGRES_USER: pbi_user</p>
-<p>    POSTGRES_PASSWORD: pbi_password</p>
+<p>    POSTGRES_PASSWORD: *******</p>
 <p>    POSTGRES_DB: datalake_bi</p>
 <p>  ports:</p>
 <ul>
@@ -561,7 +562,7 @@
 <p>Database: datalake_bi</p>
 <p>Authentication: Database</p>
 <p>Username: pbi_user</p>
-<p>Password: pbi_password</code></pre></p>
+<p>Password: *******</code></pre></p>
 
 <strong>Tabelas Disponíveis:</strong>
 <ul>
@@ -710,7 +711,7 @@
 <p>import psycopg2</p>
 <p>conn = psycopg2.connect(</p>
 <p>    host='postgres-bi', port=5432,</p>
-<p>    database='datalake_bi', user='pbi_user', password='pbi_password'</p>
+<p>    database='datalake_bi', user='pbi_user', password='*******'</p>
 <p>)</p>
 <p>print('<span class="badge success">✅</span> Conectado!')</p>
 <p>conn.close()</p>
@@ -727,7 +728,7 @@
 <p>con.execute('LOAD httpfs;')</p>
 <p>con.execute(\"SET s3_endpoint='minio:9000';\")</p>
 <p>con.execute(\"SET s3_access_key_id='admin';\")</p>
-<p>con.execute(\"SET s3_secret_access_key='admin123';\")</p>
+<p>con.execute(\"SET s3_secret_access_key='*******';\")</p>
 <p>con.execute(\"SET s3_use_ssl=false;\")</p>
 <p>result = con.execute(\"SELECT COUNT(*) FROM read_parquet('s3://lab01/delta/customers_202512230532/*.parquet')\").fetchone()</p>
 <p>print(f'<span class="badge success">✅</span> {result[0]} registros')</p>

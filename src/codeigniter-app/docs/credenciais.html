@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Migração: DuckDB → PostgreSQL para Power BI - Documentação Datalake</title>
+    <title>Credenciais Internas - Documentação Datalake</title>
     <style>
         :root {
             --sidebar-width: 280px;
@@ -456,7 +456,7 @@
                     <li><a href="index.html" >🏠 Home</a></li>
                     <li><a href="docs-index.html" >📋 Índice Completo</a></li>
                     <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
-                    <li><a href="powerbi-conexao-duckdb-odbc.html" class="active">🔌 Conexão Power BI</a></li>
+                    <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
                     <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
                     <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
                     <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
@@ -464,329 +464,94 @@
                     <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
                     <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
                     <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
-                    
+                    <li><a href="credenciais.html" class="active">🔑 Credenciais Internas</a></li>
                 </ul>
             </nav>
         </aside>
 
         <!-- Main Content -->
         <main class="content">
-<h1 id="migracao-duckdb-postgresql-para-power-bi">Migração: DuckDB → PostgreSQL para Power BI</h1>
+<h1 id="credenciais-e-segredos-do-datalake">🔑 Credenciais e Segredos do Datalake</h1>
 
-<h2 id="data-da-migracao">Data da Migração</h2>
-<strong>25/12/2024</strong>
+<p>Esta página centraliza todas as credenciais e segredos configurados e utilizados na infraestrutura e nos pipelines do MyDataFlow.</p>
 
-<h2 id="problema-original">Problema Original</h2>
-
-<h3 id="duckdb-com-locks-de-arquivo">DuckDB com Locks de Arquivo</h3>
-<ul>
-<li>Power BI abria arquivo <code>.duckdb</code> e mantinha conexão ativa</li>
-<li>Ao tentar adicionar segunda tabela, ocorria erro: "O arquivo já está sendo usado por outro processo"</li>
-<li>DuckDB não foi projetado para múltiplas conexões simultâneas em arquivo único</li>
-</ul>
-
-<h3 id="tentativas-anteriores-nao-funcionaram">Tentativas Anteriores (NÃO FUNCIONARAM)</h3>
-<ol>
-<li><span class="badge warning">❌</span> Múltiplos arquivos DuckDB (datalake_bi_1, datalake_bi_2, datalake_bi_3)</li>
-<li><span class="badge warning">❌</span> Try/finally para fechar conexões</li>
-<li><span class="badge warning">❌</span> PRAGMA enable_object_cache</li>
-<li><span class="badge warning">❌</span> Arquivo de cópia separado (datalake_bi.duckdb)</li>
-</ol>
-
-<strong>Conclusão:</strong> DuckDB em arquivo local não suporta múltiplos acessos simultâneos do Power BI.
+<p>> [!WARNING]</p>
+<p>> <strong>Acesso Confidencial</strong>: Estas credenciais são de uso exclusivamente interno. Não as compartilhe nem as exponha em ambientes públicos ou commits do Git.</p>
 
 <p>---</p>
 
-<h2 id="solucao-implementada-postgresql">Solução Implementada: PostgreSQL</h2>
+<h2 id="delta-sharing-server">🔌 Delta Sharing Server</h2>
 
-<h3 id="arquitetura">Arquitetura</h3>
+<p>O Delta Sharing permite que analistas externos leiam dados da camada Gold de forma controlada.</p>
 
-<pre><code>┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-<p>│   MinIO     │────▶│   Airflow    │────▶│  PostgreSQL  │◀────│   Power BI   │</p>
-<p>│  (Delta)    │     │   DAG        │     │   (BI DB)    │     │  (Windows)   │</p>
-<p>└─────────────┘     └──────────────┘     └──────────────┘     └──────────────┘</p>
-<p>  s3://lab01/         DuckDB             postgres-bi:5432       localhost:5433</p>
-<p>  delta/              (em-memória)       datalake_bi            Múltiplas</p>
-<p>                                         pbi_user               Conexões</p>
-<p>                                                                Simultâneas <span class="badge success">✅</span></code></pre></p>
-
-<h3 id="componentes">Componentes</h3>
-
-<h4 id="1-postgresql-para-bi-postgres-bi">1. PostgreSQL para BI (<code>postgres-bi</code>)</h4>
-<pre><code><h1 id="docker-composeyml">docker-compose.yml</h1>
-<p>postgres-bi:</p>
-<p>  image: postgres:13</p>
-<p>  container_name: postgres-bi</p>
-<p>  environment:</p>
-<p>    POSTGRES_USER: pbi_user</p>
-<p>    POSTGRES_PASSWORD: *******</p>
-<p>    POSTGRES_DB: datalake_bi</p>
-<p>  ports:</p>
 <ul>
-<li>"5433:5432"  # Porta externa para Power BI</li>
-</ul>
-<p>  volumes:</p>
-<ul>
-<li>pg_bi_data:/var/lib/postgresql/data</li>
-</ul>
-<p>  networks:</p>
-<ul>
-<li>airflow_net</code></pre></li>
-</ul>
-
-<h4 id="2-dag-de-sincronizacao-sync-delta-to-postgrespy">2. DAG de Sincronização (<code>sync_delta_to_postgres.py</code>)</h4>
-
-<strong>Fluxo:</strong>
-<ol>
-<li><strong>setup_postgres</strong>: Valida conexão com PostgreSQL</li>
-<li><strong>sync_delta_to_postgres</strong>: </li>
-<ul>
-<li>Conecta DuckDB em-memória (<code>:memory:</code>)</li>
-<li>Descobre tabelas Delta no MinIO</li>
-<li>Lê Parquet via DuckDB</li>
-<li>Insere dados em PostgreSQL</li>
-<li><strong>verify_postgres_tables</strong>: Lista tabelas criadas</li>
-</ul>
-</ol>
-
-<strong>Dependências:</strong>
-<pre><code><h1 id="requirementstxt">requirements.txt</h1>
-<p>psycopg2-binary  # Driver PostgreSQL</p>
-<p>duckdb==0.10.2   # Leitura de Parquet/S3 (em-memória apenas)</code></pre></p>
-
-<h3 id="configuracao-power-bi">Configuração Power BI</h3>
-
-<strong>Connection String:</strong>
-<pre><code>Server: localhost
-<p>Port: 5433</p>
-<p>Database: datalake_bi</p>
-<p>Authentication: Database</p>
-<p>Username: pbi_user</p>
-<p>Password: *******</code></pre></p>
-
-<strong>Tabelas Disponíveis:</strong>
-<ul>
-<li><code>delta_customers_202512230532</code> (29 registros)</li>
-<li><code>delta_employee_privileges_202512230532</code> (1 registro)</li>
-<li><code>delta_orders_202512241315</code> (48 registros)</li>
-<li><code>delta_products_202512241315</code> (45 registros)</li>
+<li><strong>Endpoint de Conexão</strong>: <code>https://myflow.estudotabela.com.br/delta-sharing</code></li>
+<li><strong>Bearer Token</strong>: <code>dbtSharingToken2026Secure</code></li>
 </ul>
 
 <p>---</p>
 
-<h2 id="comparacao-antes-vs-depois">Comparação: Antes vs Depois</h2>
+<h2 id="minio-s3-object-storage">🗂️ MinIO / S3 Object Storage</h2>
 
-<table>
-<thead><tr>
-<th>Aspecto</th>
-<th>DuckDB (Antigo) <span class="badge warning">❌</span></th>
-<th>PostgreSQL (Novo) <span class="badge success">✅</span></th>
-</tr></thead>
-<tbody>
-<tr>
-<td><strong>Múltiplos acessos</strong></td>
-<td><span class="badge warning">❌</span> Lock de arquivo</td>
-<td><span class="badge success">✅</span> Nativo</td>
-</tr>
-<tr>
-<td><strong>Power BI multi-table</strong></td>
-<td><span class="badge warning">❌</span> Erro na 2ª tabela</td>
-<td><span class="badge success">✅</span> Funciona</td>
-</tr>
-<tr>
-<td><strong>Persistência</strong></td>
-<td>Arquivo <code>.duckdb</code></td>
-<td>Volume Docker</td>
-</tr>
-<tr>
-<td><strong>Gerenciamento conexões</strong></td>
-<td>Manual (try/finally)</td>
-<td>Automático</td>
-</tr>
-<tr>
-<td><strong>Escalabilidade</strong></td>
-<td>Limitada</td>
-<td>Alta</td>
-</tr>
-<tr>
-<td><strong>Backup</strong></td>
-<td>Cópia de arquivo</td>
-<td>pg_dump</td>
-</tr>
-<tr>
-<td><strong>Porta de acesso</strong></td>
-<td>Arquivo UNC WSL</td>
-<td>TCP localhost:5433</td>
-</tr>
-</tbody>
-</table>
+<p>O MinIO armazena todas as camadas do Data Lake (Raw, Bronze, Silver, Gold).</p>
 
-<p>---</p>
-
-<h2 id="mudancas-em-arquivos">Mudanças em Arquivos</h2>
-
-<h3 id="criados">Criados</h3>
+<h3 id="credenciais-administrativas-console-e-servidores">Credenciais Administrativas (Console e Servidores)</h3>
 <ul>
-<li><span class="badge success">✅</span> <code>src/dags/sync_delta_to_postgres.py</code> (DAG nova)</li>
-<li><span class="badge success">✅</span> <code>MIGRACAO_DUCKDB_POSTGRESQL.md</code> (este arquivo)</li>
+<li><strong>Host / Endpoint</strong>: <code>http://minio:9000</code> / <code>https://myflow.estudotabela.com.br:29000</code></li>
+<li><strong>Access Key</strong>: <code>admin</code></li>
+<li><strong>Secret Key</strong>: <code>admin123</code></li>
 </ul>
 
-<h3 id="modificados">Modificados</h3>
+<h3 id="credenciais-da-aplicacao-camada-silver">Credenciais da Aplicação (Camada Silver)</h3>
 <ul>
-<li><span class="badge success">✅</span> <code>docker-compose.yml</code> → Adicionado <code>postgres-bi</code> service</li>
-<li><span class="badge success">✅</span> <code>requirements.txt</code> → Adicionado <code>psycopg2-binary</code></li>
+<li><strong>Access Key</strong>: <code>minio</code></li>
+<li><strong>Secret Key</strong>: <code>minio123</code></li>
 </ul>
 
-<h3 id="desativados">Desativados</h3>
+<h3 id="credenciais-spark-local-camada-gold-spark-sql-thrift">Credenciais Spark Local (Camada Gold / Spark SQL Thrift)</h3>
 <ul>
-<li>🔴 <code>src/dags/sync_duckdb_views.py</code> → Renomeado para <code>.bak</code></li>
-<li>🔴 <code>/opt/duckdb/datalake*.duckdb</code> → Obsoletos (não apagar ainda, histórico)</li>
+<li><strong>Access Key</strong>: <code>minioadmin</code></li>
+<li><strong>Secret Key</strong>: <code>minioadmin</code></li>
 </ul>
 
 <p>---</p>
 
-<h2 id="migracao-de-dados">Migração de Dados</h2>
+<h2 id="banco-de-dados-postgresql-bi-analytics">🐘 Banco de Dados PostgreSQL (BI / Analytics)</h2>
 
-<h3 id="executar-dag-manualmente">Executar DAG Manualmente</h3>
-<pre><code><h1 id="trigger-dag">Trigger DAG</h1>
-<p>docker compose exec -T airflow-scheduler \</p>
-<p>  airflow dags trigger sync_delta_to_postgres</p>
+<p>O PostgreSQL armazena dados de modelagem analítica e de BI.</p>
 
-<h1 id="verificar-tabelas-criadas">Verificar tabelas criadas</h1>
-<p>docker compose exec -T postgres-bi \</p>
-<p>  psql -U pbi_user -d datalake_bi \</p>
-<p>  -c "SELECT tablename FROM pg_tables WHERE schemaname='public';"</code></pre></p>
-
-<h3 id="agendamento">Agendamento</h3>
 <ul>
-<li><strong>Schedule:</strong> Diário às 02:00 AM</li>
-<li><strong>Retry:</strong> 1 tentativa com 5 min de delay</li>
-<li><strong>Catchup:</strong> Desabilitado</li>
+<li><strong>Database</strong>: <code>datalake_bi</code></li>
+<li><strong>Usuário</strong>: <code>pbi_user</code></li>
+<li><strong>Senha</strong>: <code>pbi_password</code></li>
+<li><strong>Porta Externa</strong>: <code>25433</code> / <code>5433</code></li>
 </ul>
 
 <p>---</p>
 
-<h2 id="manutencao">Manutenção</h2>
+<h2 id="apis-de-terceiros-exemplos">✈️ APIs de Terceiros (Exemplos)</h2>
 
-<h3 id="verificar-status-postgresql">Verificar Status PostgreSQL</h3>
-<pre><code>docker compose exec -T postgres-bi \
-<p>  psql -U pbi_user -d datalake_bi \</p>
-<p>  -c "SELECT tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size </p>
-<p>      FROM pg_tables WHERE schemaname='public';"</code></pre></p>
-
-<h3 id="limpar-tabelas-antigas">Limpar Tabelas Antigas</h3>
-<pre><code>docker compose exec -T postgres-bi \
-<p>  psql -U pbi_user -d datalake_bi \</p>
-<p>  -c "DROP TABLE IF EXISTS delta_<table_name> CASCADE;"</code></pre></p>
-
-<h3 id="backup-postgresql">Backup PostgreSQL</h3>
-<pre><code>docker compose exec -T postgres-bi \
-<p>  pg_dump -U pbi_user datalake_bi > backup_datalake_bi_$(date +%Y%m%d).sql</code></pre></p>
-
-<h3 id="restaurar-backup">Restaurar Backup</h3>
-<pre><code>cat backup_datalake_bi_YYYYMMDD.sql | \
-<p>  docker compose exec -T postgres-bi \</p>
-<p>  psql -U pbi_user -d datalake_bi</code></pre></p>
-
-<p>---</p>
-
-<h2 id="troubleshooting">Troubleshooting</h2>
-
-<h3 id="power-bi-nao-conecta">Power BI não conecta</h3>
-<pre><code><h1 id="verificar-se-postgresql-esta-rodando">Verificar se PostgreSQL está rodando</h1>
-<p>docker compose ps postgres-bi</p>
-
-<h1 id="verificar-porta-5433-esta-aberta">Verificar porta 5433 está aberta</h1>
-<p>netstat -an | grep 5433</p>
-
-<h1 id="testar-conexao-do-host">Testar conexão do host</h1>
-<p>psql -h localhost -p 5433 -U pbi_user -d datalake_bi</code></pre></p>
-
-<h3 id="dag-falha-ao-inserir-dados">DAG falha ao inserir dados</h3>
-<pre><code><h1 id="verificar-logs">Verificar logs</h1>
-<p>docker compose logs airflow-scheduler | grep sync_delta_to_postgres</p>
-
-<h1 id="testar-conexao-manual">Testar conexão manual</h1>
-<p>docker compose exec -T airflow-scheduler python3 -c "</p>
-<p>import psycopg2</p>
-<p>conn = psycopg2.connect(</p>
-<p>    host='postgres-bi', port=5432,</p>
-<p>    database='datalake_bi', user='pbi_user', password='*******'</p>
-<p>)</p>
-<p>print('<span class="badge success">✅</span> Conectado!')</p>
-<p>conn.close()</p>
-<p>"</code></pre></p>
-
-<h3 id="minio-inacessivel">MinIO inacessível</h3>
-<pre><code><h1 id="verificar-rede-docker">Verificar rede Docker</h1>
-<p>docker network inspect datalake-air-flow_airflow_net</p>
-
-<h1 id="testar-s3-do-airflow">Testar S3 do Airflow</h1>
-<p>docker compose exec -T airflow-scheduler python3 -c "</p>
-<p>import duckdb</p>
-<p>con = duckdb.connect(':memory:')</p>
-<p>con.execute('LOAD httpfs;')</p>
-<p>con.execute(\"SET s3_endpoint='minio:9000';\")</p>
-<p>con.execute(\"SET s3_access_key_id='admin';\")</p>
-<p>con.execute(\"SET s3_secret_access_key='*******';\")</p>
-<p>con.execute(\"SET s3_use_ssl=false;\")</p>
-<p>result = con.execute(\"SELECT COUNT(*) FROM read_parquet('s3://lab01/delta/customers_202512230532/*.parquet')\").fetchone()</p>
-<p>print(f'<span class="badge success">✅</span> {result[0]} registros')</p>
-<p>"</code></pre></p>
-
-<p>---</p>
-
-<h2 id="proximos-passos-opcional">Próximos Passos (Opcional)</h2>
-
-<h3 id="1-indexacao-para-performance">1. Indexação para Performance</h3>
-<pre><code>-- Criar índices em colunas frequentes
-<p>CREATE INDEX idx_customers_id ON delta_customers_202512230532(customer_id);</p>
-<p>CREATE INDEX idx_orders_date ON delta_orders_202512241315(order_date);</code></pre></p>
-
-<h3 id="2-views-materializadas">2. Views Materializadas</h3>
-<pre><code>-- Para agregações complexas
-<p>CREATE MATERIALIZED VIEW mv_sales_summary AS</p>
-<p>SELECT DATE(order_date) as date, SUM(total) as total_sales</p>
-<p>FROM delta_orders_202512241315</p>
-<p>GROUP BY DATE(order_date);</code></pre></p>
-
-<h3 id="3-particionamento">3. Particionamento</h3>
-<pre><code>-- Para tabelas grandes (milhões de registros)
-<p>CREATE TABLE delta_orders_partitioned (</p>
-<p>    -- colunas</p>
-<p>) PARTITION BY RANGE (order_date);</code></pre></p>
-
-<p>---</p>
-
-<h2 id="observacoes-finais">Observações Finais</h2>
-
-<h3 id="por-que-postgresql">Por que PostgreSQL?</h3>
-<ol>
-<li><span class="badge success">✅</span> <strong>Padrão de mercado</strong> para BI/Analytics</li>
-<li><span class="badge success">✅</span> <strong>Gerenciamento nativo</strong> de múltiplas conexões</li>
-<li><span class="badge success">✅</span> <strong>Compatibilidade total</strong> com Power BI ODBC/PostgreSQL driver</li>
-<li><span class="badge success">✅</span> <strong>Escalável</strong> (suporta milhões de registros)</li>
-<li><span class="badge success">✅</span> <strong>Ferramentas maduras</strong> (backup, replicação, monitoramento)</li>
-</ol>
-
-<h3 id="duckdb-ainda-e-util">DuckDB ainda é útil?</h3>
-<strong>Sim!</strong> Mas apenas para:
+<h3 id="amadeus-flights-api-integracao-kiwi-voos">Amadeus Flights API (Integração Kiwi / Voos)</h3>
 <ul>
-<li><span class="badge success">✅</span> Análises ad-hoc em notebooks</li>
-<li><span class="badge success">✅</span> Leitura rápida de Parquet/CSV</li>
-<li><span class="badge success">✅</span> Processamento em-memória (sem persistência)</li>
-</ul>
-
-<strong>Não usar para:</strong>
-<ul>
-<li><span class="badge warning">❌</span> Servir múltiplos clientes (Power BI, Tableau, etc.)</li>
-<li><span class="badge warning">❌</span> Banco de dados compartilhado</li>
-<li><span class="badge warning">❌</span> Aplicações com concorrência</li>
+<li><strong>Client ID</strong>: <code>EAVO8QrhAjfmbdM5tuXLsFgRY2uJQsK6</code></li>
+<li><strong>Client Secret</strong>: <code>58NOR7zPJBtUBvA7</code></li>
+<li><strong>Auth Endpoint</strong>: <code>https://test.api.amadeus.com/v1/security/oauth2/token</code></li>
 </ul>
 
 <p>---</p>
 
-<strong>Migração concluída com sucesso em 25/12/2024</strong> <span class="badge success">✅</span>
+<h2 id="variaveis-de-ambiente-da-aplicacao-env">⚙️ Variáveis de Ambiente da Aplicação (.env)</h2>
+
+<p>Outros segredos estão definidos no arquivo <code>.env</code> na raiz do CodeIgniter:</p>
+<ul>
+<li><strong>Senha Root MySQL</strong>: <code>YM11rMrT32xH0E6N</code></li>
+<li><strong>Chave de Criptografia CI4</strong>: <code>hex2bin:3682f0d41371c328b887285ed623b8c65d49d1f9174d6d6a512cc9f2c4afd05b</code></li>
+<li><strong>SMTP Production Password</strong>: <code>kJ#212394</code></li>
+<li><strong>Google Client Secret (OAuth2)</strong>: <code>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</code></li>
+<li><strong>Hotmart Hottok</strong>: <code>"P86JGEKszx0x6ZdpZC9AEEkoH0s9uL33784478"</code></li>
+<li><strong>Metabase Admin Password</strong>: <code>kJ#212394</code></li>
+<li><strong>Metabase JWT Shared Secret</strong>: <code>myflow_metabase_secret_key_sso_123456</code></li>
+</ul>
 
         </main>
     </div>

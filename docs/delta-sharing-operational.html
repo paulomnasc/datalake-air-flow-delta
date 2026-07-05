@@ -464,6 +464,7 @@
                     <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
                     <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
                     <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
+                    
                 </ul>
             </nav>
         </aside>
@@ -506,7 +507,13 @@
 <p>port: 8080</p>
 
 <p>authorization:</p>
-<p>  bearerToken: "dbtSharingToken2026Secure"  # Token de autenticação</p>
+<p>  bearerToken: "*******"  # Token de autenticação</p>
+
+<p>hadoopConf:</p>
+<p>  fs.s3a.endpoint: "https://myflow.estudotabela.com.br:29000"</p>
+<p>  fs.s3a.path.style.access: "true"</p>
+<p>  fs.s3a.access.key: "admin"</p>
+<p>  fs.s3a.secret.key: "*******"</p>
 
 <p>shares:</p>
 <ul>
@@ -518,17 +525,13 @@
 </ul>
 <p>        tables:</p>
 <ul>
-<li>name: "dim_usuarios"</li>
+<li>name: "customers"</li>
 </ul>
-<p>            location: "s3a://{bucket}/gold/{clean_dag_id}/dim_usuarios_delta"</p>
+<p>            location: "s3a://admin-146/gold/20260412200111_9d4363f3_customers_gold/20260412200111_9d4363f3_customers_gold_delta"</p>
 <ul>
-<li>name: "dim_cursos"</li>
+<li>name: "orders"</li>
 </ul>
-<p>            location: "s3a://{bucket}/gold/{clean_dag_id}/dim_cursos_delta"</p>
-<ul>
-<li>name: "fato_vendas"</li>
-</ul>
-<p>            location: "s3a://{bucket}/gold/{clean_dag_id}/fato_vendas_delta"</code></pre></p>
+<p>            location: "s3a://admin-146/gold/20260412200111_828f9341_orders_gold/20260412200111_828f9341_orders_gold_delta"</code></pre></p>
 
 <p>> [!IMPORTANT]</p>
 <p>> <strong>Resolução do Nome do Bucket no Ambiente Multi-tenant</strong>:</p>
@@ -555,42 +558,44 @@
 <p>> <strong>Requisito Obrigatório de HTTPS no Power BI</strong>:</p>
 <p>> O Power BI exige que conexões externas de Delta Sharing e transferências de dados S3 utilizem o protocolo seguro <strong>HTTPS</strong>. Conexões diretas em HTTP (como <code>http://localhost:28085</code> ou <code>http://localhost:29000</code>) serão abortadas com o erro *"A conexão subjacente estava fechada"*.</p>
 <p>></p>
-<p>> Para solucionar isso, a stack MyDataFlow está configurada para rotear e criptografar o tráfego do Delta Sharing (porta segura <strong><code>28443</code></strong> no caminho <code>/delta-sharing</code>) e da API do MinIO S3 (porta <strong><code>29000</code></strong> via Nginx) através de SSL/TLS com o certificado válido.</p>
-
-<p>Desta forma, o arquivo de perfil em ambiente de produção possui o seguinte conteúdo estruturado com endpoints seguros:</p>
-
-<pre><code>{
-<p>  "shareCredentialsVersion": 1,</p>
-<p>  "endpoint": "https://myflow.estudotabela.com.br:28443/delta-sharing",</p>
-<p>  "bearerToken": "dbtSharingToken2026Secure"</p>
-<p>}</code></pre></p>
+<p>> Para solucionar isso, a stack MyDataFlow está configurada para rotear e criptografar o tráfego do Delta Sharing (porta segura <strong><code>443</code></strong> no caminho <code>/delta-sharing</code>) e da API do MinIO S3 (porta <strong><code>29000</code></strong> via Nginx) através de SSL/TLS com o certificado válido.</p>
+ 
+<p> Desta forma, o arquivo de perfil em ambiente de produção possui o seguinte conteúdo estruturado com endpoints seguros:</p>
+ 
+<p> <pre><code> {</p>
+<p>   "shareCredentialsVersion": 1,</p>
+<p>   "endpoint": "https://myflow.estudotabela.com.br/delta-sharing",</p>
+<p>   "bearerToken": "*******"</p>
+<p> }</p>
+<p> ``<code></p>
 
 <h3 id="passo-2-enviar-o-arquivo-para-o-usuario-destinatario">Passo 2: Enviar o Arquivo para o Usuário Destinatário</h3>
-<p>Envie este arquivo de perfil <code>.share</code> (ou as chaves <code>endpoint</code> e <code>bearerToken</code> extraídas dele) para o analista de BI ou cientista de dados. Este arquivo é tudo o que eles precisam para se conectar aos dados de forma segura.</p>
+<p>Envie este arquivo de perfil </code>.share<code> (ou as chaves </code>endpoint<code> e </code>bearerToken<code> extraídas dele) para o analista de BI ou cientista de dados. Este arquivo é tudo o que eles precisam para se conectar aos dados de forma segura.</p>
 
 <p>---</p>
 
 <h2 id="conectando-do-power-bi-analistas-de-bi">🔌 Conectando do Power BI (Analistas de BI)</h2>
 
-<p>O Power BI possui um conector nativo para o Delta Sharing. Como o conector solicita as credenciais e o endpoint de conexão diretamente em vez de importar o arquivo <code>.share</code>, siga os passos abaixo para conectar:</p>
+<p>O Power BI possui um conector nativo para o Delta Sharing. Como o conector solicita as credenciais e o endpoint de conexão diretamente em vez de importar o arquivo </code>.share<code>, siga os passos abaixo para conectar:</p>
 
 <ol>
-<li>Abra o arquivo de perfil <code>gold_share_recipient.share</code> que você recebeu em um editor de texto (como Bloco de Notas ou VS Code) para copiar as credenciais:</li>
+<li>Abra o arquivo de perfil </code>gold_share_recipient.share<code> que você recebeu em um editor de texto (como Bloco de Notas ou VS Code) para copiar as credenciais:</li>
 </ol>
-<p>   <pre><code>   {</p>
-<p>     "shareCredentialsVersion": 1,</p>
-<p>     "endpoint": "https://myflow.estudotabela.com.br:28443/delta-sharing",</p>
-<p>     "bearerToken": "dbtSharingToken2026Secure"</p>
-<p>   }</p>
-<p>   ``<code></p>
+<p>   </code>`<code>json</p>
+<p>    {</p>
+<p>      "shareCredentialsVersion": 1,</p>
+<p>      "endpoint": "https://myflow.estudotabela.com.br/delta-sharing",</p>
+<p>      "bearerToken": "*******"</p>
+<p>    }</p>
+<p>    </code>`<code></p>
 <ol>
 <li>Abra o <strong>Power BI Desktop</strong>.</li>
 <li>Clique em <strong>Obter Dados</strong> → <strong>Mais...</strong></li>
 <li>Pesquise por <strong>Delta Sharing</strong> e selecione o conector.</li>
-<li>Na janela de configuração, insira no campo <strong>URL do Servidor Delta Sharing</strong> (Delta Sharing Server URL) o valor do campo </code>endpoint<code> do arquivo (ex: </code>https://myflow.estudotabela.com.br:28443/delta-sharing<code>) e clique em <strong>OK</strong>.</li>
+<li>Na janela de configuração, insira no campo <strong>URL do Servidor Delta Sharing</strong> (Delta Sharing Server URL) o valor do campo </code>endpoint<code> do arquivo (ex: </code>https://myflow.estudotabela.com.br/delta-sharing<code>) e clique em <strong>OK</strong>.</li>
 <li>Na janela de autenticação subsequente, selecione a opção <strong>Token de Portador</strong> (Bearer Token) no menu lateral esquerdo.</li>
-<li>Insira o valor do campo </code>bearerToken<code> do arquivo (ex: </code>dbtSharingToken2026Secure<code>) e clique em <strong>Conectar</strong>.</li>
-<li>O Power BI listará as tabelas disponíveis (</code>dim_usuarios<code>, </code>dim_cursos<code> e </code>fato_vendas<code>).</li>
+<li>Insira o valor do campo </code>bearerToken<code> do arquivo (ex: </code>*******<code>) e clique em <strong>Conectar</strong>.</li>
+<li>O Power BI listará as tabelas disponíveis (como </code>customers<code>, </code>orders<code>, </code>products<code>, etc.).</li>
 <li>Selecione as tabelas desejadas e clique em <strong>Carregar</strong>.</li>
 </ol>
 

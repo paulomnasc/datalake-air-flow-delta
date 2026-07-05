@@ -464,6 +464,7 @@
                     <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
                     <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
                     <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
+                    <li><a href="credenciais.html" >🔑 Credenciais Internas</a></li>
                 </ul>
             </nav>
         </aside>
@@ -682,7 +683,7 @@
 <p>WITH (</p>
 <p>  's3_endpoint' = 'http://minio:9000',</p>
 <p>  's3_access_key_id' = 'admin',</p>
-<p>  's3_secret_access_key' = 'admin123'</p>
+<p>  's3_secret_access_key' = '*******'</p>
 <p>);</code></pre></p>
 
 <p>Essas views ficarão persistidas no arquivo <code>.duckdb</code>.</p>
@@ -782,7 +783,7 @@
 <p>FROM read_parquet(</p>
 <p>  's3://lab01/processed/raw/customers/*.parquet',</p>
 <p>  s3_access_key_id='admin',</p>
-<p>  s3_secret_access_key='admin123',</p>
+<p>  s3_secret_access_key='*******',</p>
 <p>  s3_endpoint='http://minio:9000',</p>
 <p>  s3_url_style='path'</p>
 <p>);</code></pre></p>
@@ -876,7 +877,7 @@
 <p>  ``<code>sql</p>
 <p>  SELECT * FROM read_parquet('s3://lab01/test/*.parquet',</p>
 <p>    s3_access_key_id='admin',</p>
-<p>    s3_secret_access_key='admin123',</p>
+<p>    s3_secret_access_key='*******',</p>
 <p>    s3_endpoint='http://minio:9000',</p>
 <p>    s3_url_style='path'</p>
 <p>  ) LIMIT 1;</p>

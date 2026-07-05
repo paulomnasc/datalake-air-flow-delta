@@ -1,3 +1,4 @@
+# Copyright (C) 2026 Paulo Nascimento - Este programa é um software livre licenciado sob a GNU Affero General Public License v3.
 """
 DAG Factory para processamento batch de múltiplos arquivos
 Gerada automaticamente pela WebApp

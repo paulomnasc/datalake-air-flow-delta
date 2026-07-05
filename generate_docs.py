@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 Paulo Nascimento - Este programa é um software livre licenciado sob a GNU Affero General Public License v3.
 """
 Gerador de documentação HTML a partir de arquivos Markdown
 """
@@ -625,6 +626,9 @@ def md_to_html(md_content):
             return f'<a href="{anchor}">{text}</a>'
 
         return f'<a href="{base_href}{anchor}">{text}</a>'
+
+    # Converter imagens Markdown para HTML antes da conversão de links normais
+    html = re.sub(r'!\[([^\]]*)\]\(([^\)]+)\)', r'<img src="\2" alt="\1" style="max-width: 100%; height: auto; margin: 15px 0; border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">', html)
 
     html = re.sub(r'\[([^\]]+)\]\(([^\)]*)\)', replace_link, html)
     

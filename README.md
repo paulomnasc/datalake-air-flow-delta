@@ -145,8 +145,8 @@ airflow-spark-minio-postgres/
 ### 1. Clonar o Projeto
 
 ```bash
-git clone https://github.com/paulomnasc/datalake-air-flow.git
-cd datalake-air-flow
+git clone https://github.com/paulomnasc/datalake-air-flow-delta.git
+cd datalake-air-flow-delta
 ```
 
 > Substitua o link acima pelo repositório real, se necessário.
@@ -732,7 +732,7 @@ curl http://localhost:9001
 **Verificação**:
 ```bash
 # Listar arquivos dentro do container (devem ser arquivos, não diretórios)
-docker exec datalake-air-flow-minio-1 ls -lh /data/lab01/raw/
+docker exec minio ls -lh /data/lab01/raw/
 
 # Saída esperada: -rw-r--r-- (arquivo), NÃO drwxr-xr-x (diretório)
 ```

@@ -564,6 +564,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <li>
                         <?php echo anchor("listUsuario", "👤 Usuários", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     </li>
+                    <li>
+                        <?php echo anchor("listGrupo", "👥 Grupos", ['class' => 'nav-link px-2 px-lg-2']) ?>
+                    </li>
                     <?php
                     endif; 
                     ?>

@@ -162,6 +162,7 @@ services:
       - postgres
     environment:
       - ENV_SUFFIX=${ENV_SUFFIX:-dev}
+      - PYTHONPATH=/opt/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:K9fL2s7xPwQ8d92A@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
@@ -170,7 +171,9 @@ services:
       - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
       - AIRFLOW__WEBSERVER__FILTER_BY_OWNER=True
       - AIRFLOW__WEBSERVER__OWNER_MODE=user
+      - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=non-sensitive-only
       - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth
+      - AIRFLOW__CORE__AUTH_MANAGER=webserver_config.CustomFabAuthManager
       - MINIO_BUCKET=lab01
       - ENABLE_ATLAS=false
       - AIRFLOW_ADMIN_USERNAME=admin
@@ -186,6 +189,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
+      - ./webserver_config.py:/opt/airflow/webserver_config.py
     ports:
       - "${AIRFLOW_WEBSERVER_PORT}:${AIRFLOW_WEBSERVER_PORT}"
     command: airflow webserver
@@ -204,13 +208,16 @@ services:
       - postgres
     environment:
       - ENV_SUFFIX=${ENV_SUFFIX:-dev}
+      - PYTHONPATH=/opt/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:K9fL2s7xPwQ8d92A@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
       - AIRFLOW__WEBSERVER__FILTER_BY_OWNER=True
       - AIRFLOW__WEBSERVER__OWNER_MODE=user
+      - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=non-sensitive-only
       - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth
+      - AIRFLOW__CORE__AUTH_MANAGER=webserver_config.CustomFabAuthManager
       - MINIO_BUCKET=lab01
       - ENABLE_DEBUGPY=false
       - ENABLE_ATLAS=false
@@ -233,6 +240,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
+      - ./webserver_config.py:/opt/airflow/webserver_config.py
     ports:
       - "${AIRFLOW_SCHEDULER_DEBUG_PORT}:5678"
     command: airflow scheduler

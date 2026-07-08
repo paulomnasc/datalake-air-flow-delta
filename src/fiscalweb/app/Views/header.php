@@ -550,6 +550,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                                 <a class="dropdown-item" href="<?= base_url('listTipoDocumento') ?>">📑 Tipos de Documento</a>
                                 <a class="dropdown-item" href="<?= base_url('listListaVerificacao') ?>">📋 Lista de Verificação</a>
                                 <a class="dropdown-item" href="<?= base_url('listUsuario') ?>">👤 Usuários</a>
+                                <a class="dropdown-item" href="<?= base_url('listGrupo') ?>">👥 Grupos</a>
                                 
                                 <div class="dropdown-divider"></div>
                                 <h6 class="dropdown-header text-primary fw-bold">⚡ Execução</h6>
@@ -610,6 +611,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     </li>
                     <li>
                         <?php echo anchor("listUsuario", "👤 Usuários", ['class' => 'nav-link px-2 px-lg-2']) ?>
+                    </li>
+                    <li>
+                        <?php echo anchor("listGrupo", "👥 Grupos", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     </li>
                     
                     <li><hr class="text-white" style="margin: 10px 0;"></li>

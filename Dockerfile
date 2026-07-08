@@ -28,11 +28,12 @@ RUN export CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/cons
         minio \
         --constraint "${CONSTRAINT_URL}"
 
+RUN pip install --no-cache-dir playwright==1.61.0 pyee==13.0.1
+
 # Altera o usuário para root
 USER root        
-# Executa o comando de atualização e instalação
-# O código de erro 13: Permission denied será resolvido aqui
 RUN apt-get update && apt-get install -y dos2unix && dos2unix /entrypoint.sh
+RUN python -m playwright install --with-deps chromium
 
 # Altera o usuário de volta para 'airflow' (usuário não-root recomendado)
 USER airflow

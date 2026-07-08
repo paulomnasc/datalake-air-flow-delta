@@ -184,6 +184,10 @@ services:
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - VISION_API_KEY=${VISION_API_KEY}
+      - VISION_API_MODEL=${VISION_API_MODEL}
+      - VISION_API_JSON_MODE=${VISION_API_JSON_MODE}
+      - VISION_API_SAVE_SCREENSHOT=${VISION_API_SAVE_SCREENSHOT}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
@@ -235,6 +239,10 @@ services:
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - VISION_API_KEY=${VISION_API_KEY}
+      - VISION_API_MODEL=${VISION_API_MODEL}
+      - VISION_API_JSON_MODE=${VISION_API_JSON_MODE}
+      - VISION_API_SAVE_SCREENSHOT=${VISION_API_SAVE_SCREENSHOT}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
@@ -318,6 +326,10 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      VISION_API_KEY: ${VISION_API_KEY}
+      VISION_API_MODEL: ${VISION_API_MODEL}
+      VISION_API_JSON_MODE: ${VISION_API_JSON_MODE}
+      VISION_API_SAVE_SCREENSHOT: ${VISION_API_SAVE_SCREENSHOT}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - ./scripts:/usr/local/bin/scripts:ro

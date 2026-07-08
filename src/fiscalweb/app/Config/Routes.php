@@ -63,6 +63,19 @@ $routes->post('/insertUsuario', 'UsuarioController::insert', ['as'=>'Usuario.ins
 $routes->post('/updateUsuario', 'UsuarioController::update', ['as'=>'Usuario.update']);//Executa o método update da UsuarioController
 $routes->delete('/deleteUsuario/(:num)', 'UsuarioController::delete/$1', ['as' => 'Usuario.delete']);
 
+// Grupos
+$routes->get('/listGrupo', 'GrupoController::index', ['as'=>'listGrupo']);
+$routes->post('/addGrupo', 'GrupoController::add', ['as'=>'addGrupo']);
+$routes->post('/updGrupo', 'GrupoController::upd', ['as'=>'updGrupo']);
+$routes->post('/insertGrupo', 'GrupoController::insert', ['as'=>'Grupo.insert']);
+$routes->post('/updateGrupo', 'GrupoController::update', ['as'=>'Grupo.update']);
+$routes->delete('/deleteGrupo/(:num)', 'GrupoController::delete/$1', ['as'=>'Grupo.delete']);
+
+// Membros dos Grupos
+$routes->get('/grupo/membros/(:num)', 'GrupoController::membros/$1', ['as'=>'Grupo.membros']);
+$routes->post('/grupo/adicionarMembro', 'GrupoController::adicionarMembro', ['as'=>'Grupo.adicionarMembro']);
+$routes->delete('/grupo/removerMembro/(:num)', 'GrupoController::removerMembro/$1', ['as'=>'Grupo.removerMembro']);
+
 $routes->get('/loginUsuario', 'UsuarioController::login', ['as'=>'Usuario.login']);//Navega para a tela de login de usuário
 $routes->post('/logarUsuario', 'UsuarioController::logar', ['as'=>'Usuario.logar']);//Efetua o processo de logar do usuário
 $routes->get('/logOutUsuario', 'UsuarioController::logOut', ['as'=>'Usuario.logOut']);//Efetua o processo de logoff do usuário

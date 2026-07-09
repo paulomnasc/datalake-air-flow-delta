@@ -58,6 +58,27 @@ def run_crawler_pipeline(**context):
             combined_urls.append(u_clean)
     urls = combined_urls
 
+    # 2.5. Expande a URL do Atacadão Droga Center para suas categorias se for a home page
+    from lib.groq_crawler import discover_drogacenter_categories
+    expanded_urls = []
+    for url in urls:
+        url_clean = url.strip().strip("/")
+        if "atacadaodrogacenter.com.br" in url_clean and (url_clean == "https://atacadaodrogacenter.com.br" or url_clean == "https://www.atacadaodrogacenter.com.br"):
+            log.info(f"[CRAWLER-DAG] Detectada URL de home page do Atacadão Droga Center: {url}. Buscando categorias de menu...")
+            try:
+                cats = discover_drogacenter_categories(url)
+                if cats:
+                    log.info(f"[CRAWLER-DAG] Expansão concluída. Adicionando categorias: {cats}")
+                    expanded_urls.extend(cats)
+                    continue
+                else:
+                    log.warning("[CRAWLER-DAG] Nenhuma categoria encontrada na home. Mantendo a URL original.")
+            except Exception as exp_err:
+                log.error(f"[CRAWLER-DAG] Falha ao expandir categorias para {url}: {exp_err}")
+        
+        expanded_urls.append(url)
+    urls = expanded_urls
+
     if not urls:
         log.warning("[CRAWLER-DAG] Nenhuma URL retornada para o nicho (IA ou Banco).")
         return {"status": "no_urls", "niche": niche}

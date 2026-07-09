@@ -355,3 +355,118 @@ def process_and_ingest_site(
         "bucket": bucket,
         "products_count": len(extracted_data.get("produtos", []))
     }
+
+def discover_drogacenter_categories(base_url: str) -> List[str]:
+    """
+    Navega na home page do Atacadão Droga Center, realiza o login,
+    e extrai as URLs correspondentes às subcategorias válidas do menu.
+    """
+    log.info("[CRAWLER-GROQ] Iniciando Playwright para descobrir categorias de menu...")
+    from playwright.sync_api import sync_playwright
+    import time
+    
+    category_urls = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+        )
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 800}
+        )
+        page = context.new_page()
+        
+        try:
+            # Login primeiro para poder ver as categorias logado
+            log.info("[CRAWLER-GROQ] Efetuando login para visualização de categorias...")
+            page.goto("https://atacadaodrogacenter.com.br/novologin", wait_until="load", timeout=20000)
+            time.sleep(2)
+            page.locator("input[type='email'][name='email']").fill("PAULOMNASC@GMAIL.COM")
+            page.locator("input[type='password'][name='senha']").first.fill("kJ#212394")
+            page.locator("#btn-logar").click()
+            time.sleep(4)
+            
+            # Vai para a home
+            page.goto("https://atacadaodrogacenter.com.br/", wait_until="load", timeout=20000)
+            time.sleep(3)
+            
+            # Encontra todos os links do header/nav/menus
+            links = page.locator("header a, nav a, .menu a, .navigation a, .categorias a").all()
+            
+            # Subcategorias das seções principais solicitadas (Marca Própria, Verão, Medicamentos, Primeiros Socorros, Outlet)
+            target_keywords = [
+                "vittacare", "vitcaps", "vittaworld", "marca-propria",
+                "verao", "campanha-de-verao",
+                "medicamentos", "alergia", "tosse", "antifungico", "anestesico", "antibioticos", "digestivo", "respiratorio", "dor-e-febre", "gripe", "resfriado",
+                "primeiros-socorros", "algodao", "antisseptico", "atadura", "gaze", "curativos", "esparadrapos",
+                "outlet", "ofertas", "kitmix-ofertas"
+            ]
+            
+            priority_urls = []
+            other_urls = []
+            seen = set()
+            
+            import unicodedata
+            def normalize(t: str) -> str:
+                t = t.lower().strip()
+                return "".join(c for c in unicodedata.normalize('NFD', t) if unicodedata.category(c) != 'Mn')
+                
+            for link in links:
+                try:
+                    href = link.get_attribute("href")
+                    text = link.text_content().strip()
+                    if not href or not text:
+                        continue
+                        
+                    # Normaliza a URL
+                    if href.startswith("/"):
+                        full_url = f"https://atacadaodrogacenter.com.br{href}"
+                    elif href.startswith("http"):
+                        full_url = href
+                    else:
+                        continue
+                        
+                    # EXIGE que a URL seja uma página de produtos real contendo "/categoria/" ou o outlet "/kitmix-ofertas"
+                    # Isso descarta as páginas de pastas pai como "/medicamentos/1-02" que retornam 0 produtos.
+                    if not "/categoria/" in full_url.lower() and not "kitmix-ofertas" in full_url.lower():
+                        continue
+                        
+                    # Evita links utilitários
+                    if any(x in full_url.lower() for x in ["logout", "login", "carrinho", "minha-conta", "central-cliente", "faq"]):
+                        continue
+                        
+                    if full_url in seen:
+                        continue
+                        
+                    norm_text = normalize(text)
+                    norm_url = normalize(full_url)
+                    
+                    # Verifica se o texto ou a URL contém alguma palavra-chave das subcategorias alvo
+                    is_priority = False
+                    for keyword in target_keywords:
+                        if keyword in norm_text or keyword in norm_url:
+                            is_priority = True
+                            break
+                            
+                    if is_priority:
+                        seen.add(full_url)
+                        priority_urls.append(full_url)
+                        log.info(f"[CRAWLER-GROQ] Subcategoria prioritária encontrada: '{text}' -> {full_url}")
+                    else:
+                        seen.add(full_url)
+                        other_urls.append(full_url)
+                except Exception:
+                    pass
+            
+            # Prioriza as subcategorias e limita a até 4 URLs para a DAG processar
+            all_discovered = priority_urls + other_urls
+            category_urls = all_discovered[:4]
+            log.info(f"[CRAWLER-GROQ] Subcategorias finais selecionadas para crawl: {category_urls}")
+            
+        except Exception as e:
+            log.error(f"[CRAWLER-GROQ] Erro ao descobrir categorias: {e}")
+        finally:
+            browser.close()
+            
+    return category_urls

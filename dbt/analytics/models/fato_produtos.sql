@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 with source_scraped as (
-    select * from {{ source('raw_lakehouse', 'produtos_scraped') }}
+    select * from {{ ref('gold_produtos_scraped') }}
 )
 
 select
@@ -16,5 +16,5 @@ select
     preco_final,
     (coalesce(preco_original, preco_final) - preco_final) as valor_desconto,
     site as site_origem,
-    _silver_processed_at as data_extracao
+    _gold_processed_at as data_extracao
 from source_scraped

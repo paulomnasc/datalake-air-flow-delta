@@ -4,7 +4,7 @@ with source_scraped as (
     select distinct 
         categoria,
         site
-    from {{ source('raw_lakehouse', 'produtos_scraped') }}
+    from {{ ref('gold_produtos_scraped') }}
     where categoria is not null
 )
 

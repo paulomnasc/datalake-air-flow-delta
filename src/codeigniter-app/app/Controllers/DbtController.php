@@ -741,11 +741,26 @@ YAML;
 
                 // Caminhos dos arquivos SQL
                 $tableName = $cleanName;
-                $cleanFile = stripslashes(trim($specificFile ?? '', '"\' []{} '));
-                $cleanFile = ltrim($cleanFile, '/\\');
-                $basename = basename($cleanFile);
-                $basenameNoExt = pathinfo($basename, PATHINFO_FILENAME);
-                $ext = strtolower(pathinfo($cleanFile, PATHINFO_EXTENSION));
+                
+                $decodedJson = json_decode($specificFile, true);
+                if (is_array($decodedJson)) {
+                    $subdir = $decodedJson['subdir'] ?? $tableName;
+                    $fileExt = $decodedJson['file_ext'] ?? '.csv';
+                    // Garante prefixo raw/
+                    if (strpos($subdir, 'raw/') !== 0) {
+                        $subdir = 'raw/' . ltrim($subdir, '/');
+                    }
+                    $cleanFile = $subdir . '/*' . $fileExt;
+                    $basename = '*';
+                    $basenameNoExt = $tableName;
+                    $ext = ltrim($fileExt, '.');
+                } else {
+                    $cleanFile = stripslashes(trim($specificFile ?? '', '"\' []{} '));
+                    $cleanFile = ltrim($cleanFile, '/\\');
+                    $basename = basename($cleanFile);
+                    $basenameNoExt = pathinfo($basename, PATHINFO_FILENAME);
+                    $ext = strtolower(pathinfo($cleanFile, PATHINFO_EXTENSION));
+                }
 
                 $readFunc = "read_csv_auto";
                 if ($ext === 'json') {
@@ -762,13 +777,18 @@ YAML;
                 $cleanDagId = preg_replace('/\d+$/', '', $matchedConfig['dag_id']);
                 
                 // Caminhos corretos baseados na estrutura física observada no MinIO S3
-                $bronzeS3SubDir = str_replace('raw/', 'bronze/', pathinfo($cleanFile, PATHINFO_DIRNAME));
-                $bronzeS3Path = "s3://{$bucket}/{$bronzeS3SubDir}/{$basenameNoExt}.parquet";
+                if (is_array($decodedJson)) {
+                    // Para Pasta_S3 customizada, os arquivos bronze, silver e gold ficam sob pastas do tableName com wildcards
+                    $bronzeS3Path = "s3://{$bucket}/bronze/{$tableName}/*.parquet";
+                    $silverS3Path = "s3://{$bucket}/silver/{$tableName}/*.parquet";
+                    $goldS3Prefix = "gold/{$tableName}/";
+                } else {
+                    $bronzeS3SubDir = str_replace('raw/', 'bronze/', pathinfo($cleanFile, PATHINFO_DIRNAME));
+                    $bronzeS3Path = "s3://{$bucket}/{$bronzeS3SubDir}/{$basenameNoExt}.parquet";
+                    $silverS3Path = "s3://{$bucket}/silver/{$tableName}/{$basenameNoExt}.parquet";
+                    $goldS3Prefix = "gold/{$basenameNoExt}_gold/{$basenameNoExt}_gold_delta/";
+                }
                 
-                $silverS3Path = "s3://{$bucket}/silver/{$tableName}/{$basenameNoExt}.parquet";
-                
-                // Buscamos dinamicamente no S3 o arquivo correspondente ao último commit/versão
-                $goldS3Prefix = "gold/{$basenameNoExt}_gold/{$basenameNoExt}_gold_delta/";
                 $latestGoldFile = $this->getLatestGoldParquetFile($bucket, $goldS3Prefix);
 
                 $rawFile = $modelsDir . '/raw_' . $tableName . '.sql';
@@ -1067,7 +1087,7 @@ YAML;
                         // Extrai o índice do commit (ex: '4' de '4-abc.parquet')
                         if (preg_match('/^(\d+)-/', $filename, $matches)) {
                             $index = (int)$matches[1];
-                            if ($index > $maxIndex) {
+                            if ($index >= $maxIndex) {
                                 $maxIndex = $index;
                                 $latestKey = $key;
                             }

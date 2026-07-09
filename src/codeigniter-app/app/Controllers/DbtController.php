@@ -782,14 +782,14 @@ YAML;
                     $bronzeS3Path = "s3://{$bucket}/bronze/{$tableName}/*.parquet";
                     $silverS3Path = "s3://{$bucket}/silver/{$tableName}/*.parquet";
                     $goldS3Prefix = "gold/{$tableName}/";
+                    $latestGoldFile = "s3://{$bucket}/gold/{$tableName}/*_gold_delta/*.parquet";
                 } else {
                     $bronzeS3SubDir = str_replace('raw/', 'bronze/', pathinfo($cleanFile, PATHINFO_DIRNAME));
                     $bronzeS3Path = "s3://{$bucket}/{$bronzeS3SubDir}/{$basenameNoExt}.parquet";
                     $silverS3Path = "s3://{$bucket}/silver/{$tableName}/{$basenameNoExt}.parquet";
                     $goldS3Prefix = "gold/{$basenameNoExt}_gold/{$basenameNoExt}_gold_delta/";
+                    $latestGoldFile = $this->getLatestGoldParquetFile($bucket, $goldS3Prefix);
                 }
-                
-                $latestGoldFile = $this->getLatestGoldParquetFile($bucket, $goldS3Prefix);
 
                 $rawFile = $modelsDir . '/raw_' . $tableName . '.sql';
                 $bronzeFile = $modelsDir . '/bronze_' . $tableName . '.sql';

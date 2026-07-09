@@ -125,8 +125,28 @@ def capture_screenshot(url: str) -> str:
         page = context.new_page()
         
         try:
-            # Ir para a URL com timeout de 30 segundos
-            log.info(f"[CRAWLER-GROQ] Acessando URL: {url}")
+            # Realiza login se a URL pertencer ao Atacadão Droga Center
+            if "atacadaodrogacenter.com.br" in url:
+                try:
+                    log.info("[CRAWLER-GROQ] Detectado site Atacadão Droga Center. Iniciando fluxo de login...")
+                    page.goto("https://atacadaodrogacenter.com.br/novologin", wait_until="load", timeout=20000)
+                    time.sleep(2)
+                    
+                    log.info("[CRAWLER-GROQ] Preenchendo credenciais...")
+                    page.locator("input[type='email'][name='email']").fill("PAULOMNASC@GMAIL.COM")
+                    page.locator("input[type='password'][name='senha']").first.fill("kJ#212394")
+                    
+                    log.info("[CRAWLER-GROQ] Clicando no botão de login...")
+                    page.locator("#btn-logar").click()
+                    
+                    log.info("[CRAWLER-GROQ] Aguardando autenticação...")
+                    time.sleep(5)
+                    log.info(f"[CRAWLER-GROQ] URL após login: {page.url}")
+                except Exception as login_err:
+                    log.warning(f"[CRAWLER-GROQ] Falha na autenticação (o crawler tentará prosseguir sem login): {login_err}")
+
+            # Ir para a URL alvo
+            log.info(f"[CRAWLER-GROQ] Acessando URL alvo: {url}")
             try:
                 page.goto(url, wait_until="networkidle", timeout=20000)
             except Exception:

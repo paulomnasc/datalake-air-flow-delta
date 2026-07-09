@@ -257,9 +257,16 @@ class RawToMedallionPipeline:
                 if self.source_filename.endswith('.csv') or self.source_filename.endswith('.json') or self.source_filename.endswith('.parquet'):
                     src_files = [self.source_filename]
 
-        # 3. Fall-back: Busca na pasta padrão com o nome exato da tabela (ex: raw/categories/)
+        # 3. Fall-back: Busca na pasta padrão
         if not src_files:
-            src_files = self.list_raw_files(subdir=self.target_table_name)
+            is_pasta_s3 = (self.context.get('file_ext') == 'Pasta_S3') or (str(self.context.get('source_type')).lower() == 'pasta_s3')
+            if is_pasta_s3 and self.source_filename:
+                subdir_to_list = self.source_filename
+                if subdir_to_list.startswith('raw/'):
+                    subdir_to_list = subdir_to_list[4:]
+                src_files = self.list_raw_files(subdir=subdir_to_list)
+            else:
+                src_files = self.list_raw_files(subdir=self.target_table_name)
             
         # 4. Fall-back 2: Busca na pasta base da DAG (ex: raw/pipe-northwind/)
         # Pois CodeIgniter MinioHelper salva multi-tables em raw/{base_dag_id}/
@@ -306,6 +313,9 @@ class RawToMedallionPipeline:
             )
             file_ext = os.path.splitext(local_file)[1].lower()
             df_bronze = self._read_file(local_file, file_ext)
+            if df_bronze is None or df_bronze.empty:
+                log.warning(f"[BRONZE] ⚠️ Arquivo {src_key} não contém registros. Pulando.")
+                continue
             log.info(f"[BRONZE][AUDIT] Arquivo original: {src_key} | Registros originais: {len(df_bronze)}")
             local_parquet = os.path.join(self.tmpdir, f"{basename_no_ext}_bronze.parquet")
             df_bronze.to_parquet(
@@ -323,7 +333,7 @@ class RawToMedallionPipeline:
             log.info(f"[BRONZE][AUDIT] ✅ Finalizado: {bronze_key} | Registros processados: {len(df_bronze)}")
             bronze_keys_all.append(bronze_key)
 
-        self.results['bronze'] = bronze_key
+        self.results['bronze'] = bronze_keys_all[-1] if bronze_keys_all else None
         self.results['_bronze_all'] = bronze_keys_all
     
     def _read_file(self, local_file: str, file_ext: str) -> pd.DataFrame:
@@ -355,6 +365,55 @@ class RawToMedallionPipeline:
             DataFrame pandas
         """
         import numpy as np
+        # 1) Tenta carregar como JSON padrão para inspecionar estrutura aninhada (objeto com lista de produtos)
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                payload = json.load(f)
+                
+            if isinstance(payload, dict):
+                # Procura por uma chave cujo valor seja uma lista de registros (produtos)
+                record_key = None
+                for k, v in payload.items():
+                    if isinstance(v, list):
+                        record_key = k
+                        break
+                
+                if record_key:
+                    if len(payload[record_key]) > 0:
+                        # Extrai chaves simples de metadados para preencher colunas em todas as linhas (ex: site)
+                        meta_keys = [
+                            k for k in payload.keys() 
+                            if k != record_key and not isinstance(payload[k], (dict, list))
+                        ]
+                        df = pd.json_normalize(payload, record_path=record_key, meta=meta_keys)
+                        
+                        # Converte colunas com arrays/objetos para string
+                        for colname in df.columns:
+                            if df[colname].apply(lambda x: isinstance(x, (list, dict, tuple, set, pd.Series, np.ndarray))).any():
+                                df[colname] = df[colname].apply(
+                                    lambda x: json.dumps(x, ensure_ascii=False) 
+                                    if isinstance(x, (list, dict, tuple, set, pd.Series, np.ndarray)) else x
+                                )
+                        return df
+                    else:
+                        # Lista de registros vazia -> retorna DataFrame vazio
+                        log.info(f"[READ_JSON_ROBUST] Chave de registros '{record_key}' vazia em {path}")
+                        return pd.DataFrame()
+                        
+            if isinstance(payload, list):
+                if not payload:
+                    return pd.DataFrame()
+                df = pd.json_normalize(payload)
+                for colname in df.columns:
+                    if df[colname].apply(lambda x: isinstance(x, (list, dict, tuple, set, pd.Series, np.ndarray))).any():
+                        df[colname] = df[colname].apply(
+                            lambda x: json.dumps(x, ensure_ascii=False) 
+                            if isinstance(x, (list, dict, tuple, set, pd.Series, np.ndarray)) else x
+                        )
+                return df
+        except Exception as e:
+            log.warning(f"[READ_JSON_ROBUST] Leitura estruturada falhou, tentando fallbacks: {e}")
+
         try:
             df = pd.read_json(path, lines=True)
             if not df.empty:
@@ -397,25 +456,6 @@ class RawToMedallionPipeline:
                 return df
         except Exception as e:
             log.warning(f"[READ_JSON_ROBUST] JSON padrão falhou: {e}")
-
-        # Tenta carregar manualmente
-        try:
-            with open(path, 'r') as f:
-                payload = json.load(f)
-            if isinstance(payload, list):
-                normalized = pd.json_normalize(payload)
-                for colname in normalized.columns:
-                    if normalized[colname].apply(lambda x: isinstance(x, (list, dict, tuple, set, pd.Series, np.ndarray))).any():
-                        normalized[colname] = normalized[colname].apply(lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict, tuple, set, pd.Series, np.ndarray)) else x)
-                return normalized
-            if isinstance(payload, dict):
-                normalized = pd.json_normalize(payload)
-                for colname in normalized.columns:
-                    if normalized[colname].apply(lambda x: isinstance(x, (list, dict, tuple, set, pd.Series, np.ndarray))).any():
-                        normalized[colname] = normalized[colname].apply(lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict, tuple, set, pd.Series, np.ndarray)) else x)
-                return normalized
-        except Exception as e:
-            log.error(f"[READ_JSON_ROBUST] Falha ao carregar JSON manualmente: {e}")
 
         raise ValueError("Formato JSON não suportado ou erro de typecast/conversão")
     
@@ -793,8 +833,22 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> 
 
     # Novo tipo: Pasta_S3
     if source_type == 'pasta_s3':
-        subdir = kwargs.get('subdir') or source_filename or ''
-        file_ext = kwargs.get('file_ext', '.csv')
+        subdir = kwargs.get('subdir')
+        file_ext = kwargs.get('file_ext')
+        
+        # Tenta extrair a partir do JSON string de source_filename gerado pelo PHP webapp
+        if not subdir and source_filename:
+            try:
+                parsed = json.loads(source_filename)
+                if isinstance(parsed, dict):
+                    subdir = parsed.get('subdir')
+                    if not file_ext:
+                        file_ext = parsed.get('file_ext', '.csv')
+            except Exception:
+                pass
+                
+        subdir = subdir or source_filename or ''
+        file_ext = file_ext or '.csv'
         pipeline = RawToMedallionPipeline()
         pipeline.pasta_s3_ext = file_ext
         return pipeline(source_filename=subdir, target_table_name=target_table_name, file_ext='Pasta_S3', **kwargs)

@@ -8,3 +8,13 @@ sources:
       - name: customers
         identifier: customers_gold
         description: "Tabela conceitual de clientes da origem MySQL mapeada para a tabela física customers_gold no Postgres"
+
+  - name: raw_lakehouse
+    schema: public
+    description: "Tabelas do Data Lake (camada Gold) sincronizadas para o PostgreSQL"
+    tables:
+      - name: products
+      - name: customers
+      - name: orders
+      - name: activity_logs
+      - name: produtos_scraped

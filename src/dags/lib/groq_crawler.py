@@ -286,10 +286,12 @@ def process_and_ingest_site(
     prompt = (
         "Você é um extrator de dados estruturados inteligente. Analise a captura de tela do site "
         f"de e-commerce ({url}) fornecida. Identifique os produtos em exibição, seus nomes, seus "
-        "preços originais (cheios) e os preços finais (com desconto, se houver). "
+        "preços originais (cheios), seus preços finais (com desconto, se houver) e sua categoria "
+        "(conforme a segmentação da página/menu). "
         "Retorne estritamente um objeto JSON com uma chave `site` contendo o domínio do site e uma "
         "chave `produtos` contendo uma lista de objetos, onde cada objeto tem os campos: "
-        "`produto` (nome do produto), `preco_original` (número ou null), `preco_final` (número). "
+        "`produto` (nome do produto), `preco_original` (número ou null), `preco_final` (número), "
+        "`categoria` (categoria do produto, ex: Vittacare, Vitcaps, Medicamentos, etc.). "
         "Não adicione texto explicativo ou markdown fora do JSON."
     )
     
@@ -330,6 +332,32 @@ def process_and_ingest_site(
         res_json = response.json()
         raw_content = res_json['choices'][0]['message']['content']
         extracted_data = json.loads(raw_content)
+        
+        # Enriquecer os dados adicionando/corrigindo o campo de categoria com base na URL
+        categoria_nome = "Geral"
+        url_clean = url.strip().strip("/")
+        parts = url_clean.split("/")
+        if "categoria" in parts:
+            idx = parts.index("categoria")
+            if idx + 1 < len(parts):
+                categoria_nome = parts[idx + 1].replace("-", " ").title()
+        elif "kitmix-ofertas" in url_clean.lower():
+            categoria_nome = "Outlet"
+        elif "category" in parts:
+            idx = parts.index("category")
+            if idx + 1 < len(parts):
+                categoria_nome = parts[idx + 1].replace("-", " ").title()
+        elif len(parts) > 3:
+            categoria_nome = parts[-1].replace("-", " ").title()
+
+        if "produtos" in extracted_data and isinstance(extracted_data["produtos"], list):
+            for prod in extracted_data["produtos"]:
+                if isinstance(prod, dict):
+                    # Para Droga Center, prioriza a segmentação da URL para consistência absoluta
+                    if "atacadaodrogacenter.com.br" in url:
+                        prod["categoria"] = categoria_nome
+                    else:
+                        prod["categoria"] = prod.get("categoria") or categoria_nome
     except Exception as e:
         log.error(f"[CRAWLER-GROQ] Erro ao extrair dados via Groq Vision para {url}: {e}")
         if 'response' in locals() and hasattr(response, 'text'):

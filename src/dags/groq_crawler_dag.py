@@ -18,16 +18,48 @@ def run_crawler_pipeline(**context):
     niche = context['params'].get('niche', 'varejo farmácia')
     log.info(f"[CRAWLER-DAG] Iniciando pipeline de webscraping para nicho: '{niche}'")
     
-    # 2. Descobre os sites com o Groq
+    # 2. Descobre os sites com o Groq e busca URLs manuais no banco
     try:
         urls = find_niche_websites(niche, limit=3)
-        log.info(f"[CRAWLER-DAG] URLs encontradas para processamento: {urls}")
+        log.info(f"[CRAWLER-DAG] URLs descobertas pelo Groq: {urls}")
     except Exception as e:
-        log.error(f"[CRAWLER-DAG] Falha crítica na descoberta de sites: {e}")
-        raise
-        
+        log.error(f"[CRAWLER-DAG] Falha na descoberta de sites via Groq: {e}")
+        urls = []
+
+    # Busca URLs manuais no banco de dados (enriquecimento/direcionamento)
+    db_urls = []
+    try:
+        from airflow.providers.mysql.hooks.mysql import MySqlHook
+        mysql_hook = MySqlHook(mysql_conn_id='mysql_dag_metadata')
+        sql = """
+            SELECT cu.url 
+            FROM crawler_urls cu
+            JOIN crawler_categorias cc ON cu.categoria_id = cc.id
+            WHERE LOWER(cc.nome) = LOWER(%s)
+        """
+        log.info(f"[CRAWLER-DAG] Buscando URLs manuais no MySQL para o nicho '{niche}'...")
+        connection = mysql_hook.get_conn()
+        with connection.cursor() as cursor:
+            cursor.execute(sql, (niche.strip(),))
+            rows = cursor.fetchall()
+            db_urls = [row[0] for row in rows if row and row[0]]
+        connection.close()
+        log.info(f"[CRAWLER-DAG] URLs manuais encontradas no banco: {db_urls}")
+    except Exception as e:
+        log.warning(f"[CRAWLER-DAG] Não foi possível carregar URLs manuais do banco (o crawler continuará): {e}")
+
+    # Mescla as URLs (banco + Groq) removendo duplicatas e mantendo a ordem
+    combined_urls = []
+    seen = set()
+    for u in db_urls + urls:
+        u_clean = u.strip()
+        if u_clean and u_clean not in seen:
+            seen.add(u_clean)
+            combined_urls.append(u_clean)
+    urls = combined_urls
+
     if not urls:
-        log.warning("[CRAWLER-DAG] Nenhuma URL retornada para o nicho.")
+        log.warning("[CRAWLER-DAG] Nenhuma URL retornada para o nicho (IA ou Banco).")
         return {"status": "no_urls", "niche": niche}
 
     results = []
@@ -76,7 +108,7 @@ def run_crawler_pipeline(**context):
     }
 
 default_args = {
-    'owner': 'varejo-farmacia-crawler', # Owner personalizado que se torna a subpasta/bucket no MinIO
+    'owner': 'admin-146', # Owner personalizado que se torna a subpasta/bucket no MinIO
     'start_date': datetime(2026, 1, 1),
     'retries': 0,
     'retry_delay': timedelta(minutes=2)

@@ -227,6 +227,13 @@ $routes->delete('/validation/delete-custom/(:num)', 'ValidationController::delet
 //Misc.
 $routes->get('sitemap.xml', 'SitemapController::index');
 
+// Rotas de URLs Customizadas do Crawler
+$routes->get('/crawler/urls', 'CrawlerController::index', ['as' => 'crawler.urls']);
+$routes->post('/crawler/category/add', 'CrawlerController::addCategory', ['as' => 'crawler.category.add']);
+$routes->post('/crawler/url/add', 'CrawlerController::addUrl', ['as' => 'crawler.url.add']);
+$routes->delete('/crawler/category/delete/(:num)', 'CrawlerController::deleteCategory/$1', ['as' => 'crawler.category.delete']);
+$routes->delete('/crawler/url/delete/(:num)', 'CrawlerController::deleteUrl/$1', ['as' => 'crawler.url.delete']);
+
 // ========== ADMIN PANEL - COURSE MANAGEMENT (Admin Only) ==========
 $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
     

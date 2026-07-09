@@ -30,13 +30,14 @@ RUN export CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/cons
 
 RUN pip install --no-cache-dir playwright==1.61.0 pyee==13.0.1
 
-# Altera o usuário para root
+# Altera o usuário para root para instalar dependências do sistema
 USER root        
 RUN apt-get update && apt-get install -y dos2unix && dos2unix /entrypoint.sh
-RUN python -m playwright install --with-deps chromium
+RUN python -m playwright install-deps chromium
 
-# Altera o usuário de volta para 'airflow' (usuário não-root recomendado)
+# Altera o usuário de volta para 'airflow' (usuário não-root recomendado) e instala o browser
 USER airflow
+RUN python -m playwright install chromium
 # Define o ponto de entrada do contêiner
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["airflow", "webserver"]

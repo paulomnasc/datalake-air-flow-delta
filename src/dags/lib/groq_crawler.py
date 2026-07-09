@@ -156,28 +156,26 @@ def capture_screenshot(url: str) -> str:
             except Exception:
                 pass # Ignora falhas de clique em cookies
                 
-            # Rola a página devagar para baixo para carregar os produtos
+            # Rola a página devagar para baixo para carregar os produtos (lazy loading / infinite scroll)
             try:
-                log.info("[CRAWLER-GROQ] Rolando a página incrementalmente para carregar produtos...")
-                for i in range(4):
-                    page.evaluate("window.scrollBy(0, 350)")
-                    time.sleep(1.2)
-                # Rola de volta para a seção de produtos (750px de altura)
-                page.evaluate("window.scrollTo(0, 750)")
+                log.info("[CRAWLER-GROQ] Rolando a página incrementalmente para carregar todos os produtos...")
+                for i in range(15):
+                    page.evaluate("window.scrollBy(0, 600)")
+                    time.sleep(0.8)
                 time.sleep(2)
             except Exception as scroll_err:
                 log.warning(f"[CRAWLER-GROQ] Falha ao rolar página: {scroll_err}")
                 
-            # Captura o screenshot da tela
-            page.screenshot(path=screenshot_path, full_page=False)
-            log.info(f"[CRAWLER-GROQ] Screenshot salvo em: {screenshot_path}")
+            # Captura o screenshot da tela inteira
+            page.screenshot(path=screenshot_path, full_page=True)
+            log.info(f"[CRAWLER-GROQ] Screenshot da página inteira salvo em: {screenshot_path}")
             
         except Exception as e:
             log.error(f"[CRAWLER-GROQ] Falha ao capturar screenshot de {url}: {e}")
-            # Tira print mesmo se falhar o load completo
+            # Tira print de página inteira mesmo se falhar o load completo
             try:
-                page.screenshot(path=screenshot_path)
-                log.warning(f"[CRAWLER-GROQ] Screenshot parcial salvo de {url} após erro.")
+                page.screenshot(path=screenshot_path, full_page=True)
+                log.warning(f"[CRAWLER-GROQ] Screenshot parcial da página inteira salvo de {url} após erro.")
             except Exception:
                 screenshot_path = ""
                 

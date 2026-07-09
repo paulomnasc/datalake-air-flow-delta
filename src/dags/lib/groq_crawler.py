@@ -112,49 +112,87 @@ def capture_screenshot(url: str) -> str:
             headless=True,
             args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
         )
-        # Criar contexto com User Agent realista para evitar bloqueios
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800},
-            extra_http_headers={
+        # Reutiliza o estado da sessão para evitar login repetitivo
+        state_path = "/tmp/drogacenter_state.json"
+        context_args = {
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "viewport": {"width": 1280, "height": 800},
+            "extra_http_headers": {
                 "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
                 "Referer": "https://www.google.com/"
             }
-        )
+        }
+        if "atacadaodrogacenter.com.br" in url and os.path.exists(state_path):
+            context_args["storage_state"] = state_path
+            log.info("[CRAWLER-GROQ] Reutilizando sessão anterior do Atacadão Droga Center...")
+
+        context = browser.new_context(**context_args)
         context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         page = context.new_page()
         
         try:
             # Realiza login se a URL pertencer ao Atacadão Droga Center
             if "atacadaodrogacenter.com.br" in url:
+                is_logged_in = False
+                if os.path.exists(state_path):
+                    try:
+                        log.info(f"[CRAWLER-GROQ] Acessando URL alvo diretamente (tentando reuso de sessão): {url}")
+                        page.goto(url, wait_until="load", timeout=20000)
+                        time.sleep(2)
+                        if page.locator("text=SAIR").is_visible(timeout=2000):
+                            is_logged_in = True
+                            log.info("[CRAWLER-GROQ] Sessão reutilizada com sucesso (logado).")
+                    except Exception as check_err:
+                        log.warning(f"[CRAWLER-GROQ] Falha ao testar reuso de sessão: {check_err}")
+                
+                if not is_logged_in:
+                    try:
+                        log.info("[CRAWLER-GROQ] Iniciando fluxo de login (sessão expirada ou inexistente)...")
+                        page.goto("https://atacadaodrogacenter.com.br/novologin", wait_until="load", timeout=20000)
+                        time.sleep(2)
+                        
+                        log.info("[CRAWLER-GROQ] Preenchendo credenciais...")
+                        page.locator("input[type='email'][name='email']").fill("PAULOMNASC@GMAIL.COM")
+                        page.locator("input[type='password'][name='senha']").first.fill("kJ#212394")
+                        
+                        log.info("[CRAWLER-GROQ] Clicando no botão de login...")
+                        page.locator("#btn-logar").click()
+                        
+                        log.info("[CRAWLER-GROQ] Aguardando autenticação...")
+                        time.sleep(5)
+                        log.info(f"[CRAWLER-GROQ] URL após login: {page.url}")
+                        
+                        # Salva o estado da sessão
+                        context.storage_state(path=state_path)
+                        log.info(f"[CRAWLER-GROQ] Sessão salva em: {state_path}")
+                        
+                        # Acessa a URL alvo após o login
+                        log.info(f"[CRAWLER-GROQ] Acessando URL alvo pós-login: {url}")
+                        try:
+                            page.goto(url, wait_until="networkidle", timeout=20000)
+                        except Exception:
+                            log.warning("[CRAWLER-GROQ] Timeout aguardando networkidle pós-login. Prosseguindo com load.")
+                            try:
+                                page.goto(url, wait_until="load", timeout=15000)
+                            except Exception:
+                                log.warning("[CRAWLER-GROQ] Timeout no load pós-login. Tentando prosseguir mesmo assim.")
+                    except Exception as login_err:
+                        log.warning(f"[CRAWLER-GROQ] Falha na autenticação (o crawler tentará prosseguir sem login): {login_err}")
+                        try:
+                            page.goto(url, wait_until="load", timeout=15000)
+                        except Exception:
+                            pass
+            else:
+                # Ir para a URL alvo de outros sites
+                log.info(f"[CRAWLER-GROQ] Acessando URL alvo: {url}")
                 try:
-                    log.info("[CRAWLER-GROQ] Detectado site Atacadão Droga Center. Iniciando fluxo de login...")
-                    page.goto("https://atacadaodrogacenter.com.br/novologin", wait_until="load", timeout=20000)
-                    time.sleep(2)
-                    
-                    log.info("[CRAWLER-GROQ] Preenchendo credenciais...")
-                    page.locator("input[type='email'][name='email']").fill("PAULOMNASC@GMAIL.COM")
-                    page.locator("input[type='password'][name='senha']").first.fill("kJ#212394")
-                    
-                    log.info("[CRAWLER-GROQ] Clicando no botão de login...")
-                    page.locator("#btn-logar").click()
-                    
-                    log.info("[CRAWLER-GROQ] Aguardando autenticação...")
-                    time.sleep(5)
-                    log.info(f"[CRAWLER-GROQ] URL após login: {page.url}")
-                except Exception as login_err:
-                    log.warning(f"[CRAWLER-GROQ] Falha na autenticação (o crawler tentará prosseguir sem login): {login_err}")
-
-            # Ir para a URL alvo
-            log.info(f"[CRAWLER-GROQ] Acessando URL alvo: {url}")
-            try:
-                page.goto(url, wait_until="networkidle", timeout=20000)
-            except Exception:
-                log.warning("[CRAWLER-GROQ] Timeout aguardando networkidle. Prosseguindo com load.")
-                try:
-                    page.goto(url, wait_until="load", timeout=15000)
+                    page.goto(url, wait_until="networkidle", timeout=20000)
                 except Exception:
-                    log.warning("[CRAWLER-GROQ] Timeout no load. Tentando prosseguir mesmo assim.")
+                    log.warning("[CRAWLER-GROQ] Timeout aguardando networkidle. Prosseguindo com load.")
+                    try:
+                        page.goto(url, wait_until="load", timeout=15000)
+                    except Exception:
+                        log.warning("[CRAWLER-GROQ] Timeout no load. Tentando prosseguir mesmo assim.")
             
             time.sleep(5) # Aguarda renderizações dinâmicas iniciais
             
@@ -371,25 +409,45 @@ def discover_drogacenter_categories(base_url: str) -> List[str]:
             headless=True,
             args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
         )
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800}
-        )
+        # Reutiliza o estado da sessão para descobrir categorias
+        state_path = "/tmp/drogacenter_state.json"
+        context_args = {
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "viewport": {"width": 1280, "height": 800}
+        }
+        if os.path.exists(state_path):
+            context_args["storage_state"] = state_path
+
+        context = browser.new_context(**context_args)
         page = context.new_page()
         
         try:
-            # Login primeiro para poder ver as categorias logado
-            log.info("[CRAWLER-GROQ] Efetuando login para visualização de categorias...")
-            page.goto("https://atacadaodrogacenter.com.br/novologin", wait_until="load", timeout=20000)
-            time.sleep(2)
-            page.locator("input[type='email'][name='email']").fill("PAULOMNASC@GMAIL.COM")
-            page.locator("input[type='password'][name='senha']").first.fill("kJ#212394")
-            page.locator("#btn-logar").click()
-            time.sleep(4)
-            
-            # Vai para a home
-            page.goto("https://atacadaodrogacenter.com.br/", wait_until="load", timeout=20000)
-            time.sleep(3)
+            is_logged_in = False
+            if os.path.exists(state_path):
+                try:
+                    page.goto("https://atacadaodrogacenter.com.br/", wait_until="load", timeout=20000)
+                    time.sleep(2)
+                    if page.locator("text=SAIR").is_visible(timeout=2000):
+                        is_logged_in = True
+                        log.info("[CRAWLER-GROQ] Reutilizando sessão anterior do Atacadão Droga Center para categorias...")
+                except Exception:
+                    pass
+
+            if not is_logged_in:
+                # Login primeiro para poder ver as categorias logado
+                log.info("[CRAWLER-GROQ] Efetuando login para visualização de categorias...")
+                page.goto("https://atacadaodrogacenter.com.br/novologin", wait_until="load", timeout=20000)
+                time.sleep(2)
+                page.locator("input[type='email'][name='email']").fill("PAULOMNASC@GMAIL.COM")
+                page.locator("input[type='password'][name='senha']").first.fill("kJ#212394")
+                page.locator("#btn-logar").click()
+                time.sleep(5)
+                context.storage_state(path=state_path)
+                log.info(f"[CRAWLER-GROQ] Sessão de categorias salva em: {state_path}")
+                
+                # Vai para a home
+                page.goto("https://atacadaodrogacenter.com.br/", wait_until="load", timeout=20000)
+                time.sleep(3)
             
             # Encontra todos os links do header/nav/menus
             links = page.locator("header a, nav a, .menu a, .navigation a, .categorias a").all()
@@ -459,9 +517,9 @@ def discover_drogacenter_categories(base_url: str) -> List[str]:
                 except Exception:
                     pass
             
-            # Prioriza as subcategorias e limita a até 4 URLs para a DAG processar
+            # Prioriza as subcategorias e limita a até 20 URLs para a DAG processar para cobrir todas as prioritárias encontradas
             all_discovered = priority_urls + other_urls
-            category_urls = all_discovered[:4]
+            category_urls = all_discovered[:20]
             log.info(f"[CRAWLER-GROQ] Subcategorias finais selecionadas para crawl: {category_urls}")
             
         except Exception as e:

@@ -12,7 +12,7 @@ def run_whatsapp_script(**kwargs):
     # Read variables from Airflow with defaults matching the user request
     default_token = 'EAAYWHHdGTbMBRZBKUjGJ6If9wv0UXfedkwZBdMcacHCbVoSZCuOalTkDf6d5DuGVHDtPVLY6jWZCq4BQa0teZB66ldYWcuWhdcPSXYQtXPd0tczLp48Ul2wp1kaZCqhLNepc43k3NkSUgoEbrYAXqH5ZAc9XOJ6PGrdgA18uDiXOOdD4rTlddg02qE4utP0ZB3ZB4yOAUEnsYFjSnepeheUm9Eg33byZCSPZBZCZA0EebSSO508pUlhcIV0hg2PINo2cWUCDR1yYxeHVJuPPTZB5Tfy0tlZCLMAu7kHZBsy4sC9bsgZDZD'
     default_phone_id = '1261026707084295'
-    default_recipient = '5561991117028'
+    default_recipient = '556191117028'
     
     # Get config overrides from DagRun
     dag_run = kwargs.get('dag_run')

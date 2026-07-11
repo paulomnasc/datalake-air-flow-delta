@@ -142,7 +142,7 @@ def main():
     # Get configuration from Environment Variables
     token = os.environ.get("WHATSAPP_ACCESS_TOKEN", "EAAYWHHdGTbMBRZBKUjGJ6If9wv0UXfedkwZBdMcacHCbVoSZCuOalTkDf6d5DuGVHDtPVLY6jWZCq4BQa0teZB66ldYWcuWhdcPSXYQtXPd0tczLp48Ul2wp1kaZCqhLNepc43k3NkSUgoEbrYAXqH5ZAc9XOJ6PGrdgA18uDiXOOdD4rTlddg02qE4utP0ZB3ZB4yOAUEnsYFjSnepeheUm9Eg33byZCSPZBZCZA0EebSSO508pUlhcIV0hg2PINo2cWUCDR1yYxeHVJuPPTZB5Tfy0tlZCLMAu7kHZBsy4sC9bsgZDZD")
     phone_number_id = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "1261026707084295")
-    recipient = os.environ.get("WHATSAPP_RECIPIENT_NUMBER", "5561991117028")
+    recipient = os.environ.get("WHATSAPP_RECIPIENT_NUMBER", "556191117028")
     message_type = os.environ.get("WHATSAPP_MESSAGE_TYPE", "template").lower()
     template_name = os.environ.get("WHATSAPP_TEMPLATE_NAME", "hello_world")
     template_lang = os.environ.get("WHATSAPP_TEMPLATE_LANGUAGE", "en_US")

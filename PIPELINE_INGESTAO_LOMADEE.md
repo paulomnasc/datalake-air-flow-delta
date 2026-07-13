@@ -8,11 +8,11 @@ Este documento explica em detalhes o funcionamento do pipeline de dados respons�
 
 O pipeline de dados é dividido em 3 etapas consecutivas, cada uma gerenciada por uma DAG dedicada no Airflow. Isso garante o desacoplamento das tarefas, permitindo que a falha em uma etapa (ex: instabilidade temporária na API externa) não afete o estado da etapa anterior.
 
-```
+```text
 ┌───────────────────────┐      ┌────────────────────────┐      ┌────────────────────────┐
-│  1. Ingestão (API)    │      │    2. Normalização     │      │   3. Enriquecimento    │
-│  lomadee-products96   │  ──> │  lomadee_ingestion_dag │  ──> │  lomadee_shortener_dag  │
-│  (MinIO Bronze/Raw)   │      │ (PostgreSQL - BI Schema│      │ (Gera Links Afiliados) │
+│   1. Ingestao (API)   │      │    2. Normalizacao     │      │   3. Enriquecimento    │
+│  lomadee-products96   │  ──> │  lomadee_ingestion_dag │  ──> │ lomadee_shortener_dag  │
+│  (MinIO Bronze/Raw)   │      │ PostgreSQL - BI Schema │      │  (Links de Afiliados)  │
 └───────────────────────┘      └────────────────────────┘      └────────────────────────┘
 ```
 

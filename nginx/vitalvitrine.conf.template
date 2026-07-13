@@ -1,0 +1,15 @@
+# VirtualHost HTTP para vitalvitrine.com.br
+server {
+    listen 80;
+    server_name vitalvitrine.com.br www.vitalvitrine.com.br;
+
+    # Bloco para responder ao desafio da Let's Encrypt (Renovar certificado SSL)
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # Redirecionamento global de HTTP para HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}

@@ -20,6 +20,7 @@ MD_FILES = {
     "TRANSFORMACOES_SILVER.md": "transformacoes-silver.html",
     "DELTA_LAKE_IMPLEMENTATION.md": "delta-lake-implementation.html",
     "DELTA_SHARING_OPERATIONAL.md": "delta-sharing-operational.html",
+    "GUIDE_INSTAGRAM_N8N.md": "guide-instagram-n8n.html",
 }
 
 # Template HTML base
@@ -489,6 +490,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <li><a href="dbt-quality-reports.html" {dbt_reports_active}>📊 Relatórios dbt</a></li>
                     <li><a href="metabase-analytics.html" {metabase_active}>📈 Metabase Analytics</a></li>
                     <li><a href="MyDataFloConfigurandoAPI.html" {api_active}>🛠️ Configurando API (Exemplo)</a></li>
+                    <li><a href="guide-instagram-n8n.html" {instagram_active}>📸 Automação Instagram n8n</a></li>
                     {sidebar_extra}
                 </ul>
             </nav>
@@ -720,6 +722,7 @@ def save_html_files(html_file, title, html_content, active_flags):
         'dbt_reports_active': '',
         'metabase_active': '',
         'api_active': '',
+        'instagram_active': '',
         'credenciais_active': '',
     }
     all_flags.update(active_flags)
@@ -899,6 +902,8 @@ def generate_html_from_md(md_file, html_file):
         active_flags['delta_active'] = 'class="active"'
     elif 'delta-sharing-operational' in html_file:
         active_flags['sharing_active'] = 'class="active"'
+    elif 'guide-instagram-n8n' in html_file:
+        active_flags['instagram_active'] = 'class="active"'
     
     save_html_files(html_file, title, html_content, active_flags)
 

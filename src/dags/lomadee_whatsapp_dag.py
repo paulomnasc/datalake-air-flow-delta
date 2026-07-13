@@ -18,7 +18,14 @@ def run_whatsapp_script(**kwargs):
     dag_run = kwargs.get('dag_run')
     conf = dag_run.conf if (dag_run and dag_run.conf) else {}
     
-    # Extract configurations using precedence: DagRun conf -> Airflow Variable -> Hardcoded default
+    # Custom API / Group Mode variables (Precedence: DagRun conf -> Airflow Variable -> Default None)
+    api_url = conf.get('whatsapp_api_url', Variable.get('whatsapp_api_url', default_var=None))
+    api_token = conf.get('whatsapp_api_token', Variable.get('whatsapp_api_token', default_var=None))
+    auth_header_name = conf.get('whatsapp_auth_header_name', Variable.get('whatsapp_auth_header_name', default_var='Authorization'))
+    auth_header_value = conf.get('whatsapp_auth_header_value', Variable.get('whatsapp_auth_header_value', default_var='Bearer {token}'))
+    payload_format = conf.get('whatsapp_payload_format', Variable.get('whatsapp_payload_format', default_var='{"number": "{recipient}", "text": "{message}"}'))
+    
+    # Meta API / Direct Mode variables (Precedence: DagRun conf -> Airflow Variable -> Default values)
     token = conf.get('whatsapp_access_token', Variable.get('whatsapp_access_token', default_var=default_token))
     phone_id = conf.get('whatsapp_phone_number_id', Variable.get('whatsapp_phone_number_id', default_var=default_phone_id))
     recipient = conf.get('whatsapp_recipient_number', Variable.get('whatsapp_recipient_number', default_var=default_recipient))
@@ -29,19 +36,30 @@ def run_whatsapp_script(**kwargs):
     
     # Construct subprocess environment
     env = os.environ.copy()
-    env['WHATSAPP_ACCESS_TOKEN'] = token
-    env['WHATSAPP_PHONE_NUMBER_ID'] = phone_id
     env['WHATSAPP_RECIPIENT_NUMBER'] = recipient
-    env['WHATSAPP_MESSAGE_TYPE'] = msg_type
-    env['WHATSAPP_TEMPLATE_NAME'] = template_name
-    env['WHATSAPP_TEMPLATE_LANGUAGE'] = template_lang
     env['WHATSAPP_MAX_MESSAGES'] = max_messages
+    
+    # Inject Custom API values if api_url is provided
+    if api_url:
+        env['WHATSAPP_API_URL'] = api_url
+        if api_token:
+            env['WHATSAPP_API_TOKEN'] = api_token
+        env['WHATSAPP_AUTH_HEADER_NAME'] = auth_header_name
+        env['WHATSAPP_AUTH_HEADER_VALUE'] = auth_header_value
+        env['WHATSAPP_PAYLOAD_FORMAT'] = payload_format
+    else:
+        # Fallback to Meta API values
+        env['WHATSAPP_ACCESS_TOKEN'] = token
+        env['WHATSAPP_PHONE_NUMBER_ID'] = phone_id
+        env['WHATSAPP_MESSAGE_TYPE'] = msg_type
+        env['WHATSAPP_TEMPLATE_NAME'] = template_name
+        env['WHATSAPP_TEMPLATE_LANGUAGE'] = template_lang
     
     cmd = ['python', script_path]
     
     print(f"Executing WhatsApp script: {' '.join(cmd)}")
-    print(f"Target Recipient: {recipient}")
-    print(f"Message Type: {msg_type} (Template: {template_name})")
+    print(f"Mode: {'Custom API (Group)' if api_url else 'Meta API (Direct)'}")
+    print(f"Target Recipient/Group: {recipient}")
     print(f"Max Messages: {max_messages}")
     
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
@@ -69,7 +87,7 @@ dag = DAG(
     default_args=default_args,
     schedule=None,  # Manual trigger
     catchup=False,
-    description="Sends shortened Lomadee products to a WhatsApp number using Meta Graph API",
+    description="Sends shortened Lomadee products to a WhatsApp number/group using Meta API or custom HTTP API",
     tags=['lomadee', 'whatsapp', 'notification']
 )
 

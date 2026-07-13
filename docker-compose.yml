@@ -538,11 +538,30 @@ services:
     networks:
       - airflow_net
 
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    restart: always
+    environment:
+      - N8N_PATH=/n8n/
+      - WEBHOOK_URL=https://${NGINX_SERVER_NAME}/n8n/
+      - N8N_EDITOR_BASE_URL=https://${NGINX_SERVER_NAME}/n8n/
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - EXECUTIONS_DATA_PRUNE_TIMEOUT=3600
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - airflow_net
+
 networks:
   airflow_net:
     driver: bridge
 
 volumes:
+  n8n_data:
   pg_data:
   pg_bi_data:
   mysql_data:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Script to query Lomadee products from PostgreSQL and send them via WhatsApp Cloud API.
+Script to query Lomadee products from PostgreSQL and send them via WhatsApp APIs.
+Supports both Meta Cloud API and generic third-party HTTP endpoints (useful for sending to groups).
 """
 
 import os
@@ -41,9 +42,9 @@ def get_postgres_connection():
         print(f"CRITICAL: Failed to connect to PostgreSQL database: {e}")
         sys.exit(1)
 
-def send_whatsapp_message(phone_number_id, token, recipient, message_type, template_name, template_lang, product):
+def send_meta_whatsapp_message(phone_number_id, token, recipient, message_type, template_name, template_lang, product):
     """
-    Sends a WhatsApp message via the Meta Graph API.
+    Sends a WhatsApp message via the official Meta Graph API.
     """
     url = f"https://graph.facebook.com/v25.0/{phone_number_id}/messages"
     
@@ -54,10 +55,8 @@ def send_whatsapp_message(phone_number_id, token, recipient, message_type, templ
 
     # Clean description for display: strip html tags if they exist
     desc = product.get("description") or ""
-    # simple HTML tag removal
     import re
     desc_clean = re.sub(r'<[^>]+>', '', desc)
-    # limit description length so it doesn't exceed WhatsApp limit or look bad
     if len(desc_clean) > 200:
         desc_clean = desc_clean[:197] + "..."
     
@@ -98,7 +97,7 @@ def send_whatsapp_message(phone_number_id, token, recipient, message_type, templ
                     "parameters": [
                         {
                             "type": "text",
-                            "text": name[:1024] # Limit payload size per param
+                            "text": name[:1024]
                         },
                         {
                             "type": "text",
@@ -123,45 +122,130 @@ def send_whatsapp_message(phone_number_id, token, recipient, message_type, templ
         with urllib.request.urlopen(req) as res:
             body = res.read().decode("utf-8")
             parsed = json.loads(body)
-            print(f"Successfully sent message for product '{name}' to {recipient}. API Response: {parsed}")
+            print(f"Successfully sent Meta message for '{name}' to {recipient}. API Response: {parsed}")
             return True
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8")
-        print(f"HTTP Error {e.code} sending message for product '{name}': {err_body}")
+        print(f"HTTP Error {e.code} sending Meta message for '{name}': {err_body}")
         return False
     except Exception as e:
-        print(f"Generic error sending message for product '{name}': {e}")
+        print(f"Generic error sending Meta message for '{name}': {e}")
+        return False
+
+def send_generic_whatsapp_message(api_url, token, header_name, header_value, payload_format, recipient, product):
+    """
+    Sends a WhatsApp message via a generic/unofficial HTTP POST endpoint (suitable for sending to groups).
+    """
+    desc = product.get("description") or ""
+    import re
+    desc_clean = re.sub(r'<[^>]+>', '', desc)
+    if len(desc_clean) > 200:
+        desc_clean = desc_clean[:197] + "..."
+    name = product.get("name") or "Produto"
+    short_url = product.get("shortened_url") or ""
+    
+    body_content = f"*{name}*\n{desc_clean}\n\nConfira aqui: {short_url}"
+
+    headers = {
+        "Content-Type": "application/json"
+    }
+    if header_name and token:
+        formatted_header_val = header_value.replace("{token}", token)
+        headers[header_name] = formatted_header_val
+
+    # Construct payload safely using JSON replacements to prevent escaping bugs
+    try:
+        def replace_placeholders(obj):
+            if isinstance(obj, str):
+                val = obj.replace("{recipient}", recipient)
+                val = val.replace("{message}", body_content)
+                return val
+            elif isinstance(obj, dict):
+                return {k: replace_placeholders(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [replace_placeholders(item) for item in obj]
+            return obj
+
+        payload_structure = json.loads(payload_format)
+        payload = replace_placeholders(payload_structure)
+    except Exception as e:
+        print(f"Error parsing payload template as JSON: {e}. Falling back to raw string replacement.")
+        escaped_message = body_content.replace('"', '\\"').replace('\n', '\\n')
+        payload_str = payload_format.replace("{recipient}", recipient).replace("{message}", escaped_message)
+        try:
+            payload = json.loads(payload_str)
+        except Exception:
+            payload = payload_str
+
+    req_data = json.dumps(payload).encode("utf-8") if not isinstance(payload, str) else payload.encode("utf-8")
+
+    req = urllib.request.Request(
+        api_url,
+        data=req_data,
+        headers=headers,
+        method="POST"
+    )
+
+    try:
+        with urllib.request.urlopen(req) as res:
+            body = res.read().decode("utf-8")
+            print(f"Successfully sent generic message for '{name}' to {recipient}. API Response: {body}")
+            return True
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8")
+        print(f"HTTP Error {e.code} sending generic message for '{name}': {err_body}")
+        return False
+    except Exception as e:
+        print(f"Generic error sending generic message for '{name}': {e}")
         return False
 
 def main():
-    parser = argparse.ArgumentParser(description="Send Lomadee products via WhatsApp Cloud API")
+    parser = argparse.ArgumentParser(description="Send Lomadee products via WhatsApp API")
     parser.add_argument("--max-messages", type=int, default=int(os.environ.get("WHATSAPP_MAX_MESSAGES", 5)),
                         help="Maximum number of messages to send in this execution")
     args = parser.parse_args()
 
-    # Get configuration from Environment Variables
-    token = os.environ.get("WHATSAPP_ACCESS_TOKEN", "EAAYWHHdGTbMBRZBKUjGJ6If9wv0UXfedkwZBdMcacHCbVoSZCuOalTkDf6d5DuGVHDtPVLY6jWZCq4BQa0teZB66ldYWcuWhdcPSXYQtXPd0tczLp48Ul2wp1kaZCqhLNepc43k3NkSUgoEbrYAXqH5ZAc9XOJ6PGrdgA18uDiXOOdD4rTlddg02qE4utP0ZB3ZB4yOAUEnsYFjSnepeheUm9Eg33byZCSPZBZCZA0EebSSO508pUlhcIV0hg2PINo2cWUCDR1yYxeHVJuPPTZB5Tfy0tlZCLMAu7kHZBsy4sC9bsgZDZD")
-    phone_number_id = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "1261026707084295")
+    # Determine execution mode: Generic Custom API (e.g. for Groups) or Meta Cloud API
+    api_url = os.environ.get("WHATSAPP_API_URL")
     recipient = os.environ.get("WHATSAPP_RECIPIENT_NUMBER", "556191117028")
-    message_type = os.environ.get("WHATSAPP_MESSAGE_TYPE", "template").lower()
-    template_name = os.environ.get("WHATSAPP_TEMPLATE_NAME", "hello_world")
-    template_lang = os.environ.get("WHATSAPP_TEMPLATE_LANGUAGE", "en_US")
 
-    print("--- WhatsApp Configuration ---")
-    print(f"Phone Number ID: {phone_number_id}")
-    print(f"Recipient Number: {recipient}")
-    print(f"Message Type: {message_type}")
-    print(f"Template Name: {template_name}")
-    print(f"Template Language: {template_lang}")
-    print(f"Max Messages to Send: {args.max_messages}")
-    print("------------------------------")
+    if api_url:
+        mode = "generic"
+        token = os.environ.get("WHATSAPP_API_TOKEN", os.environ.get("WHATSAPP_ACCESS_TOKEN", ""))
+        header_name = os.environ.get("WHATSAPP_AUTH_HEADER_NAME", "Authorization")
+        header_value = os.environ.get("WHATSAPP_AUTH_HEADER_VALUE", "Bearer {token}")
+        payload_format = os.environ.get("WHATSAPP_PAYLOAD_FORMAT", '{"number": "{recipient}", "text": "{message}"}')
+        
+        print("--- WhatsApp Configuration (Custom API / Group Mode) ---")
+        print(f"API Endpoint: {api_url}")
+        print(f"Recipient / Group JID: {recipient}")
+        print(f"Auth Header Name: {header_name}")
+        print(f"Payload Format: {payload_format}")
+        print(f"Max Messages to Send: {args.max_messages}")
+        print("---------------------------------------------------------")
+    else:
+        mode = "meta"
+        token = os.environ.get("WHATSAPP_ACCESS_TOKEN", "EAAYWHHdGTbMBRZBKUjGJ6If9wv0UXfedkwZBdMcacHCbVoSZCuOalTkDf6d5DuGVHDtPVLY6jWZCq4BQa0teZB66ldYWcuWhdcPSXYQtXPd0tczLp48Ul2wp1kaZCqhLNepc43k3NkSUgoEbrYAXqH5ZAc9XOJ6PGrdgA18uDiXOOdD4rTlddg02qE4utP0ZB3ZB4yOAUEnsYFjSnepeheUm9Eg33byZCSPZBZCZA0EebSSO508pUlhcIV0hg2PINo2cWUCDR1yYxeHVJuPPTZB5Tfy0tlZCLMAu7kHZBsy4sC9bsgZDZD")
+        phone_number_id = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "1261026707084295")
+        message_type = os.environ.get("WHATSAPP_MESSAGE_TYPE", "template").lower()
+        template_name = os.environ.get("WHATSAPP_TEMPLATE_NAME", "hello_world")
+        template_lang = os.environ.get("WHATSAPP_TEMPLATE_LANGUAGE", "en_US")
+        
+        print("--- WhatsApp Configuration (Meta API / Direct Mode) ---")
+        print(f"Phone Number ID: {phone_number_id}")
+        print(f"Recipient Number: {recipient}")
+        print(f"Message Type: {message_type}")
+        print(f"Template Name: {template_name}")
+        print(f"Template Language: {template_lang}")
+        print(f"Max Messages to Send: {args.max_messages}")
+        print("---------------------------------------------------------")
 
     # Connect to database
     db_conn = get_postgres_connection()
     db_cur = db_conn.cursor()
 
     try:
-        # Step 1: Query products with shortened URLs
+        # Query products with shortened URLs
         query = """
         SELECT DISTINCT _id, name, description, shortened_url
         FROM lomadee.products
@@ -186,15 +270,26 @@ def main():
             }
 
             print(f"Sending message for product ID: {product['id']}...")
-            success = send_whatsapp_message(
-                phone_number_id=phone_number_id,
-                token=token,
-                recipient=recipient,
-                message_type=message_type,
-                template_name=template_name,
-                template_lang=template_lang,
-                product=product
-            )
+            if mode == "generic":
+                success = send_generic_whatsapp_message(
+                    api_url=api_url,
+                    token=token,
+                    header_name=header_name,
+                    header_value=header_value,
+                    payload_format=payload_format,
+                    recipient=recipient,
+                    product=product
+                )
+            else:
+                success = send_meta_whatsapp_message(
+                    phone_number_id=phone_number_id,
+                    token=token,
+                    recipient=recipient,
+                    message_type=message_type,
+                    template_name=template_name,
+                    template_lang=template_lang,
+                    product=product
+                )
 
             if success:
                 sent_count += 1

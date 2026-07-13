@@ -48,6 +48,28 @@ server {
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
     }
+
+    # Redirect /n8n to /n8n/
+    rewrite ^/n8n$ /n8n/ permanent;
+
+    # Reverse proxy para n8n
+    location /n8n/ {
+        proxy_pass http://n8n:5678/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSockets support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
 }
 
 # Proxy reverso seguro para MinIO (S3 API)

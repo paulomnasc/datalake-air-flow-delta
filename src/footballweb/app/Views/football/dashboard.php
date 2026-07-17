@@ -901,7 +901,7 @@ $formattedDateHeader = $dateObj ? strftime('%d de %B de %Y', $dateObj->getTimest
         const formData = new FormData();
         formData.append('date', date);
 
-        fetch('<?= base_url('football-trends/ingest') ?>', {
+        fetch('/football-trends/ingest', {
             method: 'POST',
             body: formData
         })

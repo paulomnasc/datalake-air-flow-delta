@@ -1,0 +1,69 @@
+<?php
+if (! defined('VIEWPATH')) {
+    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR.'Views');
+}
+require VIEWPATH.'/header.php';
+?>
+<div id="content">
+    <div class="container-menor">
+        <h4 style="text-align: center;">Inclusão de Contrato</h4>
+        
+        <form id="addForm">
+            
+            <div class="form-group">
+                <label for="descricao">Descrição:</label>
+                <input type="text" id="descricao" name="descricao" required>
+            </div>
+
+            <div class="form-group">
+                <label for="empresa">Empresa:</label>
+                <input type="text" id="empresa" name="empresa" required>
+            </div>
+
+            <div class="form-group">
+                <label for="data_inicio_vigencia">Data de Início de Vigência:</label>
+                <input type="date" id="data_inicio_vigencia" name="data_inicio_vigencia" required>
+            </div>
+
+            <div class="form-group">
+                <label for="data_fim_vigencia">Data de Fim de Vigência:</label>
+                <input type="date" id="data_fim_vigencia" name="data_fim_vigencia" required>
+            </div>
+
+            <div class="form-group">
+                <label for="qtd_meses_total">Quantidade de Meses Total:</label>
+                <input type="number" id="qtd_meses_total" name="qtd_meses_total" min="1" required>
+            </div>
+
+            <div class="button-group">
+                <button class="add-button" type="submit">Salvar</button>
+                <a href="<?php echo site_url('listContrato'); ?>" class="add-button" style="text-decoration: none; background-color: #6c757d;">Voltar</a>
+            </div>
+        </form>
+
+        <script>
+            $(document).ready(function() {
+                $('#addForm').on('submit', function(e) {
+                    e.preventDefault();
+                    $.ajax({
+                        url: '<?php echo site_url('insertContrato'); ?>',
+                        type: 'POST',
+                        data: $(this).serialize(),
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                $('#success-message').html(response.mensagem).show().delay(3000).fadeOut();
+                                setTimeout(function() { window.location.href = '<?php echo site_url('listContrato'); ?>'; }, 1500);
+                            } else {
+                                $('#error-message').html(response.mensagem).show().delay(5000).fadeOut();
+                            }
+                        },
+                        error: function() {
+                            $('#error-message').html('Ocorreu um erro ao salvar os dados.').show().delay(5000).fadeOut();
+                        }
+                    });
+                });
+            });
+        </script>
+    </div>
+</div>
+<?php require VIEWPATH.'/footer.php'; ?>

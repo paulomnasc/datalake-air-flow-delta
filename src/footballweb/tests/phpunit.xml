@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="/var/www/html/system/Test/bootstrap.php"
+         colors="true"
+         verbose="true">
+    <testsuites>
+        <testsuite name="App Test Suite">
+            <directory>./app/Controllers</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>

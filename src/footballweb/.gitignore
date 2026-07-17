@@ -1,0 +1,22 @@
+# Ignorar arquivos e pastas específicas
+*.log
+temp/
+build/
+writable/
+uploads/
+uploads/backup/
+lixo/
+!tests/app/Controllers/ConfigControllerTest.php
+copia/
+
+# Ignorar dependências de projetos Node.js
+node_modules/
+
+# Ignorar configurações específicas do sistema operacional
+.DS_Store
+Thumbs.db
+
+# Ignorar arquivos pessoais de configuração do VSCode
+#.vscode/
+
+

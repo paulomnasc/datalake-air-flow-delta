@@ -372,11 +372,17 @@ class RawToMedallionPipeline:
                 
             if isinstance(payload, dict):
                 # Procura por uma chave cujo valor seja uma lista de registros (produtos)
+                # Prioriza listas não-vazias para evitar que chaves como 'parameters' (vazias) ocultem 'response'
                 record_key = None
-                for k, v in payload.items():
-                    if isinstance(v, list):
-                        record_key = k
-                        break
+                lists = {k: v for k, v in payload.items() if isinstance(v, list)}
+                if lists:
+                    non_empty_lists = {k: v for k, v in lists.items() if len(v) > 0}
+                    if non_empty_lists:
+                        # Escolhe a lista com mais registros (ou a primeira não-vazia)
+                        record_key = max(non_empty_lists.keys(), key=lambda k: len(non_empty_lists[k]))
+                    else:
+                        # Se todas as listas forem vazias, escolhe a primeira para poder retornar DataFrame vazio
+                        record_key = list(lists.keys())[0]
                 
                 if record_key:
                     if len(payload[record_key]) > 0:

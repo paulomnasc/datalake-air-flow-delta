@@ -1,0 +1,523 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 0;
+}
+
+p {
+    text-indent: 2em; /* Define o tamanho do recuo */
+}
+  
+
+.container {
+    width: 80%;
+    margin: 50px auto;
+    background-color: #fff;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.container-medium {
+    width: 60%;
+    margin: 50px auto;
+    background-color: #fff;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.container-menor {
+    width: 50%;
+    max-width: 800px;
+    min-width: 320px;
+    margin: 40px auto;
+    background-color: #fff;
+    padding: 25px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+@media (min-width: 1200px) {
+    .container-menor {
+        width: 66.6%;
+        max-width: 1100px;
+    }
+}
+
+@media (max-width: 768px) {
+    .container-menor {
+        width: 90%;
+        margin: 20px auto;
+        padding: 15px;
+    }
+}
+
+
+h1 {
+    text-align: center;
+    color: #333;
+}
+
+.add-button {
+    display: block;
+    width: 100px;
+    margin: 20px auto;
+    padding: 10px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: center;
+}
+
+.add-button:hover {
+    background-color: #45a049;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 18px; /* Tamanho da fonte para toda a tabela */
+}
+
+.data-table th, .data-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+    font-size: 18px; /* Certifique-se de que a fonte nas células também seja maior */
+}
+
+.data-table th {
+    background-color: #f2f2f2;
+    color: black;
+    font-size: 20px; /* Tamanho da fonte para cabeçalhos */
+}
+
+.data-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.data-table tr:hover {
+    background-color: #ddd;
+}
+
+.edit-button, .delete-button {
+    background-color: transparent;
+    border: none; /* Adiciona uma borda para melhor visibilidade */
+    cursor: pointer;
+    font-size: 18px; /* Aumenta o tamanho da fonte dos botões */
+    padding: 10px 20px; /* Adiciona preenchimento para aumentar os botões */
+    min-width: 100px; /* Define uma largura mínima para os botões */
+}
+
+.edit-button:hover {
+    color: #FFA500;
+}
+
+.delete-button:hover {
+    color: #FF0000;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    font-size: large;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.form-actions {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.save-button, .back-button {
+    padding: 10px 20px;
+    margin: 5px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.save-button {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.save-button:hover {
+    background-color: #45a049;
+}
+
+.back-button {
+    background-color: #f44336;
+    color: white;
+}
+
+.back-button:hover {
+    background-color: #e53935;
+}
+
+.search-icon img {
+    margin-right: 10px;
+    width: 20px; /* Ajuste o tamanho conforme necessário */
+    height: 20px; /* Ajuste o tamanho conforme necessário */
+}
+
+nav {
+    position: relative;
+  }
+  
+  .menu-toggle {
+    display: none;
+    font-size: 2em;
+    cursor: pointer;
+    padding: 10px;
+  }
+  
+  nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    text-align: center;
+  }
+  
+  nav ul li {
+    display: inline;
+    margin: 0 10px;
+  }
+  
+  main {
+    padding: 20px;
+    min-height: 1000px;
+  }
+  
+  footer {
+    background-color: #333;
+    color: white;
+    text-align: center;
+    padding-top: 10%;
+    padding: 10px 0;
+    position: static;
+    width: 100%;
+ 
+  }
+  
+  /* Responsividade */
+  @media (max-width: 768px) {
+    .menu-toggle {
+        display: block;
+    }
+  .foto_j{
+    width: 80%;
+    height: 80%;
+  }
+    nav ul {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+    }
+  
+    nav ul li {
+        display: block;
+        margin: 10px 0;
+    }
+  
+    nav ul.showing {
+        display: flex;
+    }
+  
+    footer {
+        position: static;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    header h1 {
+        font-size: 1.5em;
+    }
+  
+    main {
+        padding: 10px;
+    }
+  }
+
+  /* Sections com espaçamento fixo */
+  section {
+    width: 80%; /* 80% da largura do contêiner pai */
+    min-height: 20em; /* Altura mínima de 20 vezes o tamanho da fonte atual */
+  }
+  .sobre {
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    margin-bottom: 20px;
+    padding: 20px;
+  }
+  .servicos {
+    width: 80%;
+    min-height: 200px;
+  }
+  
+  .contato {
+    width: 50%;
+    height: 400px;
+  }
+  
+  .section3 {
+    max-width: 600px;
+    min-height: 150px;
+  }
+
+   
+.sidebar {
+    height: 100%;
+    width: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background-color: #111;
+    overflow-x: hidden;
+    transition: 0.5s;
+    padding-top: 60px;
+}
+
+/*.navbar a {
+    padding: 10px 15px;
+    text-decoration: none;
+    font-size: 20px;
+    color: #818181;
+    display: block;
+    transition: 0.3s;
+}*/
+
+li::marker {
+    content: none; /* Remove o marcador */
+}
+
+.sidebar a:hover {
+    color: #f1f1f1;
+}
+
+.sidebar .close-btn {
+    position: absolute;
+    top: 0;
+    right: 25px;
+    font-size: 16px;
+}
+
+#main-content {
+    transition: margin-left .5s;
+    padding: 16px;
+    padding-top: 60px; /* Dá espaço entre a barra lateral e o conteúdo */
+}
+
+#login-content {
+    transition: margin-left .5s;
+    padding: 16px;
+    width: 50vw; /* Define a largura como 50% da largura da janela */
+    display: flex;
+    flex-direction: column; /* Alinha os elementos dentro da div verticalmente */
+    justify-content: center; /* Centraliza os elementos verticalmente */
+    align-items: center; /* Centraliza os elementos horizontalmente */
+}
+
+.status-bar-content {
+    transition: margin-left .5s;
+    padding: 16px;
+    width: 95vw; /* Define a largura como 95% da largura da janela */
+    display: flex;
+    flex-direction: row; /* Alinha os elementos dentro da div horizontalmente */
+    justify-content: space-between; /* Distribui os elementos com espaço entre eles */
+    align-items: center; /* Centraliza os elementos verticalmente */
+}
+
+.sidebyside-container {
+    display: flex;
+    justify-content: center;
+    align-items: center; /* Mantém os itens centralizados verticalmente */
+    gap: 10px;
+    height: 5vh; /* Aumente a altura para 10% da altura da viewport */
+    padding-right: 20px;
+    padding: 5px 20px; /* Reduz o padding superior e inferior */
+    font-size: medium;
+}
+
+
+th:nth-child(3) {
+    width: 8rem; /* Define a largura fixa para a 3ª coluna */
+}
+
+.open-btn {
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.right {
+    text-align: right;
+}
+
+img {    
+    margin-right: 10px;
+    width: 20px; /* Ajuste o tamanho conforme necessário */
+    height: 20px; /* Ajuste o tamanho conforme necessário */
+}
+
+#success-message, #error-message {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    padding: 10px;
+    font-size: 1.2em;
+    font-weight: bold;
+    z-index: 1000; /* Para garantir que apareçam no topo */
+    display: none;
+}
+
+#success-message {
+    background-color: #d4edda; /* Fundo verde claro */
+    color: #155724; /* Texto verde escuro */
+}
+
+#signup-success-message {
+
+    position: fixed;
+    top: 25%;
+    left: 25%;
+    width: 50%;
+    height: 50%;
+    padding: 10px;
+    font-size: 1.2em;
+    text-align: center;
+    vertical-align: super;
+    font-weight: bold;
+    background-color: #d4edda; /* Fundo verde claro */
+    color: #008039; /* Texto verde escuro */
+    display: flex;
+    align-items: center;  /* Centraliza verticalmente */
+    justify-content: center; /* Opcional: centraliza horizontalmente */
+    border: 1px solid black;
+
+}
+
+
+#error-message, #limit-message {
+    background-color: #f8d7da; /* Fundo vermelho */
+    color: #721c24; /* Texto branco */
+}
+
+
+.div-tabela {
+    overflow-y: auto; /* Adiciona rolagem vertical */
+    max-height: 400px; /* Ajuste a altura máxima conforme necessário */
+    width: 95vw; /* Define a largura como 95% da largura da janela */
+    border: 1px solid #ddd; /* Opção: Adicione uma borda para visualização */
+}
+
+.div-tabela img {
+    max-width: 100px; /* Ajuste o tamanho conforme necessário */
+    max-height: 100px;
+    width: auto; /* Mantém a proporção da largura */
+    height: auto; /* Mantém a proporção da altura */
+}
+
+img {
+    cursor: not-allowed; /* Muda o cursor para símbolo de proibido */
+}
+
+table td {
+    cursor: pointer;
+}
+
+
+/* Para reduzir o tamanho da fonte das traduções e outros textos no DataTable */
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate {
+    font-size: 0.8em; /* Ajuste o tamanho conforme necessário */
+}
+
+
+.home-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    background-color: #4CAF50;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    transition: background-color 0.3s ease;
+    height: 50px; /* Altura fixa para todos os botões */
+}
+
+.home-button i {
+    margin-right: 8px;
+}
+
+
+
+.nav-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    background-color: #06BBCC !important;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    transition: background-color 0.3s ease;
+    height: 30px; /* Altura fixa para todos os botões */
+}
+
+.nav-button i {
+    margin-right: 8px;
+}
+
+.nav-button:hover {
+    background-color: #0056b3;
+}
+
+ /* Estilo para a mensagem */
+ #landscapeMessage {
+    display: none; /* Oculta a mensagem por padrão */
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%; /* Largura da mensagem no dispositivo móvel */
+    max-width: 300px; /* Largura máxima para limitar no desktop */
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    font-size: 18px;
+    text-align: center;
+    z-index: 9999;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.5); /* Adiciona uma sombra */
+}

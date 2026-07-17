@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Manual Operacional do Usuário - Módulo de Fiscalização</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2.5cm 2.0cm 2.5cm 2.0cm;
+            @top-right {
+                content: "Plataforma Minha Fiscalização";
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                font-size: 8pt;
+                color: #718096;
+            }
+            @bottom-right {
+                content: "Página " counter(page) " de " counter(pages);
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                font-size: 8pt;
+                color: #718096;
+            }
+            @bottom-left {
+                content: "Manual Operacional - Módulo de Fiscalização";
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                font-size: 8pt;
+                color: #718096;
+            }
+        }
+
+        @page :first {
+            @top-right { content: normal; }
+            @bottom-right { content: normal; }
+            @bottom-left { content: normal; }
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 10.5pt;
+            line-height: 1.6;
+            color: #2d3748;
+        }
+
+        /* Capa */
+        .cover-page {
+            page-break-after: always;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            text-align: center;
+            padding-top: 4cm;
+            padding-bottom: 2cm;
+        }
+
+        .cover-header {
+            font-size: 12pt;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #4a5568;
+            margin-bottom: 2cm;
+            font-weight: bold;
+        }
+
+        .cover-title {
+            font-size: 28pt;
+            color: #1a365d;
+            font-weight: bold;
+            line-height: 1.2;
+            margin-bottom: 0.5cm;
+        }
+
+        .cover-subtitle {
+            font-size: 14pt;
+            color: #4a5568;
+            margin-bottom: 3cm;
+            line-height: 1.4;
+        }
+
+        .cover-metadata {
+            margin-top: auto;
+            font-size: 10pt;
+            color: #718096;
+            line-height: 1.8;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 1cm;
+        }
+
+        /* Títulos */
+        h1 {
+            font-size: 20pt;
+            color: #1a365d;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            page-break-before: always;
+            page-break-after: avoid;
+            text-transform: uppercase;
+            border-bottom: 3px solid #1a365d;
+            padding-bottom: 8px;
+        }
+
+        h2 {
+            font-size: 14pt;
+            color: #2b6cb0;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            page-break-after: avoid;
+            border-bottom: 1.5px solid #e2e8f0;
+            padding-bottom: 5px;
+        }
+
+        h3 {
+            font-size: 11pt;
+            color: #2d3748;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            page-break-after: avoid;
+        }
+
+        p {
+            margin-top: 0;
+            margin-bottom: 12px;
+            text-align: justify;
+        }
+
+        ul, ol {
+            margin-top: 0;
+            margin-bottom: 15px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        /* Tabelas */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 9pt;
+            page-break-inside: avoid;
+        }
+
+        th {
+            background-color: #1a365d;
+            color: white;
+            text-align: left;
+            padding: 8px 10px;
+            font-weight: bold;
+            border: 1px solid #1a365d;
+        }
+
+        td {
+            padding: 7px 10px;
+            border: 1px solid #e2e8f0;
+            color: #2d3748;
+            vertical-align: top;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f7fafc;
+        }
+
+        /* Avisos e Caixas de Destaque */
+        .alert {
+            padding: 12px 15px;
+            margin: 18px 0;
+            border-radius: 5px;
+            font-size: 9.5pt;
+            page-break-inside: avoid;
+        }
+
+        .alert-important {
+            background-color: #ebf8ff;
+            border-left: 5px solid #3182ce;
+            color: #2b6cb0;
+        }
+
+        .alert-important strong {
+            color: #1a365d;
+        }
+
+        .alert-warning {
+            background-color: #fffaf0;
+            border-left: 5px solid #dd6b20;
+            color: #c05621;
+        }
+
+        .alert-warning strong {
+            color: #7b341e;
+        }
+
+        /* Código Monospaced */
+        code {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #f7fafc;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 9pt;
+            color: #c53030;
+            border: 1px solid #edf2f7;
+        }
+
+        pre {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #f7fafc;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 8.5pt;
+            border: 1px solid #edf2f7;
+            overflow: hidden;
+            white-space: pre-wrap;
+            margin: 15px 0;
+            page-break-inside: avoid;
+        }
+
+        /* Diagrama de Precedência */
+        .flow-container {
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            page-break-inside: avoid;
+        }
+
+        .flow-step {
+            background-color: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-left: 5px solid #1a365d;
+            padding: 12px 15px;
+            border-radius: 4px;
+            position: relative;
+        }
+
+        .flow-step-level {
+            font-weight: bold;
+            color: #1a365d;
+            font-size: 9pt;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .flow-step-title {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .flow-step-desc {
+            font-size: 9pt;
+            color: #4a5568;
+            margin-bottom: 0;
+        }
+
+        .flow-arrow {
+            text-align: center;
+            font-size: 16pt;
+            color: #a0aec0;
+            margin: -5px 0;
+            font-weight: bold;
+        }
+
+        /* Badges de Rota */
+        .route-badge {
+            background-color: #edf2f7;
+            border: 1px solid #cbd5e0;
+            color: #4a5568;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 8.5pt;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        .method-badge {
+            background-color: #319795;
+            color: white;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 8pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-right: 5px;
+            display: inline-block;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- CAPA -->
+    <div class="cover-page">
+        <div class="cover-header">Plataforma Minha Fiscalização</div>
+        <div>
+            <div class="cover-title">MANUAL OPERACIONAL DO USUÁRIO</div>
+            <div class="cover-subtitle">Guia Passo a Passo de Cadastro e Execução do Módulo de Fiscalização</div>
+        </div>
+        <div class="cover-metadata">
+            <strong>Diretoria de TI e Governança de Contratos (CGTI / COSIS)</strong><br>
+            Ambiente Integrado de Apoio à Gestão e Fiscalização de Serviços de TI<br>
+            Versão 1.0 · Junho de 2026
+        </div>
+    </div>
+
+    <!-- SUMÁRIO -->
+    <h1>Sumário</h1>
+    <ol style="line-height: 2.0; font-size: 11pt;">
+        <li><strong>Visão Geral do Módulo</strong></li>
+        <li><strong>Estrutura de Banco de Dados (Schema Fiscal)</strong></li>
+        <li><strong>Ordem de Precedência Exigida pelas Chaves Estrangeiras</strong></li>
+        <li><strong>Módulo de Cadastros (Passo a Passo de Operação)</strong>
+            <ul style="line-height: 1.6; font-size: 9.5pt; margin-top: 5px;">
+                <li>🏢 Áreas de Atuação · 📊 Atividades Macro · ⭐ Avaliação SLA · 📚 Catálogo de Serviços</li>
+                <li>📜 Contratos · 📝 Itens de Contrato · 📈 Reajustes de Contrato · 🔧 Itens OS</li>
+                <li>🔐 Perfis · 📊 Status · ✅ Status Recebimento · 📑 Tipos de Documento</li>
+                <li>📋 Lista de Verificação · 👤 Usuários</li>
+            </ul>
+        </li>
+        <li><strong>Módulo de Execução (Passo a Passo de Operação)</strong>
+            <ul style="line-height: 1.6; font-size: 9.5pt; margin-top: 5px;">
+                <li>🛠️ Serviços · 📋 Ordens de Serviço (OS) · 📄 Docs Recebimento</li>
+            </ul>
+        </li>
+        <li><strong>Regras de Negócio e Triggers (Garantia de Saldos de Horas)</strong></li>
+    </ol>
+
+    <!-- VISÃO GERAL -->
+    <h1>1. Visão Geral do Módulo</h1>
+    <p>
+        O <strong>Módulo de Fiscalização</strong> da Plataforma Minha Fiscalização tem como finalidade centralizar, padronizar e automatizar todo o ciclo de contratação, execução e auditoria de serviços de Tecnologia da Informação (TI). Ele provê mecanismos seguros para gerenciar o escopo técnico de contratos de prestação de serviços, rastrear a alocação de equipes através de Ordens de Serviço (OS), auditar qualitativamente as entregas efetuadas e efetuar o cálculo automático de glosas e liquidação financeira de horas contratadas.
+    </p>
+    <p>
+        Diferente do Módulo de Gestão Ágil (que gerencia o workflow de sprints, backlogs e cerimônias scrum de desenvolvimento corporativo), o Módulo de Fiscalização é voltado à <strong>gestão de conformidade contratual</strong> e à <strong>garantia de integridade orçamentária</strong>.
+    </p>
+    
+    <div class="alert alert-important">
+        <strong>Objetivos Estratégicos do Módulo:</strong>
+        <ul>
+            <li><strong>Rastreabilidade Completa:</strong> Garantir que cada serviço recebido esteja vinculado a um contrato ativo, uma atividade macro autorizada, e uma Ordem de Serviço previamente assinada.</li>
+            <li><strong>Garantia de Qualidade (SLA):</strong> Medir automaticamente o cumprimento dos prazos contratuais (SLA) e notas de qualidade (INS), calculando glosas de forma objetiva.</li>
+            <li><strong>Controle de Saldo em Tempo Real:</strong> Impedir o estouro do orçamento do contrato controlando dinamicamente o saldo de horas disponíveis de cada serviço com triggers em banco de dados.</li>
+        </ul>
+    </div>
+
+    <!-- ESTRUTURA DE BANCO DE DADOS -->
+    <h1>2. Estrutura de Banco de Dados (Schema Fiscal)</h1>
+    <p>
+        O módulo de fiscalização opera sob o esquema relacional <code>fiscal</code>. As tabelas do banco de dados representam diretamente os cadastros da aplicação e estão estruturadas com restrições rígidas de chaves estrangeiras (<code>FOREIGN KEY constraints</code>) para garantir a consistência referencial.
+    </p>
+    <p>
+        Abaixo estão detalhadas as tabelas envolvidas e o papel relacional de cada uma:
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 25%;">Tabela no Schema</th>
+                <th style="width: 20%;">Chave Primária</th>
+                <th style="width: 30%;">Chaves Estrangeiras (Relação)</th>
+                <th style="width: 25%;">Função no Sistema</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>perfil</code></td>
+                <td><code>id (int)</code></td>
+                <td>Nenhuma</td>
+                <td>Perfis de permissões do sistema.</td>
+            </tr>
+            <tr>
+                <td><code>usuario</code></td>
+                <td><code>id (tinyint unsigned)</code></td>
+                <td>Nenhuma</td>
+                <td>Contas de acesso dos usuários.</td>
+            </tr>
+            <tr>
+                <td><code>usuario_perfil</code></td>
+                <td><code>id (int unsigned)</code></td>
+                <td><code>id_usuario</code> &rarr; <code>usuario</code><br><code>id_perfil</code> &rarr; <code>perfil</code></td>
+                <td>Vinculação de perfis aos usuários.</td>
+            </tr>
+            <tr>
+                <td><code>item_contrato</code></td>
+                <td><code>id (int)</code></td>
+                <td>Nenhuma</td>
+                <td>Dados do contrato e saldo global de horas.</td>
+            </tr>
+            <tr>
+                <td><code>reajuste_item_contrato</code></td>
+                <td><code>id (int)</code></td>
+                <td><code>id_item_contrato</code> &rarr; <code>item_contrato</code></td>
+                <td>Histórico de alterações de valores.</td>
+            </tr>
+            <tr>
+                <td><code>catalogo_servicos</code></td>
+                <td><code>id (int)</code></td>
+                <td><code>id_item_contrato</code> &rarr; <code>item_contrato</code></td>
+                <td>Lista de serviços agrupados por contrato.</td>
+            </tr>
+            <tr>
+                <td><code>area_atuacao</code></td>
+                <td><code>id (int)</code></td>
+                <td><code>id_catalogo_servicos</code> &rarr; <code>catalogo_servicos</code></td>
+                <td>Divisão setorial (ex: Infra, Dev).</td>
+            </tr>
+            <tr>
+                <td><code>atividade_macro</code></td>
+                <td><code>id (int)</code></td>
+                <td><code>id_area_atuacao</code> &rarr; <code>area_atuacao</code></td>
+                <td>Agrupamento de atividades de TI.</td>
+            </tr>
+            <tr>
+                <td><code>servico</code></td>
+                <td><code>id (int)</code></td>
+                <td><code>id_atividade_macro</code> &rarr; <code>atividade_macro</code></td>
+                <td>Especificidades de remuneração e SLA.</td>
+            </tr>
+            <tr>
+                <td><code>item_os</code></td>
+                <td><code>id (int)</code></td>
+                <td><code>id_servico</code> &rarr; <code>servico</code></td>
+                <td>Reserva de horas de serviço para OS.</td>
+            </tr>
+            <tr>
+                <td><code>ordem_servico</code></td>
+                <td><code>id (int)</code></td>
+                <td>Nenhuma</td>
+                <td>Documento legal SEI de autorização.</td>
+            </tr>
+            <tr>
+                <td><code>os_item_os</code></td>
+                <td><code>(id_os, id_item_os)</code></td>
+                <td><code>id_os</code> &rarr; <code>ordem_servico</code><br><code>id_item_os</code> &rarr; <code>item_os</code></td>
+                <td>Itens alocados à Ordem de Serviço.</td>
+            </tr>
+            <tr>
+                <td><code>status_recebimento</code></td>
+                <td><code>id (int)</code></td>
+                <td>Nenhuma</td>
+                <td>Estados do fluxo de conformidade.</td>
+            </tr>
+            <tr>
+                <td><code>os_status_recebimento</code></td>
+                <td><code>(id_os, id_status_recebimento)</code></td>
+                <td><code>id_os</code> &rarr; <code>ordem_servico</code><br><code>id_status_recebimento</code> &rarr; <code>status_recebimento</code></td>
+                <td>Acompanhamento de status da OS.</td>
+            </tr>
+            <tr>
+                <td><code>usuario_os</code></td>
+                <td><code>(id_os, id_usuario)</code></td>
+                <td><code>id_os</code> &rarr; <code>ordem_servico</code><br><code>id_usuario</code> &rarr; <code>usuario</code></td>
+                <td>Técnicos vinculados à execução da OS.</td>
+            </tr>
+            <tr>
+                <td><code>tipo_documento</code></td>
+                <td><code>id (int)</code></td>
+                <td>Nenhuma</td>
+                <td>Classificações (ex: TRP, TRD).</td>
+            </tr>
+            <tr>
+                <td><code>documento_recebimento</code></td>
+                <td><code>id (int)</code></td>
+                <td><code>id_os</code> &rarr; <code>ordem_servico</code><br><code>id_tipo_documento</code> &rarr; <code>tipo_documento</code><br><code>id_usuario_fiscal_...</code> &rarr; <code>usuario</code></td>
+                <td>Ata de recebimento técnico e gestor.</td>
+            </tr>
+            <tr>
+                <td><code>usuario_recebimento</code></td>
+                <td><code>(id_recebimento, id_usuario)</code></td>
+                <td><code>id_recebimento</code> &rarr; <code>documento_recebimento</code><br><code>id_usuario</code> &rarr; <code>usuario</code></td>
+                <td>Servidores que assinam o recebimento.</td>
+            </tr>
+            <tr>
+                <td><code>item_documento_recebimento</code></td>
+                <td><code>id (int)</code></td>
+                <td><code>id_documento_recebimento</code> &rarr; <code>documento_recebimento</code><br><code>id_item_os</code> &rarr; <code>item_os</code></td>
+                <td>Quantidades de horas realmente entregues.</td>
+            </tr>
+            <tr>
+                <td><code>lista_verificacao</code></td>
+                <td><code>id (int)</code></td>
+                <td>Nenhuma</td>
+                <td>Itens do checklist de auditoria.</td>
+            </tr>
+            <tr>
+                <td><code>item_doc_rec_lista_ver</code></td>
+                <td><code>(id_lista_verificacao, id_item_doc_origem)</code></td>
+                <td><code>id_lista_verificacao</code> &rarr; <code>lista_verificacao</code><br><code>id_item_doc_origem</code> &rarr; <code>item_documento_recebimento</code></td>
+                <td>Resultado da auditoria por item de lista.</td>
+            </tr>
+            <tr>
+                <td><code>avaliacao_qualidade_sla</code></td>
+                <td><code>id (int)</code></td>
+                <td><code>id_documento_recebimento</code> &rarr; <code>documento_recebimento</code></td>
+                <td>Métricas de pontualidade/qualidade SLA.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ORDEM DE PRECEDÊNCIA -->
+    <h1>3. Ordem de Precedência Exigida pelas Chaves Estrangeiras</h1>
+    <p>
+        Para implantar e rodar o Módulo de Fiscalização em uma nova instância do banco de dados, ou para cadastrar uma nova estrutura contratual a partir do zero, o administrador e os operadores do sistema <strong>devem seguir rigorosamente a sequência de dependências referências</strong>. A tentativa de cadastrar um registro fora desta ordem resultará em um erro de bloqueio de chave estrangeira (<code>SQLSTATE[23000]: Foreign key constraint fails</code>).
+    </p>
+    
+    <div class="alert alert-warning">
+        <strong>Atenção ao fluxo lógico de precedência:</strong> 
+        O fluxo caminha do nível mais genérico e independente (cadastros básicos do sistema) ao nível mais específico e transacional (auditoria de recebimento de serviço).
+    </div>
+
+    <div class="flow-container">
+        <!-- PASSO 1 -->
+        <div class="flow-step">
+            <div class="flow-step-level">Nível 0: Cadastros Fundamentais (Totalmente Independentes)</div>
+            <div class="flow-step-title">1. Configuração Básica do Ambiente</div>
+            <div class="flow-step-desc">
+                Criação de <code>perfil</code>, <code>usuario</code>, <code>Status</code>, <code>status_recebimento</code>, <code>tipo_documento</code>, <code>lista_verificacao</code> e <code>item_contrato</code>. Estes registros não dependem de nada no esquema relacional e servem como a base do ecossistema.
+            </div>
+        </div>
+        
+        <div class="flow-arrow">&darr;</div>
+
+        <!-- PASSO 2 -->
+        <div class="flow-step">
+            <div class="flow-step-level">Nível 1: Associação e Gestão Contratual</div>
+            <div class="flow-step-title">2. Perfis de Usuários, Reajustes e Criação do Catálogo</div>
+            <div class="flow-step-desc">
+                - Vincular perfis a usuários (<code>usuario_perfil</code>).<br>
+                - Lançar reajustes do contrato (<code>reajuste_item_contrato</code>) informando a data e o valor.<br>
+                - Criar o <code>catalogo_servicos</code> vinculando-o ao <code>item_contrato</code> cadastrado no Nível 0.
+            </div>
+        </div>
+
+        <div class="flow-arrow">&darr;</div>
+
+        <!-- PASSO 3 -->
+        <div class="flow-step">
+            <div class="flow-step-level">Nível 2 a 4: Estrutura Interna do Catálogo de Serviços</div>
+            <div class="flow-step-title">3. Áreas, Atividades e Cadastro de Serviços Finais</div>
+            <div class="flow-step-desc">
+                - Criar as Áreas de Atuação (<code>area_atuacao</code>) mapeando qual catálogo elas pertencem.<br>
+                - Criar as Atividades Macro (<code>atividade_macro</code>) vinculadas às áreas de atuação.<br>
+                - Cadastrar os Serviços (<code>servico</code>) contendo o valor de remuneração de horas, estimativa máxima ao ano e vinculados à respectiva atividade macro.
+            </div>
+        </div>
+
+        <div class="flow-arrow">&darr;</div>
+
+        <!-- PASSO 4 -->
+        <div class="flow-step">
+            <div class="flow-step-level">Nível 5 e 6: Planejamento Operacional (Ordem de Serviço)</div>
+            <div class="flow-step-title">4. Cadastro da OS e Planejamento de Recursos</div>
+            <div class="flow-step-desc">
+                - Cadastrar itens de ordem de serviço (<code>item_os</code>) especificando as horas previstas e profissional alocado por serviço.<br>
+                - Emitir a Ordem de Serviço (<code>ordem_servico</code>) com dados do processo administrativo SEI.<br>
+                - Associar itens de OS à Ordem de Serviço (<code>os_item_os</code>), definir seu status (<code>os_status_recebimento</code>) e equipe executora (<code>usuario_os</code>).
+            </div>
+        </div>
+
+        <div class="flow-arrow">&darr;</div>
+
+        <!-- PASSO 5 -->
+        <div class="flow-step">
+            <div class="flow-step-level">Nível 7 e 8: Processamento de Entregas e Auditoria de Qualidade</div>
+            <div class="flow-step-title">5. Recebimento e Liquidação das Horas</div>
+            <div class="flow-step-desc">
+                - Criar o Documento de Recebimento (<code>documento_recebimento</code>) assinando a OS com os fiscais técnicos/requisitantes e gestores.<br>
+                - Lançar os itens que compõem a entrega real (<code>item_documento_recebimento</code>), vinculando-os ao item da OS.<br>
+                - Submeter o recebimento à Auditoria de Conformidade contra os itens da <code>lista_verificacao</code> (<code>item_doc_rec_lista_ver</code>).
+            </div>
+        </div>
+
+        <div class="flow-arrow">&darr;</div>
+
+        <!-- PASSO 6 -->
+        <div class="flow-step">
+            <div class="flow-step-level">Nível 9: Fechamento Final</div>
+            <div class="flow-step-title">6. Avaliação de Qualidade e SLA</div>
+            <div class="flow-step-desc">
+                Lançar a <code>avaliacao_qualidade_sla</code> atribuindo notas de INS1 (Pontualidade) e INS2 (Qualidade), calculando o percentual final de glosa que reverterá saldo de horas ao contrato.
+            </div>
+        </div>
+    </div>
+
+    <!-- PASSO A PASSO CADASTROS -->
+    <h1>4. Módulo de Cadastros (Passo a Passo de Operação)</h1>
+    <p>
+        Esta seção detalha as interfaces do menu <strong>"📝 Cadastros"</strong> da plataforma e as ações operacionais. Cada tela de cadastro gerencia uma das entidades necessárias para o fluxo regulatório de fiscalização.
+    </p>
+
+    <!-- ITEM: Perfis -->
+    <h2>4.1 Perfis (<code>perfil</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listPerfil</span> | <span class="route-badge">addPerfil</span> | <span class="route-badge">updPerfil</span></p>
+    <p>
+        Define os perfis de acesso do sistema (Ex: <em>Administrador</em>, <em>Fiscal Técnico</em>, <em>Fiscal Requisitante</em>, <em>Gestor do Contrato</em>).
+    </p>
+    <ul>
+        <li><strong>Campos da Tela:</strong>
+            <ul>
+                <li><code>Descrição</code> (Obrigatório, Texto até 45 caracteres): Título identificador do perfil.</li>
+            </ul>
+        </li>
+        <li><strong>Passo a Passo Operacional:</strong>
+            <ol>
+                <li><strong>Listar Perfis:</strong> Acessar <em>FISCALIZAÇÃO &rarr; Perfis</em>. A tabela exibirá as descrições cadastradas. Use a caixa de pesquisa no canto superior direito para filtrar registros de forma instantânea.</li>
+                <li><strong>Incluir Perfil:</strong> Clique no botão <code>Incluir</code>. Preencha o campo <em>Descrição</em> e clique em <code>Gravar</code>. O sistema exibirá uma notificação de sucesso e atualizará a lista.</li>
+                <li><strong>Editar Perfil:</strong> Na linha correspondente ao perfil que deseja alterar, clique no ícone ✏️. Modifique a descrição e clique em <code>Gravar</code>.</li>
+                <li><strong>Excluir Perfil:</strong> Clique no botão 🗑️ correspondente. Confirme a ação na janela pop-up do navegador.</li>
+            </ol>
+        </li>
+    </ul>
+    <div class="alert alert-warning">
+        <strong>Bloqueio de Exclusão:</strong> Perfis vinculados a usuários (<code>usuario_perfil</code>) não podem ser excluídos devido à restrição de integridade referencial de chave estrangeira.
+    </div>
+
+    <!-- ITEM: Usuários -->
+    <h2>4.2 Usuários (<code>usuario</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listUsuario</span> | <span class="route-badge">addUsuario</span> | <span class="route-badge">updUsuario</span></p>
+    <p>
+        Gerenciamento das contas de colaboradores e fiscais que assinarão os recebimentos e Ordens de Serviço.
+    </p>
+    <ul>
+        <li><strong>Campos da Tela:</strong>
+            <ul>
+                <li><code>Nome</code> (Obrigatório, Texto até 100 caracteres): Nome completo do usuário.</li>
+                <li><code>E-mail</code> (Obrigatório, E-mail único): Endereço eletrônico de login.</li>
+                <li><code>Senha</code> (Obrigatório na inclusão): Senha de autenticação.</li>
+                <li><code>E-mail Confirmado</code> (Opcional, Seleção de booleano): Determina se o usuário já validou seu e-mail.</li>
+            </ul>
+        </li>
+        <li><strong>Passo a Passo Operacional:</strong>
+            <ol>
+                <li><strong>Listar Usuários:</strong> Acessar <em>FISCALIZAÇÃO &rarr; Usuários</em>.</li>
+                <li><strong>Incluir Usuário:</strong> Clique em <code>Incluir</code>. Preencha os campos obrigatórios. Se houver e-mail duplicado, a aplicação retornará um erro amigável de validação de campo único.</li>
+                <li><strong>Editar Usuário:</strong> Clique em ✏️, altere os dados permitidos e clique em salvar.</li>
+                <li><strong>Excluir Usuário:</strong> Clique em 🗑️ e confirme.</li>
+            </ol>
+        </li>
+    </ul>
+
+    <!-- ITEM: Status e Status Recebimento -->
+    <h2>4.3 Status Gerais & Status Recebimento (<code>Status</code> e <code>status_recebimento</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listStatus</span> | <span class="route-badge">listStatusRecebimento</span></p>
+    <p>
+        Define os estados de execução e ciclo de vida de transição das Ordens de Serviço e Documentos de Recebimento.
+    </p>
+    <ul>
+        <li><strong>Valores Padrão Exigidos:</strong>
+            <ul>
+                <li><strong>Status de OS:</strong> <code>Rascunho</code>, <code>Autorizada</code>, <code>Em Execução</code>, <code>Cancelada</code>, <code>Concluída</code>.</li>
+                <li><strong>Status de Recebimento:</strong> <code>Em Análise</code>, <code>Homologado</code>, <code>Glosado</code>, <code>Liquidado</code>.</li>
+            </ul>
+        </li>
+        <li><strong>Operação:</strong> O cadastro e manipulação de status seguem a sistemática básica CRUD de inclusão, alteração e exclusão rápida de strings nas tabelas do banco de dados.</li>
+    </ul>
+
+    <!-- ITEM: Tipos de Documento -->
+    <h2>4.4 Tipos de Documento (<code>tipo_documento</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listTipoDocumento</span></p>
+    <p>
+        Tipificação legal de documentos necessários para instrução do processo administrativo SEI.
+    </p>
+    <ul>
+        <li><strong>Campos:</strong> <code>Descrição</code> (Ex: <em>Termo de Recebimento Provisório (TRP)</em>, <em>Termo de Recebimento Definitivo (TRD)</em>).</li>
+    </ul>
+
+    <!-- ITEM: Lista de Verificação -->
+    <h2>4.5 Lista de Verificação (<code>lista_verificacao</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listListaVerificacao</span> | <span class="route-badge">addListaVerificacao</span> | <span class="route-badge">updListaVerificacao</span></p>
+    <p>
+        Questões de auditoria preenchidas durante a homologação do serviço pelo fiscal de recebimento para certificar conformidade (Checklist).
+    </p>
+    <ul>
+        <li><strong>Operação de Cadastro:</strong>
+            <ol>
+                <li>Na tela de listagem, clique em <code>Incluir</code>.</li>
+                <li>Preencha a <code>Descrição</code> da conformidade exigida (Ex: <em>"O código fonte do incremento foi commitado no repositório oficial?"</em>, <em>"O artefato de projeto ágil foi homologado pelo PO?"</em>).</li>
+                <li>Clique em <code>Gravar</code>.</li>
+            </ol>
+        </li>
+    </ul>
+
+    <!-- ITEM: Contratos e Itens de Contrato -->
+    <h2>4.6 Contratos e Itens de Contrato (<code>item_contrato</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listContrato</span> | <span class="route-badge">listItemContrato</span> | <span class="route-badge">addContrato</span> | <span class="route-badge">addItemContrato</span></p>
+    <p>
+        Define a base orçamentária do contrato corporativo, indicando número formal, objeto do contrato, prazos de vigência e saldo disponível para emissão de Ordens de Serviço.
+    </p>
+    <ul>
+        <li><strong>Campos Relevantes do Item de Contrato:</strong>
+            <ul>
+                <li><code>Número do Contrato</code>: Código oficial de publicação (Ex: <em>Contrato nº 12/2025-CGTI</em>).</li>
+                <li><code>Gestor Substituto</code>: Nome do servidor que atua nas ausências do fiscal gestor.</li>
+                <li><code>Objeto</code>: Descrição sumária da prestação de serviço contratada.</li>
+                <li><code>Total de Horas Contratadas</code>: Volume global de horas alocadas para todo o período de vigência.</li>
+                <li><code>Saldo de Horas</code>: Horas ainda não utilizadas (controladas via triggers).</li>
+                <li><code>Data de Início</code> e <code>Data de Fim</code>: Período de vigência do instrumento.</li>
+            </ul>
+        </li>
+        <li><strong>Preenchimento Obrigatório:</strong> O saldo inicial de horas deve ser idêntico ao total de horas contratadas no momento de criação do registro. O saldo é decrementado à medida que as Ordens de Serviço são emitidas e serviços homologados.</li>
+    </ul>
+
+    <!-- ITEM: Métricas do Contrato -->
+    <h2>4.7 Métricas do Contrato (<code>metrica_contrato</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listMetrica</span> | <span class="route-badge">addMetrica</span></p>
+    <p>
+        Define as unidades de medida que serão utilizadas nos itens de contrato e ordens de serviço (Ex: <em>Horas</em>, <em>UST - Unidade de Serviço Técnico</em>, <em>Pontos de Função</em>).
+    </p>
+    <ul>
+        <li><strong>Campos Relevantes do Cadastro de Métrica:</strong>
+            <ul>
+                <li><code>Nome</code>: Nome completo da métrica (Ex: <em>Horas</em>, <em>Unidade de Serviço Técnico</em>).</li>
+                <li><code>Sigla</code>: Abreviação utilizada na exibição de relatórios, faturas e listagens (Ex: <em>H</em>, <em>UST</em>).</li>
+                <li><code>Descrição</code>: Explicação detalhada sobre a forma de aferição ou aplicação da métrica.</li>
+            </ul>
+        </li>
+        <li><strong>Associação com Item de Contrato:</strong> Cada item de contrato cadastrado deve referenciar uma Métrica cadastrada. Por padrão, se não informada, o sistema associa o registro à métrica de identificação básica (geralmente <em>Horas</em>).</li>
+    </ul>
+
+    <!-- ITEM: Reajustes de Contrato -->
+    <h2>4.8 Reajustes de Contrato (<code>reajuste_item_contrato</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listReajusteItemContrato</span></p>
+    <p>
+        Histórico de aditivos de valor aplicados ao item de contrato em datas específicas.
+    </p>
+    <ul>
+        <li><strong>Restrição Chave Estrangeira:</strong> Cada reajuste necessita de um <code>id_item_contrato</code> associado.</li>
+    </ul>
+
+    <!-- ITEM: Catálogo de Serviços -->
+    <h2>4.9 Catálogo de Serviços (<code>catalogo_servicos</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listCatalogoServicos</span></p>
+    <p>
+        Lista de serviços acordados no escopo do contrato. Serve para agrupar as áreas e atividades permitidas.
+    </p>
+    <ul>
+        <li><strong>Precedência:</strong> Requer a existência prévia de um item de contrato no banco de dados.</li>
+    </ul>
+
+    <!-- ITEM: Áreas de Atuação -->
+    <h2>4.10 Áreas de Atuação (<code>area_atuacao</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listAreaAtuacao</span></p>
+    <p>
+        Define a especialização operacional do serviço corporativo (Ex: <em>Desenvolvimento de Sistemas</em>, <em>Administração de Banco de Dados</em>).
+    </p>
+    <ul>
+        <li><strong>Precedência:</strong> Requer a seleção do <code>Catálogo de Serviços</code> ao qual pertence.</li>
+    </ul>
+
+    <!-- ITEM: Atividades Macro -->
+    <h2>4.11 Atividades Macro (<code>atividade_macro</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listAtividadeMacro</span></p>
+    <p>
+        Categorização abrangente das entregas que podem ser solicitadas em uma OS (Ex: <em>Desenvolvimento Web</em>, <em>Migração de Banco de Dados</em>).
+    </p>
+    <ul>
+        <li><strong>Precedência:</strong> Requer a seleção da <code>Área de Atuação</code>.</li>
+    </ul>
+
+    <!-- ITEM: Itens OS -->
+    <h2>4.12 Itens OS (<code>item_os</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listItemOs</span></p>
+    <p>
+        Especificação de alocação de horas e recursos humanos para a execução de um serviço específico em uma futura Ordem de Serviço.
+    </p>
+    <ul>
+        <li><strong>Campos Obrigatórios:</strong>
+            <ul>
+                <li><code>Quantidade de Horas</code> (Float): Horas estimadas para execução do item.</li>
+                <li><code>Profissional Alocado</code> (Texto): Nome ou perfil do técnico responsável (Ex: <em>Analista de Sistemas Sênior</em>).</li>
+                <li><code>Serviço</code>: Chave estrangeira ligando ao cadastro do serviço do Nível 4.</li>
+            </ul>
+        </li>
+    </ul>
+
+
+    <!-- PASSO A PASSO EXECUÇÃO -->
+    <h1>5. Módulo de Execução (Passo a Passo de Operação)</h1>
+    <p>
+        Esta seção detalha as interfaces contidas no submenu <strong>"⚡ Execução"</strong> da plataforma, as quais gerenciam as transações reais de contratação, execução, recebimento técnico e avaliação orçamentária do módulo de fiscalização.
+    </p>
+
+    <!-- ITEM: Serviços -->
+    <h2>5.1 Cadastro de Serviços (<code>servico</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listServico</span> | <span class="route-badge">addServico</span> | <span class="route-badge">updServico</span></p>
+    <p>
+        Mapeamento do serviço específico que será executado. Cada registro de serviço possui regras claras de esforço e remuneração calculadas em horas.
+    </p>
+    <ul>
+        <li><strong>Campos da Tela e Regras de Validação:</strong>
+            <ul>
+                <li><code>Remuneração</code> (Float): Multiplicador financeiro da hora trabalhada para este serviço específico (Ex: <em>1.0</em> para desenvolvimento comum, <em>1.5</em> para desenvolvimento de alta complexidade em ambiente crítico).</li>
+                <li><code>Base de Horas / Mês</code>: Volume padrão mensal estimado de execução do serviço.</li>
+                <li><code>SLA em Dias</code> (Inteiro): Prazo máximo regulamentar exigido para a conclusão de tarefas deste serviço.</li>
+                <li><code>Estimativa Máxima ao Ano</code>: Teto de horas que podem ser contratadas para este item.</li>
+                <li><code>Saldo de Horas</code>: Horas restantes disponíveis para este serviço específico.</li>
+                <li><code>Atividade Macro</code>: Vinculação obrigatória ao cadastro de Atividade Macro correspondente.</li>
+            </ul>
+        </li>
+        <li><strong>Operação do Usuário:</strong>
+            <ol>
+                <li>Acesse <em>FISCALIZAÇÃO &rarr; Serviços</em> e clique em <code>Incluir</code>.</li>
+                <li>Selecione a <code>Atividade Macro</code> correspondente à demanda.</li>
+                <li>Preencha a <code>Remuneração</code>, a <code>Base de Horas</code> e defina a estimativa anual de teto.</li>
+                <li>Clique em <code>Gravar</code>. O saldo de horas inicial será configurado automaticamente pela aplicação.</li>
+            </ol>
+        </li>
+    </ul>
+
+    <!-- ITEM: Ordens de Serviço (OS) -->
+    <h2>5.2 Emissão de Ordens de Serviço (<code>ordem_servico</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listOrdemServico</span> | <span class="route-badge">addOrdemServico</span> | <span class="route-badge">updOrdemServico</span></p>
+    <p>
+        Emissão formal do instrumento legal que autoriza a contratada a iniciar a execução das atividades programadas de TI. A Ordem de Serviço deve carregar dados rastreáveis do processo SEI da Administração Pública.
+    </p>
+    <ul>
+        <li><strong>Campos da Tela e Validação:</strong>
+            <ul>
+                <li><code>NUP SEI</code> (Obrigatório, Padrão de processo de órgão público): Número Único de Protocolo do Processo Administrativo SEI autorizador (Ex: <em>00123.456789/2026-10</em>).</li>
+                <li><code>Horas Alocadas</code> (Float): Total de horas reservadas do contrato para esta ordem de serviço.</li>
+                <li><code>Data de Emissão</code> (Datetime): Data de publicação da OS.</li>
+                <li><code>Data de Aceite</code> (Datetime, Opcional): Data de assinatura de concordância da empresa prestadora dos serviços.</li>
+            </ul>
+        </li>
+        <li><strong>Passo a Passo de Ações:</strong>
+            <ol>
+                <li>Acesse <em>FISCALIZAÇÃO &rarr; Ordens de Serviço (OS)</em>. A tela lista todas as OS emitidas.</li>
+                <li>Clique em <code>Incluir</code>. Preencha o <code>NUP SEI</code> correspondente, a data de emissão e o total de horas estimadas reservadas do contrato.</li>
+                <li>Clique em <code>Gravar</code>.</li>
+                <li>Na tela de edição/detalhes, vincule os <code>Itens de OS</code> pertinentes a esta OS (armazenados na tabela associativa <code>os_item_os</code>).</li>
+                <li>Vincule os <code>Usuários</code> executores da OS na lista associativa <code>usuario_os</code> para auditorias posteriores.</li>
+            </ol>
+        </li>
+    </ul>
+
+    <h3>5.2.1 Máquina de Estado e Ciclo de Vida da OS</h3>
+    <p>
+        A Ordem de Serviço possui um ciclo de vida controlado por uma máquina de estados com transições estritamente sequenciais:
+    </p>
+    <div class="flow-container" style="margin-top: 10px;">
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">1. Rascunho</div>
+            <div class="flow-step-desc">
+                Definido automaticamente assim que uma nova ordem de serviço é cadastrada no sistema (sem Nota de Empenho).
+            </div>
+        </div>
+        <div class="flow-arrow">&darr;</div>
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">2. Aguardando assinatura</div>
+            <div class="flow-step-desc">
+                Definido automaticamente assim que uma <strong>Nota de Empenho</strong> (campo alfanumérico obrigatório) é atribuída à OS.
+            </div>
+        </div>
+        <div class="flow-arrow">&darr;</div>
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">3. Execução</div>
+            <div class="flow-step-desc">
+                Alterado <strong>manualmente</strong> pelo usuário fiscal na tela de edição da Ordem de Serviço (a Nota de Empenho deve estar previamente preenchida).
+            </div>
+        </div>
+        <div class="flow-arrow">&darr;</div>
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">4. Recebido Provisório</div>
+            <div class="flow-step-desc">
+                Definido automaticamente quando um Documento de Recebimento do tipo <strong>TRP</strong> (Termo de Recebimento Provisório) é cadastrado para a OS.
+            </div>
+        </div>
+        <div class="flow-arrow">&darr;</div>
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">5. Recebido definitivo</div>
+            <div class="flow-step-desc">
+                Definido automaticamente quando um Documento de Recebimento do tipo <strong>TRD</strong> (Termo de Recebimento Definitivo) é cadastrado para a OS.
+            </div>
+        </div>
+        <div class="flow-arrow">&darr;</div>
+        <div class="flow-step" style="border-left-color: #319795;">
+            <div class="flow-step-level">6. Concluído</div>
+            <div class="flow-step-desc">
+                Alterado através de um botão de ação rápida (<strong>Concluir Ordem de Serviço</strong>) na tela de edição, disponível apenas quando ambos os documentos <strong>TRP e TRD</strong> estiverem cadastrados e vinculados à OS.
+            </div>
+        </div>
+    </div>
+    
+    <div class="alert alert-important">
+        <strong>Validações e Regras de Transição Sequencial:</strong>
+        <ul>
+            <li><strong>Bloqueio de Salto de Estados:</strong> O sistema impede qualquer transição fora de ordem. Por exemplo, não é permitido cadastrar um TRD para uma OS que não esteja no status <em>Recebido Provisório</em>.</li>
+            <li><strong>Nota de Empenho Obrigatória:</strong> A partir do momento em que a OS sai do status <em>Rascunho</em>, a Nota de Empenho torna-se obrigatória e deve ser um valor estritamente alfanumérico.</li>
+        </ul>
+    </div>
+
+    <!-- ITEM: Docs Recebimento -->
+    <h2>5.3 Registro de Documentos de Recebimento (<code>documento_recebimento</code>)</h2>
+    <p><strong>Rota Associada:</strong> <span class="route-badge">listDocumentoRecebimento</span> | <span class="route-badge">addDocumentoRecebimento</span> | <span class="route-badge">updDocumentoRecebimento</span></p>
+    <p>
+        Ata formal de encerramento de um ciclo de trabalho. Contém as assinaturas digitais de validação dos servidores públicos em seus devidos papéis funcionais de fiscalização técnica e gestão.
+    </p>
+    
+    <div class="alert alert-important">
+        <strong>Regra de Negócio Crucial:</strong>
+        Para registrar um Documento de Recebimento de serviço, é obrigatório possuir uma <strong>Ordem de Serviço (OS) ativa</strong> cadastrada e um <strong>Tipo de Documento</strong> oficial do órgão.
+    </div>
+
+    <ul>
+        <li><strong>Campos da Tela:</strong>
+            <ul>
+                <li><code>Ordem de Serviço (OS)</code>: Selecione a OS que está sendo entregue e liquidada.</li>
+                <li><code>NUP SEI</code> (Obrigatório): Processo administrativo específico de ateste e liquidação física do serviço.</li>
+                <li><code>Tipo de Documento</code>: Tipo de termo (Ex: Termo de Recebimento Provisório).</li>
+                <li><code>Data de Assinatura</code> (Datetime): Data de ateste do fiscal.</li>
+                <li><code>Fiscal Técnico</code>: Seleção do usuário fiscal técnico responsável por atestar as conformidades.</li>
+                <li><code>Fiscal Requisitante</code>: Seleção do usuário fiscal requisitante do serviço que atesta a utilidade pública.</li>
+                <li><code>Gestor do Contrato</code>: Seleção do servidor público gestor geral do contrato.</li>
+            </ul>
+        </li>
+        <li><strong>Passo a Passo de Ações e Auditoria:</strong>
+            <ol>
+                <li>Acesse <em>FISCALIZAÇÃO &rarr; Docs Recebimento</em> e clique em <code>Incluir</code>.</li>
+                <li>Selecione a <code>Ordem de Serviço (OS)</code> relacionada, preencha o <code>NUP SEI</code> e selecione as contas dos três servidores responsáveis pela fiscalização (Fiscal Técnico, Fiscal Requisitante e Gestor). Clique em <code>Gravar</code>.</li>
+                <li>Clique em <strong>Editar</strong> (✏️) na linha do recebimento recém-criado.</li>
+                <li><strong>Lançar Quantidades Entregues:</strong> Insira os itens entregues reais através da tabela associativa <code>item_documento_recebimento</code>, especificando a quantidade de horas e as observações técnicas.</li>
+                <li><strong>Preencher Checklist de Auditoria:</strong> Na tabela associativa <code>item_doc_rec_lista_ver</code>, marque cada item de conformidade da <code>lista_verificacao</code> como <em>Conforme</em> (SIM/NÃO). Apenas itens aprovados em sua totalidade pelo fiscal técnico deverão prosseguir para recebimento definitivo sem glosas.</li>
+            </ol>
+        </li>
+    </ul>
+
+    <!-- REGRAS DE NEGÓCIO E TRIGGERS -->
+    <h1>6. Regras de Negócio e Triggers (Garantia de Saldos de Horas)</h1>
+    <p>
+        Para garantir que a contratada não fature horas a mais do que o contratado ou que serviços sejam entregues além dos limites anuais autorizados no escopo técnico, o banco de dados do sistema implementa <strong>gatilhos automáticos (Triggers)</strong> para controlar o saldo de horas disponíveis de cada serviço de TI (coluna <code>saldo_horas</code> na tabela <code>servico</code>).
+    </p>
+    <p>
+        Os gatilhos atuam de forma automática no banco de dados na inserção, alteração ou exclusão de itens de documento de recebimento.
+    </p>
+
+    <h2>6.1 Trigger de Inserção: <code>after_item_doc_insert</code></h2>
+    <p>
+        Quando o fiscal registra a entrega de horas de um item em um documento de recebimento, o banco de dados localiza o serviço correspondente e reduz seu saldo disponível baseando-se no multiplicador de remuneração configurado.
+    </p>
+    <pre>
+CREATE TRIGGER after_item_doc_insert
+AFTER INSERT ON item_documento_recebimento
+FOR EACH ROW
+BEGIN
+    DECLARE v_id_servico INT;
+    DECLARE v_remuneracao FLOAT;
+    
+    -- Localiza o serviço e seu fator de remuneração associado ao item de OS recebido
+    SELECT s.id, s.remuneracao INTO v_id_servico, v_remuneracao
+    FROM item_os io
+    JOIN servico s ON io.id_servico = s.id
+    WHERE io.id = NEW.id_item_os;
+
+    -- Subtrai o total de horas entregues ponderado pela remuneração do saldo do serviço
+    UPDATE servico
+    SET saldo_horas = saldo_horas - (NEW.quantidade_entregue * v_remuneracao)
+    WHERE id = v_id_servico;
+END;
+    </pre>
+
+    <h2>6.2 Trigger de Alteração: <code>after_item_doc_update</code></h2>
+    <p>
+        Se o fiscal ou gestor retificar a quantidade de horas homologadas em um termo de recebimento existente, o gatilho reverte o saldo de horas calculado anteriormente e aplica o novo valor, garantindo a integridade dos saldos reais.
+    </p>
+    <pre>
+CREATE TRIGGER after_item_doc_update
+AFTER UPDATE ON item_documento_recebimento
+FOR EACH ROW
+BEGIN
+    DECLARE v_id_servico INT;
+    DECLARE v_remuneracao FLOAT;
+    
+    SELECT s.id, s.remuneracao INTO v_id_servico, v_remuneracao
+    FROM item_os io
+    JOIN servico s ON io.id_servico = s.id
+    WHERE io.id = NEW.id_item_os;
+
+    -- Restaura a quantidade antiga e debita a nova quantidade de horas
+    UPDATE servico
+    SET saldo_horas = saldo_horas + (OLD.quantidade_entregue * v_remuneracao) - (NEW.quantidade_entregue * v_remuneracao)
+    WHERE id = v_id_servico;
+END;
+    </pre>
+
+    <h2>6.3 Trigger de Exclusão: <code>after_item_doc_delete</code></h2>
+    <p>
+        Caso uma entrega de serviço homologada precise ser cancelada ou excluída do sistema, o saldo de horas original retorna integralmente ao serviço associado.
+    </p>
+    <pre>
+CREATE TRIGGER after_item_doc_delete
+AFTER DELETE ON item_documento_recebimento
+FOR EACH ROW
+BEGIN
+    DECLARE v_id_servico INT;
+    DECLARE v_remuneracao FLOAT;
+    
+    SELECT s.id, s.remuneracao INTO v_id_servico, v_remuneracao
+    FROM item_os io
+    JOIN servico s ON io.id_servico = s.id
+    WHERE io.id = OLD.id_item_os;
+
+    -- Devolve as horas estornadas ao saldo de horas do serviço de TI
+    UPDATE servico
+    SET saldo_horas = saldo_horas + (OLD.quantidade_entregue * v_remuneracao)
+    WHERE id = v_id_servico;
+END;
+    </pre>
+
+</body>
+</html>

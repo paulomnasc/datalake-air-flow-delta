@@ -1,0 +1,9 @@
+Para rodar a aplicação:
+php -S localhost:8080 -t public
+
+
+Para criar uma controller no projeto:
+1) Abra no terminal;
+2) php spark make:controller Teste --suffix
+3) Resultado : TesteController.php na pasta app/Controllers do projeto;
+

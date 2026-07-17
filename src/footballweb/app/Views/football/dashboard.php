@@ -8,448 +8,557 @@ require VIEWPATH.'/header.php';
 setlocale(LC_TIME, 'pt_BR.utf8', 'pt_BR', 'Portuguese_Brazil');
 $dateObj = DateTime::createFromFormat('Y-m-d', $targetDate);
 $formattedDateHeader = $dateObj ? strftime('%d de %B de %Y', $dateObj->getTimestamp()) : $targetDate;
+
+// Mapeamento de League ID para País e Bandeira/Ícone (estilo Betano)
+$leagueMap = [
+    71  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+    72  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+    73  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => false],
+    39  => ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => true],
+    140 => ['country' => 'Espanha', 'flag' => '🇪🇸', 'popular' => true],
+    135 => ['country' => 'Itália', 'flag' => '🇮🇹', 'popular' => true],
+    78  => ['country' => 'Alemanha', 'flag' => '🇩🇪', 'popular' => true],
+    262 => ['country' => 'México', 'flag' => '🇲🇽', 'popular' => true],
+    128 => ['country' => 'Argentina', 'flag' => '🇦🇷', 'popular' => true],
+    253 => ['country' => 'EUA', 'flag' => '🇺🇸', 'popular' => true],
+    113 => ['country' => 'Suécia', 'flag' => '🇸🇪', 'popular' => true],
+    103 => ['country' => 'Noruega', 'flag' => '🇳🇴', 'popular' => true],
+    244 => ['country' => 'Finlândia', 'flag' => '🇫🇮', 'popular' => false],
+    283 => ['country' => 'Romênia', 'flag' => '🇷🇴', 'popular' => false],
+    286 => ['country' => 'Sérvia', 'flag' => '🇷🇸', 'popular' => false],
+    281 => ['country' => 'Peru', 'flag' => '🇵🇪', 'popular' => false],
+    242 => ['country' => 'Equador', 'flag' => '🇪🇨', 'popular' => false],
+    268 => ['country' => 'Uruguai', 'flag' => '🇺🇾', 'popular' => false],
+    265 => ['country' => 'Chile', 'flag' => '🇨🇱', 'popular' => false],
+    239 => ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false],
+    169 => ['country' => 'China', 'flag' => '🇨🇳', 'popular' => false],
+    307 => ['country' => 'Arábia Saudita', 'flag' => '🇸🇦', 'popular' => false],
+    203 => ['country' => 'Turquia', 'flag' => '🇹🇷', 'popular' => false],
+    207 => ['country' => 'Suíça', 'flag' => '🇨🇭', 'popular' => false],
+    144 => ['country' => 'Bélgica', 'flag' => '🇧🇪', 'popular' => false],
+    119 => ['country' => 'Dinamarca', 'flag' => '🇩🇰', 'popular' => false],
+    218 => ['country' => 'Áustria', 'flag' => '🇦🇹', 'popular' => false],
+    197 => ['country' => 'Grécia', 'flag' => '🇬🇷', 'popular' => false],
+    2   => ['country' => 'Copas Continentais', 'flag' => '🏆', 'popular' => false],
+    13  => ['country' => 'Copas Continentais', 'flag' => '🏆', 'popular' => false],
+    3   => ['country' => 'Copas Continentais', 'flag' => '🏆', 'popular' => false],
+    11  => ['country' => 'Copas Continentais', 'flag' => '🏆', 'popular' => false],
+    1   => ['country' => 'Mundo', 'flag' => '🌍', 'popular' => false]
+];
+
+// Organiza as partidas e ligas por país/região
+$groupedLeagues = [];
+$popularLeagues = [];
+
+foreach ($fixtures as $fix) {
+    $leagueId = (int)$fix->league_id;
+    $leagueName = $fix->league_name;
+    
+    // Fallback caso não esteja no mapeamento
+    $country = 'Outros';
+    $flag = '🏳️';
+    $isPopular = false;
+    
+    if (isset($leagueMap[$leagueId])) {
+        $country = $leagueMap[$leagueId]['country'];
+        $flag = $leagueMap[$leagueId]['flag'];
+        $isPopular = $leagueMap[$leagueId]['popular'];
+    }
+    
+    // Agrupa ligas por país
+    if (!isset($groupedLeagues[$country])) {
+        $groupedLeagues[$country] = [
+            'flag' => $flag,
+            'leagues' => []
+        ];
+    }
+    if (!in_array($leagueName, $groupedLeagues[$country]['leagues'])) {
+        $groupedLeagues[$country]['leagues'][] = $leagueName;
+    }
+    
+    // Populares
+    if ($isPopular && !in_array($leagueName, $popularLeagues)) {
+        $popularLeagues[] = $leagueName;
+    }
+}
+ksort($groupedLeagues); // Ordena países alfabeticamente
 ?>
 
-<!-- Estilos Customizados para o Football Trends (Design Premium) -->
 <style>
     /* Google Fonts & Root Design System */
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
     .ft-container {
         font-family: 'Outfit', sans-serif;
-        background: linear-gradient(135deg, #0b0f19 0%, #111827 100%);
+        background: #0e1620;
         color: #f3f4f6;
         min-height: 100vh;
-        padding: 40px 20px;
+        padding: 30px 15px;
         border-radius: 16px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
         margin: 20px 0;
+        box-shadow: 0 15px 45px rgba(0,0,0,0.5);
     }
 
-    /* Hero Section */
-    .ft-hero {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(17, 24, 39, 0.8) 100%);
-        border: 1px solid rgba(16, 185, 129, 0.2);
-        border-radius: 20px;
-        padding: 40px 30px;
-        margin-bottom: 40px;
-        text-align: center;
-        position: relative;
-        overflow: hidden;
-        backdrop-filter: blur(10px);
-    }
-
-    .ft-hero::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        background: radial-gradient(circle, rgba(16, 185, 129, 0.05) 0%, transparent 60%);
-        pointer-events: none;
-    }
-
-    .ft-title-badge {
-        background: rgba(16, 185, 129, 0.2);
-        color: #34d399;
-        font-size: 0.85rem;
-        font-weight: 600;
-        padding: 6px 16px;
-        border-radius: 30px;
-        display: inline-block;
-        margin-bottom: 15px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-
-    .ft-title {
-        font-size: 3rem;
-        font-weight: 800;
-        background: linear-gradient(90deg, #34d399 0%, #059669 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 10px;
-        letter-spacing: -1px;
-    }
-
-    .ft-subtitle {
-        font-size: 1.1rem;
-        color: #9ca3af;
-        max-width: 600px;
-        margin: 0 auto 30px auto;
-        line-height: 1.6;
-    }
-
-    /* Controles e Filtros */
-    .ft-controls-row {
-        background: rgba(31, 41, 55, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 16px;
-        padding: 20px;
+    /* Betano Branding Header */
+    .bet-brand-header {
+        border-bottom: 3px solid #f47c20;
+        padding-bottom: 15px;
         margin-bottom: 30px;
-        backdrop-filter: blur(5px);
-    }
-
-    .date-navigator {
         display: flex;
-        gap: 10px;
+        justify-content: space-between;
+        align-items: center;
         flex-wrap: wrap;
-        align-items: center;
+        gap: 15px;
     }
 
-    .date-btn {
-        background: #1f2937;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        color: #d1d5db;
-        padding: 10px 18px;
-        border-radius: 12px;
-        font-weight: 500;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        display: inline-flex;
+    .bet-brand-title {
+        display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
+    }
+
+    .bet-brand-logo {
+        background: #f47c20;
+        color: white;
+        font-weight: 900;
+        padding: 5px 12px;
+        border-radius: 6px;
+        font-size: 1.4rem;
+        letter-spacing: -1px;
+        text-transform: uppercase;
+        display: inline-block;
+        box-shadow: 0 4px 10px rgba(244, 124, 32, 0.4);
+    }
+
+    .bet-brand-subtitle {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #ffffff;
+        margin: 0;
+    }
+
+    /* Sidebar Columns */
+    .bet-sidebar {
+        background: #172230;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        margin-bottom: 20px;
+        max-height: 85vh;
+        overflow-y: auto;
+    }
+
+    .bet-sidebar::-webkit-scrollbar {
+        width: 6px;
+    }
+    .bet-sidebar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+    }
+
+    .bet-section-title {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #8a99a8;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 15px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .bet-sidebar-list {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 25px 0;
+    }
+
+    .bet-sidebar-item {
+        margin-bottom: 6px;
+    }
+
+    .bet-league-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        color: #aeb9c4;
         text-decoration: none !important;
+        font-size: 0.92rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        border-left: 3px solid transparent;
     }
 
-    .date-btn:hover {
-        background: #374151;
+    .bet-league-link:hover {
+        background: rgba(255, 255, 255, 0.04);
         color: #ffffff;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
 
-    .date-btn.active {
-        background: #10b981;
-        border-color: #10b981;
+    .bet-league-link.active {
+        background: rgba(244, 124, 32, 0.15);
         color: #ffffff;
-        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+        border-left-color: #f47c20;
+        font-weight: 600;
     }
 
-    .date-picker-wrapper {
-        position: relative;
+    /* Accordion Countries */
+    .bet-country-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        border-radius: 8px;
+        color: #d1d5db;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        user-select: none;
+    }
+
+    .bet-country-header:hover {
+        background: rgba(255, 255, 255, 0.04);
+        color: #ffffff;
+    }
+
+    .bet-country-header.active {
+        background: rgba(255, 255, 255, 0.02);
+        color: #ffffff;
+    }
+
+    .bet-country-chevron {
+        font-size: 0.8rem;
+        color: #8a99a8;
+        transition: transform 0.2s;
+    }
+
+    .bet-country-header.active .bet-country-chevron {
+        transform: rotate(180deg);
+    }
+
+    .bet-country-content {
+        display: none;
+        padding-left: 15px;
+        margin-top: 4px;
+        margin-bottom: 8px;
+    }
+
+    /* Main Area Controls */
+    .bet-controls-row {
+        background: #172230;
+        border-radius: 12px;
+        padding: 15px 20px;
+        margin-bottom: 25px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Date buttons */
+    .bet-date-btn {
+        background: #0f1620;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: #aeb9c4;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.2s;
+        text-decoration: none !important;
         display: inline-flex;
         align-items: center;
+        gap: 6px;
     }
 
-    .date-input {
-        background: #111827;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+    .bet-date-btn:hover {
+        background: #1d2b3c;
         color: #ffffff;
-        padding: 10px 16px;
-        border-radius: 12px;
+    }
+
+    .bet-date-btn.active {
+        background: #f47c20;
+        border-color: #f47c20;
+        color: #ffffff;
+        box-shadow: 0 4px 12px rgba(244, 124, 32, 0.3);
+    }
+
+    .bet-date-input {
+        background: #0f1620;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 8px;
         outline: none;
-        transition: all 0.3s;
-        font-family: inherit;
+        transition: all 0.2s;
     }
 
-    .date-input:focus {
-        border-color: #10b981;
-        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    .bet-date-input:focus {
+        border-color: #f47c20;
     }
 
-    .search-box-wrapper {
-        position: relative;
-        flex: 1;
-        min-width: 250px;
-    }
-
-    .search-input {
-        background: #111827;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: #ffffff;
-        padding: 11px 16px 11px 45px;
-        border-radius: 12px;
+    /* Search field */
+    .bet-search-input {
+        background: #0f1620;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: white;
+        padding: 8px 12px 8px 36px;
+        border-radius: 8px;
         width: 100%;
         outline: none;
-        transition: all 0.3s;
-        font-family: inherit;
+        transition: all 0.2s;
     }
 
-    .search-input:focus {
-        border-color: #10b981;
-        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    .bet-search-input:focus {
+        border-color: #f47c20;
     }
 
-    .search-icon {
+    .bet-search-icon {
         position: absolute;
-        left: 16px;
+        left: 12px;
         top: 50%;
         transform: translateY(-50%);
-        color: #6b7280;
+        color: #8a99a8;
     }
 
-    .btn-update-api {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        border: none;
-        color: white;
-        padding: 12px 24px;
-        border-radius: 12px;
-        font-weight: 600;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        transition: all 0.3s;
-        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
-    }
-
-    .btn-update-api:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
-    }
-
-    .btn-update-api:disabled {
-        background: #4b5563;
-        box-shadow: none;
-        cursor: not-allowed;
-    }
-
-    /* Liga Pills */
-    .leagues-wrapper {
+    /* Betano Tabs navigation */
+    .bet-tabs {
         display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin-bottom: 30px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+        margin-bottom: 25px;
+        gap: 20px;
     }
 
-    .league-pill {
-        background: rgba(55, 65, 81, 0.4);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        color: #9ca3af;
-        padding: 8px 16px;
-        border-radius: 30px;
-        font-size: 0.9rem;
-        font-weight: 500;
+    .bet-tab {
+        padding: 12px 10px;
+        font-weight: 700;
+        color: #8a99a8;
         cursor: pointer;
-        transition: all 0.3s;
+        font-size: 1.05rem;
+        transition: all 0.2s;
+        border-bottom: 3px solid transparent;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 
-    .league-pill:hover {
-        background: rgba(55, 65, 81, 0.8);
+    .bet-tab:hover {
         color: #ffffff;
     }
 
-    .league-pill.active {
-        background: rgba(16, 185, 129, 0.15);
-        border-color: #10b981;
-        color: #34d399;
+    .bet-tab.active {
+        color: #ffffff;
+        border-bottom-color: #f47c20;
     }
 
-    /* Partidas Grid */
-    .fixtures-grid {
+    /* Cards Grid & redone Betano cards */
+    .bet-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-        gap: 24px;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 20px;
     }
 
-    .fixture-card {
-        background: rgba(31, 41, 55, 0.4);
+    .bet-card {
+        background: #172230;
+        border-radius: 12px;
         border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 16px;
-        padding: 24px;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 20px;
+        transition: all 0.3s;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
         position: relative;
-        overflow: hidden;
     }
 
-    .fixture-card:hover {
-        transform: translateY(-5px);
-        border-color: rgba(16, 185, 129, 0.3);
-        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(16, 185, 129, 0.1);
-        background: rgba(31, 41, 55, 0.6);
+    .bet-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5), 0 0 15px rgba(244, 124, 32, 0.1);
+        border-color: rgba(244, 124, 32, 0.2);
     }
 
-    .card-header-ft {
+    .bet-card-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 20px;
-    }
-
-    .league-badge {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        color: #9ca3af;
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 4px 10px;
-        border-radius: 8px;
-        max-width: 70%;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .time-badge {
-        color: #34d399;
-        font-weight: 700;
-        font-size: 0.85rem;
-        background: rgba(16, 185, 129, 0.1);
-        padding: 4px 10px;
-        border-radius: 8px;
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-    }
-
-    .teams-section {
-        margin-bottom: 20px;
-    }
-
-    .team-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 8px;
-    }
-
-    .team-row:last-child {
-        margin-bottom: 0;
-    }
-
-    .team-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #10b981;
-    }
-
-    .team-row:last-child .team-dot {
-        background: #3b82f6;
-    }
-
-    .team-name {
-        font-weight: 600;
-        font-size: 1.15rem;
-        color: #f3f4f6;
-    }
-
-    .divider {
-        height: 1px;
-        background: rgba(255, 255, 255, 0.05);
-        margin: 15px 0;
-    }
-
-    /* Prediction Section */
-    .prediction-box {
         margin-bottom: 15px;
     }
 
-    .pred-prob-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 8px;
-    }
-
-    .pred-prob-label {
-        font-size: 0.85rem;
-        color: #9ca3af;
-        font-weight: 500;
-    }
-
-    .pred-prob-value {
-        font-weight: 700;
-        font-size: 1rem;
-    }
-
-    .pred-prob-value.high { color: #f87171; }
-    .pred-prob-value.medium { color: #fbbf24; }
-    .pred-prob-value.low { color: #34d399; }
-
-    .progress-track {
-        height: 6px;
-        background: rgba(255, 255, 255, 0.08);
-        border-radius: 10px;
-        overflow: hidden;
-    }
-
-    .progress-fill {
-        height: 100%;
-        border-radius: 10px;
-    }
-
-    .progress-fill.high { background: linear-gradient(90deg, #ef4444, #b91c1c); }
-    .progress-fill.medium { background: linear-gradient(90deg, #f59e0b, #d97706); }
-    .progress-fill.low { background: linear-gradient(90deg, #10b981, #047857); }
-
-    .prediction-text {
-        font-size: 0.88rem;
-        color: #d1d5db;
-        line-height: 1.5;
-        background: rgba(255, 255, 255, 0.02);
-        padding: 10px;
-        border-radius: 8px;
-        border-left: 3px solid #10b981;
-    }
-
-    .prediction-text.high { border-left-color: #ef4444; }
-    .prediction-text.medium { border-left-color: #f59e0b; }
-    .prediction-text.low { border-left-color: #10b981; }
-
-    /* Referee area */
-    .referee-area {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-top: 15px;
-    }
-
-    .referee-badge {
-        background: rgba(59, 130, 246, 0.1);
-        border: 1px solid rgba(59, 130, 246, 0.2);
-        color: #60a5fa;
-        font-size: 0.82rem;
-        font-weight: 600;
-        padding: 6px 12px;
-        border-radius: 30px;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        transition: all 0.3s;
-    }
-
-    .referee-badge:hover {
-        background: rgba(59, 130, 246, 0.25);
-        color: #ffffff;
-        transform: scale(1.05);
-    }
-
-    .status-badge {
-        font-size: 0.75rem;
+    .bet-league-badge {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        color: #aeb9c4;
+        font-size: 0.72rem;
         font-weight: 700;
         padding: 3px 8px;
         border-radius: 6px;
+        text-transform: uppercase;
+        max-width: 70%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
-    .status-badge.ns { background: rgba(156, 163, 175, 0.1); color: #9ca3af; }
-    .status-badge.live { background: rgba(239, 68, 68, 0.15); color: #f87171; animation: blink 1.5s infinite; }
-    .status-badge.ft { background: rgba(16, 185, 129, 0.1); color: #34d399; }
+    .bet-time-badge {
+        color: #f47c20;
+        font-weight: 700;
+        font-size: 0.8rem;
+        background: rgba(244, 124, 32, 0.08);
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
 
-    @keyframes blink {
+    .bet-teams-box {
+        margin-bottom: 15px;
+    }
+
+    .bet-team-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 6px;
+    }
+
+    .bet-team-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #f47c20;
+    }
+
+    .bet-team-row:last-child .bet-team-dot {
+        background: #3b82f6;
+    }
+
+    .bet-team-name {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #ffffff;
+    }
+
+    .bet-divider {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.05);
+        margin: 12px 0;
+    }
+
+    /* Betano style progress & probability */
+    .bet-prob-container {
+        margin-bottom: 12px;
+    }
+
+    .bet-prob-label {
+        font-size: 0.8rem;
+        color: #8a99a8;
+        font-weight: 600;
+    }
+
+    .bet-prob-value-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+
+    .bet-prob-value {
+        font-weight: 800;
+        font-size: 1.1rem;
+    }
+
+    .bet-prob-value.high { color: #f47c20; }
+    .bet-prob-value.medium { color: #fbbf24; }
+    .bet-prob-value.low { color: #10b981; }
+
+    .bet-progress-track {
+        height: 5px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .bet-progress-fill {
+        height: 100%;
+        border-radius: 4px;
+    }
+
+    .bet-progress-fill.high { background: #f47c20; }
+    .bet-progress-fill.medium { background: #fbbf24; }
+    .bet-progress-fill.low { background: #10b981; }
+
+    .bet-pred-text {
+        font-size: 0.84rem;
+        color: #d1d5db;
+        line-height: 1.45;
+        background: rgba(255, 255, 255, 0.01);
+        padding: 8px 10px;
+        border-radius: 6px;
+        border-left: 3px solid #f47c20;
+    }
+
+    .bet-pred-text.high { border-left-color: #f47c20; }
+    .bet-pred-text.medium { border-left-color: #fbbf24; }
+    .bet-pred-text.low { border-left-color: #10b981; }
+
+    /* Betano style footer of cards */
+    .bet-referee-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 12px;
+    }
+
+    .bet-referee-btn {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: #aeb9c4;
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 5px 10px;
+        border-radius: 20px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.2s;
+    }
+
+    .bet-referee-btn:hover {
+        background: rgba(244, 124, 32, 0.1);
+        border-color: rgba(244, 124, 32, 0.3);
+        color: #ffffff;
+    }
+
+    .bet-status {
+        font-size: 0.72rem;
+        font-weight: 800;
+        padding: 3px 6px;
+        border-radius: 4px;
+        text-transform: uppercase;
+    }
+
+    .bet-status.ns { background: rgba(156, 163, 175, 0.08); color: #9ca3af; }
+    .bet-status.live { background: rgba(239, 68, 68, 0.12); color: #f87171; animation: bet-blink 1.5s infinite; }
+    .bet-status.ft { background: rgba(16, 185, 129, 0.08); color: #34d399; }
+
+    @keyframes bet-blink {
         0% { opacity: 0.6; }
         50% { opacity: 1; }
         100% { opacity: 0.6; }
     }
 
-    /* Modal Referee */
-    .ref-modal {
+    /* Modal Referee Styles */
+    .bet-modal {
         display: none;
         position: fixed;
         top: 0;
         left: 0;
         width: 100vw;
         height: 100vh;
-        background: rgba(0, 0, 0, 0.75);
-        backdrop-filter: blur(8px);
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(5px);
         z-index: 99999;
         align-items: center;
         justify-content: center;
@@ -457,37 +566,300 @@ $formattedDateHeader = $dateObj ? strftime('%d de %B de %Y', $dateObj->getTimest
         transition: opacity 0.3s ease;
     }
 
-    .ref-modal.show {
+    .bet-modal.show {
         opacity: 1;
     }
 
-    .ref-modal-content {
-        background: #1f2937;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 24px;
+    .bet-modal-content {
+        background: #172230;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
         width: 90vw;
-        max-width: 480px;
-        padding: 30px;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        max-width: 440px;
+        padding: 25px;
+        position: relative;
         transform: translateY(20px);
         transition: transform 0.3s ease;
-        position: relative;
     }
 
-    .ref-modal.show .ref-modal-content {
+    .bet-modal.show .bet-modal-content {
         transform: translateY(0);
     }
 
-    .btn-close-modal {
+    .bet-modal-close {
         position: absolute;
-        top: 20px;
-        right: 20px;
-        background: rgba(255, 255, 255, 0.05);
+        top: 15px;
+        right: 15px;
+        background: none;
         border: none;
-        color: #9ca3af;
-        width: 36px;
-        height: 36px;
+        color: #8a99a8;
+        font-size: 1.2rem;
+        cursor: pointer;
+    }
+
+    .bet-modal-close:hover {
+        color: white;
+    }
+
+    .bet-modal-title {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: white;
+        margin-bottom: 4px;
+    }
+
+    .bet-modal-subtitle {
+        color: #8a99a8;
+        font-size: 0.88rem;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .bet-rigor-badge {
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .bet-rigor-badge.rigoroso { background: rgba(244, 124, 32, 0.15); color: #f47c20; }
+    .bet-rigor-badge.moderado { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+    .bet-rigor-badge.permissivo { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+
+    .bet-stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .bet-stat-card {
+        background: #0f1620;
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        border-radius: 10px;
+        padding: 12px;
+        text-align: center;
+    }
+
+    .bet-stat-title {
+        font-size: 0.72rem;
+        color: #8a99a8;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+        font-weight: 700;
+    }
+
+    .bet-stat-val {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: white;
+    }
+
+    /* API Trigger Overlay */
+    .bet-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(14, 22, 32, 0.95);
+        z-index: 999999;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        color: white;
+        gap: 15px;
+    }
+
+    .bet-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(244, 124, 32, 0.2);
+        border-top-color: #f47c20;
         border-radius: 50%;
+        animation: bet-spin 1s infinite linear;
+    }
+
+    @keyframes bet-spin {
+        100% { transform: rotate(360deg); }
+    }
+
+    .bet-empty {
+        text-align: center;
+        padding: 50px 20px;
+        background: #172230;
+        border: 1px dashed rgba(255,255,255,0.08);
+        border-radius: 12px;
+        grid-column: 1 / -1;
+    }
+
+    .btn-update-betano {
+        background: #f47c20;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 700;
+        transition: all 0.2s;
+        box-shadow: 0 4px 14px rgba(244, 124, 32, 0.3);
+    }
+
+    .btn-update-betano:hover {
+        background: #ff8e38;
+        transform: translateY(-2px);
+    }
+
+    /* Chevron rotation for accordion */
+    .rotate-180 {
+        transform: rotate(180deg);
+    }
+
+    /* AI Chat Button inside card */
+    .bet-ai-btn {
+        background: rgba(244, 124, 32, 0.1);
+        border: 1px solid rgba(244, 124, 32, 0.25);
+        color: #f47c20;
+        font-size: 0.8rem;
+        font-weight: 700;
+        padding: 5px 10px;
+        border-radius: 20px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.2s;
+    }
+
+    .bet-ai-btn:hover {
+        background: #f47c20;
+        color: white;
+        box-shadow: 0 0 10px rgba(244, 124, 32, 0.4);
+    }
+
+    /* AI Chat Drawer Style */
+    .bet-chat-drawer {
+        position: fixed;
+        top: 0;
+        right: -400px;
+        width: 400px;
+        height: 100vh;
+        background: #172230;
+        border-left: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+        z-index: 100000;
+        transition: right 0.3s ease;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .bet-chat-drawer.open {
+        right: 0;
+    }
+
+    .bet-chat-header {
+        background: #0f1620;
+        padding: 20px;
+        border-bottom: 2px solid #f47c20;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .bet-chat-title {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: white;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .bet-chat-close-btn {
+        background: none;
+        border: none;
+        color: #8a99a8;
+        font-size: 1.2rem;
+        cursor: pointer;
+    }
+
+    .bet-chat-close-btn:hover {
+        color: white;
+    }
+
+    .bet-chat-game-context {
+        background: rgba(14, 22, 32, 0.5);
+        padding: 10px 20px;
+        font-size: 0.8rem;
+        color: #8a99a8;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .bet-chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .bet-chat-msg {
+        max-width: 85%;
+        padding: 10px 14px;
+        border-radius: 12px;
+        font-size: 0.88rem;
+        line-height: 1.4;
+    }
+
+    .bet-chat-msg.ai {
+        align-self: flex-start;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: #e5e7eb;
+        border-top-left-radius: 2px;
+    }
+
+    .bet-chat-msg.user {
+        align-self: flex-end;
+        background: #f47c20;
+        color: white;
+        border-top-right-radius: 2px;
+    }
+
+    .bet-chat-input-area {
+        padding: 15px 20px;
+        background: #0f1620;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        gap: 10px;
+    }
+
+    .bet-chat-input {
+        flex: 1;
+        background: #172230;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: white;
+        outline: none;
+        font-size: 0.88rem;
+    }
+
+    .bet-chat-input:focus {
+        border-color: #f47c20;
+    }
+
+    .bet-chat-send-btn {
+        background: #f47c20;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        width: 38px;
+        height: 38px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -495,363 +867,560 @@ $formattedDateHeader = $dateObj ? strftime('%d de %B de %Y', $dateObj->getTimest
         transition: all 0.2s;
     }
 
-    .btn-close-modal:hover {
-        background: rgba(255, 255, 255, 0.15);
-        color: #ffffff;
+    .bet-chat-send-btn:hover {
+        background: #ff8e38;
     }
 
-    .ref-modal-title {
-        font-size: 1.6rem;
-        font-weight: 700;
-        margin-bottom: 6px;
-        color: #ffffff;
-    }
-
-    .ref-modal-subtitle {
-        color: #9ca3af;
-        font-size: 0.9rem;
-        margin-bottom: 25px;
+    /* Typing indicators */
+    .typing-loader {
         display: flex;
-        align-items: center;
-        gap: 6px;
+        gap: 4px;
+        padding: 4px 6px;
     }
 
-    .rigor-badge {
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .rigor-badge.rigoroso { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-    .rigor-badge.moderado { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-    .rigor-badge.permissivo { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        margin-bottom: 20px;
-    }
-
-    .stat-card-ft {
-        background: rgba(17, 24, 39, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 12px;
-        padding: 16px;
-        text-align: center;
-    }
-
-    .stat-card-title {
-        font-size: 0.8rem;
-        color: #9ca3af;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 6px;
-    }
-
-    .stat-card-val {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #ffffff;
-    }
-
-    /* Empty state */
-    .empty-state {
-        text-align: center;
-        padding: 60px 20px;
-        background: rgba(31, 41, 55, 0.2);
-        border: 1px dashed rgba(255, 255, 255, 0.1);
-        border-radius: 16px;
-        grid-column: 1 / -1;
-    }
-
-    .empty-icon {
-        font-size: 3.5rem;
-        color: #4b5563;
-        margin-bottom: 15px;
-    }
-
-    /* Ingest status bar */
-    .ingest-status-overlay {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: rgba(0, 0, 0, 0.85);
-        z-index: 999999;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        flex-direction: column;
-        gap: 15px;
-    }
-
-    .loader-spinner {
-        width: 50px;
-        height: 50px;
-        border: 5px solid rgba(16, 185, 129, 0.2);
-        border-top-color: #10b981;
+    .typing-dot {
+        width: 6px;
+        height: 6px;
+        background: #8a99a8;
         border-radius: 50%;
-        animation: spin 1s infinite linear;
+        animation: typing-blink 1.4s infinite both;
     }
 
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+    .typing-dot:nth-child(2) { animation-delay: .2s; }
+    .typing-dot:nth-child(3) { animation-delay: .4s; }
+
+    @keyframes typing-blink {
+        0% { opacity: .2; }
+        20% { opacity: 1; }
+        100% { opacity: .2; }
     }
 </style>
 
 <div class="container-fluid">
     <div class="ft-container">
-
-        <!-- Hero Section -->
-        <div class="ft-hero">
-            <span class="ft-title-badge">⚽ Futebol & Estatísticas</span>
-            <h1 class="ft-title">Football Trends</h1>
-            <p class="ft-subtitle">
-                Análise de probabilidade de cartões baseada no perfil e nível de rigor da arbitragem escalada para cada confronto das principais ligas.
-            </p>
-            <div class="d-flex justify-content-center gap-3">
-                <button type="button" class="btn-update-api" onclick="triggerIngestion('<?= $targetDate ?>')">
-                    <i class="bi bi-arrow-repeat"></i>
-                    <span>Atualizar Dados (API)</span>
+        
+        <!-- Header / Brand Section -->
+        <div class="bet-brand-header">
+            <div class="bet-brand-title">
+                <span class="bet-brand-logo">Bet</span>
+                <h1 class="bet-brand-subtitle">Trends</h1>
+            </div>
+            <div>
+                <button type="button" class="btn-update-betano" onclick="triggerIngestion('<?= $targetDate ?>')">
+                    <i class="bi bi-arrow-repeat"></i> Atualizar Dados (API)
                 </button>
             </div>
         </div>
 
-        <!-- Controles de Data e Busca -->
-        <div class="ft-controls-row">
-            <div class="row align-items-center g-3">
-                <div class="col-lg-6 col-md-12">
-                    <div class="date-navigator">
-                        <?php
-                        $yesterday = date('Y-m-d', strtotime('-1 day'));
-                        $today = date('Y-m-d');
-                        $tomorrow = date('Y-m-d', strtotime('+1 day'));
-                        ?>
-                        <a href="?date=<?= $yesterday ?>" class="date-btn <?= $targetDate === $yesterday ? 'active' : '' ?>">
-                            <i class="bi bi-chevron-left"></i> Ontem
-                        </a>
-                        <a href="?date=<?= $today ?>" class="date-btn <?= $targetDate === $today ? 'active' : '' ?>">
-                            Hoje
-                        </a>
-                        <a href="?date=<?= $tomorrow ?>" class="date-btn <?= $targetDate === $tomorrow ? 'active' : '' ?>">
-                            Amanhã <i class="bi bi-chevron-right"></i>
-                        </a>
-                        <div class="date-picker-wrapper ms-lg-2">
-                            <form method="get" id="dateForm" class="d-flex align-items-center">
-                                <input type="date" name="date" class="date-input" value="<?= $targetDate ?>" onchange="document.getElementById('dateForm').submit()">
+        <div class="row g-4">
+            <!-- Coluna Esquerda: Sidebar (Accordion de Competições estilo Betano) -->
+            <div class="col-lg-3 col-md-4">
+                <div class="bet-sidebar">
+                    
+                    <!-- Bloco POPULARES -->
+                    <div class="bet-section-title">
+                        <span>Populares</span>
+                        <i class="bi bi-star-fill" style="color: #f47c20;"></i>
+                    </div>
+                    <ul class="bet-sidebar-list">
+                        <li class="bet-sidebar-item">
+                            <a class="bet-league-link active" onclick="filterByLeague('all')" id="league-link-all">
+                                ⚽ Todas as Ligas
+                            </a>
+                        </li>
+                        <?php foreach ($popularLeagues as $popLeague): ?>
+                            <li class="bet-sidebar-item">
+                                <a class="bet-league-link" onclick="filterByLeague('<?= htmlspecialchars($popLeague) ?>')" data-league-name="<?= htmlspecialchars($popLeague) ?>">
+                                    ⭐ <?= htmlspecialchars($popLeague) ?>
+                                </a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+
+                    <!-- Bloco COMPETIÇÕES PRINCIPAIS -->
+                    <div class="bet-section-title">
+                        <span>Competições Principais</span>
+                        <i class="bi bi-trophy-fill" style="color: #8a99a8;"></i>
+                    </div>
+                    
+                    <div class="bet-accordion" id="betCountryAccordion">
+                        <?php $countryIdx = 0; ?>
+                        <?php foreach ($groupedLeagues as $countryName => $cData): ?>
+                            <?php $countryIdx++; ?>
+                            <div class="mb-2">
+                                <div class="bet-country-header" onclick="toggleCountryAccordion('country-<?= $countryIdx ?>')">
+                                    <span class="d-flex align-items-center gap-2">
+                                        <span><?= $cData['flag'] ?></span>
+                                        <span><?= htmlspecialchars($countryName) ?></span>
+                                    </span>
+                                    <i class="bi bi-chevron-down bet-country-chevron" id="chevron-country-<?= $countryIdx ?>"></i>
+                                </div>
+                                <div class="bet-country-content" id="content-country-<?= $countryIdx ?>">
+                                    <ul class="bet-sidebar-list" style="margin-bottom: 0;">
+                                        <?php foreach ($cData['leagues'] as $lName): ?>
+                                            <li class="bet-sidebar-item">
+                                                <a class="bet-league-link" onclick="filterByLeague('<?= htmlspecialchars($lName) ?>')" data-league-name="<?= htmlspecialchars($lName) ?>">
+                                                    🔹 <?= htmlspecialchars($lName) ?>
+                                                </a>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coluna Direita: Conteúdo Principal -->
+            <div class="col-lg-9 col-md-8">
+                
+                <!-- Controles de Data e Pesquisa -->
+                <div class="bet-controls-row">
+                    <div class="row align-items-center g-3">
+                        <div class="col-lg-7 col-md-12">
+                            <div class="d-flex gap-2 align-items-center flex-wrap">
+                                <?php
+                                $yesterday = date('Y-m-d', strtotime('-1 day'));
+                                $today = date('Y-m-d');
+                                $tomorrow = date('Y-m-d', strtotime('+1 day'));
+                                ?>
+                                <a href="?date=<?= $yesterday ?>" class="bet-date-btn <?= $targetDate === $yesterday ? 'active' : '' ?>">
+                                    <i class="bi bi-chevron-left"></i> Ontem
+                                </a>
+                                <a href="?date=<?= $today ?>" class="bet-date-btn <?= $targetDate === $today ? 'active' : '' ?>">
+                                    Hoje
+                                </a>
+                                <a href="?date=<?= $tomorrow ?>" class="bet-date-btn <?= $targetDate === $tomorrow ? 'active' : '' ?>">
+                                    Amanhã <i class="bi bi-chevron-right"></i>
+                                </a>
+                                <div class="position-relative d-inline-block">
+                                    <form method="get" id="dateForm" class="d-flex align-items-center m-0">
+                                        <input type="date" name="date" class="bet-date-input" value="<?= $targetDate ?>" onchange="document.getElementById('dateForm').submit()">
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-5 col-md-12">
+                            <form method="get" class="d-flex gap-2 m-0">
+                                <input type="hidden" name="date" value="<?= $targetDate ?>">
+                                <div class="position-relative flex-grow-1">
+                                    <i class="bi bi-search bet-search-icon"></i>
+                                    <input type="text" name="search" class="bet-search-input" placeholder="Buscar times, liga ou árbitro..." value="<?= htmlspecialchars($search ?? '') ?>">
+                                </div>
+                                <button type="submit" class="btn btn-secondary rounded-3 px-3">Filtrar</button>
+                                <?php if(!empty($search)): ?>
+                                    <a href="?date=<?= $targetDate ?>" class="btn btn-outline-danger d-flex align-items-center justify-content-center px-3" style="border-radius: 8px;">Limpar</a>
+                                <?php endif; ?>
                             </form>
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-6 col-md-12">
-                    <form method="get" class="d-flex gap-2">
-                        <input type="hidden" name="date" value="<?= $targetDate ?>">
-                        <div class="search-box-wrapper">
-                            <i class="bi bi-search search-icon"></i>
-                            <input type="text" name="search" class="search-input" placeholder="Buscar por times, liga ou árbitro..." value="<?= htmlspecialchars($search ?? '') ?>">
-                        </div>
-                        <button type="submit" class="btn btn-secondary rounded-3" style="padding: 10px 20px;">Filtrar</button>
-                        <?php if(!empty($search)): ?>
-                            <a href="?date=<?= $targetDate ?>" class="btn btn-outline-danger d-flex align-items-center justify-content-center" style="border-radius: 12px;">Limpar</a>
-                        <?php endif; ?>
-                    </form>
+
+                <!-- Abas estilo Betano: Destaques vs Todas as Partidas -->
+                <div class="bet-tabs">
+                    <div class="bet-tab active" id="tab-competicoes" onclick="switchMainTab('competicoes')">Competições</div>
+                    <div class="bet-tab" id="tab-destaques" onclick="switchMainTab('destaques')">Destaques (Probabilidade 🔥)</div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Abas das Ligas Disponíveis -->
-        <?php if (!empty($leagues)): ?>
-            <div class="leagues-wrapper">
-                <span class="league-pill active" onclick="filterByLeague('all')">Todas as Ligas</span>
-                <?php foreach ($leagues as $league): ?>
-                    <span class="league-pill" onclick="filterByLeague('<?= htmlspecialchars($league) ?>')"><?= htmlspecialchars($league) ?></span>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-
-        <!-- Grid de Partidas -->
-        <div class="fixtures-grid" id="fixturesGrid">
-            <?php if (empty($fixtures)): ?>
-                <div class="empty-state">
-                    <i class="bi bi-calendar-x empty-icon"></i>
-                    <h3>Nenhuma partida cadastrada para esta data</h3>
-                    <p class="text-muted">
-                        Clique em <strong>Atualizar Dados (API)</strong> para obter dados em tempo real da API-Football.
-                    </p>
-                </div>
-            <?php else: ?>
-                <?php foreach ($fixtures as $fix): ?>
-                    <?php
-                    // Cores baseadas na probabilidade
-                    $prob = (float)$fix->over_cards_probability;
-                    if ($prob >= 70.0) {
-                        $class = 'high';
-                    } elseif ($prob >= 50.0) {
-                        $class = 'medium';
-                    } else {
-                        $class = 'low';
-                    }
-
-                    // Formata data e hora
-                    $timeStr = '';
-                    try {
-                        $dt = new DateTime($fix->fixture_date);
-                        $timeStr = $dt->format('H:i');
-                    } catch (\Exception $e) {}
-                    ?>
-                    <div class="fixture-card" data-league="<?= htmlspecialchars($fix->league_name) ?>">
-                        <div>
-                            <!-- Header da Partida -->
-                            <div class="card-header-ft">
-                                <span class="league-badge" title="<?= htmlspecialchars($fix->league_name) ?>">
-                                    <?= htmlspecialchars($fix->league_name) ?>
-                                </span>
-                                <span class="time-badge">
-                                    <i class="bi bi-clock"></i> <?= $timeStr ?>
-                                </span>
-                            </div>
-
-                            <!-- Confronto -->
-                            <div class="teams-section">
-                                <div class="team-row">
-                                    <span class="team-dot"></span>
-                                    <span class="team-name"><?= htmlspecialchars($fix->home_team) ?></span>
-                                </div>
-                                <div class="team-row">
-                                    <span class="team-dot"></span>
-                                    <span class="team-name"><?= htmlspecialchars($fix->away_team) ?></span>
-                                </div>
-                            </div>
-
-                            <div class="divider"></div>
-
-                            <!-- Probabilidades -->
-                            <div class="prediction-box">
-                                <div class="pred-prob-row">
-                                    <span class="pred-prob-label">Over 4.5 Amarelos</span>
-                                    <span class="pred-prob-value <?= $class ?>"><?= $prob ?>%</span>
-                                </div>
-                                <div class="progress-track">
-                                    <div class="progress-fill <?= $class ?>" style="width: <?= $prob ?>%"></div>
-                                </div>
-                            </div>
-
-                            <!-- Análise do Árbitro -->
-                            <p class="prediction-text <?= $class ?>">
-                                <?= htmlspecialchars($fix->prediction_text) ?>
+                <!-- Grid de Partidas -->
+                <div class="bet-grid" id="fixturesGrid">
+                    <?php if (empty($fixtures)): ?>
+                        <div class="bet-empty">
+                            <i class="bi bi-calendar-x" style="font-size: 3rem; color: #8a99a8; display: block; margin-bottom: 15px;"></i>
+                            <h3>Nenhuma partida disponível para esta data</h3>
+                            <p class="text-muted">
+                                Clique em <strong>Atualizar Dados (API)</strong> no topo para sincronizar os confrontos ativos da API-Football.
                             </p>
                         </div>
-
-                        <!-- Rodapé com Árbitro e Status -->
-                        <div class="referee-area">
-                            <?php if (!empty($fix->referee_name)): ?>
-                                <span class="referee-badge" 
-                                      onclick="showRefereeDetails(
-                                          '<?= htmlspecialchars($fix->referee_name) ?>',
-                                          '<?= $fix->rigor_level ?? 'Moderado' ?>',
-                                          '<?= $fix->average_yellow_cards ?? '0.00' ?>',
-                                          '<?= $fix->average_red_cards ?? '0.00' ?>',
-                                          '<?= $fix->average_fouls ?? '0.00' ?>',
-                                          '<?= $fix->total_games ?? '0' ?>'
-                                      )">
-                                    <i class="bi bi-bookmark-star"></i> <?= htmlspecialchars($fix->referee_name) ?>
-                                </span>
-                            <?php else: ?>
-                                <span class="text-muted" style="font-size: 0.85rem;"><i class="bi bi-person-x"></i> Sem Árbitro</span>
-                            <?php endif; ?>
-
+                    <?php else: ?>
+                        <?php foreach ($fixtures as $fix): ?>
                             <?php
-                            $statusClean = strtoupper($fix->status);
-                            if ($statusClean === 'NS') {
-                                $statusLabel = 'A Iniciar';
-                                $statusClass = 'ns';
-                            } elseif (in_array($statusClean, ['1H', '2H', 'HT', 'ET'])) {
-                                $statusLabel = 'Ao Vivo';
-                                $statusClass = 'live';
+                            $prob = (float)$fix->over_cards_probability;
+                            if ($prob >= 70.0) {
+                                $class = 'high';
+                            } elseif ($prob >= 50.0) {
+                                $class = 'medium';
                             } else {
-                                $statusLabel = 'Encerrado';
-                                $statusClass = 'ft';
+                                $class = 'low';
                             }
+
+                            // Formata hora convertendo de UTC para America/Sao_Paulo
+                            $timeStr = '';
+                            try {
+                                $dt = new DateTime($fix->fixture_date, new DateTimeZone('UTC'));
+                                $dt->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+                                $timeStr = $dt->format('H:i');
+                            } catch (\Exception $e) {}
                             ?>
-                            <span class="status-badge <?= $statusClass ?>">
-                                <?= $statusLabel ?>
-                            </span>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
+                            <div class="bet-card" data-league="<?= htmlspecialchars($fix->league_name) ?>" data-prob="<?= $prob ?>">
+                                <div>
+                                    <!-- Header -->
+                                    <div class="bet-card-header">
+                                        <span class="bet-league-badge" title="<?= htmlspecialchars($fix->league_name) ?>">
+                                            <?= htmlspecialchars($fix->league_name) ?>
+                                        </span>
+                                        <span class="bet-time-badge">
+                                            <i class="bi bi-clock"></i> <?= $timeStr ?>
+                                        </span>
+                                    </div>
+
+                                    <!-- Confronto -->
+                                    <div class="bet-teams-box">
+                                        <div class="bet-team-row">
+                                            <span class="bet-team-dot"></span>
+                                            <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?></span>
+                                        </div>
+                                        <div class="bet-team-row">
+                                            <span class="bet-team-dot"></span>
+                                            <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="bet-divider"></div>
+
+                                    <!-- Probabilidade de Cartões -->
+                                    <div class="bet-prob-container">
+                                        <div class="bet-prob-value-row">
+                                            <span class="bet-prob-label">Mais de 4.5 Cartões</span>
+                                            <span class="bet-prob-value <?= $class ?>"><?= $prob ?>%</span>
+                                        </div>
+                                        <div class="bet-progress-track">
+                                            <div class="bet-progress-fill <?= $class ?>" style="width: <?= $prob ?>%"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Análise -->
+                                    <p class="bet-pred-text <?= $class ?>">
+                                        <?= htmlspecialchars($fix->prediction_text) ?>
+                                    </p>
+                                </div>
+
+                                <!-- Rodapé com Árbitro e Status -->
+                                <div class="bet-referee-bar">
+                                    <?php if (!empty($fix->referee_name)): ?>
+                                        <span class="bet-referee-btn" onclick="showRefereeDetails(
+                                            '<?= htmlspecialchars($fix->referee_name) ?>',
+                                            '<?= $fix->rigor_level ?? 'Moderado' ?>',
+                                            '<?= $fix->average_yellow_cards ?? '0.00' ?>',
+                                            '<?= $fix->average_red_cards ?? '0.00' ?>',
+                                            '<?= $fix->average_fouls ?? '0.00' ?>',
+                                            '<?= $fix->total_games ?? '0' ?>'
+                                        )">
+                                            <i class="bi bi-person-fill"></i> <?= htmlspecialchars($fix->referee_name) ?>
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="text-muted" style="font-size: 0.8rem;"><i class="bi bi-person-x"></i> Sem Árbitro</span>
+                                    <?php endif; ?>
+
+                                    <!-- Botão Conversar com Grok AI -->
+                                    <button class="bet-ai-btn" title="Conversar com o Assistente de IA Grok" onclick="openAiChat(
+                                        '<?= htmlspecialchars($fix->home_team) ?>',
+                                        '<?= htmlspecialchars($fix->away_team) ?>',
+                                        '<?= htmlspecialchars($fix->league_name) ?>',
+                                        '<?= htmlspecialchars($fix->referee_name ?? '') ?>',
+                                        '<?= htmlspecialchars($fix->prediction_text) ?>',
+                                        '<?= $prob ?>'
+                                    )">
+                                        <i class="bi bi-chat-left-text-fill"></i> Grok AI
+                                    </button>
+
+                                    <?php
+                                    $statusClean = strtoupper($fix->status);
+                                    if ($statusClean === 'NS') {
+                                        $statusLabel = 'A Iniciar';
+                                        $statusClass = 'ns';
+                                    } elseif (in_array($statusClean, ['1H', '2H', 'HT', 'ET'])) {
+                                        $statusLabel = 'Ao Vivo';
+                                        $statusClass = 'live';
+                                    } else {
+                                        $statusLabel = 'Encerrado';
+                                        $statusClass = 'ft';
+                                    }
+                                    ?>
+                                    <span class="bet-status <?= $statusClass ?>">
+                                        <?= $statusLabel ?>
+                                    </span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+
+            </div>
         </div>
 
     </div>
 </div>
 
-<!-- Modal de Detalhes do Árbitro -->
-<div class="ref-modal" id="refereeModal">
-    <div class="ref-modal-content">
-        <button class="btn-close-modal" onclick="closeRefereeModal()">X</button>
-        <h3 class="ref-modal-title" id="modalRefName">Anderson Daronco</h3>
-        <div class="ref-modal-subtitle">
+<!-- Modal Referee -->
+<div class="bet-modal" id="refereeModal">
+    <div class="bet-modal-content">
+        <button class="bet-modal-close" onclick="closeRefereeModal()"><i class="bi bi-x-lg"></i></button>
+        <h3 class="bet-modal-title" id="modalRefName">Anderson Daronco</h3>
+        <div class="bet-modal-subtitle">
             <span>Rigor de Arbitragem:</span>
-            <span class="rigor-badge" id="modalRefRigor">Rigoroso</span>
+            <span class="bet-rigor-badge" id="modalRefRigor">Rigoroso</span>
         </div>
 
-        <div class="stats-grid">
-            <div class="stat-card-ft">
-                <div class="stat-card-title">Média Amarelos</div>
-                <div class="stat-card-val" id="modalRefYellow">5.20</div>
+        <div class="bet-stats-grid">
+            <div class="bet-stat-card">
+                <div class="bet-stat-title">Média Amarelos</div>
+                <div class="bet-stat-val" id="modalRefYellow">5.20</div>
             </div>
-            <div class="stat-card-ft">
-                <div class="stat-card-title">Média Vermelhos</div>
-                <div class="stat-card-val" id="modalRefRed">0.24</div>
+            <div class="bet-stat-card">
+                <div class="bet-stat-title">Média Vermelhos</div>
+                <div class="bet-stat-val" id="modalRefRed">0.24</div>
             </div>
-            <div class="stat-card-ft">
-                <div class="stat-card-title">Média Faltas</div>
-                <div class="stat-card-val" id="modalRefFouls">24.50</div>
+            <div class="bet-stat-card">
+                <div class="bet-stat-title">Média Faltas</div>
+                <div class="bet-stat-val" id="modalRefFouls">24.50</div>
             </div>
-            <div class="stat-card-ft">
-                <div class="stat-card-title">Total Jogos</div>
-                <div class="stat-card-val" id="modalRefGames">120</div>
+            <div class="bet-stat-card">
+                <div class="bet-stat-title">Total Jogos</div>
+                <div class="bet-stat-val" id="modalRefGames">120</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Overlay de Progresso de Ingestão -->
-<div class="ingest-status-overlay" id="ingestOverlay">
-    <div class="loader-spinner"></div>
-    <h3 style="font-weight: 600; margin-top: 10px;">Invocando API de Ingestão...</h3>
-    <p class="text-muted" style="font-size: 0.95rem;">Por favor, aguarde enquanto o Apache Airflow processa os dados.</p>
+<!-- Overlay Ingest -->
+<div class="bet-overlay" id="ingestOverlay">
+    <div class="bet-spinner"></div>
+    <h4 style="font-weight: 700; margin: 10px 0 0 0;">Invocando API de Ingestão...</h4>
+    <p class="text-muted" style="font-size: 0.9rem; margin: 0;">O Apache Airflow está processando a chamada. Por favor, aguarde.</p>
+</div>
+
+<!-- AI Chat Drawer -->
+<div class="bet-chat-drawer" id="chatDrawer">
+    <div class="bet-chat-header">
+        <h3 class="bet-chat-title">
+            <i class="bi bi-robot" style="color: #f47c20;"></i> Grok AI Assistant
+        </h3>
+        <button class="bet-chat-close-btn" onclick="closeAiChat()"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="bet-chat-game-context">
+        <span>Partida: </span><strong id="chatContextText">Pumas vs Pachuca</strong>
+    </div>
+    <div class="bet-chat-messages" id="chatMessages">
+        <!-- Messages will go here -->
+    </div>
+    <div class="bet-chat-input-area">
+        <input type="text" class="bet-chat-input" id="chatInput" placeholder="Pergunte ao Grok sobre mercados e estatísticas...">
+        <button class="bet-chat-send-btn" onclick="sendUserChatMessage()"><i class="bi bi-send-fill"></i></button>
+    </div>
 </div>
 
 <!-- Scripts de Interação -->
 <script>
-    // Filtro dinâmico por Ligas
-    function filterByLeague(leagueName) {
-        // Atualiza estilo das abas
-        const pills = document.querySelectorAll('.league-pill');
-        pills.forEach(p => p.classList.remove('active'));
+    let currentLeagueFilter = 'all';
+    let currentTabFilter = 'competicoes';
 
-        // Define a aba ativa
-        event.currentTarget.classList.add('active');
+    // Estado e Histórico do Chatbot
+    let chatHistory = [];
+    let activeChatContext = null;
 
-        // Filtra os cards
-        const cards = document.querySelectorAll('.fixture-card');
+    function openAiChat(homeTeam, awayTeam, leagueName, refereeName, predictionText, prob) {
+        activeChatContext = { homeTeam, awayTeam, leagueName, refereeName, predictionText, prob };
+        chatHistory = []; // Limpa o histórico de sessões anteriores
+        
+        document.getElementById('chatContextText').innerText = `${homeTeam} vs ${awayTeam} (${leagueName})`;
+        
+        const messagesArea = document.getElementById('chatMessages');
+        messagesArea.innerHTML = '';
+        
+        const welcomeText = `Fala, apostador! Sou o Grok. Analisando o jogo **${homeTeam} vs ${awayTeam}** (${leagueName}) com probabilidade de **${prob}%** para Over 4.5 Cartões.\n\n`
+            + `Se o mercado tradicional de **Total de Cartões (Mais de 4.5)** estiver fechado ou limitado na Betano para este jogo, recomendo buscar opções como:\n`
+            + `* **Ambas as equipes receberão 2 ou mais cartões** (opção muito segura quando as estatísticas de cartões são altas);\n`
+            + `* **Total de Cartões por Equipe** (Mais de 1.5 ou 2.5 cartões para um dos times);\n`
+            + `* **Total de Cartões no 1º Tempo**.\n\n`
+            + `Em que posso te ajudar a interpretar as estatísticas desse confronto?`;
+            
+        appendChatMessage('ai', welcomeText);
+        
+        const drawer = document.getElementById('chatDrawer');
+        drawer.classList.add('open');
+        
+        setTimeout(() => document.getElementById('chatInput').focus(), 300);
+    }
+
+    function closeAiChat() {
+        const drawer = document.getElementById('chatDrawer');
+        drawer.classList.remove('open');
+        activeChatContext = null;
+        chatHistory = [];
+    }
+
+    function appendChatMessage(role, text) {
+        const messagesArea = document.getElementById('chatMessages');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `bet-chat-msg ${role}`;
+        
+        // Formata negritos e quebras de linha
+        let formattedText = text.replace(/\*\*(.*?)\*\"/g, '<strong>$1</strong>'); // Replaces **text**
+        // fallback in case of standard formatting
+        formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        formattedText = formattedText.replace(/\n/g, '<br>');
+        
+        msgDiv.innerHTML = formattedText;
+        messagesArea.appendChild(msgDiv);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    function sendUserChatMessage() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text || !activeChatContext) return;
+        
+        input.value = '';
+        input.disabled = true;
+        
+        appendChatMessage('user', text);
+        
+        // Typing indicator
+        const messagesArea = document.getElementById('chatMessages');
+        const loaderDiv = document.createElement('div');
+        loaderDiv.className = 'bet-chat-msg ai';
+        loaderDiv.id = 'chatTypingLoader';
+        loaderDiv.innerHTML = `<div class="typing-loader"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+        messagesArea.appendChild(loaderDiv);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+        
+        const formData = new FormData();
+        formData.append('home_team', activeChatContext.homeTeam);
+        formData.append('away_team', activeChatContext.awayTeam);
+        formData.append('league_name', activeChatContext.leagueName);
+        formData.append('referee_name', activeChatContext.refereeName);
+        formData.append('prediction_text', activeChatContext.predictionText);
+        formData.append('over_cards_probability', activeChatContext.prob);
+        formData.append('message', text);
+        formData.append('history', JSON.stringify(chatHistory));
+        
+        fetch('/football-trends/ask-ai', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            const loader = document.getElementById('chatTypingLoader');
+            if (loader) loader.remove();
+            
+            input.disabled = false;
+            input.focus();
+            
+            if (data.success) {
+                const aiResponse = data.response;
+                appendChatMessage('ai', aiResponse);
+                
+                chatHistory.push({ role: 'user', content: text });
+                chatHistory.push({ role: 'assistant', content: aiResponse });
+            } else {
+                appendChatMessage('ai', `❌ Erro: ${data.message || 'Falha ao processar.'}`);
+            }
+        })
+        .catch(error => {
+            const loader = document.getElementById('chatTypingLoader');
+            if (loader) loader.remove();
+            
+            input.disabled = false;
+            input.focus();
+            console.error('Chat error:', error);
+            appendChatMessage('ai', '❌ Erro de comunicação com o servidor.');
+        });
+    }
+
+    // Configura o teclado para enviar com Enter
+    document.addEventListener('DOMContentLoaded', function() {
+        const input = document.getElementById('chatInput');
+        if (input) {
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendUserChatMessage();
+                }
+            });
+        }
+    });
+
+    // Aplica os filtros combinados (Liga + Aba de Destaques)
+    function applyFilters() {
+        const cards = document.querySelectorAll('.bet-card');
+        let visibleCount = 0;
+        
         cards.forEach(card => {
-            if (leagueName === 'all' || card.getAttribute('data-league') === leagueName) {
+            const cardLeague = card.getAttribute('data-league');
+            const cardProb = parseFloat(card.getAttribute('data-prob') || '0');
+            
+            const matchLeague = (currentLeagueFilter === 'all' || cardLeague === currentLeagueFilter);
+            const matchTab = (currentTabFilter === 'competicoes' || cardProb >= 70.0);
+            
+            if (matchLeague && matchTab) {
                 card.style.display = 'flex';
+                visibleCount++;
             } else {
                 card.style.display = 'none';
             }
         });
+        
+        // Trata o empty state se não houver cards visíveis
+        const emptyState = document.querySelector('.bet-empty');
+        if (emptyState) {
+            if (visibleCount === 0) {
+                emptyState.style.display = 'block';
+            } else {
+                emptyState.style.display = 'none';
+            }
+        }
+    }
+
+    // Filtro por Ligas
+    function filterByLeague(leagueName) {
+        currentLeagueFilter = leagueName;
+        
+        // Atualiza classes ativas na barra lateral
+        const links = document.querySelectorAll('.bet-league-link');
+        links.forEach(link => {
+            link.classList.remove('active');
+            const linkLeague = link.getAttribute('data-league-name');
+            if (leagueName === 'all' && link.id === 'league-link-all') {
+                link.classList.add('active');
+            } else if (linkLeague === leagueName) {
+                link.classList.add('active');
+            }
+        });
+        
+        applyFilters();
+    }
+
+    // Filtro pelas Abas (Competições vs Destaques)
+    function switchMainTab(tabName) {
+        currentTabFilter = tabName;
+        
+        const tabComp = document.getElementById('tab-competicoes');
+        const tabDest = document.getElementById('tab-destaques');
+        
+        if (tabName === 'competicoes') {
+            tabComp.classList.add('active');
+            tabDest.classList.remove('active');
+        } else {
+            tabComp.classList.remove('active');
+            tabDest.classList.add('active');
+        }
+        
+        applyFilters();
+    }
+
+    // Controle de expansão do accordion de países
+    function toggleCountryAccordion(id) {
+        const content = document.getElementById('content-' + id);
+        const chevron = document.getElementById('chevron-' + id);
+        
+        if (content.style.display === 'block') {
+            content.style.display = 'none';
+            chevron.classList.remove('rotate-180');
+        } else {
+            content.style.display = 'block';
+            chevron.classList.add('rotate-180');
+        }
     }
 
     // Modal do Árbitro
@@ -859,9 +1428,8 @@ $formattedDateHeader = $dateObj ? strftime('%d de %B de %Y', $dateObj->getTimest
         document.getElementById('modalRefName').innerText = name;
         
         const rigorBadge = document.getElementById('modalRefRigor');
-        rigorBadge.className = 'rigor-badge ' + rigor.toLowerCase();
+        rigorBadge.className = 'bet-rigor-badge ' + rigor.toLowerCase();
         
-        // Define o ícone de acordo com o rigor
         let icon = '';
         if (rigor.toLowerCase() === 'rigoroso') icon = '🔥 ';
         else if (rigor.toLowerCase() === 'moderado') icon = '⚖️ ';
@@ -891,6 +1459,11 @@ $formattedDateHeader = $dateObj ? strftime('%d de %B de %Y', $dateObj->getTimest
         if (event.target === modal) {
             closeRefereeModal();
         }
+        
+        const drawer = document.getElementById('chatDrawer');
+        if (drawer && drawer.classList.contains('open') && !drawer.contains(event.target) && !event.target.closest('.bet-ai-btn')) {
+            closeAiChat();
+        }
     }
 
     // Trigger de Ingestão via Airflow
@@ -909,7 +1482,6 @@ $formattedDateHeader = $dateObj ? strftime('%d de %B de %Y', $dateObj->getTimest
         .then(data => {
             if (data.success) {
                 alert('✅ Sucesso! Ingestão agendada no Airflow. Os dados serão atualizados em instantes.');
-                // Recarrega a página após 3 segundos para dar tempo de atualizar o banco
                 setTimeout(() => {
                     window.location.reload();
                 }, 3000);

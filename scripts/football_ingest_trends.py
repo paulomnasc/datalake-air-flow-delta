@@ -103,6 +103,7 @@ def main():
     # Ligas permitidas para o MVP (inclui ligas europeias e ligas ativas no verão global)
     ALLOWED_LEAGUES = {
         71: "Série A (Brasil)",
+        72: "Série B (Brasil)",
         39: "Premier League (Inglaterra)",
         140: "La Liga (Espanha)",
         135: "Serie A (Itália)",
@@ -122,6 +123,22 @@ def main():
         128: "Primera División (Argentina)",
         98: "J1 League (Japão)",
         292: "K League 1 (Coreia do Sul)",
+        283: "Liga I (Romênia)",
+        286: "Super Liga (Sérvia)",
+        244: "Veikkausliiga (Finlândia)",
+        281: "Primera División (Peru)",
+        242: "Liga Pro (Equador)",
+        268: "Primera División (Uruguai)",
+        265: "Primera División (Chile)",
+        239: "Primera División (Colômbia)",
+        169: "Super League (China)",
+        307: "Saudi Pro League (Arábia Saudita)",
+        203: "Süper Lig (Turquia)",
+        207: "Super League (Suíça)",
+        144: "Pro League (Bélgica)",
+        119: "Superliga (Dinamarca)",
+        218: "Bundesliga (Áustria)",
+        197: "Super League (Grécia)",
         1: "Copa do Mundo (Mundo)"
     }
 
@@ -130,13 +147,8 @@ def main():
     # Filtra partidas pelas ligas permitidas
     filtered_fixtures = [f for f in fixtures if f.get("league", {}).get("id") in ALLOWED_LEAGUES]
     
-    # Se não houver partidas nas ligas permitidas hoje, ingesta qualquer partida com árbitro
-    # para garantir que a vitrine/dashboard não fique vazia
     if not filtered_fixtures:
-        print("Nenhuma partida encontrada nas ligas principais. Utilizando fallback para qualquer liga com árbitro...")
-        filtered_fixtures = [f for f in fixtures if f.get("fixture", {}).get("referee")]
-        # Pega no máximo 30 partidas para não estourar
-        filtered_fixtures = filtered_fixtures[:30]
+        print("Nenhuma partida encontrada nas ligas principais (Tier 1) para esta data.")
         
     print(f"Processando {len(filtered_fixtures)} partidas filtradas...")
     

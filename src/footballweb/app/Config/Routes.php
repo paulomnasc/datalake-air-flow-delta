@@ -42,6 +42,7 @@ $routes->get('/debugFunctionalities', 'Home::debugFunctionalities', ['as'=>'debu
 // Rotas do App Football Trends
 $routes->get('/football-trends', 'FootballTrendsController::index', ['as'=>'football.trends']);
 $routes->post('/football-trends/ingest', 'FootballTrendsController::triggerIngest', ['as'=>'football.ingest']);
+$routes->post('/football-trends/ask-ai', 'FootballTrendsController::askAi', ['as'=>'football.ask-ai']);
 
 
 

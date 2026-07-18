@@ -323,6 +323,62 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         color: #8a99a8;
     }
 
+    /* Toggle Switch */
+    .bet-switch {
+        position: relative;
+        display: inline-block;
+        width: 46px;
+        height: 24px;
+        margin: 0;
+    }
+
+    .bet-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .bet-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #0f1620;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        transition: .3s;
+    }
+
+    .bet-slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 3px;
+        bottom: 3px;
+        background-color: #8a99a8;
+        transition: .3s;
+    }
+
+    input:checked + .bet-slider {
+        background-color: rgba(244, 124, 32, 0.2);
+        border-color: #f47c20;
+    }
+
+    input:checked + .bet-slider:before {
+        background-color: #f47c20;
+        transform: translateX(22px);
+    }
+
+    .bet-slider.round {
+        border-radius: 34px;
+    }
+
+    .bet-slider.round:before {
+        border-radius: 50%;
+    }
+
     /* Betano Tabs navigation */
     .bet-tabs {
         display: flex;
@@ -997,44 +1053,61 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                 
                 <!-- Controles de Data e Pesquisa -->
                 <div class="bet-controls-row">
-                    <div class="row align-items-center g-3">
-                        <div class="col-lg-7 col-md-12">
-                            <div class="d-flex gap-2 align-items-center flex-wrap">
-                                <?php
-                                $yesterday = date('Y-m-d', strtotime('-1 day'));
-                                $today = date('Y-m-d');
-                                $tomorrow = date('Y-m-d', strtotime('+1 day'));
-                                ?>
-                                <a href="?date=<?= $yesterday ?>" class="bet-date-btn <?= $targetDate === $yesterday ? 'active' : '' ?>">
-                                    <i class="bi bi-chevron-left"></i> Ontem
-                                </a>
-                                <a href="?date=<?= $today ?>" class="bet-date-btn <?= $targetDate === $today ? 'active' : '' ?>">
-                                    Hoje
-                                </a>
-                                <a href="?date=<?= $tomorrow ?>" class="bet-date-btn <?= $targetDate === $tomorrow ? 'active' : '' ?>">
-                                    Amanhã <i class="bi bi-chevron-right"></i>
-                                </a>
-                                <div class="position-relative d-inline-block">
-                                    <form method="get" id="dateForm" class="d-flex align-items-center m-0">
-                                        <input type="date" name="date" class="bet-date-input" value="<?= $targetDate ?>" onchange="document.getElementById('dateForm').submit()">
-                                    </form>
+                    <form method="get" id="filterForm" class="m-0">
+                        <div class="row align-items-center g-3">
+                            <div class="col-lg-5 col-md-12">
+                                <div class="d-flex gap-2 align-items-center flex-wrap">
+                                    <?php
+                                    $yesterday = date('Y-m-d', strtotime('-1 day'));
+                                    $today = date('Y-m-d');
+                                    $tomorrow = date('Y-m-d', strtotime('+1 day'));
+                                    $showFinishedQuery = $showFinished ? '&show_finished=1' : '';
+                                    $searchQuery = !empty($search) ? '&search=' . urlencode($search) : '';
+                                    ?>
+                                    <a href="?date=<?= $yesterday ?><?= $showFinishedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $yesterday ? 'active' : '' ?>">
+                                        <i class="bi bi-chevron-left"></i> Ontem
+                                    </a>
+                                    <a href="?date=<?= $today ?><?= $showFinishedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $today ? 'active' : '' ?>">
+                                        Hoje
+                                    </a>
+                                    <a href="?date=<?= $tomorrow ?><?= $showFinishedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $tomorrow ? 'active' : '' ?>">
+                                        Amanhã <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                    <div class="position-relative d-inline-block">
+                                        <input type="date" name="date" class="bet-date-input" value="<?= $targetDate ?>" onchange="document.getElementById('filterForm').submit()">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Toggle switch column in between -->
+                            <div class="col-lg-3 col-md-6 d-flex align-items-center justify-content-lg-center">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="bet-toggle-label" style="font-size: 0.9rem; color: #aeb9c4; font-weight: 600;">Ver Encerrados?</span>
+                                    <label class="bet-switch">
+                                        <input type="checkbox" name="show_finished" value="1" <?= $showFinished ? 'checked' : '' ?> onchange="document.getElementById('filterForm').submit()">
+                                        <span class="bet-slider round"></span>
+                                    </label>
+                                    <span class="bet-toggle-status" style="font-size: 0.9rem; font-weight: 700; color: <?= $showFinished ? '#f47c20' : '#8a99a8' ?>;">
+                                        <?= $showFinished ? 'Sim' : 'Não' ?>
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Search column -->
+                            <div class="col-lg-4 col-md-6">
+                                <div class="d-flex gap-2">
+                                    <div class="position-relative flex-grow-1">
+                                        <i class="bi bi-search bet-search-icon"></i>
+                                        <input type="text" name="search" class="bet-search-input" placeholder="Buscar times, liga ou árbitro..." value="<?= htmlspecialchars($search ?? '') ?>">
+                                    </div>
+                                    <button type="submit" class="btn btn-secondary rounded-3 px-3">Filtrar</button>
+                                    <?php if(!empty($search) || $showFinished): ?>
+                                        <a href="?date=<?= $targetDate ?>" class="btn btn-outline-danger d-flex align-items-center justify-content-center px-3" style="border-radius: 8px;">Limpar</a>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-lg-5 col-md-12">
-                            <form method="get" class="d-flex gap-2 m-0">
-                                <input type="hidden" name="date" value="<?= $targetDate ?>">
-                                <div class="position-relative flex-grow-1">
-                                    <i class="bi bi-search bet-search-icon"></i>
-                                    <input type="text" name="search" class="bet-search-input" placeholder="Buscar times, liga ou árbitro..." value="<?= htmlspecialchars($search ?? '') ?>">
-                                </div>
-                                <button type="submit" class="btn btn-secondary rounded-3 px-3">Filtrar</button>
-                                <?php if(!empty($search)): ?>
-                                    <a href="?date=<?= $targetDate ?>" class="btn btn-outline-danger d-flex align-items-center justify-content-center px-3" style="border-radius: 8px;">Limpar</a>
-                                <?php endif; ?>
-                            </form>
-                        </div>
-                    </div>
+                    </form>
                 </div>
 
                 <!-- Abas estilo Betano: Destaques vs Todas as Partidas -->

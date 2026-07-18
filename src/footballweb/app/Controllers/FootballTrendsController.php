@@ -33,12 +33,24 @@ class FootballTrendsController extends BaseController
         // Filtro de busca por time ou árbitro
         $search = $this->request->getVar('search');
 
+        // Filtro para mostrar ou ocultar jogos encerrados (default: não)
+        $showFinishedParam = $this->request->getVar('show_finished');
+        $showFinished = ($showFinishedParam === '1' || $showFinishedParam === 'true' || $showFinishedParam === 'sim');
+
         // Conecta ao banco para realizar a query com join
         $db = \Config\Database::connect();
         $builder = $db->table('fixtures_trends ft');
         $builder->select('ft.*, rs.average_yellow_cards, rs.average_red_cards, rs.average_fouls, rs.total_games, rs.rigor_level');
         $builder->join('referee_stats rs', 'ft.referee_name = rs.name', 'left');
         $builder->where('DATE(DATE_SUB(ft.fixture_date, INTERVAL 3 HOUR))', $targetDate);
+
+        // Se showFinished for falso (default), exclui jogos encerrados
+        if (!$showFinished) {
+            $builder->groupStart()
+                ->whereNotIn('ft.status', ['FT', 'AET', 'PEN', '120', '90'])
+                ->where('DATE_ADD(ft.fixture_date, INTERVAL 120 MINUTE) >= UTC_TIMESTAMP()')
+            ->groupEnd();
+        }
 
         if (!empty($search)) {
             $builder->groupStart()
@@ -62,11 +74,12 @@ class FootballTrendsController extends BaseController
 
         // Prepara dados para a view
         $data = [
-            'targetDate' => $targetDate,
-            'search'     => $search,
-            'fixtures'   => $fixtures,
-            'leagues'    => $leagues,
-            'title'      => 'Football Trends - Mercado de Cartões'
+            'targetDate'   => $targetDate,
+            'search'       => $search,
+            'showFinished' => $showFinished,
+            'fixtures'     => $fixtures,
+            'leagues'      => $leagues,
+            'title'        => 'Football Trends - Mercado de Cartões'
         ];
 
         return $this->loadView('football/dashboard', $data);

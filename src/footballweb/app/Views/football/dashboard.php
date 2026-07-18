@@ -411,6 +411,26 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         gap: 4px;
     }
 
+    .bet-time-container {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+    }
+
+    .bet-elapsed-time {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #aeb9c4;
+        text-align: right;
+    }
+
+    .bet-elapsed-time.live {
+        color: #f87171;
+        font-weight: 700;
+        animation: bet-blink 1.5s infinite;
+    }
+
     .bet-teams-box {
         margin-bottom: 15px;
     }
@@ -1052,6 +1072,36 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                 $dt->setTimezone(new DateTimeZone('America/Sao_Paulo'));
                                 $timeStr = $dt->format('H:i');
                             } catch (\Exception $e) {}
+
+                            // Calcula o tempo decorrido do jogo em PHP (inicial)
+                            $elapsedText = '';
+                            $elapsedClass = '';
+                            try {
+                                $now = new DateTime('now', new DateTimeZone('UTC'));
+                                $start = new DateTime($fix->fixture_date, new DateTimeZone('UTC'));
+                                $diffMins = floor(($now->getTimestamp() - $start->getTimestamp()) / 60);
+                                
+                                $finishedStatuses = ['FT', 'AET', 'PEN', '120', '90'];
+                                $statusClean = strtoupper($fix->status);
+                                
+                                if (in_array($statusClean, $finishedStatuses)) {
+                                    $elapsedText = 'Encerrado';
+                                } elseif ($statusClean === 'HT') {
+                                    $elapsedText = 'Intervalo';
+                                    $elapsedClass = 'live';
+                                } elseif ($diffMins < 0) {
+                                    $elapsedText = 'Não iniciado';
+                                } else {
+                                    if ($diffMins > 120) {
+                                        $elapsedText = 'Encerrado';
+                                    } else {
+                                        $elapsedText = $diffMins . "'";
+                                        $elapsedClass = 'live';
+                                    }
+                                }
+                            } catch (\Exception $e) {
+                                $elapsedText = '-';
+                            }
                             ?>
                             <div class="bet-card" data-league="<?= htmlspecialchars($fix->league_name) ?>" data-prob="<?= $prob ?>">
                                 <div>
@@ -1060,9 +1110,14 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                         <span class="bet-league-badge" title="<?= htmlspecialchars($fix->league_name) ?>">
                                             <?= htmlspecialchars($fix->league_name) ?>
                                         </span>
-                                        <span class="bet-time-badge">
-                                            <i class="bi bi-clock"></i> <?= $timeStr ?>
-                                        </span>
+                                        <div class="bet-time-container">
+                                            <span class="bet-time-badge">
+                                                <i class="bi bi-clock"></i> <?= $timeStr ?>
+                                            </span>
+                                            <span class="bet-elapsed-time <?= $elapsedClass ?>" data-start-utc="<?= $fix->fixture_date ?>" data-status="<?= $statusClean ?>">
+                                                <?= $elapsedText ?>
+                                            </span>
+                                        </div>
                                     </div>
 
                                     <!-- Confronto -->
@@ -1329,7 +1384,52 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         });
     }
 
-    // Configura o teclado para enviar com Enter
+    function updateElapsedTimes() {
+        const now = new Date();
+        const nowUtc = now.getTime();
+        
+        document.querySelectorAll('.bet-elapsed-time').forEach(el => {
+            const startDateStr = el.getAttribute('data-start-utc');
+            const status = el.getAttribute('data-status');
+            
+            if (!startDateStr) return;
+            
+            // Converte "YYYY-MM-DD HH:MM:SS" (UTC) para ISO UTC ("YYYY-MM-DDTHH:MM:SSZ")
+            const utcDateStr = startDateStr.replace(' ', 'T') + 'Z';
+            const startDate = new Date(utcDateStr);
+            const startUtc = startDate.getTime();
+            
+            const diffMs = nowUtc - startUtc;
+            const diffMins = Math.floor(diffMs / 60000);
+            
+            let text = '';
+            
+            const finishedStatuses = ['FT', 'AET', 'PEN', '120', '90'];
+            
+            if (finishedStatuses.includes(status)) {
+                text = 'Encerrado';
+                el.classList.remove('live');
+            } else if (status === 'HT') {
+                text = 'Intervalo';
+                el.classList.add('live');
+            } else if (diffMins < 0) {
+                text = 'Não iniciado';
+                el.classList.remove('live');
+            } else {
+                if (diffMins > 120) {
+                    text = 'Encerrado';
+                    el.classList.remove('live');
+                } else {
+                    text = diffMins + "'";
+                    el.classList.add('live');
+                }
+            }
+            
+            el.innerText = text;
+        });
+    }
+
+    // Configura o teclado para enviar com Enter e inicializa tempos decorridos
     document.addEventListener('DOMContentLoaded', function() {
         const input = document.getElementById('chatInput');
         if (input) {
@@ -1339,6 +1439,10 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                 }
             });
         }
+
+        // Inicializa e agenda a atualização do tempo decorrido
+        updateElapsedTimes();
+        setInterval(updateElapsedTimes, 10000);
     });
 
     // Aplica os filtros combinados (Liga + Aba de Destaques)

@@ -215,6 +215,7 @@ $routes->post('/donate', 'MarketPlaceController::donate');
 //Login com Google OAuth2
 $routes->get('/auth/google-login', 'AuthController::googleLoginRedirect', ['as'=>'auth.google.login']);
 $routes->get('/auth/google-callback', 'AuthController::googleCallback', ['as'=>'auth.google.callback']);
+$routes->get('/auth/simulate-google-login', 'AuthController::simulateGoogleLogin');
 $routes->post('auth/google-login', 'AuthController::googleLogin'); // Legacy endpoint
 
 // Validações Custom Functions

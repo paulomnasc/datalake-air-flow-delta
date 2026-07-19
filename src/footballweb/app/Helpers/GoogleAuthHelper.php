@@ -28,13 +28,23 @@ class GoogleAuthHelper
         
         $params = [
             'client_id'     => $clientId,
-            'redirect_uri'  => base_url('auth/google-callback'),
+            'redirect_uri'  => self::getRedirectUri(),
             'response_type' => 'code',
             'scope'         => 'openid email profile',
             'access_type'   => 'offline',
         ];
         
         return self::GOOGLE_AUTH_URL . '?' . http_build_query($params);
+    }
+
+    /**
+     * Retorna a URI de redirecionamento dinamicamente com base no host atual da requisição
+     */
+    public static function getRedirectUri()
+    {
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || ($_SERVER['SERVER_PORT'] ?? 80) == 443) ? "https" : "http";
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost:28091';
+        return "{$protocol}://{$host}/auth/google-callback";
     }
 
     /**
@@ -59,7 +69,7 @@ class GoogleAuthHelper
                     'client_id'     => $clientId,
                     'client_secret' => $clientSecret,
                     'code'          => $code,
-                    'redirect_uri'  => base_url('auth/google-callback'),
+                    'redirect_uri'  => self::getRedirectUri(),
                     'grant_type'    => 'authorization_code',
                 ],
             ]);

@@ -45,7 +45,7 @@ require VIEWPATH . '/header.php';
                             Para comprar créditos ou usar o sistema de cotas, você deve se cadastrar com seu login social do Google.
                         </p>
                         
-                        <a href="<?= base_url('auth/google-login') ?>" class="btn btn-primary btn-lg w-100" style="background: #4285f4; border-color: #4285f4; font-weight: 700; padding: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; border-radius: 12px; color: #ffffff;">
+                        <a href="/auth/google-login" class="btn btn-primary btn-lg w-100" style="background: #4285f4; border-color: #4285f4; font-weight: 700; padding: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; border-radius: 12px; color: #ffffff;">
                             <i class="bi bi-google" style="font-size: 1.2rem;"></i> Entrar com o Google
                         </a>
                         
@@ -186,7 +186,7 @@ function confirmarPagamento() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
 
-    fetch('<?= base_url('subscription/confirmGrokPayment') ?>', {
+    fetch('/subscription/confirmGrokPayment', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

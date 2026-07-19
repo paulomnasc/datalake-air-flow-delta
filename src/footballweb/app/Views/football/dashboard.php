@@ -1164,13 +1164,13 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                     <div class="grok-credits-badge">
                         <span class="icon">🔒</span>
                         <span>Apenas contas Google</span>
-                        <a href="<?= base_url('auth/google-login') ?>" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> Conectar</a>
+                        <a href="/auth/google-login" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> Conectar</a>
                     </div>
                 <?php else: ?>
                     <div class="grok-credits-badge">
                         <span class="icon">🔒</span>
                         <span>Use com login Google</span>
-                        <a href="<?= base_url('auth/google-login') ?>" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> Entrar</a>
+                        <a href="/auth/google-login" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> Entrar</a>
                     </div>
                 <?php endif; ?>
                 <button type="button" class="btn-update-betano" onclick="triggerIngestion('<?= $targetDate ?>')">
@@ -1541,10 +1541,10 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                         <h5 style="color: #ffffff; font-weight: 700; margin-bottom: 6px; font-size: 1rem;">Estatísticas Premium</h5>
                                         <?php if (!$userLoggedIn): ?>
                                             <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;">Faça login com sua conta do Google para liberar as estatísticas.</p>
-                                            <a href="<?= base_url('auth/google-login') ?>" class="btn btn-sm btn-primary" style="font-size: 0.8rem; padding: 6px 12px; font-weight: 600; background: #4285f4; border-color: #4285f4;"><i class="bi bi-google"></i> Entrar com o Google</a>
+                                            <a href="/auth/google-login" class="btn btn-sm btn-primary" style="font-size: 0.8rem; padding: 6px 12px; font-weight: 600; background: #4285f4; border-color: #4285f4;"><i class="bi bi-google"></i> Entrar com o Google</a>
                                         <?php elseif (!$isGoogleUser): ?>
                                             <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;">Esta funcionalidade exige cadastro via login social do Google.</p>
-                                            <a href="<?= base_url('auth/google-login') ?>" class="btn btn-sm btn-primary" style="font-size: 0.8rem; padding: 6px 12px; font-weight: 600; background: #4285f4; border-color: #4285f4;"><i class="bi bi-google"></i> Vincular Google</a>
+                                            <a href="/auth/google-login" class="btn btn-sm btn-primary" style="font-size: 0.8rem; padding: 6px 12px; font-weight: 600; background: #4285f4; border-color: #4285f4;"><i class="bi bi-google"></i> Vincular Google</a>
                                         <?php else: ?>
                                             <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;">Esta liga exige créditos Grok ativos para visualização.</p>
                                             <a href="/subscription/buy-grok-credits" class="btn btn-sm text-dark font-weight-bold" style="font-size: 0.8rem; padding: 6px 12px; background: #f47c20; border-color: #f47c20; font-weight: 700;">Desbloquear (R$ 10,00)</a>

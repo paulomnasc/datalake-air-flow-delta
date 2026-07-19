@@ -444,12 +444,12 @@ class SubscriptionController extends BaseController
     public function buyGrokCredits()
     {
         if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
-            return redirect()->to('/loginUsuario')->with('error', 'Você precisa estar logado para adquirir créditos.');
+            return redirect()->to('/auth/google-login')->with('error', 'Você precisa estar logado com sua conta Google para adquirir créditos.');
         }
 
         $userId = $_SESSION['id_usuario_logado'] ?? null;
         if (!$userId) {
-            return redirect()->to('/loginUsuario');
+            return redirect()->to('/auth/google-login');
         }
 
         $usuarioModel = new UsuarioModel();

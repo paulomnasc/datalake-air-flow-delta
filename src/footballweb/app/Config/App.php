@@ -34,6 +34,13 @@ class App extends BaseConfig
     {
         parent::__construct();
         
+        // Se a requisição for via HTTP, detecta a URL base dinamicamente com base no cabeçalho do host do cliente
+        if (isset($_SERVER['HTTP_HOST'])) {
+            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || ($_SERVER['SERVER_PORT'] ?? 80) == 443) ? "https" : "http";
+            $this->baseURL = "{$protocol}://{$_SERVER['HTTP_HOST']}/";
+            return;
+        }
+
         // Tenta pegar do .env primeiro (permite override manual)
         $envBaseUrl = getenv('app_baseURL');
         

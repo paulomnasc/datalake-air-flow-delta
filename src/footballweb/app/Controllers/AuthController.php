@@ -246,4 +246,50 @@ class AuthController extends BaseController
             ]);
         }
     }
+
+    /**
+     * Simula login social do Google para testes locais
+     */
+    public function simulateGoogleLogin()
+    {
+        $usuarioModel = new \App\Models\UsuarioModel();
+        
+        // Pega o primeiro usuário para simular (ou cria um se vazio)
+        $usuario = $usuarioModel->first();
+        if (!$usuario) {
+            // Cria um usuário teste de emergência
+            $senha = bin2hex(random_bytes(16));
+            $usuarioId = $usuarioModel->insert([
+                'nome' => 'Usuário Teste Google',
+                'email' => 'teste.google@estudotabela.com.br',
+                'senha' => $senha,
+                'email_confirmado' => 1,
+                'google_id' => '123456789_simulated',
+                'auth_provider' => 'google',
+                'auth_updated_at' => date('Y-m-d H:i:s'),
+                'data_inicio_trial' => date('Y-m-d'),
+                'data_vencimento_assinatura' => date('Y-m-d', strtotime('+30 days')),
+                'status_assinatura' => 'trial',
+                'grok_credits' => 20
+            ]);
+            $usuario = $usuarioModel->find($usuarioId);
+        } else {
+            // Garante que o usuário possua google_id setado e créditos
+            $usuarioModel->update($usuario->id, [
+                'google_id' => '123456789_simulated',
+                'auth_provider' => 'google',
+                'grok_credits' => max((int)($usuario->grok_credits ?? 0), 20)
+            ]);
+            // Recarrega os dados atualizados
+            $usuario = $usuarioModel->find($usuario->id);
+        }
+
+        // Inicia a sessão
+        $_SESSION['usuario_logado'] = 1;
+        $_SESSION['id_usuario_logado'] = $usuario->id;
+        $_SESSION['nome_usuario_logado'] = $usuario->nome;
+        $_SESSION['email_usuario_logado'] = $usuario->email;
+
+        return redirect()->to('/football-trends')->with('success', 'Simulado login social Google com sucesso! 20 créditos disponíveis.');
+    }
 }

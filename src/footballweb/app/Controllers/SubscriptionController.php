@@ -9,6 +9,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\UsuarioModel;
 use App\Helpers\SubscriptionHelper;
 use App\Helpers\AirflowHelper;
+use App\Libraries\MercadoPagoService;
 use Config\Services;
 
 /**
@@ -546,6 +547,287 @@ class SubscriptionController extends BaseController
             'status' => 'success',
             'message' => 'Créditos recarregados com sucesso!',
             'novo_saldo' => $newCredits
+        ]);
+    }
+
+    /**
+     * Gera uma cobrança Pix via Mercado Pago (Checkout Transparente) para assinatura ou créditos Grok
+     */
+    public function createMpPix()
+    {
+        if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Usuário não autenticado'
+            ]);
+        }
+
+        $userId = $_SESSION['id_usuario_logado'] ?? null;
+        if (!$userId) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'ID de usuário não encontrado'
+            ]);
+        }
+
+        $usuarioModel = new UsuarioModel();
+        $usuario = $usuarioModel->find($userId);
+
+        if (!$usuario) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Usuário não encontrado'
+            ]);
+        }
+
+        $jsonInput = $this->request->getJSON(true) ?: [];
+        $tipo = $jsonInput['tipo'] ?? ($this->request->getPost('tipo') ?: 'subscription');
+
+        if ($tipo === 'grok_credits') {
+            if (empty($usuario->google_id)) {
+                return $this->response->setJSON([
+                    'status'  => 'error',
+                    'message' => 'Para comprar créditos ou usar o sistema de cotas, você deve se cadastrar com seu login social do Google.'
+                ]);
+            }
+            $valorBrl = 10.00;
+            $descricao = 'Recarga de 20 Créditos Grok AI';
+        } else {
+            $tipo = 'subscription';
+            $valorUsd = getenv('INITIAL_PAYMENT_USD') ? (float)getenv('INITIAL_PAYMENT_USD') : 10.00;
+            $cotacao = 5.38;
+            try {
+                $client = Services::curlrequest(['timeout' => 5]);
+                $res = $client->get('https://api.exchangerate.host/latest?base=USD&symbols=BRL');
+                if ($res->getStatusCode() === 200) {
+                    $body = json_decode($res->getBody(), true);
+                    if (!empty($body['rates']['BRL'])) {
+                        $cotacao = (float) $body['rates']['BRL'];
+                    }
+                }
+            } catch (\Throwable $e) {
+                log_message('warning', '[MERCADOPAGO] Falha cotação USD->BRL: ' . $e->getMessage());
+            }
+            $valorBrl = round($valorUsd * $cotacao, 2);
+            $descricao = 'Assinatura MyDataFlow - Renovação 30 Dias';
+        }
+
+        $db = \Config\Database::connect();
+
+        // Verifica se já existe uma transação Pix 'pending' do mesmo tipo criada há menos de 20 minutos
+        $transacaoExistente = $db->table('pagamento_transacao')
+            ->where('usuario_id', $userId)
+            ->where('tipo', $tipo)
+            ->where('status', 'pending')
+            ->where('criado_em >=', date('Y-m-d H:i:s', strtotime('-20 minutes')))
+            ->orderBy('id', 'DESC')
+            ->get()
+            ->getRow();
+
+        if ($transacaoExistente && !empty($transacaoExistente->qr_code)) {
+            return $this->response->setJSON([
+                'status'        => 'success',
+                'payment_id'    => $transacaoExistente->mp_payment_id,
+                'status_mp'     => $transacaoExistente->status,
+                'qr_code'       => $transacaoExistente->qr_code,
+                'qr_code_base64'=> $transacaoExistente->qr_code_base64,
+                'ticket_url'    => $transacaoExistente->ticket_url,
+                'valor'         => $transacaoExistente->valor,
+                'tipo'          => $tipo
+            ]);
+        }
+
+        // Gera novo Pix no Mercado Pago
+        $mpService = new MercadoPagoService();
+        $notificationUrl = base_url('subscription/mp-webhook');
+
+        $result = $mpService->criarPagamentoPix(
+            $valorBrl,
+            $descricao,
+            $usuario->email ?? 'cliente@mydataflow.com.br',
+            $usuario->nome ?? 'Usuário',
+            '', // documento opcional
+            (string) $userId,
+            $notificationUrl
+        );
+
+        if ($result['success']) {
+            $db->table('pagamento_transacao')->insert([
+                'usuario_id'    => $userId,
+                'mp_payment_id' => $result['payment_id'],
+                'status'        => $result['status'],
+                'status_detail' => $result['status_detail'],
+                'valor'         => $valorBrl,
+                'tipo'          => $tipo,
+                'qr_code'       => $result['qr_code'],
+                'qr_code_base64'=> $result['qr_code_base64'],
+                'ticket_url'    => $result['ticket_url']
+            ]);
+
+            return $this->response->setJSON([
+                'status'        => 'success',
+                'payment_id'    => $result['payment_id'],
+                'status_mp'     => $result['status'],
+                'qr_code'       => $result['qr_code'],
+                'qr_code_base64'=> $result['qr_code_base64'],
+                'ticket_url'    => $result['ticket_url'],
+                'valor'         => $valorBrl,
+                'tipo'          => $tipo
+            ]);
+        } else {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => $result['message'] ?? 'Erro ao criar Pix no Mercado Pago'
+            ]);
+        }
+    }
+
+    /**
+     * Consulta status do Pix no Mercado Pago e processa benefícios se aprovado
+     */
+    public function checkMpPixStatus($paymentId)
+    {
+        if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Usuário não autenticado'
+            ]);
+        }
+
+        $userId = $_SESSION['id_usuario_logado'] ?? null;
+        $mpService = new MercadoPagoService();
+        $result = $mpService->consultarPagamento($paymentId);
+
+        if (!$result['success']) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => $result['message']
+            ]);
+        }
+
+        $statusMp = $result['status'];
+        $db = \Config\Database::connect();
+
+        $tx = $db->table('pagamento_transacao')->where('mp_payment_id', $paymentId)->get()->getRow();
+        $statusAnterior = $tx ? $tx->status : 'pending';
+
+        // Atualiza registro local
+        $db->table('pagamento_transacao')
+            ->where('mp_payment_id', $paymentId)
+            ->update([
+                'status'        => $statusMp,
+                'status_detail' => $result['status_detail'] ?? ''
+            ]);
+
+        $approved = ($statusMp === 'approved');
+
+        if ($approved && $tx && $statusAnterior !== 'approved') {
+            $usuarioModel = new UsuarioModel();
+            $usuario = $usuarioModel->find($tx->usuario_id);
+
+            if ($tx->tipo === 'grok_credits') {
+                if ($usuario) {
+                    $currentCredits = (int)($usuario->grok_credits ?? 0);
+                    $newCredits = $currentCredits + 20;
+                    $usuarioModel->update($tx->usuario_id, ['grok_credits' => $newCredits]);
+                    log_message('info', "[MERCADOPAGO] 20 créditos adicionados ao usuário {$tx->usuario_id}. Saldo: {$newCredits}");
+                }
+            } else {
+                $regResult = SubscriptionHelper::registrarPagamento($usuarioModel, $tx->usuario_id);
+                if ($regResult['success']) {
+                    if ($userId == $tx->usuario_id) {
+                        $_SESSION['subscription_status']          = 'active';
+                        $_SESSION['subscription_expiry_date']     = $regResult['novo_vencimento'];
+                        $_SESSION['subscription_last_payment']    = date('Y-m-d');
+                        $_SESSION['subscription_services_blocked'] = false;
+                    }
+                    if ($usuario) {
+                        AirflowHelper::setUserActiveStatus($tx->usuario_id, $usuario->email ?? '', true);
+                    }
+                }
+            }
+        }
+
+        return $this->response->setJSON([
+            'status'    => 'success',
+            'status_mp' => $statusMp,
+            'approved'  => $approved,
+            'tipo'      => $tx->tipo ?? 'subscription'
+        ]);
+    }
+
+    /**
+     * Webhook de notificação do Mercado Pago
+     */
+    public function mpWebhook()
+    {
+        $input = $this->request->getJSON(true) ?: $this->request->getPost();
+        $getParams = $this->request->getGet();
+
+        log_message('info', '[MP-WEBHOOK] Notificação recebida: POST=' . json_encode($input) . ' GET=' . json_encode($getParams));
+
+        $paymentId = null;
+        if (!empty($input['data']['id'])) {
+            $paymentId = $input['data']['id'];
+        } elseif (!empty($input['id'])) {
+            $paymentId = $input['id'];
+        } elseif (!empty($getParams['id'])) {
+            $paymentId = $getParams['id'];
+        } elseif (!empty($getParams['data_id'])) {
+            $paymentId = $getParams['data_id'];
+        }
+
+        if (!$paymentId) {
+            return $this->response->setStatusCode(200)->setJSON(['status' => 'ignored', 'reason' => 'No payment ID found']);
+        }
+
+        $mpService = new MercadoPagoService();
+        $consult = $mpService->consultarPagamento($paymentId);
+
+        if (!$consult['success']) {
+            return $this->response->setStatusCode(200)->setJSON(['status' => 'error', 'message' => $consult['message']]);
+        }
+
+        $statusMp = $consult['status'];
+        $db = \Config\Database::connect();
+
+        $tx = $db->table('pagamento_transacao')->where('mp_payment_id', $paymentId)->get()->getRow();
+        $statusAnterior = $tx ? $tx->status : 'pending';
+
+        // Atualiza a transação local
+        $db->table('pagamento_transacao')
+            ->where('mp_payment_id', $paymentId)
+            ->update([
+                'status'        => $statusMp,
+                'status_detail' => $consult['status_detail'] ?? ''
+            ]);
+
+        if ($tx && $statusMp === 'approved' && $statusAnterior !== 'approved') {
+            $usuarioModel = new UsuarioModel();
+            $usuario = $usuarioModel->find($tx->usuario_id);
+
+            if ($tx->tipo === 'grok_credits') {
+                if ($usuario) {
+                    $currentCredits = (int)($usuario->grok_credits ?? 0);
+                    $newCredits = $currentCredits + 20;
+                    $usuarioModel->update($tx->usuario_id, ['grok_credits' => $newCredits]);
+                    log_message('info', "[MP-WEBHOOK] 20 créditos Grok adicionados ao usuário {$tx->usuario_id}. Saldo: {$newCredits}");
+                }
+            } else {
+                $regResult = SubscriptionHelper::registrarPagamento($usuarioModel, $tx->usuario_id);
+                if ($regResult['success']) {
+                    if ($usuario) {
+                        AirflowHelper::setUserActiveStatus($tx->usuario_id, $usuario->email ?? '', true);
+                    }
+                    log_message('info', "[MP-WEBHOOK] Pagamento {$paymentId} aprovado. Assinatura do usuário {$tx->usuario_id} ativada!");
+                }
+            }
+        }
+
+        return $this->response->setStatusCode(200)->setJSON([
+            'status'     => 'ok',
+            'payment_id' => $paymentId,
+            'status_mp'  => $statusMp
         ]);
     }
 }

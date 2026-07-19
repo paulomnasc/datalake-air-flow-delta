@@ -23,6 +23,13 @@ class SubscriptionFilter implements FilterInterface
      */
     public function before(RequestInterface $request, $arguments = null)
     {
+        $uri = $request->getUri()->getPath();
+
+        // Rota de Webhook do Mercado Pago é pública e não exige sessão nem filtro de assinatura
+        if ($uri === '/subscription/mp-webhook') {
+            return;
+        }
+
         // Tenta usar a sessão do CodeIgniter primeiro
         $session = session();
         $usuarioLogado = $session->get('usuario_logado');
@@ -144,6 +151,9 @@ class SubscriptionFilter implements FilterInterface
             '/subscription/status',
             '/subscription/buy-grok-credits',
             '/subscription/confirmGrokPayment',
+            '/subscription/create-mp-pix',
+            '/subscription/check-mp-pix',
+            '/subscription/mp-webhook',
             '/logout',
             '/Usuario/logOut',
             '/loginUsuario',

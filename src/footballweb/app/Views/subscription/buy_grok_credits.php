@@ -70,44 +70,63 @@ require VIEWPATH . '/header.php';
 
                     <hr style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
 
-                    <!-- Área do QR Code Dinâmico -->
-                    <div class="my-4 text-center">
-                        <div id="qrcode-container" class="p-3 bg-white border rounded d-inline-block shadow" style="min-width: 280px; min-height: 280px;">
-                            <div id="qrcode" class="d-flex justify-content-center align-items-center"></div>
+                    <!-- Área Mercado Pago Checkout Pix -->
+                    <div class="text-center" id="mp-grok-area">
+                        <div id="mp-loading" class="py-4">
+                            <div class="spinner-border" style="color: #f47c20;" role="status">
+                                <span class="visually-hidden">Gerando Pix...</span>
+                            </div>
+                            <p class="mt-2 font-weight-bold" style="color: #f47c20;">Conectando ao Mercado Pago e gerando QR Code Pix...</p>
                         </div>
-                    </div>
 
-                    <!-- Pix Copia e Cola -->
-                    <div class="mb-4">
-                        <label for="pix-copia-e-cola" class="form-label" style="font-weight: 700; color: #ffffff; display: block; margin-bottom: 8px;">📋 Pix Copia e Cola</label>
-                        <div class="input-group">
-                            <input type="text" id="pix-copia-e-cola" class="form-control" readonly value="Gerando código..." style="background: #0f1620; border: 1px solid rgba(255,255,255,0.1); color: #f3f4f6; font-size: 0.9rem;">
-                            <button class="btn btn-primary" type="button" onclick="copiarPix()" style="background: #f47c20; border-color: #f47c20;">Copiar</button>
+                        <div id="mp-pix-content" style="display: none;">
+                            <!-- QR Code Mercado Pago -->
+                            <div class="my-3 text-center">
+                                <div id="mp-qrcode-box" class="p-3 bg-white border rounded d-inline-block shadow" style="min-width: 270px;">
+                                    <img id="mp-qrcode-img" src="" alt="QR Code Pix Mercado Pago" style="width: 256px; height: 256px; display: none;" />
+                                    <div id="mp-qrcode-fallback" class="d-flex justify-content-center align-items-center"></div>
+                                </div>
+                            </div>
+
+                            <!-- Status em Tempo Real -->
+                            <div class="mb-3">
+                                <span id="mp-status-badge" class="badge bg-warning text-dark p-2" style="font-size: 0.95rem;">
+                                    ⏳ Aguardando pagamento do Pix...
+                                </span>
+                            </div>
+
+                            <!-- Pix Copia e Cola -->
+                            <div class="mb-4">
+                                <label for="mp-pix-copia-cola" class="form-label" style="font-weight: 700; color: #ffffff; display: block; margin-bottom: 8px;">📋 Pix Copia e Cola (Mercado Pago)</label>
+                                <div class="input-group">
+                                    <input type="text" id="mp-pix-copia-cola" class="form-control" readonly value="Carregando..." style="background: #0f1620; border: 1px solid rgba(255,255,255,0.1); color: #f3f4f6; font-size: 0.9rem;">
+                                    <button class="btn btn-primary" type="button" onclick="copiarPixMp()" style="background: #f47c20; border-color: #f47c20;">Copiar Código</button>
+                                </div>
+                                <small class="text-muted" style="margin-top: 4px; display: block;">Copie este código para pagar no aplicativo do seu celular.</small>
+                            </div>
                         </div>
-                        <small class="text-muted" style="margin-top: 4px; display: block;">Copie este código para pagar no aplicativo do seu celular (Pix Copia e Cola).</small>
+
+                        <div id="mp-error-area" class="alert alert-danger mt-3" style="display: none; background: rgba(220, 53, 69, 0.2); border-color: #dc3545; color: #f8d7da;">
+                            <span id="mp-error-msg">Não foi possível conectar ao Mercado Pago.</span><br>
+                            <button class="btn btn-sm btn-outline-light mt-2" onclick="carregarPixMercadoPago()">Tentar Novamente</button>
+                        </div>
                     </div>
 
                     <!-- Instruções -->
-                    <div class="alert text-start" role="alert" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); color: #f3f4f6;">
-                        <h6 style="font-weight: 700; color: #ffffff; margin-bottom: 10px;">📌 Instruções de Pagamento:</h6>
+                    <div class="alert text-start mt-3" role="alert" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); color: #f3f4f6;">
+                        <h6 style="font-weight: 700; color: #ffffff; margin-bottom: 10px;">📌 Como funciona a recarga automática?</h6>
                         <ol class="mb-0" style="padding-left: 20px; font-size: 0.9rem; line-height: 1.6;">
                             <li>Abra o aplicativo de pagamentos do seu banco.</li>
                             <li>Escolha a opção de pagar via <strong>PIX</strong> (por QR Code ou Copia e Cola).</li>
-                            <li>Valide o valor exato de <strong>R$ 10,00</strong>.</li>
-                            <li>Após finalizar, clique no botão de confirmação abaixo.</li>
+                            <li>Confirme o pagamento de <strong>R$ 10,00</strong> no app do banco.</li>
+                            <li>O Mercado Pago identificará o pagamento em poucos segundos e adicionará <strong>20 créditos</strong> à sua conta automaticamente!</li>
                         </ol>
-                        <div class="mt-3 small border-top pt-2" style="border-color: rgba(255,255,255,0.1) !important; color: #8a99a8;">
-                            <strong>Dados da conta recebedora:</strong><br>
-                            Chave CPF: 032.067.407-03<br>
-                            Nome: Cristiane B. L. do Nascimento<br>
-                            Suporte: admin@estudotabela.com.br
-                        </div>
                     </div>
 
-                    <!-- Botão de Confirmação de Pagamento -->
+                    <!-- Botão de Confirmação Manual / Verificação -->
                     <div class="text-center mt-4">
-                        <button id="btn-confirm-payment" class="btn btn-success btn-lg w-100" onclick="confirmarPagamento()" style="background: #10b981; border-color: #10b981; font-weight: 700; padding: 12px;">
-                            ✅ Já Realizei o PIX - Confirmar Recarga
+                        <button id="btn-confirm-payment" class="btn btn-success btn-lg w-100" onclick="verificarPagamentoManual()" style="background: #10b981; border-color: #10b981; font-weight: 700; padding: 12px;">
+                            🔄 Já Realizei o PIX - Verificar no Mercado Pago
                         </button>
                         <a href="/football-trends" class="btn btn-link mt-3 text-muted" style="text-decoration: none; font-size: 0.9rem;"><i class="bi bi-arrow-left"></i> Voltar ao Dashboard</a>
                     </div>
@@ -120,9 +139,12 @@ require VIEWPATH . '/header.php';
 </div>
 
 <script>
+let currentMpPaymentId = null;
+let mpPollingInterval = null;
+
 document.addEventListener('DOMContentLoaded', function() {
-    gerarPix();
-    // Dispara evento GA4 de checkout para compra de créditos
+    carregarPixMercadoPago();
+
     if (typeof gtag === 'function') {
         gtag('event', 'begin_checkout', {
             'value': 10.00,
@@ -137,93 +159,160 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function gerarPix() {
-    try {
-        const payload = '<?= $pix_payload ?? '' ?>';
-        if (!payload) return;
-        const qrcodeDiv = document.getElementById("qrcode");
-        if (!qrcodeDiv) return;
-        qrcodeDiv.innerHTML = "";
-        
-        if (typeof QRCode === 'undefined') {
-            throw new Error("Biblioteca de QR Code não carregada.");
+function carregarPixMercadoPago() {
+    const loadingEl = document.getElementById('mp-loading');
+    if (!loadingEl) return; // Se requer login social, não existe elemento
+
+    loadingEl.style.display = 'block';
+    document.getElementById('mp-pix-content').style.display = 'none';
+    document.getElementById('mp-error-area').style.display = 'none';
+
+    fetch('/subscription/create-mp-pix', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ tipo: 'grok_credits' })
+    })
+    .then(res => res.json())
+    .then(data => {
+        loadingEl.style.display = 'none';
+
+        if (data.status === 'success' && data.payment_id) {
+            currentMpPaymentId = data.payment_id;
+            document.getElementById('mp-pix-content').style.display = 'block';
+            document.getElementById('mp-pix-copia-cola').value = data.qr_code || '';
+
+            const imgEl = document.getElementById('mp-qrcode-img');
+            const fallbackDiv = document.getElementById('mp-qrcode-fallback');
+
+            if (data.qr_code_base64) {
+                imgEl.src = 'data:image/png;base64,' + data.qr_code_base64;
+                imgEl.style.display = 'block';
+                fallbackDiv.style.display = 'none';
+            } else if (data.qr_code && typeof QRCode !== 'undefined') {
+                imgEl.style.display = 'none';
+                fallbackDiv.style.display = 'block';
+                fallbackDiv.innerHTML = '';
+                new QRCode(fallbackDiv, {
+                    text: data.qr_code,
+                    width: 256,
+                    height: 256
+                });
+            }
+
+            iniciarPollingMercadoPago(data.payment_id);
+        } else {
+            document.getElementById('mp-error-area').style.display = 'block';
+            document.getElementById('mp-error-msg').innerText = data.message || 'Erro ao gerar cobrança Mercado Pago.';
         }
-
-        new QRCode(qrcodeDiv, {
-            text: payload,
-            width: 256,
-            height: 256,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
-        });
-
-        document.getElementById("pix-copia-e-cola").value = payload;
-    } catch (e) {
-        console.error("Erro ao gerar PIX:", e);
-        document.getElementById("pix-copia-e-cola").value = "Erro: " + e.message;
-    }
+    })
+    .catch(err => {
+        console.error('Erro na chamada Mercado Pago:', err);
+        loadingEl.style.display = 'none';
+        document.getElementById('mp-error-area').style.display = 'block';
+        document.getElementById('mp-error-msg').innerText = 'Falha de conexão com o servidor Mercado Pago.';
+    });
 }
 
-function copiarPix() {
-    const input = document.getElementById("pix-copia-e-cola");
+function copiarPixMp() {
+    const input = document.getElementById("mp-pix-copia-cola");
     input.select();
     input.setSelectionRange(0, 99999);
     
     navigator.clipboard.writeText(input.value).then(() => {
-        alert("✅ Código Pix copiado com sucesso!");
+        alert("✅ Pix Copia e Cola do Mercado Pago copiado com sucesso!");
     }).catch(err => {
         console.error('Erro ao copiar:', err);
     });
 }
 
-function confirmarPagamento() {
-    if (!confirm('Você confirma que realizou o Pix de R$ 10,00? Os créditos serão creditados em sua conta.')) {
+function iniciarPollingMercadoPago(paymentId) {
+    if (mpPollingInterval) {
+        clearInterval(mpPollingInterval);
+    }
+
+    mpPollingInterval = setInterval(() => {
+        if (!paymentId) return;
+
+        fetch('/subscription/check-mp-pix/' + paymentId, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                if (data.approved) {
+                    clearInterval(mpPollingInterval);
+                    const badge = document.getElementById('mp-status-badge');
+                    badge.className = 'badge bg-success p-2';
+                    badge.innerText = '✅ Pagamento Aprovado pelo Mercado Pago!';
+                    
+                    if (typeof gtag === 'function') {
+                        gtag('event', 'purchase', {
+                            'transaction_id': 'grok_' + paymentId,
+                            'value': 10.00,
+                            'currency': 'BRL',
+                            'items': [{
+                                'item_id': 'grok_credits_20',
+                                'item_name': '20 Créditos Grok AI',
+                                'price': 10.00,
+                                'quantity': 1
+                            }]
+                        });
+                    }
+
+                    setTimeout(() => {
+                        alert('🎉 Pagamento aprovado no Mercado Pago! 20 créditos Grok AI foram adicionados à sua conta.');
+                        window.location.href = '/football-trends';
+                    }, 1000);
+                } else if (data.status_mp === 'rejected' || data.status_mp === 'cancelled') {
+                    clearInterval(mpPollingInterval);
+                    const badge = document.getElementById('mp-status-badge');
+                    badge.className = 'badge bg-danger p-2';
+                    badge.innerText = '❌ Pagamento ' + (data.status_mp === 'rejected' ? 'rejeitado' : 'cancelado');
+                }
+            }
+        })
+        .catch(err => console.error('Erro no polling Mercado Pago:', err));
+    }, 4000);
+}
+
+function verificarPagamentoManual() {
+    if (!currentMpPaymentId) {
+        carregarPixMercadoPago();
         return;
     }
 
     const btn = document.getElementById('btn-confirm-payment');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Verificando no Mercado Pago...';
 
-    fetch('/subscription/confirmGrokPayment', {
-        method: 'POST',
+    fetch('/subscription/check-mp-pix/' + currentMpPaymentId, {
+        method: 'GET',
         headers: {
-            'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
         }
     })
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
-        if (data.status === 'success') {
-            // Dispara evento GA4 de compra com sucesso
-            if (typeof gtag === 'function') {
-                gtag('event', 'purchase', {
-                    'transaction_id': 'grok_' + Date.now(),
-                    'value': 10.00,
-                    'currency': 'BRL',
-                    'items': [{
-                        'item_id': 'grok_credits_20',
-                        'item_name': '20 Créditos Grok AI',
-                        'price': 10.00,
-                        'quantity': 1
-                    }]
-                });
-            }
+        btn.disabled = false;
+        btn.innerHTML = '🔄 Já Realizei o PIX - Verificar no Mercado Pago';
 
-            alert('✅ Sucesso!\nSeus 20 créditos foram adicionados à sua conta. Agora você possui ' + data.novo_saldo + ' consultas ao Grok AI e acesso às estatísticas liberados.');
+        if (data.status === 'success' && data.approved) {
+            alert('🎉 Pagamento confirmado e aprovado! 20 créditos foram adicionados.');
             window.location.href = '/football-trends';
         } else {
-            alert('❌ Erro: ' + data.message);
-            btn.disabled = false;
-            btn.innerHTML = '✅ Já Realizei o PIX - Confirmar Recarga';
+            alert('ℹ️ O pagamento ainda está pendente de confirmação pelo Mercado Pago (Status: ' + (data.status_mp || 'pendente') + '). Por favor, conclua a transferência no app do seu banco.');
         }
     })
-    .catch(error => {
-        console.error('Erro:', error);
-        alert('❌ Erro ao confirmar recarga. Tente novamente.');
+    .catch(err => {
         btn.disabled = false;
-        btn.innerHTML = '✅ Já Realizei o PIX - Confirmar Recarga';
+        btn.innerHTML = '🔄 Já Realizei o PIX - Verificar no Mercado Pago';
+        alert('❌ Erro ao consultar Mercado Pago. Tente novamente em instantes.');
     });
 }
 </script>

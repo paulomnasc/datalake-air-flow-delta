@@ -137,44 +137,70 @@ require VIEWPATH . '/header.php';
 
 
 
-                        <!-- Área do QR Code Dinâmico -->
-                        <div class="my-4 text-center">
-                            <div id="qrcode-container" class="p-4 bg-white border rounded d-inline-block shadow" style="min-width: 290px; min-height: 290px;">
-                                <div id="qrcode" class="d-flex justify-content-center align-items-center"></div>
+                        <!-- Área Mercado Pago Checkout Pix -->
+                        <div class="card my-4 border-primary shadow-sm" id="card-mp-pix">
+                            <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between">
+                                <h5 class="mb-0">💙 Pagamento Automático via Pix (Mercado Pago)</h5>
+                                <span class="badge bg-warning text-dark">Checkout Online</span>
                             </div>
-                        </div>
+                            <div class="card-body text-center">
+                                <p class="text-muted">Pague pelo aplicativo do seu banco com baixa e aprovação instantânea pelo Mercado Pago.</p>
 
-                        <!-- Pix Copia e Cola -->
-                        <div class="mb-4 mx-auto" style="max-width: 500px;">
-                            <label for="pix-copia-e-cola" class="form-label font-weight-bold">📋 Pix Copia e Cola</label>
-                            <div class="input-group">
-                                <input type="text" id="pix-copia-e-cola" class="form-control" readonly value="Gerando código...">
-                                <button class="btn btn-outline-primary" type="button" onclick="copiarPix()">Copiar</button>
+                                <div id="mp-loading" class="py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Gerando Pix...</span>
+                                    </div>
+                                    <p class="mt-2 text-primary font-weight-bold">Conectando ao Mercado Pago e gerando QR Code Pix...</p>
+                                </div>
+
+                                <div id="mp-pix-area" style="display: none;">
+                                    <!-- QR Code Mercado Pago -->
+                                    <div class="my-3 text-center">
+                                        <div id="mp-qrcode-box" class="p-3 bg-white border rounded d-inline-block shadow" style="min-width: 270px;">
+                                            <img id="mp-qrcode-img" src="" alt="QR Code Pix Mercado Pago" style="width: 256px; height: 256px; display: none;" />
+                                            <div id="mp-qrcode-fallback" class="d-flex justify-content-center align-items-center"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Status em Tempo Real -->
+                                    <div class="mb-3">
+                                        <span id="mp-status-badge" class="badge bg-warning text-dark p-2" style="font-size: 1rem;">
+                                            ⏳ Aguardando pagamento...
+                                        </span>
+                                    </div>
+
+                                    <!-- Pix Copia e Cola Mercado Pago -->
+                                    <div class="mb-4 mx-auto" style="max-width: 500px;">
+                                        <label for="mp-pix-copia-cola" class="form-label font-weight-bold">📋 Pix Copia e Cola (Mercado Pago)</label>
+                                        <div class="input-group">
+                                            <input type="text" id="mp-pix-copia-cola" class="form-control" readonly value="Carregando...">
+                                            <button class="btn btn-primary" type="button" onclick="copiarPixMp()">Copiar Código</button>
+                                        </div>
+                                        <small class="text-muted">Copie e cole no app do seu banco para pagar.</small>
+                                    </div>
+                                </div>
+
+                                <div id="mp-error-area" class="alert alert-danger mt-3" style="display: none;">
+                                    <span id="mp-error-msg">Não foi possível conectar ao Mercado Pago.</span><br>
+                                    <button class="btn btn-sm btn-outline-danger mt-2" onclick="carregarPixMercadoPago()">Tentar Novamente</button>
+                                </div>
                             </div>
-                            <small class="text-muted">Use esta opção se estiver acessando pelo celular.</small>
                         </div>
 
                         <!-- Instruções -->
-                        <div class="alert alert-warning mt-3 text-start" role="alert">
-                            <h6>📌 Instruções:</h6>
+                        <div class="alert alert-info mt-3 text-start" role="alert">
+                            <h6>📌 Como funciona a aprovação automática?</h6>
                             <ol class="mb-0">
                                 <li>Abra o aplicativo do seu banco</li>
-                                <li>Selecione a opção <strong>PIX</strong></li>
-                                <li>Escolha <strong>Ler QR Code</strong> ou <strong>Pix Copia e Cola</strong></li>
-                                <li>Confirme o pagamento de <strong>R$ <?= number_format($valor_brl, 2, ',', '.'); ?></strong></li>
-                                <li>Após o pagamento, clique no botão "Já paguei" abaixo</li>
+                                <li>Escaneie o QR Code ou use a opção <strong>Pix Copia e Cola</strong></li>
+                                <li>Confirme o pagamento no app do banco</li>
+                                <li>O Mercado Pago identificará o pagamento em poucos segundos e liberará o seu acesso automaticamente!</li>
                             </ol>
-                            <div class="mt-2 small border-top pt-2">
-                                <strong>Dados para conferência:</strong><br>
-                                Chave CPF: 032.067.407-03<br>
-                                Nome: Cristiane B. L. do Nascimento<br>
-                                Enviar comprovante: <strong>admin@estudotabela.com.br</strong>
-                            </div>
                         </div>
 
-                        <!-- Botão de Confirmação de Pagamento -->
-                        <button id="btn-confirm-payment" class="btn btn-success btn-lg mt-3" onclick="confirmarPagamento()">
-                            ✅ Já Paguei - Confirmar Pagamento
+                        <!-- Botão de Verificação Manual (Fallback) -->
+                        <button id="btn-confirm-payment" class="btn btn-outline-success btn-lg mt-2 mb-3" onclick="verificarPagamentoManual()">
+                            🔄 Já Paguei - Verificar Pagamento no Mercado Pago
                         </button>
                     </div>
                 </div>
@@ -214,103 +240,151 @@ require VIEWPATH . '/header.php';
 </div>
 
 <script>
+let currentMpPaymentId = null;
+let mpPollingInterval = null;
+
 document.addEventListener('DOMContentLoaded', function() {
-    gerarPix();
+    carregarPixMercadoPago();
 });
 
-function gerarPix() {
-    try {
-        // Usa o payload pré-gerado pelo backend para maior confiabilidade
-        const payload = '<?= $pix_payload ?? '' ?>';
-        
-        if (!payload) {
-            throw new Error("Payload do PIX não foi fornecido pelo servidor.");
-        }
+function carregarPixMercadoPago() {
+    document.getElementById('mp-loading').style.display = 'block';
+    document.getElementById('mp-pix-area').style.display = 'none';
+    document.getElementById('mp-error-area').style.display = 'none';
 
-        // 1. Gera o QR Code
-        const qrcodeDiv = document.getElementById("qrcode");
-        qrcodeDiv.innerHTML = ""; // Limpa antes de gerar
-        
-        if (typeof QRCode === 'undefined') {
-            throw new Error("Biblioteca de QR Code não carregada.");
-        }
-
-        new QRCode(qrcodeDiv, {
-            text: payload,
-            width: 256,
-            height: 256,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
-        });
-
-        // 2. Preenche o campo Copia e Cola
-        document.getElementById("pix-copia-e-cola").value = payload;
-    } catch (e) {
-        console.error("Erro detalhado ao gerar PIX:", e);
-        const errorMsg = e.message || "Erro desconhecido";
-        document.getElementById("pix-copia-e-cola").value = "Erro: " + errorMsg;
-    }
-}
-
-function copiarPix() {
-    const input = document.getElementById("pix-copia-e-cola");
-    input.select();
-    input.setSelectionRange(0, 99999); // Para dispositivos móveis
-    
-    navigator.clipboard.writeText(input.value).then(() => {
-        alert("✅ Código Pix copiado com sucesso!");
-    }).catch(err => {
-        console.error('Erro ao copiar:', err);
-    });
-}
-
-function confirmarPagamento() {
-    // Confirma com o usuário
-    if (!confirm('Você confirma que realizou o pagamento ?')) {
-        return;
-    }
-
-    // Desabilita o botão
-    const btn = document.getElementById('btn-confirm-payment');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
-
-    // Faz a requisição para confirmar o pagamento
-    fetch('<?= base_url('subscription/confirmPayment') ?>', {
+    fetch('/subscription/create-mp-pix', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
         }
     })
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
-        if (data.status === 'success') {
-            // Exibe mensagem de sucesso
-            //alert('✅ ' + data.message + '\nNovo vencimento: ' + data.novo_vencimento);
-            
-            alert('✅ ' + '\nAssim que confirmarmos o pagamento, seu acesso será liberado');
-                    
+        document.getElementById('mp-loading').style.display = 'none';
 
-            // Recarrega a página
-            window.location.reload();
+        if (data.status === 'success' && data.payment_id) {
+            currentMpPaymentId = data.payment_id;
+            document.getElementById('mp-pix-area').style.display = 'block';
+            document.getElementById('mp-pix-copia-cola').value = data.qr_code || '';
+
+            // Se o Mercado Pago forneceu a imagem base64 do QR code
+            const imgEl = document.getElementById('mp-qrcode-img');
+            const fallbackDiv = document.getElementById('mp-qrcode-fallback');
+
+            if (data.qr_code_base64) {
+                imgEl.src = 'data:image/png;base64,' + data.qr_code_base64;
+                imgEl.style.display = 'block';
+                fallbackDiv.style.display = 'none';
+            } else if (data.qr_code && typeof QRCode !== 'undefined') {
+                imgEl.style.display = 'none';
+                fallbackDiv.style.display = 'block';
+                fallbackDiv.innerHTML = '';
+                new QRCode(fallbackDiv, {
+                    text: data.qr_code,
+                    width: 256,
+                    height: 256
+                });
+            }
+
+            // Inicia o polling a cada 4 segundos para checar aprovação
+            iniciarPollingMercadoPago(data.payment_id);
         } else {
-            // Exibe mensagem de erro
-            alert('❌ ' + data.message);
-            
-            // Reabilita o botão
-            btn.disabled = false;
-            btn.innerHTML = '✅ Já Paguei - Confirmar Pagamento';
+            document.getElementById('mp-error-area').style.display = 'block';
+            document.getElementById('mp-error-msg').innerText = data.message || 'Erro ao gerar cobrança Mercado Pago.';
         }
     })
-    .catch(error => {
-        console.error('Erro:', error);
-        alert('❌ Erro ao confirmar pagamento. Tente novamente.');
-        
-        // Reabilita o botão
+    .catch(err => {
+        console.error('Erro na chamada Mercado Pago:', err);
+        document.getElementById('mp-loading').style.display = 'none';
+        document.getElementById('mp-error-area').style.display = 'block';
+        document.getElementById('mp-error-msg').innerText = 'Falha de conexão com o servidor.';
+    });
+}
+
+function copiarPixMp() {
+    const input = document.getElementById("mp-pix-copia-cola");
+    input.select();
+    input.setSelectionRange(0, 99999);
+    
+    navigator.clipboard.writeText(input.value).then(() => {
+        alert("✅ Pix Copia e Cola do Mercado Pago copiado com sucesso!");
+    }).catch(err => {
+        console.error('Erro ao copiar:', err);
+    });
+}
+
+function iniciarPollingMercadoPago(paymentId) {
+    if (mpPollingInterval) {
+        clearInterval(mpPollingInterval);
+    }
+
+    mpPollingInterval = setInterval(() => {
+        if (!paymentId) return;
+
+        fetch('/subscription/check-mp-pix/' + paymentId, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                if (data.approved) {
+                    clearInterval(mpPollingInterval);
+                    const badge = document.getElementById('mp-status-badge');
+                    badge.className = 'badge bg-success p-2';
+                    badge.innerText = '✅ Pagamento Aprovado pelo Mercado Pago!';
+                    
+                    setTimeout(() => {
+                        alert('🎉 Pagamento aprovado com sucesso no Mercado Pago! Seu acesso foi liberado.');
+                        window.location.href = '/dashboard';
+                    }, 1000);
+                } else if (data.status_mp === 'rejected' || data.status_mp === 'cancelled') {
+                    clearInterval(mpPollingInterval);
+                    const badge = document.getElementById('mp-status-badge');
+                    badge.className = 'badge bg-danger p-2';
+                    badge.innerText = '❌ Pagamento ' + (data.status_mp === 'rejected' ? 'rejeitado' : 'cancelado');
+                }
+            }
+        })
+        .catch(err => console.error('Erro no polling Mercado Pago:', err));
+    }, 4000);
+}
+
+function verificarPagamentoManual() {
+    if (!currentMpPaymentId) {
+        carregarPixMercadoPago();
+        return;
+    }
+
+    const btn = document.getElementById('btn-confirm-payment');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Verificando no Mercado Pago...';
+
+    fetch('/subscription/check-mp-pix/' + currentMpPaymentId, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
         btn.disabled = false;
-        btn.innerHTML = '✅ Já Paguei - Confirmar Pagamento';
+        btn.innerHTML = '🔄 Já Paguei - Verificar Pagamento no Mercado Pago';
+
+        if (data.status === 'success' && data.approved) {
+            alert('🎉 Pagamento confirmado e aprovado! Seu acesso foi renovado.');
+            window.location.href = '/dashboard';
+        } else {
+            alert('ℹ️ O pagamento ainda está pendente de confirmação pelo Mercado Pago (Status: ' + (data.status_mp || 'pendente') + '). Por favor, conclua a transferência no app do seu banco.');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '🔄 Já Paguei - Verificar Pagamento no Mercado Pago';
+        alert('❌ Erro ao consultar Mercado Pago. Tente novamente em instantes.');
     });
 }
 </script>

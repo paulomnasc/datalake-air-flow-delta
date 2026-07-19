@@ -302,7 +302,9 @@ class SubscriptionHelper
             'libertadores',
             'sudamericana',
             'copa do brasil',
-            'brasile'
+            'brasile',
+            'world cup',
+            'copa do mundo'
         ];
         
         foreach ($majorKeywords as $keyword) {

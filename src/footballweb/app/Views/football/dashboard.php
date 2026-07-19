@@ -1081,10 +1081,10 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
 
     /* Estilos de bloqueio por créditos */
     .bet-card-blur {
-        filter: blur(5px);
+        filter: blur(2px);
         pointer-events: none;
         user-select: none;
-        opacity: 0.25;
+        opacity: 0.65;
         transition: filter 0.3s ease, opacity 0.3s ease;
     }
 

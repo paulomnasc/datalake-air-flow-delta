@@ -35,12 +35,11 @@ public function index(): string
 
 Ou seja a sintaxe é: NomedaController:: método da Controller
     */ 
-$routes->get('/', 'FootballTrendsController::index', ['as'=>'home']);
-$routes->post('/', 'FootballTrendsController::index', ['as'=>'home']);
+$routes->match(['get', 'head', 'post'], '/', 'FootballTrendsController::index', ['as'=>'home']);
 $routes->get('/debugFunctionalities', 'Home::debugFunctionalities', ['as'=>'debugFunctionalities']);
 
 // Rotas do App Football Trends
-$routes->get('/football-trends', 'FootballTrendsController::index', ['as'=>'football.trends']);
+$routes->match(['get', 'head'], '/football-trends', 'FootballTrendsController::index', ['as'=>'football.trends']);
 $routes->post('/football-trends/ingest', 'FootballTrendsController::triggerIngest', ['as'=>'football.ingest']);
 $routes->post('/football-trends/ask-ai', 'FootballTrendsController::askAi', ['as'=>'football.ask-ai']);
 

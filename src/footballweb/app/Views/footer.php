@@ -45,8 +45,12 @@
 </div>
 
 <!-- Multi-Upload e Multi-Table JavaScript -->
+<?php if (file_exists(FCPATH . 'assets/js/multi-table-selection.js')): ?>
 <script src="<?= base_url('assets/js/multi-table-selection.js'); ?>"></script>
+<?php endif; ?>
+<?php if (file_exists(FCPATH . 'assets/js/multi-upload.js')): ?>
 <script src="<?= base_url('assets/js/multi-upload.js'); ?>"></script>
+<?php endif; ?>
 
 </body> 
 </html>

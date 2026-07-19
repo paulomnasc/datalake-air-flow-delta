@@ -109,3 +109,21 @@ server {
         return 301 https://$host$request_uri;
     }
 }
+
+# Bloco exclusivo para cristalbet.com.br (futebol)
+server {
+    listen 80;
+    server_name cristalbet.com.br www.cristalbet.com.br;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        proxy_pass http://football-app:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

@@ -509,6 +509,46 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         background: #3b82f6;
     }
 
+    .bet-team-stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 2px;
+        margin-bottom: 8px;
+        margin-left: 18px;
+        font-size: 0.72rem;
+        color: #9ca3af;
+    }
+
+    .bet-team-stats-item {
+        background: rgba(255, 255, 255, 0.04);
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: help;
+    }
+    
+    .bet-team-stats-item span.label {
+        color: #6b7280;
+        font-weight: 500;
+    }
+
+    .bet-team-stats-item span.val {
+        color: #e5e7eb;
+        font-weight: 600;
+    }
+
+    .bet-team-stats-item i {
+        color: #f47c20;
+    }
+    
+    .bet-team-row-wrapper:last-child .bet-team-stats-item i {
+        color: #3b82f6;
+    }
+
     .bet-team-name {
         font-weight: 700;
         font-size: 1.1rem;
@@ -717,6 +757,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         border-radius: 10px;
         padding: 12px;
         text-align: center;
+        cursor: help;
     }
 
     .bet-stat-title {
@@ -970,6 +1011,57 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         20% { opacity: 1; }
         100% { opacity: .2; }
     }
+
+    /* Custom CSS Tooltip/Hint System */
+    [data-tooltip] {
+        position: relative;
+    }
+
+    [data-tooltip]::before {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 125%;
+        left: 50%;
+        transform: translateX(-50%) translateY(8px) scale(0.95);
+        background: #111827; /* Dark charcoal */
+        color: #f3f4f6;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 0.78rem;
+        white-space: normal;
+        width: 220px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6), 0 0 1px rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1), transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 999999;
+        text-align: center;
+        line-height: 1.4;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 500;
+    }
+
+    [data-tooltip]::after {
+        content: "";
+        position: absolute;
+        bottom: 112%;
+        left: 50%;
+        transform: translateX(-50%) translateY(8px) scale(0.95);
+        border-width: 6px;
+        border-style: solid;
+        border-color: #111827 transparent transparent transparent;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1), transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 999999;
+    }
+
+    [data-tooltip]:hover::before,
+    [data-tooltip]:hover::after {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
 </style>
 
 <div class="container-fluid">
@@ -1195,13 +1287,66 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
 
                                     <!-- Confronto -->
                                     <div class="bet-teams-box">
-                                        <div class="bet-team-row">
-                                            <span class="bet-team-dot"></span>
-                                            <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?></span>
+                                        <div class="bet-team-row-wrapper" style="margin-bottom: 12px;">
+                                            <div class="bet-team-row" style="margin-bottom: 2px;">
+                                                <span class="bet-team-dot"></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?></span>
+                                            </div>
+                                            <?php if (isset($fix->home_avg_goals_scored)): ?>
+                                                <div class="bet-team-stats">
+                                                    <div class="bet-team-stats-item" data-tooltip="Média de Gols em Casa (Marcados / Sofridos por partida)">
+                                                        <i class="bi bi-activity"></i>
+                                                        <span class="label">Gols:</span>
+                                                        <span class="val"><?= number_format($fix->home_avg_goals_scored, 1) ?>/<?= number_format($fix->home_avg_goals_conceded, 1) ?></span>
+                                                    </div>
+                                                    <div class="bet-team-stats-item" data-tooltip="Clean Sheets (Jogos sem sofrer gols): Percentual de partidas em casa em que a equipe não sofreu nenhum gol.">
+                                                        <i class="bi bi-shield-fill-check"></i>
+                                                        <span class="label">Clean Sheets:</span>
+                                                        <span class="val"><?= round($fix->home_clean_sheets_pct) ?>%</span>
+                                                    </div>
+                                                    <div class="bet-team-stats-item" data-tooltip="Média de Escanteios a favor por jogo em casa">
+                                                        <i class="bi bi-flag-fill"></i>
+                                                        <span class="label">Escanteios:</span>
+                                                        <span class="val"><?= number_format($fix->home_avg_corners, 1) ?></span>
+                                                    </div>
+                                                    <div class="bet-team-stats-item" data-tooltip="Média de Cartões por jogo em casa (Amarelo = 1 ponto, Vermelho = 2 pontos)">
+                                                        <i class="bi bi-card-amber"></i>
+                                                        <span class="label">Cartões:</span>
+                                                        <span class="val"><?= number_format($fix->home_avg_cards, 1) ?></span>
+                                                    </div>
+                                                </div>
+                                            <?php endif; ?>
                                         </div>
-                                        <div class="bet-team-row">
-                                            <span class="bet-team-dot"></span>
-                                            <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?></span>
+
+                                        <div class="bet-team-row-wrapper">
+                                            <div class="bet-team-row" style="margin-bottom: 2px;">
+                                                <span class="bet-team-dot"></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?></span>
+                                            </div>
+                                            <?php if (isset($fix->away_avg_goals_scored)): ?>
+                                                <div class="bet-team-stats">
+                                                    <div class="bet-team-stats-item" data-tooltip="Média de Gols Fora (Marcados / Sofridos por partida)">
+                                                        <i class="bi bi-activity"></i>
+                                                        <span class="label">Gols:</span>
+                                                        <span class="val"><?= number_format($fix->away_avg_goals_scored, 1) ?>/<?= number_format($fix->away_avg_goals_conceded, 1) ?></span>
+                                                    </div>
+                                                    <div class="bet-team-stats-item" data-tooltip="Clean Sheets (Jogos sem sofrer gols): Percentual de partidas fora em que a equipe não sofreu nenhum gol.">
+                                                        <i class="bi bi-shield-fill-check"></i>
+                                                        <span class="label">Clean Sheets:</span>
+                                                        <span class="val"><?= round($fix->away_clean_sheets_pct) ?>%</span>
+                                                    </div>
+                                                    <div class="bet-team-stats-item" data-tooltip="Média de Escanteios a favor por jogo fora">
+                                                        <i class="bi bi-flag-fill"></i>
+                                                        <span class="label">Escanteios:</span>
+                                                        <span class="val"><?= number_format($fix->away_avg_corners, 1) ?></span>
+                                                    </div>
+                                                    <div class="bet-team-stats-item" data-tooltip="Média de Cartões por jogo fora (Amarelo = 1 ponto, Vermelho = 2 pontos)">
+                                                        <i class="bi bi-card-amber"></i>
+                                                        <span class="label">Cartões:</span>
+                                                        <span class="val"><?= number_format($fix->away_avg_cards, 1) ?></span>
+                                                    </div>
+                                                </div>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
 
@@ -1248,7 +1393,22 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                         '<?= htmlspecialchars($fix->league_name) ?>',
                                         '<?= htmlspecialchars($fix->referee_name ?? '') ?>',
                                         '<?= htmlspecialchars($fix->prediction_text) ?>',
-                                        '<?= $prob ?>'
+                                        '<?= $prob ?>',
+                                        '<?= $fix->home_avg_goals_scored ?? '' ?>',
+                                        '<?= $fix->home_avg_goals_conceded ?? '' ?>',
+                                        '<?= $fix->home_clean_sheets_pct ?? '' ?>',
+                                        '<?= $fix->home_avg_corners ?? '' ?>',
+                                        '<?= $fix->home_avg_cards ?? '' ?>',
+                                        '<?= $fix->away_avg_goals_scored ?? '' ?>',
+                                        '<?= $fix->away_avg_goals_conceded ?? '' ?>',
+                                        '<?= $fix->away_clean_sheets_pct ?? '' ?>',
+                                        '<?= $fix->away_avg_corners ?? '' ?>',
+                                        '<?= $fix->away_avg_cards ?? '' ?>',
+                                        '<?= $fix->rigor_level ?? 'Moderado' ?>',
+                                        '<?= $fix->average_yellow_cards ?? '' ?>',
+                                        '<?= $fix->average_red_cards ?? '' ?>',
+                                        '<?= $fix->average_fouls ?? '' ?>',
+                                        '<?= $fix->total_games ?? '' ?>'
                                     )">
                                         <i class="bi bi-chat-left-text-fill"></i> Grok AI
                                     </button>
@@ -1292,20 +1452,20 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         </div>
 
         <div class="bet-stats-grid">
-            <div class="bet-stat-card">
-                <div class="bet-stat-title">Média Amarelos</div>
+            <div class="bet-stat-card" data-tooltip="Média de cartões amarelos mostrados por este árbitro por partida.">
+                <div class="bet-stat-title">Média de Amarelos</div>
                 <div class="bet-stat-val" id="modalRefYellow">5.20</div>
             </div>
-            <div class="bet-stat-card">
-                <div class="bet-stat-title">Média Vermelhos</div>
+            <div class="bet-stat-card" data-tooltip="Média de cartões vermelhos mostrados por este árbitro por partida.">
+                <div class="bet-stat-title">Média de Vermelhos</div>
                 <div class="bet-stat-val" id="modalRefRed">0.24</div>
             </div>
-            <div class="bet-stat-card">
-                <div class="bet-stat-title">Média Faltas</div>
+            <div class="bet-stat-card" data-tooltip="Média de faltas marcadas por este árbitro por partida.">
+                <div class="bet-stat-title">Média de Faltas</div>
                 <div class="bet-stat-val" id="modalRefFouls">24.50</div>
             </div>
-            <div class="bet-stat-card">
-                <div class="bet-stat-title">Total Jogos</div>
+            <div class="bet-stat-card" data-tooltip="Número total de partidas oficiais apitadas por este árbitro no banco de dados.">
+                <div class="bet-stat-title">Total de Jogos</div>
                 <div class="bet-stat-val" id="modalRefGames">120</div>
             </div>
         </div>
@@ -1348,8 +1508,16 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
     let chatHistory = [];
     let activeChatContext = null;
 
-    function openAiChat(homeTeam, awayTeam, leagueName, refereeName, predictionText, prob) {
-        activeChatContext = { homeTeam, awayTeam, leagueName, refereeName, predictionText, prob };
+    function openAiChat(homeTeam, awayTeam, leagueName, refereeName, predictionText, prob,
+                        homeAvgGoalsScored, homeAvgGoalsConceded, homeCleanSheetsPct, homeAvgCorners, homeAvgCards,
+                        awayAvgGoalsScored, awayAvgGoalsConceded, awayCleanSheetsPct, awayAvgCorners, awayAvgCards,
+                        refereeRigor, refereeYellows, refereeReds, refereeFouls, refereeGames) {
+        activeChatContext = {
+            homeTeam, awayTeam, leagueName, refereeName, predictionText, prob,
+            homeAvgGoalsScored, homeAvgGoalsConceded, homeCleanSheetsPct, homeAvgCorners, homeAvgCards,
+            awayAvgGoalsScored, awayAvgGoalsConceded, awayCleanSheetsPct, awayAvgCorners, awayAvgCards,
+            refereeRigor, refereeYellows, refereeReds, refereeFouls, refereeGames
+        };
         chatHistory = []; // Limpa o histórico de sessões anteriores
         
         document.getElementById('chatContextText').innerText = `${homeTeam} vs ${awayTeam} (${leagueName})`;
@@ -1358,11 +1526,12 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         messagesArea.innerHTML = '';
         
         const welcomeText = `Fala, apostador! Sou o Grok. Analisando o jogo **${homeTeam} vs ${awayTeam}** (${leagueName}) com probabilidade de **${prob}%** para Over 4.5 Cartões.\n\n`
-            + `Se o mercado tradicional de **Total de Cartões (Mais de 4.5)** estiver fechado ou limitado na Betano para este jogo, recomendo buscar opções como:\n`
-            + `* **Ambas as equipes receberão 2 ou mais cartões** (opção muito segura quando as estatísticas de cartões são altas);\n`
-            + `* **Total de Cartões por Equipe** (Mais de 1.5 ou 2.5 cartões para um dos times);\n`
-            + `* **Total de Cartões no 1º Tempo**.\n\n`
-            + `Em que posso te ajudar a interpretar as estatísticas desse confronto?`;
+            + `Além de cartões, estou com todas as estatísticas do card carregadas (Média de Gols, Clean Sheets, Escanteios, Rigor do Árbitro, etc.).\n\n`
+            + `Você pode me perguntar sobre:\n`
+            + `* **Mercado de Gols** (Média de marcados/sofridos e Clean Sheets);\n`
+            + `* **Mercado de Escanteios** (Média de cantos de cada equipe);\n`
+            + `* **Mercados de Cartões Alternativos/Híbridos** (ex: Ambas recebem 2+, cartões por tempo/equipe).\n\n`
+            + `Como quer montar sua estratégia para esse jogo hoje?`;
             
         appendChatMessage('ai', welcomeText);
         
@@ -1421,6 +1590,25 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         formData.append('referee_name', activeChatContext.refereeName);
         formData.append('prediction_text', activeChatContext.predictionText);
         formData.append('over_cards_probability', activeChatContext.prob);
+
+        formData.append('home_avg_goals_scored', activeChatContext.homeAvgGoalsScored);
+        formData.append('home_avg_goals_conceded', activeChatContext.homeAvgGoalsConceded);
+        formData.append('home_clean_sheets_pct', activeChatContext.homeCleanSheetsPct);
+        formData.append('home_avg_corners', activeChatContext.homeAvgCorners);
+        formData.append('home_avg_cards', activeChatContext.homeAvgCards);
+
+        formData.append('away_avg_goals_scored', activeChatContext.awayAvgGoalsScored);
+        formData.append('away_avg_goals_conceded', activeChatContext.awayAvgGoalsConceded);
+        formData.append('away_clean_sheets_pct', activeChatContext.awayCleanSheetsPct);
+        formData.append('away_avg_corners', activeChatContext.awayAvgCorners);
+        formData.append('away_avg_cards', activeChatContext.awayAvgCards);
+
+        formData.append('referee_rigor', activeChatContext.refereeRigor);
+        formData.append('referee_yellows', activeChatContext.refereeYellows);
+        formData.append('referee_reds', activeChatContext.refereeReds);
+        formData.append('referee_fouls', activeChatContext.refereeFouls);
+        formData.append('referee_games', activeChatContext.refereeGames);
+
         formData.append('message', text);
         formData.append('history', JSON.stringify(chatHistory));
         

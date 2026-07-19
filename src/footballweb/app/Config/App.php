@@ -60,8 +60,8 @@ class App extends BaseConfig
                 // Se ENV_SUFFIX vazio (DEV local), usa CODEIGNITER_PORT (8088)
                 // Se ENV_SUFFIX definido (TEST), usa NGINX_PORT_HTTP (29080, etc)
                 if (empty($envSuffix)) {
-                    // DEV: porta direta do FiscalWeb
-                    $port = getenv('FISCALWEB_PORT') ?: '28089';
+                    // DEV: porta direta do FootballTrends
+                    $port = getenv('FOOTBALLWEB_PORT') ?: '28091';
                 } else {
                     // TEST: porta do Nginx (que faz proxy para CodeIgniter)
                     $port = getenv('NGINX_PORT_HTTP') ?: '80';

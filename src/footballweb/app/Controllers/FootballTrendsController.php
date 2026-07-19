@@ -40,8 +40,12 @@ class FootballTrendsController extends BaseController
         // Conecta ao banco para realizar a query com join
         $db = \Config\Database::connect();
         $builder = $db->table('fixtures_trends ft');
-        $builder->select('ft.*, rs.average_yellow_cards, rs.average_red_cards, rs.average_fouls, rs.total_games, rs.rigor_level');
+        $builder->select('ft.*, rs.average_yellow_cards, rs.average_red_cards, rs.average_fouls, rs.total_games, rs.rigor_level,
+                          th.avg_goals_scored as home_avg_goals_scored, th.avg_goals_conceded as home_avg_goals_conceded, th.clean_sheets_pct as home_clean_sheets_pct, th.avg_corners as home_avg_corners, th.avg_cards as home_avg_cards,
+                          ta.avg_goals_scored as away_avg_goals_scored, ta.avg_goals_conceded as away_avg_goals_conceded, ta.clean_sheets_pct as away_clean_sheets_pct, ta.avg_corners as away_avg_corners, ta.avg_cards as away_avg_cards');
         $builder->join('referee_stats rs', 'ft.referee_name = rs.name', 'left');
+        $builder->join('team_moving_averages th', 'ft.home_team_id = th.team_id AND th.venue_type = "home"', 'left');
+        $builder->join('team_moving_averages ta', 'ft.away_team_id = ta.team_id AND ta.venue_type = "away"', 'left');
         $builder->where('DATE(DATE_SUB(ft.fixture_date, INTERVAL 3 HOUR))', $targetDate);
 
         // Se showFinished for falso (default), exclui jogos encerrados
@@ -119,6 +123,25 @@ class FootballTrendsController extends BaseController
         $prob = $this->request->getPost('over_cards_probability');
         $userMessage = $this->request->getPost('message');
         $historyJson = $this->request->getPost('history'); // Array JSON de histórico de mensagens
+
+        // Estatísticas detalhadas passadas no POST
+        $homeAvgGoalsScored = $this->request->getPost('home_avg_goals_scored');
+        $homeAvgGoalsConceded = $this->request->getPost('home_avg_goals_conceded');
+        $homeCleanSheetsPct = $this->request->getPost('home_clean_sheets_pct');
+        $homeAvgCorners = $this->request->getPost('home_avg_corners');
+        $homeAvgCards = $this->request->getPost('home_avg_cards');
+
+        $awayAvgGoalsScored = $this->request->getPost('away_avg_goals_scored');
+        $awayAvgGoalsConceded = $this->request->getPost('away_avg_goals_conceded');
+        $awayCleanSheetsPct = $this->request->getPost('away_clean_sheets_pct');
+        $awayAvgCorners = $this->request->getPost('away_avg_corners');
+        $awayAvgCards = $this->request->getPost('away_avg_cards');
+
+        $refereeRigor = $this->request->getPost('referee_rigor') ?: 'Moderado';
+        $refereeYellows = $this->request->getPost('referee_yellows');
+        $refereeReds = $this->request->getPost('referee_reds');
+        $refereeFouls = $this->request->getPost('referee_fouls');
+        $refereeGames = $this->request->getPost('referee_games');
         
         if (empty($userMessage)) {
             return $this->response->setJSON([
@@ -138,23 +161,46 @@ class FootballTrendsController extends BaseController
         // Reconstrói mensagens para a API Groq
         $messages = [];
 
+        // Monta o panorama de estatísticas de cada time e do árbitro
+        $statsContent = "\n\nDados Estatísticos Detalhados dos Times:\n"
+            . "- {$homeTeam} (Mandante):\n"
+            . "  * Média de Gols Marcados: " . ($homeAvgGoalsScored !== '' && $homeAvgGoalsScored !== null ? number_format($homeAvgGoalsScored, 1) : 'N/A') . "\n"
+            . "  * Média de Gols Sofridos: " . ($homeAvgGoalsConceded !== '' && $homeAvgGoalsConceded !== null ? number_format($homeAvgGoalsConceded, 1) : 'N/A') . "\n"
+            . "  * Clean Sheets (Jogos sem sofrer gols): " . ($homeCleanSheetsPct !== '' && $homeCleanSheetsPct !== null ? round($homeCleanSheetsPct) . '%' : 'N/A') . "\n"
+            . "  * Média de Escanteios a favor: " . ($homeAvgCorners !== '' && $homeAvgCorners !== null ? number_format($homeAvgCorners, 1) : 'N/A') . "\n"
+            . "  * Média de Cartões recebidos: " . ($homeAvgCards !== '' && $homeAvgCards !== null ? number_format($homeAvgCards, 1) : 'N/A') . "\n"
+            . "- {$awayTeam} (Visitante):\n"
+            . "  * Média de Gols Marcados: " . ($awayAvgGoalsScored !== '' && $awayAvgGoalsScored !== null ? number_format($awayAvgGoalsScored, 1) : 'N/A') . "\n"
+            . "  * Média de Gols Sofridos: " . ($awayAvgGoalsConceded !== '' && $awayAvgGoalsConceded !== null ? number_format($awayAvgGoalsConceded, 1) : 'N/A') . "\n"
+            . "  * Clean Sheets (Jogos sem sofrer gols): " . ($awayCleanSheetsPct !== '' && $awayCleanSheetsPct !== null ? round($awayCleanSheetsPct) . '%' : 'N/A') . "\n"
+            . "  * Média de Escanteios a favor: " . ($awayAvgCorners !== '' && $awayAvgCorners !== null ? number_format($awayAvgCorners, 1) : 'N/A') . "\n"
+            . "  * Média de Cartões recebidos: " . ($awayAvgCards !== '' && $awayAvgCards !== null ? number_format($awayAvgCards, 1) : 'N/A') . "\n";
+
+        if (!empty($refereeName)) {
+            $statsContent .= "\nDados Estatísticos Detalhados do Árbitro ({$refereeName}):\n"
+                . "- Rigor da Arbitragem: {$refereeRigor}\n"
+                . "- Média de Amarelos por partida: " . ($refereeYellows !== '' && $refereeYellows !== null ? number_format($refereeYellows, 2) : 'N/A') . "\n"
+                . "- Média de Vermelhos por partida: " . ($refereeReds !== '' && $refereeReds !== null ? number_format($refereeReds, 2) : 'N/A') . "\n"
+                . "- Média de Faltas por partida: " . ($refereeFouls !== '' && $refereeFouls !== null ? number_format($refereeFouls, 2) : 'N/A') . "\n"
+                . "- Total de jogos registrados: " . ($refereeGames !== '' && $refereeGames !== null ? $refereeGames : 'N/A') . "\n";
+        }
+
         // Prompt de Sistema detalhado com base nas orientações fornecidas
-        $systemContent = "Você é o Grok, um assistente inteligente especialista em apostas esportivas e análise estatística de cartões na plataforma MyFlow Trends. "
+        $systemContent = "Você é o Grok, um assistente inteligente especialista em apostas esportivas e análise estatística de futebol na plataforma MyFlow Trends. "
             . "O usuário está analisando a partida: {$homeTeam} vs {$awayTeam} pela liga '{$leagueName}'.\n\n"
-            . "Dados atuais do confronto:\n"
+            . "Dados gerais do confronto:\n"
             . "- Árbitro escalado: " . ($refereeName ?: 'Sem árbitro escalado ainda') . "\n"
             . "- Análise pré-gerada: {$predictionText}\n"
-            . "- Probabilidade calculada de Over 4.5 Cartões: {$prob}%\n\n"
+            . "- Probabilidade calculada de Over 4.5 Cartões: {$prob}%\n"
+            . $statsContent . "\n"
             . "DIRETRIZES DE RESPOSTA:\n"
             . "1. Seja conversador, direto, amigável e use gírias ou jargão saudável do meio de apostas em português.\n"
-            . "2. Explique ao usuário de forma pragmática como traduzir a nossa probabilidade estatística para o que ele vê na tela das casas de apostas (Betano/Superbet):\n"
-            . "   - Se a liga for de 'Tier 2' ou secundária (como a Liga MX do México), explique que a Betano costuma limitar as linhas para evitar prejuízo, por isso o mercado direto de 'Total de Cartões (Mais de 4.5)' pode não aparecer.\n"
-            . "   - Nesses casos, sugira mercados híbridos inteligentes como:\n"
-            . "     * 'Ambas as equipes receberão 2 ou mais cartões' (se a nossa probabilidade for alta, ex: >= 70%, o jogo costuma ser truncado para os dois lados, exigindo ao menos 4 cartões no total, sendo 2 para cada, o que é um mercado seguro);\n"
-            . "     * 'Total de Cartões por Equipe' (ex: apostar individualmente que determinado time terá Mais de 1.5 ou 2.5 cartões);\n"
-            . "     * 'Total de Cartões no 1º Tempo' ou cartões vermelhos.\n"
-            . "   - Destaque que em grandes ligas (Brasileirão Série A, Champions League, ligas europeias principais), a Betano sempre abre o mercado padrão de 'Total de Cartões'.\n"
-            . "3. Use a nossa dica pré-gerada e o rigor do árbitro para fundamentar a sua resposta técnica. Responda de forma concisa e evite textos excessivamente longos.";
+            . "2. Faça uma análise AMPLA, aproveitando todos os dados estatísticos fornecidos acima. Não se limite apenas a cartões. Se o usuário perguntar ou se fizer sentido, explore e cruze dados para indicar outros mercados de apostas inteligentes:\n"
+            . "   - Mercado de Gols (Over/Under gols, Ambas Marcam / BTTS): Avalie as médias de gols marcados/sofridos e os índices de Clean Sheets das duas equipes. Se ambos marcam muito e sofrem muito, recomende 'Ambas Marcam' ou 'Over 2.5 Gols'.\n"
+            . "   - Mercado de Escanteios (Cantos): Utilize as médias de escanteios de cada equipe para fundamentar projeções de Over/Under escanteios ou o mercado de 'Quem terá mais escanteios'.\n"
+            . "   - Mercado de Cartões por Equipe / Individuais: Indique qual time costuma receber mais cartões com base na média individual de cartões e na postura do árbitro.\n"
+            . "   - Mercados Híbridos/Alternativos para Cartões (ex: 'Ambas as equipes receberão 2 ou mais cartões') caso a linha direta esteja esticada ou indisponível em ligas Tier 2 na Betano/Superbet.\n"
+            . "3. Use a nossa análise pré-gerada e o rigor do árbitro para fundamentar a sua resposta técnica. Responda de forma concisa e evite textos excessivamente longos.";
 
         $messages[] = ['role' => 'system', 'content' => $systemContent];
 

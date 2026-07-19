@@ -17,6 +17,8 @@ class FixturesTrendsModel extends Model
         'league_name',
         'home_team',
         'away_team',
+        'home_team_id',
+        'away_team_id',
         'referee_name',
         'prediction_text',
         'over_cards_probability',

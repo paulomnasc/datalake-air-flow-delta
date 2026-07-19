@@ -142,13 +142,12 @@ def main():
         1: "Copa do Mundo (Mundo)"
     }
 
-
-    
     # Filtra partidas pelas ligas permitidas
     filtered_fixtures = [f for f in fixtures if f.get("league", {}).get("id") in ALLOWED_LEAGUES]
     
     if not filtered_fixtures:
         print("Nenhuma partida encontrada nas ligas principais (Tier 1) para esta data.")
+        return
         
     print(f"Processando {len(filtered_fixtures)} partidas filtradas...")
     
@@ -170,6 +169,8 @@ def main():
             league_name = f["league"]["name"]
             home_team = f["teams"]["home"]["name"]
             away_team = f["teams"]["away"]["name"]
+            home_team_id = f["teams"]["home"]["id"]
+            away_team_id = f["teams"]["away"]["id"]
             referee_raw = f["fixture"].get("referee")
             status = f["fixture"].get("status", {}).get("short", "NS")
             
@@ -217,20 +218,24 @@ def main():
                     over_cards_prob = round(random.uniform(25.0, 48.0), 2)
                     prediction_text = f"❄️ Árbitro {referee_name} é permissivo e costuma deixar a partida correr (média de {yellows} cartões amarelos por jogo). Tendência para Under 4.5 Cartões."
             
-            # Insere ou atualiza a partida
+            # Insere ou atualiza a partida com home_team_id e away_team_id
             cursor.execute("""
                 INSERT INTO fixtures_trends (
                     fixture_id, fixture_date, league_id, league_name, home_team, away_team, 
+                    home_team_id, away_team_id,
                     referee_name, prediction_text, over_cards_probability, status
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     fixture_date = VALUES(fixture_date),
+                    home_team_id = VALUES(home_team_id),
+                    away_team_id = VALUES(away_team_id),
                     referee_name = VALUES(referee_name),
                     prediction_text = VALUES(prediction_text),
                     over_cards_probability = VALUES(over_cards_probability),
                     status = VALUES(status);
             """, (
                 fix_id, fix_date, league_id, league_name, home_team, away_team,
+                home_team_id, away_team_id,
                 referee_name, prediction_text, over_cards_prob, status
             ))
             inserted_fixtures += 1

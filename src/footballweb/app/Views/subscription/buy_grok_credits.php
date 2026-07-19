@@ -104,6 +104,16 @@ require VIEWPATH . '/header.php';
                                 </div>
                                 <small class="text-muted" style="margin-top: 4px; display: block;">Copie este código para pagar no aplicativo do seu celular.</small>
                             </div>
+
+                            <?php if (ENVIRONMENT !== 'production'): ?>
+                            <div class="mt-4 p-3 border border-warning rounded text-center mx-auto" style="background: rgba(255, 193, 7, 0.1); border-color: #ffc107 !important; max-width: 500px;">
+                                <div class="text-warning font-weight-bold mb-1" style="font-weight: 700; color: #ffc107;">⚡ Modo Desenvolvedor (Sandbox)</div>
+                                <small class="text-white-50 d-block mb-2">Simule a aprovação do Mercado Pago via API sem usar o aplicativo mobile:</small>
+                                <button type="button" id="btn-simulate-mp" class="btn btn-warning text-dark font-weight-bold" onclick="simularPagamentoDev()" style="font-weight: 700;">
+                                    ⚡ Simular Pagamento Aprovado no Sandbox
+                                </button>
+                            </div>
+                            <?php endif; ?>
                         </div>
 
                         <div id="mp-error-area" class="alert alert-danger mt-3" style="display: none; background: rgba(220, 53, 69, 0.2); border-color: #dc3545; color: #f8d7da;">
@@ -313,6 +323,53 @@ function verificarPagamentoManual() {
         btn.disabled = false;
         btn.innerHTML = '🔄 Já Realizei o PIX - Verificar no Mercado Pago';
         alert('❌ Erro ao consultar Mercado Pago. Tente novamente em instantes.');
+    });
+}
+
+function simularPagamentoDev() {
+    if (!currentMpPaymentId) {
+        alert('Nenhum pagamento ativo para simular.');
+        return;
+    }
+    const btn = document.getElementById('btn-simulate-mp');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Simulando aprovação no Sandbox...';
+    }
+
+    fetch('/subscription/simulate-mp-pix/' + currentMpPaymentId, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            const badge = document.getElementById('mp-status-badge');
+            if (badge) {
+                badge.className = 'badge bg-success p-2';
+                badge.innerText = '✅ Pagamento Aprovado no Sandbox!';
+            }
+            if (typeof mpPollingInterval !== 'undefined' && mpPollingInterval) {
+                clearInterval(mpPollingInterval);
+            }
+            verificarPagamentoManual();
+        } else {
+            alert('❌ Erro na simulação: ' + (data.message || 'Falha ao comunicar com o Sandbox.'));
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '⚡ Simular Pagamento Aprovado no Sandbox';
+            }
+        }
+    })
+    .catch(err => {
+        console.error('Erro ao simular:', err);
+        alert('❌ Erro ao enviar simulação.');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '⚡ Simular Pagamento Aprovado no Sandbox';
+        }
     });
 }
 </script>

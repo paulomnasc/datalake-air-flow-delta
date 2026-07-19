@@ -182,6 +182,59 @@ class MercadoPagoService
         }
     }
 
+    /**
+     * Simula a aprovação de um pagamento no Sandbox do Mercado Pago
+     *
+     * @param string|int $paymentId ID do pagamento no Mercado Pago
+     * @return array
+     */
+    public function simularAprovacaoPix($paymentId): array
+    {
+        $url = $this->baseUrl . '/v1/payments/' . $paymentId;
+        $payload = ['status' => 'approved'];
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST  => 'PUT',
+            CURLOPT_POSTFIELDS     => json_encode($payload),
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $this->accessToken,
+                'Content-Type: application/json'
+            ],
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+
+        $responseBody = curl_exec($ch);
+        $statusCode   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError    = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            return [
+                'success' => false,
+                'message' => 'Erro cURL ao simular aprovação: ' . $curlError
+            ];
+        }
+
+        $body = json_decode($responseBody, true) ?: [];
+
+        if ($statusCode === 200 && ($body['status'] ?? '') === 'approved') {
+            return [
+                'success'       => true,
+                'status'        => 'approved',
+                'status_detail' => $body['status_detail'] ?? 'accredited',
+                'raw_response'  => $body
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => $body['message'] ?? 'Falha ao aprovar transação no Sandbox Mercado Pago (Status HTTP: ' . $statusCode . ')'
+        ];
+    }
+
     public function getPublicKey(): string
     {
         return $this->publicKey;

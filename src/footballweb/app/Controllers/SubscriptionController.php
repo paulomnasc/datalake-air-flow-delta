@@ -711,13 +711,18 @@ class SubscriptionController extends BaseController
         $tx = $db->table('pagamento_transacao')->where('mp_payment_id', $paymentId)->get()->getRow();
         $statusAnterior = $tx ? $tx->status : 'pending';
 
-        // Atualiza registro local
-        $db->table('pagamento_transacao')
-            ->where('mp_payment_id', $paymentId)
-            ->update([
-                'status'        => $statusMp,
-                'status_detail' => $result['status_detail'] ?? ''
-            ]);
+        // Se a transação já foi aprovada localmente (ex: via simulação dev), mantém como approved
+        if ($statusAnterior === 'approved') {
+            $statusMp = 'approved';
+        } else {
+            // Atualiza registro local
+            $db->table('pagamento_transacao')
+                ->where('mp_payment_id', $paymentId)
+                ->update([
+                    'status'        => $statusMp,
+                    'status_detail' => $result['status_detail'] ?? ''
+                ]);
+        }
 
         $approved = ($statusMp === 'approved');
 
@@ -826,6 +831,76 @@ class SubscriptionController extends BaseController
 
         return $this->response->setStatusCode(200)->setJSON([
             'status'     => 'ok',
+            'payment_id' => $paymentId,
+            'status_mp'  => $statusMp
+        ]);
+    }
+
+    /**
+     * Simula a aprovação do Pix no Sandbox do Mercado Pago (Dev Only)
+     */
+    public function simulateMpPixStatus($paymentId)
+    {
+        if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Usuário não autenticado'
+            ]);
+        }
+
+        if (ENVIRONMENT === 'production') {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => 'Simulação indisponível em ambiente de produção.'
+            ]);
+        }
+
+        $mpService = new MercadoPagoService();
+        $result = $mpService->simularAprovacaoPix($paymentId);
+
+        // Se o Mercado Pago aprovou no Sandbox OU se a API do MP retornou restrição de PUT (403), 
+        // aprovamos localmente em ambiente de Desenvolvimento/Teste para permitir o teste no App.
+        $statusMp = 'approved';
+        $statusDetail = $result['success'] ? ($result['status_detail'] ?? 'accredited') : 'accredited_simulated_dev';
+
+        $db = \Config\Database::connect();
+        $tx = $db->table('pagamento_transacao')->where('mp_payment_id', $paymentId)->get()->getRow();
+        $statusAnterior = $tx ? $tx->status : 'pending';
+
+        // Atualiza a transação local
+        $db->table('pagamento_transacao')
+            ->where('mp_payment_id', $paymentId)
+            ->update([
+                'status'        => $statusMp,
+                'status_detail' => $result['status_detail'] ?? 'accredited'
+            ]);
+
+        // Processa os benefícios imediatamente se ainda não estava aprovado
+        if ($tx && $statusMp === 'approved' && $statusAnterior !== 'approved') {
+            $usuarioModel = new UsuarioModel();
+            $usuario = $usuarioModel->find($tx->usuario_id);
+
+            if ($tx->tipo === 'grok_credits') {
+                if ($usuario) {
+                    $currentCredits = (int)($usuario->grok_credits ?? 0);
+                    $newCredits = $currentCredits + 20;
+                    $usuarioModel->update($tx->usuario_id, ['grok_credits' => $newCredits]);
+                    log_message('info', "[MP-SIMULATION] 20 créditos Grok adicionados ao usuário {$tx->usuario_id}. Saldo: {$newCredits}");
+                }
+            } else {
+                $regResult = SubscriptionHelper::registrarPagamento($usuarioModel, $tx->usuario_id);
+                if ($regResult['success']) {
+                    if ($usuario) {
+                        AirflowHelper::setUserActiveStatus($tx->usuario_id, $usuario->email ?? '', true);
+                    }
+                    log_message('info', "[MP-SIMULATION] Pagamento {$paymentId} aprovado via simulação. Assinatura do usuário {$tx->usuario_id} ativada!");
+                }
+            }
+        }
+
+        return $this->response->setJSON([
+            'status'     => 'success',
+            'message'    => 'Pagamento aprovado via simulação no Sandbox Mercado Pago!',
             'payment_id' => $paymentId,
             'status_mp'  => $statusMp
         ]);

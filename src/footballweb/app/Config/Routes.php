@@ -208,6 +208,7 @@ $routes->get('/subscription/buy-grok-credits', 'SubscriptionController::buyGrokC
 $routes->post('/subscription/confirmGrokPayment', 'SubscriptionController::confirmGrokPayment', ['as'=>'subscription.confirmGrokPayment']); // Confirmar Pix Grok
 $routes->post('/subscription/create-mp-pix', 'SubscriptionController::createMpPix', ['as'=>'subscription.createMpPix']); // Criar Pix Mercado Pago
 $routes->get('/subscription/check-mp-pix/(:segment)', 'SubscriptionController::checkMpPixStatus/$1', ['as'=>'subscription.checkMpPixStatus']); // Checar status Pix MP
+$routes->match(['get', 'post'], '/subscription/simulate-mp-pix/(:segment)', 'SubscriptionController::simulateMpPixStatus/$1', ['as'=>'subscription.simulateMpPixStatus']); // Simular aprovação Pix MP (Dev)
 $routes->match(['get', 'post'], '/subscription/mp-webhook', 'SubscriptionController::mpWebhook', ['as'=>'subscription.mpWebhook']); // Webhook Mercado Pago
 $routes->get('/test-subscription', 'TestSubscription::index'); // DEBUG - Teste de subscription
 

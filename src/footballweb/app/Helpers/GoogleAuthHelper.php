@@ -38,11 +38,19 @@ class GoogleAuthHelper
     }
 
     /**
-     * Retorna a URI de redirecionamento dinamicamente com base no host atual da requisição
+     * Retorna a URI de redirecionamento dinamicamente ou via .env
      */
     public static function getRedirectUri()
     {
-        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || ($_SERVER['SERVER_PORT'] ?? 80) == 443) ? "https" : "http";
+        $customUri = getenv('GOOGLE_REDIRECT_URI') ?: ($_ENV['GOOGLE_REDIRECT_URI'] ?? null);
+        if (!empty($customUri)) {
+            return $customUri;
+        }
+
+        $protocol = (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']))
+            ? $_SERVER['HTTP_X_FORWARDED_PROTO']
+            : ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || ($_SERVER['SERVER_PORT'] ?? 80) == 443) ? "https" : "http");
+
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost:28091';
         return "{$protocol}://{$host}/auth/google-callback";
     }

@@ -279,4 +279,44 @@ class SubscriptionHelper
             ];
         }
     }
+
+    /**
+     * Verifica se a liga exige créditos para visualização de estatísticas detalhadas.
+     * 
+     * @param string $leagueName Nome da liga
+     * @return bool True se a liga exige créditos
+     */
+    public static function leagueRequiresCredits(string $leagueName): bool
+    {
+        $leagueLower = strtolower($leagueName);
+        
+        $majorKeywords = [
+            'champions league',
+            'uefa',
+            'premier league',
+            'la liga',
+            'bundesliga',
+            'ligue 1',
+            'eredivisie',
+            'primeira liga',
+            'libertadores',
+            'sudamericana',
+            'copa do brasil',
+            'brasile'
+        ];
+        
+        foreach ($majorKeywords as $keyword) {
+            if (strpos($leagueLower, $keyword) !== false) {
+                return true;
+            }
+        }
+        
+        // Brasileirão e Série A/B/C italianas ou equivalentes
+        if ($leagueLower === 'serie a' || $leagueLower === 'serie b' || $leagueLower === 'serie c' ||
+            strpos($leagueLower, 'série a') !== false || strpos($leagueLower, 'série b') !== false || strpos($leagueLower, 'série c') !== false) {
+            return true;
+        }
+        
+        return false;
+    }
 }

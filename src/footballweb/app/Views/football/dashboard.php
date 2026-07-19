@@ -4,6 +4,22 @@ if (! defined('VIEWPATH')) {
 }
 require VIEWPATH.'/header.php';
 
+// Controle de Créditos do Grok AI e Ligas Premium
+$userLoggedIn = false;
+$userGrokCredits = 0;
+$userId = null;
+$isGoogleUser = false;
+if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
+    $userLoggedIn = true;
+    $userId = $_SESSION['id_usuario_logado'] ?? null;
+    if ($userId) {
+        $db = \Config\Database::connect();
+        $userRow = $db->table('usuario')->where('id', $userId)->get()->getRow();
+        $userGrokCredits = $userRow ? (int)$userRow->grok_credits : 0;
+        $isGoogleUser = $userRow && !empty($userRow->google_id);
+    }
+}
+
 // Formatação amigável da data
 setlocale(LC_TIME, 'pt_BR.utf8', 'pt_BR', 'Portuguese_Brazil');
 $dateObj = DateTime::createFromFormat('Y-m-d', $targetDate);
@@ -1062,6 +1078,70 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         opacity: 1;
         transform: translateX(-50%) translateY(0) scale(1);
     }
+
+    /* Estilos de bloqueio por créditos */
+    .bet-card-blur {
+        filter: blur(5px);
+        pointer-events: none;
+        user-select: none;
+        opacity: 0.25;
+        transition: filter 0.3s ease, opacity 0.3s ease;
+    }
+
+    .bet-card-lock-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(14, 22, 32, 0.88);
+        border-radius: 12px;
+        z-index: 10;
+        text-align: center;
+        padding: 20px;
+        border: 2px solid rgba(244, 124, 32, 0.2);
+    }
+
+    /* Badges de créditos na header */
+    .grok-credits-badge {
+        background: #172230;
+        border: 1px solid rgba(244, 124, 32, 0.3);
+        border-radius: 20px;
+        padding: 6px 15px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #f3f4f6;
+        margin-right: 15px;
+    }
+    
+    .grok-credits-badge .icon {
+        color: #f47c20;
+    }
+
+    .grok-credits-badge .btn-recarregar {
+        background: #f47c20;
+        color: #ffffff;
+        border: none;
+        border-radius: 12px;
+        padding: 2px 10px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background 0.2s;
+    }
+
+    .grok-credits-badge .btn-recarregar:hover {
+        background: #e06b12;
+        color: #ffffff;
+    }
 </style>
 
 <div class="container-fluid">
@@ -1073,7 +1153,26 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                 <span class="bet-brand-logo">Bet</span>
                 <h1 class="bet-brand-subtitle">Trends</h1>
             </div>
-            <div>
+            <div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
+                <?php if ($userLoggedIn && $isGoogleUser): ?>
+                    <div class="grok-credits-badge">
+                        <span class="icon">🤖</span>
+                        <span>Grok: <strong><?= $userGrokCredits ?></strong> consultas</span>
+                        <a href="/subscription/buy-grok-credits" class="btn-recarregar">Recarregar (R$ 10)</a>
+                    </div>
+                <?php elseif ($userLoggedIn): ?>
+                    <div class="grok-credits-badge">
+                        <span class="icon">🔒</span>
+                        <span>Apenas contas Google</span>
+                        <a href="<?= base_url('auth/google-login') ?>" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> Conectar</a>
+                    </div>
+                <?php else: ?>
+                    <div class="grok-credits-badge">
+                        <span class="icon">🔒</span>
+                        <span>Use com login Google</span>
+                        <a href="<?= base_url('auth/google-login') ?>" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> Entrar</a>
+                    </div>
+                <?php endif; ?>
                 <button type="button" class="btn-update-betano" onclick="triggerIngestion('<?= $targetDate ?>')">
                     <i class="bi bi-arrow-repeat"></i> Atualizar Dados (API)
                 </button>
@@ -1268,8 +1367,13 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                 $elapsedText = '-';
                             }
                             ?>
-                            <div class="bet-card" data-league="<?= htmlspecialchars($fix->league_name) ?>" data-prob="<?= $prob ?>">
-                                <div>
+                            <?php
+                            $requiresCredits = \App\Helpers\SubscriptionHelper::leagueRequiresCredits($fix->league_name);
+                            $isCardLocked = $requiresCredits && (!$userLoggedIn || !$isGoogleUser || $userGrokCredits <= 0);
+                            ?>
+                            <div class="bet-card" data-league="<?= htmlspecialchars($fix->league_name) ?>" data-prob="<?= $prob ?>" style="position: relative;">
+                                <div class="<?= $isCardLocked ? 'bet-card-blur' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
+                                    <div>
                                     <!-- Header -->
                                     <div class="bet-card-header">
                                         <span class="bet-league-badge" title="<?= htmlspecialchars($fix->league_name) ?>">
@@ -1430,6 +1534,23 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                         <?= $statusLabel ?>
                                     </span>
                                 </div>
+                                </div> <!-- end of bet-card-blur wrapper -->
+                                <?php if ($isCardLocked): ?>
+                                    <div class="bet-card-lock-overlay">
+                                        <i class="bi bi-lock-fill" style="font-size: 2rem; color: #f47c20; margin-bottom: 8px;"></i>
+                                        <h5 style="color: #ffffff; font-weight: 700; margin-bottom: 6px; font-size: 1rem;">Estatísticas Premium</h5>
+                                        <?php if (!$userLoggedIn): ?>
+                                            <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;">Faça login com sua conta do Google para liberar as estatísticas.</p>
+                                            <a href="<?= base_url('auth/google-login') ?>" class="btn btn-sm btn-primary" style="font-size: 0.8rem; padding: 6px 12px; font-weight: 600; background: #4285f4; border-color: #4285f4;"><i class="bi bi-google"></i> Entrar com o Google</a>
+                                        <?php elseif (!$isGoogleUser): ?>
+                                            <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;">Esta funcionalidade exige cadastro via login social do Google.</p>
+                                            <a href="<?= base_url('auth/google-login') ?>" class="btn btn-sm btn-primary" style="font-size: 0.8rem; padding: 6px 12px; font-weight: 600; background: #4285f4; border-color: #4285f4;"><i class="bi bi-google"></i> Vincular Google</a>
+                                        <?php else: ?>
+                                            <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;">Esta liga exige créditos Grok ativos para visualização.</p>
+                                            <a href="/subscription/buy-grok-credits" class="btn btn-sm text-dark font-weight-bold" style="font-size: 0.8rem; padding: 6px 12px; background: #f47c20; border-color: #f47c20; font-weight: 700;">Desbloquear (R$ 10,00)</a>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -1630,8 +1751,36 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                 
                 chatHistory.push({ role: 'user', content: text });
                 chatHistory.push({ role: 'assistant', content: aiResponse });
+
+                // Dispara evento GA4 de consulta com sucesso
+                if (typeof gtag === 'function') {
+                    gtag('event', 'grok_chat_query', {
+                        'user_id': '<?= $userId ?? 'anonymous' ?>',
+                        'league': activeChatContext.leagueName,
+                        'match': activeChatContext.homeTeam + ' vs ' + activeChatContext.awayTeam
+                    });
+                }
+
+                // Atualiza o saldo exibido no badge se o servidor retornou
+                if (typeof data.remaining_credits !== 'undefined') {
+                    const badge = document.querySelector('.grok-credits-badge strong');
+                    if (badge) {
+                        badge.textContent = data.remaining_credits;
+                    }
+                }
             } else {
-                appendChatMessage('ai', `❌ Erro: ${data.message || 'Falha ao processar.'}`);
+                if (data.is_locked) {
+                    appendChatMessage('ai', `🔒 ${data.message || 'Seus créditos acabaram.'} <br><br> <a href="/subscription/buy-grok-credits" class="btn btn-warning text-dark font-weight-bold btn-sm mt-2" style="background: #f47c20; border-color: #f47c20; color: #ffffff !important;">Recarregar Créditos (R$ 10,00)</a>`);
+                    // Dispara evento GA4 de paywall exibido no chat
+                    if (typeof gtag === 'function') {
+                        gtag('event', 'grok_paywall_trigger', {
+                            'trigger_location': 'chat',
+                            'user_id': '<?= $userId ?? 'anonymous' ?>'
+                        });
+                    }
+                } else {
+                    appendChatMessage('ai', `❌ Erro: ${data.message || 'Falha ao processar.'}`);
+                }
             }
         })
         .catch(error => {

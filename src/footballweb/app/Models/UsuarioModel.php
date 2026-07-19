@@ -28,6 +28,7 @@ class UsuarioModel extends Model
         'auth_provider',
         'auth_updated_at',
            'pagamento_inicial',
+        'grok_credits',
     ];
     
 

@@ -205,6 +205,8 @@ $routes->get('/subscription/renew', 'SubscriptionController::index', ['as'=>'sub
 $routes->get('/subscription/status', 'SubscriptionController::checkStatus', ['as'=>'subscription.status']); // Verifica status via AJAX
 $routes->post('/subscription/confirmPayment', 'SubscriptionController::confirmPayment', ['as'=>'subscription.confirmPayment']); // Confirma pagamento
 $routes->get('/subscription/pix', 'SubscriptionController::pixPayment', ['as'=>'subscription.pix']); // Página PIX
+$routes->get('/subscription/buy-grok-credits', 'SubscriptionController::buyGrokCredits', ['as'=>'subscription.buyGrokCredits']); // Adquirir créditos Grok
+$routes->post('/subscription/confirmGrokPayment', 'SubscriptionController::confirmGrokPayment', ['as'=>'subscription.confirmGrokPayment']); // Confirmar Pix Grok
 $routes->get('/test-subscription', 'TestSubscription::index'); // DEBUG - Teste de subscription
 
 //Botão Donate$

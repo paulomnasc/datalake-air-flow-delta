@@ -143,6 +143,55 @@ class FootballTrendsController extends BaseController
         $refereeFouls = $this->request->getPost('referee_fouls');
         $refereeGames = $this->request->getPost('referee_games');
         
+        // Verificar se o usuário está logado
+        if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
+            return $this->response->setJSON([
+                'success' => false,
+                'is_locked' => true,
+                'message' => 'Você precisa estar logado para consultar o Grok AI.'
+            ]);
+        }
+
+        $userId = $_SESSION['id_usuario_logado'] ?? null;
+        if (!$userId) {
+            return $this->response->setJSON([
+                'success' => false,
+                'is_locked' => true,
+                'message' => 'ID de usuário não encontrado.'
+            ]);
+        }
+
+        // Buscar créditos de Grok no banco
+        $db = \Config\Database::connect();
+        $userRow = $db->table('usuario')->where('id', $userId)->get()->getRow();
+        if (!$userRow) {
+            return $this->response->setJSON([
+                'success' => false,
+                'is_locked' => true,
+                'message' => 'Usuário não encontrado no banco de dados.'
+            ]);
+        }
+
+        // Verificar se o cadastro foi realizado com login social Google
+        if (empty($userRow->google_id)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'is_locked' => true,
+                'is_google_required' => true,
+                'message' => 'Para usar o sistema de cotas e o Grok AI, você deve se cadastrar com seu login social do Google.'
+            ]);
+        }
+
+        $credits = (int)($userRow->grok_credits ?? 0);
+
+        if ($credits <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'is_locked' => true,
+                'message' => 'Você não possui créditos suficientes. Recarregue seu saldo (R$ 10,00 = 20 consultas) para continuar usando o Grok AI e liberar as estatísticas.'
+            ]);
+        }
+
         if (empty($userMessage)) {
             return $this->response->setJSON([
                 'success' => false,
@@ -257,9 +306,15 @@ class FootballTrendsController extends BaseController
                 ]);
             }
 
+            // Decrementa o crédito do usuário após resposta com sucesso
+            $db->table('usuario')->where('id', $userId)->update([
+                'grok_credits' => $credits - 1
+            ]);
+
             return $this->response->setJSON([
                 'success' => true,
-                'response' => $aiResponse
+                'response' => $aiResponse,
+                'remaining_credits' => $credits - 1
             ]);
 
         } catch (\Exception $e) {

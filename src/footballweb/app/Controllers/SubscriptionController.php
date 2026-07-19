@@ -437,4 +437,115 @@ class SubscriptionController extends BaseController
         $data['texto_periodicidade'] = ' (cota única)';
         return view('subscription/renew', $data);
     }
+
+    /**
+     * Página para comprar créditos do Grok AI via PIX
+     */
+    public function buyGrokCredits()
+    {
+        if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
+            return redirect()->to('/loginUsuario')->with('error', 'Você precisa estar logado para adquirir créditos.');
+        }
+
+        $userId = $_SESSION['id_usuario_logado'] ?? null;
+        if (!$userId) {
+            return redirect()->to('/loginUsuario');
+        }
+
+        $usuarioModel = new UsuarioModel();
+        $usuario = $usuarioModel->find($userId);
+
+        if (!$usuario) {
+            return redirect()->to('/')->with('error', 'Usuário não encontrado.');
+        }
+
+        // Valor fixo de R$ 10,00 para a recarga de créditos
+        $valorBrl = 10.00;
+
+        // Gera o payload do PIX no backend para maior confiabilidade
+        $pixPayload = $this->buildPixPayload(
+            '03206740703', // Chave CPF de Cristiane (somente números)
+            $valorBrl,
+            'CRISTIANE B L NASCIMENTO',
+            'SAO PAULO',
+            'GROKCREDITS'
+        );
+
+        // Verifica se o cadastro foi realizado com login social Google
+        $needsGoogleLogin = empty($usuario->google_id);
+
+        $data = [
+            'usuario_nome' => $usuario->nome ?? 'Usuário',
+            'usuario_email' => $usuario->email ?? '',
+            'valor_brl' => $valorBrl,
+            'pix_payload' => $pixPayload,
+            'grok_credits' => $usuario->grok_credits ?? 0,
+            'needs_google_login' => $needsGoogleLogin
+        ];
+
+        return view('subscription/buy_grok_credits', $data);
+    }
+
+    /**
+     * Confirma o recebimento de pagamento de créditos Grok AI (Pix R$ 10,00)
+     */
+    public function confirmGrokPayment()
+    {
+        if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Usuário não autenticado'
+            ]);
+        }
+
+        $userId = $_SESSION['id_usuario_logado'] ?? null;
+        if (!$userId) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'ID de usuário não encontrado'
+            ]);
+        }
+
+        $usuarioModel = new UsuarioModel();
+        $usuario = $usuarioModel->find($userId);
+        if (!$usuario) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Usuário não encontrado'
+            ]);
+        }
+
+        // Bloqueia se o cadastro não foi realizado com login social do Google
+        if (empty($usuario->google_id)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Para comprar créditos ou usar o sistema de cotas, você deve se cadastrar com seu login social do Google.'
+            ]);
+        }
+
+        // Adiciona 20 créditos
+        $currentCredits = (int)($usuario->grok_credits ?? 0);
+        $newCredits = $currentCredits + 20;
+
+        $usuarioModel->update($userId, [
+            'grok_credits' => $newCredits
+        ]);
+
+        // Envia email usando o método que já funciona: MarketPlaceController::sendMailCustom
+        try {
+            $marketplace = new \App\Controllers\MarketPlaceController();
+            $email = $usuario->email ?? 'no-reply@mydataflow.com';
+            $assunto = 'Recarga de Créditos Grok AI - R$ 10,00';
+            $mensagem = "O aluno {$usuario->nome} informou que realizou o PIX de R$ 10,00 para recarga de 20 créditos no Grok AI.\n\nDados do aluno:\nNome: {$usuario->nome}\nE-mail: {$usuario->email}\nNovo Saldo: {$newCredits} créditos.";
+            $marketplace->sendMailCustom($email, $assunto, $mensagem);
+        } catch (\Exception $e) {
+            log_message('error', '[GROK-CREDITS] Falha ao enviar email para admin: ' . $e->getMessage());
+        }
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'message' => 'Créditos recarregados com sucesso!',
+            'novo_saldo' => $newCredits
+        ]);
+    }
 }

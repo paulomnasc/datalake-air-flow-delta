@@ -142,6 +142,8 @@ class SubscriptionFilter implements FilterInterface
         $rotasPermitidas = [
             '/subscription/renew',
             '/subscription/status',
+            '/subscription/buy-grok-credits',
+            '/subscription/confirmGrokPayment',
             '/logout',
             '/Usuario/logOut',
             '/loginUsuario',

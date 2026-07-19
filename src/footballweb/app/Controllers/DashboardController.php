@@ -20,7 +20,7 @@ class DashboardController extends BaseController
     public function __construct()
     {
         $this->configModel = new ConfigModel();
-        $this->pastaModel = new PastaModel();
+        // $this->pastaModel = new PastaModel();
         $this->sourceTypeModel = new SourceTypeModel();
     }
 
@@ -161,10 +161,8 @@ class DashboardController extends BaseController
             ->where('dag_configurations.is_active', 0)
             ->countAllResults();
 
-        // Total de pastas/datasources
-        $totalDatasources = $this->pastaModel
-            ->where('id_usuario', $userId)
-            ->countAllResults();
+        // Total de pastas/datasources (Legado)
+        $totalDatasources = 0;
 
         return [
             'pipelines' => [
@@ -790,8 +788,8 @@ class DashboardController extends BaseController
 
         $userId = (int) SessionHelper::getUserId();
 
-        // Carregar pastas para o wizard
-        $pastas = $this->pastaModel->listToCombo($userId);
+        // Carregar pastas para o wizard (Legado desabilitado)
+        $pastas = [];
         // Carregar tipos de fonte
         $sourceTypes = $this->sourceTypeModel->listToCombo();
         // Carregar funções Python disponíveis (desativado para fiscalweb)
@@ -812,11 +810,8 @@ class DashboardController extends BaseController
                     $config = (array) $config;
                 }
                 // Verificar se a config pertence ao usuário
-                $pasta = $this->pastaModel->find($config['id_pasta']);
-                if (is_object($pasta)) {
-                    $pasta = (array) $pasta;
-                }
-                if ($pasta && $pasta['id_usuario'] == $userId) {
+                $pasta = null;
+                if ($config) {
                     $editData = $config;
                 }
             }

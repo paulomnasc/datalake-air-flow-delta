@@ -14,8 +14,8 @@ class QuadroController extends BaseController
     {
         //
 
-        $pastaModel = new PastaModel();
-        $pastas = $pastaModel->listToCombo($_SESSION['id_usuario_logado']); 
+        // $pastaModel = new PastaModel();
+        $pastas = []; 
         //var_dump($pastas); die();
         // Combine os dados em um único array
         //Esse set para nulo só deve acontecer se a rota anterior for listQuadro
@@ -151,8 +151,8 @@ class QuadroController extends BaseController
         } */
 
 
-        $pastaModel = new PastaModel();
-        $data['pastas'] = $pastaModel->listToCombo($_SESSION['id_usuario_logado']);
+        // $pastaModel = new PastaModel();
+        $data['pastas'] = [];
         $data['conteudo_csv_json'] = null;
         $_SESSION['conteudo_arquivo'] = null;
         return view('addQuadro',$data);
@@ -167,8 +167,8 @@ class QuadroController extends BaseController
         $model = new QuadroModel();
         $Quadro = $model->find($id);
 
-        $pastaModel = new PastaModel();
-        $data['pastas'] = $pastaModel->listToCombo($_SESSION['id_usuario_logado']);
+        // $pastaModel = new PastaModel();
+        $data['pastas'] = [];
         $data['id_pasta_selecionado'] = $Quadro->id_pasta;
         $data['id'] = $Quadro->id;
         $data['descricao'] = $Quadro->descricao;

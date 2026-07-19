@@ -87,8 +87,8 @@ class ConfigController extends BaseController
     {
         //
 
-        $pastaModel = new PastaModel();
-        $pastas = $pastaModel->listToCombo($_SESSION['id_usuario_logado']); 
+        // $pastaModel = new PastaModel();
+        $pastas = []; 
         //var_dump($pastas); die();
         // Combine os dados em um único array
         //Esse set para nulo só deve acontecer se a rota anterior for listConfig
@@ -224,9 +224,9 @@ class ConfigController extends BaseController
         } */
 
 
-        $pastaModel = new PastaModel();
+        // $pastaModel = new PastaModel();
         $sourceTypeModel = new SourceTypeModel();
-        $data['pastas'] = $pastaModel->listToCombo($_SESSION['id_usuario_logado']);
+        $data['pastas'] = [];
         $data['source_types'] = $sourceTypeModel->listToCombo();
         # $data['conteudo_csv_json'] = null;
         #$_SESSION['conteudo_arquivo'] = null;
@@ -241,7 +241,7 @@ class ConfigController extends BaseController
         
         $configModel = new ConfigModel();
         $sourceTypeModel = new SourceTypeModel();
-        $pastaModel = new PastaModel(); 
+        // $pastaModel = new PastaModel(); 
 
         // 🛑 1. Busca a tupla de dados
         $Config = $configModel->find($id); // Objeto/Array com os dados da dag_configurations
@@ -251,7 +251,7 @@ class ConfigController extends BaseController
         }
 
         // 2. Prepara Listas de Suporte
-        $data['pastas'] = $pastaModel->findAll(); // Traz todas as pastas
+        $data['pastas'] = [];
         $data['source_types'] = $sourceTypeModel->listToCombo(); // Traz todos os tipos de fonte
 
         // 🛑 3. CARREGA DADOS INDIVIDUAIS (Alinhado com a view) 🛑

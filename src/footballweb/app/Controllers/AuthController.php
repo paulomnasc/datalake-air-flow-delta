@@ -76,7 +76,8 @@ class AuthController extends BaseController
                 return redirect()->to('/loginUsuario');
             }
 
-            // Garante que o usuário tenha a pasta padrão
+            // Garante que o usuário tenha a pasta padrão (Legado - desabilitado no footballweb)
+            /*
             $pastaModel = new \App\Models\PastaModel();
             $pastaExistente = $pastaModel->where('id_usuario', $usuario->id)
                                          ->where('descricao', 'pasta-padrao')
@@ -87,6 +88,7 @@ class AuthController extends BaseController
                     'id_usuario' => $usuario->id
                 ]);
             }
+            */
 
             // Salva token
             GoogleAuthHelper::saveTokenData($usuario->id, $result['token']);

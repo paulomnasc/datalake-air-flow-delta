@@ -470,188 +470,26 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <p class="text-white">Olá <?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Visitante'; ?></p>
                 </li>
 
-                <?php if (!empty($airflowUsername)): ?>
-                <li>
-                <div class="bg-light text-dark p-2 rounded mb-2">
-                    <small>Seu usuário no Airflow</small>
-                    <div class="d-flex align-items-center mb-1">
-                        <span id="airflow-username-text" class="fw-bold me-2"><?= htmlspecialchars($airflowUsername, ENT_QUOTES, 'UTF-8'); ?></span>
-                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyAirflowUsername()">Copiar usuário</button>
-                    </div>
-                    <div class="d-flex align-items-center">
-                        <?php
-                            $senhaUsuario = '';
-                            if (isset($_SESSION['id_usuario_logado'])) {
-                                $usuarioModel = new \App\Models\UsuarioModel();
-                                $usuario = $usuarioModel->find($_SESSION['id_usuario_logado']);
-                                if ($usuario && isset($usuario->senha)) {
-                                    $senhaUsuario = $usuario->senha;
-                                }
-                            }
-                        ?>
-                        <span id="airflow-password-text" class="fw-bold me-2">*****</span>
-                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyAirflowPassword()" data-password="<?= htmlspecialchars($senhaUsuario, ENT_QUOTES, 'UTF-8'); ?>">Copiar senha</button>
-                    </div>
-                    <?php if (!empty($airflowRoles)): ?>
-                    <div class="mt-2">
-                        <small class="text-muted">Roles no Airflow:</small>
-                        <?php foreach ($airflowRoles as $role): ?>
-                            <span class="badge bg-secondary me-1"><?= htmlspecialchars($role, ENT_QUOTES, 'UTF-8'); ?></span>
-                        <?php endforeach; ?>
-                    </div>
-                    <?php endif; ?>
-                </div>
-            </li>
-            <?php endif; ?>
+                <!-- Seção 'Seu usuário no Airflow' removida -->
             </ul>
 
             <ul class="list-unstyled">
+                <!-- Itens da Sidebar comentados
                 <li>
                     <a class="nav-link px-2 px-lg-2" href="<?= base_url('football-trends') ?>" style="color: #34d399; font-weight: bold; display: flex; align-items: center; gap: 8px;">
                         <span>⚽</span> <span>Football Trends</span>
                     </a>
                 </li>
                 <li><hr class="text-white" style="margin: 10px 0;"></li>
-                <li>
-                    <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado'])): ?>
-                        
-                        <?php echo anchor("sigInUsuario","Experimentar", ['class' => 'nav-link px-2 px-lg-2'])  ?>
-                        
-                        <?php echo anchor("loginUsuario","Entrar", ['class' => 'nav-link px-2 px-lg-2'])  ?>
-                        
-                        <!-- ?php echo anchor("sigInUsuario","Assinar")  ?-->    
-
-                    <?php endif; ?>
-                </li>
-
-
-                <!-- SE O USUÁRIO ESTÁ LOGADO -->
-                <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                    <!-- 
-                    // Verifica se o usuário tem perfil Admin ou a flag de admin está ativa
-                    // if ($isAdmin): 
-                    -->
-                    <li><hr class="text-white" style="margin: 10px 0;"></li>
-                    <li><p class="text-white">🗄️ Menus do Sistema</p></li>
-                    
-                    <li>
-                        <div class="dropdown">
-                            <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
-                                🔍 FISCALIZAÇÃO
-                            </a>
-                            <div class="dropdown-menu">
-                                <h6 class="dropdown-header text-primary fw-bold">📝 Cadastros</h6>
-                                <a class="dropdown-item" href="<?= base_url('listAreaAtuacao') ?>">🏢 Áreas de Atuação</a>
-                                <a class="dropdown-item" href="<?= base_url('listAtividadeMacro') ?>">📊 Atividades Macro</a>
-                                <a class="dropdown-item" href="<?= base_url('listAvaliacaoQualidadeSla') ?>">⭐ Avaliação SLA</a>
-                                <a class="dropdown-item" href="<?= base_url('listCatalogoServicos') ?>">📚 Catálogo de Serviços</a>
-                                <a class="dropdown-item" href="<?= base_url('listContrato') ?>">📜 Contratos</a>
-                                <a class="dropdown-item" href="<?= base_url('listItemContrato') ?>">📝 Itens de Contrato</a>
-                                <a class="dropdown-item" href="<?= base_url('listReajusteItemContrato') ?>">📈 Reajustes de Contrato</a>
-                                <a class="dropdown-item" href="<?= base_url('listMetrica') ?>">📏 Métricas</a>
-                                <!-- <a class="dropdown-item" href="<?= base_url('listItemOs') ?>">🔧 Itens OS</a> -->
-                                <a class="dropdown-item" href="<?= base_url('listPerfil') ?>">🔐 Perfis</a>
-                                <a class="dropdown-item" href="<?= base_url('listStatus') ?>">📊 Status</a>
-                                <a class="dropdown-item" href="<?= base_url('listStatusRecebimento') ?>">✅ Status Recebimento</a>
-                                <a class="dropdown-item" href="<?= base_url('listTipoDocumento') ?>">📑 Tipos de Documento</a>
-                                <a class="dropdown-item" href="<?= base_url('listListaVerificacao') ?>">📋 Lista de Verificação</a>
-                                <a class="dropdown-item" href="<?= base_url('listUsuario') ?>">👤 Usuários</a>
-                                <a class="dropdown-item" href="<?= base_url('listGrupo') ?>">👥 Grupos</a>
-                                
-                                <div class="dropdown-divider"></div>
-                                <h6 class="dropdown-header text-primary fw-bold">⚡ Execução</h6>
-                                <a class="dropdown-item" href="<?= base_url('listServico') ?>">🛠️ Serviços</a>
-                                <a class="dropdown-item" href="<?= base_url('listOrdemServico') ?>">📋 Ordens de Serviço (OS)</a>
-                                <a class="dropdown-item" href="<?= base_url('listDocumentoRecebimento') ?>">📄 Docs Recebimento</a>
-
-                                <div class="dropdown-divider"></div>
-                                <h6 class="dropdown-header text-primary fw-bold">📖 Ajuda</h6>
-                                <a class="dropdown-item" href="<?= base_url('docs/feature/fiscalizacao/manual_operacional_fiscalizacao.html') ?>" target="_blank">📖 Manual de Fiscalização</a>
-                            </div>
-                        </div>
-                    </li>
-
-                    <li>
-                        <div class="dropdown">
-                            <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
-                                🚀 Gestão Ágil
-                            </a>
-                            <div class="dropdown-menu">
-                                <a class="dropdown-item" href="<?= base_url('agile/dashboard') ?>">📊 Painel Ágil</a>
-                                <a class="dropdown-item" href="<?= base_url('agile/demandas') ?>">📋 Demandas</a>
-                                <a class="dropdown-item" href="<?= base_url('agile/sistemas') ?>">🖥️ Sistemas</a>
-                                <a class="dropdown-item" href="<?= base_url('docs/index.html') ?>" target="_blank">📖 Manual do Usuário</a>
-                            </div>
-                        </div>
-                    </li>
-
-                    <li>
-                        <div class="dropdown">
-                            <a class="nav-link px-2 px-lg-2 dropdown-toggle" href="#" data-bs-toggle="dropdown" style="color: white;">
-                                📊 Relatórios
-                            </a>
-                            <div class="dropdown-menu">
-                                <a class="dropdown-item" href="#">Em breve...</a>
-                            </div>
-                        </div>
-                    </li>
-                    
-                    
-                    
-                    <li><hr class="text-white" style="margin: 10px 0;"></li>    
-                    <li><p class="text-white">📊 Admin - Dashboard</p></li>
-                    <li>
-                        <?php echo anchor("admin/dashboard", "📈 Dashboard Geral", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-                    <li>
-                        <?php echo anchor("admin/pagamento-inicial", "💵 Confirmar Pagamento Inicial", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-
-                    
-                    
-                    
-                    <li><hr class="text-white" style="margin: 10px 0;"></li>
-                    <li><p class="text-white">👥 Admin - Sistema</p></li>
-                    <li>
-                        <?php echo anchor("listPerfil", "🔐 Perfis", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-                    <li>
-                        <?php echo anchor("listUsuario", "👤 Usuários", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-                    <li>
-                        <?php echo anchor("listGrupo", "👥 Grupos", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                    </li>
-                    
-                    <li><hr class="text-white" style="margin: 10px 0;"></li>
-                    
-                <?php // endif; ?>
-                <?php endif; ?>
-
-                <li>
-                    <hr class="text-white" style="margin: 10px 0;">
-                </li>
+                -->
 
                 <li>
                     <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                        <a href="<?= base_url('docs/index.html') ?>" class="nav-link px-2 px-lg-2" target="_blank" style="color: #87ceeb;">
-                            📚 Documentação
-                        </a>
-                    <?php else: ?>
-                        <?php echo anchor("sigInUsuario", "📚 Documentação", ['class' => 'nav-link px-2 px-lg-2 terms-link', 'style' => 'color: #87ceeb;']); ?>
-                    <?php endif; ?>
-                </li>
-
-                <li>
-
-                    <?php if (isset($_SESSION['nome_usuario_logado']) || !empty($_SESSION['nome_usuario_logado'])): ?>
                         <?php echo anchor(route_to('Usuario.logOut'), "Sair", ['class' => 'nav-link px-2 px-lg-2']); ?>
+                    <?php else: ?>
+                        <?php echo anchor("loginUsuario","Entrar", ['class' => 'nav-link px-2 px-lg-2']) ?>
                     <?php endif; ?>
-
-
                 </li>
-                
-
-                
             </ul>
 
         </div>
@@ -785,149 +623,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             </ul>
 
             <div id="itens-menu-outros" class="navbar-nav ms-auto p-4 p-lg-0">
-                
-            
-                <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado'])): ?>
-                    
-                    <?php echo anchor("sigInUsuario","Experimentar", ['class' => 'nav-link px-2 px-lg-2'])  ?>
-                    
-
-                <?php endif; ?>
-
-
-                <?php 
-                // Verifica se os serviços estão bloqueados por assinatura expirada
-                $servicesBlocked = isset($_SESSION['subscription_services_blocked']) && $_SESSION['subscription_services_blocked'];
-                ?>
-
-                <!--
+                <!-- Itens de menu do topo comentados -->
                 <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                    <?php echo anchor("cursos", "CURSOS", ['class' => 'nav-link px-2 px-lg-2']) ?>
+                    <?php echo anchor(route_to('Usuario.logOut'), "Sair", ['class' => 'nav-link px-2 px-lg-2']); ?>
+                <?php else: ?>
+                    <?php echo anchor("loginUsuario", "Entrar", ['class' => 'nav-link px-2 px-lg-2']) ?>
                 <?php endif; ?>
-                -->
-                
-                <!-- <a href="https://github.com/paulomnasc/mydataflow-forum/discussions" class="nav-link px-2 px-lg-2" target="_blank" rel="noopener noreferrer">FORUM</a> -->
-                
-                
-                <li class="nav-item dropdown <?= $servicesBlocked ? 'disabled' : '' ?>">
-
-
-                    
-
-                    <?php if ($servicesBlocked): ?>
-                        <a class="nav-link dropdown-toggle" href="#" style="opacity: 0.5; cursor: not-allowed;" 
-                           title="Renovar assinatura para acessar os serviços" onclick="event.preventDefault(); alert('⚠️ Assinatura expirada!\n\nPara acessar os serviços, renove sua assinatura.')">
-                            SERVIÇOS 🔒
-                        </a>
-                    <?php else: ?>
-                        <!-- <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-bs-toggle="dropdown">
-                            SERVIÇOS
-                        </a>
-                        <div class="dropdown-menu">
-                            <?php if (isset($userHasPipelinesAccess) && $userHasPipelinesAccess): ?>
-                                <?php $airflowExternalUrl = getenv('AIRFLOW_EXTERNAL_URL') ?: 'http://localhost:8080'; ?>
-                                <a class="dropdown-item" href="<?= htmlspecialchars($airflowExternalUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">
-                                    <svg role="img" xmlns="http://www.w3.org/2000/svg" width="1.1em" height="1.1em" viewBox="0 0 256 256" style="vertical-align: middle; margin-right: 4px; pointer-events: none;">
-                                        <title>Apache Airflow</title>
-                                        <path fill="#017cee" d="m4.127 254.974l122.568-125.639a2.265 2.265 0 0 0 .274-2.896c-7.453-10.406-21.207-12.21-26.303-19.203c-15.098-20.711-18.929-32.434-25.417-31.708a1.98 1.98 0 0 0-1.178.622l-44.276 45.388C4.322 147.628.661 205.137 0 253.295a2.4 2.4 0 0 0 4.127 1.679"/>
-                                        <path fill="#00ad46" d="M254.974 251.873L129.335 129.296a2.266 2.266 0 0 0-2.9-.274c-10.406 7.457-12.21 21.207-19.203 26.303c-20.712 15.098-32.435 18.93-31.709 25.417c.066.451.286.866.622 1.174l45.389 44.276c26.09 25.473 83.598 29.134 131.757 29.795a2.401 2.401 0 0 0 1.683-4.114"/>
-                                        <path fill="#04d659" d="M121.534 226.205c-14.263-13.915-20.872-41.44 6.462-98.2c-44.437 19.859-60.008 45.962-52.35 53.437z"/>
-                                        <path fill="#00c7d4" d="M251.869 1.03L129.305 126.67a2.26 2.26 0 0 0-.274 2.895c7.457 10.406 21.202 12.21 26.303 19.203c15.098 20.712 18.933 32.435 25.417 31.709c.453-.065.87-.285 1.178-.622l44.276-45.389C251.678 108.376 255.339 50.868 256 2.71a2.405 2.405 0 0 0-4.131-1.678"/>
-                                        <path fill="#11e1ee" d="M226.226 134.466c-13.915 14.263-41.44 20.873-98.204-6.462c19.859 44.437 45.963 60.009 53.437 52.351z"/>
-                                        <path fill="#e43921" d="m1.018 4.131l125.638 122.565c.772.78 1.992.896 2.896.273c10.406-7.457 12.21-21.207 19.203-26.303c20.712-15.098 32.435-18.929 31.709-25.417a2 2 0 0 0-.622-1.178l-45.389-44.276C108.363 4.322 50.855.661 2.696 0a2.4 2.4 0 0 0-1.678 4.131"/>
-                                        <path fill="#ff7557" d="M134.475 29.8c14.263 13.915 20.872 41.44-6.462 98.204c44.437-19.859 60.008-45.967 52.35-53.437z"/>
-                                        <path fill="#0cb6ff" d="M29.795 121.543C43.71 107.28 71.235 100.67 128 128.004c-19.86-44.436-45.963-60.008-53.438-52.35z"/>
-                                        <circle cx="128.017" cy="127.983" r="5.479" fill="#4a4848"/>
-                                    </svg>
-                                    AIRFLOW - Pipelines ELT
-                                </a> -->
-                            <?php endif; ?>
-                            <!-- ?php if (isset($userHasBucketsAccess) && $userHasBucketsAccess): ?>
-                                <a class="dropdown-item" href="http://localhost:9001" target="_blank" rel="noopener noreferrer">Buckets S3</a-->
-                            <!-- ?php endif; ?-->
-                            <!-- 
-                            <?php if (!$isVisitor && $perfilUsuario !== ''): ?>
-                                <a class="dropdown-item" href="<?= base_url('code-editor') ?>">💻 SQL Editor + Customizações Python</a>
-                            <?php endif; ?>
-                            --> 
-                        </div>
-                    <?php endif; ?>
-                </li>
-
-                <!-- Dropdown -->
-                <?php
-                    // Verifica se o perfil do usuário está logado e se ele NÃO é "Visitante"
-                    if (!$isVisitor && $perfilUsuario !== ''): 
-                ?>
-                    <!--
-                    <div class="nav-item dropdown">
-                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">CRIAR</a>
-                        <div class="dropdown-menu">
-                            <?php echo anchor("listPasta", "Pastas", ['class' => 'dropdown-item']) ?>
-                            <a href="<?= base_url('listConfig') ?>" class="dropdown-item">Pipelines</a>
-                        </div>
-                    </div>
-                    -->
-                    
-                    <div class="nav-item dropdown">
-                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">FISCALIZAÇÃO</a>
-                        <div class="dropdown-menu">
-                            <h6 class="dropdown-header text-primary fw-bold">CADASTROS</h6>
-                            <a href="<?= base_url('listTipoDocumento') ?>" class="dropdown-item">Tipos de Documento</a>
-                            <a href="<?= base_url('listListaVerificacao') ?>" class="dropdown-item">Lista de Verificação</a>
-                            <a href="<?= base_url('listStatus') ?>" class="dropdown-item">Status</a>
-                            <a href="<?= base_url('listStatusRecebimento') ?>" class="dropdown-item">Status Recebimento</a>
-                            <!-- <a href="<?= base_url('listItemOs') ?>" class="dropdown-item">Itens OS</a> -->
-                            <a href="<?= base_url('listAtividadeMacro') ?>" class="dropdown-item">Atividades Macro</a>
-                            <a href="<?= base_url('listAreaAtuacao') ?>" class="dropdown-item">Áreas de Atuação</a>
-                            <a href="<?= base_url('listCatalogoServicos') ?>" class="dropdown-item">Catálogo de Serviços</a>
-                            <a href="<?= base_url('listContrato') ?>" class="dropdown-item">Contratos</a>
-                            <a href="<?= base_url('listItemContrato') ?>" class="dropdown-item">Itens de Contrato</a>
-                            <a href="<?= base_url('listReajusteItemContrato') ?>" class="dropdown-item">Reajustes de Contrato</a>
-                            <a href="<?= base_url('listMetrica') ?>" class="dropdown-item">Métricas</a>
-                            <a href="<?= base_url('listAvaliacaoQualidadeSla') ?>" class="dropdown-item">Avaliação SLA</a>
-                            
-                            <div class="dropdown-divider"></div>
-                            <h6 class="dropdown-header text-primary fw-bold">EXECUÇÃO</h6>
-                            <a href="<?= base_url('listServico') ?>" class="dropdown-item">Serviços</a>
-                            <a href="<?= base_url('listOrdemServico') ?>" class="dropdown-item">Ordens de Serviço (OS)</a>
-                            <a href="<?= base_url('listDocumentoRecebimento') ?>" class="dropdown-item">Docs Recebimento</a>
-
-                            <div class="dropdown-divider"></div>
-                            <h6 class="dropdown-header text-primary fw-bold">AJUDA</h6>
-                            <a href="<?= base_url('docs/feature/fiscalizacao/manual_operacional_fiscalizacao.html') ?>" class="dropdown-item" target="_blank">📖 Manual de Fiscalização</a>
-                        </div>
-                    </div>
-
-                    <div class="nav-item dropdown">
-                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">GESTÃO ÁGIL</a>
-                        <div class="dropdown-menu">
-                            <a href="<?= base_url('agile/dashboard') ?>" class="dropdown-item">Painel Ágil</a>
-                            <a href="<?= base_url('agile/demandas') ?>" class="dropdown-item">Demandas</a>
-                            <a href="<?= base_url('agile/sistemas') ?>" class="dropdown-item">Sistemas</a>
-                            <a href="<?= base_url('docs/index.html') ?>" class="dropdown-item" target="_blank">📖 Manual do Usuário</a>
-                        </div>
-                    </div>
-
-                    <div class="nav-item dropdown">
-                        <a href="#" class="nav-link dropdown-toggle px-2 px-lg-2" data-bs-toggle="dropdown">RELATÓRIOS</a>
-                        <div class="dropdown-menu">
-                            <a href="#" class="dropdown-item">Em breve...</a>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-                <?php echo anchor("politica","Política Privacidade", ['class' => 'nav-link px-2 px-lg-2'])  ?>
-
-                <?php echo anchor("tdu","Termos de uso", ['class' => 'nav-link px-2 px-lg-2'])  ?>
-                
-                <?php echo anchor("contactUs","Entre em contato", ['class' => 'nav-link px-2 px-lg-2 text-nowrap'])  ?>
-
-                <?php if (!isset($_SESSION['nome_usuario_logado']) || empty($_SESSION['nome_usuario_logado']) || $isVisitor): ?>
-                    <?php echo anchor("sigInUsuario", "Registre-se", ['class' => 'nav-link px-2 px-lg-2']) ?>
-                <?php endif; ?>
-
-                
             </div>
 
         </div>

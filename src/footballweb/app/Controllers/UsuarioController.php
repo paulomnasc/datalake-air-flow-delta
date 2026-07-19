@@ -850,7 +850,8 @@ class UsuarioController extends BaseController
                     $data['email_confirmado'] = 1;
                     // Processo de atualização da flag de email confirmado pelo usuário na tabela Usuario
                     if ($model->update($id, $data)) {
-                        // Cria pasta padrão se não existir
+                        // Cria pasta padrão se não existir (Legado - desabilitado no footballweb)
+                        /*
                         $pastaModel = new \App\Models\PastaModel();
                         $pastaExistente = $pastaModel->where('id_usuario', $id)
                                                     ->where('descricao', 'pasta-padrao')
@@ -861,6 +862,7 @@ class UsuarioController extends BaseController
                                 'id_usuario' => $id
                             ]);
                         }
+                        */
                         // Realiza o login do usuário autorizado na plataforma
                         $this->logarUsuarioConfirmaEmail($usuario->email, $usuario->senha);
                         return view("bemVindoNovoUsuario");

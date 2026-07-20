@@ -83,17 +83,13 @@ abstract class BaseController extends Controller
         $data['userHasBucketsAccess'] = $functionalities['userHasBucketsAccess'];
         $data['userHasPipelinesAccess'] = $functionalities['userHasPipelinesAccess'];
 
-        $seo = new SeoHelper();
-        $seo->setTitle("BET-Trends - Site de Palpites para BET/Apostas");
-        $seo->setDescription("Descubra jogos interativos online e eficaz, para estudo, incluindo jogos de memória e técnicas para memorização de conteúdos. Aprenda com tabelas resumo que tornam o estudo mais fácil e divertido!");
-
-        $seo->setKeywords("jogo da memória, jogo educativo, jogo interativo, ensino médio, preparação ENEM, estudo online, quadro sinóptico, mapa mental, aprendizado divertido, concurso público, materiais didáticos");
-        
-        $seo->setImage(base_url("assets/images/home.jpg"));
-        $seo->setUrl(base_url());
-        $data['metaTags'] = $seo->generateMetaTags();
-        // Salvar na sessão
-        $this->session->set('metaTags', $seo->generateMetaTags());
+        if (!isset($data['metaTags'])) {
+            $seo = new SeoHelper();
+            $seo->setHomePageDefaults();
+            $generatedTags = $seo->generateMetaTags();
+            $data['metaTags'] = $generatedTags;
+            $this->session->set('metaTags', $generatedTags);
+        }
 
         return view($viewName, $data);
     }

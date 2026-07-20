@@ -324,4 +324,71 @@ class FootballTrendsController extends BaseController
             ]);
         }
     }
+
+    /**
+     * Exibe a página dinâmica do jogo com Meta Tags de SEO e Schema.org JSON-LD (SportsEvent)
+     */
+    public function matchDetail($slug = null)
+    {
+        date_default_timezone_set('America/Sao_Paulo');
+
+        $db = \Config\Database::connect();
+
+        $fixture = null;
+        $homeTeam = 'Time Casa';
+        $awayTeam = 'Time Fora';
+        $refereeName = 'Árbitro';
+        $fixtureDate = date('Y-m-d');
+
+        if (!empty($slug)) {
+            // Tenta extrair partes do slug: ex. 2026-07-20-fluminense-x-bragantino
+            $parts = explode('-x-', $slug);
+            if (count($parts) === 2) {
+                // Parte 1 pode conter a data e time_casa (ex: 2026-07-20-fluminense)
+                $firstPart = explode('-', $parts[0]);
+                if (count($firstPart) >= 4) {
+                    $fixtureDate = implode('-', array_slice($firstPart, 0, 3));
+                    $homeSlug = implode('-', array_slice($firstPart, 3));
+                } else {
+                    $homeSlug = $parts[0];
+                }
+                $awaySlug = $parts[1];
+
+                // Busca fixture compatível no banco
+                $builder = $db->table('fixtures_trends ft');
+                $builder->select('ft.*, rs.average_yellow_cards, rs.average_red_cards, rs.average_fouls, rs.total_games, rs.rigor_level');
+                $builder->join('referee_stats rs', 'ft.referee_name = rs.name', 'left');
+                $builder->like('ft.home_team', str_replace('-', ' ', $homeSlug));
+                $builder->like('ft.away_team', str_replace('-', ' ', $awaySlug));
+                $fixture = $builder->get()->getRow();
+
+                if ($fixture) {
+                    $homeTeam = $fixture->home_team;
+                    $awayTeam = $fixture->away_team;
+                    $refereeName = $fixture->referee_name ?? 'Não informado';
+                    $fixtureDate = $fixture->fixture_date ?? $fixtureDate;
+                } else {
+                    $homeTeam = ucwords(str_replace('-', ' ', $homeSlug));
+                    $awayTeam = ucwords(str_replace('-', ' ', $awaySlug));
+                }
+            }
+        }
+
+        $canonicalUrl = base_url("jogos/{$slug}");
+
+        $seo = new \App\Libraries\SeoHelper();
+        $seo->setMatchData($homeTeam, $awayTeam, $refereeName, $fixtureDate, $canonicalUrl);
+
+        $data = [
+            'targetDate'   => date('Y-m-d', strtotime($fixtureDate)),
+            'search'       => "{$homeTeam} {$awayTeam}",
+            'showFinished' => true,
+            'fixtures'     => $fixture ? [$fixture] : [],
+            'leagues'      => $fixture ? [$fixture->league_name] : [],
+            'title'        => "Estatísticas {$homeTeam} x {$awayTeam} | CristalBet",
+            'metaTags'     => $seo->generateMetaTags()
+        ];
+
+        return $this->loadView('football/dashboard', $data);
+    }
 }

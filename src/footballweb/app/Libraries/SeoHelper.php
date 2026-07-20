@@ -9,14 +9,93 @@ class SeoHelper
     private $keywords;
     private $image;
     private $url;
+    private $robots;
+    private $ogType;
+    private $schemaJsonLd;
 
     public function __construct()
     {
-        $this->title = "Meu Site";
-        $this->description = "Descrição padrão do site.";
-        $this->keywords = "jogos, interativos, estudo, memória, memorização ,conteúdos, aprender, tabelas, resumo, divertido";
-        $this->image = base_url('assets/img/logo.jpeg');
-        $this->url = base_url();
+        $this->setHomePageDefaults();
+    }
+
+    /**
+     * Configura as Meta Tags padrão institucionais da Home Page
+     */
+    public function setHomePageDefaults()
+    {
+        $baseUrl = function_exists('base_url') ? base_url() : 'https://www.cristalbet.com.br/';
+        
+        $this->title       = "CristalBet | Estatísticas de Futebol e Previsões de Cartões e Escanteios";
+        $this->description = "A bola de cristal das estatísticas esportivas. Análise matemática completa de times, médias de escanteios e perfil rigoroso de árbitros para lucrar no mercado de cartões.";
+        $this->keywords    = "estatísticas de futebol, média de cartões árbitros, palpites escanteios, estatísticas cartões brasileirão, robô de palpites, cristalbet";
+        $this->image       = function_exists('base_url') ? base_url('assets/banner-cristalbet.png') : 'https://www.cristalbet.com.br/assets/banner-cristalbet.png';
+        $this->url         = $baseUrl;
+        $this->robots      = "index, follow";
+        $this->ogType      = "website";
+        $this->schemaJsonLd = null;
+    }
+
+    /**
+     * Configura as Meta Tags dinâmicas para a página de um jogo específico
+     */
+    public function setMatchData(string $homeTeam, string $awayTeam, string $refereeName, ?string $matchDate = null, ?string $canonicalUrl = null)
+    {
+        $baseUrl = function_exists('base_url') ? base_url() : 'https://www.cristalbet.com.br/';
+        
+        $refereeText = !empty($refereeName) ? $refereeName : 'Não definido';
+        
+        $this->title       = "Estatísticas de Cartões {$homeTeam} x {$awayTeam} e Árbitro | CristalBet";
+        $this->description = "Confira a análise de cartões e escanteios para {$homeTeam} x {$awayTeam}. Média de faltas dos times e estatísticas completas do árbitro {$refereeText} para a rodada.";
+        $this->keywords    = "cartoes {$homeTeam} x {$awayTeam}, arbitro {$refereeText} estatisticas, escanteios {$homeTeam}, palpites {$homeTeam} x {$awayTeam}";
+        $this->ogType      = "article";
+        $this->robots      = "index, follow";
+        
+        if (!empty($canonicalUrl)) {
+            $this->url = $canonicalUrl;
+        } else {
+            $slugDate = !empty($matchDate) ? date('Y-m-d', strtotime($matchDate)) : date('Y-m-d');
+            $slugHome = url_title(mb_strtolower($homeTeam), '-', true);
+            $slugAway = url_title(mb_strtolower($awayTeam), '-', true);
+            $this->url = rtrim($baseUrl, '/') . "/jogos/{$slugDate}-{$slugHome}-x-{$slugAway}";
+        }
+
+        // Gera Schema JSON-LD SportsEvent
+        $this->generateSportsEventSchema($homeTeam, $awayTeam, $refereeText, $matchDate);
+    }
+
+    /**
+     * Gera a marcação de dados estruturados Schema.org do tipo SportsEvent
+     */
+    public function generateSportsEventSchema(string $homeTeam, string $awayTeam, string $refereeName = '', ?string $matchDate = null, string $stadium = 'Estádio Principal')
+    {
+        $startDateIso = !empty($matchDate) ? date('c', strtotime($matchDate)) : date('c');
+
+        $schema = [
+            '@context'    => 'https://schema.org',
+            '@type'       => 'SportsEvent',
+            'name'        => "{$homeTeam} vs {$awayTeam}",
+            'description' => "Estatísticas de cartões, escanteios e análise do árbitro {$refereeName} para {$homeTeam} x {$awayTeam}.",
+            'startDate'   => $startDateIso,
+            'location'    => [
+                '@type' => 'Place',
+                'name'  => $stadium
+            ],
+            'homeTeam'    => [
+                '@type' => 'SportsTeam',
+                'name'  => $homeTeam
+            ],
+            'awayTeam'    => [
+                '@type' => 'SportsTeam',
+                'name'  => $awayTeam
+            ],
+            'organizer'   => [
+                '@type' => 'Organization',
+                'name'  => 'CristalBet',
+                'url'   => function_exists('base_url') ? base_url() : 'https://www.cristalbet.com.br/'
+            ]
+        ];
+
+        $this->schemaJsonLd = json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
     }
 
     public function setTitle($title)
@@ -44,17 +123,63 @@ class SeoHelper
         $this->url = $url;
     }
 
-    public function generateMetaTags()
+    public function setRobots($robots)
     {
-        return "
-            <title>{$this->title}</title>
-            <meta name='description' content='{$this->description}'>
-            <meta name='keywords' content='{$this->keywords}'>
-            <meta property='og:title' content='{$this->title}'>
-            <meta property='og:description' content='{$this->description}'>
-            <meta property='og:image' content='{$this->image}'>
-            <meta property='og:url' content='{$this->url}'>
-            <link rel='canonical' href='{$this->url}'>
+        $this->robots = $robots;
+    }
+
+    public function setOgType($ogType)
+    {
+        $this->ogType = $ogType;
+    }
+
+    public function setCustomSchemaJsonLd($jsonLd)
+    {
+        $this->schemaJsonLd = $jsonLd;
+    }
+
+    public function generateMetaTags(): string
+    {
+        $titleEsc       = htmlspecialchars($this->title, ENT_QUOTES, 'UTF-8');
+        $descriptionEsc = htmlspecialchars($this->description, ENT_QUOTES, 'UTF-8');
+        $keywordsEsc    = htmlspecialchars($this->keywords, ENT_QUOTES, 'UTF-8');
+        $imageEsc       = htmlspecialchars($this->image, ENT_QUOTES, 'UTF-8');
+        $urlEsc         = htmlspecialchars($this->url, ENT_QUOTES, 'UTF-8');
+        $robotsEsc      = htmlspecialchars($this->robots ?? 'index, follow', ENT_QUOTES, 'UTF-8');
+        $ogTypeEsc      = htmlspecialchars($this->ogType ?? 'website', ENT_QUOTES, 'UTF-8');
+
+        $html = "
+            <!-- Meta Tags Básicas e SEO -->
+            <title>{$titleEsc}</title>
+            <meta name=\"description\" content=\"{$descriptionEsc}\">
+            <meta name=\"keywords\" content=\"{$keywordsEsc}\">
+            <meta name=\"robots\" content=\"{$robotsEsc}\">
+            <link rel=\"canonical\" href=\"{$urlEsc}\">
+
+            <!-- Open Graph / Facebook / WhatsApp -->
+            <meta property=\"og:type\" content=\"{$ogTypeEsc}\">
+            <meta property=\"og:url\" content=\"{$urlEsc}\">
+            <meta property=\"og:title\" content=\"{$titleEsc}\">
+            <meta property=\"og:description\" content=\"{$descriptionEsc}\">
+            <meta property=\"og:image\" content=\"{$imageEsc}\">
+
+            <!-- Twitter / X -->
+            <meta property=\"twitter:card\" content=\"summary_large_image\">
+            <meta property=\"twitter:url\" content=\"{$urlEsc}\">
+            <meta property=\"twitter:title\" content=\"{$titleEsc}\">
+            <meta property=\"twitter:description\" content=\"{$descriptionEsc}\">
+            <meta property=\"twitter:image\" content=\"{$imageEsc}\">
         ";
+
+        if (!empty($this->schemaJsonLd)) {
+            $html .= "
+            <!-- Dados Estruturados Schema.org JSON-LD -->
+            <script type=\"application/ld+json\">
+            {$this->schemaJsonLd}
+            </script>
+            ";
+        }
+
+        return $html;
     }
 }

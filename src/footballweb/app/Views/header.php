@@ -203,41 +203,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <meta name="google-site-verification" content="SN_1k1RhCAE6F7CIT8Zlp2mKiGUKH4rM1ji7BXAcsJs" />
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2926761252260319"
      crossorigin="anonymous"></script>
-    <!-- meta name="description" 
-    content="Descubra jogos interativos para estudo, incluindo jogos de memória e técnicas
-     para memorização de conteúdos. 
-     Aprenda com tabelas resumo que tornam o estudo mais fácil e divertido!"
-    -->
+    <!-- SEO & Meta Tags Dinâmicas CristalBet -->
+    <?= $metaTags ?? session()->get('metaTags') ?? '' ?>
 
-    <?= session()->get('metaTags') ?? '' ?>
-    <!-- title>Tabelas Resumo</title-->
-    
-    
-    
-
-    <!-- link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css"-->
-    <link rel="stylesheet" type="text/css" href="<?= base_url('assets/css/styles.css'); ?>">
-
-    <!-- Referências do Handsontable (Spreadsheet)  -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
-
-    <script src="<?= base_url('assets/js/script.js'); ?>"></script>
-
-    <script src="<?= base_url('assets/js/scriptLoadTables.js'); ?>"></script>
-
-    <script src="<?= base_url('assets/js/handsontable.js'); ?>"></script>
-    
-
-    <!-- Funcionalidade do google auth -->
-    <!-- script defer src="https://accounts.google.com/gsi/client" async defer></script-->
-
-    <!-- meta content="" name="keywords">
-    <meta content="" name="description"-->
-
-    <!-- Favicon -->
-    
-    <link href="<?= base_url('assets/templates/img/favicon.ico'); ?>" rel="icon">
+    <!-- Favicon CristalBet -->
+    <link rel="icon" href="<?= base_url('assets/favicon-cristalbet.ico'); ?>" type="image/x-icon">
+    <link rel="shortcut icon" href="<?= base_url('assets/favicon-cristalbet.ico'); ?>" type="image/x-icon">
 
     <!-- Google Web Fonts -->
     

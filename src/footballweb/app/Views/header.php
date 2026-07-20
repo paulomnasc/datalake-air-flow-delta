@@ -181,23 +181,24 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         <!-- End Google Tag Manager -->
         
         <!-- Google Analytics 4 - DEVE SER O PRIMEIRO SCRIPT -->
-        <script async src="https://www.googletagmanager.com/gtag/js?id=G-P312EQG53Y"></script>
+        <script async src="https://www.googletagmanager.com/gtag/js?id=<?= env('GA4_CRISTALBET_ID', 'G-KZDFH80BXW') ?>"></script>
         <script>
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
                 gtag('js', new Date());
+
+                // Tag cristalbet.com.br
+                gtag('config', '<?= env('GA4_CRISTALBET_ID', 'G-KZDFH80BXW') ?>', {
+                    'cookie_flags': 'SameSite=None;Secure'
+                });
                 // Tag myflow.estudotabelas.com.br
                 gtag('config', 'G-P312EQG53Y', {
                     'cookie_flags': 'SameSite=None;Secure'
-            });
-            // Tag estudotabelas.com.br
-            gtag('config', 'G-SSKK91YY74', {
-                'cookie_flags': 'SameSite=None;Secure'
-            });
-            // Tag cristalbet.com.br
-            gtag('config', '<?= env('GA4_CRISTALBET_ID', 'G-KZDFH80BXW') ?>', {
-                'cookie_flags': 'SameSite=None;Secure'
-            });
+                });
+                // Tag estudotabelas.com.br
+                gtag('config', 'G-SSKK91YY74', {
+                    'cookie_flags': 'SameSite=None;Secure'
+                });
         </script>
         <!-- FIM Google Analytics 4 -->
     <?php endif; ?>

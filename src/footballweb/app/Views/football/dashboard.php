@@ -1442,24 +1442,24 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                             </div>
                                             <?php if (isset($fix->home_avg_goals_scored)): ?>
                                                 <div class="bet-team-stats">
-                                                    <div class="bet-team-stats-item" data-tooltip="Média de Gols em Casa (Marcados / Sofridos por partida)">
+                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_goals') ?>">
                                                         <i class="bi bi-activity"></i>
-                                                        <span class="label">Gols:</span>
+                                                        <span class="label"><?= lang('App.goals') ?>:</span>
                                                         <span class="val"><?= number_format($fix->home_avg_goals_scored, 1) ?>/<?= number_format($fix->home_avg_goals_conceded, 1) ?></span>
                                                     </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="Clean Sheets (Jogos sem sofrer gols): Percentual de partidas em casa em que a equipe não sofreu nenhum gol.">
+                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cleansheets') ?>">
                                                         <i class="bi bi-shield-fill-check"></i>
-                                                        <span class="label">Clean Sheets:</span>
+                                                        <span class="label"><?= lang('App.clean_sheets') ?>:</span>
                                                         <span class="val"><?= round($fix->home_clean_sheets_pct) ?>%</span>
                                                     </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="Média de Escanteios a favor por jogo em casa">
+                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_corners') ?>">
                                                         <i class="bi bi-flag-fill"></i>
-                                                        <span class="label">Escanteios:</span>
+                                                        <span class="label"><?= lang('App.corners') ?>:</span>
                                                         <span class="val"><?= number_format($fix->home_avg_corners, 1) ?></span>
                                                     </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="Média de Cartões por jogo em casa (Amarelo = 1 ponto, Vermelho = 2 pontos)">
+                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cards') ?>">
                                                         <i class="bi bi-card-amber"></i>
-                                                        <span class="label">Cartões:</span>
+                                                        <span class="label"><?= lang('App.cards') ?>:</span>
                                                         <span class="val"><?= number_format($fix->home_avg_cards, 1) ?></span>
                                                     </div>
                                                 </div>
@@ -1473,24 +1473,24 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                             </div>
                                             <?php if (isset($fix->away_avg_goals_scored)): ?>
                                                 <div class="bet-team-stats">
-                                                    <div class="bet-team-stats-item" data-tooltip="Média de Gols Fora (Marcados / Sofridos por partida)">
+                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_goals') ?>">
                                                         <i class="bi bi-activity"></i>
-                                                        <span class="label">Gols:</span>
+                                                        <span class="label"><?= lang('App.goals') ?>:</span>
                                                         <span class="val"><?= number_format($fix->away_avg_goals_scored, 1) ?>/<?= number_format($fix->away_avg_goals_conceded, 1) ?></span>
                                                     </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="Clean Sheets (Jogos sem sofrer gols): Percentual de partidas fora em que a equipe não sofreu nenhum gol.">
+                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cleansheets') ?>">
                                                         <i class="bi bi-shield-fill-check"></i>
-                                                        <span class="label">Clean Sheets:</span>
+                                                        <span class="label"><?= lang('App.clean_sheets') ?>:</span>
                                                         <span class="val"><?= round($fix->away_clean_sheets_pct) ?>%</span>
                                                     </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="Média de Escanteios a favor por jogo fora">
+                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_corners') ?>">
                                                         <i class="bi bi-flag-fill"></i>
-                                                        <span class="label">Escanteios:</span>
+                                                        <span class="label"><?= lang('App.corners') ?>:</span>
                                                         <span class="val"><?= number_format($fix->away_avg_corners, 1) ?></span>
                                                     </div>
-                                                    <div class="bet-team-stats-item" data-tooltip="Média de Cartões por jogo fora (Amarelo = 1 ponto, Vermelho = 2 pontos)">
+                                                    <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cards') ?>">
                                                         <i class="bi bi-card-amber"></i>
-                                                        <span class="label">Cartões:</span>
+                                                        <span class="label"><?= lang('App.cards') ?>:</span>
                                                         <span class="val"><?= number_format($fix->away_avg_cards, 1) ?></span>
                                                     </div>
                                                 </div>
@@ -1531,7 +1531,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                             <i class="bi bi-person-fill"></i> <?= htmlspecialchars($fix->referee_name) ?>
                                         </span>
                                     <?php else: ?>
-                                        <span class="text-muted" style="font-size: 0.8rem;"><i class="bi bi-person-x"></i> Sem Árbitro</span>
+                                        <span class="text-muted" style="font-size: 0.8rem;"><i class="bi bi-person-x"></i> <?= lang('App.no_referee') ?></span>
                                     <?php endif; ?>
 
                                     <!-- Botão Conversar com Grok AI -->
@@ -1565,16 +1565,16 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                 <?php if ($isCardLocked): ?>
                                     <div class="bet-card-lock-overlay">
                                         <i class="bi bi-lock-fill" style="font-size: 2rem; color: #f47c20; margin-bottom: 8px;"></i>
-                                        <h5 style="color: #ffffff; font-weight: 700; margin-bottom: 6px; font-size: 1rem;">Estatísticas Premium</h5>
+                                        <h5 style="color: #ffffff; font-weight: 700; margin-bottom: 6px; font-size: 1rem;"><?= lang('App.premium_stats') ?></h5>
                                         <?php if (!$userLoggedIn): ?>
-                                            <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;">Faça login com sua conta do Google para liberar as estatísticas.</p>
-                                            <a href="/auth/google-login" class="btn btn-sm btn-primary" style="font-size: 0.8rem; padding: 6px 12px; font-weight: 600; background: #4285f4; border-color: #4285f4;"><i class="bi bi-google"></i> Entrar com o Google</a>
+                                            <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;"><?= lang('App.login_google_unlock') ?></p>
+                                            <a href="/auth/google-login" class="btn btn-sm btn-primary" style="font-size: 0.8rem; padding: 6px 12px; font-weight: 600; background: #4285f4; border-color: #4285f4;"><i class="bi bi-google"></i> <?= lang('App.login_google') ?></a>
                                         <?php elseif (!$isGoogleUser): ?>
-                                            <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;">Esta funcionalidade exige cadastro via login social do Google.</p>
-                                            <a href="/auth/google-login" class="btn btn-sm btn-primary" style="font-size: 0.8rem; padding: 6px 12px; font-weight: 600; background: #4285f4; border-color: #4285f4;"><i class="bi bi-google"></i> Vincular Google</a>
+                                            <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;"><?= lang('App.google_social_required') ?></p>
+                                            <a href="/auth/google-login" class="btn btn-sm btn-primary" style="font-size: 0.8rem; padding: 6px 12px; font-weight: 600; background: #4285f4; border-color: #4285f4;"><i class="bi bi-google"></i> <?= lang('App.link_google') ?></a>
                                         <?php else: ?>
-                                            <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;">Esta liga exige créditos Grok ativos para visualização.</p>
-                                            <a href="/subscription/buy-grok-credits" class="btn btn-sm text-dark font-weight-bold" style="font-size: 0.8rem; padding: 6px 12px; background: #f47c20; border-color: #f47c20; font-weight: 700;">Desbloquear (R$ 10,00)</a>
+                                            <p style="font-size: 0.8rem; color: #a5b4fc; margin-bottom: 12px; padding: 0 15px; line-height: 1.4;"><?= lang('App.league_credits_required') ?></p>
+                                            <a href="/subscription/buy-grok-credits" class="btn btn-sm text-dark font-weight-bold" style="font-size: 0.8rem; padding: 6px 12px; background: #f47c20; border-color: #f47c20; font-weight: 700;"><?= lang('App.unlock_credits') ?></a>
                                         <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
@@ -1595,25 +1595,25 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         <button class="bet-modal-close" onclick="closeRefereeModal()"><i class="bi bi-x-lg"></i></button>
         <h3 class="bet-modal-title" id="modalRefName">Anderson Daronco</h3>
         <div class="bet-modal-subtitle">
-            <span>Rigor de Arbitragem:</span>
+            <span><?= lang('App.referee_rigor') ?>:</span>
             <span class="bet-rigor-badge" id="modalRefRigor">Rigoroso</span>
         </div>
 
         <div class="bet-stats-grid">
-            <div class="bet-stat-card" data-tooltip="Média de cartões amarelos mostrados por este árbitro por partida.">
-                <div class="bet-stat-title">Média de Amarelos</div>
+            <div class="bet-stat-card" data-tooltip="<?= lang('App.tooltip_referee_yellows') ?>">
+                <div class="bet-stat-title"><?= lang('App.yellow_cards_avg') ?></div>
                 <div class="bet-stat-val" id="modalRefYellow">5.20</div>
             </div>
-            <div class="bet-stat-card" data-tooltip="Média de cartões vermelhos mostrados por este árbitro por partida.">
-                <div class="bet-stat-title">Média de Vermelhos</div>
+            <div class="bet-stat-card" data-tooltip="<?= lang('App.tooltip_referee_reds') ?>">
+                <div class="bet-stat-title"><?= lang('App.red_cards_avg') ?></div>
                 <div class="bet-stat-val" id="modalRefRed">0.24</div>
             </div>
-            <div class="bet-stat-card" data-tooltip="Média de faltas marcadas por este árbitro por partida.">
-                <div class="bet-stat-title">Média de Faltas</div>
+            <div class="bet-stat-card" data-tooltip="<?= lang('App.tooltip_referee_fouls') ?>">
+                <div class="bet-stat-title"><?= lang('App.fouls_avg') ?></div>
                 <div class="bet-stat-val" id="modalRefFouls">24.50</div>
             </div>
-            <div class="bet-stat-card" data-tooltip="Número total de partidas oficiais apitadas por este árbitro no banco de dados.">
-                <div class="bet-stat-title">Total de Jogos</div>
+            <div class="bet-stat-card" data-tooltip="<?= lang('App.tooltip_referee_total_games') ?>">
+                <div class="bet-stat-title"><?= lang('App.total_games') ?></div>
                 <div class="bet-stat-val" id="modalRefGames">120</div>
             </div>
         </div>

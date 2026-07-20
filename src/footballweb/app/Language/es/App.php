@@ -16,10 +16,29 @@ return [
     'learn_more'            => 'Saber más',
     'donate'                => 'Donar $',
     
+    // Autenticación y Login
+    'login_title'           => 'Inicie sesión para acceder a su cuenta',
+    'email'                 => 'Correo electrónico',
+    'password'              => 'Contraseña',
+    'name'                  => 'Nombre',
+    'or'                    => 'O',
+    'login_google'          => 'Iniciar sesión con Google',
+    'link_google'           => 'Vincular Google',
+    'register_google'       => 'Registrarse con Google',
+    'quick_google_register' => 'Regístrese rápidamente con su cuenta de Google',
+    'forgot_password'       => 'Olvidé mi contraseña',
+    'register_new_member'   => 'Registrarse como nuevo miembro',
+    'register_title'        => 'Registrar Usuario',
+
     // Suscripciones y Avisos
     'attention'             => '¡Atención!',
     'renew_now'             => 'Renovar Ahora',
     'subscription'          => 'Suscripción',
+    'premium_stats'         => 'Estadísticas Premium',
+    'login_google_unlock'   => 'Inicie sesión con Google para desbloquear las estadísticas.',
+    'google_social_required'=> 'Esta función requiere registro mediante inicio de Google.',
+    'league_credits_required'=> 'Esta liga requiere créditos Grok activos para ver.',
+    'unlock_credits'        => 'Desbloquear (R$ 10,00)',
     
     // Idiomas
     'language'              => 'Idioma',
@@ -57,17 +76,20 @@ return [
     'no_games_found'        => 'No se encontraron partidos para este día o filtro.',
     'no_matches_date'       => 'No hay partidos disponibles para esta fecha',
 
-    // Métricas y Detalles
+    // Métricas y Detalles dos Cards
     'over_cards'            => 'Más de 4.5 Tarjetas',
     'goals'                 => 'Goles',
     'corners'               => 'Córners',
     'cards'                 => 'Tarjetas',
     'clean_sheets'          => 'Portería a Cero',
     'referee'               => 'Árbitro',
+    'no_referee'            => 'Sin Árbitro',
+    'referee_rigor'         => 'Rigor de Arbitraje',
     'rigor_level'           => 'Rigor',
-    'yellow_cards_avg'      => 'Prom. Amarillas',
-    'red_cards_avg'         => 'Prom. Rojas',
-    'fouls_avg'             => 'Prom. Faltas',
+    'yellow_cards_avg'      => 'Promedio de Amarillas',
+    'red_cards_avg'         => 'Promedio de Rojas',
+    'fouls_avg'             => 'Promedio de Faltas',
+    'total_games'           => 'Total de Partidos',
     'cards_market_prob'     => 'Probabilidad Tarjetas',
     'prob_high'             => 'Alta',
     'prob_medium'           => 'Media',
@@ -79,6 +101,16 @@ return [
     'halftime'              => 'Entretiempo',
     'not_started'           => 'No iniciado',
     'postponed'             => 'Postergado',
+
+    // Tooltips dos Cards
+    'tooltip_home_goals'        => 'Promedio de Goles en Casa (Avanzados / Recibidos por partido)',
+    'tooltip_home_cleansheets'  => 'Portería a Cero: Porcentaje de partidos en casa sin recibir goles.',
+    'tooltip_home_corners'      => 'Promedio de Córners a favor por partido en casa',
+    'tooltip_home_cards'        => 'Promedio de Tarjetas por partido en casa (Amarilla = 1 pt, Roja = 2 pts)',
+    'tooltip_away_goals'        => 'Promedio de Goles Fuera (Avanzados / Recibidos por partido)',
+    'tooltip_away_cleansheets'  => 'Portería a Cero: Porcentaje de partidos fuera sin recibir goles.',
+    'tooltip_away_corners'      => 'Promedio de Córners a favor por partido fuera',
+    'tooltip_away_cards'        => 'Promedio de Tarjetas por partido fuera (Amarilla = 1 pt, Roja = 2 pts)',
 
     // Funcionalidades y Acciones Generales
     'save'                  => 'Guardar',

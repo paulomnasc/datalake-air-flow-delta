@@ -16,10 +16,29 @@ return [
     'learn_more'            => 'Saiba mais',
     'donate'                => 'Doe $',
     
+    // Autenticação e Login
+    'login_title'           => 'Entre para acessar sua conta',
+    'email'                 => 'E-mail',
+    'password'              => 'Senha',
+    'name'                  => 'Nome',
+    'or'                    => 'OU',
+    'login_google'          => 'Entrar com Google',
+    'link_google'           => 'Vincular Google',
+    'register_google'       => 'Registrar com Google',
+    'quick_google_register' => 'Registre-se rapidamente com sua conta Google',
+    'forgot_password'       => 'Esqueci minha senha',
+    'register_new_member'   => 'Registre-se como novo membro',
+    'register_title'        => 'Registrar Usuário',
+
     // Assinatura e Avisos
     'attention'             => 'Atenção!',
     'renew_now'             => 'Renovar Agora',
     'subscription'          => 'Assinatura',
+    'premium_stats'         => 'Estatísticas Premium',
+    'login_google_unlock'   => 'Faça login com sua conta do Google para liberar as estatísticas.',
+    'google_social_required'=> 'Esta funcionalidade exige cadastro via login social do Google.',
+    'league_credits_required'=> 'Esta liga exige créditos Grok ativos para visualização.',
+    'unlock_credits'        => 'Desbloquear (R$ 10,00)',
     
     // Idiomas
     'language'              => 'Idioma',
@@ -57,17 +76,20 @@ return [
     'no_games_found'        => 'Nenhum jogo encontrado para este dia ou filtro.',
     'no_matches_date'       => 'Nenhuma partida disponível para esta data',
 
-    // Métricas e Detalhes
+    // Métricas e Detalhes dos Cards
     'over_cards'            => 'Mais de 4.5 Cartões',
     'goals'                 => 'Gols',
     'corners'               => 'Escanteios',
     'cards'                 => 'Cartões',
     'clean_sheets'          => 'Clean Sheets',
     'referee'               => 'Árbitro',
+    'no_referee'            => 'Sem Árbitro',
+    'referee_rigor'         => 'Rigor de Arbitragem',
     'rigor_level'           => 'Rigor',
-    'yellow_cards_avg'      => 'Média Amarelos',
-    'red_cards_avg'         => 'Média Vermelhos',
-    'fouls_avg'             => 'Média Faltas',
+    'yellow_cards_avg'      => 'Média de Amarelos',
+    'red_cards_avg'         => 'Média de Vermelhos',
+    'fouls_avg'             => 'Média de Faltas',
+    'total_games'           => 'Total de Jogos',
     'cards_market_prob'     => 'Probabilidade Cartões',
     'prob_high'             => 'Alta',
     'prob_medium'           => 'Média',
@@ -79,6 +101,16 @@ return [
     'halftime'              => 'Intervalo',
     'not_started'           => 'Não iniciado',
     'postponed'             => 'Adiado',
+
+    // Tooltips dos Cards
+    'tooltip_home_goals'        => 'Média de Gols em Casa (Marcados / Sofridos por partida)',
+    'tooltip_home_cleansheets'  => 'Clean Sheets (Jogos sem sofrer gols): Percentual de partidas em casa em que a equipe não sofreu nenhum gol.',
+    'tooltip_home_corners'      => 'Média de Escanteios a favor por jogo em casa',
+    'tooltip_home_cards'        => 'Média de Cartões por jogo em casa (Amarelo = 1 ponto, Vermelho = 2 pontos)',
+    'tooltip_away_goals'        => 'Média de Gols Fora (Marcados / Sofridos por partida)',
+    'tooltip_away_cleansheets'  => 'Clean Sheets (Jogos sem sofrer gols): Percentual de partidas fora em que a equipe não sofreu nenhum gol.',
+    'tooltip_away_corners'      => 'Média de Escanteios a favor por jogo fora',
+    'tooltip_away_cards'        => 'Média de Cartões por jogo fora (Amarelo = 1 ponto, Vermelho = 2 pontos)',
 
     // Funcionalidades e Ações Gerais
     'save'                  => 'Salvar',

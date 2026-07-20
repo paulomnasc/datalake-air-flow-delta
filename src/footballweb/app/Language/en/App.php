@@ -16,10 +16,29 @@ return [
     'learn_more'            => 'Learn More',
     'donate'                => 'Donate $',
     
+    // Auth & Login
+    'login_title'           => 'Sign in to access your account',
+    'email'                 => 'Email',
+    'password'              => 'Password',
+    'name'                  => 'Name',
+    'or'                    => 'OR',
+    'login_google'          => 'Sign in with Google',
+    'link_google'           => 'Link Google',
+    'register_google'       => 'Register with Google',
+    'quick_google_register' => 'Register quickly with your Google account',
+    'forgot_password'       => 'Forgot my password',
+    'register_new_member'   => 'Register as a new member',
+    'register_title'        => 'Register User',
+
     // Subscriptions & Warnings
     'attention'             => 'Attention!',
     'renew_now'             => 'Renew Now',
     'subscription'          => 'Subscription',
+    'premium_stats'         => 'Premium Statistics',
+    'login_google_unlock'   => 'Log in with your Google account to unlock stats.',
+    'google_social_required'=> 'This feature requires registration via Google social login.',
+    'league_credits_required'=> 'This league requires active Grok credits to view.',
+    'unlock_credits'        => 'Unlock ($ 2.00)',
     
     // Languages
     'language'              => 'Language',
@@ -57,17 +76,20 @@ return [
     'no_games_found'        => 'No matches found for this date or filter.',
     'no_matches_date'       => 'No matches available for this date',
 
-    // Metrics & Details
+    // Card Metrics & Details
     'over_cards'            => 'Over 4.5 Cards',
     'goals'                 => 'Goals',
     'corners'               => 'Corners',
     'cards'                 => 'Cards',
     'clean_sheets'          => 'Clean Sheets',
     'referee'               => 'Referee',
+    'no_referee'            => 'No Referee',
+    'referee_rigor'         => 'Referee Strictness',
     'rigor_level'           => 'Strictness',
     'yellow_cards_avg'      => 'Avg Yellow Cards',
     'red_cards_avg'         => 'Avg Red Cards',
     'fouls_avg'             => 'Avg Fouls',
+    'total_games'           => 'Total Matches',
     'cards_market_prob'     => 'Cards Market Probability',
     'prob_high'             => 'High',
     'prob_medium'           => 'Medium',
@@ -79,6 +101,16 @@ return [
     'halftime'              => 'Half Time',
     'not_started'           => 'Not Started',
     'postponed'             => 'Postponed',
+
+    // Card Tooltips
+    'tooltip_home_goals'        => 'Average Home Goals (Scored / Conceded per match)',
+    'tooltip_home_cleansheets'  => 'Clean Sheets: Percentage of home matches without conceding any goals.',
+    'tooltip_home_corners'      => 'Average Home Corners won per match',
+    'tooltip_home_cards'        => 'Average Home Cards per match (Yellow = 1 pt, Red = 2 pts)',
+    'tooltip_away_goals'        => 'Average Away Goals (Scored / Conceded per match)',
+    'tooltip_away_cleansheets'  => 'Clean Sheets: Percentage of away matches without conceding any goals.',
+    'tooltip_away_corners'      => 'Average Away Corners won per match',
+    'tooltip_away_cards'        => 'Average Away Cards per match (Yellow = 1 pt, Red = 2 pts)',
 
     // Features & General Actions
     'save'                  => 'Save',

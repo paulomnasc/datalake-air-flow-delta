@@ -54,6 +54,13 @@ abstract class BaseController extends Controller
         parent::initController($request, $response, $logger);
         session();
         $this->session = \Config\Services::session();
+
+        // Sincroniza o locale do idioma selecionado pelo usuário
+        $currentLang = $this->session->get('lang') ?? ($_COOKIE['site_lang'] ?? 'pt-BR');
+        if (in_array($currentLang, ['pt-BR', 'en', 'es'], true)) {
+            $request->setLocale($currentLang);
+            \Config\Services::language()->setLocale($currentLang);
+        }
         // Preload any models, libraries, etc, here.
 
         // E.g.: $this->session = \Config\Services::session();

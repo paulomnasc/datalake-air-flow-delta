@@ -37,6 +37,7 @@ class Filters extends BaseFilters
         'subscription'  => \App\Filters\SubscriptionFilter::class, // Filtro de controle de assinatura
         'activitylog'   => \App\Filters\ActivityLogFilter::class,  // Filtro de log de atividades
         'adminauth'     => \App\Filters\AdminAuthFilter::class,    // Filtro de autenticação Admin
+        'language'      => \App\Filters\LanguageFilter::class,     // Filtro de idioma (i18n)
     ];
 
     /**
@@ -72,6 +73,7 @@ class Filters extends BaseFilters
      */
     public array $globals = [
         'before' => [
+            'language',     // Garante carregamento do idioma a cada requisição
             'subscription', // Verifica status de assinatura em todas as requisições
             // 'honeypot',
             // 'csrf',

@@ -1201,24 +1201,24 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                 <?php if ($userLoggedIn && $isGoogleUser): ?>
                     <div class="grok-credits-badge">
                         <span class="icon">🤖</span>
-                        <span>Grok: <strong><?= $userGrokCredits ?></strong> consultas</span>
-                        <a href="/subscription/buy-grok-credits" class="btn-recarregar">Recarregar (R$ 10)</a>
+                        <span>Grok: <strong><?= $userGrokCredits ?></strong> <?= lang('App.queries') ?></span>
+                        <a href="/subscription/buy-grok-credits" class="btn-recarregar"><?= lang('App.reload') ?></a>
                     </div>
                 <?php elseif ($userLoggedIn): ?>
                     <div class="grok-credits-badge">
                         <span class="icon">🔒</span>
-                        <span>Apenas contas Google</span>
-                        <a href="/auth/google-login" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> Conectar</a>
+                        <span><?= lang('App.google_accounts_only') ?></span>
+                        <a href="/auth/google-login" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> <?= lang('App.connect') ?></a>
                     </div>
                 <?php else: ?>
                     <div class="grok-credits-badge">
                         <span class="icon">🔒</span>
-                        <span>Use com login Google</span>
-                        <a href="/auth/google-login" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> Entrar</a>
+                        <span><?= lang('App.use_with_google_login') ?></span>
+                        <a href="/auth/google-login" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> <?= lang('App.enter') ?></a>
                     </div>
                 <?php endif; ?>
                 <button type="button" class="btn-update-betano" onclick="triggerIngestion('<?= $targetDate ?>')">
-                    <i class="bi bi-arrow-repeat"></i> Atualizar Dados (API)
+                    <i class="bi bi-arrow-repeat"></i> <?= lang('App.update_data_api') ?>
                 </button>
             </div>
         </div>
@@ -1230,13 +1230,13 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                     
                     <!-- Bloco POPULARES -->
                     <div class="bet-section-title">
-                        <span>Populares</span>
+                        <span><?= lang('App.popular') ?></span>
                         <i class="bi bi-star-fill" style="color: #f47c20;"></i>
                     </div>
                     <ul class="bet-sidebar-list">
                         <li class="bet-sidebar-item">
                             <a class="bet-league-link active" onclick="filterByLeague('all')" id="league-link-all">
-                                ⚽ Todas as Ligas
+                                ⚽ <?= lang('App.all_leagues') ?>
                             </a>
                         </li>
                         <?php foreach ($popularLeagues as $popLeague): ?>
@@ -1250,7 +1250,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
 
                     <!-- Bloco COMPETIÇÕES PRINCIPAIS -->
                     <div class="bet-section-title">
-                        <span>Competições Principais</span>
+                        <span><?= lang('App.main_competitions') ?></span>
                         <i class="bi bi-trophy-fill" style="color: #8a99a8;"></i>
                     </div>
                     
@@ -1300,13 +1300,13 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                     $searchQuery = !empty($search) ? '&search=' . urlencode($search) : '';
                                     ?>
                                     <a href="?date=<?= $yesterday ?><?= $showFinishedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $yesterday ? 'active' : '' ?>">
-                                        <i class="bi bi-chevron-left"></i> Ontem
+                                        <i class="bi bi-chevron-left"></i> <?= lang('App.yesterday') ?>
                                     </a>
                                     <a href="?date=<?= $today ?><?= $showFinishedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $today ? 'active' : '' ?>">
-                                        Hoje
+                                        <?= lang('App.today') ?>
                                     </a>
                                     <a href="?date=<?= $tomorrow ?><?= $showFinishedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $tomorrow ? 'active' : '' ?>">
-                                        Amanhã <i class="bi bi-chevron-right"></i>
+                                        <?= lang('App.tomorrow') ?> <i class="bi bi-chevron-right"></i>
                                     </a>
                                     <div class="position-relative d-inline-block">
                                         <input type="date" name="date" class="bet-date-input" value="<?= $targetDate ?>" onchange="document.getElementById('filterForm').submit()">
@@ -1317,13 +1317,13 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                             <!-- Toggle switch column in between -->
                             <div class="col-lg-3 col-md-6 d-flex align-items-center justify-content-lg-center">
                                 <div class="d-flex align-items-center gap-2">
-                                    <span class="bet-toggle-label" style="font-size: 0.9rem; color: #aeb9c4; font-weight: 600;">Ver jogos encerrados ?</span>
+                                    <span class="bet-toggle-label" style="font-size: 0.9rem; color: #aeb9c4; font-weight: 600;"><?= lang('App.show_finished_games') ?></span>
                                     <label class="bet-switch">
                                         <input type="checkbox" name="show_finished" value="1" <?= $showFinished ? 'checked' : '' ?> onchange="document.getElementById('filterForm').submit()">
                                         <span class="bet-slider round"></span>
                                     </label>
                                     <span class="bet-toggle-status" style="font-size: 0.9rem; font-weight: 700; color: <?= $showFinished ? '#f47c20' : '#8a99a8' ?>;">
-                                        <?= $showFinished ? 'Sim' : 'Não' ?>
+                                        <?= $showFinished ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
                             </div>
@@ -1333,11 +1333,11 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                 <div class="d-flex gap-2">
                                     <div class="position-relative flex-grow-1">
                                         <i class="bi bi-search bet-search-icon"></i>
-                                        <input type="text" name="search" class="bet-search-input" placeholder="Buscar times, liga ou árbitro..." value="<?= htmlspecialchars($search ?? '') ?>">
+                                        <input type="text" name="search" class="bet-search-input" placeholder="<?= lang('App.search_placeholder') ?>" value="<?= htmlspecialchars($search ?? '') ?>">
                                     </div>
-                                    <button type="submit" class="btn btn-secondary rounded-3 px-3">Filtrar</button>
+                                    <button type="submit" class="btn btn-secondary rounded-3 px-3"><?= lang('App.filter') ?></button>
                                     <?php if(!empty($search) || $showFinished): ?>
-                                        <a href="?date=<?= $targetDate ?>" class="btn btn-outline-danger d-flex align-items-center justify-content-center px-3" style="border-radius: 8px;">Limpar</a>
+                                        <a href="?date=<?= $targetDate ?>" class="btn btn-outline-danger d-flex align-items-center justify-content-center px-3" style="border-radius: 8px;"><?= lang('App.clear') ?></a>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -1347,8 +1347,8 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
 
                 <!-- Abas estilo Betano: Destaques vs Todas as Partidas -->
                 <div class="bet-tabs">
-                    <div class="bet-tab active" id="tab-competicoes" onclick="switchMainTab('competicoes')">Competições</div>
-                    <div class="bet-tab" id="tab-destaques" onclick="switchMainTab('destaques')">Destaques (Probabilidade 🔥)</div>
+                    <div class="bet-tab active" id="tab-competicoes" onclick="switchMainTab('competicoes')"><?= lang('App.competitions') ?></div>
+                    <div class="bet-tab" id="tab-destaques" onclick="switchMainTab('destaques')"><?= lang('App.highlights') ?></div>
                 </div>
 
                 <!-- Grid de Partidas -->
@@ -1356,9 +1356,9 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                     <?php if (empty($fixtures)): ?>
                         <div class="bet-empty">
                             <i class="bi bi-calendar-x" style="font-size: 3rem; color: #8a99a8; display: block; margin-bottom: 15px;"></i>
-                            <h3>Nenhuma partida disponível para esta data</h3>
+                            <h3><?= lang('App.no_matches_date') ?></h3>
                             <p class="text-muted">
-                                Clique em <strong>Atualizar Dados (API)</strong> no topo para sincronizar os confrontos ativos da API-Football.
+                                <?= lang('App.no_games_found') ?>
                             </p>
                         </div>
                     <?php else: ?>
@@ -1393,15 +1393,15 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                 $statusClean = strtoupper($fix->status);
                                 
                                 if (in_array($statusClean, $finishedStatuses)) {
-                                    $elapsedText = 'Encerrado';
+                                    $elapsedText = lang('App.finished');
                                 } elseif ($statusClean === 'HT') {
-                                    $elapsedText = 'Intervalo';
+                                    $elapsedText = lang('App.halftime');
                                     $elapsedClass = 'live';
                                 } elseif ($diffMins < 0) {
-                                    $elapsedText = 'Não iniciado';
+                                    $elapsedText = lang('App.not_started');
                                 } else {
                                     if ($diffMins > 120) {
-                                        $elapsedText = 'Encerrado';
+                                        $elapsedText = lang('App.finished');
                                     } else {
                                         $elapsedText = $diffMins . "'";
                                         $elapsedClass = 'live';
@@ -1503,7 +1503,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                     <!-- Probabilidade de Cartões -->
                                     <div class="bet-prob-container">
                                         <div class="bet-prob-value-row">
-                                            <span class="bet-prob-label">Mais de 4.5 Cartões</span>
+                                            <span class="bet-prob-label"><?= lang('App.over_cards') ?></span>
                                             <span class="bet-prob-value <?= $class ?>"><?= $prob ?>%</span>
                                         </div>
                                         <div class="bet-progress-track">

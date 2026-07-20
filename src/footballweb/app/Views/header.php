@@ -5,15 +5,15 @@ date_default_timezone_set('America/Sao_Paulo');
 <!-- Modal de Termos de Uso -->
 <div id="termsModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
     <div style="background:#fff; width:90vw; max-width:600px; max-height:80vh; border-radius:8px; overflow:hidden; display:flex; flex-direction:column;">
-        <div style="padding:16px; border-bottom:1px solid #eee; font-weight:bold;">Termos de Uso</div>
+        <div style="padding:16px; border-bottom:1px solid #eee; font-weight:bold;"><?= lang('App.terms_of_use') ?></div>
         <div id="termsContent" style="flex:1; overflow-y:auto; padding:16px; font-size:0.95em; background:#fafafa; color:#111;"></div>
         <div style="padding:16px; border-top:1px solid #eee; display:flex; flex-direction:column; gap:8px;">
             <label style="display:flex; align-items:center; gap:8px; color:#111;">
                 <input type="checkbox" id="agreeCheckbox" disabled />
-                Li e concordo com os termos
+                <?= lang('App.read_and_agree') ?>
             </label>
-            <button id="proceedBtn" disabled style="padding:8px 16px; border:none; background:#1976d2; color:#fff; border-radius:4px; cursor:pointer;">Prosseguir</button>
-            <button id="closeModalBtn" style="padding:6px 12px; border:none; background:#eee; color:#333; border-radius:4px; cursor:pointer;">Cancelar</button>
+            <button id="proceedBtn" disabled style="padding:8px 16px; border:none; background:#1976d2; color:#fff; border-radius:4px; cursor:pointer;"><?= lang('App.proceed') ?></button>
+            <button id="closeModalBtn" style="padding:6px 12px; border:none; background:#eee; color:#333; border-radius:4px; cursor:pointer;"><?= lang('App.cancel') ?></button>
         </div>
     </div>
 </div>
@@ -318,6 +318,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         justify-content: space-between;
         padding: 0 24px;
         position: relative;
+        z-index: 1030; /* Fica acima da navbar sticky (z-index 1020) */
     }
 
     #head-bar .logo-container {
@@ -397,7 +398,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         display: flex;
         align-items: center;
         gap: 12px;
-        z-index: 10;
+        z-index: 1031;
+    }
+
+    .header-buttons .dropdown-menu {
+        z-index: 1040 !important;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2) !important;
+        border: 1px solid rgba(0,0,0,0.1);
+        margin-top: 6px !important;
     }
 
   </style>
@@ -440,10 +449,42 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             </div>
             
             <div class="header-buttons">
+                <?php
+                    $currentLang = session()->get('lang') ?? service('request')->getLocale() ?? 'pt-BR';
+                    $langLabel = strtoupper(substr($currentLang, 0, 2));
+                    if ($currentLang === 'pt-BR') { $langFlag = '🇧🇷'; }
+                    elseif ($currentLang === 'es') { $langFlag = '🇪🇸'; }
+                    else { $langFlag = '🇺🇸'; }
+                ?>
+                <!-- Seletor de Idioma (Dropdown) -->
+                <div class="dropdown me-2">
+                    <button class="btn btn-outline-light btn-sm dropdown-toggle d-flex align-items-center gap-1" type="button" id="langDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="padding: 6px 12px; font-weight: 600;">
+                        <span><?= $langFlag ?></span>
+                        <span><?= $langLabel ?></span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="langDropdown">
+                        <li>
+                            <a class="dropdown-item <?= ($currentLang === 'pt-BR' || $currentLang === 'pt') ? 'active' : '' ?>" href="<?= base_url('lang/pt-BR') ?>">
+                                🇧🇷 <?= lang('App.lang_pt') ?>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item <?= ($currentLang === 'en') ? 'active' : '' ?>" href="<?= base_url('lang/en') ?>">
+                                🇺🇸 <?= lang('App.lang_en') ?>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item <?= ($currentLang === 'es') ? 'active' : '' ?>" href="<?= base_url('lang/es') ?>">
+                                🇪🇸 <?= lang('App.lang_es') ?>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
                 <!-- Botão para abrir a sidebar -->
                 <button id="openSidebarBtn" class="btn btn-light">
                     <i class="bi bi-person-circle"></i>
-                    <span class="ms-2"><?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Logar'; ?></span>
+                    <span class="ms-2"><?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : lang('App.enter'); ?></span>
                 </button>
             </div>
         </div>
@@ -458,27 +499,18 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     
             <ul class="list-unstyled">
                 <li>
-                    <p class="text-white">Olá <?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : 'Visitante'; ?></p>
+                    <p class="text-white"><?= lang('App.hello') ?> <?php echo isset($_SESSION['nome_usuario_logado']) ? $_SESSION['nome_usuario_logado'] : lang('App.visitor'); ?></p>
                 </li>
 
                 <!-- Seção 'Seu usuário no Airflow' removida -->
             </ul>
 
             <ul class="list-unstyled">
-                <!-- Itens da Sidebar comentados
-                <li>
-                    <a class="nav-link px-2 px-lg-2" href="<?= base_url('football-trends') ?>" style="color: #34d399; font-weight: bold; display: flex; align-items: center; gap: 8px;">
-                        <span>⚽</span> <span>Football Trends</span>
-                    </a>
-                </li>
-                <li><hr class="text-white" style="margin: 10px 0;"></li>
-                -->
-
                 <li>
                     <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                        <?php echo anchor(route_to('Usuario.logOut'), "Sair", ['class' => 'nav-link px-2 px-lg-2']); ?>
+                        <?php echo anchor(route_to('Usuario.logOut'), lang('App.exit'), ['class' => 'nav-link px-2 px-lg-2']); ?>
                     <?php else: ?>
-                        <?php echo anchor("loginUsuario","Entrar", ['class' => 'nav-link px-2 px-lg-2']) ?>
+                        <?php echo anchor("loginUsuario", lang('App.enter'), ['class' => 'nav-link px-2 px-lg-2']) ?>
                     <?php endif; ?>
                 </li>
             </ul>
@@ -613,12 +645,23 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 </li>
             </ul>
 
-            <div id="itens-menu-outros" class="navbar-nav ms-auto p-4 p-lg-0">
-                <!-- Itens de menu do topo comentados -->
+            <div id="itens-menu-outros" class="navbar-nav ms-auto p-4 p-lg-0 align-items-center">
+                <!-- Seletor de Idioma mobile / navbar fallback -->
+                <div class="nav-item dropdown d-lg-none my-2">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center gap-1" href="#" id="navbarLangDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-globe"></i> <span><?= lang('App.language') ?> (<?= strtoupper(substr($currentLang, 0, 2)) ?>)</span>
+                    </a>
+                    <ul class="dropdown-menu shadow-sm" aria-labelledby="navbarLangDropdown">
+                        <li><a class="dropdown-item" href="<?= base_url('lang/pt-BR') ?>">🇧🇷 <?= lang('App.lang_pt') ?></a></li>
+                        <li><a class="dropdown-item" href="<?= base_url('lang/en') ?>">🇺🇸 <?= lang('App.lang_en') ?></a></li>
+                        <li><a class="dropdown-item" href="<?= base_url('lang/es') ?>">🇪🇸 <?= lang('App.lang_es') ?></a></li>
+                    </ul>
+                </div>
+
                 <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
-                    <?php echo anchor(route_to('Usuario.logOut'), "Sair", ['class' => 'nav-link px-2 px-lg-2']); ?>
+                    <?php echo anchor(route_to('Usuario.logOut'), lang('App.exit'), ['class' => 'nav-link px-2 px-lg-2']); ?>
                 <?php else: ?>
-                    <?php echo anchor("loginUsuario", "Entrar", ['class' => 'nav-link px-2 px-lg-2']) ?>
+                    <?php echo anchor("loginUsuario", lang('App.enter'), ['class' => 'nav-link px-2 px-lg-2']) ?>
                 <?php endif; ?>
             </div>
 

@@ -38,6 +38,9 @@ Ou seja a sintaxe é: NomedaController:: método da Controller
 $routes->match(['get', 'head', 'post'], '/', 'FootballTrendsController::index', ['as'=>'home']);
 $routes->get('/debugFunctionalities', 'Home::debugFunctionalities', ['as'=>'debugFunctionalities']);
 
+// Rota de Troca de Idioma (i18n)
+$routes->get('/lang/(:segment)', 'LanguageController::switchLanguage/$1', ['as'=>'lang.switch']);
+
 // Rotas do App Football Trends
 $routes->match(['get', 'head'], '/football-trends', 'FootballTrendsController::index', ['as'=>'football.trends']);
 $routes->post('/football-trends/ingest', 'FootballTrendsController::triggerIngest', ['as'=>'football.ingest']);

@@ -6,12 +6,16 @@ class MercadoPagoService
 {
     private string $accessToken;
     private string $publicKey;
+    private string $clientId;
+    private string $clientSecret;
     private string $baseUrl = 'https://api.mercadopago.com';
 
     public function __construct()
     {
-        $this->accessToken = getenv('MERCADOPAGO_ACCESS_TOKEN') ?: 'TEST-8751326938692679-071918-dc0306ec299c7a8f5baeb68f93bb0481-25228421';
-        $this->publicKey   = getenv('MERCADOPAGO_PUBLIC_KEY') ?: 'TEST-32dd5097-2b01-43c6-9062-ad19b5937b6d';
+        $this->accessToken  = getenv('MERCADOPAGO_ACCESS_TOKEN') ?: 'APP_USR-8751326938692679-071918-3387a97494688e48b60fc6961f5de825-25228421';
+        $this->publicKey    = getenv('MERCADOPAGO_PUBLIC_KEY') ?: 'APP_USR-4558feb7-9f62-4fd8-9e21-76a11730b68f';
+        $this->clientId     = getenv('MERCADOPAGO_CLIENT_ID') ?: '8751326938692679';
+        $this->clientSecret = getenv('MERCADOPAGO_CLIENT_SECRET') ?: 'CuwYubmQkaZ58MrWgWoS1GIJ32ZvZNkk';
     }
 
     /**
@@ -238,5 +242,20 @@ class MercadoPagoService
     public function getPublicKey(): string
     {
         return $this->publicKey;
+    }
+
+    public function getClientId(): string
+    {
+        return $this->clientId;
+    }
+
+    public function getClientSecret(): string
+    {
+        return $this->clientSecret;
+    }
+
+    public function getAccessToken(): string
+    {
+        return $this->accessToken;
     }
 }

@@ -876,9 +876,12 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
     .bet-chat-drawer {
         position: fixed;
         top: 0;
+        bottom: 0;
         right: -400px;
         width: 400px;
+        max-width: 100vw;
         height: 100vh;
+        height: 100dvh;
         background: #172230;
         border-left: 1px solid rgba(255, 255, 255, 0.08);
         box-shadow: -10px 0 30px rgba(0,0,0,0.5);
@@ -886,6 +889,8 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         transition: right 0.3s ease;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
+        box-sizing: border-box;
     }
 
     .bet-chat-drawer.open {
@@ -894,11 +899,12 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
 
     .bet-chat-header {
         background: #0f1620;
-        padding: 20px;
+        padding: 15px 20px;
         border-bottom: 2px solid #f47c20;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-shrink: 0;
     }
 
     .bet-chat-title {
@@ -917,6 +923,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         color: #8a99a8;
         font-size: 1.2rem;
         cursor: pointer;
+        padding: 5px;
     }
 
     .bet-chat-close-btn:hover {
@@ -929,6 +936,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         font-size: 0.8rem;
         color: #8a99a8;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        flex-shrink: 0;
     }
 
     .bet-chat-messages {
@@ -938,6 +946,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         display: flex;
         flex-direction: column;
         gap: 15px;
+        -webkit-overflow-scrolling: touch;
     }
 
     .bet-chat-msg {
@@ -964,22 +973,29 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
     }
 
     .bet-chat-input-area {
-        padding: 15px 20px;
+        padding: 12px 15px;
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
         background: #0f1620;
-        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
         display: flex;
-        gap: 10px;
+        gap: 8px;
+        align-items: center;
+        width: 100%;
+        box-sizing: border-box;
+        flex-shrink: 0;
     }
 
     .bet-chat-input {
         flex: 1;
+        min-width: 0;
         background: #172230;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 8px;
-        padding: 8px 12px;
+        padding: 10px 12px;
         color: white;
         outline: none;
-        font-size: 0.88rem;
+        font-size: 0.95rem;
+        box-sizing: border-box;
     }
 
     .bet-chat-input:focus {
@@ -987,12 +1003,13 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
     }
 
     .bet-chat-send-btn {
+        flex-shrink: 0;
         background: #f47c20;
         color: white;
         border: none;
         border-radius: 8px;
-        width: 38px;
-        height: 38px;
+        width: 40px;
+        height: 40px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1002,6 +1019,33 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
 
     .bet-chat-send-btn:hover {
         background: #ff8e38;
+    }
+
+    @media (max-width: 576px) {
+        .bet-chat-drawer {
+            width: 100vw;
+            right: -100vw;
+            border-left: none;
+        }
+        .bet-chat-drawer.open {
+            right: 0;
+        }
+        .bet-chat-header {
+            padding: 12px 15px;
+        }
+        .bet-chat-game-context {
+            padding: 8px 15px;
+        }
+        .bet-chat-messages {
+            padding: 15px 12px;
+        }
+        .bet-chat-input-area {
+            padding: 10px 12px;
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+        }
+        .bet-chat-input {
+            font-size: 16px;
+        }
     }
 
     /* Typing indicators */
@@ -1080,12 +1124,12 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
     }
 
     /* Estilos de bloqueio por créditos */
+    .bet-card-locked,
     .bet-card-blur {
-        filter: blur(2px);
         pointer-events: none;
         user-select: none;
         opacity: 0.65;
-        transition: filter 0.3s ease, opacity 0.3s ease;
+        transition: opacity 0.3s ease;
     }
 
     .bet-card-lock-overlay {
@@ -1372,7 +1416,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                             $isCardLocked = $requiresCredits && (!$userLoggedIn || !$isGoogleUser || $userGrokCredits <= 0);
                             ?>
                             <div class="bet-card" data-league="<?= htmlspecialchars($fix->league_name) ?>" data-prob="<?= $prob ?>" style="position: relative;">
-                                <div class="<?= $isCardLocked ? 'bet-card-blur' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
+                                <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
                                     <div class="bet-card-header">
@@ -1534,7 +1578,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                         <?= $statusLabel ?>
                                     </span>
                                 </div>
-                                </div> <!-- end of bet-card-blur wrapper -->
+                                </div> <!-- end of bet-card-locked wrapper -->
                                 <?php if ($isCardLocked): ?>
                                     <div class="bet-card-lock-overlay">
                                         <i class="bi bi-lock-fill" style="font-size: 2rem; color: #f47c20; margin-bottom: 8px;"></i>

@@ -194,6 +194,10 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             gtag('config', 'G-SSKK91YY74', {
                 'cookie_flags': 'SameSite=None;Secure'
             });
+            // Tag cristalbet.com.br
+            gtag('config', '<?= env('GA4_CRISTALBET_ID', 'G-KZDFH80BXW') ?>', {
+                'cookie_flags': 'SameSite=None;Secure'
+            });
         </script>
         <!-- FIM Google Analytics 4 -->
     <?php endif; ?>

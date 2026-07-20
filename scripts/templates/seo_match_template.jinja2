@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
+    <!-- Google Analytics 4 (GA4) Tag -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga4_id|default('G-KZDFH80BXW') }}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '{{ ga4_id|default('G-KZDFH80BXW') }}', {
+            'cookie_flags': 'SameSite=None;Secure'
+        });
+    </script>
+    
     <!-- Meta Tags Básicas Dinâmicas para {{ time_casa }} x {{ time_fora }} -->
     <title>Estatísticas de Cartões {{ time_casa }} x {{ time_fora }} e Árbitro | CristalBet</title>
     <meta name="description" content="Confira a análise de cartões e escanteios para {{ time_casa }} x {{ time_fora }}. Média de faltas dos times e estatísticas completas do árbitro {{ nome_arbitro|default('Não informado') }} para a rodada.">

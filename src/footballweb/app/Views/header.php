@@ -331,7 +331,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     }
 
     #head-bar {
-        background: linear-gradient(135deg, #00ced1 0%, #007a87 100%);
+        background: url('<?= base_url("assets/img/header-banner.jpg"); ?>?v=<?= time() ?>') center/cover no-repeat !important;
         border: none;
         border-radius: 0;
         width: 100%;
@@ -341,16 +341,24 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         align-items: center;
         justify-content: space-between;
         padding: 0 24px;
+        position: relative;
     }
 
     #head-bar .logo-container {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
         display: flex;
         align-items: center;
-        gap: 16px;
+        justify-content: center;
+        text-align: center;
+        pointer-events: none;
+        z-index: 1;
     }
 
     #head-bar .logo-container img {
-        height: 40px; /* Ajuste a altura conforme necessário */
+        height: 40px;
         width: auto;
         object-fit: contain;
         display: block;
@@ -358,10 +366,22 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     }
 
     #head-bar .logo-container .subtitle {
-        color: rgba(255,255,255,0.85);
-        font-size: 13px;
+        color: #ffffff;
+        font-size: 2.8rem;
+        font-weight: 800;
+        letter-spacing: 3px;
         margin: 0;
-        font-weight: 400;
+        text-transform: uppercase;
+        text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9), 0 0 25px rgba(0, 255, 128, 0.6);
+        font-family: 'Outfit', 'Nunito', sans-serif;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 768px) {
+        #head-bar .logo-container .subtitle {
+            font-size: 1.6rem;
+            letter-spacing: 1px;
+        }
     }
 
     #youtubeBtn {
@@ -394,9 +414,14 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     }
 
     .header-buttons {
+        position: absolute;
+        right: 24px;
+        top: 50%;
+        transform: translateY(-50%);
         display: flex;
         align-items: center;
         gap: 12px;
+        z-index: 10;
     }
 
   </style>
@@ -434,21 +459,11 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         <div id="head-bar" class="left">
             <div class="logo-container">
                 <div style="display: flex; flex-direction: column; justify-content: center;">
-                    <p class="subtitle">Plataforma Minha Fiscalização</p>
+                    <p class="subtitle">Cristal Bet</p>
                 </div>
             </div>
             
             <div class="header-buttons">
-                <!-- Exibe o timezone atual do servidor -->
-                <span id="server-timezone" style="margin-right: 16px; font-size: 0.95em; color: #333; background: #f3f3f3; border-radius: 4px; padding: 4px 10px; display: flex; align-items: center; gap: 4px;">
-                    <i class="bi bi-clock-history" style="font-size: 1.1em;"></i>
-                    <?php
-                        $tz = new DateTimeZone('America/Sao_Paulo');
-                        $dt = new DateTime('now', $tz);
-                        echo $dt->format('H:i') . 'h';
-                        //echo 'America/Sao_Paulo · ' . $dt->format('H:i') . 'h';
-                    ?>
-                </span>
                 <!-- Botão para abrir a sidebar -->
                 <button id="openSidebarBtn" class="btn btn-light">
                     <i class="bi bi-person-circle"></i>

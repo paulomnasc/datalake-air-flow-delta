@@ -1317,7 +1317,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                             <!-- Toggle switch column in between -->
                             <div class="col-lg-3 col-md-6 d-flex align-items-center justify-content-lg-center">
                                 <div class="d-flex align-items-center gap-2">
-                                    <span class="bet-toggle-label" style="font-size: 0.9rem; color: #aeb9c4; font-weight: 600;">Ver Encerrados?</span>
+                                    <span class="bet-toggle-label" style="font-size: 0.9rem; color: #aeb9c4; font-weight: 600;">Ver jogos encerrados ?</span>
                                     <label class="bet-switch">
                                         <input type="checkbox" name="show_finished" value="1" <?= $showFinished ? 'checked' : '' ?> onchange="document.getElementById('filterForm').submit()">
                                         <span class="bet-slider round"></span>
@@ -1560,23 +1560,6 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                     )">
                                         <i class="bi bi-chat-left-text-fill"></i> Grok AI
                                     </button>
-
-                                    <?php
-                                    $statusClean = strtoupper($fix->status);
-                                    if ($statusClean === 'NS') {
-                                        $statusLabel = 'A Iniciar';
-                                        $statusClass = 'ns';
-                                    } elseif (in_array($statusClean, ['1H', '2H', 'HT', 'ET'])) {
-                                        $statusLabel = 'Ao Vivo';
-                                        $statusClass = 'live';
-                                    } else {
-                                        $statusLabel = 'Encerrado';
-                                        $statusClass = 'ft';
-                                    }
-                                    ?>
-                                    <span class="bet-status <?= $statusClass ?>">
-                                        <?= $statusLabel ?>
-                                    </span>
                                 </div>
                                 </div> <!-- end of bet-card-locked wrapper -->
                                 <?php if ($isCardLocked): ?>

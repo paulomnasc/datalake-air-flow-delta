@@ -78,7 +78,7 @@ def get_duckdb_connection():
         con.execute("SET s3_url_style='path';")
         
         # Test query to check if localhost works
-        con.execute("SELECT 1 FROM read_parquet('s3://paulomnasc-558/bronze/lomadee-products/*.parquet') LIMIT 1")
+        con.execute("SELECT 1 FROM read_parquet('s3://paulomnasc-558/bronze/lomadee-products/*.parquet', union_by_name=True) LIMIT 1")
         print("Connected to MinIO via localhost:29002")
         return con
     except Exception:
@@ -90,7 +90,7 @@ def get_duckdb_connection():
         con.execute("SET s3_secret_access_key='admin123';")
         con.execute("SET s3_use_ssl=false;")
         con.execute("SET s3_url_style='path';")
-        con.execute("SELECT 1 FROM read_parquet('s3://paulomnasc-558/bronze/lomadee-products/*.parquet') LIMIT 1")
+        con.execute("SELECT 1 FROM read_parquet('s3://paulomnasc-558/bronze/lomadee-products/*.parquet', union_by_name=True) LIMIT 1")
         print("Connected to MinIO via container network (minio:9000)")
         return con
     except Exception as e:
@@ -111,7 +111,7 @@ def main():
             _id, id, organizationId, __v, available, 
             createdAt, updatedAt, lastUpdate, name, 
             description, url, images, categories, options 
-        FROM read_parquet('s3://paulomnasc-558/bronze/lomadee-products/*.parquet')
+        FROM read_parquet('s3://paulomnasc-558/bronze/lomadee-products/*.parquet', union_by_name=True)
     """
     
     print("Reading bronze product data from S3 parquet...")

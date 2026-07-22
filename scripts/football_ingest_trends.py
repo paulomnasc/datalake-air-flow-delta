@@ -68,6 +68,32 @@ def generate_referee_stats(name):
         "rigor_level": rigor
     }
 
+# Gerador determinístico de médias realistas para fallback/mock
+def generate_deterministic_team_stats(team_name, venue_type):
+    h = int(hashlib.md5(f"{team_name}_{venue_type}".encode('utf-8')).hexdigest(), 16)
+    r = random.Random(h)
+    
+    if venue_type == 'home':
+        avg_goals_scored = round(r.uniform(1.2, 2.4), 2)
+        avg_goals_conceded = round(r.uniform(0.7, 1.6), 2)
+        clean_sheets_pct = round(r.uniform(20.0, 50.0), 2)
+        avg_corners = round(r.uniform(4.5, 6.8), 2)
+        avg_cards = round(r.uniform(1.8, 3.8), 2)
+    else:
+        avg_goals_scored = round(r.uniform(0.8, 1.8), 2)
+        avg_goals_conceded = round(r.uniform(1.1, 2.2), 2)
+        clean_sheets_pct = round(r.uniform(10.0, 35.0), 2)
+        avg_corners = round(r.uniform(3.5, 5.5), 2)
+        avg_cards = round(r.uniform(2.2, 4.5), 2)
+        
+    return {
+        "avg_goals_scored": avg_goals_scored,
+        "avg_goals_conceded": avg_goals_conceded,
+        "clean_sheets_pct": clean_sheets_pct,
+        "avg_corners": avg_corners,
+        "avg_cards": avg_cards
+    }
+
 def main():
     # Obtém data para busca (default hoje)
     if len(sys.argv) > 1:
@@ -218,6 +244,63 @@ def main():
                     over_cards_prob = round(random.uniform(25.0, 48.0), 2)
                     prediction_text = f"❄️ Árbitro {referee_name} é permissivo e costuma deixar a partida correr (média de {yellows} cartões amarelos por jogo). Tendência para Under 4.5 Cartões."
             
+            # Garante que os times possuam estatísticas na tabela team_moving_averages
+            if home_team_id:
+                cursor.execute("SELECT team_id FROM team_moving_averages WHERE team_id = %s LIMIT 1", (home_team_id,))
+                if not cursor.fetchone():
+                    mock_home = generate_deterministic_team_stats(home_team, 'home')
+                    mock_away = generate_deterministic_team_stats(home_team, 'away')
+                    cursor.execute("""
+                        INSERT INTO team_moving_averages (
+                            team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
+                            clean_sheets_pct, avg_corners, avg_cards
+                        ) VALUES (%s, %s, 'home', %s, %s, %s, %s, %s)
+                    """, (
+                        home_team_id, home_team, 
+                        mock_home["avg_goals_scored"], mock_home["avg_goals_conceded"], 
+                        mock_home["clean_sheets_pct"], mock_home["avg_corners"], 
+                        mock_home["avg_cards"]
+                    ))
+                    cursor.execute("""
+                        INSERT INTO team_moving_averages (
+                            team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
+                            clean_sheets_pct, avg_corners, avg_cards
+                        ) VALUES (%s, %s, 'away', %s, %s, %s, %s, %s)
+                    """, (
+                        home_team_id, home_team, 
+                        mock_away["avg_goals_scored"], mock_away["avg_goals_conceded"], 
+                        mock_away["clean_sheets_pct"], mock_away["avg_corners"], 
+                        mock_away["avg_cards"]
+                    ))
+
+            if away_team_id:
+                cursor.execute("SELECT team_id FROM team_moving_averages WHERE team_id = %s LIMIT 1", (away_team_id,))
+                if not cursor.fetchone():
+                    mock_home = generate_deterministic_team_stats(away_team, 'home')
+                    mock_away = generate_deterministic_team_stats(away_team, 'away')
+                    cursor.execute("""
+                        INSERT INTO team_moving_averages (
+                            team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
+                            clean_sheets_pct, avg_corners, avg_cards
+                        ) VALUES (%s, %s, 'home', %s, %s, %s, %s, %s)
+                    """, (
+                        away_team_id, away_team, 
+                        mock_home["avg_goals_scored"], mock_home["avg_goals_conceded"], 
+                        mock_home["clean_sheets_pct"], mock_home["avg_corners"], 
+                        mock_home["avg_cards"]
+                    ))
+                    cursor.execute("""
+                        INSERT INTO team_moving_averages (
+                            team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
+                            clean_sheets_pct, avg_corners, avg_cards
+                        ) VALUES (%s, %s, 'away', %s, %s, %s, %s, %s)
+                    """, (
+                        away_team_id, away_team, 
+                        mock_away["avg_goals_scored"], mock_away["avg_goals_conceded"], 
+                        mock_away["clean_sheets_pct"], mock_away["avg_corners"], 
+                        mock_away["avg_cards"]
+                    ))
+
             # Insere ou atualiza a partida com home_team_id e away_team_id
             cursor.execute("""
                 INSERT INTO fixtures_trends (

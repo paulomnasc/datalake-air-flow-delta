@@ -19,23 +19,60 @@ class FootballTrendsController extends BaseController
         $this->refereeStatsModel = new RefereeStatsModel();
     }
 
+    /**
+     * Obtém e valida o fuso horário ativo para a requisição/sessão do usuário
+     */
+    protected function getUserTimezone(): string
+    {
+        $tz = $_SESSION['user_timezone']
+            ?? $this->request->getCookie('user_timezone')
+            ?? 'America/Sao_Paulo';
+
+        if (!in_array($tz, \DateTimeZone::listIdentifiers())) {
+            $tz = 'America/Sao_Paulo';
+        }
+
+        return $tz;
+    }
+
+    /**
+     * Retorna o offset UTC formatado (ex: '-03:00', '+01:00') para uso em queries SQL CONVERT_TZ
+     */
+    protected function getTimezoneSqlOffset(string $timezone): string
+    {
+        $dtZone = new \DateTimeZone($timezone);
+        $dtNow = new \DateTime('now', $dtZone);
+        $offsetSeconds = $dtZone->getOffset($dtNow);
+        $hours = intdiv($offsetSeconds, 3600);
+        $minutes = abs($offsetSeconds % 3600) / 60;
+        return sprintf('%+03d:%02d', $hours, $minutes);
+    }
+
     public function index()
     {
-        // Define timezone para America/Sao_Paulo
-        date_default_timezone_set('America/Sao_Paulo');
+        // Define timezone dinâmico da sessão/usuário (default America/Sao_Paulo)
+        $userTimezone = $this->getUserTimezone();
+        date_default_timezone_set($userTimezone);
+        $sqlOffset = $this->getTimezoneSqlOffset($userTimezone);
 
         // Recebe a data de filtro (default: hoje)
+        $today = date('Y-m-d');
         $targetDate = $this->request->getVar('date');
         if (empty($targetDate)) {
-            $targetDate = date('Y-m-d');
+            $targetDate = $today;
         }
 
         // Filtro de busca por time ou árbitro
         $search = $this->request->getVar('search');
 
-        // Filtro para mostrar ou ocultar jogos encerrados (default: não)
+        // Filtro para mostrar ou ocultar jogos encerrados
         $showFinishedParam = $this->request->getVar('show_finished');
-        $showFinished = ($showFinishedParam === '1' || $showFinishedParam === 'true' || $showFinishedParam === 'sim');
+        if ($showFinishedParam === null) {
+            // Se não especificado na URL e a data for no passado, exibe encerrados por padrão
+            $showFinished = ($targetDate < $today);
+        } else {
+            $showFinished = ($showFinishedParam === '1' || $showFinishedParam === 'true' || $showFinishedParam === 'sim');
+        }
 
         // Conecta ao banco para realizar a query com join
         $db = \Config\Database::connect();
@@ -46,7 +83,7 @@ class FootballTrendsController extends BaseController
         $builder->join('referee_stats rs', 'ft.referee_name = rs.name', 'left');
         $builder->join('team_moving_averages th', 'ft.home_team_id = th.team_id AND th.venue_type = "home"', 'left');
         $builder->join('team_moving_averages ta', 'ft.away_team_id = ta.team_id AND ta.venue_type = "away"', 'left');
-        $builder->where('DATE(DATE_SUB(ft.fixture_date, INTERVAL 3 HOUR))', $targetDate);
+        $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}'))", $targetDate);
 
         // Se showFinished for falso (default), exclui jogos encerrados
         if (!$showFinished) {
@@ -79,6 +116,7 @@ class FootballTrendsController extends BaseController
         // Prepara dados para a view
         $data = [
             'targetDate'   => $targetDate,
+            'userTimezone' => $userTimezone,
             'search'       => $search,
             'showFinished' => $showFinished,
             'fixtures'     => $fixtures,
@@ -330,7 +368,8 @@ class FootballTrendsController extends BaseController
      */
     public function matchDetail($slug = null)
     {
-        date_default_timezone_set('America/Sao_Paulo');
+        $userTimezone = $this->getUserTimezone();
+        date_default_timezone_set($userTimezone);
 
         $db = \Config\Database::connect();
 
@@ -381,6 +420,7 @@ class FootballTrendsController extends BaseController
 
         $data = [
             'targetDate'   => date('Y-m-d', strtotime($fixtureDate)),
+            'userTimezone' => $userTimezone,
             'search'       => "{$homeTeam} {$awayTeam}",
             'showFinished' => true,
             'fixtures'     => $fixture ? [$fixture] : [],

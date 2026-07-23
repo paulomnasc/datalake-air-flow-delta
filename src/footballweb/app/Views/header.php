@@ -1,6 +1,10 @@
 <?php
-// Garante timezone correto para todas as funções de data/hora neste arquivo
-date_default_timezone_set('America/Sao_Paulo');
+// Garante timezone dinâmico baseado na sessão ou cookie do cliente (fallback America/Sao_Paulo)
+$userTz = $_SESSION['user_timezone'] ?? $_COOKIE['user_timezone'] ?? 'America/Sao_Paulo';
+if (!in_array($userTz, \DateTimeZone::listIdentifiers())) {
+    $userTz = 'America/Sao_Paulo';
+}
+date_default_timezone_set($userTz);
 ?>
 <!-- Modal de Termos de Uso -->
 <div id="termsModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
@@ -205,6 +209,28 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Detecção automática de Timezone do cliente para UX global -->
+    <script>
+        (function() {
+            try {
+                var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                if (tz) {
+                    var cookies = document.cookie.split(';');
+                    var currentTz = null;
+                    for (var i = 0; i < cookies.length; i++) {
+                        var c = cookies[i].trim();
+                        if (c.indexOf('user_timezone=') === 0) {
+                            currentTz = decodeURIComponent(c.substring('user_timezone='.length));
+                            break;
+                        }
+                    }
+                    if (currentTz !== tz) {
+                        document.cookie = 'user_timezone=' + encodeURIComponent(tz) + '; path=/; max-age=31536000; SameSite=Lax';
+                    }
+                }
+            } catch(e) {}
+        })();
+    </script>
     <meta name="google-site-verification" content="SN_1k1RhCAE6F7CIT8Zlp2mKiGUKH4rM1ji7BXAcsJs" />
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2926761252260319"
      crossorigin="anonymous"></script>

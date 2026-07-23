@@ -5,7 +5,7 @@ import requests
 import pymysql
 import hashlib
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Conexão MySQL robusta
 def get_mysql_connection():
@@ -95,32 +95,40 @@ def generate_deterministic_team_stats(team_name, venue_type):
     }
 
 def main():
-    # Obtém data para busca (default hoje)
+    # Obtém data para busca em BRT (default hoje)
     if len(sys.argv) > 1:
         target_date = sys.argv[1]
     else:
         target_date = datetime.now().strftime('%Y-%m-%d')
         
-    print(f"Iniciando ingestão de tendências para a data: {target_date}...")
+    target_dt = datetime.strptime(target_date, '%Y-%m-%d')
+    next_date = (target_dt + timedelta(days=1)).strftime('%Y-%m-%d')
     
-    # 1. Requisição à API-Football
+    print(f"Iniciando ingestão de tendências para a data BRT: {target_date} (buscando UTC {target_date} e {next_date})...")
+    
+    # 1. Requisição à API-Football (Busca target_date e next_date em UTC para cobrir jogos noturnos do Brasil)
     api_key = "ee52562367d4f6389ae8143b0a0650b7"
-    url = f"https://v3.football.api-sports.io/fixtures?date={target_date}"
     headers = {
         "x-apisports-key": api_key,
         "Content-Type": "application/json"
     }
     
-    try:
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-    except Exception as e:
-        print(f"Erro ao chamar a API-Football: {e}")
-        sys.exit(1)
+    fixtures_map = {}
+    for d in [target_date, next_date]:
+        url = f"https://v3.football.api-sports.io/fixtures?date={d}"
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            for fix in data.get("response", []):
+                fix_id = fix.get("fixture", {}).get("id")
+                if fix_id:
+                    fixtures_map[fix_id] = fix
+        except Exception as e:
+            print(f"Erro ao chamar a API-Football para a data {d}: {e}")
         
-    fixtures = data.get("response", [])
-    print(f"Total de {len(fixtures)} partidas retornadas pela API para {target_date}.")
+    fixtures = list(fixtures_map.values())
+    print(f"Total de {len(fixtures)} partidas únicas retornadas pela API (janela UTC {target_date} a {next_date}).")
     
     if not fixtures:
         print("Nenhuma partida retornada pela API.")
@@ -168,14 +176,28 @@ def main():
         1: "Copa do Mundo (Mundo)"
     }
 
-    # Filtra partidas pelas ligas permitidas
-    filtered_fixtures = [f for f in fixtures if f.get("league", {}).get("id") in ALLOWED_LEAGUES]
-    
+    # Filtra partidas pelas ligas permitidas e que ocorrem na data BRT alvo
+    filtered_fixtures = []
+    for f in fixtures:
+        if f.get("league", {}).get("id") not in ALLOWED_LEAGUES:
+            continue
+        
+        fix_date_raw = f["fixture"]["date"]
+        fix_date_clean = fix_date_raw.split('+')[0].replace('T', ' ')
+        try:
+            dt_utc = datetime.strptime(fix_date_clean[:19], '%Y-%m-%d %H:%M:%S')
+            dt_br = dt_utc - timedelta(hours=3)
+            br_date_str = dt_br.strftime('%Y-%m-%d')
+            if br_date_str == target_date:
+                filtered_fixtures.append(f)
+        except Exception:
+            filtered_fixtures.append(f)
+
     if not filtered_fixtures:
-        print("Nenhuma partida encontrada nas ligas principais (Tier 1) para esta data.")
+        print(f"Nenhuma partida encontrada para a data BRT {target_date} nas ligas permitidas.")
         return
         
-    print(f"Processando {len(filtered_fixtures)} partidas filtradas...")
+    print(f"Processando {len(filtered_fixtures)} partidas filtradas para a data BRT {target_date}...")
     
     conn = get_mysql_connection()
     cursor = conn.cursor()

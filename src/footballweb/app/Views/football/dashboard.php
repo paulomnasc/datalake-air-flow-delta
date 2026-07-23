@@ -1373,11 +1373,15 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                 $class = 'low';
                             }
 
-                            // Formata hora convertendo de UTC para America/Sao_Paulo
+                            // Formata hora convertendo de UTC para o fuso horário ativo do usuário
                             $timeStr = '';
                             try {
+                                $displayTz = $userTimezone ?? $_SESSION['user_timezone'] ?? $_COOKIE['user_timezone'] ?? 'America/Sao_Paulo';
+                                if (!in_array($displayTz, \DateTimeZone::listIdentifiers())) {
+                                    $displayTz = 'America/Sao_Paulo';
+                                }
                                 $dt = new DateTime($fix->fixture_date, new DateTimeZone('UTC'));
-                                $dt->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+                                $dt->setTimezone(new DateTimeZone($displayTz));
                                 $timeStr = $dt->format('H:i');
                             } catch (\Exception $e) {}
 

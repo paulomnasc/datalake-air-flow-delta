@@ -8,4 +8,4 @@ Disallow: /system/
 User-agent: Googlebot
 Allow: /
 
-Sitemap: https://estudotabela.com.br/sitemap.xml
+Sitemap: https://www.cristalbet.com.br/sitemap.xml

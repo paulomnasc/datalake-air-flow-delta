@@ -235,7 +235,15 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2926761252260319"
      crossorigin="anonymous"></script>
     <!-- SEO & Meta Tags Dinâmicas CristalBet -->
-    <?= $metaTags ?? session()->get('metaTags') ?? '' ?>
+    <?php
+        if (empty($metaTags) && empty(session()->get('metaTags'))) {
+            $defaultSeo = new \App\Libraries\SeoHelper();
+            $metaTagsHtml = $defaultSeo->generateMetaTags();
+        } else {
+            $metaTagsHtml = $metaTags ?? session()->get('metaTags');
+        }
+    ?>
+    <?= $metaTagsHtml ?>
 
     <!-- Favicon CristalBet -->
     <link rel="icon" href="<?= base_url('assets/favicon-cristalbet.ico'); ?>" type="image/x-icon">

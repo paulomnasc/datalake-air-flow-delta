@@ -113,6 +113,9 @@ class FootballTrendsController extends BaseController
             }
         }
 
+        $seo = new \App\Libraries\SeoHelper();
+        $seo->setHomePageDefaults();
+
         // Prepara dados para a view
         $data = [
             'targetDate'   => $targetDate,
@@ -121,7 +124,8 @@ class FootballTrendsController extends BaseController
             'showFinished' => $showFinished,
             'fixtures'     => $fixtures,
             'leagues'      => $leagues,
-            'title'        => 'Football Trends - Mercado de Cartões'
+            'title'        => 'Football Trends - Mercado de Cartões',
+            'metaTags'     => $seo->generateMetaTags()
         ];
 
         return $this->loadView('football/dashboard', $data);

@@ -27,6 +27,37 @@ require VIEWPATH.'/header.php';
             </div>
         <?php endif; ?>
 
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body py-2 px-3">
+                <form method="get" action="<?= route_to('agile.demandas') ?>" id="filter-form" class="row g-2 align-items-center">
+                    <div class="col-auto">
+                        <label for="id_sistema" class="col-form-label form-label-sm fw-bold text-secondary mb-0">
+                            <i class="fas fa-filter me-1"></i> Filtrar por Sistema:
+                        </label>
+                    </div>
+                    <div class="col-auto" style="min-width: 250px;">
+                        <select name="id_sistema" id="id_sistema" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">-- Todos os Sistemas --</option>
+                            <?php if (!empty($sistemas)): ?>
+                                <?php foreach ($sistemas as $sistema): ?>
+                                    <option value="<?= $sistema->id ?>" <?= (isset($sistema_selecionado) && (string)$sistema_selecionado === (string)$sistema->id) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($sistema->sigla . ($sistema->nome ? ' - ' . $sistema->nome : '')) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                    </div>
+                    <?php if (!empty($sistema_selecionado)): ?>
+                        <div class="col-auto">
+                            <a href="<?= route_to('agile.demandas') ?>" class="btn btn-outline-secondary btn-sm" title="Limpar Filtro">
+                                <i class="fas fa-times me-1"></i> Limpar filtro
+                            </a>
+                        </div>
+                    <?php endif; ?>
+                </form>
+            </div>
+        </div>
+
         <div class="card shadow-sm border-0">
             <div class="card-body">
                 <table class="table table-hover align-middle" id="demandas-table">

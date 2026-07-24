@@ -91,13 +91,25 @@ class AgileController extends BaseController
      */
     public function index()
     {
-        $demandas = $this->demandaModel
+        $id_sistema = $this->request->getGet('id_sistema');
+        $sistemas = $this->sistemaModel->orderBy('sigla', 'ASC')->findAll();
+
+        $builder = $this->demandaModel
             ->select('agile_demandas.*, agile_sistemas.sigla as sistema_sigla, agile_sistemas.nome as sistema_nome, ordem_servico.nup_sei')
             ->join('agile_sistemas', 'agile_sistemas.id = agile_demandas.id_sistema', 'left')
-            ->join('ordem_servico', 'ordem_servico.id = agile_demandas.id_ordem_servico', 'left')
-            ->orderBy('agile_demandas.criado_em', 'DESC')
-            ->findAll();
-        return view('agile/list_demandas', ['demandas' => $demandas]);
+            ->join('ordem_servico', 'ordem_servico.id = agile_demandas.id_ordem_servico', 'left');
+
+        if (!empty($id_sistema)) {
+            $builder->where('agile_demandas.id_sistema', $id_sistema);
+        }
+
+        $demandas = $builder->orderBy('agile_demandas.criado_em', 'DESC')->findAll();
+
+        return view('agile/list_demandas', [
+            'demandas' => $demandas,
+            'sistemas' => $sistemas,
+            'sistema_selecionado' => $id_sistema
+        ]);
     }
 
     /**

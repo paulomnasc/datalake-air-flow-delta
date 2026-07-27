@@ -36,6 +36,65 @@ class SeoHelper
     }
 
     /**
+     * Configura as Meta Tags dinâmicas e dados estruturados para a Landing Page de Football Trends
+     */
+    public function setFootballTrendsDefaults(?string $targetDate = null, int $totalFixtures = 0, array $leagues = [])
+    {
+        $baseUrl = function_exists('base_url') ? base_url() : 'https://www.cristalbet.com.br/';
+        $canonicalUrl = rtrim($baseUrl, '/') . '/football-trends';
+        
+        $formattedDate = !empty($targetDate) ? date('d/m/Y', strtotime($targetDate)) : date('d/m/Y');
+        
+        $leagueText = !empty($leagues) ? implode(', ', array_slice($leagues, 0, 4)) : 'Brasileirão, Champions League e Ligas Europeias';
+
+        $this->title       = "Tendências de Futebol Hoje ({$formattedDate}) & Estatísticas de Cartões | CristalBet";
+        $this->description = "Confira as estatísticas de futebol hoje ({$formattedDate}), médias de cartões de árbitros, escanteios e tendências de partidas da rodada ({$leagueText}). Análise matemática com Grok AI.";
+        $this->keywords    = "tendências de futebol hoje, estatísticas futebol virtual, estatísticas cartões brasileirão, média cartões árbitro, palpites escanteios hoje, robô de palpites futebol, cristalbet";
+        $this->image       = function_exists('base_url') ? base_url('assets/banner-cristalbet.png') : 'https://www.cristalbet.com.br/assets/banner-cristalbet.png';
+        $this->url         = $canonicalUrl;
+        $this->robots      = "index, follow";
+        $this->ogType      = "website";
+
+        // Gera marcação Schema.org WebPage + BreadcrumbList
+        $schema = [
+            '@context' => 'https://schema.org',
+            '@graph'   => [
+                [
+                    '@type' => 'WebPage',
+                    '@id' => $canonicalUrl,
+                    'url' => $canonicalUrl,
+                    'name' => "Tendências de Futebol Hoje ({$formattedDate}) & Estatísticas de Cartões",
+                    'description' => "Painel de estatísticas de futebol hoje, médias de faltas, cartões por árbitro e escanteios.",
+                    'isPartOf' => [
+                        '@type' => 'WebSite',
+                        'name'  => 'CristalBet',
+                        'url'   => $baseUrl
+                    ]
+                ],
+                [
+                    '@type' => 'BreadcrumbList',
+                    'itemListElement' => [
+                        [
+                            '@type' => 'ListItem',
+                            'position' => 1,
+                            'name' => 'Início',
+                            'item' => $baseUrl
+                        ],
+                        [
+                            '@type' => 'ListItem',
+                            'position' => 2,
+                            'name' => 'Tendências de Futebol',
+                            'item' => $canonicalUrl
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        $this->schemaJsonLd = json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    }
+
+    /**
      * Configura as Meta Tags dinâmicas para a página de um jogo específico
      */
     public function setMatchData(string $homeTeam, string $awayTeam, string $refereeName, ?string $matchDate = null, ?string $canonicalUrl = null)

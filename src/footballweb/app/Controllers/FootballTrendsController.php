@@ -114,7 +114,7 @@ class FootballTrendsController extends BaseController
         }
 
         $seo = new \App\Libraries\SeoHelper();
-        $seo->setHomePageDefaults();
+        $seo->setFootballTrendsDefaults($targetDate, count($fixtures), $leagues);
 
         // Prepara dados para a view
         $data = [
@@ -124,7 +124,7 @@ class FootballTrendsController extends BaseController
             'showFinished' => $showFinished,
             'fixtures'     => $fixtures,
             'leagues'      => $leagues,
-            'title'        => 'Football Trends - Mercado de Cartões',
+            'title'        => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
             'metaTags'     => $seo->generateMetaTags()
         ];
 

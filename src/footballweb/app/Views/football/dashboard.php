@@ -1195,7 +1195,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         <div class="bet-brand-header">
             <div class="bet-brand-title">
                 <span class="bet-brand-logo">Bet</span>
-                <h1 class="bet-brand-subtitle">Trends</h1>
+                <span class="bet-brand-subtitle" style="font-weight: 800; font-size: 1.8rem; color: #ffffff;">Trends</span>
             </div>
             <div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
                 <?php if ($userLoggedIn && $isGoogleUser): ?>
@@ -1220,8 +1220,17 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                 <button type="button" class="btn-update-betano" onclick="triggerIngestion('<?= $targetDate ?>')">
                     <i class="bi bi-arrow-repeat"></i> <?= lang('App.update_data_api') ?>
                 </button>
-            </div>
         </div>
+
+        <!-- Bloco SEO Server-Side Rendered (SSR) -->
+        <section class="bet-seo-header mb-4 p-3 rounded" style="background: rgba(23, 34, 48, 0.6); border: 1px solid rgba(255, 255, 255, 0.05);">
+            <h1 style="font-size: 1.4rem; font-weight: 800; color: #ffffff; margin-bottom: 8px;">
+                ⚽ Tendências de Futebol Hoje & Estatísticas de Cartões e Escanteios
+            </h1>
+            <p class="text-muted mb-0" style="font-size: 0.92rem; line-height: 1.6;">
+                Acompanhe as estatísticas completas dos jogos de hoje (<?= $formattedDateHeader ?>). Dados atualizados das principais ligas (Brasileirão, Champions League, Europa), histórico de faltas por árbitro, médias de cartões amarelos e vermelhos, e previsões matemáticas acionadas pelo assistente inteligente Grok AI.
+            </p>
+        </section>
 
         <div class="row g-4">
             <!-- Coluna Esquerda: Sidebar (Accordion de Competições estilo Betano) -->
@@ -1589,6 +1598,59 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
 
             </div>
         </div>
+
+        <!-- Seção de Conteúdo Estático SEO e FAQ de Cauda Longa -->
+        <section class="bet-seo-faq mt-5 p-4 rounded" style="background: #172230; border: 1px solid rgba(255, 255, 255, 0.05);">
+            <h2 style="font-size: 1.25rem; font-weight: 700; color: #f47c20; margin-bottom: 18px;">
+                📌 Perguntas Frequentes & Guia de Estatísticas de Futebol
+            </h2>
+            
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="p-3 rounded h-100" style="background: #0f1620; border: 1px solid rgba(255, 255, 255, 0.05);">
+                        <h3 style="font-size: 0.98rem; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
+                            Como são calculadas as estatísticas de cartões e escanteios?
+                        </h3>
+                        <p class="text-muted mb-0" style="font-size: 0.88rem; line-height: 1.5;">
+                            Nossos algoritmos calculam a média móvel dos últimos jogos dos dois times (desempenho mandante vs visitante), cruzando com o perfil de rigor do árbitro escalado (média de faltas e cartões aplicados).
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="p-3 rounded h-100" style="background: #0f1620; border: 1px solid rgba(255, 255, 255, 0.05);">
+                        <h3 style="font-size: 0.98rem; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
+                            Como a IA Grok auxilia na análise de partidas?
+                        </h3>
+                        <p class="text-muted mb-0" style="font-size: 0.88rem; line-height: 1.5;">
+                            O assistente inteligente Grok AI processa o contexto estatístico em tempo real do confronto para responder perguntas sobre o histórico das equipes, tendências de mercado e comportamento do juiz.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="p-3 rounded h-100" style="background: #0f1620; border: 1px solid rgba(255, 255, 255, 0.05);">
+                        <h3 style="font-size: 0.98rem; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
+                            Quais ligas de futebol estão disponíveis no painel?
+                        </h3>
+                        <p class="text-muted mb-0" style="font-size: 0.88rem; line-height: 1.5;">
+                            Cobrimos o Brasileirão Séries A, B e C, UEFA Champions League, Premier League, La Liga, Serie A Italiana, Bundesliga, Copa Libertadores e ligas internacionais de futebol.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="p-3 rounded h-100" style="background: #0f1620; border: 1px solid rgba(255, 255, 255, 0.05);">
+                        <h3 style="font-size: 0.98rem; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
+                            Com qual frequência as estatísticas são atualizadas?
+                        </h3>
+                        <p class="text-muted mb-0" style="font-size: 0.88rem; line-height: 1.5;">
+                            O pipeline de dados é executado diariamente via Apache Airflow, garantindo que arbitragem escalada, dados de movimentação dos times e projeções permaneçam 100% atualizados.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
 
     </div>
 </div>

@@ -179,7 +179,7 @@ require VIEWPATH . '/header.php';
                                         <small class="text-muted">Copie e cole no app do seu banco para pagar.</small>
                                     </div>
 
-                                    <?php if (ENVIRONMENT !== 'production'): ?>
+                                    <?php if (strtolower(ENVIRONMENT) !== 'production'): ?>
                                     <div class="mt-4 p-3 border border-warning rounded bg-light text-center mx-auto" style="max-width: 500px;">
                                         <div class="text-warning font-weight-bold mb-1">⚡ Modo Desenvolvedor (Sandbox)</div>
                                         <small class="text-muted d-block mb-2">Simule a aprovação do Mercado Pago via API sem usar o aplicativo mobile:</small>

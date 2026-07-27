@@ -105,7 +105,7 @@ require VIEWPATH . '/header.php';
                                 <small class="text-muted" style="margin-top: 4px; display: block;">Copie este código para pagar no aplicativo do seu celular.</small>
                             </div>
 
-                            <?php if (ENVIRONMENT !== 'production'): ?>
+                            <?php if (strtolower(ENVIRONMENT) !== 'production'): ?>
                             <div class="mt-4 p-3 border border-warning rounded text-center mx-auto" style="background: rgba(255, 193, 7, 0.1); border-color: #ffc107 !important; max-width: 500px;">
                                 <div class="text-warning font-weight-bold mb-1" style="font-weight: 700; color: #ffc107;">⚡ Modo Desenvolvedor (Sandbox)</div>
                                 <small class="text-white-50 d-block mb-2">Simule a aprovação do Mercado Pago via API sem usar o aplicativo mobile:</small>

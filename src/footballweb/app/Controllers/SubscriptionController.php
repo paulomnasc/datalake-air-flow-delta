@@ -848,7 +848,7 @@ class SubscriptionController extends BaseController
             ]);
         }
 
-        if (ENVIRONMENT === 'production') {
+        if (strtolower(ENVIRONMENT) === 'production') {
             return $this->response->setJSON([
                 'status'  => 'error',
                 'message' => 'Simulação indisponível em ambiente de produção.'

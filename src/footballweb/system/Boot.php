@@ -152,7 +152,7 @@ class Boot
                 ?? getenv('CI_ENVIRONMENT')
                 ?: 'production';
 
-            define('ENVIRONMENT', $env);
+            define('ENVIRONMENT', strtolower($env));
         }
     }
 

@@ -45,6 +45,7 @@ $routes->get('/lang/(:segment)', 'LanguageController::switchLanguage/$1', ['as'=
 $routes->match(['get', 'head'], '/football-trends', 'FootballTrendsController::index', ['as'=>'football.trends']);
 $routes->post('/football-trends/ingest', 'FootballTrendsController::triggerIngest', ['as'=>'football.ingest']);
 $routes->post('/football-trends/ask-ai', 'FootballTrendsController::askAi', ['as'=>'football.ask-ai']);
+$routes->get('/football-trends/live-scores', 'FootballTrendsController::liveScores', ['as'=>'football.live-scores']);
 
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);

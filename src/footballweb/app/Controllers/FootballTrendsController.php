@@ -435,4 +435,37 @@ class FootballTrendsController extends BaseController
 
         return $this->loadView('football/dashboard', $data);
     }
+
+    /**
+     * Retorna JSON com os placares e minutos atualizados das partidas em tempo real
+     */
+    public function liveScores()
+    {
+        $userTimezone = $this->getUserTimezone();
+        $sqlOffset = $this->getTimezoneSqlOffset($userTimezone);
+        $today = date('Y-m-d');
+        $targetDate = $this->request->getVar('date') ?: $today;
+
+        // Dispara uma sincronização ao vivo rápida do script Python caso seja a data de hoje
+        if ($targetDate === $today && rand(1, 4) === 1) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/football_ingest_trends.py';
+            if (file_exists($scriptPath)) {
+                @exec("python3 {$scriptPath} --live > /dev/null 2>&1 &");
+            }
+        }
+
+        $db = \Config\Database::connect();
+        $builder = $db->table('fixtures_trends');
+        $builder->select('fixture_id, status, elapsed, goals_home, goals_away, home_team, away_team, updated_at');
+        $builder->where("DATE(CONVERT_TZ(fixture_date, '+00:00', '{$sqlOffset}'))", $targetDate);
+        $fixtures = $builder->get()->getResultArray();
+
+        return $this->response->setJSON([
+            'status'    => 'success',
+            'timestamp' => date('Y-m-d H:i:s'),
+            'count'     => count($fixtures),
+            'fixtures'  => $fixtures
+        ]);
+    }
 }
+

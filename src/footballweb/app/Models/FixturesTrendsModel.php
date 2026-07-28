@@ -22,6 +22,9 @@ class FixturesTrendsModel extends Model
         'referee_name',
         'prediction_text',
         'over_cards_probability',
-        'status'
+        'status',
+        'goals_home',
+        'goals_away',
+        'elapsed'
     ];
 }

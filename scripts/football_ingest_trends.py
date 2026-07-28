@@ -95,8 +95,10 @@ def generate_deterministic_team_stats(team_name, venue_type):
     }
 
 def main():
+    is_live_mode = (len(sys.argv) > 1 and sys.argv[1] == '--live')
+    
     # Obtém data para busca em BRT (default hoje)
-    if len(sys.argv) > 1:
+    if not is_live_mode and len(sys.argv) > 1:
         target_date = sys.argv[1]
     else:
         target_date = datetime.now().strftime('%Y-%m-%d')
@@ -104,18 +106,17 @@ def main():
     target_dt = datetime.strptime(target_date, '%Y-%m-%d')
     next_date = (target_dt + timedelta(days=1)).strftime('%Y-%m-%d')
     
-    print(f"Iniciando ingestão de tendências para a data BRT: {target_date} (buscando UTC {target_date} e {next_date})...")
-    
-    # 1. Requisição à API-Football (Busca target_date e next_date em UTC para cobrir jogos noturnos do Brasil)
     api_key = "ee52562367d4f6389ae8143b0a0650b7"
     headers = {
         "x-apisports-key": api_key,
         "Content-Type": "application/json"
     }
-    
+
     fixtures_map = {}
-    for d in [target_date, next_date]:
-        url = f"https://v3.football.api-sports.io/fixtures?date={d}"
+
+    if is_live_mode:
+        print("⚡ Iniciando sincronização ultrarrápida de partidas AO VIVO (?live=all)...")
+        url = "https://v3.football.api-sports.io/fixtures?live=all"
         try:
             response = requests.get(url, headers=headers, timeout=30)
             response.raise_for_status()
@@ -125,10 +126,24 @@ def main():
                 if fix_id:
                     fixtures_map[fix_id] = fix
         except Exception as e:
-            print(f"Erro ao chamar a API-Football para a data {d}: {e}")
+            print(f"Erro ao chamar a API-Football para partidas ao vivo: {e}")
+    else:
+        print(f"Iniciando ingestão de tendências para a data BRT: {target_date} (buscando UTC {target_date} e {next_date})...")
+        for d in [target_date, next_date]:
+            url = f"https://v3.football.api-sports.io/fixtures?date={d}"
+            try:
+                response = requests.get(url, headers=headers, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                for fix in data.get("response", []):
+                    fix_id = fix.get("fixture", {}).get("id")
+                    if fix_id:
+                        fixtures_map[fix_id] = fix
+            except Exception as e:
+                print(f"Erro ao chamar a API-Football para a data {d}: {e}")
         
     fixtures = list(fixtures_map.values())
-    print(f"Total de {len(fixtures)} partidas únicas retornadas pela API (janela UTC {target_date} a {next_date}).")
+    print(f"Total de {len(fixtures)} partidas únicas retornadas pela API.")
     
     if not fixtures:
         print("Nenhuma partida retornada pela API.")
@@ -176,28 +191,31 @@ def main():
         1: "Copa do Mundo (Mundo)"
     }
 
-    # Filtra partidas pelas ligas permitidas e que ocorrem na data BRT alvo
+    # Filtra partidas pelas ligas permitidas
     filtered_fixtures = []
     for f in fixtures:
         if f.get("league", {}).get("id") not in ALLOWED_LEAGUES:
             continue
         
-        fix_date_raw = f["fixture"]["date"]
-        fix_date_clean = fix_date_raw.split('+')[0].replace('T', ' ')
-        try:
-            dt_utc = datetime.strptime(fix_date_clean[:19], '%Y-%m-%d %H:%M:%S')
-            dt_br = dt_utc - timedelta(hours=3)
-            br_date_str = dt_br.strftime('%Y-%m-%d')
-            if br_date_str == target_date:
-                filtered_fixtures.append(f)
-        except Exception:
+        if is_live_mode:
             filtered_fixtures.append(f)
+        else:
+            fix_date_raw = f["fixture"]["date"]
+            fix_date_clean = fix_date_raw.split('+')[0].replace('T', ' ')
+            try:
+                dt_utc = datetime.strptime(fix_date_clean[:19], '%Y-%m-%d %H:%M:%S')
+                dt_br = dt_utc - timedelta(hours=3)
+                br_date_str = dt_br.strftime('%Y-%m-%d')
+                if br_date_str == target_date:
+                    filtered_fixtures.append(f)
+            except Exception:
+                filtered_fixtures.append(f)
 
     if not filtered_fixtures:
-        print(f"Nenhuma partida encontrada para a data BRT {target_date} nas ligas permitidas.")
+        print(f"Nenhuma partida filtrada para o processamento.")
         return
         
-    print(f"Processando {len(filtered_fixtures)} partidas filtradas para a data BRT {target_date}...")
+    print(f"Processando {len(filtered_fixtures)} partidas filtradas...")
     
     conn = get_mysql_connection()
     cursor = conn.cursor()
@@ -209,8 +227,6 @@ def main():
         for f in filtered_fixtures:
             fix_id = f["fixture"]["id"]
             fix_date_raw = f["fixture"]["date"]
-            # Ex: "2026-07-17T17:30:00+00:00" -> formato datetime do mysql
-            # Tratamento simples do timezone para compatibilidade
             fix_date = fix_date_raw.split('+')[0].replace('T', ' ')
             
             league_id = f["league"]["id"]
@@ -221,6 +237,10 @@ def main():
             away_team_id = f["teams"]["away"]["id"]
             referee_raw = f["fixture"].get("referee")
             status = f["fixture"].get("status", {}).get("short", "NS")
+            elapsed = f["fixture"].get("status", {}).get("elapsed")
+            
+            goals_home = f.get("goals", {}).get("home")
+            goals_away = f.get("goals", {}).get("away")
             
             referee_name = None
             prediction_text = "Sem análise disponível para este confronto."
@@ -323,13 +343,14 @@ def main():
                         mock_away["avg_cards"]
                     ))
 
-            # Insere ou atualiza a partida com home_team_id e away_team_id
+            # Insere ou atualiza a partida com placar e minutos decorridos
             cursor.execute("""
                 INSERT INTO fixtures_trends (
                     fixture_id, fixture_date, league_id, league_name, home_team, away_team, 
                     home_team_id, away_team_id,
-                    referee_name, prediction_text, over_cards_probability, status
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    referee_name, prediction_text, over_cards_probability, status,
+                    goals_home, goals_away, elapsed
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     fixture_date = VALUES(fixture_date),
                     home_team_id = VALUES(home_team_id),
@@ -337,16 +358,21 @@ def main():
                     referee_name = VALUES(referee_name),
                     prediction_text = VALUES(prediction_text),
                     over_cards_probability = VALUES(over_cards_probability),
-                    status = VALUES(status);
+                    status = VALUES(status),
+                    goals_home = VALUES(goals_home),
+                    goals_away = VALUES(goals_away),
+                    elapsed = VALUES(elapsed);
             """, (
                 fix_id, fix_date, league_id, league_name, home_team, away_team,
                 home_team_id, away_team_id,
-                referee_name, prediction_text, over_cards_prob, status
+                referee_name, prediction_text, over_cards_prob, status,
+                goals_home, goals_away, elapsed
             ))
             inserted_fixtures += 1
             
         conn.commit()
         print(f"\n--- RESUMO DE INGESTÃO ---")
+        print(f"Modo Ao Vivo: {is_live_mode}")
         print(f"Data: {target_date}")
         print(f"Novos Árbitros Cadastrados: {inserted_referees}")
         print(f"Partidas Inseridas/Atualizadas: {inserted_fixtures}")
@@ -360,3 +386,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

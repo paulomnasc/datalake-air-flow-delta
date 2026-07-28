@@ -502,7 +502,38 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
     .bet-elapsed-time.live {
         color: #f87171;
         font-weight: 700;
-        animation: bet-blink 1.5s infinite;
+    }
+
+    .bet-team-score {
+        margin-left: auto;
+        font-weight: 800;
+        font-size: 1.05rem;
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+        padding: 1px 8px;
+        border-radius: 6px;
+        min-width: 24px;
+        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .live-pulse-dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background-color: #ef4444;
+        margin-right: 4px;
+        vertical-align: middle;
+        box-shadow: 0 0 6px #ef4444;
+        animation: pulse-live 1.2s infinite ease-in-out;
+    }
+
+    @keyframes pulse-live {
+        0% { transform: scale(0.9); opacity: 0.8; box-shadow: 0 0 4px #ef4444; }
+        50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 10px #ef4444; }
+        100% { transform: scale(0.9); opacity: 0.8; box-shadow: 0 0 4px #ef4444; }
     }
 
     .bet-teams-box {
@@ -1451,8 +1482,17 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                             <?php
                             $requiresCredits = \App\Helpers\SubscriptionHelper::leagueRequiresCredits($fix->league_name);
                             $isCardLocked = $requiresCredits && (!$userLoggedIn || !$isGoogleUser || $userGrokCredits <= 0);
-                            ?>
-                            <div class="bet-card" data-league="<?= htmlspecialchars($fix->league_name) ?>" data-prob="<?= $prob ?>" style="position: relative;">
+                            
+                             $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']);
+                             if ($isLiveMatch) {
+                                 $elapsedClass = 'live';
+                                 $minDisplay = !empty($fix->elapsed) ? $fix->elapsed . "'" : $elapsedText;
+                                 $elapsedDisplay = '<span class="live-pulse-dot"></span> ' . $minDisplay;
+                             } else {
+                                 $elapsedDisplay = $elapsedText;
+                             }
+                             ?>
+                             <div class="bet-card" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name) ?>" data-prob="<?= $prob ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
@@ -1464,8 +1504,8 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                             <span class="bet-time-badge">
                                                 <i class="bi bi-clock"></i> <?= $timeStr ?>
                                             </span>
-                                            <span class="bet-elapsed-time <?= $elapsedClass ?>" data-start-utc="<?= $fix->fixture_date ?>" data-status="<?= $statusClean ?>">
-                                                <?= $elapsedText ?>
+                                            <span class="bet-elapsed-time <?= $elapsedClass ?>" data-fixture-elapsed="<?= $fix->fixture_id ?>" data-start-utc="<?= $fix->fixture_date ?>" data-status="<?= $statusClean ?>">
+                                                <?= $elapsedDisplay ?>
                                             </span>
                                         </div>
                                     </div>
@@ -1476,6 +1516,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                             <div class="bet-team-row" style="margin-bottom: 2px;">
                                                 <span class="bet-team-dot"></span>
                                                 <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?></span>
+                                                <span class="bet-team-score" data-fixture-score-home="<?= $fix->fixture_id ?>"><?= (isset($fix->goals_home) && $fix->goals_home !== null) ? $fix->goals_home : '' ?></span>
                                             </div>
                                             <?php if (isset($fix->home_avg_goals_scored)): ?>
                                                 <div class="bet-team-stats">
@@ -1507,6 +1548,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                             <div class="bet-team-row" style="margin-bottom: 2px;">
                                                 <span class="bet-team-dot"></span>
                                                 <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?></span>
+                                                <span class="bet-team-score" data-fixture-score-away="<?= $fix->fixture_id ?>"><?= (isset($fix->goals_away) && $fix->goals_away !== null) ? $fix->goals_away : '' ?></span>
                                             </div>
                                             <?php if (isset($fix->away_avg_goals_scored)): ?>
                                                 <div class="bet-team-stats">
@@ -1751,7 +1793,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                         <h3 style="font-size: 0.98rem; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
                             Como são calculadas as estatísticas de cartões e escanteios?
                         </h3>
-                        <p class="text-muted mb-0" style="font-size: 0.88rem; line-height: 1.5;">
+                        <p class="mb-0" style="font-size: 0.88rem; line-height: 1.5; color: #ffffff;">
                             Nossos algoritmos calculam a média móvel dos últimos jogos dos dois times (desempenho mandante vs visitante), cruzando com o perfil de rigor do árbitro escalado (média de faltas e cartões aplicados).
                         </p>
                     </div>
@@ -1762,7 +1804,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                         <h3 style="font-size: 0.98rem; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
                             Como a IA Grok auxilia na análise de partidas?
                         </h3>
-                        <p class="text-muted mb-0" style="font-size: 0.88rem; line-height: 1.5;">
+                        <p class="mb-0" style="font-size: 0.88rem; line-height: 1.5; color: #ffffff;">
                             O assistente inteligente Grok AI processa o contexto estatístico em tempo real do confronto para responder perguntas sobre o histórico das equipes, tendências de mercado e comportamento do juiz.
                         </p>
                     </div>
@@ -1773,7 +1815,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                         <h3 style="font-size: 0.98rem; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
                             Quais ligas de futebol estão disponíveis no painel?
                         </h3>
-                        <p class="text-muted mb-0" style="font-size: 0.88rem; line-height: 1.5;">
+                        <p class="mb-0" style="font-size: 0.88rem; line-height: 1.5; color: #ffffff;">
                             Cobrimos o Brasileirão Séries A, B e C, UEFA Champions League, Premier League, La Liga, Serie A Italiana, Bundesliga, Copa Libertadores e ligas internacionais de futebol.
                         </p>
                     </div>
@@ -1784,7 +1826,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                         <h3 style="font-size: 0.98rem; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
                             Com qual frequência as estatísticas são atualizadas?
                         </h3>
-                        <p class="text-muted mb-0" style="font-size: 0.88rem; line-height: 1.5;">
+                        <p class="mb-0" style="font-size: 0.88rem; line-height: 1.5; color: #ffffff;">
                             O pipeline de dados é executado diariamente via Apache Airflow, garantindo que arbitragem escalada, dados de movimentação dos times e projeções permaneçam 100% atualizados.
                         </p>
                     </div>
@@ -2280,6 +2322,50 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
             alert('❌ Erro de comunicação com o servidor.');
         });
     }
+
+    // Auto-refresh de Placares e Tempo em Tempo Real
+    function updateLiveScores() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeDate = urlParams.get('date') || '<?= date('Y-m-d') ?>';
+        
+        fetch('/football-trends/live-scores?date=' + encodeURIComponent(activeDate))
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success' && data.fixtures) {
+                    const liveStatuses = ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT'];
+                    data.fixtures.forEach(fix => {
+                        const card = document.querySelector(`.bet-card[data-fixture-id="${fix.fixture_id}"]`);
+                        if (card) {
+                            const scoreHomeEl = card.querySelector(`[data-fixture-score-home="${fix.fixture_id}"]`);
+                            const scoreAwayEl = card.querySelector(`[data-fixture-score-away="${fix.fixture_id}"]`);
+                            const elapsedEl = card.querySelector(`[data-fixture-elapsed="${fix.fixture_id}"]`);
+
+                            if (scoreHomeEl && fix.goals_home !== null) {
+                                scoreHomeEl.textContent = fix.goals_home;
+                            }
+                            if (scoreAwayEl && fix.goals_away !== null) {
+                                scoreAwayEl.textContent = fix.goals_away;
+                            }
+                            if (elapsedEl) {
+                                const statusUpper = (fix.status || '').toUpperCase();
+                                if (liveStatuses.includes(statusUpper)) {
+                                    elapsedEl.classList.add('live');
+                                    const minText = fix.elapsed ? fix.elapsed + "'" : (statusUpper === 'HT' ? 'Int' : 'Ao Vivo');
+                                    elapsedEl.innerHTML = `<span class="live-pulse-dot"></span> ${minText}`;
+                                } else if (['FT', 'AET', 'PEN', '120', '90'].includes(statusUpper)) {
+                                    elapsedEl.classList.remove('live');
+                                    elapsedEl.textContent = 'Fim';
+                                }
+                            }
+                        }
+                    });
+                }
+            })
+            .catch(err => console.error('Erro ao atualizar placares ao vivo:', err));
+    }
+
+    // Inicia a atualização automática a cada 30 segundos
+    setInterval(updateLiveScores, 30000);
 </script>
 
 <?php

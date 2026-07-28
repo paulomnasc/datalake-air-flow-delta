@@ -45,7 +45,12 @@ Este documento descreve a estrutura, o significado e os tipos de dados de cada c
 
 ---
 
-## 💡 Dicas de Execução
+## 💡 Dicas de Execução e Casas de Apostas Personalizadas
 
+- **Casas Suportadas e Mapeadas:** Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Betfair, Novibet, EstrelaBet, Pinnacle, 1xBet, Bwin, Unibet.
+- **Parâmetros da DAG no Airflow:**
+  - `casas_usuario`: Lista de casas ativas que você possui conta (ex: `"Betnacional, Bet365, Betano, Sportingbet"`).
+  - `apenas_casas_usuario`: `True` para filtrar arbitragens exclusivamente entre as suas contas ativas.
 - **Filtro no Excel/Google Sheets:** Ordene a coluna **`Eh_Surebet`** por **`SIM`** ou ordene a coluna **`Lucro_Percentual_%`** de forma decrescente para visualizar prioritariamente os jogos rentáveis.
 - **Divisão da Banca:** Respeite a divisão calculada nas colunas **`Stake_Odd_1_R$`**, **`Stake_Odd_X_R$`** e **`Stake_Odd_2_R$`** para garantir o retorno sem risco.
+

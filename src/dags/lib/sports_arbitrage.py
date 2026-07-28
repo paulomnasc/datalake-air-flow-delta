@@ -64,6 +64,35 @@ TEAM_ALIASES = {
     "REMO": ["REMO", "CLUBE DO REMO", "REM"],
 }
 
+# Mapeamento e Normalização de Casas de Apostas (Bookmakers)
+BOOKMAKER_ALIASES = {
+    "BETNACIONAL": ["BETNACIONAL", "BETNACIONAL_BR", "BET NACIONAL", "BETNACIONAL BR"],
+    "BET365": ["BET365", "BET365_EU", "BET 365", "BET365 UK", "BET365 BR"],
+    "BETANO": ["BETANO", "BETANO_BR", "STOIXIMAN", "BETANO BR", "BETANO EU"],
+    "SPORTINGBET": ["SPORTINGBET", "SPORTINGBET_BR", "SPORTING BET", "SPORTINGBET BR"],
+    "SUPERBET": ["SUPERBET", "SUPERBET_BR", "SUPER BET", "SUPERBET BR"],
+    "KTO": ["KTO", "KTO_BR", "KTO BR"],
+    "NOVIBET": ["NOVIBET", "NOVIBET_BR", "NOVIBET BR"],
+    "BETFAIR": ["BETFAIR", "BETFAIR_EXCHANGE", "BETFAIR_SPORTSBOOK", "BETFAIR BR"],
+    "ESTRELABET": ["ESTRELABET", "ESTRELA BET", "ESTRELABET BR"],
+    "PINNACLE": ["PINNACLE", "PINNACLE_SPORTS"],
+    "1XBET": ["1XBET", "ONE X BET"],
+    "BWIN": ["BWIN"],
+    "UNIBET": ["UNIBET"],
+}
+
+def normalize_bookmaker_name(name: str) -> str:
+    """Normaliza o nome da casa de apostas para uma chave padronizada."""
+    if not name:
+        return "OUTROS"
+    clean_name = re.sub(r'[^A-Z0-9\s_-]', '', name.upper()).strip()
+    
+    for standard_name, aliases in BOOKMAKER_ALIASES.items():
+        for alias in aliases:
+            if alias == clean_name or difflib.SequenceMatcher(None, alias, clean_name).ratio() > 0.85:
+                return standard_name
+    return clean_name.title()
+
 def normalize_team_name(name: str) -> str:
     """Normaliza o nome do time para uma chave padronizada."""
     if not name:
@@ -110,7 +139,7 @@ def calculate_surebet(odd_casa: float, odd_empate: float, odd_visitante: float, 
         "stake_visitante": round(stake_visitante, 2),
     }
 
-def fetch_live_odds_from_api(api_key: str):
+def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None):
     """
     Busca odds AO VIVO das casas de apostas para o Brasileirão Série A e Série B via The Odds API.
     """
@@ -123,7 +152,7 @@ def fetch_live_odds_from_api(api_key: str):
     
     for sport_key, league_name in sports_to_fetch:
         log.info(f"[LIVE-ODDS] Buscando partidas ao vivo de {league_name} ({sport_key})...")
-        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}&regions=us,uk,eu&markets=h2h"
+        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}&regions=us,uk,eu,au&markets=h2h"
         
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -147,7 +176,9 @@ def fetch_live_odds_from_api(api_key: str):
                     odds_dict = {}
                     
                     for bm in bookmakers:
-                        bm_name = bm.get('title', bm.get('key'))
+                        bm_raw_name = bm.get('title', bm.get('key'))
+                        bm_norm_name = normalize_bookmaker_name(bm_raw_name)
+                        
                         markets = bm.get('markets', [])
                         
                         for m in markets:
@@ -165,10 +196,11 @@ def fetch_live_odds_from_api(api_key: str):
                                         odd_d = price
                                         
                                 if odd_h > 0 and odd_d > 0 and odd_a > 0:
-                                    odds_dict[bm_name] = {
+                                    odds_dict[bm_norm_name] = {
                                         "casa": round(odd_h, 2),
                                         "empate": round(odd_d, 2),
-                                        "visitante": round(odd_a, 2)
+                                        "visitante": round(odd_a, 2),
+                                        "nome_original": bm_raw_name
                                     }
                                     
                     if odds_dict:
@@ -184,7 +216,7 @@ def fetch_live_odds_from_api(api_key: str):
             
     return parsed_matches
 
-def fetch_bookmaker_odds():
+def fetch_bookmaker_odds(casas_permitidas: list = None):
     """
     Recupera a chave The Odds API (variável do Airflow / env / chave padrão) e consulta odds ao vivo.
     """
@@ -197,16 +229,24 @@ def fetch_bookmaker_odds():
         except Exception:
             odds_api_key = DEFAULT_ODDS_API_KEY
             
-    live_data = fetch_live_odds_from_api(odds_api_key)
+    live_data = fetch_live_odds_from_api(odds_api_key, casas_permitidas=casas_permitidas)
     if live_data:
         return live_data
         
     log.warning("[ODDS] Não foi possível obter dados ao vivo da API. Carregando dados de contingência.")
     return []
 
-def process_arbitrage_report(banca_total: float = 1000.0) -> pd.DataFrame:
+def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = None, apenas_casas_usuario: bool = False) -> pd.DataFrame:
     """Processa todas as partidas ao vivo e calcula o relatório de arbitragem com formato decimal rigoroso (2 casas)."""
-    games = fetch_bookmaker_odds()
+    
+    casas_normalizadas_usuario = set()
+    if casas_usuario:
+        if isinstance(casas_usuario, str):
+            casas_usuario = [c.strip() for c in casas_usuario.split(',') if c.strip()]
+        for c in casas_usuario:
+            casas_normalizadas_usuario.add(normalize_bookmaker_name(c))
+            
+    games = fetch_bookmaker_odds(casas_permitidas=list(casas_normalizadas_usuario) if casas_normalizadas_usuario else None)
     report_rows = []
     
     for game in games:
@@ -226,6 +266,9 @@ def process_arbitrage_report(banca_total: float = 1000.0) -> pd.DataFrame:
         melhor_casa_odd2 = ""
         
         for casa_nome, cota in odds.items():
+            if apenas_casas_usuario and casas_normalizadas_usuario and (casa_nome not in casas_normalizadas_usuario):
+                continue
+                
             if cota["casa"] > melhor_odd_casa:
                 melhor_odd_casa = round(cota["casa"], 2)
                 melhor_casa_odd1 = casa_nome
@@ -267,3 +310,4 @@ def process_arbitrage_report(banca_total: float = 1000.0) -> pd.DataFrame:
     if not df.empty and "Lucro_Percentual_%" in df.columns:
         df = df.sort_values(by="Lucro_Percentual_%", ascending=False)
     return df
+

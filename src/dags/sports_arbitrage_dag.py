@@ -25,17 +25,23 @@ default_args = {
 
 def extract_and_calculate_arbitrage(**context):
     """
-    Executa a extração das odds nas casas de apostas (Betano, Bet365, Sportingbet),
+    Executa a extração das odds nas casas de apostas (Betnacional, Bet365, Betano, Sportingbet, etc.),
     aplica o algoritmo de Surebet e gera a string CSV com formatação decimal '%.2f'.
     """
     from lib.sports_arbitrage import process_arbitrage_report
     
     params = context.get('params', {})
     banca_total = float(params.get('banca_total', 1000.0))
+    casas_usuario = params.get('casas_usuario', "Betnacional, Bet365, Betano, Sportingbet")
+    apenas_casas_usuario = bool(params.get('apenas_casas_usuario', True))
     
-    log.info(f"[ARBITRAGEM] Iniciando extração e cálculo de arbitragem com banca total de R$ {banca_total}")
+    log.info(f"[ARBITRAGEM] Iniciando extração com banca R$ {banca_total} | Casas: {casas_usuario} | Apenas Casas Usuário: {apenas_casas_usuario}")
     
-    df = process_arbitrage_report(banca_total=banca_total)
+    df = process_arbitrage_report(
+        banca_total=banca_total,
+        casas_usuario=casas_usuario,
+        apenas_casas_usuario=apenas_casas_usuario
+    )
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     # float_format='%.2f' garante 2 casas decimais (ex: 4.40, 1.98, 3.75) no CSV final
@@ -117,10 +123,15 @@ def upload_csv_to_s3(**context):
 with DAG(
     'sports_arbitrage_dag',
     default_args=default_args,
-    description='Scraping e Cálculo de Arbitragem (Surebets) para o Brasileirão Série A/B nas casas Betano, Bet365 e Sportingbet',
+    description='Scraping e Cálculo de Arbitragem (Surebets) para o Brasileirão Série A/B com suporte a casas personalizadas (Betnacional, Bet365, Betano, etc.)',
     schedule_interval='0 */2 * * *',
     catchup=False,
     max_active_runs=1,
+    params={
+        'banca_total': 1000.0,
+        'casas_usuario': "Betnacional, Bet365, Betano, Sportingbet",
+        'apenas_casas_usuario': True,
+    },
     tags=['sports', 'arbitrage', 'surebet', 'brasileirao', 's3', 'paulomnasc-558']
 ) as dag:
 

@@ -9,6 +9,7 @@ $userLoggedIn = false;
 $userGrokCredits = 0;
 $userId = null;
 $isGoogleUser = false;
+$userHasBalance = false;
 if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     $userLoggedIn = true;
     $userId = $_SESSION['id_usuario_logado'] ?? null;
@@ -17,6 +18,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
         $userRow = $db->table('usuario')->where('id', $userId)->get()->getRow();
         $userGrokCredits = $userRow ? (int)$userRow->grok_credits : 0;
         $isGoogleUser = $userRow && !empty($userRow->google_id);
+        $userHasBalance = ($userGrokCredits > 0) || ($userRow && in_array($userRow->status_assinatura ?? '', ['active', 'trial']));
     }
 }
 
@@ -872,6 +874,28 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         box-shadow: 0 0 10px rgba(244, 124, 32, 0.4);
     }
 
+    /* Stats Button inside card footer */
+    .bet-stats-btn {
+        background: rgba(56, 189, 248, 0.1);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        color: #38bdf8;
+        font-size: 0.8rem;
+        font-weight: 700;
+        padding: 5px 10px;
+        border-radius: 20px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.2s;
+    }
+
+    .bet-stats-btn:hover {
+        background: #38bdf8;
+        color: #0f172a;
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
     /* AI Chat Drawer Style */
     .bet-chat-drawer {
         position: fixed;
@@ -1227,7 +1251,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
             <h1 style="font-size: 1.4rem; font-weight: 800; color: #ffffff; margin-bottom: 8px;">
                 ⚽ Tendências de Futebol Hoje & Estatísticas de Cartões e Escanteios
             </h1>
-            <p class="text-muted mb-0" style="font-size: 0.92rem; line-height: 1.6;">
+            <p class="mb-0" style="font-size: 0.92rem; line-height: 1.6; color: #ffffff;">
                 Acompanhe as estatísticas completas dos jogos de hoje (<?= $formattedDateHeader ?>). Dados atualizados das principais ligas (Brasileirão, Champions League, Europa), histórico de faltas por árbitro, médias de cartões amarelos e vermelhos, e previsões matemáticas acionadas pelo assistente inteligente Grok AI.
             </p>
         </section>
@@ -1528,6 +1552,108 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                     <p class="bet-pred-text <?= $class ?>">
                                         <?= htmlspecialchars($fix->prediction_text) ?>
                                     </p>
+
+                                    <!-- Painel Expansível de Estatísticas Detalhadas -->
+                                    <div id="detailed-stats-<?= $fix->fixture_id ?>" class="detailed-stats-panel" style="display: none; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(244, 124, 32, 0.4); border-radius: 8px; padding: 12px; margin: 10px 0; font-size: 0.82rem; color: #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                                            <span style="color: #f47c20; font-weight: 700; font-size: 0.85rem;"><i class="bi bi-graph-up-arrow"></i> Estatísticas Detalhadas</span>
+                                            <span style="cursor: pointer; color: #94a3b8; font-size: 1.1rem; line-height: 1;" onclick="$('#detailed-stats-<?= $fix->fixture_id ?>').slideUp(200);">&times;</span>
+                                        </div>
+                                        
+                                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-bottom: 10px;">
+                                            <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
+                                                <span style="display: block; color: #94a3b8; font-size: 0.7rem;">Exp. Gols Total</span>
+                                                <strong style="color: #10b981; font-size: 0.9rem;">
+                                                    <?= number_format(($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0), 2) ?>
+                                                </strong>
+                                            </div>
+                                            <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
+                                                <span style="display: block; color: #94a3b8; font-size: 0.7rem;">Proj. Cantos</span>
+                                                <strong style="color: #38bdf8; font-size: 0.9rem;">
+                                                    <?= number_format(($fix->home_avg_corners ?? 0) + ($fix->away_avg_corners ?? 0), 1) ?>
+                                                </strong>
+                                            </div>
+                                            <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
+                                                <span style="display: block; color: #94a3b8; font-size: 0.7rem;">Proj. Cartões</span>
+                                                <strong style="color: #fbbf24; font-size: 0.9rem;">
+                                                    <?= number_format(($fix->home_avg_cards ?? 0) + ($fix->away_avg_cards ?? 0), 1) ?>
+                                                </strong>
+                                            </div>
+                                        </div>
+
+                                        <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 0.78rem;">
+                                            <thead>
+                                                <tr style="color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                                    <th style="text-align: left; padding: 4px; width: 40%;"><?= htmlspecialchars($fix->home_team) ?></th>
+                                                    <th style="padding: 4px; width: 20%;">Métrica</th>
+                                                    <th style="text-align: right; padding: 4px; width: 40%;"><?= htmlspecialchars($fix->away_team) ?></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                    <td style="text-align: left; padding: 4px; color: #38bdf8;"><?= number_format($fix->home_avg_goals_scored ?? 0, 1) ?> Pró / <?= number_format($fix->home_avg_goals_conceded ?? 0, 1) ?> Sof</td>
+                                                    <td style="padding: 4px; color: #94a3b8;">Gols</td>
+                                                    <td style="text-align: right; padding: 4px; color: #38bdf8;"><?= number_format($fix->away_avg_goals_scored ?? 0, 1) ?> Pró / <?= number_format($fix->away_avg_goals_conceded ?? 0, 1) ?> Sof</td>
+                                                </tr>
+                                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                    <td style="text-align: left; padding: 4px; color: #10b981;"><?= round($fix->home_clean_sheets_pct ?? 0) ?>%</td>
+                                                    <td style="padding: 4px; color: #94a3b8;">Clean Sheet</td>
+                                                    <td style="text-align: right; padding: 4px; color: #10b981;"><?= round($fix->away_clean_sheets_pct ?? 0) ?>%</td>
+                                                </tr>
+                                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                    <td style="text-align: left; padding: 4px; color: #a78bfa;"><?= number_format($fix->home_avg_corners ?? 0, 1) ?></td>
+                                                    <td style="padding: 4px; color: #94a3b8;">Cantos</td>
+                                                    <td style="text-align: right; padding: 4px; color: #a78bfa;"><?= number_format($fix->away_avg_corners ?? 0, 1) ?></td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="text-align: left; padding: 4px; color: #fbbf24;"><?= number_format($fix->home_avg_cards ?? 0, 1) ?></td>
+                                                    <td style="padding: 4px; color: #94a3b8;">Cartões</td>
+                                                    <td style="text-align: right; padding: 4px; color: #fbbf24;"><?= number_format($fix->away_avg_cards ?? 0, 1) ?></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+
+                                        <?php
+                                        $expGolsTotal = ($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0);
+                                        $expCantosTotal = ($fix->home_avg_corners ?? 0) + ($fix->away_avg_corners ?? 0);
+                                        $expCartoesTotal = ($fix->home_avg_cards ?? 0) + ($fix->away_avg_cards ?? 0);
+
+                                        // Insights de Gols
+                                        if ($expGolsTotal >= 3.2) {
+                                            $insightGols = "Confronto com <strong>alta tendência de gols</strong> (média combinada de " . number_format($expGolsTotal, 2) . " gols/jogo). Cenário propício para <strong>Ambas Marcam (Sim)</strong> ou <strong>Over 2.5 Gols</strong>.";
+                                        } elseif ($expGolsTotal >= 2.5) {
+                                            $insightGols = "Expectativa moderada de gols (" . number_format($expGolsTotal, 2) . " gols/jogo). Média de " . number_format($fix->home_avg_goals_scored ?? 0, 1) . " marcados pelo mandante e " . number_format($fix->away_avg_goals_conceded ?? 0, 1) . " sofridos pelo visitante.";
+                                        } else {
+                                            $insightGols = "Jogo com tendência <strong>truncada/defensiva</strong> (média de " . number_format($expGolsTotal, 2) . " gols combinados). Atentar para linhas de <strong>Under Gols</strong>.";
+                                        }
+
+                                        // Insights de Escanteios
+                                        if ($expCantosTotal >= 11.0) {
+                                            $insightCantos = "Volume ofensivo elevado com projeção de <strong>~" . round($expCantosTotal) . " escanteios</strong> (Mandante: " . number_format($fix->home_avg_corners ?? 0, 1) . " / Visitante: " . number_format($fix->away_avg_corners ?? 0, 1) . "). Excelente oportunidade no mercado de <strong>Over Cantos</strong>.";
+                                        } else {
+                                            $insightCantos = "Projeção de <strong>~" . round($expCantosTotal) . " escanteios no total</strong> (" . number_format($fix->home_avg_corners ?? 0, 1) . " a favor do mandante e " . number_format($fix->away_avg_corners ?? 0, 1) . " a favor do visitante).";
+                                        }
+
+                                        // Insights de Cartões
+                                        if (($fix->away_avg_cards ?? 0) >= 3.0) {
+                                            $insightCartoes = "Projeção de <strong>~" . round($expCartoesTotal) . " cartões no total</strong>. Destaque disciplinar para " . htmlspecialchars($fix->away_team) . " com média de " . number_format($fix->away_avg_cards ?? 0, 1) . " cartões fora de casa.";
+                                        } elseif (($fix->home_avg_cards ?? 0) >= 3.0) {
+                                            $insightCartoes = "Projeção de <strong>~" . round($expCartoesTotal) . " cartões</strong> na partida. Destaque disciplinar para " . htmlspecialchars($fix->home_team) . " com média de " . number_format($fix->home_avg_cards ?? 0, 1) . " cartões em casa.";
+                                        } else {
+                                            $insightCartoes = "Média combinada de <strong>" . number_format($expCartoesTotal, 1) . " cartões</strong> por jogo (" . number_format($fix->home_avg_cards ?? 0, 1) . " mandante + " . number_format($fix->away_avg_cards ?? 0, 1) . " visitante).";
+                                        }
+                                        ?>
+
+                                        <!-- Bloco de Insights & Mercado -->
+                                        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(255, 255, 255, 0.15); font-size: 0.78rem;">
+                                            <span style="color: #f47c20; font-weight: 700; display: block; margin-bottom: 4px;"><i class="bi bi-lightbulb-fill"></i> Insights & Tendências de Apostas</span>
+                                            <ul style="padding-left: 15px; margin-bottom: 0; color: #cbd5e1; line-height: 1.45;">
+                                                <li style="margin-bottom: 4px;">⚽ <strong>Gols:</strong> <?= $insightGols ?></li>
+                                                <li style="margin-bottom: 4px;">🚩 <strong>Escanteios:</strong> <?= $insightCantos ?></li>
+                                                <li>🟨 <strong>Cartões:</strong> <?= $insightCartoes ?></li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <!-- Rodapé com Árbitro e Status -->
@@ -1547,32 +1673,46 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                         <span class="text-muted" style="font-size: 0.8rem;"><i class="bi bi-person-x"></i> <?= lang('App.no_referee') ?></span>
                                     <?php endif; ?>
 
-                                    <!-- Botão Conversar com Grok AI -->
-                                    <button class="bet-ai-btn" title="Conversar com o Assistente de IA Grok" onclick="openAiChat(
-                                        '<?= htmlspecialchars($fix->home_team) ?>',
-                                        '<?= htmlspecialchars($fix->away_team) ?>',
-                                        '<?= htmlspecialchars($fix->league_name) ?>',
-                                        '<?= htmlspecialchars($fix->referee_name ?? '') ?>',
-                                        '<?= htmlspecialchars($fix->prediction_text) ?>',
-                                        '<?= $prob ?>',
-                                        '<?= $fix->home_avg_goals_scored ?? '' ?>',
-                                        '<?= $fix->home_avg_goals_conceded ?? '' ?>',
-                                        '<?= $fix->home_clean_sheets_pct ?? '' ?>',
-                                        '<?= $fix->home_avg_corners ?? '' ?>',
-                                        '<?= $fix->home_avg_cards ?? '' ?>',
-                                        '<?= $fix->away_avg_goals_scored ?? '' ?>',
-                                        '<?= $fix->away_avg_goals_conceded ?? '' ?>',
-                                        '<?= $fix->away_clean_sheets_pct ?? '' ?>',
-                                        '<?= $fix->away_avg_corners ?? '' ?>',
-                                        '<?= $fix->away_avg_cards ?? '' ?>',
-                                        '<?= $fix->rigor_level ?? 'Moderado' ?>',
-                                        '<?= $fix->average_yellow_cards ?? '' ?>',
-                                        '<?= $fix->average_red_cards ?? '' ?>',
-                                        '<?= $fix->average_fouls ?? '' ?>',
-                                        '<?= $fix->total_games ?? '' ?>'
-                                    )">
-                                        <i class="bi bi-chat-left-text-fill"></i> Grok AI
-                                    </button>
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <!-- Botão Estatísticas à esquerda de Grok AI -->
+                                        <button type="button" 
+                                                class="bet-stats-btn" 
+                                                data-tooltip="<?= $userHasBalance ? 'Ver Estatísticas Detalhadas' : 'Estatísticas Detalhadas (Requer Saldo/Créditos)' ?>"
+                                                onclick="toggleDetailedStats('<?= $fix->fixture_id ?>', <?= $userHasBalance ? 'true' : 'false' ?>)">
+                                            <?php if ($userHasBalance): ?>
+                                                <i class="bi bi-bar-chart-line-fill"></i> Estatísticas
+                                            <?php else: ?>
+                                                <i class="bi bi-bar-chart-line"></i> Estatísticas <i class="bi bi-lock-fill" style="font-size: 0.7rem; color: #f47c20;"></i>
+                                            <?php endif; ?>
+                                        </button>
+
+                                        <!-- Botão Conversar com Grok AI -->
+                                        <button class="bet-ai-btn" title="Conversar com o Assistente de IA Grok" onclick="openAiChat(
+                                            '<?= htmlspecialchars($fix->home_team) ?>',
+                                            '<?= htmlspecialchars($fix->away_team) ?>',
+                                            '<?= htmlspecialchars($fix->league_name) ?>',
+                                            '<?= htmlspecialchars($fix->referee_name ?? '') ?>',
+                                            '<?= htmlspecialchars($fix->prediction_text) ?>',
+                                            '<?= $prob ?>',
+                                            '<?= $fix->home_avg_goals_scored ?? '' ?>',
+                                            '<?= $fix->home_avg_goals_conceded ?? '' ?>',
+                                            '<?= $fix->home_clean_sheets_pct ?? '' ?>',
+                                            '<?= $fix->home_avg_corners ?? '' ?>',
+                                            '<?= $fix->home_avg_cards ?? '' ?>',
+                                            '<?= $fix->away_avg_goals_scored ?? '' ?>',
+                                            '<?= $fix->away_avg_goals_conceded ?? '' ?>',
+                                            '<?= $fix->away_clean_sheets_pct ?? '' ?>',
+                                            '<?= $fix->away_avg_corners ?? '' ?>',
+                                            '<?= $fix->away_avg_cards ?? '' ?>',
+                                            '<?= $fix->rigor_level ?? 'Moderado' ?>',
+                                            '<?= $fix->average_yellow_cards ?? '' ?>',
+                                            '<?= $fix->average_red_cards ?? '' ?>',
+                                            '<?= $fix->average_fouls ?? '' ?>',
+                                            '<?= $fix->total_games ?? '' ?>'
+                                        )">
+                                            <i class="bi bi-chat-left-text-fill"></i> Grok AI
+                                        </button>
+                                    </div>
                                 </div>
                                 </div> <!-- end of bet-card-locked wrapper -->
                                 <?php if ($isCardLocked): ?>
@@ -2027,6 +2167,43 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         } else {
             content.style.display = 'block';
             chevron.classList.add('rotate-180');
+        }
+    }
+
+    // Expansão das Estatísticas Detalhadas
+    function toggleDetailedStats(fixtureId, userHasBalance) {
+        if (!userHasBalance) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'Recurso Restrito',
+                    text: 'Você precisa ter saldo monetário ou créditos ativos na plataforma para expandir as estatísticas detalhadas.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: '<i class="bi bi-wallet2"></i> Adicionar Saldo / Créditos',
+                    cancelButtonText: 'Fechar',
+                    confirmButtonColor: '#f47c20',
+                    background: '#0f172a',
+                    color: '#ffffff'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = '/subscription/buy-grok-credits';
+                    }
+                });
+            } else {
+                if (confirm('Estatísticas Restritas: Você precisa ter saldo monetário ou créditos adicionados na plataforma para expandir as estatísticas detalhadas.\n\nDeseja adicionar saldo agora?')) {
+                    window.location.href = '/subscription/buy-grok-credits';
+                }
+            }
+            return;
+        }
+
+        const panel = document.getElementById('detailed-stats-' + fixtureId);
+        if (panel) {
+            if (panel.style.display === 'none' || panel.style.display === '') {
+                $(panel).slideDown(250);
+            } else {
+                $(panel).slideUp(200);
+            }
         }
     }
 

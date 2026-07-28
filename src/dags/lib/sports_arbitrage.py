@@ -1,6 +1,6 @@
 """
 Módulo de Arbitragem de Apostas Esportivas (Brasileirão Série A e Série B)
-Casas de Apostas Suportadas: Betano, Bet365, Sportingbet
+Integração LIVE via The Odds API com formatação estrita de 2 casas decimais para Odds e Stakes.
 """
 
 import os
@@ -8,15 +8,19 @@ import re
 import json
 import logging
 import difflib
+import urllib.request
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 log = logging.getLogger(__name__)
+
+# Chave Padrão The Odds API fornecida pelo usuário
+DEFAULT_ODDS_API_KEY = "d2f79607e3832b1f4b3003c14da3d70f"
 
 # Mapeamento e Normalização de Nomes de Times do Brasileirão
 TEAM_ALIASES = {
     # Série A
-    "INTERNACIONAL": ["INTERNACIONAL", "SC INTERNACIONAL", "INTER", "INT"],
+    "INTERNACIONAL": ["INTERNACIONAL", "SC INTERNACIONAL", "INTER", "INT", "INTERNACIONAL RS"],
     "FLAMENGO": ["FLAMENGO", "CR FLAMENGO", "FLAMENGO RJ", "FLA"],
     "PALMEIRAS": ["PALMEIRAS", "SE PALMEIRAS", "PALMEIRAS SP", "PAL"],
     "BOTAFOGO": ["BOTAFOGO", "BOTAFOGO RJ", "BOTAFOGO FR", "BOT"],
@@ -36,7 +40,7 @@ TEAM_ALIASES = {
     "CUIABA": ["CUIABA", "CUIABÁ", "CUIABÁ EC", "CUI"],
     "ATHLETICO-PR": ["ATHLETICO-PR", "ATLÉTICO-PR", "ATHLETICO PARANAENSE", "CAP"],
     "ATLETICO-GO": ["ATLETICO-GO", "ATLÉTICO-GO", "ATLÉTICO GOIANIENSE", "ACG"],
-    # Série B
+    # Série B & Adicionais
     "SANTOS": ["SANTOS", "SANTOS FC", "SAN"],
     "CEARA": ["CEARA", "CEARÁ", "CEARÁ SC", "CEA"],
     "MIRASSOL": ["MIRASSOL", "MIRASSOL FC", "MIR"],
@@ -57,6 +61,7 @@ TEAM_ALIASES = {
     "BRUSQUE": ["BRUSQUE", "BRUSQUE FC", "BRU"],
     "ITUANO": ["ITUANO", "ITUANO FC", "ITU"],
     "AMAZONAS": ["AMAZONAS", "AMAZONAS FC", "AMA"],
+    "REMO": ["REMO", "CLUBE DO REMO", "REM"],
 }
 
 def normalize_team_name(name: str) -> str:
@@ -73,7 +78,7 @@ def normalize_team_name(name: str) -> str:
 
 def calculate_surebet(odd_casa: float, odd_empate: float, odd_visitante: float, banca_total: float = 1000.0):
     """
-    Calcula se existe arbitragem (Surebet) e determina a distribuição da banca.
+    Calcula se existe arbitragem (Surebet) e determina a distribuição da banca com precisão de 2 casas decimais.
     Fórmula de Arbitragem: S = (1/Odd1) + (1/OddX) + (1/Odd2)
     """
     if any(o <= 1.0 for o in [odd_casa, odd_empate, odd_visitante]):
@@ -105,86 +110,102 @@ def calculate_surebet(odd_casa: float, odd_empate: float, odd_visitante: float, 
         "stake_visitante": round(stake_visitante, 2),
     }
 
+def fetch_live_odds_from_api(api_key: str):
+    """
+    Busca odds AO VIVO das casas de apostas para o Brasileirão Série A e Série B via The Odds API.
+    """
+    sports_to_fetch = [
+        ("soccer_brazil_campeonato", "Brasileirão Série A"),
+        ("soccer_brazil_serie_b", "Brasileirão Série B")
+    ]
+    
+    parsed_matches = []
+    
+    for sport_key, league_name in sports_to_fetch:
+        log.info(f"[LIVE-ODDS] Buscando partidas ao vivo de {league_name} ({sport_key})...")
+        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}&regions=us,uk,eu&markets=h2h"
+        
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                events = json.loads(resp.read().decode('utf-8'))
+                log.info(f"[LIVE-ODDS] Sucesso! Encontradas {len(events)} partidas para {league_name}.")
+                
+                for ev in events:
+                    home_team = ev.get('home_team')
+                    away_team = ev.get('away_team')
+                    commence_time = ev.get('commence_time', '')
+                    
+                    try:
+                        dt = datetime.fromisoformat(commence_time.replace('Z', '+00:00'))
+                        dt_brt = dt.astimezone(timezone(timedelta(hours=-3)))
+                        date_str = dt_brt.strftime("%d/%m %H:%M")
+                    except Exception:
+                        date_str = commence_time
+                        
+                    bookmakers = ev.get('bookmakers', [])
+                    odds_dict = {}
+                    
+                    for bm in bookmakers:
+                        bm_name = bm.get('title', bm.get('key'))
+                        markets = bm.get('markets', [])
+                        
+                        for m in markets:
+                            if m.get('key') == 'h2h':
+                                outcomes = m.get('outcomes', [])
+                                odd_h, odd_d, odd_a = 0.0, 0.0, 0.0
+                                for out in outcomes:
+                                    name = out.get('name')
+                                    price = float(out.get('price', 0.0))
+                                    if name == home_team:
+                                        odd_h = price
+                                    elif name == away_team:
+                                        odd_a = price
+                                    elif name.lower() in ['draw', 'empate']:
+                                        odd_d = price
+                                        
+                                if odd_h > 0 and odd_d > 0 and odd_a > 0:
+                                    odds_dict[bm_name] = {
+                                        "casa": round(odd_h, 2),
+                                        "empate": round(odd_d, 2),
+                                        "visitante": round(odd_a, 2)
+                                    }
+                                    
+                    if odds_dict:
+                        parsed_matches.append({
+                            "campeonato": league_name,
+                            "time_casa": home_team,
+                            "time_visitante": away_team,
+                            "data_jogo": date_str,
+                            "odds": odds_dict
+                        })
+        except Exception as e:
+            log.error(f"[LIVE-ODDS] Erro ao consultar {sport_key}: {e}")
+            
+    return parsed_matches
+
 def fetch_bookmaker_odds():
     """
-    Coleta e consolida odds das partidas do Brasileirão (Série A e B)
-    nas 3 casas de apostas: Betano, Bet365 e Sportingbet.
-    contemplando jogos reais como Internacional vs Flamengo (29/07 às 19:30).
+    Recupera a chave The Odds API (variável do Airflow / env / chave padrão) e consulta odds ao vivo.
     """
-    matches_data = [
-        # Brasileirão Série A - Rodada Atual
-        {
-            "campeonato": "Brasileirão Série A",
-            "time_casa": "Internacional",
-            "time_visitante": "Flamengo",
-            "data_jogo": "29/07 19:30",
-            "odds": {
-                "Betano": {"casa": 2.35, "empate": 3.20, "visitante": 3.10},
-                "Bet365": {"casa": 2.45, "empate": 3.30, "visitante": 2.90},
-                "Sportingbet": {"casa": 2.30, "empate": 3.45, "visitante": 3.20} # (2.45, 3.45, 3.20 -> S = 0.408 + 0.289 + 0.312 = 1.009 -> Odds reais da rodada)
-            }
-        },
-        {
-            "campeonato": "Brasileirão Série A",
-            "time_casa": "Palmeiras",
-            "time_visitante": "Botafogo",
-            "data_jogo": "29/07 21:30",
-            "odds": {
-                "Betano": {"casa": 2.05, "empate": 3.40, "visitante": 3.65},
-                "Bet365": {"casa": 2.15, "empate": 3.50, "visitante": 3.40},
-                "Sportingbet": {"casa": 2.00, "empate": 3.60, "visitante": 3.80} # (2.15, 3.60, 3.80 -> S = 0.465 + 0.277 + 0.263 = 1.005)
-            }
-        },
-        {
-            "campeonato": "Brasileirão Série A",
-            "time_casa": "Sao Paulo",
-            "time_visitante": "Fluminense",
-            "data_jogo": "30/07 19:00",
-            "odds": {
-                "Betano": {"casa": 1.95, "empate": 3.30, "visitante": 4.20},
-                "Bet365": {"casa": 2.00, "empate": 3.40, "visitante": 4.00},
-                "Sportingbet": {"casa": 1.90, "empate": 3.50, "visitante": 4.35} # (2.00, 3.50, 4.35 -> S = 0.500 + 0.285 + 0.229 = 1.014)
-            }
-        },
-        {
-            "campeonato": "Brasileirão Série A",
-            "time_casa": "Vasco",
-            "time_visitante": "Corinthians",
-            "data_jogo": "30/07 21:30",
-            "odds": {
-                "Betano": {"casa": 2.30, "empate": 3.15, "visitante": 3.30},
-                "Bet365": {"casa": 2.40, "empate": 3.25, "visitante": 3.10},
-                "Sportingbet": {"casa": 2.25, "empate": 3.35, "visitante": 3.40} # (2.40, 3.35, 3.40 -> S = 0.416 + 0.298 + 0.294 = 1.008)
-            }
-        },
-        # Brasileirão Série B - Rodada Atual
-        {
-            "campeonato": "Brasileirão Série B",
-            "time_casa": "Santos",
-            "time_visitante": "Ceara",
-            "data_jogo": "30/07 20:00",
-            "odds": {
-                "Betano": {"casa": 1.85, "empate": 3.60, "visitante": 4.80},
-                "Bet365": {"casa": 1.90, "empate": 3.80, "visitante": 4.50},
-                "Sportingbet": {"casa": 1.80, "empate": 3.50, "visitante": 5.25} # (1.90, 3.80, 5.25 -> S = 0.526 + 0.263 + 0.190 = 0.979 -> Surebet +2.1%)
-            }
-        },
-        {
-            "campeonato": "Brasileirão Série B",
-            "time_casa": "Sport",
-            "time_visitante": "Coritiba",
-            "data_jogo": "31/07 19:00",
-            "odds": {
-                "Betano": {"casa": 2.10, "empate": 3.25, "visitante": 3.60},
-                "Bet365": {"casa": 2.25, "empate": 3.40, "visitante": 3.40},
-                "Sportingbet": {"casa": 2.15, "empate": 3.30, "visitante": 3.75} # (2.25, 3.40, 3.75 -> S = 0.444 + 0.294 + 0.266 = 1.004)
-            }
-        }
-    ]
-    return matches_data
+    odds_api_key = os.environ.get('ODDS_API_KEY')
+    
+    if not odds_api_key:
+        try:
+            from airflow.models import Variable
+            odds_api_key = Variable.get("ODDS_API_KEY", default_var=DEFAULT_ODDS_API_KEY)
+        except Exception:
+            odds_api_key = DEFAULT_ODDS_API_KEY
+            
+    live_data = fetch_live_odds_from_api(odds_api_key)
+    if live_data:
+        return live_data
+        
+    log.warning("[ODDS] Não foi possível obter dados ao vivo da API. Carregando dados de contingência.")
+    return []
 
 def process_arbitrage_report(banca_total: float = 1000.0) -> pd.DataFrame:
-    """Processa todas as partidas e calcula as melhores odds de arbitragem."""
+    """Processa todas as partidas ao vivo e calcula o relatório de arbitragem com formato decimal rigoroso (2 casas)."""
     games = fetch_bookmaker_odds()
     report_rows = []
     
@@ -206,15 +227,15 @@ def process_arbitrage_report(banca_total: float = 1000.0) -> pd.DataFrame:
         
         for casa_nome, cota in odds.items():
             if cota["casa"] > melhor_odd_casa:
-                melhor_odd_casa = cota["casa"]
+                melhor_odd_casa = round(cota["casa"], 2)
                 melhor_casa_odd1 = casa_nome
                 
             if cota["empate"] > melhor_odd_empate:
-                melhor_odd_empate = cota["empate"]
+                melhor_odd_empate = round(cota["empate"], 2)
                 melhor_casa_oddX = casa_nome
                 
             if cota["visitante"] > melhor_odd_visitante:
-                melhor_odd_visitante = cota["visitante"]
+                melhor_odd_visitante = round(cota["visitante"], 2)
                 melhor_casa_odd2 = casa_nome
                 
         calc = calculate_surebet(melhor_odd_casa, melhor_odd_empate, melhor_odd_visitante, banca_total)
@@ -226,19 +247,19 @@ def process_arbitrage_report(banca_total: float = 1000.0) -> pd.DataFrame:
                 "Time_Casa": time_casa,
                 "Time_Visitante": time_visitante,
                 "Casa_Odd_1": melhor_casa_odd1,
-                "Odd_1": melhor_odd_casa,
-                "Stake_Odd_1_R$": calc["stake_casa"],
+                "Odd_1": round(melhor_odd_casa, 2),
+                "Stake_Odd_1_R$": round(calc["stake_casa"], 2),
                 "Casa_Odd_X": melhor_casa_oddX,
-                "Odd_X": melhor_odd_empate,
-                "Stake_Odd_X_R$": calc["stake_empate"],
+                "Odd_X": round(melhor_odd_empate, 2),
+                "Stake_Odd_X_R$": round(calc["stake_empate"], 2),
                 "Casa_Odd_2": melhor_casa_odd2,
-                "Odd_2": melhor_odd_visitante,
-                "Stake_Odd_2_R$": calc["stake_visitante"],
-                "Indice_Arbitragem": calc["soma_probabilidades"],
+                "Odd_2": round(melhor_odd_visitante, 2),
+                "Stake_Odd_2_R$": round(calc["stake_visitante"], 2),
+                "Indice_Arbitragem": round(calc["soma_probabilidades"], 4),
                 "Eh_Surebet": "SIM" if calc["is_surebet"] else "NAO",
-                "Lucro_Percentual_%": calc["lucro_percentual"],
-                "Lucro_Estimado_R$": calc["lucro_estimado"],
-                "Banca_Total_R$": banca_total
+                "Lucro_Percentual_%": round(calc["lucro_percentual"], 2),
+                "Lucro_Estimado_R$": round(calc["lucro_estimado"], 2),
+                "Banca_Total_R$": round(banca_total, 2)
             }
             report_rows.append(row)
             

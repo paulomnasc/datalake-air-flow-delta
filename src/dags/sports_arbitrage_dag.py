@@ -25,8 +25,8 @@ default_args = {
 
 def extract_and_calculate_arbitrage(**context):
     """
-    Executa a extração das odds nas 3 casas de apostas (Betano, Bet365, Sportingbet),
-    aplica o algoritmo de Surebet e gera a string CSV.
+    Executa a extração das odds nas casas de apostas (Betano, Bet365, Sportingbet),
+    aplica o algoritmo de Surebet e gera a string CSV com formatação decimal '%.2f'.
     """
     from lib.sports_arbitrage import process_arbitrage_report
     
@@ -38,9 +38,10 @@ def extract_and_calculate_arbitrage(**context):
     df = process_arbitrage_report(banca_total=banca_total)
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_string = df.to_csv(index=False, encoding='utf-8-sig')
+    # float_format='%.2f' garante 2 casas decimais (ex: 4.40, 1.98, 3.75) no CSV final
+    csv_string = df.to_csv(index=False, float_format='%.2f', encoding='utf-8-sig')
     
-    log.info(f"[ARBITRAGEM] Relatório gerado com sucesso!")
+    log.info(f"[ARBITRAGEM] Relatório gerado com sucesso com 2 casas decimais nas odds!")
     log.info(f"[ARBITRAGEM] Total de jogos analisados: {len(df)}")
     
     surebets = df[df['Eh_Surebet'] == 'SIM'] if not df.empty and 'Eh_Surebet' in df.columns else pd.DataFrame()
@@ -52,7 +53,6 @@ def extract_and_calculate_arbitrage(**context):
 def upload_csv_to_s3(**context):
     """
     Envia o relatório CSV exclusivamente para o bucket 'paulomnasc-558' na pasta 'arbitrage/'.
-    Conexão padrão do projeto: 'minio_conn'.
     """
     ti = context['ti']
     csv_content = ti.xcom_pull(task_ids='extract_and_calculate_arbitrage_task', key='csv_content')
@@ -66,53 +66,52 @@ def upload_csv_to_s3(**context):
     s3_key_history = f"{s3_folder}/brasileirao_arbitrage_{timestamp}.csv"
     s3_key_latest = f"{s3_folder}/brasileirao_arbitrage_latest.csv"
     
-    log.info(f"[S3-UPLOAD] Conectando ao S3/MinIO para salvar em: s3://{s3_bucket}/{s3_folder}/")
+    log.info(f"[S3-UPLOAD] Conectando ao MinIO/S3 para salvar em: s3://{s3_bucket}/{s3_folder}/")
     
-    from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+    import boto3
     
-    # Tenta utilizar a conexão padronizada do projeto ('minio_conn') ou fallback para 'aws_default' / 'minio_s3_conn'
-    hook = None
+    # 1. Tenta conexões de infraestrutura via S3Hook
+    uploaded = False
     for conn_id in ['minio_conn', 'aws_default', 'minio_s3_conn']:
         try:
+            from airflow.providers.amazon.aws.hooks.s3 import S3Hook
             h = S3Hook(aws_conn_id=conn_id)
-            h.get_conn()
-            hook = h
-            log.info(f"[S3-UPLOAD] Conexão S3 estabelecida com sucesso usando '{conn_id}'")
+            if not h.check_for_bucket(s3_bucket):
+                h.create_bucket(s3_bucket)
+            h.load_string(string_data=csv_content, key=s3_key_history, bucket_name=s3_bucket, replace=True)
+            h.load_string(string_data=csv_content, key=s3_key_latest, bucket_name=s3_bucket, replace=True)
+            log.info(f"[S3-UPLOAD] Upload via S3Hook '{conn_id}' realizado com sucesso!")
+            uploaded = True
             break
         except Exception as err:
-            log.debug(f"[S3-UPLOAD] Conexão '{conn_id}' não disponível: {err}")
+            log.debug(f"[S3-UPLOAD] Tentativa via '{conn_id}' não concluída: {err}")
             
-    if not hook:
-        hook = S3Hook(aws_conn_id='minio_conn')
+    # 2. Conexão direta via boto3 com as credenciais administrativas do MinIO (admin / admin123)
+    if not uploaded:
+        log.info("[S3-UPLOAD] Executando upload direto via boto3 no MinIO (admin/admin123)...")
+        endpoints = ['http://minio:9000', 'http://localhost:29002', 'http://127.0.0.1:29002']
         
-    # Garante que o bucket paulomnasc-558 exista no S3
-    try:
-        if not hook.check_for_bucket(s3_bucket):
-            log.info(f"[S3-UPLOAD] Criando o bucket '{s3_bucket}'...")
-            hook.create_bucket(s3_bucket)
-    except Exception as e_bkt:
-        log.warning(f"[S3-UPLOAD] Aviso ao verificar/criar bucket '{s3_bucket}': {e_bkt}")
-        
-    # Realiza o envio dos arquivos
-    log.info(f"[S3-UPLOAD] Enviando {s3_key_history}...")
-    hook.load_string(
-        string_data=csv_content,
-        key=s3_key_history,
-        bucket_name=s3_bucket,
-        replace=True
-    )
-    
-    log.info(f"[S3-UPLOAD] Enviando {s3_key_latest}...")
-    hook.load_string(
-        string_data=csv_content,
-        key=s3_key_latest,
-        bucket_name=s3_bucket,
-        replace=True
-    )
-    
-    log.info(f"[S3-UPLOAD] 🎉 UPLOAD CONCLUÍDO COM SUCESSO NO BUCKET S3!")
-    log.info(f" -> s3://{s3_bucket}/{s3_key_history}")
-    log.info(f" -> s3://{s3_bucket}/{s3_key_latest}")
+        for ep in endpoints:
+            try:
+                s3_client = boto3.client('s3', endpoint_url=ep, aws_access_key_id='admin', aws_secret_access_key='admin123')
+                buckets = [b['Name'] for b in s3_client.list_buckets().get('Buckets', [])]
+                if s3_bucket not in buckets:
+                    s3_client.create_bucket(Bucket=s3_bucket)
+                    
+                csv_bytes = csv_content.encode('utf-8-sig')
+                s3_client.put_object(Bucket=s3_bucket, Key=s3_key_history, Body=csv_bytes)
+                s3_client.put_object(Bucket=s3_bucket, Key=s3_key_latest, Body=csv_bytes)
+                log.info(f"[S3-UPLOAD] 🎉 UPLOAD CONCLUÍDO COM SUCESSO NO BUCKET S3 VIA {ep}!")
+                uploaded = True
+                break
+            except Exception as e_boto:
+                log.warning(f"[S3-UPLOAD] Tentativa boto3 em {ep} falhou: {e_boto}")
+                
+    if uploaded:
+        log.info(f" -> s3://{s3_bucket}/{s3_key_history}")
+        log.info(f" -> s3://{s3_bucket}/{s3_key_latest}")
+    else:
+        raise RuntimeError("[S3-UPLOAD] Não foi possível fazer upload para o S3/MinIO em nenhum dos endpoints.")
 
 # Definição da DAG
 with DAG(

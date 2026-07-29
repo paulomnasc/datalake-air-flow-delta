@@ -11,6 +11,11 @@ import os
 import logging
 import pandas as pd
 
+import io
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 log = logging.getLogger(__name__)
 
 # Argumentos Padrão da DAG
@@ -164,12 +169,177 @@ def upload_csv_to_s3(**context):
     else:
         raise RuntimeError("[S3-UPLOAD] Não foi possível fazer upload para o S3/MinIO em nenhum dos endpoints.")
 
+def send_arbitrage_email(**context):
+    """
+    Envia e-mail de notificação a cada execução informando se há Surebet no CSV.
+    Se sim, inclui a tabela com os detalhes da oportunidade de arbitragem.
+    """
+    ti = context['ti']
+    csv_content = ti.xcom_pull(task_ids='extract_and_calculate_arbitrage_task', key='csv_content')
+    
+    if not csv_content:
+        log.warning("[EMAIL-ARBITRAGEM] Nenhum CSV encontrado para processamento de e-mail.")
+        return
+
+    try:
+        df = pd.read_csv(io.StringIO(csv_content))
+    except Exception as e:
+        log.error(f"[EMAIL-ARBITRAGEM] Erro ao ler CSV: {e}")
+        return
+
+    surebets_df = df[df['Eh_Surebet'] == 'SIM'] if not df.empty and 'Eh_Surebet' in df.columns else pd.DataFrame()
+    tem_surebet = not surebets_df.empty
+    total_jogos = len(df) if not df.empty else 0
+    total_surebets = len(surebets_df)
+    
+    agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    # Configuração de Destinatários e Assunto
+    to_email = "admin@estudotabela.com.br"
+    cc_email = "paulomnasc@gmail.com"
+    recipients = [to_email, cc_email]
+
+    if tem_surebet:
+        subject = f"🚨 [SUREBET ALERTA] {total_surebets} Oportunidade(s) Encontrada(s)! - {agora_str}"
+        status_banner_bg = "#d4edda"
+        status_banner_color = "#155724"
+        status_banner_border = "#c3e6cb"
+        status_text = f"<strong>SUREBET ENCONTRADA!</strong> {total_surebets} oportunidade(s) com lucro garantido sem risco."
+    else:
+        subject = f"ℹ️ [MyDataFlow Sports] Varredura de Arbitragem Concluída - {agora_str}"
+        status_banner_bg = "#e2e3e5"
+        status_banner_color = "#383d41"
+        status_banner_border = "#d6d8db"
+        status_text = "<strong>Varredura Concluída:</strong> Nenhum Surebet foi identificado nesta execução."
+
+    # Construção das linhas da tabela se houver Surebet
+    table_html = ""
+    if tem_surebet:
+        rows_html = ""
+        for _, row in surebets_df.iterrows():
+            camp = row.get('Campeonato', '-')
+            data_j = row.get('Data_Jogo', '-')
+            tc = row.get('Time_Casa', '-')
+            tv = row.get('Time_Visitante', '-')
+            
+            c1 = row.get('Casa_Odd_1', '-')
+            o1 = row.get('Odd_1', '-')
+            s1 = row.get('Stake_Odd_1_R$', '-')
+
+            cx = row.get('Casa_Odd_X', '-')
+            ox = row.get('Odd_X', '-')
+            sx = row.get('Stake_Odd_X_R$', '-')
+
+            c2 = row.get('Casa_Odd_2', '-')
+            o2 = row.get('Odd_2', '-')
+            s2 = row.get('Stake_Odd_2_R$', '-')
+
+            lucro_pct = row.get('Lucro_Percentual_%', '-')
+            lucro_rs = row.get('Lucro_Estimado_R$', '-')
+            banca = row.get('Banca_Total_R$', '-')
+
+            rows_html += f"""
+            <tr style="border-bottom: 1px solid #e0e0e0;">
+                <td style="padding: 10px; font-size: 13px; font-weight: bold; color: #0056b3;">{camp}<br><span style="color: #666; font-weight: normal;">{data_j}</span></td>
+                <td style="padding: 10px; font-size: 13px; font-weight: bold;">{tc} <span style="color: #888;">vs</span> {tv}</td>
+                <td style="padding: 10px; font-size: 12px; background-color: #f8f9fa;">
+                    <strong>1 ({tc}):</strong> {c1} @ <strong>{o1}</strong> (Apostar: R$ {s1})<br>
+                    <strong>X (Empate):</strong> {cx} @ <strong>{ox}</strong> (Apostar: R$ {sx})<br>
+                    <strong>2 ({tv}):</strong> {c2} @ <strong>{o2}</strong> (Apostar: R$ {s2})
+                </td>
+                <td style="padding: 10px; font-size: 13px; color: #28a745; font-weight: bold; text-align: center;">+{lucro_pct}%</td>
+                <td style="padding: 10px; font-size: 13px; color: #28a745; font-weight: bold; text-align: center;">R$ {lucro_rs}</td>
+                <td style="padding: 10px; font-size: 12px; text-align: center; color: #555;">R$ {banca}</td>
+            </tr>
+            """
+
+        table_html = f"""
+        <div style="margin-top: 20px; overflow-x: auto;">
+            <h3 style="color: #155724; margin-bottom: 10px;">📋 Oportunidades Detalhadas</h3>
+            <table style="width: 100%; border-collapse: collapse; background-color: #ffffff; border: 1px solid #dee2e6; font-family: Arial, sans-serif;">
+                <thead>
+                    <tr style="background-color: #0056b3; color: #ffffff; text-align: left; font-size: 13px;">
+                        <th style="padding: 10px;">Campeonato / Data</th>
+                        <th style="padding: 10px;">Partida</th>
+                        <th style="padding: 10px;">Casas, Odds & Stakes (R$)</th>
+                        <th style="padding: 10px; text-align: center;">Lucro %</th>
+                        <th style="padding: 10px; text-align: center;">Lucro Est.</th>
+                        <th style="padding: 10px; text-align: center;">Banca Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                </tbody>
+            </table>
+        </div>
+        """
+
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333; max-width: 800px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <img src="https://myflow.estudotabela.com.br:28443/assets/img/carcara-logo.png" alt="MyDataFlow Logo" style="max-height: 70px; width: auto;">
+            <h2 style="color: #0056b3; margin: 10px 0 0 0;">MyDataFlow - Sports Arbitrage</h2>
+        </div>
+        
+        <div style="background-color: {status_banner_bg}; color: {status_banner_color}; border: 1px solid {status_banner_border}; padding: 15px; border-radius: 6px; margin-bottom: 20px; font-size: 15px;">
+            {status_text}
+        </div>
+
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #0056b3; font-size: 13px; margin-bottom: 20px;">
+            <strong>Data da Execução:</strong> {agora_str}<br>
+            <strong>Total de Partidas Analisadas:</strong> {total_jogos}<br>
+            <strong>Surebets Encontradas:</strong> {total_surebets}
+        </div>
+
+        {table_html}
+
+        <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #eeeeee; font-size: 12px; color: #777777; text-align: center;">
+            Este e-mail foi gerado automaticamente pelo pipeline do Airflow (<code>sports_arbitrage_dag</code>).<br>
+            <strong>MyDataFlow Platform</strong> &bull; <a href="https://myflow.estudotabela.com.br:28443" style="color: #0056b3; text-decoration: none;">Acessar Painel</a>
+        </div>
+      </body>
+    </html>
+    """
+
+    # Obter credenciais SMTP do .env / ambiente
+    env = get_live_env_vars()
+    smtp_host = env.get("SMTP_HOST") or os.environ.get("SMTP_HOST", "smtp-relay.brevo.com")
+    smtp_port = int(env.get("SMTP_PORT") or os.environ.get("SMTP_PORT", 587))
+    smtp_user = env.get("SMTP_USER") or os.environ.get("SMTP_USER", "")
+    smtp_pass = env.get("SMTP_PASSWORD") or os.environ.get("SMTP_PASSWORD", "")
+    smtp_from = env.get("SMTP_FROM_EMAIL") or os.environ.get("SMTP_FROM_EMAIL", "admin@estudotabela.com.br")
+    smtp_from_name = env.get("SMTP_FROM_NAME") or os.environ.get("SMTP_FROM_NAME", "MyDataFlow Arbitrage")
+
+    log.info(f"[EMAIL-ARBITRAGEM] Preparando envio de e-mail SMTP via {smtp_host}:{smtp_port} para {to_email} (CC: {cc_email})...")
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"{smtp_from_name} <{smtp_from}>"
+    msg["To"] = to_email
+    msg["Cc"] = cc_email
+
+    msg.attach(MIMEText(html_content, "html", "utf-8"))
+
+    try:
+        smtp_client = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+        smtp_client.starttls()
+        if smtp_user and smtp_pass:
+            smtp_client.login(smtp_user, smtp_pass)
+
+        smtp_client.sendmail(smtp_from, recipients, msg.as_string())
+        smtp_client.quit()
+        log.info(f"[EMAIL-ARBITRAGEM] E-mail enviado com sucesso para {recipients}!")
+    except Exception as err:
+        log.error(f"[EMAIL-ARBITRAGEM] Falha ao enviar e-mail via SMTP: {err}")
+        raise
+
 # Definição da DAG
 with DAG(
     'sports_arbitrage_dag',
     default_args=default_args,
     description='Scraping e Cálculo de Arbitragem (Surebets) para o Brasileirão Série A/B com suporte a casas personalizadas (Betnacional, Bet365, Betano, etc.)',
-    schedule_interval='*/15 * * * *',
+    schedule_interval='*/30 12-23 * * *',
     catchup=False,
     max_active_runs=1,
     params={
@@ -192,4 +362,11 @@ with DAG(
         provide_context=True,
     )
 
-    task_extract_calculate >> task_upload_s3
+    task_send_email = PythonOperator(
+        task_id='send_arbitrage_email_task',
+        python_callable=send_arbitrage_email,
+        provide_context=True,
+    )
+
+    task_extract_calculate >> task_upload_s3 >> task_send_email
+

@@ -151,43 +151,43 @@ def main():
         
     # Ligas permitidas para o MVP (inclui ligas europeias e ligas ativas no verão global)
     ALLOWED_LEAGUES = {
-        71: "Série A (Brasil)",
-        72: "Série B (Brasil)",
+        71: "Serie A (Brasil)",
+        72: "Serie B (Brasil)",
         39: "Premier League (Inglaterra)",
         140: "La Liga (Espanha)",
-        135: "Serie A (Itália)",
+        135: "Serie A (Italia)",
         78: "Bundesliga (Alemanha)",
         2: "Champions League (Europa)",
-        13: "Copa Libertadores (América do Sul)",
+        13: "Copa Libertadores (America do Sul)",
         73: "Copa do Brasil (Brasil)",
         3: "Europa League (Europa)",
-        11: "Copa Sudamericana (América do Sul)",
+        11: "Copa Sudamericana (America do Sul)",
         253: "Major League Soccer (EUA)",
-        262: "Liga MX (México)",
-        113: "Allsvenskan (Suécia)",
+        262: "Liga MX (Mexico)",
+        113: "Allsvenskan (Suecia)",
         103: "Eliteserien (Noruega)",
         94: "Primeira Liga (Portugal)",
-        61: "Ligue 1 (França)",
+        61: "Ligue 1 (Franca)",
         88: "Eredivisie (Holanda)",
-        128: "Primera División (Argentina)",
-        98: "J1 League (Japão)",
+        128: "Primera Division (Argentina)",
+        98: "J1 League (Japao)",
         292: "K League 1 (Coreia do Sul)",
-        283: "Liga I (Romênia)",
-        286: "Super Liga (Sérvia)",
-        244: "Veikkausliiga (Finlândia)",
-        281: "Primera División (Peru)",
+        283: "Liga I (Romenia)",
+        286: "Super Liga (Servia)",
+        244: "Veikkausliiga (Finlandia)",
+        281: "Primera Division (Peru)",
         242: "Liga Pro (Equador)",
-        268: "Primera División (Uruguai)",
-        265: "Primera División (Chile)",
-        239: "Primera División (Colômbia)",
+        268: "Primera Division (Uruguai)",
+        265: "Primera Division (Chile)",
+        239: "Primera Division (Colombia)",
         169: "Super League (China)",
-        307: "Saudi Pro League (Arábia Saudita)",
-        203: "Süper Lig (Turquia)",
-        207: "Super League (Suíça)",
-        144: "Pro League (Bélgica)",
+        307: "Saudi Pro League (Arabia Saudita)",
+        203: "Super Lig (Turquia)",
+        207: "Super League (Suica)",
+        144: "Pro League (Belgica)",
         119: "Superliga (Dinamarca)",
-        218: "Bundesliga (Áustria)",
-        197: "Super League (Grécia)",
+        218: "Bundesliga (Austria)",
+        197: "Super League (Grecia)",
         1: "Copa do Mundo (Mundo)"
     }
 
@@ -233,6 +233,15 @@ def main():
             league_name = f["league"]["name"]
             home_team = f["teams"]["home"]["name"]
             away_team = f["teams"]["away"]["name"]
+
+            # Sanitização: Corrigir atribuição de liga se a API enviar times da Série B sob Série A (league 71)
+            SERIE_B_TEAMS = {"mirassol", "remo", "botafogo sp", "operario", "vila nova", "crb", "ituano", "novorizontino", "brusque", "amazonas", "paysandu"}
+            if league_id == 71 and (home_team.lower() in SERIE_B_TEAMS or away_team.lower() in SERIE_B_TEAMS):
+                SERIE_A_GIANTS = {"flamengo", "palmeiras", "sao paulo", "corinthians", "santos", "gremio", "internacional", "atletico-mg", "fluminense", "botafogo", "vasco da gama", "bahia", "cruzeiro"}
+                if home_team.lower() not in SERIE_A_GIANTS and away_team.lower() not in SERIE_A_GIANTS:
+                    league_id = 72
+                    league_name = "Serie B"
+
             home_team_id = f["teams"]["home"]["id"]
             away_team_id = f["teams"]["away"]["id"]
             referee_raw = f["fixture"].get("referee")

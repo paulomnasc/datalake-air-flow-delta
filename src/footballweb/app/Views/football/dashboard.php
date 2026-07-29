@@ -504,6 +504,15 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         font-weight: 700;
     }
 
+    .bet-elapsed-time.pst {
+        color: #f59e0b;
+        font-weight: 800;
+        background: rgba(245, 158, 11, 0.15);
+        padding: 2px 8px;
+        border-radius: 6px;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
     .bet-team-score {
         margin-left: auto;
         font-weight: 800;
@@ -1361,15 +1370,16 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                     $today = date('Y-m-d');
                                     $tomorrow = date('Y-m-d', strtotime('+1 day'));
                                     $showFinishedQuery = $showFinished ? '&show_finished=1' : '';
+                                    $showPostponedQuery = !empty($showPostponed) ? '&show_postponed=1' : '';
                                     $searchQuery = !empty($search) ? '&search=' . urlencode($search) : '';
                                     ?>
-                                    <a href="?date=<?= $yesterday ?><?= $showFinishedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $yesterday ? 'active' : '' ?>">
+                                    <a href="?date=<?= $yesterday ?><?= $showFinishedQuery ?><?= $showPostponedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $yesterday ? 'active' : '' ?>">
                                         <i class="bi bi-chevron-left"></i> <?= lang('App.yesterday') ?>
                                     </a>
-                                    <a href="?date=<?= $today ?><?= $showFinishedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $today ? 'active' : '' ?>">
+                                    <a href="?date=<?= $today ?><?= $showFinishedQuery ?><?= $showPostponedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $today ? 'active' : '' ?>">
                                         <?= lang('App.today') ?>
                                     </a>
-                                    <a href="?date=<?= $tomorrow ?><?= $showFinishedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $tomorrow ? 'active' : '' ?>">
+                                    <a href="?date=<?= $tomorrow ?><?= $showFinishedQuery ?><?= $showPostponedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $tomorrow ? 'active' : '' ?>">
                                         <?= lang('App.tomorrow') ?> <i class="bi bi-chevron-right"></i>
                                     </a>
                                     <div class="position-relative d-inline-block">
@@ -1378,29 +1388,39 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                 </div>
                             </div>
                             
-                            <!-- Toggle switch column in between -->
-                            <div class="col-lg-3 col-md-6 d-flex align-items-center justify-content-lg-center">
+                            <!-- Toggle switches column -->
+                            <div class="col-lg-4 col-md-6 d-flex align-items-center justify-content-lg-center gap-3 flex-wrap">
                                 <div class="d-flex align-items-center gap-2">
-                                    <span class="bet-toggle-label" style="font-size: 0.9rem; color: #aeb9c4; font-weight: 600;"><?= lang('App.show_finished_games') ?></span>
+                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #aeb9c4; font-weight: 600;"><?= lang('App.show_finished_games') ?></span>
                                     <label class="bet-switch">
                                         <input type="checkbox" name="show_finished" value="1" <?= $showFinished ? 'checked' : '' ?> onchange="document.getElementById('filterForm').submit()">
                                         <span class="bet-slider round"></span>
                                     </label>
-                                    <span class="bet-toggle-status" style="font-size: 0.9rem; font-weight: 700; color: <?= $showFinished ? '#f47c20' : '#8a99a8' ?>;">
+                                    <span class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= $showFinished ? '#f47c20' : '#8a99a8' ?>;">
                                         <?= $showFinished ? lang('App.yes') : lang('App.no') ?>
+                                    </span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #aeb9c4; font-weight: 600;">Exibir Adiados (PST)</span>
+                                    <label class="bet-switch">
+                                        <input type="checkbox" name="show_postponed" value="1" <?= !empty($showPostponed) ? 'checked' : '' ?> onchange="document.getElementById('filterForm').submit()">
+                                        <span class="bet-slider round"></span>
+                                    </label>
+                                    <span class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($showPostponed) ? '#f59e0b' : '#8a99a8' ?>;">
+                                        <?= !empty($showPostponed) ? 'Sim' : 'Não' ?>
                                     </span>
                                 </div>
                             </div>
                             
                             <!-- Search column -->
-                            <div class="col-lg-4 col-md-6">
+                            <div class="col-lg-3 col-md-6">
                                 <div class="d-flex gap-2">
                                     <div class="position-relative flex-grow-1">
                                         <i class="bi bi-search bet-search-icon"></i>
                                         <input type="text" name="search" class="bet-search-input" placeholder="<?= lang('App.search_placeholder') ?>" value="<?= htmlspecialchars($search ?? '') ?>">
                                     </div>
                                     <button type="submit" class="btn btn-secondary rounded-3 px-3"><?= lang('App.filter') ?></button>
-                                    <?php if(!empty($search) || $showFinished): ?>
+                                    <?php if(!empty($search) || $showFinished || !empty($showPostponed)): ?>
                                         <a href="?date=<?= $targetDate ?>" class="btn btn-outline-danger d-flex align-items-center justify-content-center px-3" style="border-radius: 8px;"><?= lang('App.clear') ?></a>
                                     <?php endif; ?>
                                 </div>
@@ -1460,7 +1480,10 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                 $finishedStatuses = ['FT', 'AET', 'PEN', '120', '90'];
                                 $statusClean = strtoupper($fix->status);
                                 
-                                if (in_array($statusClean, $finishedStatuses)) {
+                                if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {
+                                    $elapsedText = 'ADIADO';
+                                    $elapsedClass = 'pst';
+                                } elseif (in_array($statusClean, $finishedStatuses)) {
                                     $elapsedText = lang('App.finished');
                                 } elseif ($statusClean === 'HT') {
                                     $elapsedText = lang('App.halftime');
@@ -1484,7 +1507,10 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                             $isCardLocked = $requiresCredits && (!$userLoggedIn || !$isGoogleUser || $userGrokCredits <= 0);
                             
                              $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']);
-                             if ($isLiveMatch) {
+                             if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {
+                                 $elapsedClass = 'pst';
+                                 $elapsedDisplay = '⚠️ ADIADO';
+                             } elseif ($isLiveMatch) {
                                  $elapsedClass = 'live';
                                  $minDisplay = !empty($fix->elapsed) ? $fix->elapsed . "'" : $elapsedText;
                                  $elapsedDisplay = '<span class="live-pulse-dot"></span> ' . $minDisplay;

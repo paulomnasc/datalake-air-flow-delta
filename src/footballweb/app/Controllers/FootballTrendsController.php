@@ -74,6 +74,10 @@ class FootballTrendsController extends BaseController
             $showFinished = ($showFinishedParam === '1' || $showFinishedParam === 'true' || $showFinishedParam === 'sim');
         }
 
+        // Filtro para mostrar ou ocultar jogos adiados (PST) - Padrão: Não (false)
+        $showPostponedParam = $this->request->getVar('show_postponed');
+        $showPostponed = ($showPostponedParam === '1' || $showPostponedParam === 'true' || $showPostponedParam === 'sim');
+
         // Conecta ao banco para realizar a query com join
         $db = \Config\Database::connect();
         $builder = $db->table('fixtures_trends ft');
@@ -91,6 +95,11 @@ class FootballTrendsController extends BaseController
                 ->whereNotIn('ft.status', ['FT', 'AET', 'PEN', '120', '90'])
                 ->where('DATE_ADD(ft.fixture_date, INTERVAL 120 MINUTE) >= UTC_TIMESTAMP()')
             ->groupEnd();
+        }
+
+        // Se showPostponed for falso (default: Não), exclui jogos com status PST / CANCELLED / POSTPONED
+        if (!$showPostponed) {
+            $builder->whereNotIn('ft.status', ['PST', 'CANCELLED', 'POSTPONED']);
         }
 
         if (!empty($search)) {
@@ -118,14 +127,15 @@ class FootballTrendsController extends BaseController
 
         // Prepara dados para a view
         $data = [
-            'targetDate'   => $targetDate,
-            'userTimezone' => $userTimezone,
-            'search'       => $search,
-            'showFinished' => $showFinished,
-            'fixtures'     => $fixtures,
-            'leagues'      => $leagues,
-            'title'        => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
-            'metaTags'     => $seo->generateMetaTags()
+            'targetDate'    => $targetDate,
+            'userTimezone'  => $userTimezone,
+            'search'        => $search,
+            'showFinished'  => $showFinished,
+            'showPostponed' => $showPostponed,
+            'fixtures'      => $fixtures,
+            'leagues'       => $leagues,
+            'title'         => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
+            'metaTags'      => $seo->generateMetaTags()
         ];
 
         return $this->loadView('football/dashboard', $data);

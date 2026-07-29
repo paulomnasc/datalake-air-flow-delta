@@ -15,7 +15,8 @@ from datetime import datetime, timezone, timedelta
 log = logging.getLogger(__name__)
 
 # Chave Padrão The Odds API fornecida pelo usuário
-DEFAULT_ODDS_API_KEY = "d2f79607e3832b1f4b3003c14da3d70f"
+DEFAULT_ODDS_API_KEY = "19034934454fd9bd0a06735a67cd8f1b"
+
 
 # Mapeamento e Normalização de Nomes de Times do Brasileirão
 TEAM_ALIASES = {
@@ -146,18 +147,69 @@ def calculate_surebet(odd_casa: float, odd_empate: float, odd_visitante: float, 
 
 def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None):
     """
-    Busca odds AO VIVO das casas de apostas para o Brasileirão Série A e Série B via The Odds API.
+    Busca odds AO VIVO das casas de apostas para todas as ligas de futebol ativas (Brasileirão A/B, Libertadores, Champions, Europeias e Américas) via The Odds API.
     """
-    sports_to_fetch = [
-        ("soccer_brazil_campeonato", "Brasileirão Série A"),
-        ("soccer_brazil_serie_b", "Brasileirão Série B")
+    # Lista das principais ligas globais priorizadas para não estourar a cota da API
+    priority_keys = [
+        "soccer_brazil_campeonato",
+        "soccer_brazil_serie_b",
+        "soccer_conmebol_copa_libertadores",
+        "soccer_conmebol_copa_sudamericana",
+        "soccer_epl",
+        "soccer_spain_la_liga",
+        "soccer_italy_serie_a",
+        "soccer_germany_bundesliga",
+        "soccer_france_ligue_one",
+        "soccer_portugal_primeira_liga",
+        "soccer_netherlands_eredivisie",
+        "soccer_uefa_champs_league_qualification",
+        "soccer_argentina_primera_division",
+        "soccer_usa_mls",
+        "soccer_mexico_ligamx"
     ]
     
+    sports_to_fetch = []
+    
+    # 1. Tenta buscar dinamicamente ligas ativas priorizando as principais competições
+    try:
+        sports_url = f"https://api.the-odds-api.com/v4/sports/?apiKey={api_key}"
+        req_sports = urllib.request.Request(sports_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req_sports, timeout=10) as resp_s:
+            all_sports = json.loads(resp_s.read().decode('utf-8'))
+            active_map = {s['key']: s.get('title', s['key']) for s in all_sports if s.get('group') == 'Soccer' and s.get('active', True)}
+            
+            # Adiciona primeiro as ligas prioritárias que estão ativas
+            for pkey in priority_keys:
+                if pkey in active_map:
+                    sports_to_fetch.append((pkey, active_map[pkey]))
+                    
+            # Adiciona demais ligas ativas se houver espaço
+            for skey, stitle in active_map.items():
+                if skey not in priority_keys:
+                    sports_to_fetch.append((skey, stitle))
+    except Exception as e_sports:
+        log.warning(f"[LIVE-ODDS] Não foi possível obter lista dinâmica de ligas: {e_sports}. Usando lista expandida padrão.")
+        
+    if not sports_to_fetch:
+        sports_to_fetch = [
+            ("soccer_brazil_campeonato", "Brasileirão Série A"),
+            ("soccer_brazil_serie_b", "Brasileirão Série B"),
+            ("soccer_conmebol_copa_libertadores", "Copa Libertadores"),
+            ("soccer_conmebol_copa_sudamericana", "Copa Sudamericana")
+        ]
+        
+    # Limita o número de ligas consultadas por execução para economizar cota da API (padrão: 3 ligas por rodada)
+    max_leagues = int(os.environ.get('ARBITRAGE_MAX_LEAGUES', '3'))
+    sports_to_fetch = sports_to_fetch[:max_leagues]
+    
     parsed_matches = []
+
+
     
     for sport_key, league_name in sports_to_fetch:
         log.info(f"[LIVE-ODDS] Buscando partidas ao vivo de {league_name} ({sport_key})...")
         url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}&regions=us,us2,uk,eu,au&markets=h2h"
+
         
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -216,10 +268,16 @@ def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None):
                             "data_jogo": date_str,
                             "odds": odds_dict
                         })
+        except urllib.error.HTTPError as e_http:
+            log.error(f"[LIVE-ODDS] Erro HTTP {e_http.code} ao consultar {sport_key}: {e_http}")
+            if e_http.code in (401, 429):
+                log.warning("[LIVE-ODDS] Limite de cota ou autenticação atingido na API. Interrompendo chamadas nesta rodada.")
+                break
         except Exception as e:
             log.error(f"[LIVE-ODDS] Erro ao consultar {sport_key}: {e}")
             
     return parsed_matches
+
 
 def fetch_bookmaker_odds(casas_permitidas: list = None):
     """
@@ -375,8 +433,17 @@ def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = 
             }
             report_rows.append(row)
             
-    df = pd.DataFrame(report_rows)
+    cols = [
+        "Campeonato", "Data_Jogo", "Time_Casa", "Time_Visitante",
+        "Casa_Odd_1", "Odd_1", "Stake_Odd_1_R$",
+        "Casa_Odd_X", "Odd_X", "Stake_Odd_X_R$",
+        "Casa_Odd_2", "Odd_2", "Stake_Odd_2_R$",
+        "Indice_Arbitragem", "Eh_Surebet", "Lucro_Percentual_%",
+        "Lucro_Estimado_R$", "Banca_Total_R$"
+    ]
+    df = pd.DataFrame(report_rows, columns=cols)
     if not df.empty and "Lucro_Percentual_%" in df.columns:
         df = df.sort_values(by="Lucro_Percentual_%", ascending=False)
     return df
+
 

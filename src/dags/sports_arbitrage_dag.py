@@ -59,7 +59,8 @@ def extract_and_calculate_arbitrage(**context):
     
     # 1. Recupera valor padrão das variáveis de ambiente (do .env ou container)
     env_banca = file_env.get('ARBITRAGE_BANCA_TOTAL') or os.environ.get('ARBITRAGE_BANCA_TOTAL', '1000.0')
-    env_casas = file_env.get('ARBITRAGE_CASAS_USUARIO') or os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle")
+    env_casas = file_env.get('ARBITRAGE_CASAS_USUARIO') or os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, 1xBet, Pinnacle, Betsson")
+    env_apenas = file_env.get('ARBITRAGE_APENAS_CASAS_USUARIO') or os.environ.get('ARBITRAGE_APENAS_CASAS_USUARIO', 'true')
     
     try:
         default_banca_val = float(env_banca)
@@ -73,7 +74,11 @@ def extract_and_calculate_arbitrage(**context):
         banca_total = default_banca_val
 
     casas_usuario = params.get('casas_usuario', env_casas)
-    apenas_casas_usuario = bool(params.get('apenas_casas_usuario', True))
+    apenas_casas_param = params.get('apenas_casas_usuario')
+    if apenas_casas_param is not None:
+        apenas_casas_usuario = bool(apenas_casas_param)
+    else:
+        apenas_casas_usuario = (str(env_apenas).lower() == 'true')
     
     log.info(f"[ARBITRAGEM] Iniciando extração com banca R$ {banca_total} | Casas: {casas_usuario} | Apenas Casas Usuário: {apenas_casas_usuario}")
     
@@ -164,12 +169,12 @@ with DAG(
     'sports_arbitrage_dag',
     default_args=default_args,
     description='Scraping e Cálculo de Arbitragem (Surebets) para o Brasileirão Série A/B com suporte a casas personalizadas (Betnacional, Bet365, Betano, etc.)',
-    schedule_interval='0 */2 * * *',
+    schedule_interval='*/15 * * * *',
     catchup=False,
     max_active_runs=1,
     params={
         'banca_total': float(os.environ.get('ARBITRAGE_BANCA_TOTAL', 1000.0)),
-        'casas_usuario': os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle"),
+        'casas_usuario': os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, 1xBet, Pinnacle, Betsson"),
         'apenas_casas_usuario': True,
     },
     tags=['sports', 'arbitrage', 'surebet', 'brasileirao', 's3', 'paulomnasc-558']

@@ -52,8 +52,9 @@ Ao executar a DAG `sports_arbitrage_dag` manualmente ou agendada no Airflow, é 
 | Parâmetro | Tipo | Valor Padrão | Descrição |
 | :--- | :---: | :---: | :--- |
 | **`banca_total`** | Float | `1000.0` | Valor total da banca em R\$ a ser distribuído entre as apostas. |
-| **`casas_usuario`** | String / Lista | `"Betnacional, Bet365, Betano, Sportingbet"` | Lista de casas de apostas ativas em que você possui conta. |
-| **`apenas_casas_usuario`** | Booleano | `True` | Se `True`, filtra as *Surebets* calculando o melhor retorno **exclusivamente entre as casas especificadas em `casas_usuario`**. |
+| **`casas_usuario`** | String / Lista | Lista expandida | Lista de casas de apostas ativas (Betnacional, Bet365, Betano, Betfair, Pinnacle, Matchbook, Smarkets, etc.). |
+| **`apenas_casas_usuario`** | Booleano | `False` | Se `True`, restringe o cálculo exclusivamente às casas listadas em `casas_usuario`. Quando `False` (padrão), analisa todas as casas e exchanges globais disponíveis para maximizar Surebets. |
+
 
 ---
 

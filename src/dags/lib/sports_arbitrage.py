@@ -145,9 +145,10 @@ def calculate_surebet(odd_casa: float, odd_empate: float, odd_visitante: float, 
         "stake_visitante": round(stake_visitante, 2),
     }
 
-def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None):
+def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None, min_pre_match_minutes: int = 30):
     """
-    Busca odds AO VIVO das casas de apostas para todas as ligas de futebol ativas (Brasileirão A/B, Libertadores, Champions, Europeias e Américas) via The Odds API.
+    Busca odds das casas de apostas para todas as ligas de futebol ativas via The Odds API,
+    filtrando apenas partidas em PRÉ-JOGO que faltem no mínimo `min_pre_match_minutes` para iniciar.
     """
     # Lista das principais ligas globais priorizadas para não estourar a cota da API
     priority_keys = [
@@ -226,7 +227,16 @@ def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None):
                         dt = datetime.fromisoformat(commence_time.replace('Z', '+00:00'))
                         dt_brt = dt.astimezone(timezone(timedelta(hours=-3)))
                         date_str = dt_brt.strftime("%d/%m %H:%M")
-                    except Exception:
+                        
+                        # Filtro PRÉ-JOGO: Valida se faltam pelo menos `min_pre_match_minutes` para o jogo iniciar
+                        if min_pre_match_minutes > 0:
+                            now_utc = datetime.now(timezone.utc)
+                            minutes_until_start = (dt - now_utc).total_seconds() / 60.0
+                            if minutes_until_start < min_pre_match_minutes:
+                                log.info(f"[LIVE-ODDS] Ignorando partida '{home_team} vs {away_team}': começa em {minutes_until_start:.1f} min (mínimo exigido para PRÉ-JOGO: {min_pre_match_minutes} min).")
+                                continue
+                    except Exception as e_dt:
+                        log.warning(f"[LIVE-ODDS] Falha ao processar commence_time ({commence_time}): {e_dt}")
                         date_str = commence_time
                         
                     bookmakers = ev.get('bookmakers', [])
@@ -279,7 +289,7 @@ def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None):
     return parsed_matches
 
 
-def fetch_bookmaker_odds(casas_permitidas: list = None):
+def fetch_bookmaker_odds(casas_permitidas: list = None, min_pre_match_minutes: int = 30):
     """
     Recupera odds ao vivo da The Odds API e executa scrapers complementares (Betnacional, Bet365).
     Funde todas as odds por partida em um dicionário único por confronto.
@@ -293,7 +303,7 @@ def fetch_bookmaker_odds(casas_permitidas: list = None):
         except Exception:
             odds_api_key = DEFAULT_ODDS_API_KEY
             
-    live_data = fetch_live_odds_from_api(odds_api_key, casas_permitidas=casas_permitidas)
+    live_data = fetch_live_odds_from_api(odds_api_key, casas_permitidas=casas_permitidas, min_pre_match_minutes=min_pre_match_minutes)
     
     # Importa os scrapers customizados
     try:
@@ -331,8 +341,8 @@ def fetch_bookmaker_odds(casas_permitidas: list = None):
     log.warning("[ODDS] Nenhuma partida ou odds puderam ser recuperadas das fontes.")
     return []
 
-def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = None, apenas_casas_usuario: bool = False) -> pd.DataFrame:
-    """Processa todas as partidas ao vivo e calcula o relatório de arbitragem com formato decimal rigoroso (2 casas)."""
+def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = None, apenas_casas_usuario: bool = False, min_pre_match_minutes: int = 30) -> pd.DataFrame:
+    """Processa todas as partidas em pré-jogo (com antecedência mínima) e calcula o relatório de arbitragem."""
     
     casas_normalizadas_usuario = set()
     if casas_usuario:
@@ -341,7 +351,10 @@ def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = 
         for c in casas_usuario:
             casas_normalizadas_usuario.add(normalize_bookmaker_name(c))
             
-    games = fetch_bookmaker_odds(casas_permitidas=list(casas_normalizadas_usuario) if casas_normalizadas_usuario else None)
+    games = fetch_bookmaker_odds(
+        casas_permitidas=list(casas_normalizadas_usuario) if casas_normalizadas_usuario else None,
+        min_pre_match_minutes=min_pre_match_minutes
+    )
     report_rows = []
     
     for game in games:

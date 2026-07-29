@@ -78,19 +78,28 @@ def extract_and_calculate_arbitrage(**context):
     else:
         banca_total = default_banca_val
 
-    casas_usuario = params.get('casas_usuario', env_casas)
-    apenas_casas_param = params.get('apenas_casas_usuario')
-    if apenas_casas_param is not None:
-        apenas_casas_usuario = bool(apenas_casas_param)
+    env_min_pre_match = file_env.get('ARBITRAGE_MIN_PRE_MATCH_MINUTES') or os.environ.get('ARBITRAGE_MIN_PRE_MATCH_MINUTES', '30')
+    try:
+        default_min_pre_match = int(env_min_pre_match)
+    except ValueError:
+        default_min_pre_match = 30
+
+    min_pre_match_param = params.get('min_pre_match_minutes')
+    if min_pre_match_param is not None:
+        try:
+            min_pre_match_minutes = int(min_pre_match_param)
+        except ValueError:
+            min_pre_match_minutes = default_min_pre_match
     else:
-        apenas_casas_usuario = (str(env_apenas).lower() == 'true')
+        min_pre_match_minutes = default_min_pre_match
     
-    log.info(f"[ARBITRAGEM] Iniciando extração com banca R$ {banca_total} | Casas: {casas_usuario} | Apenas Casas Usuário: {apenas_casas_usuario}")
+    log.info(f"[ARBITRAGEM] Iniciando extração com banca R$ {banca_total} | Casas: {casas_usuario} | Apenas Casas Usuário: {apenas_casas_usuario} | Mín. Pré-Jogo: {min_pre_match_minutes} min")
     
     df = process_arbitrage_report(
         banca_total=banca_total,
         casas_usuario=casas_usuario,
-        apenas_casas_usuario=apenas_casas_usuario
+        apenas_casas_usuario=apenas_casas_usuario,
+        min_pre_match_minutes=min_pre_match_minutes
     )
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -288,6 +297,7 @@ def send_arbitrage_email(**context):
 
         <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #0056b3; font-size: 13px; margin-bottom: 20px;">
             <strong>Data da Execução:</strong> {agora_str}<br>
+            <strong>Filtro de Segurança:</strong> Apenas Pré-Jogo (mín. 30 min antes da partida)<br>
             <strong>Total de Partidas Analisadas:</strong> {total_jogos}<br>
             <strong>Surebets Encontradas:</strong> {total_surebets}
         </div>
@@ -346,6 +356,7 @@ with DAG(
         'banca_total': float(os.environ.get('ARBITRAGE_BANCA_TOTAL', 1000.0)),
         'casas_usuario': os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, 1xBet, Pinnacle, Betsson"),
         'apenas_casas_usuario': True,
+        'min_pre_match_minutes': int(os.environ.get('ARBITRAGE_MIN_PRE_MATCH_MINUTES', 30)),
     },
     tags=['sports', 'arbitrage', 'surebet', 'brasileirao', 's3', 'paulomnasc-558']
 ) as dag:

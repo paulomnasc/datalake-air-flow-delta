@@ -129,8 +129,8 @@ with DAG(
     max_active_runs=1,
     params={
         'banca_total': 1000.0,
-        'casas_usuario': "Betnacional, Bet365, Betano, Sportingbet",
-        'apenas_casas_usuario': True,
+        'casas_usuario': "Betnacional, Bet365, Betano, Sportingbet, Pinnacle, Betfair, 1xBet",
+        'apenas_casas_usuario': False,
     },
     tags=['sports', 'arbitrage', 'surebet', 'brasileirao', 's3', 'paulomnasc-558']
 ) as dag:

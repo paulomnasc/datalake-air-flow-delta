@@ -68,17 +68,21 @@ TEAM_ALIASES = {
 BOOKMAKER_ALIASES = {
     "BETNACIONAL": ["BETNACIONAL", "BETNACIONAL_BR", "BET NACIONAL", "BETNACIONAL BR"],
     "BET365": ["BET365", "BET365_EU", "BET 365", "BET365 UK", "BET365 BR"],
-    "BETANO": ["BETANO", "BETANO_BR", "STOIXIMAN", "BETANO BR", "BETANO EU"],
+    "BETANO": ["BETANO", "BETANO_BR", "STOIXIMAN", "BETANO BR", "BETANO EU", "BETANO (UK)", "BETANO UK"],
     "SPORTINGBET": ["SPORTINGBET", "SPORTINGBET_BR", "SPORTING BET", "SPORTINGBET BR"],
     "SUPERBET": ["SUPERBET", "SUPERBET_BR", "SUPER BET", "SUPERBET BR"],
     "KTO": ["KTO", "KTO_BR", "KTO BR"],
     "NOVIBET": ["NOVIBET", "NOVIBET_BR", "NOVIBET BR"],
-    "BETFAIR": ["BETFAIR", "BETFAIR_EXCHANGE", "BETFAIR_SPORTSBOOK", "BETFAIR BR"],
+    "BETFAIR": ["BETFAIR", "BETFAIR_EXCHANGE", "BETFAIR_SPORTSBOOK", "BETFAIR BR", "BETFAIR SPORTSBOOK"],
     "ESTRELABET": ["ESTRELABET", "ESTRELA BET", "ESTRELABET BR"],
     "PINNACLE": ["PINNACLE", "PINNACLE_SPORTS"],
     "1XBET": ["1XBET", "ONE X BET"],
     "BWIN": ["BWIN"],
-    "UNIBET": ["UNIBET"],
+    "UNIBET": ["UNIBET", "UNIBET_EU", "UNIBET UK", "UNIBET SE", "UNIBET NL", "UNIBET (UK)", "UNIBET (SE)", "UNIBET (NL)", "UNIBET (EU)", "UNIBET (FR)"],
+    "BETSSON": ["BETSSON"],
+    "BETWAY": ["BETWAY"],
+    "888SPORT": ["888SPORT", "888 SPORT"],
+    "COOLBET": ["COOLBET"],
 }
 
 def normalize_bookmaker_name(name: str) -> str:
@@ -152,7 +156,7 @@ def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None):
     
     for sport_key, league_name in sports_to_fetch:
         log.info(f"[LIVE-ODDS] Buscando partidas ao vivo de {league_name} ({sport_key})...")
-        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}&regions=us,uk,eu,au&markets=h2h"
+        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}&regions=us,us2,uk,eu,au&markets=h2h"
         
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -218,7 +222,8 @@ def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None):
 
 def fetch_bookmaker_odds(casas_permitidas: list = None):
     """
-    Recupera a chave The Odds API (variável do Airflow / env / chave padrão) e consulta odds ao vivo.
+    Recupera odds ao vivo da The Odds API e executa scrapers complementares (Betnacional, Bet365).
+    Funde todas as odds por partida em um dicionário único por confronto.
     """
     odds_api_key = os.environ.get('ODDS_API_KEY')
     
@@ -230,10 +235,41 @@ def fetch_bookmaker_odds(casas_permitidas: list = None):
             odds_api_key = DEFAULT_ODDS_API_KEY
             
     live_data = fetch_live_odds_from_api(odds_api_key, casas_permitidas=casas_permitidas)
-    if live_data:
-        return live_data
+    
+    # Importa os scrapers customizados
+    try:
+        from lib.scrapers import scrape_betnacional_odds, scrape_bet365_odds
+        scraped_betnacional = scrape_betnacional_odds()
+        scraped_bet365 = scrape_bet365_odds()
+        scraped_data = scraped_betnacional + scraped_bet365
+    except Exception as e_scrapers:
+        log.warning(f"[ODDS-MERGE] Scrapers complementares não executados: {e_scrapers}")
+        scraped_data = []
         
-    log.warning("[ODDS] Não foi possível obter dados ao vivo da API. Carregando dados de contingência.")
+    # Unificação/Merge dos dados da API e dos Scrapers
+    merged_matches = {}
+    
+    for game in (live_data + scraped_data):
+        home_norm = normalize_team_name(game["time_casa"])
+        away_norm = normalize_team_name(game["time_visitante"])
+        match_key = f"{home_norm}_VS_{away_norm}"
+        
+        if match_key not in merged_matches:
+            merged_matches[match_key] = {
+                "campeonato": game.get("campeonato", "Brasileirão"),
+                "time_casa": game["time_casa"],
+                "time_visitante": game["time_visitante"],
+                "data_jogo": game.get("data_jogo", ""),
+                "odds": {}
+            }
+            
+        merged_matches[match_key]["odds"].update(game.get("odds", {}))
+        
+    final_list = list(merged_matches.values())
+    if final_list:
+        return final_list
+        
+    log.warning("[ODDS] Nenhuma partida ou odds puderam ser recuperadas das fontes.")
     return []
 
 def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = None, apenas_casas_usuario: bool = False) -> pd.DataFrame:
@@ -256,34 +292,66 @@ def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = 
         data_jogo = game["data_jogo"]
         odds = game["odds"]
         
-        melhor_odd_casa = 0.0
-        melhor_casa_odd1 = ""
+        # Busca a melhor combinação de 3 casas 100% DISTINTAS por jogo (uma casa diferente para cada resultado)
+        best_distinct_combo = None
+        best_prob_sum = 999.0
         
-        melhor_odd_empate = 0.0
-        melhor_casa_oddX = ""
+        bookmakers_available = [
+            bm for bm in odds.keys()
+            if not (apenas_casas_usuario and casas_normalizadas_usuario and (bm not in casas_normalizadas_usuario))
+        ]
         
-        melhor_odd_visitante = 0.0
-        melhor_casa_odd2 = ""
-        
-        for casa_nome, cota in odds.items():
-            if apenas_casas_usuario and casas_normalizadas_usuario and (casa_nome not in casas_normalizadas_usuario):
-                continue
-                
-            if cota["casa"] > melhor_odd_casa:
-                melhor_odd_casa = round(cota["casa"], 2)
-                melhor_casa_odd1 = casa_nome
-                
-            if cota["empate"] > melhor_odd_empate:
-                melhor_odd_empate = round(cota["empate"], 2)
-                melhor_casa_oddX = casa_nome
-                
-            if cota["visitante"] > melhor_odd_visitante:
-                melhor_odd_visitante = round(cota["visitante"], 2)
-                melhor_casa_odd2 = casa_nome
+        for bm1 in bookmakers_available:
+            c1 = odds[bm1]["casa"]
+            if c1 <= 1.0: continue
+            for bm2 in bookmakers_available:
+                if bm2 == bm1: continue
+                cX = odds[bm2]["empate"]
+                if cX <= 1.0: continue
+                for bm3 in bookmakers_available:
+                    if bm3 == bm1 or bm3 == bm2: continue
+                    c2 = odds[bm3]["visitante"]
+                    if c2 <= 1.0: continue
+                    
+                    prob_sum = (1.0 / c1) + (1.0 / cX) + (1.0 / c2)
+                    if prob_sum < best_prob_sum:
+                        best_prob_sum = prob_sum
+                        best_distinct_combo = {
+                            "bm1": bm1, "odd1": c1,
+                            "bmX": bm2, "oddX": cX,
+                            "bm2": bm3, "odd2": c2
+                        }
+
+        if best_distinct_combo:
+            melhor_casa_odd1 = best_distinct_combo["bm1"]
+            melhor_odd_casa = round(best_distinct_combo["odd1"], 2)
+            melhor_casa_oddX = best_distinct_combo["bmX"]
+            melhor_odd_empate = round(best_distinct_combo["oddX"], 2)
+            melhor_casa_odd2 = best_distinct_combo["bm2"]
+            melhor_odd_visitante = round(best_distinct_combo["odd2"], 2)
+        else:
+            # Fallback caso não existam 3 casas distintas registradas na partida
+            melhor_odd_casa = 0.0
+            melhor_casa_odd1 = ""
+            melhor_odd_empate = 0.0
+            melhor_casa_oddX = ""
+            melhor_odd_visitante = 0.0
+            melhor_casa_odd2 = ""
+            for casa_nome in bookmakers_available:
+                cota = odds[casa_nome]
+                if cota["casa"] > melhor_odd_casa:
+                    melhor_odd_casa = round(cota["casa"], 2); melhor_casa_odd1 = casa_nome
+                if cota["empate"] > melhor_odd_empate:
+                    melhor_odd_empate = round(cota["empate"], 2); melhor_casa_oddX = casa_nome
+                if cota["visitante"] > melhor_odd_visitante:
+                    melhor_odd_visitante = round(cota["visitante"], 2); melhor_casa_odd2 = casa_nome
                 
         calc = calculate_surebet(melhor_odd_casa, melhor_odd_empate, melhor_odd_visitante, banca_total)
         
         if calc:
+            casas_usadas = {melhor_casa_odd1, melhor_casa_oddX, melhor_casa_odd2} - {""}
+            eh_surebet_valida = calc["is_surebet"] and (len(casas_usadas) == 3)
+
             row = {
                 "Campeonato": campeonato,
                 "Data_Jogo": data_jogo,
@@ -299,7 +367,7 @@ def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = 
                 "Odd_2": round(melhor_odd_visitante, 2),
                 "Stake_Odd_2_R$": round(calc["stake_visitante"], 2),
                 "Indice_Arbitragem": round(calc["soma_probabilidades"], 4),
-                "Eh_Surebet": "SIM" if calc["is_surebet"] else "NAO",
+                "Eh_Surebet": "SIM" if eh_surebet_valida else "NAO",
                 "Lucro_Percentual_%": round(calc["lucro_percentual"], 2),
                 "Lucro_Estimado_R$": round(calc["lucro_estimado"], 2),
                 "Banca_Total_R$": round(banca_total, 2)

@@ -599,6 +599,22 @@ services:
     networks:
       - airflow_net
 
+  # 🛡️ FlareSolverr (Bypass de proteção Cloudflare em background para scrapers)
+  flaresolverr:
+    image: flaresolverr/flaresolverr:latest
+    container_name: flaresolverr${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    restart: always
+    ports:
+      - "8191:8191"
+    environment:
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+      - TZ=America/Sao_Paulo
+    networks:
+      - airflow_net
+
+
 networks:
   airflow_net:
     driver: bridge

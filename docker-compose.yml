@@ -190,12 +190,15 @@ services:
       - VISION_API_MODEL=${VISION_API_MODEL}
       - VISION_API_JSON_MODE=${VISION_API_JSON_MODE}
       - VISION_API_SAVE_SCREENSHOT=${VISION_API_SAVE_SCREENSHOT}
+      - ARBITRAGE_BANCA_TOTAL=${ARBITRAGE_BANCA_TOTAL:-1000.0}
+      - ARBITRAGE_CASAS_USUARIO=${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
       - ./webserver_config.py:/opt/airflow/webserver_config.py
+      - ./.env:/opt/airflow/.env:ro
     ports:
       - "${AIRFLOW_WEBSERVER_PORT}:${AIRFLOW_WEBSERVER_PORT}"
     command: airflow webserver
@@ -233,6 +236,8 @@ services:
       - ATLAS_HIVE_DB=medallion
       - ATLAS_REGISTER_PROCESSES=true
       - ATLAS_HTTP_TIMEOUT=120
+      - ARBITRAGE_BANCA_TOTAL=${ARBITRAGE_BANCA_TOTAL:-1000.0}
+      - ARBITRAGE_CASAS_USUARIO=${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle}
       - ATLAS_MAX_RETRIES=5
       - ATLAS_BACKOFF_SECONDS=3
       - ZUMBI_EMAIL_DRY_RUN=${ZUMBI_EMAIL_DRY_RUN:-true}
@@ -251,6 +256,7 @@ services:
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
       - ./webserver_config.py:/opt/airflow/webserver_config.py
+      - ./.env:/opt/airflow/.env:ro
     ports:
       - "${AIRFLOW_SCHEDULER_DEBUG_PORT}:5678"
     command: airflow scheduler

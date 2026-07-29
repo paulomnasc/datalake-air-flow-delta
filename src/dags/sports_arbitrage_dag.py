@@ -23,6 +23,30 @@ default_args = {
     'retries': 0,
 }
 
+def get_live_env_vars():
+    """Lê diretamente o arquivo .env para refletir alterações instantaneamente sem reiniciar os containers."""
+    env_vars = {}
+    search_paths = [
+        '/opt/airflow/.env',
+        '/opt/airflow/dags/../../.env',
+        '/opt/airflow/dags/../.env',
+        '/root/datalake-air-flow-delta/.env',
+        './.env',
+        '../.env'
+    ]
+    for p in search_paths:
+        if os.path.exists(p):
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            k, v = line.split('=', 1)
+                            env_vars[k.strip()] = v.strip().strip('"').strip("'")
+            except Exception:
+                pass
+    return env_vars
+
 def extract_and_calculate_arbitrage(**context):
     """
     Executa a extração das odds nas casas de apostas (Betnacional, Bet365, Betano, Sportingbet, etc.),
@@ -31,8 +55,24 @@ def extract_and_calculate_arbitrage(**context):
     from lib.sports_arbitrage import process_arbitrage_report
     
     params = context.get('params', {})
-    banca_total = float(params.get('banca_total', 1000.0))
-    casas_usuario = params.get('casas_usuario', "Betnacional, Bet365, Betano, Sportingbet")
+    file_env = get_live_env_vars()
+    
+    # 1. Recupera valor padrão das variáveis de ambiente (do .env ou container)
+    env_banca = file_env.get('ARBITRAGE_BANCA_TOTAL') or os.environ.get('ARBITRAGE_BANCA_TOTAL', '1000.0')
+    env_casas = file_env.get('ARBITRAGE_CASAS_USUARIO') or os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle")
+    
+    try:
+        default_banca_val = float(env_banca)
+    except ValueError:
+        default_banca_val = 1000.0
+        
+    banca_param = params.get('banca_total')
+    if banca_param is not None and float(banca_param) != 1000.0:
+        banca_total = float(banca_param)
+    else:
+        banca_total = default_banca_val
+
+    casas_usuario = params.get('casas_usuario', env_casas)
     apenas_casas_usuario = bool(params.get('apenas_casas_usuario', True))
     
     log.info(f"[ARBITRAGEM] Iniciando extração com banca R$ {banca_total} | Casas: {casas_usuario} | Apenas Casas Usuário: {apenas_casas_usuario}")
@@ -128,8 +168,8 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     params={
-        'banca_total': 1000.0,
-        'casas_usuario': "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle",
+        'banca_total': float(os.environ.get('ARBITRAGE_BANCA_TOTAL', 1000.0)),
+        'casas_usuario': os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle"),
         'apenas_casas_usuario': True,
     },
     tags=['sports', 'arbitrage', 'surebet', 'brasileirao', 's3', 'paulomnasc-558']

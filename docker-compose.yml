@@ -168,6 +168,9 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:K9fL2s7xPwQ8d92A@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__DEFAULT_TIMEZONE=America/Sao_Paulo
+      - AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE=America/Sao_Paulo
+      - TZ=America/Sao_Paulo
       - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=${AIRFLOW_WEBSERVER_PORT}
       - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:${AIRFLOW_WEBSERVER_PORT}
       - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
@@ -221,6 +224,9 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:K9fL2s7xPwQ8d92A@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__DEFAULT_TIMEZONE=America/Sao_Paulo
+      - AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE=America/Sao_Paulo
+      - TZ=America/Sao_Paulo
       - AIRFLOW__WEBSERVER__SECRET_KEY=AjF/meBAL8/pgnArFvuNKw==
       - AIRFLOW__WEBSERVER__FILTER_BY_OWNER=True
       - AIRFLOW__WEBSERVER__OWNER_MODE=user
@@ -327,6 +333,9 @@ services:
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:K9fL2s7xPwQ8d92A@postgres:5432/airflow
       AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:K9fL2s7xPwQ8d92A@postgres/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AIRFLOW__CORE__DEFAULT_TIMEZONE: America/Sao_Paulo
+      AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: America/Sao_Paulo
+      TZ: America/Sao_Paulo
       ENABLE_ATLAS: "false"
       ZUMBI_EMAIL_DRY_RUN: ${ZUMBI_EMAIL_DRY_RUN:-true}
       AWS_LIVE_EMAIL_DRY_RUN: ${AWS_LIVE_EMAIL_DRY_RUN:-true}

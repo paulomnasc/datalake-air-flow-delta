@@ -261,7 +261,7 @@ with DAG(
     dag_id="email_alunos_zumbi_encerramento",
     default_args=default_args,
     description="Envia e-mails de notificação de encerramento para alunos inativos",
-    # O Airflow scheduler opera em UTC. Para rodar às 09:00 BRT (UTC-3), agendamos para 12:00 UTC.
+    # Configurado para rodar às 12:00 BRT (America/Sao_Paulo UTC-3)
     schedule_interval='0 12 * * *',
     catchup=False,
     max_active_runs=1,

@@ -1,0 +1,50 @@
+<?php
+if (! defined('VIEWPATH')) {
+    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR.'Views');
+}
+require VIEWPATH.'/header.php';
+?>
+<div id="content">
+    <div class="container-menor">
+        <h4 style="text-align: center;">Edição de Item de Verificação (Checklist)</h4>
+        
+        <form id="updForm">
+            <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
+            
+            <div class="form-group">
+                <label for="descricao">Descrição:</label>
+                <input type="text" id="descricao" name="descricao" value="<?php echo isset($record->descricao) ? $record->descricao : ''; ?>" required>
+            </div>
+
+            <div class="button-group">
+                <button class="add-button" type="submit">Salvar</button>
+                <a href="<?php echo site_url('listListaVerificacao'); ?>" class="add-button" style="text-decoration: none; background-color: #6c757d;">Voltar</a>
+            </div>
+        </form>
+
+        <script>
+            $(document).ready(function() {
+                $('#updForm').on('submit', function(e) {
+                    e.preventDefault();
+                    $.ajax({
+                        url: '<?php echo site_url('updateListaVerificacao'); ?>',
+                        type: 'POST',
+                        data: $(this).serialize(),
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                $('#success-message').html(response.mensagem).show().delay(3000).fadeOut();
+                                setTimeout(function() { window.location.href = '<?php echo site_url('listListaVerificacao'); ?>'; }, 1500);
+                            } else {
+                                $('#error-message').html(response.mensagem).show().delay(5000).fadeOut();
+                            }
+                        },
+                        error: function() {
+                            $('#error-message').html('Ocorreu um erro ao atualizar os dados.').show().delay(5000).fadeOut();
+                        }
+                    });
+                });
+            });
+        </script>
+    </div>
+</div>
+<?php require VIEWPATH.'/footer.php'; ?>

@@ -1,0 +1,196 @@
+Ótimo\! Se você está instalando diretamente no ** Linux**, seja ele físico, virtual (como no VirtualBox) ou rodando no WSL, 
+a instalação do Docker e do Docker Compose é feita puramente pelo gerenciador de pacotes `dnf` (ou `yum`), seguindo as convenções 
+desse sistema operacional.
+
+Aqui está o roteiro passo a passo específico para o ** Linux**, garantindo que o seu ambiente MinIO segregado utilize a 
+configuração do `docker-compose.yml` já definida.
+
+-----
+
+## Guia de Instalação e Configuração do Docker no  Linux
+
+### 1\. Pré-requisitos (Instalação do Docker e Docker Compose)
+
+Utilizaremos o `dnf` para gerenciar os pacotes, que é o padrão no  Linux (e substituto moderno do `yum`).
+
+#### A. Configuração e Instalação do Docker Engine
+
+================================================================================================================================
+PARA LINUX NO WSL:
+
+Para instalar o **Docker no WSL (Ubuntu, Debian, etc.)**, o melhor é instalar diretamente no **Linux dentro do WSL**, e não pelo Windows.
+Aqui está o passo a passo com os comandos:
+
+---
+
+### 🔹 **1. Atualize o sistema**
+
+
+sudo apt update && sudo apt upgrade -y
+
+
+---
+
+### 🔹 **2. Instale dependências necessárias**
+
+
+sudo apt install ca-certificates curl gnupg lsb-release -y
+
+
+---
+
+### 🔹 **3. Adicione o repositório oficial do Docker**
+
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+$(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+
+---
+
+### 🔹 **4. Instale o Docker**
+
+
+sudo apt update
+sudo apt install docker-ce docker-ce-cli containerd.io -y
+
+
+---
+
+### 🔹 **5. Habilite o Docker no WSL**
+
+
+sudo service docker start
+
+
+Opcional: permitir rodar Docker sem `sudo`:
+
+
+sudo usermod -aG docker $USER
+
+
+(reinicie o WSL após isso)
+
+---
+
+### 🔥 Teste se funcionou
+
+
+docker --version
+docker run hello-world
+
+
+---
+
+
+================================================================================================================================
+PARA OUTRAS DISTROS LINUX:
+
+1.  **Instalar Utilitários Necessários:**
+    O  Linux utiliza o `dnf` para gerenciar pacotes, mas vamos garantir que as ferramentas básicas para adicionar repositórios 
+	estejam presentes:
+
+    
+    sudo dnf install -y dnf-utils
+    
+
+2.  **Adicionar o Repositório Oficial do Docker (usando CentOS como base de repositório, pois o  Linux é derivado):**
+
+    
+    sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    
+
+3.  **Instalar o Docker Engine e Dependências:**
+
+    
+    sudo dnf install docker-ce docker-ce-cli containerd.io
+    
+================================================================================================================================
+
+4.  **Iniciar e Habilitar o Serviço Docker:**
+
+      * Inicie o serviço do Docker. Se você estiver em um ambiente de servidor puro (não WSL), use o `systemctl`:
+        
+        sudo systemctl start docker
+        sudo systemctl enable docker
+        
+      * **Permissão de Usuário:** Adicione seu usuário ao grupo `docker` para executar comandos sem `sudo`. Isso é crucial para um 
+	  fluxo de trabalho limpo.
+        
+        sudo usermod -aG docker $USER
+        
+        > **Atenção:** Você precisará **sair e entrar novamente** no terminal do  Linux para que a permissão de grupo entre em vigor.
+
+5.  **Verificar a Instalação:**
+
+    
+    docker run hello-world
+    
+
+    Se o comando for executado com sucesso e exibir uma mensagem de teste, o Docker está pronto.
+
+#### B. Instalação do Docker Compose (V2)
+
+O Docker Compose V2 (que é o comando `docker compose` sem hífen, mas que suporta o binário `docker-compose`) é o método que usaremos. 
+Vamos instalá-lo diretamente, pois é mais confiável do que 	versão do repositório padrão.
+
+1.  **Baixar a Versão Estável:**
+
+    
+    # Baixa o binário do Docker Compose v2.24.5
+    sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    
+
+2.  **Dê Permissão de Execução:**
+
+    
+    sudo chmod +x /usr/local/bin/docker-compose
+    
+
+3.  **Verifique a Instalação:**
+
+    
+    docker-compose --version
+    
+
+    Confirme se a versão V2.x está instalada.
+
+### 2\. Configuração e Inicialização do MinIO Segregado
+
+Com o Docker e o Compose instalados no seu  Linux, você pode prosseguir com a configuração do MinIO, utilizando o arquivo 
+`docker-compose.yml` (que já garante a segregação de portas e rede).
+
+1.  **Crie a Estrutura de Pastas no  Linux:**
+
+    
+    mkdir minio-dev
+    cd minio-dev
+    mkdir data
+	cd ..
+    sudo chown (seu usuário) ./(pasta)
+
+2.  **Crie o Arquivo `docker-compose.yml`:**
+		
+		
+      * Copie e cole o arquivo "docker-compose.yml" na pasta `minio-dev`.
+
+3.  **Inicialize a Stack Segregada:**
+    Execute este comando dentro da pasta `minio-dev`:
+
+    
+    docker-compose up -d
+    
+
+### 3\. Acesso
+
+O MinIO estará acessível no seu navegador ou via API (SDKs) usando as portas segregadas:
+
+  * **Console Web (UI):** `http://<IP_DO__LINUX>:9001`
+  * **API S3:** `http://<IP_DO__LINUX>:9001`
+
+Usuário da console : admin
+Senha do usuário   : admin123
+
+> **Nota sobre IP:** Se você estiver executando o  Linux no VirtualBox, você precisará usar o endereço IP interno da sua 
+máquina virtual (e pode ser necessário configurar o *port forwarding* no VirtualBox). Se estiver no WSL, você pode usar `localhost`.

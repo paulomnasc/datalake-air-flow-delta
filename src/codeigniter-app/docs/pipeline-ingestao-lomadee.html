@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛍️ Pipeline de Ingestão de Produtos Lomadee - Documentação Datalake</title>
+    <style>
+        :root {
+            --sidebar-width: 280px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            min-height: 100vh;
+            width: 100%;
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar h2 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .sidebar nav {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sidebar-category {
+            border-radius: 6px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar-category-title {
+            list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #3498db;
+            padding: 8px 10px;
+            cursor: pointer;
+            user-select: none;
+            background: rgba(52, 152, 219, 0.12);
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .sidebar-category-title::-webkit-details-marker {
+            display: none;
+        }
+
+        .sidebar-category-title:hover {
+            background: rgba(52, 152, 219, 0.25);
+            color: #5dade2;
+        }
+
+        .sidebar-category-title .chevron {
+            font-size: 0.7rem;
+            transition: transform 0.25s ease;
+            color: #95a5a6;
+        }
+
+        .sidebar-category[open] .sidebar-category-title .chevron {
+            transform: rotate(180deg);
+        }
+
+        .sidebar-sublist {
+            list-style: none;
+            padding: 4px 6px 6px 8px;
+            margin: 0;
+            border-left: 2px solid rgba(52, 152, 219, 0.4);
+            margin-left: 10px;
+            margin-top: 4px;
+            margin-bottom: 6px;
+        }
+
+        .sidebar-sublist li {
+            margin-bottom: 4px;
+        }
+
+        .sidebar-sublist li a {
+            color: #ecf0f1;
+            text-decoration: none;
+            display: block;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.88rem;
+            transition: background 0.2s, color 0.2s;
+            word-break: break-word;
+        }
+
+        .sidebar-sublist li a:hover {
+            background: #34495e;
+            color: #3498db;
+        }
+
+        .sidebar-sublist li a.active {
+            background: #3498db;
+            color: white;
+            font-weight: 600;
+        }
+
+        .content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            background: white;
+            max-width: 1400px;
+            width: calc(100% - var(--sidebar-width));
+            min-height: 100vh;
+            transition: margin-left 0.3s ease, width 0.3s ease;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+
+        .content.collapsed {
+            margin-left: 0;
+            width: 100%;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 900;
+            display: none;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+            transition: left 0.3s ease;
+        }
+
+        @media (min-width: 1100px) {
+            .sidebar-toggle {
+                left: calc(var(--sidebar-width) + 16px);
+            }
+        }
+
+        .content h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .content h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.8rem;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .content h3 {
+            color: #555;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+        }
+
+        .content h4 {
+            color: #666;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        .content ul {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ul li {
+            margin-bottom: 8px;
+        }
+
+        .content ol {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ol li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #3498db;
+            color: white;
+            border-radius: 3px;
+            font-size: 0.85rem;
+            margin-left: 5px;
+        }
+
+        .badge.star {
+            background: #f39c12;
+        }
+
+        .badge.warning {
+            background: #e74c3c;
+        }
+
+        .badge.success {
+            background: #27ae60;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #c7254e;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            max-width: 100%;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+            word-break: normal;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #333;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
+            font-size: 0.85rem;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: pre;
+            display: block;
+            max-width: 100%;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 0;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        table th {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #2980b9;
+        }
+
+        table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        blockquote {
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #555;
+            font-style: italic;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .alert-info {
+            background: #d9edf7;
+            border-left: 4px solid #31708f;
+            color: #31708f;
+        }
+
+        .alert-warning {
+            background: #fcf8e3;
+            border-left: 4px solid #8a6d3b;
+            color: #8a6d3b;
+        }
+
+        .alert-success {
+            background: #dff0d8;
+            border-left: 4px solid #3c763d;
+            color: #3c763d;
+        }
+
+        .alert-danger {
+            background: #f2dede;
+            border-left: 4px solid #a94442;
+            color: #a94442;
+        }
+
+        .masked-value {
+            font-family: 'Courier New', monospace;
+            user-select: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #f4f4f4;
+            transition: all 0.3s ease;
+        }
+
+        .masked-value:hover {
+            background: #e0e0e0;
+            text-decoration: underline;
+        }
+
+        .masked-value.revealed {
+            background: #ffffcc;
+        }
+    </style>
+    <script>
+        // Mascara valores sensíveis (passwords, tokens, secrets)
+        function maskSensitiveValues() {
+            const sensitivePatterns = [
+                {'regex': /password\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\\S]+)/gi, 'label': 'token'}
+            ];
+
+            const codeBlocks = document.querySelectorAll('code, pre');
+            
+            codeBlocks.forEach(block => {
+                let content = block.innerHTML;
+                
+                sensitivePatterns.forEach(pattern => {
+                    content = content.replace(pattern.regex, (match, value) => {
+                        if (!value) return match;
+                        
+                        const prefix = match.substring(0, match.indexOf(value));
+                        const masked = '*'.repeat(Math.min(value.length, 12));
+                        const tooltip = `Clique para revelar o valor`;
+                        
+                        return `${prefix}<span class="masked-value" title="${tooltip}" data-original="${value}" onclick="toggleMask(event)">${masked}</span>`;
+                    });
+                });
+                
+                block.innerHTML = content;
+            });
+        }
+
+        // Toggle visibilidade de valores mascarados
+        function toggleMask(event) {
+            event.stopPropagation();
+            const span = event.target;
+            
+            if (span.classList.contains('revealed')) {
+                const original = span.getAttribute('data-original');
+                span.textContent = '*'.repeat(Math.min(original.length, 12));
+                span.classList.remove('revealed');
+            } else {
+                const original = span.getAttribute('data-original');
+                span.textContent = original;
+                span.classList.add('revealed');
+            }
+        }
+
+        function setSidebarState(isOpen) {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            sidebar.classList.toggle('collapsed', !isOpen);
+            content.classList.toggle('collapsed', !isOpen);
+
+            const useOverlay = window.innerWidth < 1100;
+            if (overlay) {
+                overlay.classList.toggle('active', isOpen && useOverlay);
+            }
+
+            toggleBtn.textContent = isOpen ? '✕' : '☰';
+            
+            // Ajusta posição do botão em telas maiores
+            if (window.innerWidth >= 1100) {
+                toggleBtn.style.left = isOpen ? 'calc(var(--sidebar-width) + 16px)' : '16px';
+            } else {
+                toggleBtn.style.left = '16px';
+            }
+        }
+
+        function initSidebarToggle() {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            const initialOpen = window.innerWidth >= 1100;
+            setSidebarState(initialOpen);
+
+            toggleBtn.addEventListener('click', function() {
+                const isOpen = !sidebar.classList.contains('collapsed');
+                setSidebarState(!isOpen);
+            });
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    setSidebarState(false);
+                });
+            }
+
+            window.addEventListener('resize', function() {
+                const shouldBeOpen = window.innerWidth >= 1100;
+                setSidebarState(shouldBeOpen);
+            });
+        }
+
+        // Executar quando documento carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            maskSensitiveValues();
+            initSidebarToggle();
+        });
+    </script>
+</head>
+<body>
+    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰</button>
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>📚 Documentação</h2>
+            <nav>
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>👤 Usuário & Interface</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="index.html" >🏠 Home</a></li>
+                        <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                        <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" open>
+                    <summary class="sidebar-category-title">
+                        <span>🔌 Conectividade & APIs</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
+                        <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                        <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
+                        <li><a href="guide-instagram-n8n.html" >📸 Automação Instagram n8n</a></li>
+                        <li><a href="pipeline-ingestao-lomadee.html" class="active">🛍️ Ingestão Lomadee</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>⚡ Processamento & Data Lake</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                        <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                        <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
+                        <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                        <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
+                    </ul>
+                </details>
+
+                
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>🔒 Segurança</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="credenciais.html" >🔑 Credenciais Internas</a></li>
+                    </ul>
+                </details>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="content">
+<h1 id="pipeline-de-ingestao-de-produtos-lomadee">🛍️ Pipeline de Ingestão de Produtos Lomadee</h1>
+
+<p>Este documento explica em detalhes o funcionamento do pipeline de dados responsável por extrair, normalizar e enriquecer os dados de produtos afiliados da Lomadee para alimentar a <strong>Vitrine de Ofertas</strong>.</p>
+
+<p>---</p>
+
+<h2 id="visao-geral-da-arquitetura">🏗️ Visão Geral da Arquitetura</h2>
+
+<p>O pipeline de dados é dividido em 3 etapas consecutivas, cada uma gerenciada por uma DAG dedicada no Airflow. Isso garante o desacoplamento das tarefas, permitindo que a falha em uma etapa (ex: instabilidade temporária na API externa) não afete o estado da etapa anterior.</p>
+<pre><code class="text">┌───────────────────────┐      ┌────────────────────────┐      ┌────────────────────────┐
+│   1. Ingestao (API)   │      │    2. Normalizacao     │      │   3. Enriquecimento    │
+│  lomadee-products96   │  ──&gt; │  lomadee_ingestion_dag │  ──&gt; │ lomadee_shortener_dag  │
+│  (MinIO Bronze/Raw)   │      │ PostgreSQL - BI Schema │      │  (Links de Afiliados)  │
+└───────────────────────┘      └────────────────────────┘      └────────────────────────┘</code></pre>
+
+<p>---</p>
+
+<h2 id="detalhamento-das-3-dags-do-fluxo">🔍 Detalhamento das 3 DAGs do Fluxo</h2>
+
+<h3 id="1-lomadee-products96-dynamic-dag-dinamica">1️⃣ <code>lomadee-products96</code> (Dynamic / DAG Dinâmica)</h3>
+<ul>
+<li><strong>Tipo:</strong> DAG Dinâmica gerada automaticamente por metadados.</li>
+<li><strong>Mecanismo:</strong> Criada pelo <a href="file:///root/datalake-air-flow-delta/src/dags/factory_master.py">factory_master.py</a> a partir do registro de configuração <strong>ID 96</strong> na tabela <code>dag_configurations</code> do banco de dados MySQL.</li>
+<li><strong>Propósito:</strong> Ingestão de dados brutos (*Raw/Bronze*).</li>
+<li><strong>Funcionamento:</strong></li>
+<li>Executa a função Python <code>lib.medallion_pipeline_v2.raw_to_medallion</code>.</li>
+<li>Realiza uma chamada HTTP <code>GET</code> à API oficial da Lomadee (<code>https://api.lomadee.com.br/affiliate/products</code>).</li>
+<li>Utiliza parâmetros de busca configurados no banco de dados (ex: termo de busca <code>"shampoo"</code>, limite de <code>50</code> registros, cabeçalhos de autenticação com chave de desenvolvedor).</li>
+<li>Salva o payload JSON resultante diretamente em formato Parquet no <strong>MinIO (S3)</strong> sob o caminho <code>s3://paulomnasc-558/bronze/lomadee-products/*.parquet</code>.</li>
+</ul>
+
+<p>---</p>
+
+<h3 id="2-lomadee-ingestion-dag-bronze-lomadee-normalized">2️⃣ <code>lomadee_ingestion_dag</code> (Bronze Lomadee Normalized)</h3>
+<ul>
+<li><strong>Tipo:</strong> DAG Estática definida em arquivo.</li>
+<li><strong>Mecanismo:</strong> Definida em <a href="file:///root/datalake-air-flow-delta/src/dags/lomadee_ingestion_dag.py">lomadee_ingestion_dag.py</a>.</li>
+<li><strong>Propósito:</strong> Normalização e Carga Relacional (*Bronze/Silver*).</li>
+<li><strong>Funcionamento:</strong></li>
+<li>Dispara o script python <a href="file:///root/datalake-air-flow-delta/scripts/load_lomadee.py">load_lomadee.py</a> dentro do ambiente do Airflow.</li>
+<li>Consome os arquivos Parquet estruturados que foram persistidos na camada Bronze do MinIO.</li>
+<li>Trata, limpa e normaliza os dados de produtos.</li>
+<li>Distribui os registros nas respectivas tabelas do PostgreSQL no banco de dados <code>datalake_bi</code> sob o esquema <code>lomadee</code>:</li>
+<li><code>lomadee.products</code> (Dados do produto como nome, preço, link original)</li>
+<li><code>lomadee.categories</code> (Categorias de produtos)</li>
+<li><code>lomadee.product_categories</code> (Tabela pivô de relacionamento N:N)</li>
+<li><code>lomadee.product_images</code> (Galeria de imagens dos produtos)</li>
+<li><code>lomadee.product_options</code> (Variações dos produtos)</li>
+</ul>
+
+<p>---</p>
+
+<h3 id="3-lomadee-shortener-dag-api-lomadee-shortener">3️⃣ <code>lomadee_shortener_dag</code> (api lomadee shortener)</h3>
+<ul>
+<li><strong>Tipo:</strong> DAG Estática definida em arquivo.</li>
+<li><strong>Mecanismo:</strong> Definida em <a href="file:///root/datalake-air-flow-delta/src/dags/lomadee_shortener_dag.py">lomadee_shortener_dag.py</a>.</li>
+<li><strong>Propósito:</strong> Enriquecimento de Dados (*Affiliate Tracking Link*).</li>
+<li><strong>Funcionamento:</strong></li>
+<li>Dispara o script python <a href="file:///root/datalake-air-flow-delta/scripts/shorten_lomadee_urls.py">shorten_lomadee_urls.py</a>.</li>
+<li>Lê a tabela <code>lomadee.products</code> no PostgreSQL para buscar as URLs de vendas originais dos produtos.</li>
+<li>Envia cada URL original para a API de Encurtamento de Links da Lomadee (<code>https://api.lomadee.com.br/affiliate/shortener/url</code>) com as credenciais do afiliado.</li>
+<li>Recebe o link de rastreamento encurtado (que garante as comissões das vendas).</li>
+<li>Salva o link retornado na coluna <code>shortened_url</code> da tabela <code>lomadee.products</code>.</li>
+</ul>
+
+<p>---</p>
+
+<h2 id="fluxo-de-dados-de-fim-a-fim">📊 Fluxo de Dados de Fim a Fim</h2>
+
+<p>O diagrama abaixo ilustra o fluxo completo do pipeline até a disponibilização na vitrine final:</p>
+<pre><code class="mermaid">sequenceDiagram
+    autonumber
+    participant API as API Lomadee Externa
+    participant D1 as DAG lomadee-products96
+    participant MinIO as MinIO S3 (Bronze)
+    participant D2 as DAG lomadee_ingestion_dag
+    participant DB as PostgreSQL (datalake_bi)
+    participant D3 as DAG lomadee_shortener_dag
+    participant Vitrine as Vitrine Web App (CI4)
+
+    D1-&gt;&gt;API: 1. GET /affiliate/products (Termo: Shampoo)
+    API--&gt;&gt;D1: Retorna lista de produtos (JSON)
+    D1-&gt;&gt;MinIO: 2. Grava Parquet na camada Bronze
+    
+    D2-&gt;&gt;MinIO: 3. Lê Parquet Bronze
+    D2-&gt;&gt;DB: 4. Normaliza e grava nas tabelas (lomadee.*)
+    
+    D3-&gt;&gt;DB: 5. Seleciona produtos sem link encurtado
+    D3-&gt;&gt;API: 6. POST /affiliate/shortener/url (URL original)
+    API--&gt;&gt;D3: Retorna URL encurtada do afiliado
+    D3-&gt;&gt;DB: 7. Atualiza coluna 'shortened_url' em 'lomadee.products'
+    
+    Vitrine-&gt;&gt;DB: 8. Consulta produtos e exibe na interface
+    Note over Vitrine: Apresenta os cards de produtos com o link 'shortened_url'</code></pre>
+
+<p>---</p>
+
+<h2 id="tecnologias-envolvidas">🛠️ Tecnologias Envolvidas</h2>
+
+<ul>
+<li><strong>Apache Airflow:</strong> Orquestrador das tarefas e do tempo de execução das DAGs.</li>
+<li><strong>MinIO (S3 API):</strong> Armazenamento em arquivos Parquet de alta performance na camada Bronze.</li>
+<li><strong>PostgreSQL:</strong> Banco de dados de BI (<code>datalake_bi</code>) que serve a camada de consulta da vitrine.</li>
+<li><strong>DuckDB:</strong> Utilizado nos bastidores do script de ingestão para fazer consultas SQL eficientes e ler os Parquet diretamente na AWS S3 API de forma extremamente rápida.</li>
+<li><strong>CodeIgniter 4:</strong> O backend da Vitrine de Ofertas que expõe endpoints <code>/api/products</code> acessando diretamente a tabela <code>lomadee.products</code> no PostgreSQL.</li>
+</ul>
+
+        </main>
+    </div>
+</body>
+</html>

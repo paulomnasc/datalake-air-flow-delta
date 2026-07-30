@@ -14,7 +14,10 @@
             box-sizing: border-box;
         }
 
-        body {
+        html, body {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.6;
             color: #333;
@@ -23,6 +26,8 @@
 
         .container {
             min-height: 100vh;
+            width: 100%;
+            overflow-x: hidden;
         }
 
         .sidebar {
@@ -50,31 +55,89 @@
             padding-bottom: 10px;
         }
 
-        .sidebar nav ul {
+        .sidebar nav {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sidebar-category {
+            border-radius: 6px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar-category-title {
             list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #3498db;
+            padding: 8px 10px;
+            cursor: pointer;
+            user-select: none;
+            background: rgba(52, 152, 219, 0.12);
+            transition: background 0.2s ease, color 0.2s ease;
         }
 
-        .sidebar nav ul li {
-            margin-bottom: 8px;
+        .sidebar-category-title::-webkit-details-marker {
+            display: none;
         }
 
-        .sidebar nav ul li a {
+        .sidebar-category-title:hover {
+            background: rgba(52, 152, 219, 0.25);
+            color: #5dade2;
+        }
+
+        .sidebar-category-title .chevron {
+            font-size: 0.7rem;
+            transition: transform 0.25s ease;
+            color: #95a5a6;
+        }
+
+        .sidebar-category[open] .sidebar-category-title .chevron {
+            transform: rotate(180deg);
+        }
+
+        .sidebar-sublist {
+            list-style: none;
+            padding: 4px 6px 6px 8px;
+            margin: 0;
+            border-left: 2px solid rgba(52, 152, 219, 0.4);
+            margin-left: 10px;
+            margin-top: 4px;
+            margin-bottom: 6px;
+        }
+
+        .sidebar-sublist li {
+            margin-bottom: 4px;
+        }
+
+        .sidebar-sublist li a {
             color: #ecf0f1;
             text-decoration: none;
             display: block;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
-            transition: background 0.3s;
+            font-size: 0.88rem;
+            transition: background 0.2s, color 0.2s;
+            word-break: break-word;
         }
 
-        .sidebar nav ul li a:hover {
+        .sidebar-sublist li a:hover {
             background: #34495e;
             color: #3498db;
         }
 
-        .sidebar nav ul li a.active {
+        .sidebar-sublist li a.active {
             background: #3498db;
             color: white;
+            font-weight: 600;
         }
 
         .content {
@@ -82,14 +145,19 @@
             padding: 40px;
             background: white;
             max-width: 1400px;
+            width: calc(100% - var(--sidebar-width));
             min-height: 100vh;
-            transition: margin-left 0.3s ease;
+            transition: margin-left 0.3s ease, width 0.3s ease;
             overflow-wrap: break-word;
             word-wrap: break-word;
+            word-break: break-word;
+            box-sizing: border-box;
+            overflow-x: hidden;
         }
 
         .content.collapsed {
             margin-left: 0;
+            width: 100%;
         }
 
         .sidebar-overlay {
@@ -219,11 +287,12 @@
             background: #f4f4f4;
             padding: 2px 6px;
             border-radius: 3px;
-            font-family: 'Courier New', monospace;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
             font-size: 0.85rem;
             color: #c7254e;
             word-break: break-word;
             overflow-wrap: break-word;
+            white-space: normal;
         }
 
         pre {
@@ -231,25 +300,38 @@
             padding: 15px;
             border-radius: 5px;
             overflow-x: auto;
+            max-width: 100%;
             margin-bottom: 15px;
             border-left: 4px solid #3498db;
             font-size: 0.9rem;
+            box-sizing: border-box;
+            word-break: normal;
         }
 
         pre code {
             background: none;
             padding: 0;
             color: #333;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
             font-size: 0.85rem;
             word-break: normal;
             overflow-wrap: normal;
             white-space: pre;
+            display: block;
+            max-width: 100%;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            -webkit-overflow-scrolling: touch;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-bottom: 0;
             word-break: break-word;
             overflow-wrap: break-word;
         }
@@ -338,14 +420,14 @@
         // Mascara valores sensíveis (passwords, tokens, secrets)
         function maskSensitiveValues() {
             const sensitivePatterns = [
-                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
-                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
-                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
-                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
-                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
+                {'regex': /password\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\\S]+)/gi, 'label': 'token'}
             ];
 
             const codeBlocks = document.querySelectorAll('code, pre');
@@ -452,20 +534,56 @@
         <aside class="sidebar">
             <h2>📚 Documentação</h2>
             <nav>
-                <ul>
-                    <li><a href="index.html" >🏠 Home</a></li>
-                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
-                    <li><a href="guide-webapp-config.html" class="active">🖥️ Guia Interface Web</a></li>
-                    <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
-                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
-                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
-                    <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
-                    <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
-                    <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
-                    <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
-                    <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
-                    <li><a href="credenciais.html" >🔑 Credenciais Internas</a></li>
-                </ul>
+                <details class="sidebar-category" open>
+                    <summary class="sidebar-category-title">
+                        <span>👤 Usuário & Interface</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="index.html" >🏠 Home</a></li>
+                        <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                        <li><a href="guide-webapp-config.html" class="active">🖥️ Guia Interface Web</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>🔌 Conectividade & APIs</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
+                        <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                        <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
+                        <li><a href="guide-instagram-n8n.html" >📸 Automação Instagram n8n</a></li>
+                        <li><a href="pipeline-ingestao-lomadee.html" >🛍️ Ingestão Lomadee</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>⚡ Processamento & Data Lake</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                        <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                        <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
+                        <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                        <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
+                    </ul>
+                </details>
+
+                
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>🔒 Segurança</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="credenciais.html" >🔑 Credenciais Internas</a></li>
+                    </ul>
+                </details>
             </nav>
         </aside>
 
@@ -633,12 +751,12 @@
 <h3 id="interface-de-upload-multiplo">📋 Interface de Upload Múltiplo</h3>
 
 <h4 id="area-de-drag-drop">Área de Drag & Drop</h4>
-<pre><code>┌─────────────────────────────────────────┐
-<p>│   📤 Arraste arquivos aqui              │</p>
-<p>│      ou clique para selecionar          │</p>
-<p>│                                         │</p>
-<p>│   Aceita: .csv, .json                   │</p>
-<p>└─────────────────────────────────────────┘</code></pre></p>
+<pre><code class="">┌─────────────────────────────────────────┐
+│   📤 Arraste arquivos aqui              │
+│      ou clique para selecionar          │
+│                                         │
+│   Aceita: .csv, .json                   │
+└─────────────────────────────────────────┘</code></pre>
 
 <h4 id="opcoes-de-processamento">Opções de Processamento</h4>
 
@@ -673,29 +791,27 @@
 <h3 id="estrutura-no-minio">📁 Estrutura no MinIO</h3>
 
 <p>Os arquivos são salvos com seus <strong>nomes originais</strong> (sem timestamp) no MinIO:</p>
-
-<pre><code>MinIO Bucket: data-lake-raw
-<p>├── raw/</p>
-<p>│   └── pipe-albuns/          ← DAG ID como pasta</p>
-<p>│       ├── Track.json        ← Nome original do arquivo</p>
-<p>│       ├── Album.json        ← Nome original do arquivo</p>
-<p>│       └── Artist.json       ← Nome original do arquivo</code></pre></p>
+<pre><code class="">MinIO Bucket: data-lake-raw
+├── raw/
+│   └── pipe-albuns/          ← DAG ID como pasta
+│       ├── Track.json        ← Nome original do arquivo
+│       ├── Album.json        ← Nome original do arquivo
+│       └── Artist.json       ← Nome original do arquivo</code></pre>
 
 <h3 id="configuracao-no-banco-de-dados">🗄️ Configuração no Banco de Dados</h3>
 
 <p>Uma <strong>única configuração</strong> é criada para processar todos os arquivos:</p>
+<pre><code class="sql">dag_id: pipe-albuns
+source_filename: raw/pipe-albuns/  ← Apenas o caminho da pasta
+description: Batch processing - pasta com 3 arquivo(s)
+max_parallel_tasks: 4
+is_active: 1
 
-<pre><code>dag_id: pipe-albuns
-<p>source_filename: raw/pipe-albuns/  ← Apenas o caminho da pasta</p>
-<p>description: Batch processing - pasta com 3 arquivo(s)</p>
-<p>max_parallel_tasks: 4</p>
-<p>is_active: 1</p>
-
-<p>-- Campos SQL/SSH são NULL para fontes de arquivo</p>
-<p>sql_connection_id: NULL</p>
-<p>sql_host: NULL</p>
-<p>sql_port: NULL</p>
-<p>ssh_host: NULL</code></pre></p>
+-- Campos SQL/SSH são NULL para fontes de arquivo
+sql_connection_id: NULL
+sql_host: NULL
+sql_port: NULL
+ssh_host: NULL</code></pre>
 
 <h3 id="como-o-airflow-processa">⚙️ Como o Airflow Processa</h3>
 
@@ -707,37 +823,36 @@
 </ol>
 
 <h3 id="exemplo-completo-de-upload-multiplo">💡 Exemplo Completo de Upload Múltiplo</h3>
+<pre><code class="yaml">=== Configuração ===
+Tipo de Origem: JSON
+DAG ID: pipe-albuns
+Descrição: Ingestão de dados musicais
+Modo Multi-Upload: <span class="badge success">✅</span> Marcado
 
-<pre><code>=== Configuração ===
-<p>Tipo de Origem: JSON</p>
-<p>DAG ID: pipe-albuns</p>
-<p>Descrição: Ingestão de dados musicais</p>
-<p>Modo Multi-Upload: <span class="badge success">✅</span> Marcado</p>
+=== Upload ===
+Arquivos Selecionados:
+  📄 Track.json (45 KB)
+  📄 Album.json (12 KB)
+  📄 Artist.json (8 KB)
 
-<p>=== Upload ===</p>
-<p>Arquivos Selecionados:</p>
-<p>  📄 Track.json (45 KB)</p>
-<p>  📄 Album.json (12 KB)</p>
-<p>  📄 Artist.json (8 KB)</p>
+Modo de Processamento: 🔄 Paralelo
+Máximo Paralelo: 4
 
-<p>Modo de Processamento: 🔄 Paralelo</p>
-<p>Máximo Paralelo: 4</p>
+=== Resultado ===
+<span class="badge success">✅</span> 3 arquivos salvos em: raw/pipe-albuns/
+<span class="badge success">✅</span> DAG criada: pipe-albuns
+<span class="badge success">✅</span> 3 tasks serão executadas em paralelo
 
-<p>=== Resultado ===</p>
-<p><span class="badge success">✅</span> 3 arquivos salvos em: raw/pipe-albuns/</p>
-<p><span class="badge success">✅</span> DAG criada: pipe-albuns</p>
-<p><span class="badge success">✅</span> 3 tasks serão executadas em paralelo</p>
+=== MinIO ===
+raw/pipe-albuns/Track.json   ← Arquivo 1
+raw/pipe-albuns/Album.json   ← Arquivo 2
+raw/pipe-albuns/Artist.json  ← Arquivo 3
 
-<p>=== MinIO ===</p>
-<p>raw/pipe-albuns/Track.json   ← Arquivo 1</p>
-<p>raw/pipe-albuns/Album.json   ← Arquivo 2</p>
-<p>raw/pipe-albuns/Artist.json  ← Arquivo 3</p>
-
-<p>=== Airflow ===</p>
-<p>DAG: pipe-albuns</p>
-<p>├── Task 1: process_Track.json</p>
-<p>├── Task 2: process_Album.json</p>
-<p>└── Task 3: process_Artist.json</code></pre></p>
+=== Airflow ===
+DAG: pipe-albuns
+├── Task 1: process_Track.json
+├── Task 2: process_Album.json
+└── Task 3: process_Artist.json</code></pre>
 
 <h3 id="validacoes-e-restricoes"><span class="badge warning">⚠️</span> Validações e Restrições</h3>
 
@@ -795,14 +910,14 @@
 </ul>
 
 <h4 id="exemplo-de-uso-multi-tabela">Exemplo de Uso Multi-Tabela</h4>
-<pre><code>Fonte: MySQL Northwind
-<p>Banco: northwind</p>
-<p>Tabelas selecionadas:</p>
-<p>  ☑️ customers (91 linhas, 0.2 MB)</p>
-<p>  ☑️ orders (830 linhas, 0.5 MB)</p>
-<p>  ☑️ products (77 linhas, 0.1 MB)</p>
+<pre><code class="">Fonte: MySQL Northwind
+Banco: northwind
+Tabelas selecionadas:
+  ☑️ customers (91 linhas, 0.2 MB)
+  ☑️ orders (830 linhas, 0.5 MB)
+  ☑️ products (77 linhas, 0.1 MB)
 
-<p>Resultado: 3 tasks paralelas, cada uma processando uma tabela</code></pre></p>
+Resultado: 3 tasks paralelas, cada uma processando uma tabela</code></pre>
 
 <p>---</p>
 
@@ -847,23 +962,23 @@
 <p>A interface valida automaticamente a compatibilidade entre <strong>Tipo de Origem</strong> e <strong>Função de Pipeline</strong>:</p>
 
 <h4 id="configuracoes-validas"><span class="badge success">✅</span> Configurações Válidas</h4>
-<pre><code>Fonte: MySQL + Função: mysql_to_medallion
-<p>→ <span class="badge success">✅</span> Configuração válida: Função compatível com fonte SQL</p>
+<pre><code class="">Fonte: MySQL + Função: mysql_to_medallion
+→ <span class="badge success">✅</span> Configuração válida: Função compatível com fonte SQL
 
-<p>Fonte: CSV + Função: raw_to_medallion  </p>
-<p>→ <span class="badge success">✅</span> Configuração válida: Função compatível com arquivos CSV/Parquet</code></pre></p>
+Fonte: CSV + Função: raw_to_medallion  
+→ <span class="badge success">✅</span> Configuração válida: Função compatível com arquivos CSV/Parquet</code></pre>
 
 <h4 id="configuracoes-com-aviso"><span class="badge warning">⚠️</span> Configurações com Aviso</h4>
-<pre><code>Fonte: MySQL + Função: raw_to_medallion
-<p>→ <span class="badge warning">⚠️</span> ATENÇÃO: Esta função espera que dados JÁ EXISTAM na camada RAW. </p>
-<p>  Para fontes SQL, use "MySQL → Medallion" que faz a ingestão primeiro!</code></pre></p>
+<pre><code class="">Fonte: MySQL + Função: raw_to_medallion
+→ <span class="badge warning">⚠️</span> ATENÇÃO: Esta função espera que dados JÁ EXISTAM na camada RAW. 
+  Para fontes SQL, use "MySQL → Medallion" que faz a ingestão primeiro!</code></pre>
 
 <h4 id="configuracoes-com-erro-auto-corrigido"><span class="badge warning">❌</span> Configurações com Erro (Auto-corrigido)</h4>
-<pre><code>Fonte: MySQL + Multi-Tabela + Função: raw_to_medallion
-<p>→ <span class="badge warning">❌</span> ERRO: Para processar múltiplas tabelas SQL, você DEVE usar </p>
-<p>  "MySQL → Medallion" (faz ingestão + pipeline completo)</p>
+<pre><code class="">Fonte: MySQL + Multi-Tabela + Função: raw_to_medallion
+→ <span class="badge warning">❌</span> ERRO: Para processar múltiplas tabelas SQL, você DEVE usar 
+  "MySQL → Medallion" (faz ingestão + pipeline completo)
   
-<p>→ Sistema auto-corrige para: mysql_to_medallion</code></pre></p>
+→ Sistema auto-corrige para: mysql_to_medallion</code></pre>
 
 <p>---</p>
 
@@ -922,20 +1037,20 @@
 </ol>
 
 <h4 id="exemplo-de-conexao-direta">Exemplo de Conexão Direta:</h4>
-<pre><code>ID da Conexão: mysql_northwind
-<p>Host: localhost          ← Será automaticamente traduzido para "mysql" (container Docker)</p>
-<p>Porta: 3306</p>
-<p>Banco: northwind</p>
-<p>Usuário: root</p>
-<p>Senha: root</code></pre></p>
+<pre><code class="">ID da Conexão: mysql_northwind
+Host: localhost          ← Será automaticamente traduzido para "mysql" (container Docker)
+Porta: 3306
+Banco: northwind
+Usuário: root
+Senha: root</code></pre>
 
 <h4 id="exemplo-de-conexao-externa">Exemplo de Conexão Externa:</h4>
-<pre><code>ID da Conexão: mysql_aws_rds
-<p>Host: mydb.abc123.us-east-1.rds.amazonaws.com  ← Usado exatamente como digitado</p>
-<p>Porta: 3306</p>
-<p>Banco: production</p>
-<p>Usuário: etl_user</p>
-<p>Senha: <strong></strong><strong></strong></code></pre></p>
+<pre><code class="">ID da Conexão: mysql_aws_rds
+Host: mydb.abc123.us-east-1.rds.amazonaws.com  ← Usado exatamente como digitado
+Porta: 3306
+Banco: production
+Usuário: etl_user
+Senha: ********</code></pre>
 
 <h3 id="botao-conectar-e-listar-tabelas">🔘 Botão "Conectar e Listar Tabelas"</h3>
 
@@ -954,9 +1069,9 @@
 </ol>
 
 <h4 id="mensagens-de-feedback">Mensagens de Feedback:</h4>
-<pre><code><span class="badge success">✅</span> Sucesso: "<span class="badge success">✅</span> 12 tabelas encontradas"
-<p><span class="badge warning">❌</span> Erro: "<span class="badge warning">❌</span> Falha ao conectar ao MySQL: Access denied for user 'root'@'mysql'"</p>
-<p><span class="badge warning">⚠️</span> Aviso: "<span class="badge warning">⚠️</span> Nenhuma tabela encontrada"</code></pre></p>
+<pre><code class=""><span class="badge success">✅</span> Sucesso: "<span class="badge success">✅</span> 12 tabelas encontradas"
+<span class="badge warning">❌</span> Erro: "<span class="badge warning">❌</span> Falha ao conectar ao MySQL: Access denied for user 'root'@'mysql'"
+<span class="badge warning">⚠️</span> Aviso: "<span class="badge warning">⚠️</span> Nenhuma tabela encontrada"</code></pre>
 
 <h3 id="aba-ssh-tunnel">🔒 Aba "SSH Tunnel"</h3>
 
@@ -1027,120 +1142,118 @@
 </ol>
 
 <h4 id="exemplo-de-ssh-tunnel">Exemplo de SSH Tunnel:</h4>
-<pre><code>=== SSH Tunnel ===
-<p>SSH Host: bastion.aws.com</p>
-<p>SSH User: ubuntu</p>
-<p>SSH Port: 22</p>
-<p>Local Port: 13306</p>
-<p>SSH Key: /home/airflow/.ssh/aws_key.pem</p>
+<pre><code class="">=== SSH Tunnel ===
+SSH Host: bastion.aws.com
+SSH User: ubuntu
+SSH Port: 22
+Local Port: 13306
+SSH Key: /home/airflow/.ssh/aws_key.pem
 
-<p>=== Database (via tunnel) ===</p>
-<p>Host Remoto: localhost (ou IP privado 10.0.1.50)</p>
-<p>Porta Remota: 3306</p>
-<p>Banco: northwind</p>
-<p>Usuário: root</p>
-<p>Senha: secret</code></pre></p>
+=== Database (via tunnel) ===
+Host Remoto: localhost (ou IP privado 10.0.1.50)
+Porta Remota: 3306
+Banco: northwind
+Usuário: root
+Senha: secret</code></pre>
 
 <strong>Como funciona:</strong>
-<pre><code>Airflow → SSH Tunnel (porta 13306) → Bastion (bastion.aws.com:22) 
-<p>       → Rede Privada → MySQL (10.0.1.50:3306)</code></pre></p>
+<pre><code class="">Airflow → SSH Tunnel (porta 13306) → Bastion (bastion.aws.com:22) 
+       → Rede Privada → MySQL (10.0.1.50:3306)</code></pre>
 
 <p>---</p>
 
 <h2 id="exemplos-praticos">💡 Exemplos Práticos</h2>
 
 <h3 id="exemplo-1-ingestao-single-tabela-csv">Exemplo 1: Ingestão Single-Tabela CSV</h3>
-<pre><code>Tipo de Origem: CSV Genérico
-<p>Upload de Arquivo: customers.csv</p>
-<p>Tabela/Destino: customers</p>
-<p>Função Pipeline: lib.medallion_pipeline.raw_to_medallion</p>
-<p>Modo Multi-Tabela: <span class="badge warning">❌</span> Desmarcado</code></pre></p>
+<pre><code class="yaml">Tipo de Origem: CSV Genérico
+Upload de Arquivo: customers.csv
+Tabela/Destino: customers
+Função Pipeline: lib.medallion_pipeline.raw_to_medallion
+Modo Multi-Tabela: <span class="badge warning">❌</span> Desmarcado</code></pre>
 
 <h3 id="exemplo-2-ingestao-single-tabela-mysql">Exemplo 2: Ingestão Single-Tabela MySQL</h3>
-<pre><code>Tipo de Origem: MySQL Northwind
-<p>Modo Multi-Tabela: <span class="badge warning">❌</span> Desmarcado</p>
-<p>Tabela/Destino: customers</p>
+<pre><code class="yaml">Tipo de Origem: MySQL Northwind
+Modo Multi-Tabela: <span class="badge warning">❌</span> Desmarcado
+Tabela/Destino: customers
 
-<p>=== Conexão Direta ===</p>
-<p>ID Conexão: mysql_northwind</p>
-<p>Host: mysql</p>
-<p>Porta: 3306</p>
-<p>Banco: northwind</p>
-<p>Usuário: root</p>
-<p>Senha: root</p>
+=== Conexão Direta ===
+ID Conexão: mysql_northwind
+Host: mysql
+Porta: 3306
+Banco: northwind
+Usuário: root
+Senha: root
 
-<p>Função Pipeline: lib.mysql_ingestion.mysql_to_medallion</code></pre></p>
+Função Pipeline: lib.mysql_ingestion.mysql_to_medallion</code></pre>
 
 <h3 id="exemplo-3-ingestao-multi-tabela-mysql">Exemplo 3: Ingestão Multi-Tabela MySQL</h3>
-<pre><code>Tipo de Origem: MySQL Northwind
-<p>Modo Multi-Tabela: <span class="badge success">✅</span> Marcado</p>
-<p>Máximo Tasks Paralelas: 16</p>
+<pre><code class="yaml">Tipo de Origem: MySQL Northwind
+Modo Multi-Tabela: <span class="badge success">✅</span> Marcado
+Máximo Tasks Paralelas: 16
 
-<p>=== Conexão Direta ===</p>
-<p>ID Conexão: mysql_northwind</p>
-<p>Host: mysql</p>
-<p>Porta: 3306</p>
-<p>Banco: northwind</p>
-<p>Usuário: root</p>
-<p>Senha: root</p>
+=== Conexão Direta ===
+ID Conexão: mysql_northwind
+Host: mysql
+Porta: 3306
+Banco: northwind
+Usuário: root
+Senha: root
 
-<p>[Clicar em "Conectar"] → Lista tabelas disponíveis</p>
+[Clicar em "Conectar"] → Lista tabelas disponíveis
 
-<p>Tabelas Selecionadas:</p>
-<p>  ☑️ customers (91 linhas)</p>
-<p>  ☑️ orders (830 linhas)</p>
-<p>  ☑️ products (77 linhas)</p>
+Tabelas Selecionadas:
+  ☑️ customers (91 linhas)
+  ☑️ orders (830 linhas)
+  ☑️ products (77 linhas)
 
-<p>Função Pipeline: lib.mysql_ingestion.mysql_to_medallion (auto-selecionado)</code></pre></p>
+Função Pipeline: lib.mysql_ingestion.mysql_to_medallion (auto-selecionado)</code></pre>
 
 <h3 id="exemplo-4-upload-multiplo-de-arquivos-json">Exemplo 4: Upload Múltiplo de Arquivos JSON</h3>
-<pre><code>Tipo de Origem: JSON
-<p>DAG ID: pipe-albuns</p>
-<p>Modo Multi-Upload: <span class="badge success">✅</span> Marcado</p>
+<pre><code class="yaml">Tipo de Origem: JSON
+DAG ID: pipe-albuns
+Modo Multi-Upload: <span class="badge success">✅</span> Marcado
 
-<p>=== Upload ===</p>
-<p>Arquivos:</p>
-<ul>
-<li>Track.json</li>
-<li>Album.json</li>
-<li>Artist.json</li>
-</ul>
+=== Upload ===
+Arquivos:
+  - Track.json
+  - Album.json
+  - Artist.json
 
-<p>Modo de Processamento: 🔄 Paralelo</p>
-<p>Máximo Paralelo: 4</p>
+Modo de Processamento: 🔄 Paralelo
+Máximo Paralelo: 4
 
-<p>=== Resultado ===</p>
-<p>MinIO: raw/pipe-albuns/Track.json</p>
-<p>       raw/pipe-albuns/Album.json</p>
-<p>       raw/pipe-albuns/Artist.json</p>
+=== Resultado ===
+MinIO: raw/pipe-albuns/Track.json
+       raw/pipe-albuns/Album.json
+       raw/pipe-albuns/Artist.json
 
-<p>Banco: source_filename = "raw/pipe-albuns/"</p>
-<p>       max_parallel_tasks = 4</p>
-<p>       sql_* = NULL (todos os campos SQL)</p>
-<p>       ssh_* = NULL (todos os campos SSH)</p>
+Banco: source_filename = "raw/pipe-albuns/"
+       max_parallel_tasks = 4
+       sql_* = NULL (todos os campos SQL)
+       ssh_* = NULL (todos os campos SSH)
 
-<p>Airflow: 3 tasks paralelas processando cada arquivo</code></pre></p>
+Airflow: 3 tasks paralelas processando cada arquivo</code></pre>
 
 <h3 id="exemplo-5-ssh-tunnel-para-mysql-aws">Exemplo 5: SSH Tunnel para MySQL AWS</h3>
-<pre><code>Tipo de Origem: MySQL Northwind
-<p>Modo Multi-Tabela: <span class="badge warning">❌</span> Desmarcado</p>
-<p>Tabela/Destino: sales</p>
+<pre><code class="yaml">Tipo de Origem: MySQL Northwind
+Modo Multi-Tabela: <span class="badge warning">❌</span> Desmarcado
+Tabela/Destino: sales
 
-<p>=== SSH Tunnel ===</p>
-<p>SSH Host: bastion.empresa.com</p>
-<p>SSH User: ec2-user</p>
-<p>SSH Port: 22</p>
-<p>Local Port: 13306</p>
-<p>SSH Key: /home/airflow/.ssh/aws_production.pem</p>
-<p>SSH Password: (deixar vazio)</p>
+=== SSH Tunnel ===
+SSH Host: bastion.empresa.com
+SSH User: ec2-user
+SSH Port: 22
+Local Port: 13306
+SSH Key: /home/airflow/.ssh/aws_production.pem
+SSH Password: (deixar vazio)
 
-<p>DB Host Remoto: rds-mysql-prod.internal</p>
-<p>DB Port Remoto: 3306</p>
-<p>DB Name: production</p>
-<p>DB User: etl_user</p>
-<p>DB Password: <strong></strong><strong></strong></p>
+DB Host Remoto: rds-mysql-prod.internal
+DB Port Remoto: 3306
+DB Name: production
+DB User: etl_user
+DB Password: ********
 
-<p>Função Pipeline: lib.mysql_ingestion.mysql_to_medallion</code></pre></p>
+Função Pipeline: lib.mysql_ingestion.mysql_to_medallion</code></pre>
 
 <p>---</p>
 

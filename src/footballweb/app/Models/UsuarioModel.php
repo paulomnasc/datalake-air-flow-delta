@@ -1,0 +1,83 @@
+<?php
+
+namespace App\Models;
+
+use CodeIgniter\Model;
+
+class UsuarioModel extends Model
+{
+    protected $table            = 'usuario';
+    protected $primaryKey       = 'id';
+    protected $useAutoIncrement = true;
+    //protected $returnType       = 'array';
+    protected $returnType       = 'object';
+    protected $useSoftDeletes   = false;
+    protected $protectFields    = true;
+    protected $allowedFields    = [
+        'nome',
+        'email',
+        'senha',
+        'email_confirmado',
+        'data_ultimo_pagamento',
+        'data_vencimento_assinatura',
+        'status_assinatura',
+        'data_inicio_trial',
+        'google_id',
+        'google_token',
+        'google_refresh_token',
+        'auth_provider',
+        'auth_updated_at',
+           'pagamento_inicial',
+        'grok_credits',
+    ];
+    
+
+    protected bool $allowEmptyInserts = false;
+    protected bool $updateOnlyChanged = true;
+
+    protected array $casts = [];
+    protected array $castHandlers = [];
+
+    // Dates
+    protected $useTimestamps = true;
+    protected $dateFormat    = 'datetime';
+    protected $createdField  = 'criado_em';
+    protected $updatedField  = 'updated_at';
+    protected $deletedField  = 'deleted_at';
+
+    // Validation
+    protected $validationRules      = [];
+    protected $validationMessages   = [];
+    protected $skipValidation       = false;
+    protected $cleanValidationRules = true;
+
+    // Callbacks
+    protected $allowCallbacks = true;
+    protected $beforeInsert   = [];
+    protected $afterInsert    = [];
+    protected $beforeUpdate   = [];
+    protected $afterUpdate    = [];
+    protected $beforeFind     = [];
+    protected $afterFind      = [];
+    protected $beforeDelete   = [];
+    protected $afterDelete    = [];
+
+
+    public function listToCombo()
+    {
+        //$this->select('id, nome');
+        return $this->select('id, nome')->findAll();
+        
+        return  $data;
+    }
+
+    public function getUsuariosComPerfil()
+    {
+        return $this->select('usuario.*, GROUP_CONCAT(perfil.descricao SEPARATOR ", ") as perfil_descricao')
+                    ->join('usuario_perfil', 'usuario_perfil.id_usuario = usuario.id', 'left')
+                    ->join('perfil', 'perfil.id = usuario_perfil.id_perfil', 'left')
+                    ->groupBy('usuario.id')
+                    ->findAll();
+    }
+
+}

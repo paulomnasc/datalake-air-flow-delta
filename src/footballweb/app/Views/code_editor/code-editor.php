@@ -1,0 +1,2523 @@
+<?php
+if (! defined('VIEWPATH')) {
+    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR . 'Views');
+}
+require VIEWPATH . '/header.php';
+?>
+
+<!-- ================================================ -->
+<!-- Git File Manager - Centralizado (reutilizável) -->
+<!-- ================================================ -->
+<script src="/assets/js/git-file-manager.js"></script>
+<style>
+        .sidebar-overlay-bg {
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1999;
+            display: none;
+        }
+        
+        .sidebar-overlay-bg.active {
+            display: block;
+        }
+        
+        .sidebar-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #e2e8f0;
+            border: none;
+            border-radius: 4px;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            color: #475569;
+            transition: all 0.2s;
+        }
+        
+        .sidebar-close-btn:hover {
+            background: #cbd5e1;
+            color: #1e293b;
+        }
+        
+        .sidebar {
+            width: 320px;
+            background: #0f172a;
+            border-right: 1px solid #334155;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            transition: transform 0.2s ease, width 0.2s ease, padding 0.2s ease;
+            transform: translateX(0);
+            z-index: 2000;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        /* Fechada no desktop: some e libera espaço para o editor */
+        .sidebar:not(.active) {
+            width: 0;
+            padding: 0;
+            border-right: none;
+            transform: translateX(0);
+        }
+
+        /* Modo desktop mantém sidebar fixa à esquerda */
+        @media (min-width: 993px) {
+            .sidebar {
+                position: relative;
+            }
+        }
+
+        /* Modo mobile: usa slide sem colapsar largura */
+        @media (max-width: 992px) {
+            .sidebar {
+                position: fixed;
+                top: 0;
+                bottom: 0;
+                left: 0;
+                width: 85vw;
+                transform: translateX(-100%);
+            }
+
+            .sidebar:not(.active) {
+                width: 85vw;
+                transform: translateX(-100%);
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+        }
+
+        .sidebar-toggle-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .sidebar-toggle-btn:hover {
+            background: #5568d3;
+        }
+        
+        .sidebar-section {
+            margin-bottom: 24px;
+            overflow-x: auto;
+            overflow-y: visible;
+        }
+        
+        .sidebar-section::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .sidebar-section::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        
+        .sidebar-section::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+        
+        .sidebar-section::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        
+        .sidebar-section h3 {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #cbd5e1;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+        
+        .file-tree {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 13px;
+            color: #e2e8f0;
+        }
+
+        .file-tree .file-item {
+            color: #e2e8f0;
+            padding: 6px 8px;
+            border-radius: 4px;
+        }
+
+        .file-tree .file-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+        }
+        
+        .tree-item {
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
+            cursor: pointer;
+            color: #e2e8f0;
+            transition: all 0.15s;
+            border-radius: 4px;
+            user-select: none;
+        }
+        
+        .tree-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+        }
+        
+        .tree-item.folder {
+            font-weight: 500;
+            color: #cbd5e1;
+        }
+        
+        .tree-item.file {
+            color: #e2e8f0;
+        }
+        
+        .tree-item.file:hover {
+            background: rgba(102, 126, 234, 0.2);
+            color: #ffffff;
+        }
+        
+        .tree-item .icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 6px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        
+        .tree-item .expand-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 4px;
+            flex-shrink: 0;
+            transition: all 0.2s;
+            color: white;
+            background: black;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .tree-children {
+            margin-left: 16px;
+            display: none;
+        }
+        
+        .tree-children.expanded {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .tree-item .label {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .tree-item-checkbox {
+            width: 16px;
+            height: 16px;
+            margin-right: 6px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        
+        .file-tree-controls {
+            padding: 8px 12px;
+            background: #1e293b;
+            border-top: 1px solid #334155;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .file-tree-controls .btn-control {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex: 1;
+            min-width: fit-content;
+        }
+        
+        .file-tree-controls .btn-select-all {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .file-tree-controls .btn-select-all:hover {
+            background: #2563eb;
+        }
+        
+        .file-tree-controls .btn-clear {
+            background: #64748b;
+            color: white;
+        }
+        
+        .file-tree-controls .btn-clear:hover {
+            background: #475569;
+        }
+        
+        .file-tree-controls .btn-delete {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .file-tree-controls .btn-delete:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+        }
+        
+        .file-tree-controls .btn-delete:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .main-editor {
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .toolbar {
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            overflow-x: auto;
+            overflow-y: hidden;
+            flex-wrap: nowrap;
+            white-space: nowrap;
+        }
+        
+        .toolbar::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .toolbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        
+        .toolbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        .toolbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #475569;
+        }
+        
+        .btn-secondary:hover {
+            background: #cbd5e1;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .limit-control {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #64748b;
+        }
+        
+        .limit-control input {
+            width: 80px;
+            padding: 6px 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        
+        #editor-container {
+            flex: 1;
+            min-height: 300px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .results-section {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+
+        .editor-layout {
+            display: flex;
+            gap: 0;
+            background: #0b1224;
+            min-height: calc(100vh - 140px);
+            position: relative;
+        }
+        
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .results-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .results-stats {
+            font-size: 13px;
+            color: #64748b;
+        }
+        
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .results-table th {
+            background: #f1f5f9;
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .results-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 13px;
+            color: #334155;
+        }
+        
+        .results-table tr:hover {
+            background: #f8fafc;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #94a3b8;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .success-message {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: #64748b;
+            gap: 12px;
+        }
+        
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Sidebar Tabs */
+        .sidebar-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            border-bottom: 1px solid #334155;
+            background: #0f172a;
+        }
+        
+        .sidebar-tab {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            background: #1e293b;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .sidebar-tab:hover {
+            background: #334155;
+            color: #cbd5e1;
+        }
+        
+        .sidebar-tab.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .sidebar-tab-content {
+            display: none;
+            padding: 12px;
+            overflow-y: auto;
+            max-height: calc(100vh - 250px);
+        }
+        
+        .sidebar-tab-content.active {
+            display: block;
+        }
+        
+        /* Git Changes List */
+        #gitChanges li, #gitHistory li {
+            padding: 8px;
+            background: #1e293b;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            border-left: 3px solid #667eea;
+        }
+        
+        #gitChanges li .file-status {
+            display: inline-block;
+            margin-right: 6px;
+            font-weight: bold;
+        }
+        
+        #gitHistory li {
+            background: #0f172a;
+            border-left: 3px solid #10b981;
+            padding: 10px;
+        }
+        
+        #gitHistory li .commit-hash {
+            display: block;
+            font-family: monospace;
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+</style>
+
+<div id="content">
+    <div class="container">
+        <div class="code-editor-container">
+            <div class="code-editor-header">
+            <h1>
+                <span>💻</span>
+                SQL Code Editor
+            </h1>
+            <div class="status-badge" id="statusBadge">
+                <span class="status-dot"></span>
+                🔴 DuckDB Offline
+            </div>
+    </div>
+        
+        <div class="editor-layout">
+            <!-- Overlay background -->
+            <div id="sidebarOverlayBg" class="sidebar-overlay-bg"></div>
+            
+            <!-- Sidebar retrátil -->
+            <aside id="editorSidebar" class="sidebar active">
+                <button class="sidebar-close-btn" onclick="toggleEditorSidebar()">×</button>
+                
+                <!-- Tabs de navegação -->
+                <div class="sidebar-tabs">
+                    <button class="sidebar-tab active" onclick="switchSidebarTab('files')" data-tab="files">
+                        📁 Arquivos
+                    </button>
+                    <button class="sidebar-tab" onclick="switchSidebarTab('git')" data-tab="git">
+                        🔗 Git
+                    </button>
+                </div>
+                
+                <!-- Tab: Arquivos Parquet -->
+                <div id="tab-files" class="sidebar-tab-content active">
+                    <div class="sidebar-section">
+                        <h3>📁 Arquivos Parquet</h3>
+                        
+                        <!-- Controles de seleção múltipla -->
+                        <div class="file-tree-controls">
+                            <button class="btn-control btn-select-all" onclick="selectAllFiles()" title="Selecionar todos os arquivos e pastas">
+                                ✓ Todos
+                            </button>
+                            <button class="btn-control btn-clear" onclick="clearSelection()" title="Limpar seleção">
+                                ✗ Limpar
+                            </button>
+                            <button class="btn-control btn-delete" id="deleteSelectedBtn" onclick="deleteSelectedFiles()" disabled title="Deletar itens selecionados">
+                                🗑️ Deletar
+                            </button>
+                        </div>
+                        
+                        <ul class="file-tree" id="fileTree"></ul>
+                    </div>
+                    
+                    <div class="sidebar-section">
+                        <h3>📊 Exemplos</h3>
+                        <ul class="file-tree">
+                            <li class="file-item" onclick="loadExample('select')">
+                                <span class="file-icon">✨</span>
+                                <span>SELECT básico</span>
+                            </li>
+                            <li class="file-item" onclick="loadExample('join')">
+                                <span class="file-icon">🔗</span>
+                                <span>JOIN tables</span>
+                            </li>
+                            <li class="file-item" onclick="loadExample('aggregate')">
+                                <span class="file-icon">📈</span>
+                                <span>Agregações</span>
+                            </li>
+                            <li class="file-item" onclick="loadExample('window')">
+                                <span class="file-icon">🪟</span>
+                                <span>Window Functions</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <!-- Tab: Git with isomorphic-git (componente reutilizável) -->
+                <?php
+                    $fileFilter = '.parquet';
+                    include VIEWPATH . '/components/git-sidebar.php';
+                ?>
+            </aside>
+            
+            <!-- Main Editor Area -->
+            <main class="main-editor">
+                <div class="toolbar">
+                    <button class="sidebar-toggle-btn" onclick="toggleEditorSidebar()">
+                        📁 Arquivos
+                    </button>
+                    <button class="btn btn-primary" onclick="executeQuery()" id="executeBtn">
+                        ▶️ Executar
+                    </button>
+                    <button class="btn btn-secondary" onclick="formatSQL()">
+                        🎨 Formatar
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearEditor()">
+                        🗑️ Limpar
+                    </button>
+                    <button class="btn btn-secondary" id="downloadCsvBtn" onclick="downloadCSV()" disabled style="opacity: 0.5;">
+                        📄 Baixar CSV
+                    </button>
+                    
+                    <div class="limit-control">
+                        <label>Limite:</label>
+                        <input type="number" id="limitInput" value="1000" min="1" max="10000">
+                    </div>
+                </div>
+                
+                <div id="editor-container"></div>
+                
+                <!-- Markdown Preview Panel (hidden by default) -->
+                <div id="markdown-preview" style="display: none; padding: 20px; background: #fff; border-top: 1px solid #e2e8f0; overflow-y: auto; max-height: 400px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 style="font-size: 16px; font-weight: 600; color: #1e293b;">📖 Preview Markdown</h3>
+                        <button onclick="toggleMarkdownPreview()" style="background: #e2e8f0; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">Fechar</button>
+                    </div>
+                    <div id="markdown-content" style="line-height: 1.6; color: #334155;"></div>
+                </div>
+                
+                <div class="results-section">
+                    <div id="results"></div>
+                </div>
+            </main>
+        </div>
+        </div>
+    </div>
+</div>
+    
+    <!-- Monaco Editor -->
+    // ...existing code...
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
+    
+    <script>
+        let editor;
+        // Reuse global userBucket from git-file-manager.js to avoid redeclaration
+        userBucket = '<?php echo esc($userBucket ?? 'user-1'); ?>';
+        let currentResults = null; // Armazenar resultados atuais para download CSV
+        
+        // toggleEditorSidebar() agora é global via git-file-manager.js
+        
+        // Fechar sidebar ao clicar no overlay
+        document.getElementById('sidebarOverlayBg').addEventListener('click', function() {
+            toggleEditorSidebar();
+        });
+        
+        // Carregar status do DuckDB dinamicamente
+        async function loadDuckDBStatus() {
+            try {
+                const response = await fetch('/code-editor/status');
+                const data = await response.json();
+                
+                const badge = document.getElementById('statusBadge');
+                if (data.healthy) {
+                    badge.innerHTML = '<span class="status-dot"></span>🟢 DuckDB Online';
+                } else {
+                    badge.innerHTML = '<span class="status-dot"></span>🔴 DuckDB Offline';
+                }
+            } catch (e) {
+                const badge = document.getElementById('statusBadge');
+                badge.innerHTML = '<span class="status-dot"></span>🔴 DuckDB Offline';
+            }
+        }
+        
+        // Carregar arquivos Parquet
+        async function loadParquetFiles() {
+            try {
+                const response = await fetch('/code-editor/files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: '' })
+                });
+                const data = await response.json();
+                
+                const fileTree = document.getElementById('fileTree');
+                fileTree.innerHTML = '';
+                
+                if (data.files && data.files.length > 0) {
+                    const tree = buildFileTree(data.files.map(f => f[0]));
+                    renderTree(tree, fileTree, 0);
+                } else {
+                    fileTree.innerHTML = '<div style="color: #94a3b8; font-size: 13px; padding: 8px;">Nenhum arquivo encontrado</div>';
+                }
+            } catch (e) {
+                console.warn('⚠️ Erro ao carregar arquivos Parquet (não crítico):', e.message);
+                const fileTree = document.getElementById('fileTree');
+                if (fileTree) {
+                    fileTree.innerHTML = '<div style="color: #ef4444; font-size: 13px; padding: 8px;">Erro ao carregar arquivos</div>';
+                }
+            }
+        }
+        
+        // State para controlar seleção de arquivos
+        let selectedFiles = new Set();
+        
+        function buildFileTree(paths) {
+            const root = { children: {}, isFile: false };
+            
+            paths.forEach(path => {
+                const cleanPath = path.replace(/^s3:\/\//, '');
+                const parts = cleanPath.split('/');
+                let current = root;
+                
+                // Constrói o caminho incremental para pastas
+                let accumulatedPath = 's3://';
+                
+                parts.forEach((part, index) => {
+                    if (!part) return;
+                    
+                    accumulatedPath += (index === 0 ? '' : '/') + part;
+                    
+                    if (!current.children[part]) {
+                        current.children[part] = {
+                            name: part,
+                            fullPath: index === parts.length - 1 ? path : accumulatedPath + '/',
+                            isFile: index === parts.length - 1,
+                            children: {},
+                            expanded: index < 2
+                        };
+                    }
+                    current = current.children[part];
+                });
+            });
+            
+            return root;
+        }
+        
+        function renderTree(node, container, level = 0) {
+            const entries = Object.values(node.children).sort((a, b) => {
+                if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+                return a.name.localeCompare(b.name);
+            });
+            
+            entries.forEach(entry => {
+                const item = document.createElement('div');
+                
+                // ID único para o checkbox
+                const itemId = 'item_' + btoa(entry.fullPath).replace(/=/g, '');
+                
+                // Verifica se é bucket (level 0) ou camada protegida (bronze, silver, gold, delta, raw)
+                const protectedLayers = ['bronze', 'silver', 'gold', 'delta', 'raw'];
+                const isBucket = level === 0;
+                const isProtectedLayer = level === 1 && protectedLayers.includes(entry.name.toLowerCase());
+                const showCheckbox = !isBucket && !isProtectedLayer;
+                
+                if (entry.isFile) {
+                    item.className = 'tree-item file';
+                    item.innerHTML = `
+                        ${showCheckbox ? `<input type="checkbox" class="tree-item-checkbox" id="${itemId}" 
+                               data-path="${entry.fullPath}" data-is-folder="false"
+                               onchange="updateDeleteButton()">` : '<span style="width: 16px; margin-right: 6px; display: inline-block;"></span>'}
+                        <span class="icon">📄</span>
+                        <span class="label" title="${entry.name}" onclick="insertQueryFromFile('${entry.fullPath}')" style="cursor: pointer;">${entry.name}</span>
+                    `;
+                } else {
+                    const hasChildren = Object.keys(entry.children).length > 0;
+                    const childrenContainer = document.createElement('div');
+                    childrenContainer.className = `tree-children ${entry.expanded ? 'expanded' : ''}`;
+                    
+                    item.className = 'tree-item folder';
+                    item.innerHTML = `
+                        ${showCheckbox ? `<input type="checkbox" class="tree-item-checkbox" id="${itemId}" 
+                               data-path="${entry.fullPath}" data-is-folder="true"
+                               onchange="updateDeleteButton()">` : '<span style="width: 16px; margin-right: 6px; display: inline-block;"></span>'}
+                        <span class="expand-icon" 
+                              onclick="toggleFolder(this, '${itemId}')" 
+                              style="cursor: pointer;">${hasChildren ? (entry.expanded ? '−' : '+') : ''}</span>
+                        <span class="icon">${entry.expanded ? '📂' : '📁'}</span>
+                        <span class="label" title="${entry.name}">${entry.name}</span>
+                    `;
+                    
+                    // Armazena referência ao container de filhos no elemento
+                    item.dataset.childrenContainerId = itemId + '_children';
+                    childrenContainer.id = itemId + '_children';
+                    
+                    container.appendChild(item);
+                    
+                    if (hasChildren) {
+                        renderTree(entry, childrenContainer, level + 1);
+                        container.appendChild(childrenContainer);
+                    }
+                    return;
+                }
+                
+                container.appendChild(item);
+            });
+        }
+        
+        function toggleFolder(expandIconElement, itemId) {
+            const item = expandIconElement.closest('.tree-item');
+            const childrenContainerId = item.dataset.childrenContainerId;
+            const childrenContainer = document.getElementById(childrenContainerId);
+            
+            if (!childrenContainer) return;
+            
+            const icon = item.querySelector('.icon');
+            const isExpanded = childrenContainer.classList.toggle('expanded');
+            
+            if (isExpanded) {
+                expandIconElement.textContent = '−';
+                icon.textContent = '📂';
+            } else {
+                expandIconElement.textContent = '+';
+                icon.textContent = '📁';
+            }
+        }
+        
+        function selectAllFiles() {
+            const checkboxes = document.querySelectorAll('.tree-item-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = true;
+            });
+            updateDeleteButton();
+        }
+        
+        function clearSelection() {
+            const checkboxes = document.querySelectorAll('.tree-item-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = false;
+            });
+            updateDeleteButton();
+        }
+        
+        function updateDeleteButton() {
+            const checkboxes = document.querySelectorAll('.tree-item-checkbox:checked');
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
+            
+            if (checkboxes.length > 0) {
+                deleteBtn.disabled = false;
+                deleteBtn.title = `Deletar ${checkboxes.length} item(s) selecionado(s)`;
+            } else {
+                deleteBtn.disabled = true;
+                deleteBtn.title = 'Nenhum item selecionado';
+            }
+        }
+        
+        async function deleteSelectedFiles() {
+            const checkboxes = document.querySelectorAll('.tree-item-checkbox:checked');
+            
+            if (checkboxes.length === 0) {
+                alert('Nenhum item selecionado para deletar.');
+                return;
+            }
+            
+            // Confirma antes de deletar
+            const confirmMsg = `Deseja realmente deletar ${checkboxes.length} item(s) selecionado(s)?\n\nEsta ação não pode ser desfeita.`;
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            // Coleta os itens selecionados
+            const items = [];
+            checkboxes.forEach(cb => {
+                items.push({
+                    path: cb.dataset.path,
+                    isFolder: cb.dataset.isFolder === 'true'
+                });
+            });
+            
+            // Desabilita o botão durante a operação
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
+            const originalText = deleteBtn.innerHTML;
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = '⏳ Deletando...';
+            
+            try {
+                const response = await fetch('/code-editor/delete-files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ ${result.message}`);
+                    // Recarrega a lista de arquivos
+                    await loadParquetFiles();
+                    clearSelection();
+                } else {
+                    let errorMsg = `⚠️ ${result.message}`;
+                    if (result.errors && result.errors.length > 0) {
+                        errorMsg += '\n\nErros:\n';
+                        result.errors.forEach(err => {
+                            errorMsg += `- ${err.path}: ${err.message}\n`;
+                        });
+                    }
+                    alert(errorMsg);
+                }
+            } catch (error) {
+                console.error('Erro ao deletar arquivos:', error);
+                alert('❌ Erro ao deletar arquivos: ' + error.message);
+            } finally {
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = originalText;
+                updateDeleteButton();
+            }
+        }
+        
+        function insertQueryFromFile(filePath) {
+            // Validar extensão do arquivo
+            const supportedExtensions = ['.parquet', '.csv', '.json', '.jsonl', '.tsv'];
+            const fileExtension = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+            
+            if (!supportedExtensions.includes(fileExtension)) {
+                alert(`❌ Arquivo não compatível!\n\nArquivo: ${filePath.split('/').pop()}\nExtensão: ${fileExtension}\n\nFormatos suportados:\n✓ .parquet (recomendado)\n✓ .csv\n✓ .json / .jsonl\n✓ .tsv`);
+                return;
+            }
+            
+            // Determinar função de leitura baseada na extensão
+            let readFunction = 'read_parquet';
+            if (fileExtension === '.csv' || fileExtension === '.tsv') {
+                readFunction = 'read_csv';
+            } else if (fileExtension === '.json' || fileExtension === '.jsonl') {
+                readFunction = 'read_json';
+            }
+            
+            const sql = `SELECT * FROM ${readFunction}('${filePath}') LIMIT 10`;
+            editor.setValue(sql);
+            editor.focus();
+            toggleEditorSidebar(); // Fechar sidebar
+        }
+        
+        // ========================================
+        // VERSION CONTROL - CODE EDITOR SCRIPT
+        // v2.5.1 - Git Persistence Fix - 14/01/2026 19:15
+        // ========================================
+        console.log('🔧 CODE EDITOR SCRIPT v2.5.1 - Git Persistence Fix carregado');
+        console.log('⏱️ Timestamp:', new Date().toLocaleTimeString());
+        console.log('📦 localStorage.gitConfig inicial:', localStorage.getItem('gitConfig') ? '✅ EXISTE' : '❌ NULL');
+        
+        // Suppress Chrome extension message errors - estes não afetam a funcionalidade
+        window.addEventListener('unhandledrejection', function(event) {
+            if (event.reason?.message?.includes('message channel closed')) {
+                console.warn('⚠️ Chrome extension message channel error (ignorado):', event.reason.message);
+                event.preventDefault(); // Previne que o erro quebre a app
+            }
+        });
+        
+        // Rastrear limpeza de localStorage ao sair da página
+        window.addEventListener('beforeunload', function() {
+            const gitCfg = localStorage.getItem('gitConfig');
+            console.log('👋 beforeunload: localStorage.gitConfig existe?', gitCfg ? '✅ SIM' : '❌ NÃO');
+            if (gitCfg) console.log('   Conteúdo salvo:', JSON.parse(gitCfg).owner + '/' + JSON.parse(gitCfg).repo);
+        });
+        
+        // Função única para restaurar estado Git salvo no localStorage
+        function restoreGitFromStorage(trigger = 'unknown') {
+            try {
+                const stored = localStorage.getItem('gitConfig');
+                console.log(`🔍 restoreGitFromStorage(${trigger}) ->`, stored ? 'EXISTE' : 'NULL');
+                if (!stored) {
+                    console.warn(`⚠️ restoreGitFromStorage(${trigger}): gitConfig não encontrado no localStorage`);
+                    return;
+                }
+
+                const config = JSON.parse(stored);
+                if (!config || !config.owner) {
+                    console.warn(`⚠️ restoreGitFromStorage(${trigger}): config inválido`, config);
+                    return;
+                }
+
+                gitConfig = config;
+                window.gitConfig = config;
+                console.log(`✅ gitConfig restaurado (${trigger}):`, config);
+
+                const gitFileTree = document.getElementById('gitFileTree');
+                const gitConnected = document.getElementById('gitConnected');
+                const gitNotConnected = document.getElementById('gitNotConnected');
+                const repoInfo = document.getElementById('repoInfo');
+                const gitUserInput = document.getElementById('githubUsername');
+                const gitTokenInput = document.getElementById('githubToken');
+                const gitRepoInput = document.getElementById('repoURL');
+
+                if (gitNotConnected) gitNotConnected.style.display = 'none';
+                if (gitConnected) gitConnected.style.display = 'block';
+                if (repoInfo) repoInfo.innerHTML = `Conectado a <strong>${config.owner}/${config.repo}</strong>`;
+                if (gitUserInput) gitUserInput.value = config.username || config.owner || '';
+                if (gitTokenInput) gitTokenInput.value = config.token || '';
+                if (gitRepoInput) gitRepoInput.value = `${config.owner}/${config.repo}`;
+
+                // Carregar arquivos se árvore estiver vazia OU se trigger for SPA (switchSidebarTab)
+                if (gitFileTree) {
+                    const isEmpty = !gitFileTree.children || gitFileTree.children.length === 0;
+                    const isSpaNavigation = trigger === 'switchSidebarTab';
+                    if (isEmpty || isSpaNavigation) {
+                        console.log(`📂 Carregando arquivos Git (restore via ${trigger}, isEmpty=${isEmpty}, isSPA=${isSpaNavigation})...`);
+                        loadGitFiles();
+                    }
+                }
+            } catch (e) {
+                console.error(`❌ Erro em restoreGitFromStorage(${trigger}):`, e);
+            }
+        }
+
+        // Log imediato quando script carrega
+        console.log('⏱️ script DOMContentLoaded iniciado às', new Date().toLocaleTimeString());
+        
+        // Carregar status ao iniciar
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('⏱️ DOMContentLoaded event disparado às', new Date().toLocaleTimeString());
+            loadDuckDBStatus();
+            // Debug inicial
+            const saved = localStorage.getItem('gitConfig');
+            console.log('🔍 DOMContentLoaded - localStorage.gitConfig:', saved ? '✅ ENCONTRADO' : '❌ NULL');
+            if (saved) try { const cfg = JSON.parse(saved); console.log('   owner:', cfg.owner, 'repo:', cfg.repo); } catch(e) {}
+            // Tenta restauração imediata
+            restoreGitFromStorage('DOMContentLoaded');
+            // Fallback periódico curto para cenários em que DOM atrasar
+            let tries = 0;
+            const intervalId = setInterval(() => {
+                tries++;
+                restoreGitFromStorage(`interval-${tries}`);
+                if (tries >= 5) clearInterval(intervalId);
+            }, 800);
+        });
+        
+        // Configurar Monaco Editor
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+        
+        require(['vs/editor/editor.main'], function () {
+            try {
+                editor = monaco.editor.create(document.getElementById('editor-container'), {
+                    value: `-- Bem-vindo ao SQL Code Editor
+-- Execute queries SQL diretamente nos seus arquivos Parquet
+
+SELECT * 
+FROM read_parquet('s3://${userBucket}/bronze/seus_dados.parquet') 
+LIMIT 10;`,
+                    language: 'sql',
+                    theme: 'vs-dark',
+                    automaticLayout: true,
+                    minimap: { enabled: true },
+                    fontSize: 14,
+                    lineNumbers: 'on',
+                    roundedSelection: true,
+                    scrollBeyondLastLine: false,
+                    readOnly: false,
+                    cursorStyle: 'line',
+                    suggestOnTriggerCharacters: true,
+                    quickSuggestions: true,
+                    wordBasedSuggestions: true,
+                    tabSize: 2,
+                    insertSpaces: true,
+                    formatOnPaste: true,
+                    formatOnType: true,
+                });
+                
+                // Atalho Ctrl+Enter para executar
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, executeQuery);
+                
+                // Carregar arquivos após editor pronto
+                loadParquetFiles();
+                
+                // SQL Keywords para autocomplete
+                monaco.languages.registerCompletionItemProvider('sql', {
+                    provideCompletionItems: function(model, position) {
+                        const suggestions = [
+                            {
+                                label: 'read_parquet',
+                                kind: monaco.languages.CompletionItemKind.Function,
+                                insertText: "read_parquet('s3://${userBucket}/bronze/${1:file}.parquet')",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: 'Lê arquivo Parquet do S3'
+                            },
+                            {
+                                label: 'SELECT * FROM',
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "SELECT * FROM \${1:table} LIMIT \${2:10};",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: 'SELECT básico'
+                            }
+                        ];
+                        return { suggestions: suggestions };
+                    }
+                });
+                
+                // Quando um arquivo do Git é selecionado via componente
+                window.addEventListener('git-file-selected', (e) => {
+                    const { filepath, filename, content } = e.detail || {};
+                    if (!filepath || !filename) return;
+
+                    const ext = filename.split('.').pop().toLowerCase();
+                    const langMap = {
+                        'js': 'javascript', 'ts': 'typescript', 'py': 'python',
+                        'sql': 'sql', 'json': 'json', 'md': 'markdown',
+                        'html': 'html', 'css': 'css', 'yaml': 'yaml', 'yml': 'yaml',
+                        'sh': 'shell', 'txt': 'plaintext', 'parquet': 'sql'
+                    };
+                    const language = langMap[ext] || 'plaintext';
+
+                    monaco.editor.setModelLanguage(editor.getModel(), language);
+                    editor.setValue(content || '');
+                    currentGitFile = { path: filepath, name: filename };
+                    const currentInfo = document.getElementById('currentFileInfo');
+                    if (currentInfo) currentInfo.innerHTML = `📄 ${filename}`;
+
+                    if (language === 'markdown') {
+                        showMarkdownPreview(content || '');
+                    } else {
+                        hideMarkdownPreview();
+                    }
+
+                    const status = document.getElementById('gitStatus');
+                    if (status) status.innerText = `✓ ${filename} carregado do Git`;
+                });
+
+                console.log('✓ Monaco Editor inicializado com sucesso');
+            } catch (monError) {
+                console.error('❌ Erro ao inicializar Monaco:', monError);
+                console.warn('💡 Continuando sem Monaco Editor - form ainda funcional');
+            }
+        }, function(err) {
+            console.error('❌ Erro ao carregar Monaco libraries:', err);
+        });
+        
+        // Executar query
+        async function executeQuery() {
+            const sql = editor.getValue().trim();
+            
+            if (!sql) {
+                showError('Digite uma query SQL antes de executar');
+                return;
+            }
+            
+            const limit = parseInt(document.getElementById('limitInput').value) || 1000;
+            const resultsDiv = document.getElementById('results');
+            const executeBtn = document.getElementById('executeBtn');
+            
+            executeBtn.disabled = true;
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div> Executando query...</div>';
+            
+            // Controller para cancelar requisição após timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+            }, 45000); // 45 segundos
+            
+            try {
+                const response = await fetch('/code-editor/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ sql, limit }),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorMsg = `Erro HTTP ${response.status}`;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorMsg = errorJson.error || errorJson.message || errorMsg;
+                    } catch (e) {
+                        errorMsg = errorText || errorMsg;
+                    }
+                    showError(errorMsg);
+                    return;
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayResults(result);
+                } else {
+                    // Melhorar mensagem de erro para arquivo não encontrado
+                    let errorMsg = result.error || 'Erro ao executar query';
+                    
+                    // Detectar erros comuns
+                    if (errorMsg.includes('No files found') || errorMsg.includes('does not exist') || errorMsg.includes('NoSuchKey')) {
+                        errorMsg = '❌ Arquivo não encontrado no MinIO. Verifique se o caminho está correto e se o arquivo existe.';
+                    } else if (errorMsg.includes('Invalid Input Error') || errorMsg.includes('not a valid Parquet') || errorMsg.includes('Parquet file')) {
+                        errorMsg = '❌ Arquivo inválido ou corrompido. Certifique-se de que é um arquivo Parquet válido.';
+                    } else if (errorMsg.includes('Permission denied') || errorMsg.includes('Access Denied')) {
+                        errorMsg = '❌ Sem permissão para acessar este arquivo.';
+                    } else if (errorMsg.includes('timeout')) {
+                        errorMsg = '❌ Timeout: Query demorou muito (>30s). Verifique se o arquivo existe e está acessível, ou se está corrompido.';
+                    }
+                    
+                    showError(errorMsg);
+                }
+            } catch (error) {
+                clearTimeout(timeoutId);
+                
+                if (error.name === 'AbortError') {
+                    showError('❌ Timeout: Query foi cancelada após 45 segundos. Verifique o caminho do arquivo ou se ele existe.');
+                } else if (error.message.includes('timeout') || error.message.includes('timed out')) {
+                    showError('❌ Timeout na conexão. Verifique se o servidor está acessível.');
+                } else {
+                    showError('Erro de conexão: ' + error.message);
+                }
+            } finally {
+                executeBtn.disabled = false;
+            }
+        }
+        
+        // Exibir resultados
+        function displayResults(result) {
+            const resultsDiv = document.getElementById('results');
+            const csvBtn = document.getElementById('downloadCsvBtn');
+            
+            if (!result.data || result.data.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="success-message">
+                        ✅ Query executada com sucesso! Nenhum resultado retornado.
+                    </div>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>Sem resultados</p>
+                    </div>
+                `;
+                currentResults = null;
+                csvBtn.disabled = true;
+                csvBtn.style.opacity = '0.5';
+                return;
+            }
+            
+            // Armazenar resultados para download CSV
+            currentResults = result;
+            csvBtn.disabled = false;
+            csvBtn.style.opacity = '1';
+            
+            const columns = result.columns || Object.keys(result.data[0]);
+            const rowCount = result.data.length;
+            const executionTime = result.execution_time_ms || 0;
+            
+            let html = `
+                <div class="results-header">
+                    <h3>📊 Resultados</h3>
+                    <div class="results-stats">
+                        ${rowCount} linha(s) · ${executionTime}ms
+                    </div>
+                </div>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            ${columns.map(col => `<th>${col}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            result.data.forEach(row => {
+                html += '<tr>';
+                columns.forEach(col => {
+                    const value = row[col];
+                    const displayValue = value === null ? '<i style="color: #94a3b8;">null</i>' : value;
+                    html += `<td>${displayValue}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            resultsDiv.innerHTML = html;
+        }
+        
+        // Exibir erro
+        function showError(message) {
+            const resultsDiv = document.getElementById('results');
+            const csvBtn = document.getElementById('downloadCsvBtn');
+            
+            resultsDiv.innerHTML = `
+                <div class="error-message">
+                    ❌ <strong>Erro:</strong> ${message}
+                </div>
+            `;
+            
+            currentResults = null;
+            csvBtn.disabled = true;
+            csvBtn.style.opacity = '0.5';
+        }
+        
+        // Formatar SQL
+        function formatSQL() {
+            const sql = editor.getValue();
+            editor.getAction('editor.action.formatDocument').run();
+        }
+        
+        // Limpar editor
+        function clearEditor() {
+            if (confirm('Deseja limpar todo o conteúdo do editor?')) {
+                editor.setValue('');
+                document.getElementById('results').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">✨</div>
+                        <p>Execute uma query para ver os resultados</p>
+                    </div>
+                `;
+                
+                // Limpar resultados e desabilitar botão CSV
+                currentResults = null;
+                const csvBtn = document.getElementById('downloadCsvBtn');
+                if (csvBtn) {
+                    csvBtn.disabled = true;
+                    csvBtn.style.opacity = '0.5';
+                }
+            }
+        }
+        
+        // Baixar resultados em CSV
+        function downloadCSV() {
+            if (!currentResults || !currentResults.data || currentResults.data.length === 0) {
+                alert('⚠️ Nenhum resultado disponível para download');
+                return;
+            }
+            
+            const columns = currentResults.columns || Object.keys(currentResults.data[0]);
+            const rows = currentResults.data;
+            
+            // Cabeçalho CSV
+            let csv = columns.map(col => `"${col}"`).join(',') + '\n';
+            
+            // Linhas de dados
+            rows.forEach(row => {
+                const values = columns.map(col => {
+                    const value = row[col];
+                    if (value === null || value === undefined) {
+                        return '';
+                    }
+                    // Escapar aspas duplas e envolver em aspas se houver vírgulas/quebras
+                    const stringValue = String(value).replace(/"/g, '""');
+                    if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
+                        return `"${stringValue}"`;
+                    }
+                    return stringValue;
+                });
+                csv += values.join(',') + '\n';
+            });
+            
+            // Criar blob e download
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            // Nome arquivo com timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const filename = `query_results_${timestamp}.csv`;
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log(`✅ CSV baixado: ${filename} (${rows.length} linhas)`);
+        }
+        
+        // Inserir caminho do arquivo
+        function insertFilePath(filePath) {
+            const sql = `SELECT * FROM read_parquet('${filePath}') LIMIT 100;`;
+            editor.setValue(sql);
+            editor.focus();
+        }
+        
+        // Carregar exemplos
+        function loadExample(type) {
+            const examples = {
+                select: `-- SELECT básico
+SELECT * 
+FROM read_parquet('s3://${userBucket}/bronze/seus_dados.parquet')
+LIMIT 100;`,
+                
+                join: `-- JOIN entre tabelas
+SELECT 
+    a.id,
+    a.nome,
+    b.valor
+FROM read_parquet('s3://${userBucket}/bronze/tabela_a.parquet') a
+JOIN read_parquet('s3://${userBucket}/bronze/tabela_b.parquet') b
+ON a.id = b.id
+LIMIT 100;`,
+                
+                aggregate: `-- Agregações
+SELECT 
+    categoria,
+    COUNT(*) as total,
+    AVG(valor) as media,
+    SUM(valor) as soma
+FROM read_parquet('s3://${userBucket}/bronze/vendas.parquet')
+GROUP BY categoria
+ORDER BY total DESC;`,
+                
+                window: `-- Window Functions
+SELECT 
+    nome,
+    departamento,
+    salario,
+    ROW_NUMBER() OVER (PARTITION BY departamento ORDER BY salario DESC) as rank
+FROM read_parquet('s3://${userBucket}/bronze/funcionarios.parquet')
+ORDER BY departamento, rank;`
+            };
+            
+            if (examples[type]) {
+                editor.setValue(examples[type]);
+                editor.focus();
+            }
+        }
+        
+        // Inicializar com estado vazio
+        document.getElementById('results').innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">✨</div>
+                <p>Execute uma query para ver os resultados</p>
+            </div>
+        `;
+        
+        
+        // ===== GIT (isomorphic-git) =====
+        
+        // Aguardar Monaco carregar, depois carregar Git via <script> tags sequencialmente
+        (function bootGit() {
+            const loadingStatus = document.getElementById('gitLoadingStatus');
+            function setLoading(msg) { if (loadingStatus) { loadingStatus.style.display = 'block'; loadingStatus.textContent = msg; } }
+            function clearLoading() { if (loadingStatus) loadingStatus.style.display = 'none'; }
+            
+            setLoading('⏳ Carregando bibliotecas Git...');
+            
+            // Aguardar um pouco para Monaco terminar de carregar seus próprios módulos AMD
+            setTimeout(() => {
+                console.log('Iniciando carregamento de Git...');
+                
+                // Salvar define original
+                const origDefine = window.define;
+                delete window.define; // Remover completamente
+                delete window.require;
+                
+                // Criar ambiente mínimo para UMD
+                window.module = { exports: {} };
+                window.exports = {};
+                
+                // Carregar LightningFS via <script>
+                const lfsScript = document.createElement('script');
+                lfsScript.src = 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/dist/lightning-fs.min.js';
+                lfsScript.onerror = () => {
+                    setLoading('❌ Falha LightningFS');
+                    window.define = origDefine;
+                };
+                lfsScript.onload = () => {
+                    console.log('✓ LightningFS carregado');
+                    console.log('window.LightningFS:', typeof window.LightningFS);
+                    console.log('window.module.exports:', window.module?.exports);
+                    
+                    // Copiar de module.exports para global
+                    if (window.module?.exports && !window.LightningFS) {
+                        window.LightningFS = window.module.exports;
+                        console.log('✓ window.LightningFS atribuído de module.exports');
+                    }
+                    
+                    // RESETAR module.exports para próximo script
+                    window.module.exports = {};
+                    
+                    // Restaurar define temporariamente para isomorphic-git
+                    // (pode precisar passar para Monaco para funcionar)
+                    if (origDefine) window.define = origDefine;
+                    
+                    // Carregar isomorphic-git
+                    const gitScript = document.createElement('script');
+                    gitScript.src = 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.7/index.umd.min.js';
+                    gitScript.onerror = () => {
+                        setLoading('❌ Falha isomorphic-git');
+                        window.define = origDefine;
+                    };
+                    gitScript.onload = () => {
+                        console.log('✓ isomorphic-git carregado');
+                        console.log('window.git:', typeof window.git);
+                        console.log('window.module.exports:', window.module?.exports);
+                        
+                        // Copiar de module.exports para global
+                        if (window.module?.exports && !window.git) {
+                            window.git = window.module.exports;
+                            console.log('✓ window.git atribuído de module.exports');
+                        }
+                        
+                        // Restaurar define original
+                        if (origDefine) window.define = origDefine;
+                        
+                        // Criar HTTP client inline imediatamente
+                        createHttpClientImmediate();
+                    };
+                    document.head.appendChild(gitScript);
+                };
+                document.head.appendChild(lfsScript);
+            }, 2000); // Aguardar 2 segundos para Monaco terminar
+        })();
+
+        // Função para criar HTTP client inline - chamada após git estar pronto
+        function createHttpClientImmediate() {
+            console.log('🔧 Criando HTTP client inline...');
+            
+            if (!window.git) {
+                console.error('❌ window.git não está disponível');
+                return;
+            }
+            
+            window.git.http = {
+                // Assinatura compatível com isomorphic-git: recebe um objeto com url/method/headers/body
+                request: async ({ url, method = 'GET', headers = {}, body } = {}) => {
+                    if (!url) {
+                        throw new Error('HTTP client: url não informado');
+                    }
+                    console.log(`📤 HTTP ${method} ${url.substring(0, 100)}${url.length > 100 ? '...' : ''}`);
+                    
+                    // Fallback de auth se não veio do isomorphic-git (usa gitConfig global)
+                    let authHeader = headers['authorization'] || headers['Authorization'];
+                    
+                    if (!authHeader && window.gitConfig && window.gitConfig.token) {
+                        // Para GitHub, username deve ser o owner/username do GitHub, não email
+                        const ghUsername = window.gitConfig.owner || window.gitConfig.username;
+                        authHeader = 'Basic ' + btoa(`${ghUsername}:${window.gitConfig.token}`);
+                    }
+
+                    const mergedHeaders = {
+                        'User-Agent': 'isomorphic-git/1.25.7',
+                        ...headers,
+                        ...(authHeader ? { authorization: authHeader } : {})
+                    };
+                    // Garantir Authorization sempre em minúsculas e visível no log
+                    if (mergedHeaders.Authorization && !mergedHeaders.authorization) {
+                        mergedHeaders.authorization = mergedHeaders.Authorization;
+                        delete mergedHeaders.Authorization;
+                    }
+
+                    // NÃO fazer proxy aqui - deixar o isomorphic-git gerenciar corsProxy
+                    // O isomorphic-git vai adicionar o corsProxy na URL quando necessário
+                    const targetUrl = url;
+
+                    // Remover cabeçalhos proibidos pelo navegador
+                    delete mergedHeaders.host;
+                    delete mergedHeaders.origin;
+                    
+                    const fetchOpts = {
+                        method,
+                        headers: mergedHeaders,
+                        credentials: 'omit',
+                        mode: 'cors'
+                    };
+                    
+                    if (body) {
+                        if (typeof body === 'string') {
+                            fetchOpts.body = body;
+                        } else if (body instanceof Uint8Array) {
+                            fetchOpts.body = body;
+                        } else if (Array.isArray(body)) {
+                            fetchOpts.body = body.join('');
+                        }
+                    }
+                    
+                    try {
+                        const res = await fetch(targetUrl, fetchOpts);
+                        const resHeaders = {};
+                        for (const [key, value] of res.headers.entries()) {
+                            resHeaders[key.toLowerCase()] = value;
+                        }
+                        // Para respostas binárias, usar arrayBuffer; senão, usar text
+                        const bodyBuffer = await res.arrayBuffer();
+                        const bodyUint8 = new Uint8Array(bodyBuffer);
+                        
+                        console.log(`📥 HTTP ${res.status} ${res.statusText} (${bodyBuffer.byteLength} bytes)`);
+                        
+                        // Log detalhado para TODAS as requisições Git para debug completo
+                        console.log('🔍 DEBUG response detalhada:');
+                        console.log('  URL:', url.substring(0, 120));
+                        console.log('  Method:', method);
+                        console.log('  Status:', res.status, '(' + typeof res.status + ')');
+                        console.log('  StatusText:', res.statusText, '(' + typeof res.statusText + ')');
+                        console.log('  Content-Type:', resHeaders['content-type']);
+                        console.log('  Content-Length:', resHeaders['content-length']);
+                        console.log('  Body length:', bodyUint8.length);
+                        console.log('  Body is Uint8Array:', bodyUint8 instanceof Uint8Array);
+                        
+                        if (bodyUint8.length <= 200) {
+                            const decoded = new TextDecoder().decode(bodyUint8);
+                            console.log('  Body completo:', decoded);
+                            console.log('  Body hex:', Array.from(bodyUint8.slice(0, 50)).map(x => x.toString(16).padStart(2, '0')).join(' '));
+                        } else {
+                            console.log('  Body primeiros 200 bytes:', new TextDecoder().decode(bodyUint8.slice(0, 200)));
+                            console.log('  Body primeiros 50 bytes (hex):', Array.from(bodyUint8.slice(0, 50)).map(x => x.toString(16).padStart(2, '0')).join(' '));
+                        }
+                        
+                        if (res.status >= 400) {
+                            const bodyText = new TextDecoder().decode(bodyUint8);
+                            console.error(`❌ ERRO ${res.status} em ${method} ${url.substring(0, 80)}`);
+                            console.error('Resposta:', bodyText.substring(0, 300));
+                            console.error('Headers:', Object.entries(resHeaders).slice(0, 5));
+                        }
+                        
+                        // VALIDAR que status e statusText não sejam undefined
+                        const validStatus = typeof res.status === 'number' ? res.status : 500;
+                        const validStatusText = res.statusText || 'Unknown';
+                        
+                        if (typeof res.status !== 'number') {
+                            console.error('⚠️ AVISO: res.status não é number!', res.status, typeof res.status);
+                        }
+                        
+                        return {
+                            url,
+                            method,
+                            headers: resHeaders,
+                            body: [bodyUint8],
+                            status: validStatus,
+                            statusText: validStatusText
+                        };
+                    } catch (err) {
+                        console.error(`❌ Erro FETCH em ${method} ${url.substring(0, 80)}:`, err.message);
+                        console.error('Erro completo:', err);
+                        // Retornar objeto no formato esperado para o isomorphic-git levantar HttpError com status 0
+                        return {
+                            url,
+                            method,
+                            headers: {},
+                            body: [new Uint8Array(0)],
+                            status: 0,
+                            statusText: err.message || 'Fetch failed'
+                        };
+                    }
+                }
+            };
+            
+            console.log('✓ HTTP client criado');
+            console.log('git.http.request:', typeof window.git.http.request);
+            // Limpar indicador de carregamento com fallback se escopo local não estiver disponível
+            if (typeof clearLoading === 'function') {
+                clearLoading();
+            } else {
+                const el = document.getElementById('gitLoadingStatus');
+                if (el) el.style.display = 'none';
+            }
+            initGitAfterLoad();
+        }
+
+        
+        // gitConfig, pfs e git já estão declarados globalmente em git-file-manager.js
+        let fs; // Apenas fs é local para code-editor
+        
+        // Inicializar após carregamento bem-sucedido dos scripts
+        function initGitAfterLoad() {
+            // Verificar variáveis globais possíveis
+            console.log('Verificando variáveis Git disponíveis...');
+            console.log('window.git:', typeof window.git);
+            console.log('window.LightningFS:', typeof window.LightningFS);
+            console.log('window.FS:', typeof window.FS);
+            
+            // isomorphic-git pode expor como 'git' ou exportar diretamente
+            git = window.git;
+            
+            if (!git) {
+                console.error('❌ window.git não encontrado');
+                // Listar todas as variáveis globais que contêm 'git' ou 'lightning'
+                const gitVars = Object.keys(window).filter(k => 
+                    k.toLowerCase().includes('git') || 
+                    k.toLowerCase().includes('lightning') ||
+                    k.toLowerCase().includes('fs')
+                );
+                console.log('Variáveis relacionadas:', gitVars);
+                return;
+            }
+            
+            if (!window.LightningFS) {
+                console.error('❌ window.LightningFS não encontrado');
+                return;
+            }
+            
+            // Inicializar filesystem agora
+            initFS();
+            
+            console.log('✓ Git inicializado com sucesso');
+            restoreGitFromStorage('initGitAfterLoad');
+        }
+        
+        function initFS() {
+            if (fs && pfs) {
+                console.log('✓ Filesystem já inicializado');
+                return;
+            }
+            
+            if (!window.LightningFS) {
+                console.error('❌ LightningFS não disponível');
+                return;
+            }
+            
+            try {
+                // Criar nova instância no contexto da página principal (não do iframe)
+                fs = new window.LightningFS('code-editor-fs', { wipe: false });
+                pfs = fs.promises;
+                console.log('✓ Filesystem inicializado (LightningFS)');
+                console.log('fs:', fs);
+                console.log('pfs:', pfs);
+            } catch (e) {
+                console.error('❌ Erro ao inicializar filesystem:', e);
+                console.error('Stack:', e.stack);
+            }
+        }
+        
+        // Verificar se Git está pronto para uso
+        function isGitReady() {
+            return typeof window.git !== 'undefined' && typeof window.LightningFS !== 'undefined';
+        }
+        
+        // switchSidebarTab() agora é global via git-file-manager.js
+        
+        // Conectar e clonar o repositório
+        // connectAttempts já está declarado globalmente em git-file-manager.js
+        async function connectGitHub() {
+            const status = document.getElementById('gitStatus');
+            
+            if (!isGitReady()) {
+                connectAttempts++;
+                if (connectAttempts > 10) {
+                    alert('❌ Erro ao carregar isomorphic-git. Recarregue a página.\n\nVerifique o console (F12) para detalhes.');
+                    console.error('isomorphic-git não carregou após 10 tentativas');
+                    console.log('window.git:', typeof window.git);
+                    console.log('window.LightningFS:', typeof window.LightningFS);
+                    connectAttempts = 0;
+                    return;
+                }
+                status.innerText = 'Aguardando carregamento do isomorphic-git... (' + connectAttempts + '/10)';
+                setTimeout(connectGitHub, 800);
+                return;
+            }
+            connectAttempts = 0;
+            git = window.git;
+            
+            // Garantir que filesystem está inicializado
+            if (!pfs) {
+                initFS();
+                if (!pfs) {
+                    alert('❌ Erro ao inicializar filesystem');
+                    return;
+                }
+            }
+            
+            const token = document.getElementById('githubToken').value.trim();
+            const repoURL = document.getElementById('repoURL').value.trim();
+            const username = document.getElementById('githubUsername').value.trim();
+            if (!repoURL.includes('/')) {
+                alert('Informe o repo no formato user/repo');
+                return;
+            }
+            const [owner, repo] = repoURL.split('/');
+            gitConfig = { owner, repo, token, username, branch: 'main' };
+            window.gitConfig = gitConfig;
+            console.log('💾 Salvando gitConfig no localStorage:', gitConfig);
+            localStorage.setItem('gitConfig', JSON.stringify(gitConfig));
+            console.log('✅ Salvo com sucesso. Verificando:', localStorage.getItem('gitConfig'));
+            
+            status.innerText = 'Clonando repositório...';
+            
+            try {
+                // Chamada server-side para clonar no MinIO
+                const cloneResponse = await fetch('/api/git-clone', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        username: gitConfig.username || gitConfig.owner,
+                        // token opcional para repositórios públicos
+                        token: gitConfig.token || undefined,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        branch: gitConfig.branch || 'main'
+                    })
+                });
+
+                if (!cloneResponse.ok) {
+                    const errorData = await cloneResponse.json();
+                    const errMsg = errorData.message || errorData.error || 'Clone failed on server';
+                    const debugInfo = errorData.debug ? ' [DEBUG: ' + JSON.stringify(errorData.debug) + ']' : '';
+                    throw new Error(errMsg + debugInfo);
+                }
+
+                const cloneResult = await cloneResponse.json();
+                console.log('✅ Clone server-side concluído:', cloneResult);
+                
+                status.innerText = 'Carregando arquivos...';
+                
+                // Listar arquivos do repositório
+                const filesResponse = await fetch(`/api/git-files?userBucket=${encodeURIComponent(userBucket)}&owner=${owner}&repo=${repo}`);
+                if (!filesResponse.ok) {
+                    let errText = await filesResponse.text();
+                    try {
+                        const errJson = JSON.parse(errText);
+                        errText = errJson.message || errJson.error || JSON.stringify(errJson);
+                    } catch (e) {}
+                    throw new Error('Failed to load files: ' + errText);
+                }
+                
+                const filesResult = await filesResponse.json();
+                console.log('✅ Arquivos carregados:', filesResult);
+                
+                // Clone bem-sucedido - SALVAR gitConfig no localStorage IMEDIATAMENTE
+                console.log('💾 Salvando gitConfig no localStorage:', gitConfig);
+                localStorage.setItem('gitConfig', JSON.stringify(gitConfig));
+                console.log('✅ Salvo com sucesso. Verificando:', localStorage.getItem('gitConfig'));
+                
+                // Atualizar UI DEPOIS
+                status.innerText = '✓ Clone concluído com sucesso (persistido no MinIO)';
+                console.log('✓ Clone bem-sucedido via servidor (persistido no MinIO)');
+                
+                document.getElementById('gitNotConnected').style.display = 'none';
+                document.getElementById('gitConnected').style.display = 'block';
+                document.getElementById('repoInfo').innerHTML = `Conectado a <strong>${owner}/${repo}</strong>`;
+                
+                // Renderizar árvore de arquivos DEPOIS (elemento precisa estar visível)
+                setTimeout(() => {
+                    renderGitFileTree(filesResult.files || []);
+                }, 100);
+                
+            } catch (e) {
+                // Clone falhou - reverter UI e limpar config
+                gitConfig = null;
+                localStorage.removeItem('gitConfig');
+                status.innerText = 'Erro ao clonar: ' + (e?.message || 'Falha desconhecida');
+                alert('Erro ao clonar: ' + (e?.message || 'Falha desconhecida'));
+                console.error('Clone error:', e);
+                console.error('Stack trace:', e?.stack);
+                
+                // Garantir que UI volta ao estado inicial
+                document.getElementById('gitNotConnected').style.display = 'block';
+                document.getElementById('gitConnected').style.display = 'none';
+            }
+        }
+        
+        function disconnectGitHub() {
+            gitConfig = null;
+            localStorage.removeItem('gitConfig');
+            document.getElementById('gitNotConnected').style.display = 'block';
+            document.getElementById('gitConnected').style.display = 'none';
+            document.getElementById('githubToken').value = '';
+            document.getElementById('repoURL').value = '';
+            document.getElementById('commitMsg').value = '';
+            document.getElementById('gitStatus').innerText = '';
+            // Limpar árvore de arquivos
+            const gitFileTree = document.getElementById('gitFileTree');
+            if (gitFileTree) gitFileTree.innerHTML = '';
+        }
+        
+        // Recarregar lista de arquivos do Git
+        async function loadGitFiles() {
+            console.log('📂 loadGitFiles() chamado às', new Date().toLocaleTimeString());
+            console.log('   gitConfig:', gitConfig);
+            console.log('   userBucket:', userBucket);
+            
+            if (!gitConfig) {
+                console.error('❌ Git não configurado');
+                return;
+            }
+            
+            try {
+                console.log(`🌐 Buscando arquivos: /api/git-files?userBucket=${userBucket}&owner=${gitConfig.owner}&repo=${gitConfig.repo}`);
+                const response = await fetch(`/api/git-files?userBucket=${encodeURIComponent(userBucket)}&owner=${gitConfig.owner}&repo=${gitConfig.repo}`);
+                
+                console.log('✅ Resposta recebida. Status:', response.status);
+                
+                if (!response.ok) {
+                    let errText = await response.text();
+                    try {
+                        const errJson = JSON.parse(errText);
+                        errText = errJson.message || errJson.error || JSON.stringify(errJson);
+                    } catch (e) {}
+                    throw new Error('Failed to load files: ' + errText);
+                }
+                
+                const result = await response.json();
+                console.log('✅ Arquivos recarregados. Quantidade:', result.files ? result.files.length : 0, 'Dados:', result);
+                
+                renderGitFileTree(result.files || []);
+            } catch (error) {
+                console.error('❌ Erro ao recarregar arquivos:', error);
+                console.error('Stack:', error.stack);
+            }
+        }
+        
+        // Renderizar árvore de arquivos do Git
+        function buildGitFileTree(files) {
+            const root = { children: {}, isFile: false };
+            
+            files.forEach(file => {
+                const normalizedPath = file.path.replace(/\\/g, '/');
+                const parts = normalizedPath.split('/').filter(Boolean);
+
+                // Ignorar arquivo .gitkeep, mas manter a pasta como nó de pasta
+                let isGitkeepPlaceholder = false;
+                if (parts.length > 0 && parts[parts.length - 1] === '.gitkeep') {
+                    parts.pop();
+                    if (parts.length === 0) return; // nada a criar
+                    isGitkeepPlaceholder = true;
+                }
+
+                let current = root;
+                const accumulated = [];
+                
+                parts.forEach((part, index) => {
+                    accumulated.push(part);
+                    const pathSoFar = accumulated.join('/');
+                    const isLast = (index === parts.length - 1);
+                    const isFile = isGitkeepPlaceholder ? false : (isLast && !normalizedPath.endsWith('/'));
+                    
+                    if (!current.children[part]) {
+                        current.children[part] = {
+                            name: part,
+                            path: pathSoFar,
+                            fullPath: pathSoFar,
+                            isFile: isFile,
+                            fileData: isFile ? file : null,
+                            children: {},
+                            expanded: index < 2
+                        };
+                    } else {
+                        // Se já existia (ex: criado via placeholder/pasta antes), mas agora estamos
+                        // passando por ele para criar um nó filho, garante que seja marcado como pasta.
+                        if (!isLast) {
+                            current.children[part].isFile = false;
+                            current.children[part].fileData = null;
+                        }
+                    }
+                    current = current.children[part];
+                });
+            });
+            
+            return root;
+        }
+        
+        function renderGitTree(node, container, level = 0) {
+            const entries = Object.values(node.children).sort((a, b) => {
+                if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+                return a.name.localeCompare(b.name);
+            });
+            
+            entries.forEach(entry => {
+                const item = document.createElement('div');
+                item.dataset.path = entry.fullPath || entry.path || entry.name;
+                item.dataset.type = entry.isFile ? 'file' : 'folder';
+                
+                if (entry.isFile) {
+                    // Filtrar em tempo de renderização (se houver restrição configurada)
+                    if (window.allowedExtensions) {
+                        const allowed = window.allowedExtensions;
+                        const name = entry.name.toLowerCase();
+                        const isAllowed = allowed.some(ext => name.endsWith(ext));
+                        if (!isAllowed) {
+                            return; // Omitir arquivo do DOM
+                        }
+                    }
+
+                    item.className = 'tree-item file';
+                    item.innerHTML = `
+                        <span class="icon">📄</span>
+                        <span class="label" title="${entry.name}">${entry.name}</span>
+                    `;
+                    item.onclick = () => loadGitFileContent(entry.fileData);
+                } else {
+                    // Renderizar pasta
+                    const childrenContainer = document.createElement('div');
+                    
+                    // Renderizar filhos recursivamente primeiro para saber se a pasta tem filhos visíveis
+                    renderGitTree(entry, childrenContainer, level + 1);
+                    
+                    // Se a pasta não possui filhos renderizados no DOM, mas existiam filhos no modelo,
+                    // ela ainda é exibida como pasta (para que o usuário possa interagir e criar arquivos).
+                    const hasRenderedChildren = childrenContainer.children.length > 0;
+                    
+                    childrenContainer.className = `tree-children ${entry.expanded ? 'expanded' : ''}`;
+                    
+                    item.className = 'tree-item folder';
+                    item.innerHTML = `
+                        <span class="expand-icon ${entry.expanded ? 'expanded' : ''}">${hasRenderedChildren ? (entry.expanded ? '▼' : '▶') : ''}</span>
+                        <span class="icon">${entry.expanded ? '📂' : '📁'}</span>
+                        <span class="label" title="${entry.name}">${entry.name}</span>
+                    `;
+                    
+                    item.onclick = (e) => {
+                        e.stopPropagation();
+                        
+                        if (hasRenderedChildren) {
+                            toggleGitFolder(item, childrenContainer, entry);
+                        }
+                    };
+                    
+                    container.appendChild(item);
+                    container.appendChild(childrenContainer);
+                    return;
+                }
+                
+                container.appendChild(item);
+            });
+        }
+        
+        function toggleGitFolder(folderItem, childrenContainer, entry) {
+            const expandIcon = folderItem.querySelector('.expand-icon');
+            const icon = folderItem.querySelector('.icon');
+            const isExpanded = childrenContainer.classList.toggle('expanded');
+            
+            if (isExpanded) {
+                if (expandIcon) {
+                    expandIcon.classList.add('expanded');
+                    expandIcon.textContent = '▼';
+                }
+                if (icon) icon.textContent = '📂';
+                entry.expanded = true;
+            } else {
+                if (expandIcon) {
+                    expandIcon.classList.remove('expanded');
+                    expandIcon.textContent = '▶';
+                }
+                if (icon) icon.textContent = '📁';
+                entry.expanded = false;
+            }
+        }
+        
+        function renderGitFileTree(files) {
+            console.log('🔍 renderGitFileTree chamada com:', files);
+            const gitFileTree = document.getElementById('gitFileTree');
+            console.log('🔍 Elemento gitFileTree:', gitFileTree);
+            
+            if (!gitFileTree) {
+                console.error('❌ Elemento gitFileTree não encontrado no DOM');
+                return;
+            }
+            
+            gitFileTree.innerHTML = '';
+            
+            if (!files || files.length === 0) {
+                console.warn('⚠️ Nenhum arquivo para renderizar');
+                gitFileTree.innerHTML = '<div style="color: #94a3b8; font-size: 13px; padding: 8px;">Nenhum arquivo encontrado</div>';
+                return;
+            }
+            
+            console.log(`✅ Renderizando árvore para ${files.length} arquivo(s)`);
+            const tree = buildGitFileTree(files);
+            renderGitTree(tree, gitFileTree, 0);
+            console.log('✅ Árvore de arquivos renderizada com sucesso');
+        }
+        
+        // Carregar conteúdo do arquivo no Monaco Editor
+        let currentGitFile = null;
+        async function loadGitFileContent(file) {
+            if (!gitConfig) {
+                alert('Repositório não conectado');
+                return;
+            }
+            
+            try {
+                const response = await fetch(
+                    `/api/git-file-content?userBucket=${encodeURIComponent(userBucket)}&owner=${gitConfig.owner}&repo=${gitConfig.repo}&file=${encodeURIComponent(file.path)}`
+                );
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao carregar arquivo');
+                }
+                
+                const result = await response.json();
+                
+                // Detectar linguagem pela extensão
+                const ext = file.name.split('.').pop().toLowerCase();
+                const langMap = {
+                    'js': 'javascript', 'ts': 'typescript', 'py': 'python',
+                    'sql': 'sql', 'json': 'json', 'md': 'markdown',
+                    'html': 'html', 'css': 'css', 'yaml': 'yaml', 'yml': 'yaml',
+                    'sh': 'shell', 'txt': 'plaintext'
+                };
+                const language = langMap[ext] || 'plaintext';
+                
+                // Atualizar Monaco Editor
+                if (editor) {
+                    monaco.editor.setModelLanguage(editor.getModel(), language);
+                    editor.setValue(result.content || '');
+                    currentGitFile = file;
+                    
+                    // Atualizar display de arquivo atual
+                    document.getElementById('currentFileInfo').innerHTML = `📄 ${file.name}`;
+                    
+                    // Se for Markdown, mostrar preview
+                    if (language === 'markdown') {
+                        showMarkdownPreview(result.content);
+                    } else {
+                        hideMarkdownPreview();
+                    }
+                    
+                    console.log(`✅ Arquivo carregado: ${file.name} (${language})`);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar arquivo:', error);
+                alert('Erro ao carregar arquivo: ' + error.message);
+            }
+        }
+        
+        // Salvar arquivo editado de volta ao MinIO
+        async function saveGitFile() {
+            if (!gitConfig || !currentGitFile) {
+                alert('Nenhum arquivo aberto para salvar');
+                return;
+            }
+            
+            if (!editor) {
+                alert('Editor não inicializado');
+                return;
+            }
+            
+            const content = editor.getValue();
+            const status = document.getElementById('gitStatus');
+            
+            try {
+                status.innerText = 'Salvando arquivo...';
+                
+                const response = await fetch('/api/git-file-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        file: currentGitFile.path,
+                        content: content
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao salvar');
+                }
+                
+                const result = await response.json();
+                status.innerText = '';
+                console.log('✅ Arquivo salvo:', result);
+                
+                // Exibir mensagem de sucesso com fade
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${currentGitFile.name} salvo com sucesso no MinIO`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
+            } catch (error) {
+                status.innerText = '';
+                console.error('Erro ao salvar arquivo:', error);
+                
+                // Exibir mensagem de erro com fade
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao salvar: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
+            }
+        }
+        
+        // Criar novo arquivo a partir do conteúdo do editor
+        async function createNewGitFile() {
+            if (!gitConfig) {
+                alert('Conecte o GitHub primeiro');
+                return;
+            }
+            
+            const fileName = document.getElementById('newFileName').value.trim();
+            if (!fileName) {
+                alert('Informe o nome do arquivo');
+                return;
+            }
+            
+            if (!editor) {
+                alert('Editor não inicializado');
+                return;
+            }
+            
+            const content = editor.getValue();
+            if (!content.trim()) {
+                if (!confirm('O editor está vazio. Criar arquivo vazio?')) {
+                    return;
+                }
+            }
+            
+            const status = document.getElementById('gitStatus');
+            
+            try {
+                status.innerText = `Criando ${fileName}...`;
+                
+                const response = await fetch('/api/git-file-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        file: fileName,
+                        content: content
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao criar arquivo');
+                }
+                
+                const result = await response.json();
+                status.innerText = '';
+                console.log('✅ Arquivo criado:', result);
+                
+                // Exibir mensagem de sucesso com fade
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${fileName} criado com sucesso`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
+                
+                // Limpar input e recarregar lista de arquivos
+                document.getElementById('newFileName').value = '';
+                
+                // Recarregar lista de arquivos
+                await loadGitFiles();
+            } catch (error) {
+                status.innerText = '';
+                console.error('Erro ao criar arquivo:', error);
+                
+                // Exibir mensagem de erro com fade
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao criar: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
+            }
+        }
+        
+        // Deletar arquivo atual
+        async function deleteGitFile() {
+            if (!gitConfig || !currentGitFile) {
+                alert('Nenhum arquivo aberto para deletar');
+                return;
+            }
+            
+            if (!confirm(`Tem certeza que deseja deletar "${currentGitFile.name}"? Esta ação não pode ser desfeita.`)) {
+                return;
+            }
+            
+            const status = document.getElementById('gitStatus');
+            
+            try {
+                status.innerText = `Deletando ${currentGitFile.name}...`;
+                
+                const response = await fetch('/api/git-file-delete', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        file: currentGitFile.path
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Falha ao deletar');
+                }
+                
+                const result = await response.json();
+                status.innerText = '';
+                console.log('✅ Arquivo deletado:', result);
+                
+                // Exibir mensagem de sucesso com fade
+                const successMsg = document.getElementById('git-success-message');
+                successMsg.innerHTML = `✓ ${currentGitFile.name} deletado com sucesso`;
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.opacity = '0';
+                    successMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        successMsg.style.display = 'none';
+                        successMsg.style.opacity = '1';
+                    }, 500);
+                }, 3000);
+                
+                // Limpar editor e info
+                if (editor) {
+                    editor.setValue('');
+                }
+                document.getElementById('currentFileInfo').innerHTML = 'Nenhum arquivo aberto';
+                currentGitFile = null;
+                
+                // Recarregar lista de arquivos
+                await loadGitFiles();
+            } catch (error) {
+                status.innerText = '';
+                console.error('Erro ao deletar arquivo:', error);
+                
+                // Exibir mensagem de erro com fade
+                const errorMsg = document.getElementById('git-error-message');
+                errorMsg.innerHTML = `❌ Erro ao deletar: ${error.message}`;
+                errorMsg.style.display = 'block';
+                setTimeout(() => {
+                    errorMsg.style.opacity = '0';
+                    errorMsg.style.transition = 'opacity 0.5s';
+                    setTimeout(() => {
+                        errorMsg.style.display = 'none';
+                        errorMsg.style.opacity = '1';
+                    }, 500);
+                }, 4000);
+            }
+        }
+        
+        // Mostrar preview de Markdown
+        function showMarkdownPreview(markdownContent) {
+            const previewPanel = document.getElementById('markdown-preview');
+            const contentDiv = document.getElementById('markdown-content');
+            
+            if (typeof marked !== 'undefined') {
+                contentDiv.innerHTML = marked.parse(markdownContent || '');
+                previewPanel.style.display = 'block';
+                
+                // Atualizar preview quando editor mudar
+                if (editor) {
+                    editor.onDidChangeModelContent(() => {
+                        const currentContent = editor.getValue();
+                        contentDiv.innerHTML = marked.parse(currentContent);
+                    });
+                }
+            } else {
+                console.warn('Marked.js não carregado');
+            }
+        }
+        
+        // Esconder preview de Markdown
+        function hideMarkdownPreview() {
+            const previewPanel = document.getElementById('markdown-preview');
+            previewPanel.style.display = 'none';
+        }
+        
+        // Toggle preview de Markdown
+        function toggleMarkdownPreview() {
+            const previewPanel = document.getElementById('markdown-preview');
+            if (previewPanel.style.display === 'none') {
+                if (currentGitFile && currentGitFile.name.endsWith('.md')) {
+                    showMarkdownPreview(editor.getValue());
+                } else {
+                    alert('Abra um arquivo .md para ver o preview');
+                }
+            } else {
+                hideMarkdownPreview();
+            }
+        }
+        
+        // Add, commit e push no repositório clonado (server-side via MinIO)
+        async function gitAddCommitPush() {
+            if (!gitConfig) {
+                alert('Conecte o GitHub primeiro');
+                return;
+            }
+            
+            const commitMsg = document.getElementById('commitMsg').value.trim();
+            if (!commitMsg) {
+                alert('Informe uma mensagem de commit');
+                return;
+            }
+            
+            const status = document.getElementById('gitStatus');
+            status.innerText = 'Preparando push para GitHub...';
+            
+            try {
+                const response = await fetch('/api/git-push', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userBucket: userBucket,
+                        owner: gitConfig.owner,
+                        repo: gitConfig.repo,
+                        token: gitConfig.token,
+                        commitMsg: commitMsg
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || error.message || 'Push failed');
+                }
+                
+                const result = await response.json();
+                status.innerText = `✓ Push realizado! ${result.downloadedFiles} arquivos sincronizados`;
+                console.log('✅ Push concluído:', result);
+                
+                // Limpar mensagem de commit
+                document.getElementById('commitMsg').value = '';
+                
+                setTimeout(() => {
+                    status.innerText = '';
+                }, 5000);
+                
+            } catch (error) {
+                status.innerText = 'Erro no push: ' + error.message;
+                console.error('Erro ao fazer push:', error);
+                alert('Erro ao fazer push: ' + error.message);
+            }
+        }
+        
+        // Restaurar conexão ao carregar
+        window.addEventListener('load', function() {
+            const saved = localStorage.getItem('gitConfig');
+            console.log('🔍 window-load event - localStorage.gitConfig:', saved ? '✅ ENCONTRADO' : '❌ NULL');
+            restoreGitFromStorage('window-load');
+        });
+    </script>
+
+<?php
+require VIEWPATH . '/footer.php';
+?>

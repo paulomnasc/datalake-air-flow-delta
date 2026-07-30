@@ -1,0 +1,80 @@
+Entendi! Como o valor é fixo e em Reais (BRL), a melhor abordagem para o seu site é usar um **QR Code Estático**. Ele é gratuito, não expira e você pode gerar o código uma única vez ou via script simples no frontend.
+
+Para que o QR Code funcione em qualquer aplicativo de banco, ele precisa seguir o padrão **EMV Co** definido pelo Banco Central (o famoso "Pix Copia e Cola").
+
+Aqui está um guia prático para implementar isso:
+
+---
+
+## Opção A: Implementação com JavaScript (Dinâmica no site)
+
+Se você quer que o código seja gerado "ao vivo" (permitindo, por exemplo, mudar a descrição ou o valor facilmente no futuro), use a biblioteca `pix-payload-generator`.
+
+### 1. Adicione as bibliotecas ao seu HTML
+
+Você precisará de uma para gerar o payload do Pix e outra para transformar esse texto em imagem (QR Code).
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/pix-payload-generator@latest/dist/pix-payload-generator.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+```
+
+### 2. O Script de Geração
+
+Este código cria o payload e o renderiza em uma `div`:
+
+```javascript
+// Exemplo Configurações da sua cota fixa
+const pix = PixPayloadGenerator.static({
+    key: '03206740703', // Sua chave Pix (Cpf de Cristiane)
+    merchantName: 'Cristiane Bomfim Lemos do Nascimento',
+    merchantCity: 'SAO PAULO',
+    amount: 50.00, // Valor da cota fixa (ex: R$ 50,00)
+    description: 'Cota Mensal Usuário'
+});
+
+const payload = pix.getPayload();
+
+// 1. Gera o QR Code visualmente
+new QRCode(document.getElementById("qrcode"), payload);
+
+// 2. Exibe o código "Copia e Cola" (Essencial para quem está no celular)
+document.getElementById("pix-copia-e-cola").value = payload;
+
+```
+
+---
+
+## Opção B: Rápida e Manual (No-Code)
+
+Se o valor da cota nunca muda e você não quer adicionar scripts ao site, você pode gerar a imagem uma única vez:
+
+1. Acesse um gerador confiável (como o [Gerador Pix do Bacen](https://geradordepix.com.br/) ou similares).
+2. Insira sua chave, o valor fixo da cota e a descrição.
+3. **Baixe a imagem** do QR Code e salve o texto **"Copia e Cola"**.
+4. No seu site, basta inserir a imagem (`<img src="...">`) e um botão de "Copiar Código".
+
+---
+
+## Melhores Práticas para o seu Site
+
+> **Importante:** Se o usuário estiver acessando o seu site pelo **celular**, ele não conseguirá escanear o QR Code com a câmera do próprio aparelho.
+
+Para garantir que você receba o pagamento, siga este layout:
+
+* **O QR Code:** Centralizado e com bom contraste.
+* **Botão "Copiar Código Pix":** Use a função `navigator.clipboard.writeText()` para facilitar a vida do usuário.
+* **Instruções:** "Abra o app do seu banco > Pix > Pix Copia e Cola".
+
+---
+
+### Exemplo de Interface Sugerida
+
+| Elemento | Função |
+| --- | --- |
+| **Imagem do QR** | Para quem acessa via Desktop e paga com o celular. |
+| **Campo de Texto + Botão** | Para quem acessa via Celular (Copia e Cola). |
+| **Valor Visível** | Confirmar para o usuário que o valor está correto (Ex: R$ 50,00). |
+
+**Gostaria que eu montasse um arquivo HTML completo com o botão "Copiar" e o gerador de QR Code integrado para você testar?**

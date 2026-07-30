@@ -56,6 +56,20 @@ class AgileControllerTest extends CIUnitTestCase
 
         $result->assertStatus(200);
         $result->assertSee('Gestão de Demandas');
+        $result->assertSee('Filtrar por Sistema:');
+    }
+
+    public function test_demandas_list_filters_by_sistema()
+    {
+        $result = $this->withSession([
+            'id_usuario_logado' => 1,
+            'usuario_logado'    => 1,
+            'nome_usuario_logado'=> 'Admin Test'
+        ])->call('get', 'agile/demandas?id_sistema=1');
+
+        $result->assertStatus(200);
+        $result->assertSee('Gestão de Demandas');
+        $result->assertSee('Filtrar por Sistema:');
     }
 
     public function test_gatelink_critical_system_starts_in_serpro_status()

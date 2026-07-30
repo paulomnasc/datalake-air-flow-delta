@@ -130,6 +130,10 @@ class GroupOwnerSecurityManager(FabAirflowSecurityManagerOverride):
 
     def is_authorized_dag(self, method, access_entity=None, details=None, user=None):
         """Valida acesso a ações específicas na DAG (API, detalhes, execução)."""
+        if not user:
+            from flask import g
+            user = g.user
+
         default_auth = super().is_authorized_dag(method, access_entity, details, user)
         if not default_auth:
             return False
@@ -159,6 +163,7 @@ class GroupOwnerSecurityManager(FabAirflowSecurityManagerOverride):
 
         return check_owner()
 
+
 # Ativação do Custom Security Manager
 SECURITY_MANAGER_CLASS = GroupOwnerSecurityManager
 
@@ -169,14 +174,16 @@ class CustomFabAuthManager(FabAuthManager):
         details=None,
         user=None,
     ) -> bool:
+        if not user:
+            user = self.get_user()
+
         # 1. Se for Admin, tem acesso global
         if self.security_manager._is_admin(user):
             return True
 
-        # 2. Se não for Admin, não damos acesso global (sem detalhes de DAG específica)
-        # Isso força o filter_permitted_dag_ids a testar cada DAG individualmente
+        # 2. Se não houver detalhes da DAG, delegamos para a verificação padrão (baseado em roles)
         if not details or not details.id:
-            return False
+            return super()._is_authorized_dag(method, details, user)
 
         # 3. Validar acesso à DAG específica pelo proprietário (owner)
         dag_id = details.id

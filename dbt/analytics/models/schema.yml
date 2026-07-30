@@ -58,3 +58,38 @@ models:
       - name: contato
         description: "Nome do contato principal do cliente (contact_name)"
 
+  - name: dim_categoria
+    description: "Tabela dimensional de categorias de produtos extraídas do crawler."
+    columns:
+      - name: id_categoria
+        description: "Chave primária substituta da categoria"
+        tests:
+          - unique
+          - not_null
+      - name: nome_categoria
+        description: "Nome da categoria/segmento do produto"
+      - name: site_origem
+        description: "Site de origem da categoria"
+
+  - name: fato_produtos
+    description: "Fato contendo os registros de produtos e preços extraídos via crawling."
+    columns:
+      - name: id_fato_produto
+        description: "Identificador único do fato de produto"
+        tests:
+          - unique
+          - not_null
+      - name: id_categoria
+        description: "Chave estrangeira ligando à dimensão de categoria"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_categoria')
+              field: id_categoria
+      - name: descricao_produto
+        description: "Descrição/nome do produto"
+      - name: preco_original
+        description: "Preço original/cheio do produto"
+      - name: preco_final
+        description: "Preço final/com desconto do produto"
+

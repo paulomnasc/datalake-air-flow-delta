@@ -1,0 +1,95 @@
+<?php
+if (! defined('VIEWPATH')) {
+    define('VIEWPATH', realpath(APPPATH) . DIRECTORY_SEPARATOR.'Views');
+}
+require VIEWPATH.'/header.php';
+?>
+<div id="content">        
+    <div class="container">
+        <h4 style="text-align: center;">Listagem de AvaliacaoQualidadeSla</h4>
+        
+        <input type="text" id="filtro-id_documento_recebimento" placeholder="Filtrar">
+        <img src="../assets/img/lupa.jpg" >
+        
+        <form action="<?php echo site_url('addAvaliacaoQualidadeSla'); ?>" method="post">
+            <button type="submit" class="add-button">Incluir</button>
+        </form>
+
+        <table class="data-table" id="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>IdDocumentoRecebimento</th><th>NotaIns1Pontualidade</th><th>NotaIns2Qualidade</th><th>PercentualGlosa</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach($list as $item): ?>
+                <tr id="row-<?php echo $item->id ?>">
+                    <td> <?php echo $item->id ?> </td>
+                    
+            <td>
+                <select name="id_documento_recebimento" id="id_documento_recebimento-<?php echo $item->id ?>">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($id_documento_recebimento_list)): foreach($id_documento_recebimento_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php if($opt->id == $item->id_documento_recebimento) echo 'selected'; ?>>
+                            <?php echo isset($opt->descricao) ? $opt->descricao : (isset($opt->nome) ? $opt->nome : $opt->id); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </td>
+<td> <?php echo $item->Nota_INS1_Pontualidade ?> </td><td> <?php echo $item->Nota_INS2_Qualidade ?> </td><td> <?php echo $item->Percentual_Glosa ?> </td>
+                    <td> 
+                        <div class="sidebyside-container">
+                            <form action="<?php echo site_url('updAvaliacaoQualidadeSla'); ?>" method="post">
+                                <input type="hidden" name="id" value="<?php echo $item->id ?>">
+                                <button class="edit-button" type="submit">✏️</button>
+                            </form>
+                            <form id="deleteForm-<?php echo $item->id; ?>">
+                                <button class="delete-button" type="button" onclick="confirmDelete('<?php echo $item->id; ?>', '<?php echo site_url('deleteAvaliacaoQualidadeSla/' . $item->id); ?>', 'deleteForm-<?php echo $item->id; ?>')">🗑️</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+        <script>
+            function confirmDelete(id, deleteUrl, formId) {
+                if (confirm("Você tem certeza que deseja deletar este registro?")) {
+                    $.ajax({
+                        url: deleteUrl,
+                        type: 'POST',
+                        data: { _method: 'DELETE' },
+                        success: function(result) {
+                            if (result.status === 'success') {
+                                $('#row-' + id).remove();
+                                $('#success-message').html(result.mensagem).show().delay(6000).fadeOut();
+                            } else {
+                                $('#error-message').html('Erro ao excluir o registro.').show().delay(6000).fadeOut();
+                            }
+                        },
+                        error: function(err) {
+                            $('#error-message').html('Erro ao excluir o registro.').show().delay(6000).fadeOut();
+                            console.log(err);
+                        }
+                    });
+                }
+            }
+
+            $(document).ready(function() {
+                var table = $('#data-table').DataTable({
+                    dom: 'lrtip',
+                    columnDefs: [{ targets: [0], visible: false }],
+                    language: { "sEmptyTable": "Nenhum registro encontrado" }
+                });
+
+                $('#filtro-id_documento_recebimento').on('keyup', function() {
+                    table.search(this.value).draw();
+                });
+            });
+        </script>
+    </div>
+</div>
+<?php require VIEWPATH.'/footer.php'; ?>

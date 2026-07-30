@@ -20,6 +20,8 @@ services:
       - ./landing-page:/usr/share/nginx/html/landing-page:ro
       # SSL template (apenas para produção - comentar em dev)
       - ./nginx/myflow-ssl.conf.template:/etc/nginx/templates/myflow-ssl.conf.template:ro
+      - ./nginx/vitalvitrine.conf.template:/etc/nginx/templates/vitalvitrine.conf.template:ro
+      - ./nginx/vitalvitrine-ssl.conf.template:/etc/nginx/templates/vitalvitrine-ssl.conf.template:ro
       - /var/www/certbot:/var/www/certbot
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - nginx_logs:/var/log/nginx
@@ -184,12 +186,19 @@ services:
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - VISION_API_KEY=${VISION_API_KEY}
+      - VISION_API_MODEL=${VISION_API_MODEL}
+      - VISION_API_JSON_MODE=${VISION_API_JSON_MODE}
+      - VISION_API_SAVE_SCREENSHOT=${VISION_API_SAVE_SCREENSHOT}
+      - ARBITRAGE_BANCA_TOTAL=${ARBITRAGE_BANCA_TOTAL:-1000.0}
+      - ARBITRAGE_CASAS_USUARIO=${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
       - ./webserver_config.py:/opt/airflow/webserver_config.py
+      - ./.env:/opt/airflow/.env:ro
     ports:
       - "${AIRFLOW_WEBSERVER_PORT}:${AIRFLOW_WEBSERVER_PORT}"
     command: airflow webserver
@@ -227,6 +236,8 @@ services:
       - ATLAS_HIVE_DB=medallion
       - ATLAS_REGISTER_PROCESSES=true
       - ATLAS_HTTP_TIMEOUT=120
+      - ARBITRAGE_BANCA_TOTAL=${ARBITRAGE_BANCA_TOTAL:-1000.0}
+      - ARBITRAGE_CASAS_USUARIO=${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle}
       - ATLAS_MAX_RETRIES=5
       - ATLAS_BACKOFF_SECONDS=3
       - ZUMBI_EMAIL_DRY_RUN=${ZUMBI_EMAIL_DRY_RUN:-true}
@@ -235,12 +246,17 @@ services:
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - VISION_API_KEY=${VISION_API_KEY}
+      - VISION_API_MODEL=${VISION_API_MODEL}
+      - VISION_API_JSON_MODE=${VISION_API_JSON_MODE}
+      - VISION_API_SAVE_SCREENSHOT=${VISION_API_SAVE_SCREENSHOT}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
       - ./webserver_config.py:/opt/airflow/webserver_config.py
+      - ./.env:/opt/airflow/.env:ro
     ports:
       - "${AIRFLOW_SCHEDULER_DEBUG_PORT}:5678"
     command: airflow scheduler
@@ -318,10 +334,17 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      VISION_API_KEY: ${VISION_API_KEY}
+      VISION_API_MODEL: ${VISION_API_MODEL}
+      VISION_API_JSON_MODE: ${VISION_API_JSON_MODE}
+      VISION_API_SAVE_SCREENSHOT: ${VISION_API_SAVE_SCREENSHOT}
+      ARBITRAGE_BANCA_TOTAL: ${ARBITRAGE_BANCA_TOTAL:-1000.0}
+      ARBITRAGE_CASAS_USUARIO: ${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
+      - ./.env:/opt/airflow/.env:ro
     command: ["airflow", "celery", "worker"]
     networks:
       - airflow_net
@@ -379,7 +402,7 @@ services:
       - "${CODEIGNITER_PORT}:80"
       - "${CODEIGNITER_XDEBUG_PORT}:9003" # <--- Porta do XDebug
     environment:
-      - CI_ENVIRONMENT=development
+      - CI_ENVIRONMENT=${CI_ENVIRONMENT:-production}
       # Porta externa do CodeIgniter (para construir app_baseURL)
       - CODEIGNITER_PORT=${CODEIGNITER_PORT}
       - NGINX_PORT_HTTP=${NGINX_PORT_HTTP}
@@ -430,7 +453,7 @@ services:
     ports:
       - "${FISCALWEB_PORT}:80"
     environment:
-      - CI_ENVIRONMENT=development
+      - CI_ENVIRONMENT=${CI_ENVIRONMENT:-production}
       - FISCALWEB_PORT=${FISCALWEB_PORT}
       - NGINX_PORT_HTTP=${NGINX_PORT_HTTP}
       - NGINX_PORT_HTTPS=${NGINX_PORT_HTTPS}
@@ -445,6 +468,47 @@ services:
       - "vscode:host-gateway"
     networks:
       - airflow_net
+
+  # Novo Bloco do Serviço FootballWeb
+  football-app:
+    build:
+      context: ./src/footballweb
+      dockerfile: Dockerfile.webapp
+      args:
+        HOST_UID: ${UID:-1000} 
+        HOST_GID: ${GID:-1000}
+        DOCKER_GID: 1001
+    container_name: football-app${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    restart: always
+    depends_on:
+      - mysql
+    volumes:
+      - ./src/footballweb:/var/www/html
+      - .:/datalake-root
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "${FOOTBALLWEB_PORT}:80"
+    environment:
+      - CI_ENVIRONMENT=${CI_ENVIRONMENT:-production}
+      - FOOTBALLWEB_PORT=${FOOTBALLWEB_PORT}
+      - NGINX_PORT_HTTP=${NGINX_PORT_HTTP}
+      - NGINX_PORT_HTTPS=${NGINX_PORT_HTTPS}
+      - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
+      - ENV_SUFFIX=${ENV_SUFFIX:-}
+      # Database connection override
+      - database.default.database=footballweb
+      - app_baseURL=http://localhost:28091/
+      - AIRFLOW_EXTERNAL_URL=http://${NGINX_SERVER_NAME:-localhost}:${AIRFLOW_WEBSERVER_PORT}
+      - AIRFLOW_HOST=airflow-webserver${ENV_SUFFIX:+-${ENV_SUFFIX}}
+      - AIRFLOW_PORT=28083
+      - AIRFLOW_ADMIN_USERNAME=admin
+      - AIRFLOW_ADMIN_PASSWORD=kJ#212394
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "vscode:host-gateway"
+    networks:
+      - airflow_net
+
   atlas:
     image: sburn/apache-atlas:latest
     container_name: apache-atlas${ENV_SUFFIX:+-${ENV_SUFFIX}}
@@ -526,11 +590,46 @@ services:
     networks:
       - airflow_net
 
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    restart: always
+    environment:
+      - N8N_PATH=/n8n/
+      - WEBHOOK_URL=https://${NGINX_SERVER_NAME}/n8n/
+      - N8N_EDITOR_BASE_URL=https://${NGINX_SERVER_NAME}/n8n/
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - EXECUTIONS_DATA_PRUNE_TIMEOUT=3600
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - airflow_net
+
+  # 🛡️ FlareSolverr (Bypass de proteção Cloudflare em background para scrapers)
+  flaresolverr:
+    image: flaresolverr/flaresolverr:latest
+    container_name: flaresolverr${ENV_SUFFIX:+-${ENV_SUFFIX}}
+    restart: always
+    ports:
+      - "8191:8191"
+    environment:
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+      - TZ=America/Sao_Paulo
+    networks:
+      - airflow_net
+
+
 networks:
   airflow_net:
     driver: bridge
 
 volumes:
+  n8n_data:
   pg_data:
   pg_bi_data:
   mysql_data:

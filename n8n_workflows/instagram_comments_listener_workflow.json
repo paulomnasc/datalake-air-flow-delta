@@ -1,0 +1,251 @@
+{
+  "name": "Instagram - Webhook Listener Comentários & Envios DM",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "ALL",
+        "path": "instagram-comments",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        100,
+        240
+      ],
+      "id": "webhook-meta-unified",
+      "name": "Meta Webhook Listener"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-hub-challenge",
+              "leftValue": "={{ $json.query[\"hub.challenge\"] || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        350,
+        240
+      ],
+      "id": "check-if-get-challenge",
+      "name": "É Validação GET (hub.challenge)?"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query[\"hub.challenge\"] }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        600,
+        140
+      ],
+      "id": "respond-challenge",
+      "name": "Responder Hub Challenge (GET)"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        600,
+        340
+      ],
+      "id": "respond-meta-ok",
+      "name": "Confirmar Recebimento (Ack 200)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-quero-keyword",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.text || '' }}",
+              "rightValue": "quero",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "has-link-keyword",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.text || '' }}",
+              "rightValue": "link",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        830,
+        340
+      ],
+      "id": "has-keyword-check",
+      "name": "Comentário tem 'QUERO' ou 'LINK'?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT name, shortened_url FROM lomadee.products WHERE shortened_url IS NOT NULL AND shortened_url != '' ORDER BY RANDOM() LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1060,
+        340
+      ],
+      "id": "get-product-from-db",
+      "name": "Buscar Produto no Postgres",
+      "credentials": {
+        "postgres": {
+          "id": "postgres-bi-cred",
+          "name": "Postgres BI Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $('Meta Webhook Listener').item.json.body.entry[0].changes[0].value.id }}/private_replies",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer INSIRA_SEU_META_ACCESS_TOKEN_AQUI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"message\": \"Olá! 👋 Aqui está o seu link promocional para *{{ $json.name }}*:\\n\\n👉 {{ $json.shortened_url }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1290,
+        340
+      ],
+      "id": "send-instagram-private-reply",
+      "name": "Enviar Mensagem Privada (Direct)"
+    }
+  ],
+  "connections": {
+    "Meta Webhook Listener": {
+      "main": [
+        [
+          {
+            "node": "É Validação GET (hub.challenge)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Validação GET (hub.challenge)?": {
+      "main": [
+        [
+          {
+            "node": "Responder Hub Challenge (GET)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Confirmar Recebimento (Ack 200)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar Recebimento (Ack 200)": {
+      "main": [
+        [
+          {
+            "node": "Comentário tem 'QUERO' ou 'LINK'?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comentário tem 'QUERO' ou 'LINK'?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Produto no Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Produto no Postgres": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensagem Privada (Direct)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "instagram-comments-webhook-listener-unified",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

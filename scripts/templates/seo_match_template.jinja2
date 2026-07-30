@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Google Analytics 4 (GA4) Tag -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga4_id|default('G-KZDFH80BXW') }}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '{{ ga4_id|default('G-KZDFH80BXW') }}', {
+            'cookie_flags': 'SameSite=None;Secure'
+        });
+    </script>
+    
+    <!-- Meta Tags Básicas Dinâmicas para {{ time_casa }} x {{ time_fora }} -->
+    <title>Estatísticas de Cartões {{ time_casa }} x {{ time_fora }} e Árbitro | CristalBet</title>
+    <meta name="description" content="Confira a análise de cartões e escanteios para {{ time_casa }} x {{ time_fora }}. Média de faltas dos times e estatísticas completas do árbitro {{ nome_arbitro|default('Não informado') }} para a rodada.">
+    <meta name="keywords" content="cartoes {{ time_casa }} x {{ time_fora }}, arbitro {{ nome_arbitro }} estatisticas, escanteios {{ time_casa }}, palpites {{ time_casa }} x {{ time_fora }}">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://www.cristalbet.com.br/jogos/{{ data }}-{{ slug_time_casa }}-x-{{ slug_time_fora }}">
+
+    <!-- Favicon CristalBet -->
+    <link rel="icon" href="https://www.cristalbet.com.br/assets/favicon-cristalbet.ico" type="image/x-icon">
+
+    <!-- Open Graph / Redes Sociais Dinâmico (WhatsApp, Telegram, Facebook) -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://www.cristalbet.com.br/jogos/{{ data }}-{{ slug_time_casa }}-x-{{ slug_time_fora }}">
+    <meta property="og:title" content="Tendências de Cartões: {{ time_casa }} x {{ time_fora }} - Juiz: {{ nome_arbitro|default('Não informado') }}">
+    <meta property="og:description" content="Veja os números do árbitro {{ nome_arbitro|default('Não informado') }} e o favoritismo de cartões e escanteios para este confronto.">
+    <meta property="og:image" content="https://www.cristalbet.com.br/assets/banner-cristalbet.png">
+
+    <!-- Twitter / X Dinâmico -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://www.cristalbet.com.br/jogos/{{ data }}-{{ slug_time_casa }}-x-{{ slug_time_fora }}">
+    <meta property="twitter:title" content="Tendências {{ time_casa }} x {{ time_fora }} - Árbitro {{ nome_arbitro|default('Não informado') }}">
+    <meta property="twitter:description" content="Análise matemática completa de cartões e escanteios para {{ time_casa }} x {{ time_fora }}.">
+    <meta property="twitter:image" content="https://www.cristalbet.com.br/assets/banner-cristalbet.png">
+
+    <!-- Dados Estruturados Schema.org (SportsEvent) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SportsEvent",
+      "name": "{{ time_casa }} vs {{ time_fora }}",
+      "description": "Estatísticas de cartões, escanteios e análise do árbitro {{ nome_arbitro }} para {{ time_casa }} x {{ time_fora }}.",
+      "startDate": "{{ data_iso|default(data + 'T16:00:00-03:00') }}",
+      "location": {
+        "@type": "Place",
+        "name": "{{ estadio|default('Estádio Principal') }}"
+      },
+      "homeTeam": {
+        "@type": "SportsTeam",
+        "name": "{{ time_casa }}"
+      },
+      "awayTeam": {
+        "@type": "SportsTeam",
+        "name": "{{ time_fora }}"
+      },
+      "organizer": {
+        "@type": "Organization",
+        "name": "CristalBet",
+        "url": "https://www.cristalbet.com.br/"
+      }
+    }
+    </script>
+</head>
+<body>
+    <h1>Estatísticas {{ time_casa }} x {{ time_fora }}</h1>
+    <p>Árbitro: {{ nome_arbitro }}</p>
+</body>
+</html>

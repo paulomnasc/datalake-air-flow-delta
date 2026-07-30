@@ -14,7 +14,10 @@
             box-sizing: border-box;
         }
 
-        body {
+        html, body {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.6;
             color: #333;
@@ -23,6 +26,8 @@
 
         .container {
             min-height: 100vh;
+            width: 100%;
+            overflow-x: hidden;
         }
 
         .sidebar {
@@ -50,31 +55,89 @@
             padding-bottom: 10px;
         }
 
-        .sidebar nav ul {
+        .sidebar nav {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sidebar-category {
+            border-radius: 6px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar-category-title {
             list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #3498db;
+            padding: 8px 10px;
+            cursor: pointer;
+            user-select: none;
+            background: rgba(52, 152, 219, 0.12);
+            transition: background 0.2s ease, color 0.2s ease;
         }
 
-        .sidebar nav ul li {
-            margin-bottom: 8px;
+        .sidebar-category-title::-webkit-details-marker {
+            display: none;
         }
 
-        .sidebar nav ul li a {
+        .sidebar-category-title:hover {
+            background: rgba(52, 152, 219, 0.25);
+            color: #5dade2;
+        }
+
+        .sidebar-category-title .chevron {
+            font-size: 0.7rem;
+            transition: transform 0.25s ease;
+            color: #95a5a6;
+        }
+
+        .sidebar-category[open] .sidebar-category-title .chevron {
+            transform: rotate(180deg);
+        }
+
+        .sidebar-sublist {
+            list-style: none;
+            padding: 4px 6px 6px 8px;
+            margin: 0;
+            border-left: 2px solid rgba(52, 152, 219, 0.4);
+            margin-left: 10px;
+            margin-top: 4px;
+            margin-bottom: 6px;
+        }
+
+        .sidebar-sublist li {
+            margin-bottom: 4px;
+        }
+
+        .sidebar-sublist li a {
             color: #ecf0f1;
             text-decoration: none;
             display: block;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
-            transition: background 0.3s;
+            font-size: 0.88rem;
+            transition: background 0.2s, color 0.2s;
+            word-break: break-word;
         }
 
-        .sidebar nav ul li a:hover {
+        .sidebar-sublist li a:hover {
             background: #34495e;
             color: #3498db;
         }
 
-        .sidebar nav ul li a.active {
+        .sidebar-sublist li a.active {
             background: #3498db;
             color: white;
+            font-weight: 600;
         }
 
         .content {
@@ -82,14 +145,19 @@
             padding: 40px;
             background: white;
             max-width: 1400px;
+            width: calc(100% - var(--sidebar-width));
             min-height: 100vh;
-            transition: margin-left 0.3s ease;
+            transition: margin-left 0.3s ease, width 0.3s ease;
             overflow-wrap: break-word;
             word-wrap: break-word;
+            word-break: break-word;
+            box-sizing: border-box;
+            overflow-x: hidden;
         }
 
         .content.collapsed {
             margin-left: 0;
+            width: 100%;
         }
 
         .sidebar-overlay {
@@ -219,11 +287,12 @@
             background: #f4f4f4;
             padding: 2px 6px;
             border-radius: 3px;
-            font-family: 'Courier New', monospace;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
             font-size: 0.85rem;
             color: #c7254e;
             word-break: break-word;
             overflow-wrap: break-word;
+            white-space: normal;
         }
 
         pre {
@@ -231,25 +300,38 @@
             padding: 15px;
             border-radius: 5px;
             overflow-x: auto;
+            max-width: 100%;
             margin-bottom: 15px;
             border-left: 4px solid #3498db;
             font-size: 0.9rem;
+            box-sizing: border-box;
+            word-break: normal;
         }
 
         pre code {
             background: none;
             padding: 0;
             color: #333;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
             font-size: 0.85rem;
             word-break: normal;
             overflow-wrap: normal;
             white-space: pre;
+            display: block;
+            max-width: 100%;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            -webkit-overflow-scrolling: touch;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-bottom: 0;
             word-break: break-word;
             overflow-wrap: break-word;
         }
@@ -338,14 +420,14 @@
         // Mascara valores sensíveis (passwords, tokens, secrets)
         function maskSensitiveValues() {
             const sensitivePatterns = [
-                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
-                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
-                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
-                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
-                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
+                {'regex': /password\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\\S]+)/gi, 'label': 'token'}
             ];
 
             const codeBlocks = document.querySelectorAll('code, pre');
@@ -452,20 +534,56 @@
         <aside class="sidebar">
             <h2>📚 Documentação</h2>
             <nav>
-                <ul>
-                    <li><a href="index.html" >🏠 Home</a></li>
-                    <li><a href="docs-index.html" class="active">📋 Índice Completo</a></li>
-                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
-                    <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
-                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
-                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
-                    <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
-                    <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
-                    <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
-                    <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
-                    <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
-                    <li><a href="credenciais.html" >🔑 Credenciais Internas</a></li>
-                </ul>
+                <details class="sidebar-category" open>
+                    <summary class="sidebar-category-title">
+                        <span>👤 Usuário & Interface</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="index.html" >🏠 Home</a></li>
+                        <li><a href="docs-index.html" class="active">📋 Índice Completo</a></li>
+                        <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>🔌 Conectividade & APIs</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
+                        <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                        <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
+                        <li><a href="guide-instagram-n8n.html" >📸 Automação Instagram n8n</a></li>
+                        <li><a href="pipeline-ingestao-lomadee.html" >🛍️ Ingestão Lomadee</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>⚡ Processamento & Data Lake</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                        <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                        <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
+                        <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                        <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
+                    </ul>
+                </details>
+
+                
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>🔒 Segurança</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="credenciais.html" >🔑 Credenciais Internas</a></li>
+                    </ul>
+                </details>
             </nav>
         </aside>
 
@@ -474,14 +592,13 @@
 <h1 id="documentacao-do-datalake-indice-de-navegacao">📚 Documentação do Datalake - Índice de Navegação</h1>
 
 <h2 id="visao-geral-da-arquitetura-medallion">Visão Geral da Arquitetura Medallion</h2>
-
-<pre><code>┌──────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-<p>│     RAW      │ → │    BRONZE    │ → │    SILVER    │ → │  GOLD DELTA  │</p>
-<p>│   (CSV)      │   │   (CSV)      │   │  (Parquet)   │   │  (Delta Lake)│</p>
-<p>│              │   │              │   │  + Quality   │   │  + Features  │</p>
-<p>└──────────────┘   └──────────────┘   └──────────────┘   └──────────────┘</p>
-<p> Dados brutos      Limpeza básica    Validação         Analytics</p>
-<p>                                      Transformações     Inteligência</code></pre></p>
+<pre><code class="">┌──────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+│     RAW      │ → │    BRONZE    │ → │    SILVER    │ → │  GOLD DELTA  │
+│   (CSV)      │   │   (CSV)      │   │  (Parquet)   │   │  (Delta Lake)│
+│              │   │              │   │  + Quality   │   │  + Features  │
+└──────────────┘   └──────────────┘   └──────────────┘   └──────────────┘
+ Dados brutos      Limpeza básica    Validação         Analytics
+                                      Transformações     Inteligência</code></pre>
 
 <p>---</p>
 
@@ -570,8 +687,8 @@
 </ul>
 
 <strong>Comparação com versão anterior</strong>:
-<pre><code>Antes: Formulário simples, REST API, sem persistência ✗
-<p>Agora: Sidebar completa, isomorphic-git, persistência ✓</code></pre></p>
+<pre><code class="">Antes: Formulário simples, REST API, sem persistência ✗
+Agora: Sidebar completa, isomorphic-git, persistência ✓</code></pre>
 
 <strong>Migração</strong>: Zero esforço - tudo é backward compatible!
 
@@ -695,9 +812,9 @@
 <strong>Quando ler</strong>: Antes de iniciar a stack pela primeira vez, após fazer mudanças em configurações, ou quando precisar diagnosticar problemas de serviços.
 
 <strong>Scripts principais</strong>:
-<pre><code>./startup.sh      # Primeira vez ou após limpar tudo
-<p>./restart.sh      # Após mudanças em código/config</p>
-<p>./check-health.sh # Verificar status de todos os serviços</code></pre></p>
+<pre><code class="bash">./startup.sh      # Primeira vez ou após limpar tudo
+./restart.sh      # Após mudanças em código/config
+./check-health.sh # Verificar status de todos os serviços</code></pre>
 
 <p>---</p>
 
@@ -805,8 +922,8 @@
 </ul>
 
 <strong>Exemplo</strong>:
-<pre><code><h1 id="filtrar-dados-confiaveis">Filtrar dados confiáveis</h1>
-<p>df = df[df['DataQualityEvaluationResult'] == 'Passed']</code></pre></p>
+<pre><code class="python"># Filtrar dados confiáveis
+df = df[df['DataQualityEvaluationResult'] == 'Passed']</code></pre>
 
 <p>---</p>
 
@@ -823,8 +940,8 @@
 </ul>
 
 <strong>Exemplo</strong>:
-<pre><code><h1 id="features-prontas-para-ml">Features prontas para ML</h1>
-<p>X = df[[col for col in df.columns if '_min_max_scaled' in col]]</code></pre></p>
+<pre><code class="python"># Features prontas para ML
+X = df[[col for col in df.columns if '_min_max_scaled' in col]]</code></pre>
 
 <p>---</p>
 
@@ -842,10 +959,10 @@
 </ul>
 
 <strong>Exemplo</strong>:
-<pre><code>-- Vendas por trimestre
-<p>SELECT orderDate_year, orderDate_quarter, SUM(amount)</p>
-<p>FROM orders_delta</p>
-<p>GROUP BY orderDate_year, orderDate_quarter</code></pre></p>
+<pre><code class="sql">-- Vendas por trimestre
+SELECT orderDate_year, orderDate_quarter, SUM(amount)
+FROM orders_delta
+GROUP BY orderDate_year, orderDate_quarter</code></pre>
 
 <p>---</p>
 
@@ -861,11 +978,11 @@
 </ul>
 
 <strong>Exemplo</strong>:
-<pre><code><h1 id="top-10-premium">Top 10% (premium)</h1>
-<p>premium = df[df['creditLimit_percentile'] >= 90]</p>
+<pre><code class="python"># Top 10% (premium)
+premium = df[df['creditLimit_percentile'] &gt;= 90]
 
-<h1 id="top-20-clientes">Top 20 clientes</h1>
-<p>top20 = df[df['creditLimit_rank'] <= 20]</code></pre></p>
+# Top 20 clientes
+top20 = df[df['creditLimit_rank'] &lt;= 20]</code></pre>
 
 <p>---</p>
 
@@ -879,8 +996,8 @@
 </ul>
 
 <strong>Exemplo</strong>:
-<pre><code><h1 id="outliers-extremos-2-desvios-padrao">Outliers extremos (> 2 desvios padrão)</h1>
-<p>outliers = df[abs(df['creditLimit_zscore']) > 2]</code></pre></p>
+<pre><code class="python"># Outliers extremos (&gt; 2 desvios padrão)
+outliers = df[abs(df['creditLimit_zscore']) &gt; 2]</code></pre>
 
 <p>---</p>
 
@@ -894,8 +1011,8 @@
 </ul>
 
 <strong>Exemplo</strong>:
-<pre><code><h1 id="clientes-acima-da-media-do-pais">Clientes acima da média do país</h1>
-<p>above_avg = df[df['creditLimit'] > df['creditLimit_by_country_mean']]</code></pre></p>
+<pre><code class="python"># Clientes acima da média do país
+above_avg = df[df['creditLimit'] &gt; df['creditLimit_by_country_mean']]</code></pre>
 
 <p>---</p>
 
@@ -985,7 +1102,7 @@
 
 <h3 id="codigo-fonte">Código Fonte</h3>
 
-<table>
+<div class="table-responsive"><table>
 <thead><tr>
 <th>Arquivo</th>
 <th>Descrição</th>
@@ -1013,11 +1130,11 @@
 <td>Todas</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <h3 id="configuracao">Configuração</h3>
 
-<table>
+<div class="table-responsive"><table>
 <thead><tr>
 <th>Arquivo</th>
 <th>Descrição</th>
@@ -1048,11 +1165,11 @@
 <td>Plano de ação para rotação de credenciais e hardening do PostgreSQL</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <h3 id="documentacao-geral">Documentação Geral</h3>
 
-<table>
+<div class="table-responsive"><table>
 <thead><tr>
 <th>Arquivo</th>
 <th>Descrição</th>
@@ -1075,38 +1192,38 @@
 <td>Análises avançadas camada Gold</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <p>---</p>
 
 <h2 id="inicio-rapido">🚀 Início Rápido</h2>
 
 <h3 id="1-entender-a-arquitetura">1. Entender a Arquitetura</h3>
-<pre><code>Leia: README.md → arquiteturaDatalake.md</code></pre>
+<pre><code class="">Leia: README.md → arquiteturaDatalake.md</code></pre>
 
 <h3 id="2-implementar-validacao-de-qualidade">2. Implementar Validação de Qualidade</h3>
-<pre><code>Leia: TRANSFORMACOES_SILVER.md
-<p>Arquivo: src/dags/lib/data_quality.py</code></pre></p>
+<pre><code class="">Leia: TRANSFORMACOES_SILVER.md
+Arquivo: src/dags/lib/data_quality.py</code></pre>
 
 <h3 id="3-implementar-delta-lake">3. Implementar Delta Lake</h3>
-<pre><code>Leia: DELTA_LAKE_IMPLEMENTATION.md
-<p>Arquivo: src/dags/lib/gold_delta_layer.py</p>
-<p>Comando: pip install deltalake==0.15.0</code></pre></p>
+<pre><code class="">Leia: DELTA_LAKE_IMPLEMENTATION.md
+Arquivo: src/dags/lib/gold_delta_layer.py
+Comando: pip install deltalake==0.15.0</code></pre>
 
 <h3 id="4-testar-pipeline-completo">4. Testar Pipeline Completo</h3>
-<pre><code><h1 id="upload-csv-via-webapp">Upload CSV via webapp</h1>
-<h1 id="ou-executar-dag-manualmente">Ou executar DAG manualmente:</h1>
-<p>docker exec airflow-scheduler airflow dags trigger ingestao-mysql-orders7</code></pre></p>
+<pre><code class="bash"># Upload CSV via webapp
+# Ou executar DAG manualmente:
+docker exec airflow-scheduler airflow dags trigger ingestao-mysql-orders7</code></pre>
 
 <h3 id="5-verificar-resultados">5. Verificar Resultados</h3>
-<pre><code><h1 id="minio-console">MinIO Console</h1>
-<p>http://localhost:9001</p>
+<pre><code class="bash"># MinIO Console
+http://localhost:9001
 
-<h1 id="verificar-estrutura">Verificar estrutura:</h1>
-<h1 id="silvertable-parquet-com-4-colunas-qualidade">silver/{table}/       → Parquet com 4 colunas qualidade</h1>
-<h1 id="goldtable-delta-delta-lake-com-features">gold/{table}_delta/   → Delta Lake com features</h1>
-<h1 id="delta-log-transaction-logs-versionamento">├── _delta_log/     → Transaction logs (versionamento)</h1>
-<h1 id="parquet-dados">└── *.parquet       → Dados</h1></code></pre>
+# Verificar estrutura:
+# silver/{table}/       → Parquet com 4 colunas qualidade
+# gold/{table}_delta/   → Delta Lake com features
+#   ├── _delta_log/     → Transaction logs (versionamento)
+#   └── *.parquet       → Dados</code></pre>
 
 <p>---</p>
 
@@ -1147,7 +1264,7 @@
 
 <h3 id="problemas-comuns">Problemas Comuns</h3>
 
-<table>
+<div class="table-responsive"><table>
 <thead><tr>
 <th>Problema</th>
 <th>Documento</th>
@@ -1175,20 +1292,19 @@
 <td>Performance e Otimização</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <h3 id="debug">Debug</h3>
+<pre><code class="bash"># Verificar logs do Airflow
+docker logs airflow-scheduler | grep -E "SILVER|GOLD|QUALITY"
 
-<pre><code><h1 id="verificar-logs-do-airflow">Verificar logs do Airflow</h1>
-<p>docker logs airflow-scheduler | grep -E "SILVER|GOLD|QUALITY"</p>
+# Verificar Delta Lake
+docker exec datalake-air-flow-minio-1 mc ls local/lab01/gold/{table}_delta/
 
-<h1 id="verificar-delta-lake">Verificar Delta Lake</h1>
-<p>docker exec datalake-air-flow-minio-1 mc ls local/lab01/gold/{table}_delta/</p>
-
-<h1 id="testar-funcao-python-diretamente">Testar função Python diretamente</h1>
-<p>docker exec -it airflow-scheduler python</p>
-<p>>>> from lib.gold_delta_layer import silver_to_gold_delta</p>
-<p>>>> result = silver_to_gold_delta("silver/orders/file.parquet", "orders")</code></pre></p>
+# Testar função Python diretamente
+docker exec -it airflow-scheduler python
+&gt;&gt;&gt; from lib.gold_delta_layer import silver_to_gold_delta
+&gt;&gt;&gt; result = silver_to_gold_delta("silver/orders/file.parquet", "orders")</code></pre>
 
 <p>---</p>
 

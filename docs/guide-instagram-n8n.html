@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Walkthrough: Automação do Instagram com n8n - Documentação Datalake</title>
+    <style>
+        :root {
+            --sidebar-width: 280px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            min-height: 100vh;
+            width: 100%;
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar h2 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .sidebar nav {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sidebar-category {
+            border-radius: 6px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar-category-title {
+            list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #3498db;
+            padding: 8px 10px;
+            cursor: pointer;
+            user-select: none;
+            background: rgba(52, 152, 219, 0.12);
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .sidebar-category-title::-webkit-details-marker {
+            display: none;
+        }
+
+        .sidebar-category-title:hover {
+            background: rgba(52, 152, 219, 0.25);
+            color: #5dade2;
+        }
+
+        .sidebar-category-title .chevron {
+            font-size: 0.7rem;
+            transition: transform 0.25s ease;
+            color: #95a5a6;
+        }
+
+        .sidebar-category[open] .sidebar-category-title .chevron {
+            transform: rotate(180deg);
+        }
+
+        .sidebar-sublist {
+            list-style: none;
+            padding: 4px 6px 6px 8px;
+            margin: 0;
+            border-left: 2px solid rgba(52, 152, 219, 0.4);
+            margin-left: 10px;
+            margin-top: 4px;
+            margin-bottom: 6px;
+        }
+
+        .sidebar-sublist li {
+            margin-bottom: 4px;
+        }
+
+        .sidebar-sublist li a {
+            color: #ecf0f1;
+            text-decoration: none;
+            display: block;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.88rem;
+            transition: background 0.2s, color 0.2s;
+            word-break: break-word;
+        }
+
+        .sidebar-sublist li a:hover {
+            background: #34495e;
+            color: #3498db;
+        }
+
+        .sidebar-sublist li a.active {
+            background: #3498db;
+            color: white;
+            font-weight: 600;
+        }
+
+        .content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            background: white;
+            max-width: 1400px;
+            width: calc(100% - var(--sidebar-width));
+            min-height: 100vh;
+            transition: margin-left 0.3s ease, width 0.3s ease;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+
+        .content.collapsed {
+            margin-left: 0;
+            width: 100%;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 900;
+            display: none;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+            transition: left 0.3s ease;
+        }
+
+        @media (min-width: 1100px) {
+            .sidebar-toggle {
+                left: calc(var(--sidebar-width) + 16px);
+            }
+        }
+
+        .content h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .content h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.8rem;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .content h3 {
+            color: #555;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+        }
+
+        .content h4 {
+            color: #666;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        .content ul {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ul li {
+            margin-bottom: 8px;
+        }
+
+        .content ol {
+            margin-bottom: 15px;
+            margin-left: 20px;
+        }
+
+        .content ol li {
+            margin-bottom: 8px;
+        }
+
+        .content a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .content a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #3498db;
+            color: white;
+            border-radius: 3px;
+            font-size: 0.85rem;
+            margin-left: 5px;
+        }
+
+        .badge.star {
+            background: #f39c12;
+        }
+
+        .badge.warning {
+            background: #e74c3c;
+        }
+
+        .badge.success {
+            background: #27ae60;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #c7254e;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            max-width: 100%;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+            word-break: normal;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #333;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
+            font-size: 0.85rem;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: pre;
+            display: block;
+            max-width: 100%;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 0;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        table th {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #2980b9;
+        }
+
+        table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        blockquote {
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #555;
+            font-style: italic;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .alert-info {
+            background: #d9edf7;
+            border-left: 4px solid #31708f;
+            color: #31708f;
+        }
+
+        .alert-warning {
+            background: #fcf8e3;
+            border-left: 4px solid #8a6d3b;
+            color: #8a6d3b;
+        }
+
+        .alert-success {
+            background: #dff0d8;
+            border-left: 4px solid #3c763d;
+            color: #3c763d;
+        }
+
+        .alert-danger {
+            background: #f2dede;
+            border-left: 4px solid #a94442;
+            color: #a94442;
+        }
+
+        .masked-value {
+            font-family: 'Courier New', monospace;
+            user-select: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #f4f4f4;
+            transition: all 0.3s ease;
+        }
+
+        .masked-value:hover {
+            background: #e0e0e0;
+            text-decoration: underline;
+        }
+
+        .masked-value.revealed {
+            background: #ffffcc;
+        }
+    </style>
+    <script>
+        // Mascara valores sensíveis (passwords, tokens, secrets)
+        function maskSensitiveValues() {
+            const sensitivePatterns = [
+                {'regex': /password\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\\S]+)/gi, 'label': 'token'}
+            ];
+
+            const codeBlocks = document.querySelectorAll('code, pre');
+            
+            codeBlocks.forEach(block => {
+                let content = block.innerHTML;
+                
+                sensitivePatterns.forEach(pattern => {
+                    content = content.replace(pattern.regex, (match, value) => {
+                        if (!value) return match;
+                        
+                        const prefix = match.substring(0, match.indexOf(value));
+                        const masked = '*'.repeat(Math.min(value.length, 12));
+                        const tooltip = `Clique para revelar o valor`;
+                        
+                        return `${prefix}<span class="masked-value" title="${tooltip}" data-original="${value}" onclick="toggleMask(event)">${masked}</span>`;
+                    });
+                });
+                
+                block.innerHTML = content;
+            });
+        }
+
+        // Toggle visibilidade de valores mascarados
+        function toggleMask(event) {
+            event.stopPropagation();
+            const span = event.target;
+            
+            if (span.classList.contains('revealed')) {
+                const original = span.getAttribute('data-original');
+                span.textContent = '*'.repeat(Math.min(original.length, 12));
+                span.classList.remove('revealed');
+            } else {
+                const original = span.getAttribute('data-original');
+                span.textContent = original;
+                span.classList.add('revealed');
+            }
+        }
+
+        function setSidebarState(isOpen) {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            sidebar.classList.toggle('collapsed', !isOpen);
+            content.classList.toggle('collapsed', !isOpen);
+
+            const useOverlay = window.innerWidth < 1100;
+            if (overlay) {
+                overlay.classList.toggle('active', isOpen && useOverlay);
+            }
+
+            toggleBtn.textContent = isOpen ? '✕' : '☰';
+            
+            // Ajusta posição do botão em telas maiores
+            if (window.innerWidth >= 1100) {
+                toggleBtn.style.left = isOpen ? 'calc(var(--sidebar-width) + 16px)' : '16px';
+            } else {
+                toggleBtn.style.left = '16px';
+            }
+        }
+
+        function initSidebarToggle() {
+            const sidebar = document.querySelector('.sidebar');
+            const content = document.querySelector('.content');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            if (!sidebar || !content || !toggleBtn) return;
+
+            const initialOpen = window.innerWidth >= 1100;
+            setSidebarState(initialOpen);
+
+            toggleBtn.addEventListener('click', function() {
+                const isOpen = !sidebar.classList.contains('collapsed');
+                setSidebarState(!isOpen);
+            });
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    setSidebarState(false);
+                });
+            }
+
+            window.addEventListener('resize', function() {
+                const shouldBeOpen = window.innerWidth >= 1100;
+                setSidebarState(shouldBeOpen);
+            });
+        }
+
+        // Executar quando documento carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            maskSensitiveValues();
+            initSidebarToggle();
+        });
+    </script>
+</head>
+<body>
+    <button id="toggleSidebar" class="sidebar-toggle" aria-label="Alternar menu">☰</button>
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>📚 Documentação</h2>
+            <nav>
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>👤 Usuário & Interface</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="index.html" >🏠 Home</a></li>
+                        <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                        <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" open>
+                    <summary class="sidebar-category-title">
+                        <span>🔌 Conectividade & APIs</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
+                        <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                        <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
+                        <li><a href="guide-instagram-n8n.html" class="active">📸 Automação Instagram n8n</a></li>
+                        <li><a href="pipeline-ingestao-lomadee.html" >🛍️ Ingestão Lomadee</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>⚡ Processamento & Data Lake</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                        <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                        <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
+                        <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                        <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
+                    </ul>
+                </details>
+
+                
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="content">
+<h1 id="walkthrough-automacao-do-instagram-com-n8n">Walkthrough: Automação do Instagram com n8n</h1>
+
+<p>Nós integramos com sucesso o <strong>n8n</strong> à sua stack do Docker-Compose e o roteamos de forma segura através do proxy reverso Nginx. Ele já está ativo, seguro e pronto para automatizar.</p>
+
+<p>Abaixo está o guia passo a passo atualizado com a <strong>Abordagem ManyChat + n8n</strong> (altamente recomendada para produção imediata) e a <strong>Abordagem Direta via Meta Developers</strong> (avançada).</p>
+
+<p>---</p>
+
+<h2 id="passo-1-acessando-sua-instancia-do-n8n">🚪 Passo 1: Acessando sua Instância do n8n</h2>
+
+<p>Você pode acessar o editor visual do n8n utilizando as seguintes rotas:</p>
+
+<ul>
+<li><strong>Produção (HTTPS/Seguro)</strong>: <a href="https://myflow.estudotabela.com.br/n8n/">https://myflow.estudotabela.com.br/n8n/</a></li>
+<li><strong>Alternativa Local (HTTP)</strong>: <a href="http://localhost:28080/n8n/">http://localhost:28080/n8n/</a></li>
+</ul>
+
+<p>> [!NOTE]</p>
+<p>> Em sua primeira visita, o n8n solicitará que você crie uma <strong>Conta de Proprietário</strong> (Owner Account). Este é o seu usuário administrador privado salvo com segurança dentro da sua VM.</p>
+
+<p>---</p>
+
+<h2 id="passo-2-conectando-o-n8n-ao-seu-banco-de-dados-do-datalake">🛢️ Passo 2: Conectando o n8n ao seu Banco de Dados do Datalake</h2>
+
+<p>Para consultar seus produtos da Lomadee diretamente pelo fluxo de automação, precisamos registrar a credencial do Postgres no n8n:</p>
+
+<ol>
+<li>Na barra lateral do n8n, vá em <strong>Credentials</strong> (Credenciais) -> <strong>Add Credential</strong> (Adicionar credencial).</li>
+<li>Pesquise e selecione <strong>PostgreSQL</strong>.</li>
+<li>Preencha os detalhes de conexão (usando as coordenadas internas da rede Docker):</li>
+<ul>
+<li><strong>Host</strong>: <code>postgres-bi</code></li>
+<li><strong>Port</strong>: <code>5432</code></li>
+<li><strong>Database</strong>: <code>datalake_bi</code></li>
+<li><strong>User</strong>: <code>pbi_user</code></li>
+<li><strong>Password</strong>: <code>*******</code> (definido no seu arquivo <a href="file:///root/datalake-air-flow-delta/.env">.env</a>)</li>
+<li>Clique em <strong>Save</strong>. O n8n exibirá um selo verde "Connected" confirmando o sucesso.</li>
+</ul>
+</ol>
+
+<p>---</p>
+
+<h2 id="passo-3-abordagem-manychat-n8n-recomendada-para-producao">🚀 Passo 3: Abordagem ManyChat + n8n (Recomendada para Produção)</h2>
+
+<p>Esta abordagem é a mais utilizada profissionalmente porque <strong>evita toda a burocracia da Meta</strong> (como o processo de análise de aplicativo - App Review, verificação de empresa e restrições de contas de teste em modo de desenvolvimento). Ela funciona instantaneamente para 100% dos seus seguidores.</p>
+
+<h3 id="1-importando-o-workflow-no-n8n">1. Importando o Workflow no n8n</h3>
+<ol>
+<li>No n8n, clique em <strong>Workflows</strong> no menu esquerdo.</li>
+<li>Clique no botão <strong>Add workflow</strong> (Adicionar fluxo) no canto superior direito para abrir uma tela em branco.</li>
+<li>Clique em qualquer área vazia do editor e pressione <strong><code>Ctrl + V</code></strong> (ou <code>Cmd + V</code> no Mac) para colar o JSON abaixo:</li>
+</ol>
+<pre><code class="json">{
+  "name": "ManyChat - Obter Link Lomadee",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "manychat-link",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        100,
+        240
+      ],
+      "id": "webhook-manychat-001",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT name, shortened_url FROM lomadee.products WHERE shortened_url IS NOT NULL AND shortened_url != '' ORDER BY RANDOM() LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        320,
+        240
+      ],
+      "id": "postgres-manychat-002",
+      "name": "Get Product Link",
+      "credentials": {
+        "postgres": {
+          "id": "FzYW9HRUEa41hzB6",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {},
+        "responseBody": "{\n  \"link\": \"{{ $json.shortened_url }}\"\n}"
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        540,
+        240
+      ],
+      "id": "respond-manychat-003",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Product Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Product Link": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "meta": null,
+  "pinData": {}
+}</code></pre>
+<ol>
+<li>Dê duplo clique no nó <strong>PostgreSQL</strong> e selecione a credencial <strong>"Postgres account"</strong> criada no Passo 2.</li>
+<li>Clique em <strong>Save</strong> no topo e ative o fluxo mudando a chave para <strong>Active</strong> no canto superior direito.</li>
+</ol>
+
+<p>---</p>
+
+<h3 id="2-configurando-a-integracao-no-manychat">2. Configurando a Integração no ManyChat</h3>
+<p>Com o n8n ativo, configure a chamada dentro do fluxo do seu <strong>ManyChat</strong>:</p>
+
+<ol>
+<li>No ManyChat, edite o botão <strong>"Send me the link"</strong> (ou o botão correspondente do fluxo de boas-vindas do comentário).</li>
+<li>Adicione uma Ação (Action) do tipo <strong>External Request</strong> (Requisição Externa).</li>
+<li>Dê duplo clique na caixinha da requisição externa e configure:</li>
+<ul>
+<li><strong>Method</strong>: <code>POST</code></li>
+<li><strong>Request URL</strong>: <code>https://myflow.estudotabela.com.br/n8n/webhook/manychat-link</code></li>
+<li><strong>Aba Body</strong>: Selecione <code>JSON</code> e deixe apenas chaves vazias: <code>{}</code></li>
+<li><strong>Aba Response (Mapeamento)</strong>:</li>
+<li>Clique em <strong>+ Add Mapping</strong>.</li>
+<li>Em <strong>JSONPath</strong>, digite: <code>$.link</code></li>
+<li>Em <strong>Custom Field</strong>, selecione ou crie um campo personalizado de texto (ex: <code>link_afiliado</code>).</li>
+<li>Clique em <strong>Save</strong> no canto superior direito.</li>
+<li>Ligue a saída de sucesso da Requisição Externa a uma nova mensagem de Instagram.</li>
+<li>Escreva a mensagem de resposta usando a variável:</li>
+</ul>
+</ol>
+<p>   <code>Aqui está o seu link: {{link_afiliado}}</code></p>
+<ol>
+<li>Clique em <strong>Publish</strong> no topo direito do ManyChat para ativar tudo.</li>
+</ol>
+
+<p>---</p>
+
+<h2 id="abordagem-direta-via-meta-developers-avancado">🛠️ Abordagem Direta via Meta Developers (Avançado)</h2>
+
+<p>Se preferir utilizar a API da Meta de forma direta (sem o ManyChat), você precisará configurar o webhook no portal de desenvolvedores da Meta.</p>
+
+<p>> [!WARNING]</p>
+<p>> Em modo de desenvolvimento, os comentários e mensagens de contas que <strong>não</strong> são testadores oficiais adicionados nas funções do aplicativo da Meta serão silenciosamente descartados pela Meta.</p>
+
+<h3 id="1-configurando-o-aplicativo-na-meta">1. Configurando o Aplicativo na Meta</h3>
+<ol>
+<li>Acesse o <strong><a href="https://developers.facebook.com/">Portal Meta for Developers</a></strong>.</li>
+<li>Crie um aplicativo (tipo <strong>Outro</strong> -> <strong>Empresa / Business</strong>).</li>
+<li>Em <strong>Casos de uso</strong> (Use cases) no menu lateral, adicione o caso de uso <strong>Gerenciar mensagens e conteúdo no Instagram</strong>.</li>
+<li><strong>Vincular contas (Essencial)</strong>: Conecte o perfil comercial do Instagram à página do Facebook e certifique-se de que ambas as contas estão vinculadas com <strong>Controle Total (Total Access)</strong> no seu <a href="https://business.facebook.com/settings">Meta Business Settings</a>.</li>
+<li>Configurar o Webhook:</li>
+<ul>
+<li>URL de retorno: <code>https://myflow.estudotabela.com.br/n8n/webhook/instagram-comments</code></li>
+<li>Token de verificação: Crie uma senha (ex: <code>cristiane_n8n_123</code>).</li>
+<li>Assine o evento <strong>comments</strong> (comentários) sob a categoria <strong>Instagram</strong>.</li>
+</ul>
+</ol>
+
+<h3 id="2-importando-o-workflow-direto-no-n8n">2. Importando o Workflow Direto no n8n</h3>
+<p>Crie um fluxo em branco e cole o JSON abaixo:</p>
+<pre><code class="json">{
+  "name": "Instagram - Send Product on Comment 'QUERO'",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "instagram-comments",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        140
+      ],
+      "id": "webhook-meta-get",
+      "name": "Meta Webhook GET"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-comments",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        340
+      ],
+      "id": "webhook-meta-post",
+      "name": "Meta Webhook POST"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query[\"hub.challenge\"] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        140
+      ],
+      "id": "respond-challenge",
+      "name": "Respond Hub Challenge"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        340
+      ],
+      "id": "respond-meta-ok",
+      "name": "Ack Webhook 200"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-quero-keyword",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.text }}",
+              "rightValue": "quero",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        500,
+        340
+      ],
+      "id": "has-quero-word",
+      "name": "Comment has 'QUERO'?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT name, shortened_url FROM lomadee.products WHERE shortened_url IS NOT NULL AND shortened_url != '' ORDER BY RANDOM() LIMIT 1;"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        750,
+        340
+      ],
+      "id": "get-product-from-db",
+      "name": "Get Product Link",
+      "credentials": {
+        "postgres": {
+          "id": "1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.instagram.com/v20.0/me/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer INSIRA_SEU_META_ACCESS_TOKEN_AQUI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": {\n    \"id\": \"{{ $('Meta Webhook POST').item.json.body.entry[0].changes[0].value.from.id }}\"\n  },\n  \"message\": {\n    \"text\": \"Olá! Aqui está o link que você pediu para *{{ $json.name }}*:\\n\\n👉 {{ $json.shortened_url }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        236,
+        340
+      ],
+      "id": "send-instagram-direct",
+      "name": "Send IG Direct"
+    }
+  ],
+  "connections": {
+    "Meta Webhook GET": {
+      "main": [
+        [
+          {
+            "node": "Respond Hub Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Webhook POST": {
+      "main": [
+        [
+          {
+            "node": "Ack Webhook 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ack Webhook 200": {
+      "main": [
+        [
+          {
+            "node": "Comment has 'QUERO'?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comment has 'QUERO'?": {
+      "main": [
+        [
+          {
+            "node": "Get Product Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Product Link": {
+      "main": [
+        [
+          {
+            "node": "Send IG Direct",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "instagram-automation-flow",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}</code></pre>
+
+<p>---</p>
+
+<h2 id="resolucao-de-problemas-troubleshooting">🛠️ Resolução de Problemas (Troubleshooting)</h2>
+
+<h3 id="1-erro-nao-foi-possivel-validar-a-url-de-callback-ao-salvar-o-webhook-na-meta">1. Erro: "Não foi possível validar a URL de callback..." ao salvar o Webhook na Meta</h3>
+<ul>
+<li><strong>Solução</strong>: No editor do n8n, certifique-se de salvar as alterações (<code>Ctrl + S</code>) e clicar no botão <strong>Publish (Publicar)</strong> antes de salvar as configurações na Meta.</li>
+</ul>
+
+<h3 id="2-erro-funcao-de-desenvolvedor-e-insuficiente">2. Erro: "Função de desenvolvedor é insuficiente"</h3>
+<ul>
+<li><strong>Causa</strong>: O perfil pessoal ou o Instagram usado para testes não está registrado como desenvolvedor/testador nas funções do aplicativo da Meta Developers.</li>
+<li><strong>Solução</strong>: Vá em <strong>Funções do app</strong> -> <strong>Funções</strong> -> Adicionar testador, e convide as contas do Facebook e do Instagram. Ambos os perfis precisam aceitar o convite através do link <a href="https://developers.facebook.com/">https://developers.facebook.com/</a> clicando na notificação.</li>
+</ul>
+
+<h3 id="3-a-opcao-permitir-acesso-as-mensagens-nao-aparece-nas-configuracoes-do-instagram-no-celular">3. A opção "Permitir acesso às mensagens" não aparece nas configurações do Instagram no celular</h3>
+<ul>
+<li><strong>Causa</strong>: A conta do Instagram Comercial e a Página do Facebook não estão vinculadas de forma oficial no seu Gerenciador de Negócios.</li>
+<li><strong>Solução</strong>: Vá em <a href="https://business.facebook.com/settings">Meta Business Settings</a>, acesse <strong>Contas do Instagram</strong>, selecione sua conta e em <strong>Ativos conectados</strong> certifique-se de que a sua página do Facebook correspondente está adicionada com acesso total de administrador.</li>
+</ul>
+
+        </main>
+    </div>
+</body>
+</html>

@@ -1,0 +1,11 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /login/
+Disallow: /register/
+Disallow: /config/
+Disallow: /system/
+
+User-agent: Googlebot
+Allow: /
+
+Sitemap: https://www.cristalbet.com.br/sitemap.xml

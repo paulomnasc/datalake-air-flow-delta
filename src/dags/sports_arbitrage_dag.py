@@ -92,6 +92,28 @@ def extract_and_calculate_arbitrage(**context):
             min_pre_match_minutes = default_min_pre_match
     else:
         min_pre_match_minutes = default_min_pre_match
+
+    # Processa casas_usuario
+    casas_param = params.get('casas_usuario')
+    if casas_param:
+        if isinstance(casas_param, str):
+            casas_usuario = [c.strip() for c in casas_param.split(',') if c.strip()]
+        elif isinstance(casas_param, list):
+            casas_usuario = casas_param
+        else:
+            casas_usuario = [c.strip() for c in env_casas.split(',') if c.strip()]
+    else:
+        casas_usuario = [c.strip() for c in env_casas.split(',') if c.strip()]
+
+    # Processa apenas_casas_usuario
+    apenas_param = params.get('apenas_casas_usuario')
+    if apenas_param is not None:
+        if isinstance(apenas_param, bool):
+            apenas_casas_usuario = apenas_param
+        else:
+            apenas_casas_usuario = str(apenas_param).lower() in ('true', '1', 't', 'y', 'yes')
+    else:
+        apenas_casas_usuario = str(env_apenas).lower() in ('true', '1', 't', 'y', 'yes')
     
     log.info(f"[ARBITRAGEM] Iniciando extração com banca R$ {banca_total} | Casas: {casas_usuario} | Apenas Casas Usuário: {apenas_casas_usuario} | Mín. Pré-Jogo: {min_pre_match_minutes} min")
     

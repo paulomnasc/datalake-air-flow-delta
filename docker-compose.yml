@@ -338,10 +338,13 @@ services:
       VISION_API_MODEL: ${VISION_API_MODEL}
       VISION_API_JSON_MODE: ${VISION_API_JSON_MODE}
       VISION_API_SAVE_SCREENSHOT: ${VISION_API_SAVE_SCREENSHOT}
+      ARBITRAGE_BANCA_TOTAL: ${ARBITRAGE_BANCA_TOTAL:-1000.0}
+      ARBITRAGE_CASAS_USUARIO: ${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - ./scripts:/usr/local/bin/scripts:ro
       - ./ddb:/opt/duckdb
+      - ./.env:/opt/airflow/.env:ro
     command: ["airflow", "celery", "worker"]
     networks:
       - airflow_net

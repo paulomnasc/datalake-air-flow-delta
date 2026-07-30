@@ -68,7 +68,7 @@ def extract_and_calculate_arbitrage(**context):
     
     # 1. Recupera valor padrão das variáveis de ambiente (do .env ou container)
     env_banca = file_env.get('ARBITRAGE_BANCA_TOTAL') or os.environ.get('ARBITRAGE_BANCA_TOTAL', '1000.0')
-    env_casas = file_env.get('ARBITRAGE_CASAS_USUARIO') or os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, 1xBet, Pinnacle, Betsson")
+    env_casas = file_env.get('ARBITRAGE_CASAS_USUARIO') or os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, Pinnacle, Betsson")
     env_apenas = file_env.get('ARBITRAGE_APENAS_CASAS_USUARIO') or os.environ.get('ARBITRAGE_APENAS_CASAS_USUARIO', 'true')
     
     try:
@@ -108,6 +108,9 @@ def extract_and_calculate_arbitrage(**context):
             casas_usuario = [c.strip() for c in env_casas.split(',') if c.strip()]
     else:
         casas_usuario = [c.strip() for c in env_casas.split(',') if c.strip()]
+
+    # Garante a remoção da 1xBet
+    casas_usuario = [c for c in casas_usuario if c.lower() != '1xbet']
 
     # Processa apenas_casas_usuario
     apenas_param = params.get('apenas_casas_usuario')
@@ -371,6 +374,10 @@ def send_arbitrage_email(**context):
         raise
 
 # Definição da DAG
+_live_env = get_live_env_vars()
+_raw_casas = _live_env.get('ARBITRAGE_CASAS_USUARIO') or os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, Pinnacle, Betsson")
+_default_casas_filtered = ", ".join([c.strip() for c in _raw_casas.split(',') if c.strip() and c.strip().lower() != '1xbet'])
+
 with DAG(
     'sports_arbitrage_dag',
     default_args=default_args,
@@ -379,10 +386,10 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     params={
-        'banca_total': float(os.environ.get('ARBITRAGE_BANCA_TOTAL', 1000.0)),
-        'casas_usuario': os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, 1xBet, Pinnacle, Betsson"),
+        'banca_total': float(_live_env.get('ARBITRAGE_BANCA_TOTAL') or os.environ.get('ARBITRAGE_BANCA_TOTAL', 1000.0)),
+        'casas_usuario': _default_casas_filtered,
         'apenas_casas_usuario': True,
-        'min_pre_match_minutes': int(os.environ.get('ARBITRAGE_MIN_PRE_MATCH_MINUTES', 30)),
+        'min_pre_match_minutes': int(_live_env.get('ARBITRAGE_MIN_PRE_MATCH_MINUTES') or os.environ.get('ARBITRAGE_MIN_PRE_MATCH_MINUTES', 30)),
     },
     tags=['sports', 'arbitrage', 'surebet', 'brasileirao', 's3', 'paulomnasc-558']
 ) as dag:

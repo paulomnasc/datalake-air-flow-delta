@@ -194,7 +194,7 @@ services:
       - VISION_API_JSON_MODE=${VISION_API_JSON_MODE}
       - VISION_API_SAVE_SCREENSHOT=${VISION_API_SAVE_SCREENSHOT}
       - ARBITRAGE_BANCA_TOTAL=${ARBITRAGE_BANCA_TOTAL:-1000.0}
-      - ARBITRAGE_CASAS_USUARIO=${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle}
+      - ARBITRAGE_CASAS_USUARIO=${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Pinnacle}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
@@ -243,7 +243,7 @@ services:
       - ATLAS_REGISTER_PROCESSES=true
       - ATLAS_HTTP_TIMEOUT=120
       - ARBITRAGE_BANCA_TOTAL=${ARBITRAGE_BANCA_TOTAL:-1000.0}
-      - ARBITRAGE_CASAS_USUARIO=${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle}
+      - ARBITRAGE_CASAS_USUARIO=${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Pinnacle}
       - ATLAS_MAX_RETRIES=5
       - ATLAS_BACKOFF_SECONDS=3
       - ZUMBI_EMAIL_DRY_RUN=${ZUMBI_EMAIL_DRY_RUN:-true}
@@ -348,7 +348,7 @@ services:
       VISION_API_JSON_MODE: ${VISION_API_JSON_MODE}
       VISION_API_SAVE_SCREENSHOT: ${VISION_API_SAVE_SCREENSHOT}
       ARBITRAGE_BANCA_TOTAL: ${ARBITRAGE_BANCA_TOTAL:-1000.0}
-      ARBITRAGE_CASAS_USUARIO: ${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, 1xBet, Pinnacle}
+      ARBITRAGE_CASAS_USUARIO: ${ARBITRAGE_CASAS_USUARIO:-Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Pinnacle}
     volumes:
       - ./src/dags:/opt/airflow/dags
       - ./scripts:/usr/local/bin/scripts:ro

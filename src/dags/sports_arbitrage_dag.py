@@ -16,13 +16,17 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+import pendulum
+
 log = logging.getLogger(__name__)
+
+local_tz = pendulum.timezone("America/Sao_Paulo")
 
 # Argumentos Padrão da DAG
 default_args = {
     'owner': 'paulomnasc-558',
     'depends_on_past': False,
-    'start_date': datetime(2025, 1, 1),
+    'start_date': datetime(2025, 1, 1, tzinfo=local_tz),
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 0,

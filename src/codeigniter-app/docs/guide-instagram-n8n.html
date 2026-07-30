@@ -14,7 +14,10 @@
             box-sizing: border-box;
         }
 
-        body {
+        html, body {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.6;
             color: #333;
@@ -23,6 +26,8 @@
 
         .container {
             min-height: 100vh;
+            width: 100%;
+            overflow-x: hidden;
         }
 
         .sidebar {
@@ -50,31 +55,89 @@
             padding-bottom: 10px;
         }
 
-        .sidebar nav ul {
+        .sidebar nav {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sidebar-category {
+            border-radius: 6px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar-category-title {
             list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #3498db;
+            padding: 8px 10px;
+            cursor: pointer;
+            user-select: none;
+            background: rgba(52, 152, 219, 0.12);
+            transition: background 0.2s ease, color 0.2s ease;
         }
 
-        .sidebar nav ul li {
-            margin-bottom: 8px;
+        .sidebar-category-title::-webkit-details-marker {
+            display: none;
         }
 
-        .sidebar nav ul li a {
+        .sidebar-category-title:hover {
+            background: rgba(52, 152, 219, 0.25);
+            color: #5dade2;
+        }
+
+        .sidebar-category-title .chevron {
+            font-size: 0.7rem;
+            transition: transform 0.25s ease;
+            color: #95a5a6;
+        }
+
+        .sidebar-category[open] .sidebar-category-title .chevron {
+            transform: rotate(180deg);
+        }
+
+        .sidebar-sublist {
+            list-style: none;
+            padding: 4px 6px 6px 8px;
+            margin: 0;
+            border-left: 2px solid rgba(52, 152, 219, 0.4);
+            margin-left: 10px;
+            margin-top: 4px;
+            margin-bottom: 6px;
+        }
+
+        .sidebar-sublist li {
+            margin-bottom: 4px;
+        }
+
+        .sidebar-sublist li a {
             color: #ecf0f1;
             text-decoration: none;
             display: block;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
-            transition: background 0.3s;
+            font-size: 0.88rem;
+            transition: background 0.2s, color 0.2s;
+            word-break: break-word;
         }
 
-        .sidebar nav ul li a:hover {
+        .sidebar-sublist li a:hover {
             background: #34495e;
             color: #3498db;
         }
 
-        .sidebar nav ul li a.active {
+        .sidebar-sublist li a.active {
             background: #3498db;
             color: white;
+            font-weight: 600;
         }
 
         .content {
@@ -82,14 +145,19 @@
             padding: 40px;
             background: white;
             max-width: 1400px;
+            width: calc(100% - var(--sidebar-width));
             min-height: 100vh;
-            transition: margin-left 0.3s ease;
+            transition: margin-left 0.3s ease, width 0.3s ease;
             overflow-wrap: break-word;
             word-wrap: break-word;
+            word-break: break-word;
+            box-sizing: border-box;
+            overflow-x: hidden;
         }
 
         .content.collapsed {
             margin-left: 0;
+            width: 100%;
         }
 
         .sidebar-overlay {
@@ -219,11 +287,12 @@
             background: #f4f4f4;
             padding: 2px 6px;
             border-radius: 3px;
-            font-family: 'Courier New', monospace;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
             font-size: 0.85rem;
             color: #c7254e;
             word-break: break-word;
             overflow-wrap: break-word;
+            white-space: normal;
         }
 
         pre {
@@ -231,25 +300,38 @@
             padding: 15px;
             border-radius: 5px;
             overflow-x: auto;
+            max-width: 100%;
             margin-bottom: 15px;
             border-left: 4px solid #3498db;
             font-size: 0.9rem;
+            box-sizing: border-box;
+            word-break: normal;
         }
 
         pre code {
             background: none;
             padding: 0;
             color: #333;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
             font-size: 0.85rem;
             word-break: normal;
             overflow-wrap: normal;
             white-space: pre;
+            display: block;
+            max-width: 100%;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            -webkit-overflow-scrolling: touch;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-bottom: 0;
             word-break: break-word;
             overflow-wrap: break-word;
         }
@@ -338,14 +420,14 @@
         // Mascara valores sensíveis (passwords, tokens, secrets)
         function maskSensitiveValues() {
             const sensitivePatterns = [
-                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
-                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
-                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
-                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
-                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
+                {'regex': /password\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\\S]+)/gi, 'label': 'token'}
             ];
 
             const codeBlocks = document.querySelectorAll('code, pre');
@@ -452,22 +534,56 @@
         <aside class="sidebar">
             <h2>📚 Documentação</h2>
             <nav>
-                <ul>
-                    <li><a href="index.html" >🏠 Home</a></li>
-                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
-                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
-                    <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
-                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
-                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
-                    <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
-                    <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
-                    <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
-                    <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
-                    <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
-                    <li><a href="guide-instagram-n8n.html" class="active">📸 Automação Instagram n8n</a></li>
-                    <li><a href="pipeline-ingestao-lomadee.html" >🛍️ Ingestão Lomadee</a></li>
-                    <li><a href="credenciais.html" >🔑 Credenciais Internas</a></li>
-                </ul>
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>👤 Usuário & Interface</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="index.html" >🏠 Home</a></li>
+                        <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                        <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" open>
+                    <summary class="sidebar-category-title">
+                        <span>🔌 Conectividade & APIs</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
+                        <li><a href="delta-sharing-operational.html" >🤝 Delta Sharing Gold</a></li>
+                        <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
+                        <li><a href="guide-instagram-n8n.html" class="active">📸 Automação Instagram n8n</a></li>
+                        <li><a href="pipeline-ingestao-lomadee.html" >🛍️ Ingestão Lomadee</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>⚡ Processamento & Data Lake</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                        <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                        <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
+                        <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                        <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
+                    </ul>
+                </details>
+
+                
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>🔒 Segurança</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="credenciais.html" >🔑 Credenciais Internas</a></li>
+                    </ul>
+                </details>
             </nav>
         </aside>
 
@@ -525,91 +641,90 @@
 <li>Clique no botão <strong>Add workflow</strong> (Adicionar fluxo) no canto superior direito para abrir uma tela em branco.</li>
 <li>Clique em qualquer área vazia do editor e pressione <strong><code>Ctrl + V</code></strong> (ou <code>Cmd + V</code> no Mac) para colar o JSON abaixo:</li>
 </ol>
-
-<pre><code>{
-<p>  "name": "ManyChat - Obter Link Lomadee",</p>
-<p>  "nodes": [</p>
-<p>    {</p>
-<p>      "parameters": {</p>
-<p>        "httpMethod": "POST",</p>
-<p>        "path": "manychat-link",</p>
-<p>        "responseMode": "responseNode",</p>
-<p>        "options": {}</p>
-<p>      },</p>
-<p>      "type": "n8n-nodes-base.webhook",</p>
-<p>      "typeVersion": 2,</p>
-<p>      "position": [</p>
-<p>        100,</p>
-<p>        240</p>
-<p>      ],</p>
-<p>      "id": "webhook-manychat-001",</p>
-<p>      "name": "Webhook"</p>
-<p>    },</p>
-<p>    {</p>
-<p>      "parameters": {</p>
-<p>        "operation": "executeQuery",</p>
-<p>        "query": "SELECT name, shortened_url FROM lomadee.products WHERE shortened_url IS NOT NULL AND shortened_url != '' ORDER BY RANDOM() LIMIT 1;",</p>
-<p>        "options": {}</p>
-<p>      },</p>
-<p>      "type": "n8n-nodes-base.postgres",</p>
-<p>      "typeVersion": 2.4,</p>
-<p>      "position": [</p>
-<p>        320,</p>
-<p>        240</p>
-<p>      ],</p>
-<p>      "id": "postgres-manychat-002",</p>
-<p>      "name": "Get Product Link",</p>
-<p>      "credentials": {</p>
-<p>        "postgres": {</p>
-<p>          "id": "FzYW9HRUEa41hzB6",</p>
-<p>          "name": "Postgres account"</p>
-<p>        }</p>
-<p>      }</p>
-<p>    },</p>
-<p>    {</p>
-<p>      "parameters": {</p>
-<p>        "options": {},</p>
-<p>        "responseBody": "{\n  \"link\": \"{{ $json.shortened_url }}\"\n}"</p>
-<p>      },</p>
-<p>      "type": "n8n-nodes-base.respondToWebhook",</p>
-<p>      "typeVersion": 1,</p>
-<p>      "position": [</p>
-<p>        540,</p>
-<p>        240</p>
-<p>      ],</p>
-<p>      "id": "respond-manychat-003",</p>
-<p>      "name": "Respond to Webhook"</p>
-<p>    }</p>
-<p>  ],</p>
-<p>  "connections": {</p>
-<p>    "Webhook": {</p>
-<p>      "main": [</p>
-<p>        [</p>
-<p>          {</p>
-<p>            "node": "Get Product Link",</p>
-<p>            "type": "main",</p>
-<p>            "index": 0</p>
-<p>          }</p>
-<p>        ]</p>
-<p>      ]</p>
-<p>    },</p>
-<p>    "Get Product Link": {</p>
-<p>      "main": [</p>
-<p>        [</p>
-<p>          {</p>
-<p>            "node": "Respond to Webhook",</p>
-<p>            "type": "main",</p>
-<p>            "index": 0</p>
-<p>          }</p>
-<p>        ]</p>
-<p>      ]</p>
-<p>    }</p>
-<p>  },</p>
-<p>  "settings": {},</p>
-<p>  "staticData": null,</p>
-<p>  "meta": null,</p>
-<p>  "pinData": {}</p>
-<p>}</code></pre></p>
+<pre><code class="json">{
+  "name": "ManyChat - Obter Link Lomadee",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "manychat-link",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        100,
+        240
+      ],
+      "id": "webhook-manychat-001",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT name, shortened_url FROM lomadee.products WHERE shortened_url IS NOT NULL AND shortened_url != '' ORDER BY RANDOM() LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        320,
+        240
+      ],
+      "id": "postgres-manychat-002",
+      "name": "Get Product Link",
+      "credentials": {
+        "postgres": {
+          "id": "FzYW9HRUEa41hzB6",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {},
+        "responseBody": "{\n  \"link\": \"{{ $json.shortened_url }}\"\n}"
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        540,
+        240
+      ],
+      "id": "respond-manychat-003",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Product Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Product Link": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "meta": null,
+  "pinData": {}
+}</code></pre>
 <ol>
 <li>Dê duplo clique no nó <strong>PostgreSQL</strong> e selecione a credencial <strong>"Postgres account"</strong> criada no Passo 2.</li>
 <li>Clique em <strong>Save</strong> no topo e ative o fluxo mudando a chave para <strong>Active</strong> no canto superior direito.</li>
@@ -667,223 +782,222 @@
 
 <h3 id="2-importando-o-workflow-direto-no-n8n">2. Importando o Workflow Direto no n8n</h3>
 <p>Crie um fluxo em branco e cole o JSON abaixo:</p>
-
-<pre><code>{
-<p>  "name": "Instagram - Send Product on Comment 'QUERO'",</p>
-<p>  "nodes": [</p>
-<p>    {</p>
-<p>      "parameters": {</p>
-<p>        "httpMethod": "GET",</p>
-<p>        "path": "instagram-comments",</p>
-<p>        "responseMode": "responseNode",</p>
-<p>        "options": {}</p>
-<p>      },</p>
-<p>      "type": "n8n-nodes-base.webhook",</p>
-<p>      "typeVersion": 2,</p>
-<p>      "position": [</p>
-<p>        0,</p>
-<p>        140</p>
-<p>      ],</p>
-<p>      "id": "webhook-meta-get",</p>
-<p>      "name": "Meta Webhook GET"</p>
-<p>    },</p>
-<p>    {</p>
-<p>      "parameters": {</p>
-<p>        "httpMethod": "POST",</p>
-<p>        "path": "instagram-comments",</p>
-<p>        "responseMode": "responseNode",</p>
-<p>        "options": {}</p>
-<p>      },</p>
-<p>      "type": "n8n-nodes-base.webhook",</p>
-<p>      "typeVersion": 2,</p>
-<p>      "position": [</p>
-<p>        0,</p>
-<p>        340</p>
-<p>      ],</p>
-<p>      "id": "webhook-meta-post",</p>
-<p>      "name": "Meta Webhook POST"</p>
-<p>    },</p>
-<p>    {</p>
-<p>      "parameters": {</p>
-<p>        "respondWith": "text",</p>
-<p>        "responseBody": "={{ $json.query[\"hub.challenge\"] }}",</p>
-<p>        "options": {}</p>
-<p>      },</p>
-<p>      "type": "n8n-nodes-base.respondToWebhook",</p>
-<p>      "typeVersion": 1,</p>
-<p>      "position": [</p>
-<p>        250,</p>
-<p>        140</p>
-<p>      ],</p>
-<p>      "id": "respond-challenge",</p>
-<p>      "name": "Respond Hub Challenge"</p>
-<p>    },</p>
-<p>    {</p>
-<p>      "parameters": {</p>
-<p>        "respondWith": "text",</p>
-<p>        "responseBody": "OK",</p>
-<p>        "options": {}</p>
-<p>      },</p>
-<p>      "type": "n8n-nodes-base.respondToWebhook",</p>
-<p>      "typeVersion": 1,</p>
-<p>      "position": [</p>
-<p>        250,</p>
-<p>        340</p>
-<p>      ],</p>
-<p>      "id": "respond-meta-ok",</p>
-<p>      "name": "Ack Webhook 200"</p>
-<p>    },</p>
-<p>    {</p>
-<p>      "parameters": {</p>
-<p>        "conditions": {</p>
-<p>          "options": {</p>
-<p>            "caseSensitive": false,</p>
-<p>            "leftValue": "",</p>
-<p>            "typeValidation": "strict"</p>
-<p>          },</p>
-<p>          "conditions": [</p>
-<p>            {</p>
-<p>              "id": "has-quero-keyword",</p>
-<p>              "leftValue": "={{ $json.body.entry[0].changes[0].value.text }}",</p>
-<p>              "rightValue": "quero",</p>
-<p>              "operator": {</p>
-<p>                "type": "string",</p>
-<p>                "operation": "contains"</p>
-<p>              }</p>
-<p>            }</p>
-<p>          ],</p>
-<p>          "combinator": "and"</p>
-<p>        },</p>
-<p>        "options": {}</p>
-<p>      },</p>
-<p>      "type": "n8n-nodes-base.if",</p>
-<p>      "typeVersion": 2,</p>
-<p>      "position": [</p>
-<p>        500,</p>
-<p>        340</p>
-<p>      ],</p>
-<p>      "id": "has-quero-word",</p>
-<p>      "name": "Comment has 'QUERO'?"</p>
-<p>    },</p>
-<p>    {</p>
-<p>      "parameters": {</p>
-<p>        "operation": "executeQuery",</p>
-<p>        "query": "SELECT name, shortened_url FROM lomadee.products WHERE shortened_url IS NOT NULL AND shortened_url != '' ORDER BY RANDOM() LIMIT 1;"</p>
-<p>      },</p>
-<p>      "type": "n8n-nodes-base.postgres",</p>
-<p>      "typeVersion": 2.4,</p>
-<p>      "position": [</p>
-<p>        750,</p>
-<p>        340</p>
-<p>      ],</p>
-<p>      "id": "get-product-from-db",</p>
-<p>      "name": "Get Product Link",</p>
-<p>      "credentials": {</p>
-<p>        "postgres": {</p>
-<p>          "id": "1"</p>
-<p>        }</p>
-<p>      }</p>
-<p>    },</p>
-<p>    {</p>
-<p>      "parameters": {</p>
-<p>        "method": "POST",</p>
-<p>        "url": "https://graph.instagram.com/v20.0/me/messages",</p>
-<p>        "sendHeaders": true,</p>
-<p>        "headerParameters": {</p>
-<p>          "parameters": [</p>
-<p>            {</p>
-<p>              "name": "Authorization",</p>
-<p>              "value": "Bearer INSIRA_SEU_META_ACCESS_TOKEN_AQUI"</p>
-<p>            },</p>
-<p>            {</p>
-<p>              "name": "Content-Type",</p>
-<p>              "value": "application/json"</p>
-<p>            }</p>
-<p>          ]</p>
-<p>        },</p>
-<p>        "sendBody": true,</p>
-<p>        "bodyParameters": {</p>
-<p>          "parameters": []</p>
-<p>        },</p>
-<p>        "specifyBody": "json",</p>
-<p>        "jsonBody": "={\n  \"recipient\": {\n    \"id\": \"{{ $('Meta Webhook POST').item.json.body.entry[0].changes[0].value.from.id }}\"\n  },\n  \"message\": {\n    \"text\": \"Olá! Aqui está o link que você pediu para *{{ $json.name }}*:\\n\\n👉 {{ $json.shortened_url }}\"\n  }\n}",</p>
-<p>        "options": {}</p>
-<p>      },</p>
-<p>      "type": "n8n-nodes-base.httpRequest",</p>
-<p>      "typeVersion": 4.2,</p>
-<p>      "position": [</p>
-<p>        236,</p>
-<p>        340</p>
-<p>      ],</p>
-<p>      "id": "send-instagram-direct",</p>
-<p>      "name": "Send IG Direct"</p>
-<p>    }</p>
-<p>  ],</p>
-<p>  "connections": {</p>
-<p>    "Meta Webhook GET": {</p>
-<p>      "main": [</p>
-<p>        [</p>
-<p>          {</p>
-<p>            "node": "Respond Hub Challenge",</p>
-<p>            "type": "main",</p>
-<p>            "index": 0</p>
-<p>          }</p>
-<p>        ]</p>
-<p>      ]</p>
-<p>    },</p>
-<p>    "Meta Webhook POST": {</p>
-<p>      "main": [</p>
-<p>        [</p>
-<p>          {</p>
-<p>            "node": "Ack Webhook 200",</p>
-<p>            "type": "main",</p>
-<p>            "index": 0</p>
-<p>          }</p>
-<p>        ]</p>
-<p>      ]</p>
-<p>    },</p>
-<p>    "Ack Webhook 200": {</p>
-<p>      "main": [</p>
-<p>        [</p>
-<p>          {</p>
-<p>            "node": "Comment has 'QUERO'?",</p>
-<p>            "type": "main",</p>
-<p>            "index": 0</p>
-<p>          }</p>
-<p>        ]</p>
-<p>      ]</p>
-<p>    },</p>
-<p>    "Comment has 'QUERO'?": {</p>
-<p>      "main": [</p>
-<p>        [</p>
-<p>          {</p>
-<p>            "node": "Get Product Link",</p>
-<p>            "type": "main",</p>
-<p>            "index": 0</p>
-<p>          }</p>
-<p>        ]</p>
-<p>      ]</p>
-<p>    },</p>
-<p>    "Get Product Link": {</p>
-<p>      "main": [</p>
-<p>        [</p>
-<p>          {</p>
-<p>            "node": "Send IG Direct",</p>
-<p>            "type": "main",</p>
-<p>            "index": 0</p>
-<p>          }</p>
-<p>        ]</p>
-<p>      ]</p>
-<p>    }</p>
-<p>  },</p>
-<p>  "settings": {</p>
-<p>    "executionOrder": "v1"</p>
-<p>  },</p>
-<p>  "id": "instagram-automation-flow",</p>
-<p>  "meta": {</p>
-<p>    "templateCredsSetupCompleted": true</p>
-<p>  }</p>
-<p>}</code></pre></p>
+<pre><code class="json">{
+  "name": "Instagram - Send Product on Comment 'QUERO'",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "instagram-comments",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        140
+      ],
+      "id": "webhook-meta-get",
+      "name": "Meta Webhook GET"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-comments",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        340
+      ],
+      "id": "webhook-meta-post",
+      "name": "Meta Webhook POST"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query[\"hub.challenge\"] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        140
+      ],
+      "id": "respond-challenge",
+      "name": "Respond Hub Challenge"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        340
+      ],
+      "id": "respond-meta-ok",
+      "name": "Ack Webhook 200"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-quero-keyword",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.text }}",
+              "rightValue": "quero",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        500,
+        340
+      ],
+      "id": "has-quero-word",
+      "name": "Comment has 'QUERO'?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT name, shortened_url FROM lomadee.products WHERE shortened_url IS NOT NULL AND shortened_url != '' ORDER BY RANDOM() LIMIT 1;"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        750,
+        340
+      ],
+      "id": "get-product-from-db",
+      "name": "Get Product Link",
+      "credentials": {
+        "postgres": {
+          "id": "1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.instagram.com/v20.0/me/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer INSIRA_SEU_META_ACCESS_TOKEN_AQUI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": {\n    \"id\": \"{{ $('Meta Webhook POST').item.json.body.entry[0].changes[0].value.from.id }}\"\n  },\n  \"message\": {\n    \"text\": \"Olá! Aqui está o link que você pediu para *{{ $json.name }}*:\\n\\n👉 {{ $json.shortened_url }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        236,
+        340
+      ],
+      "id": "send-instagram-direct",
+      "name": "Send IG Direct"
+    }
+  ],
+  "connections": {
+    "Meta Webhook GET": {
+      "main": [
+        [
+          {
+            "node": "Respond Hub Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Webhook POST": {
+      "main": [
+        [
+          {
+            "node": "Ack Webhook 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ack Webhook 200": {
+      "main": [
+        [
+          {
+            "node": "Comment has 'QUERO'?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comment has 'QUERO'?": {
+      "main": [
+        [
+          {
+            "node": "Get Product Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Product Link": {
+      "main": [
+        [
+          {
+            "node": "Send IG Direct",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "instagram-automation-flow",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}</code></pre>
 
 <p>---</p>
 

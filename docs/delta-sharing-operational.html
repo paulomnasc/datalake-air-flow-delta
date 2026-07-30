@@ -14,7 +14,10 @@
             box-sizing: border-box;
         }
 
-        body {
+        html, body {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.6;
             color: #333;
@@ -23,6 +26,8 @@
 
         .container {
             min-height: 100vh;
+            width: 100%;
+            overflow-x: hidden;
         }
 
         .sidebar {
@@ -50,31 +55,89 @@
             padding-bottom: 10px;
         }
 
-        .sidebar nav ul {
+        .sidebar nav {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sidebar-category {
+            border-radius: 6px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar-category-title {
             list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #3498db;
+            padding: 8px 10px;
+            cursor: pointer;
+            user-select: none;
+            background: rgba(52, 152, 219, 0.12);
+            transition: background 0.2s ease, color 0.2s ease;
         }
 
-        .sidebar nav ul li {
-            margin-bottom: 8px;
+        .sidebar-category-title::-webkit-details-marker {
+            display: none;
         }
 
-        .sidebar nav ul li a {
+        .sidebar-category-title:hover {
+            background: rgba(52, 152, 219, 0.25);
+            color: #5dade2;
+        }
+
+        .sidebar-category-title .chevron {
+            font-size: 0.7rem;
+            transition: transform 0.25s ease;
+            color: #95a5a6;
+        }
+
+        .sidebar-category[open] .sidebar-category-title .chevron {
+            transform: rotate(180deg);
+        }
+
+        .sidebar-sublist {
+            list-style: none;
+            padding: 4px 6px 6px 8px;
+            margin: 0;
+            border-left: 2px solid rgba(52, 152, 219, 0.4);
+            margin-left: 10px;
+            margin-top: 4px;
+            margin-bottom: 6px;
+        }
+
+        .sidebar-sublist li {
+            margin-bottom: 4px;
+        }
+
+        .sidebar-sublist li a {
             color: #ecf0f1;
             text-decoration: none;
             display: block;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
-            transition: background 0.3s;
+            font-size: 0.88rem;
+            transition: background 0.2s, color 0.2s;
+            word-break: break-word;
         }
 
-        .sidebar nav ul li a:hover {
+        .sidebar-sublist li a:hover {
             background: #34495e;
             color: #3498db;
         }
 
-        .sidebar nav ul li a.active {
+        .sidebar-sublist li a.active {
             background: #3498db;
             color: white;
+            font-weight: 600;
         }
 
         .content {
@@ -82,14 +145,19 @@
             padding: 40px;
             background: white;
             max-width: 1400px;
+            width: calc(100% - var(--sidebar-width));
             min-height: 100vh;
-            transition: margin-left 0.3s ease;
+            transition: margin-left 0.3s ease, width 0.3s ease;
             overflow-wrap: break-word;
             word-wrap: break-word;
+            word-break: break-word;
+            box-sizing: border-box;
+            overflow-x: hidden;
         }
 
         .content.collapsed {
             margin-left: 0;
+            width: 100%;
         }
 
         .sidebar-overlay {
@@ -219,11 +287,12 @@
             background: #f4f4f4;
             padding: 2px 6px;
             border-radius: 3px;
-            font-family: 'Courier New', monospace;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
             font-size: 0.85rem;
             color: #c7254e;
             word-break: break-word;
             overflow-wrap: break-word;
+            white-space: normal;
         }
 
         pre {
@@ -231,25 +300,38 @@
             padding: 15px;
             border-radius: 5px;
             overflow-x: auto;
+            max-width: 100%;
             margin-bottom: 15px;
             border-left: 4px solid #3498db;
             font-size: 0.9rem;
+            box-sizing: border-box;
+            word-break: normal;
         }
 
         pre code {
             background: none;
             padding: 0;
             color: #333;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
             font-size: 0.85rem;
             word-break: normal;
             overflow-wrap: normal;
             white-space: pre;
+            display: block;
+            max-width: 100%;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            -webkit-overflow-scrolling: touch;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-bottom: 0;
             word-break: break-word;
             overflow-wrap: break-word;
         }
@@ -338,14 +420,14 @@
         // Mascara valores sensíveis (passwords, tokens, secrets)
         function maskSensitiveValues() {
             const sensitivePatterns = [
-                {'regex': /password\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /passwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /pwd\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'password'},
-                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'secret'},
-                {'regex': /api[_-]?key\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'apikey'},
-                {'regex': /token\s*=\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'token'},
-                {'regex': /authorization\s*:\s*['"]?([^'"\s;]+)['"]?/gi, 'label': 'auth'},
-                {'regex': /bearer\s+([\S]+)/gi, 'label': 'token'}
+                {'regex': /password\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /passwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /pwd\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'password'},
+                {'regex': /secret(?:_key|_access|_key_id)?\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'secret'},
+                {'regex': /api[_-]?key\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'apikey'},
+                {'regex': /token\s*=\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'token'},
+                {'regex': /authorization\s*:\s*['\"]?([^'\"\\s;]+)['\"]?/gi, 'label': 'auth'},
+                {'regex': /bearer\s+([\\S]+)/gi, 'label': 'token'}
             ];
 
             const codeBlocks = document.querySelectorAll('code, pre');
@@ -452,22 +534,47 @@
         <aside class="sidebar">
             <h2>📚 Documentação</h2>
             <nav>
-                <ul>
-                    <li><a href="index.html" >🏠 Home</a></li>
-                    <li><a href="docs-index.html" >📋 Índice Completo</a></li>
-                    <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
-                    <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
-                    <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
-                    <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
-                    <li><a href="delta-sharing-operational.html" class="active">🤝 Delta Sharing Gold</a></li>
-                    <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
-                    <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
-                    <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
-                    <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
-                    <li><a href="guide-instagram-n8n.html" >📸 Automação Instagram n8n</a></li>
-                    <li><a href="pipeline-ingestao-lomadee.html" >🛍️ Ingestão Lomadee</a></li>
-                    
-                </ul>
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>👤 Usuário & Interface</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="index.html" >🏠 Home</a></li>
+                        <li><a href="docs-index.html" >📋 Índice Completo</a></li>
+                        <li><a href="guide-webapp-config.html" >🖥️ Guia Interface Web</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" open>
+                    <summary class="sidebar-category-title">
+                        <span>🔌 Conectividade & APIs</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="powerbi-conexao-duckdb-odbc.html" >🔌 Conexão Power BI</a></li>
+                        <li><a href="delta-sharing-operational.html" class="active">🤝 Delta Sharing Gold</a></li>
+                        <li><a href="MyDataFloConfigurandoAPI.html" >🛠️ Configurando API (Exemplo)</a></li>
+                        <li><a href="guide-instagram-n8n.html" >📸 Automação Instagram n8n</a></li>
+                        <li><a href="pipeline-ingestao-lomadee.html" >🛍️ Ingestão Lomadee</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" >
+                    <summary class="sidebar-category-title">
+                        <span>⚡ Processamento & Data Lake</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="transformacoes-silver.html" >🥈 Transformações Silver</a></li>
+                        <li><a href="delta-lake-implementation.html" >🥇 Delta Lake & Gold</a></li>
+                        <li><a href="git-dbt-analytics.html" >📊 Git & dbt Analytics</a></li>
+                        <li><a href="dbt-quality-reports.html" >📊 Relatórios dbt</a></li>
+                        <li><a href="metabase-analytics.html" >📈 Metabase Analytics</a></li>
+                    </ul>
+                </details>
+
+                
             </nav>
         </aside>
 
@@ -482,17 +589,16 @@
 <p>---</p>
 
 <h2 id="arquitetura-de-consumo">🏗️ Arquitetura de Consumo</h2>
-
-<pre><code>                       ┌─────────────────────────┐
-<p>                       │      MinIO / S3         │</p>
-<p>                       │  (Camada Gold Delta)    │</p>
-<p>                       └────────────▲────────────┘</p>
-<p>                                    │ (Leitura Direta)</p>
-<p>┌──────────────┐       ┌────────────┴────────────┐       ┌──────────────┐</p>
-<p>│ Analista BI  │       │  Delta Sharing Server   │       │  Cientista   │</p>
-<p>│ (Power BI)   │ ◄───► │      (Porta 28085)      │ ◄───► │   de Dados   │</p>
-<p>│              │ (JWT) │                         │ (JWT) │   (Python)   │</p>
-<p>└──────────────┘       └─────────────────────────┘       └──────────────┘</code></pre></p>
+<pre><code class="">                       ┌─────────────────────────┐
+                       │      MinIO / S3         │
+                       │  (Camada Gold Delta)    │
+                       └────────────▲────────────┘
+                                    │ (Leitura Direta)
+┌──────────────┐       ┌────────────┴────────────┐       ┌──────────────┐
+│ Analista BI  │       │  Delta Sharing Server   │       │  Cientista   │
+│ (Power BI)   │ ◄───► │      (Porta 28085)      │ ◄───► │   de Dados   │
+│              │ (JWT) │                         │ (JWT) │   (Python)   │
+└──────────────┘       └─────────────────────────┘       └──────────────┘</code></pre>
 
 <p>---</p>
 
@@ -503,37 +609,28 @@
 <h3 id="1-arquivo-de-configuracao-do-servidor">1. Arquivo de Configuração do Servidor</h3>
 
 <p>As definições de tabelas compartilhadas ficam no arquivo <a href="./delta-sharing/delta-sharing-server.yaml"><code>delta-sharing-server.yaml</code></a>:</p>
+<pre><code class="yaml">version: 1
+host: "0.0.0.0"
+port: 8080
 
-<pre><code>version: 1
-<p>host: "0.0.0.0"</p>
-<p>port: 8080</p>
+authorization:
+  bearerToken: "*******"  # Token de autenticação
 
-<p>authorization:</p>
-<p>  bearerToken: "*******"  # Token de autenticação</p>
+hadoopConf:
+  fs.s3a.endpoint: "https://myflow.estudotabela.com.br:29000"
+  fs.s3a.path.style.access: "true"
+  fs.s3a.access.key: "admin"
+  fs.s3a.secret.key: "*******"
 
-<p>hadoopConf:</p>
-<p>  fs.s3a.endpoint: "https://myflow.estudotabela.com.br:29000"</p>
-<p>  fs.s3a.path.style.access: "true"</p>
-<p>  fs.s3a.access.key: "admin"</p>
-<p>  fs.s3a.secret.key: "*******"</p>
-
-<p>shares:</p>
-<ul>
-<li>name: "gold_share"</li>
-</ul>
-<p>    schemas:</p>
-<ul>
-<li>name: "analytics"</li>
-</ul>
-<p>        tables:</p>
-<ul>
-<li>name: "customers"</li>
-</ul>
-<p>            location: "s3a://admin-146/gold/20260412200111_9d4363f3_customers_gold/20260412200111_9d4363f3_customers_gold_delta"</p>
-<ul>
-<li>name: "orders"</li>
-</ul>
-<p>            location: "s3a://admin-146/gold/20260412200111_828f9341_orders_gold/20260412200111_828f9341_orders_gold_delta"</code></pre></p>
+shares:
+  - name: "gold_share"
+    schemas:
+      - name: "analytics"
+        tables:
+          - name: "customers"
+            location: "s3a://admin-146/gold/20260412200111_9d4363f3_customers_gold/20260412200111_9d4363f3_customers_gold_delta"
+          - name: "orders"
+            location: "s3a://admin-146/gold/20260412200111_828f9341_orders_gold/20260412200111_828f9341_orders_gold_delta"</code></pre>
 
 <p>> [!IMPORTANT]</p>
 <p>> <strong>Resolução do Nome do Bucket no Ambiente Multi-tenant</strong>:</p>
@@ -544,8 +641,7 @@
 <h3 id="2-executando-o-container">2. Executando o Container</h3>
 
 <p>Adicione o bloco abaixo no <code>docker-compose.yml</code> e suba o serviço:</p>
-
-<pre><code>docker compose up -d delta-sharing-server</code></pre>
+<pre><code class="bash">docker compose up -d delta-sharing-server</code></pre>
 
 <p>---</p>
 
@@ -563,41 +659,37 @@
 <p>> Para solucionar isso, a stack MyDataFlow está configurada para rotear e criptografar o tráfego do Delta Sharing (porta segura <strong><code>443</code></strong> no caminho <code>/delta-sharing</code>) e da API do MinIO S3 (porta <strong><code>29000</code></strong> via Nginx) através de SSL/TLS com o certificado válido.</p>
  
 <p> Desta forma, o arquivo de perfil em ambiente de produção possui o seguinte conteúdo estruturado com endpoints seguros:</p>
- 
-<p> <pre><code> {</p>
-<p>   "shareCredentialsVersion": 1,</p>
-<p>   "endpoint": "https://myflow.estudotabela.com.br/delta-sharing",</p>
-<p>   "bearerToken": "*******"</p>
-<p> }</p>
-<p> ``<code></p>
+<pre><code class="json"> {
+   "shareCredentialsVersion": 1,
+   "endpoint": "https://myflow.estudotabela.com.br/delta-sharing",
+   "bearerToken": "*******"
+ }</code></pre>
 
 <h3 id="passo-2-enviar-o-arquivo-para-o-usuario-destinatario">Passo 2: Enviar o Arquivo para o Usuário Destinatário</h3>
-<p>Envie este arquivo de perfil </code>.share<code> (ou as chaves </code>endpoint<code> e </code>bearerToken<code> extraídas dele) para o analista de BI ou cientista de dados. Este arquivo é tudo o que eles precisam para se conectar aos dados de forma segura.</p>
+<p>Envie este arquivo de perfil <code>.share</code> (ou as chaves <code>endpoint</code> e <code>bearerToken</code> extraídas dele) para o analista de BI ou cientista de dados. Este arquivo é tudo o que eles precisam para se conectar aos dados de forma segura.</p>
 
 <p>---</p>
 
 <h2 id="conectando-do-power-bi-analistas-de-bi">🔌 Conectando do Power BI (Analistas de BI)</h2>
 
-<p>O Power BI possui um conector nativo para o Delta Sharing. Como o conector solicita as credenciais e o endpoint de conexão diretamente em vez de importar o arquivo </code>.share<code>, siga os passos abaixo para conectar:</p>
+<p>O Power BI possui um conector nativo para o Delta Sharing. Como o conector solicita as credenciais e o endpoint de conexão diretamente em vez de importar o arquivo <code>.share</code>, siga os passos abaixo para conectar:</p>
 
 <ol>
-<li>Abra o arquivo de perfil </code>gold_share_recipient.share<code> que você recebeu em um editor de texto (como Bloco de Notas ou VS Code) para copiar as credenciais:</li>
+<li>Abra o arquivo de perfil <code>gold_share_recipient.share</code> que você recebeu em um editor de texto (como Bloco de Notas ou VS Code) para copiar as credenciais:</li>
 </ol>
-<p>   </code>`<code>json</p>
-<p>    {</p>
-<p>      "shareCredentialsVersion": 1,</p>
-<p>      "endpoint": "https://myflow.estudotabela.com.br/delta-sharing",</p>
-<p>      "bearerToken": "*******"</p>
-<p>    }</p>
-<p>    </code>`<code></p>
+<pre><code class="json">    {
+      "shareCredentialsVersion": 1,
+      "endpoint": "https://myflow.estudotabela.com.br/delta-sharing",
+      "bearerToken": "*******"
+    }</code></pre>
 <ol>
 <li>Abra o <strong>Power BI Desktop</strong>.</li>
 <li>Clique em <strong>Obter Dados</strong> → <strong>Mais...</strong></li>
 <li>Pesquise por <strong>Delta Sharing</strong> e selecione o conector.</li>
-<li>Na janela de configuração, insira no campo <strong>URL do Servidor Delta Sharing</strong> (Delta Sharing Server URL) o valor do campo </code>endpoint<code> do arquivo (ex: </code>https://myflow.estudotabela.com.br/delta-sharing<code>) e clique em <strong>OK</strong>.</li>
+<li>Na janela de configuração, insira no campo <strong>URL do Servidor Delta Sharing</strong> (Delta Sharing Server URL) o valor do campo <code>endpoint</code> do arquivo (ex: <code>https://myflow.estudotabela.com.br/delta-sharing</code>) e clique em <strong>OK</strong>.</li>
 <li>Na janela de autenticação subsequente, selecione a opção <strong>Token de Portador</strong> (Bearer Token) no menu lateral esquerdo.</li>
-<li>Insira o valor do campo </code>bearerToken<code> do arquivo (ex: </code>*******<code>) e clique em <strong>Conectar</strong>.</li>
-<li>O Power BI listará as tabelas disponíveis (como </code>customers<code>, </code>orders<code>, </code>products<code>, etc.).</li>
+<li>Insira o valor do campo <code>bearerToken</code> do arquivo (ex: <code>*******</code>) e clique em <strong>Conectar</strong>.</li>
+<li>O Power BI listará as tabelas disponíveis (como <code>customers</code>, <code>orders</code>, <code>products</code>, etc.).</li>
 <li>Selecione as tabelas desejadas e clique em <strong>Carregar</strong>.</li>
 </ol>
 
@@ -605,36 +697,35 @@
 
 <h2 id="conectando-de-notebooks-python-cientistas-de-dados">🐍 Conectando de Notebooks Python (Cientistas de Dados)</h2>
 
-<p>Cientistas de dados podem importar e interagir com os dados compartilhados usando a biblioteca </code>delta-sharing<code>:</p>
+<p>Cientistas de dados podem importar e interagir com os dados compartilhados usando a biblioteca <code>delta-sharing</code>:</p>
 
-<h3 id="1-instalacao">1. Instalação</h3></code></pre>bash
-<p>pip install delta-sharing</p>
-<pre><code>
-<h3 id="2-codigo-python-para-leitura">2. Código Python para Leitura</h3></code></pre>python
-<p>import delta_sharing</p>
+<h3 id="1-instalacao">1. Instalação</h3>
+<pre><code class="bash">pip install delta-sharing</code></pre>
 
-<h1 id="1-caminho-para-o-arquivo-de-perfil-recebido">1. Caminho para o arquivo de perfil recebido</h1>
-<p>profile_file = "gold_share_recipient.share"</p>
+<h3 id="2-codigo-python-para-leitura">2. Código Python para Leitura</h3>
+<pre><code class="python">import delta_sharing
 
-<h1 id="2-criar-cliente-do-delta-sharing">2. Criar cliente do Delta Sharing</h1>
-<p>client = delta_sharing.SharingClient(profile_file)</p>
+# 1. Caminho para o arquivo de perfil recebido
+profile_file = "gold_share_recipient.share"
 
-<h1 id="3-listar-tabelas-compartilhadas">3. Listar tabelas compartilhadas</h1>
-<p>shares = client.list_shares()</p>
-<p>for share in shares:</p>
-<p>    print(f"Share: {share.name}")</p>
-<p>    for schema in client.list_schemas(share):</p>
-<p>        print(f"  Schema: {schema.name}")</p>
-<p>        for table in client.list_tables(schema):</p>
-<p>            print(f"    Table: {table.name}")</p>
+# 2. Criar cliente do Delta Sharing
+client = delta_sharing.SharingClient(profile_file)
 
-<h1 id="4-carregar-tabela-diretamente-como-um-dataframe-pandas">4. Carregar tabela diretamente como um DataFrame Pandas</h1>
-<h1 id="formato-do-path-profile-fileshare-nameschema-nametable-name">Formato do path: <profile_file>#<share_name>.<schema_name>.<table_name></h1>
-<p>table_url = f"{profile_file}#gold_share.analytics.fato_vendas"</p>
-<p>df = delta_sharing.load_as_pandas(table_url)</p>
+# 3. Listar tabelas compartilhadas
+shares = client.list_shares()
+for share in shares:
+    print(f"Share: {share.name}")
+    for schema in client.list_schemas(share):
+        print(f"  Schema: {schema.name}")
+        for table in client.list_tables(schema):
+            print(f"    Table: {table.name}")
 
-<p>print(df.head())</p>
-</code>``
+# 4. Carregar tabela diretamente como um DataFrame Pandas
+# Formato do path: &lt;profile_file&gt;#&lt;share_name&gt;.&lt;schema_name&gt;.&lt;table_name&gt;
+table_url = f"{profile_file}#gold_share.analytics.fato_vendas"
+df = delta_sharing.load_as_pandas(table_url)
+
+print(df.head())</code></pre>
 
         </main>
     </div>

@@ -25,7 +25,7 @@ MD_FILES = {
 }
 
 # Template HTML base
-HTML_TEMPLATE = """<!DOCTYPE html>
+HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -41,7 +41,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             box-sizing: border-box;
         }}
 
-        body {{
+        html, body {{
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.6;
             color: #333;
@@ -50,6 +53,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .container {{
             min-height: 100vh;
+            width: 100%;
+            overflow-x: hidden;
         }}
 
         .sidebar {{
@@ -77,31 +82,89 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             padding-bottom: 10px;
         }}
 
-        .sidebar nav ul {{
+        .sidebar nav {{
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }}
+
+        .sidebar-category {{
+            border-radius: 6px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }}
+
+        .sidebar-category-title {{
             list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #3498db;
+            padding: 8px 10px;
+            cursor: pointer;
+            user-select: none;
+            background: rgba(52, 152, 219, 0.12);
+            transition: background 0.2s ease, color 0.2s ease;
         }}
 
-        .sidebar nav ul li {{
-            margin-bottom: 8px;
+        .sidebar-category-title::-webkit-details-marker {{
+            display: none;
         }}
 
-        .sidebar nav ul li a {{
+        .sidebar-category-title:hover {{
+            background: rgba(52, 152, 219, 0.25);
+            color: #5dade2;
+        }}
+
+        .sidebar-category-title .chevron {{
+            font-size: 0.7rem;
+            transition: transform 0.25s ease;
+            color: #95a5a6;
+        }}
+
+        .sidebar-category[open] .sidebar-category-title .chevron {{
+            transform: rotate(180deg);
+        }}
+
+        .sidebar-sublist {{
+            list-style: none;
+            padding: 4px 6px 6px 8px;
+            margin: 0;
+            border-left: 2px solid rgba(52, 152, 219, 0.4);
+            margin-left: 10px;
+            margin-top: 4px;
+            margin-bottom: 6px;
+        }}
+
+        .sidebar-sublist li {{
+            margin-bottom: 4px;
+        }}
+
+        .sidebar-sublist li a {{
             color: #ecf0f1;
             text-decoration: none;
             display: block;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
-            transition: background 0.3s;
+            font-size: 0.88rem;
+            transition: background 0.2s, color 0.2s;
+            word-break: break-word;
         }}
 
-        .sidebar nav ul li a:hover {{
+        .sidebar-sublist li a:hover {{
             background: #34495e;
             color: #3498db;
         }}
 
-        .sidebar nav ul li a.active {{
+        .sidebar-sublist li a.active {{
             background: #3498db;
             color: white;
+            font-weight: 600;
         }}
 
         .content {{
@@ -109,14 +172,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             padding: 40px;
             background: white;
             max-width: 1400px;
+            width: calc(100% - var(--sidebar-width));
             min-height: 100vh;
-            transition: margin-left 0.3s ease;
+            transition: margin-left 0.3s ease, width 0.3s ease;
             overflow-wrap: break-word;
             word-wrap: break-word;
+            word-break: break-word;
+            box-sizing: border-box;
+            overflow-x: hidden;
         }}
 
         .content.collapsed {{
             margin-left: 0;
+            width: 100%;
         }}
 
         .sidebar-overlay {{
@@ -246,11 +314,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             background: #f4f4f4;
             padding: 2px 6px;
             border-radius: 3px;
-            font-family: 'Courier New', monospace;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
             font-size: 0.85rem;
             color: #c7254e;
             word-break: break-word;
             overflow-wrap: break-word;
+            white-space: normal;
         }}
 
         pre {{
@@ -258,25 +327,38 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             padding: 15px;
             border-radius: 5px;
             overflow-x: auto;
+            max-width: 100%;
             margin-bottom: 15px;
             border-left: 4px solid #3498db;
             font-size: 0.9rem;
+            box-sizing: border-box;
+            word-break: normal;
         }}
 
         pre code {{
             background: none;
             padding: 0;
             color: #333;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, 'Courier New', monospace;
             font-size: 0.85rem;
             word-break: normal;
             overflow-wrap: normal;
             white-space: pre;
+            display: block;
+            max-width: 100%;
+        }}
+
+        .table-responsive {{
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            -webkit-overflow-scrolling: touch;
         }}
 
         table {{
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-bottom: 0;
             word-break: break-word;
             overflow-wrap: break-word;
         }}
@@ -479,22 +561,47 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <aside class="sidebar">
             <h2>📚 Documentação</h2>
             <nav>
-                <ul>
-                    <li><a href="index.html" {index_active}>🏠 Home</a></li>
-                    <li><a href="docs-index.html" {docs_index_active}>📋 Índice Completo</a></li>
-                    <li><a href="guide-webapp-config.html" {guide_active}>🖥️ Guia Interface Web</a></li>
-                    <li><a href="powerbi-conexao-duckdb-odbc.html" {migracao_active}>🔌 Conexão Power BI</a></li>
-                    <li><a href="transformacoes-silver.html" {silver_active}>🥈 Transformações Silver</a></li>
-                    <li><a href="delta-lake-implementation.html" {delta_active}>🥇 Delta Lake & Gold</a></li>
-                    <li><a href="delta-sharing-operational.html" {sharing_active}>🤝 Delta Sharing Gold</a></li>
-                    <li><a href="git-dbt-analytics.html" {git_active}>📊 Git & dbt Analytics</a></li>
-                    <li><a href="dbt-quality-reports.html" {dbt_reports_active}>📊 Relatórios dbt</a></li>
-                    <li><a href="metabase-analytics.html" {metabase_active}>📈 Metabase Analytics</a></li>
-                    <li><a href="MyDataFloConfigurandoAPI.html" {api_active}>🛠️ Configurando API (Exemplo)</a></li>
-                    <li><a href="guide-instagram-n8n.html" {instagram_active}>📸 Automação Instagram n8n</a></li>
-                    <li><a href="pipeline-ingestao-lomadee.html" {lomadee_active}>🛍️ Ingestão Lomadee</a></li>
-                    {sidebar_extra}
-                </ul>
+                <details class="sidebar-category" {usuario_open}>
+                    <summary class="sidebar-category-title">
+                        <span>👤 Usuário & Interface</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="index.html" {index_active}>🏠 Home</a></li>
+                        <li><a href="docs-index.html" {docs_index_active}>📋 Índice Completo</a></li>
+                        <li><a href="guide-webapp-config.html" {guide_active}>🖥️ Guia Interface Web</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" {conectividade_open}>
+                    <summary class="sidebar-category-title">
+                        <span>🔌 Conectividade & APIs</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="powerbi-conexao-duckdb-odbc.html" {migracao_active}>🔌 Conexão Power BI</a></li>
+                        <li><a href="delta-sharing-operational.html" {sharing_active}>🤝 Delta Sharing Gold</a></li>
+                        <li><a href="MyDataFloConfigurandoAPI.html" {api_active}>🛠️ Configurando API (Exemplo)</a></li>
+                        <li><a href="guide-instagram-n8n.html" {instagram_active}>📸 Automação Instagram n8n</a></li>
+                        <li><a href="pipeline-ingestao-lomadee.html" {lomadee_active}>🛍️ Ingestão Lomadee</a></li>
+                    </ul>
+                </details>
+
+                <details class="sidebar-category" {processamento_open}>
+                    <summary class="sidebar-category-title">
+                        <span>⚡ Processamento & Data Lake</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="transformacoes-silver.html" {silver_active}>🥈 Transformações Silver</a></li>
+                        <li><a href="delta-lake-implementation.html" {delta_active}>🥇 Delta Lake & Gold</a></li>
+                        <li><a href="git-dbt-analytics.html" {git_active}>📊 Git & dbt Analytics</a></li>
+                        <li><a href="dbt-quality-reports.html" {dbt_reports_active}>📊 Relatórios dbt</a></li>
+                        <li><a href="metabase-analytics.html" {metabase_active}>📈 Metabase Analytics</a></li>
+                    </ul>
+                </details>
+
+                {sidebar_extra}
             </nav>
         </aside>
 
@@ -556,19 +663,36 @@ def convert_markdown_table_to_html(markdown_table):
 
 
 def md_to_html(md_content):
-    """Converte Markdown básico para HTML"""
+    """Converte Markdown básico para HTML de forma estruturada e imune a corrupção DOM"""
     html = md_content
     
-    # Converte tabelas Markdown antes de outras conversões
+    # 1. Extração de blocos de código (``` ... ``` com suporte a identação prévia)
+    code_blocks = []
+    def extract_code_block(match):
+        lang = match.group(1) or ""
+        code_text = match.group(2)
+        # Escape HTML dentro do bloco de código
+        escaped_code = (code_text
+                        .replace('&', '&amp;')
+                        .replace('<', '&lt;')
+                        .replace('>', '&gt;'))
+        placeholder = f"___CODE_BLOCK_{len(code_blocks)}___"
+        code_blocks.append(f'<pre><code class="{lang}">{escaped_code}</code></pre>')
+        return placeholder
+
+    # Subtitui blocos ``` ... ``` com qualquer indentação por placeholders
+    html = re.sub(r'^\s*```(\w+)?\s*\n(.*?)\n\s*```', extract_code_block, html, flags=re.DOTALL | re.MULTILINE)
+
+    # 2. Converte tabelas Markdown envoltas em wrapper responsivo
     table_pattern = r'^\|.+\|$\n^\|[\s\-|:]+\|$(?:\n^\|.+\|$)+' 
     tables = re.finditer(table_pattern, html, re.MULTILINE)
     table_matches = list(tables)
     for match in reversed(table_matches):
         table_md = match.group(0)
-        table_html = convert_markdown_table_to_html(table_md)
+        table_html = f'<div class="table-responsive">{convert_markdown_table_to_html(table_md)}</div>'
         html = html[:match.start()] + table_html + html[match.end():]
     
-    # Headers com anchors (slugify)
+    # 3. Headers com anchors (slugify)
     def heading_replacer(level):
         pattern = r'^' + ('#' * level) + r'\s+(.*?)$'
 
@@ -583,16 +707,21 @@ def md_to_html(md_content):
         pattern, repl = heading_replacer(level)
         html = re.sub(pattern, repl, html, flags=re.MULTILINE)
     
-    # Code blocks
-    html = re.sub(r'```(\w+)?\n(.*?)\n```', r'<pre><code>\2</code></pre>', html, flags=re.DOTALL)
+    # 4. Inline code (re.sub de backticks individuais apenas em texto corrido)
+    def replace_inline_code(match):
+        code_text = match.group(1)
+        escaped_code = (code_text
+                        .replace('&', '&amp;')
+                        .replace('<', '&lt;')
+                        .replace('>', '&gt;'))
+        return f'<code>{escaped_code}</code>'
+
+    html = re.sub(r'`([^`\n]+)`', replace_inline_code, html)
     
-    # Inline code
-    html = re.sub(r'`([^`]+)`', r'<code>\1</code>', html)
-    
-    # Bold
+    # 5. Bold
     html = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', html)
     
-    # Links (Markdown -> HTML) com mapeamento de .md -> .html
+    # 6. Links (Markdown -> HTML) com mapeamento de .md -> .html
     def replace_link(match):
         text = match.group(1)
         href = match.group(2)
@@ -636,7 +765,7 @@ def md_to_html(md_content):
 
     html = re.sub(r'\[([^\]]+)\]\(([^\)]*)\)', replace_link, html)
     
-    # Lists
+    # 7. Lists
     lines = html.split('\n')
     in_ul = False
     in_ol = False
@@ -666,7 +795,7 @@ def md_to_html(md_content):
                 in_ol = False
             
             # Paragraphs
-            if line.strip() and not line.startswith('<'):
+            if line.strip() and not line.startswith('<') and not line.startswith('___CODE_BLOCK_'):
                 result.append(f'<p>{line}</p>')
             else:
                 result.append(line)
@@ -680,6 +809,12 @@ def md_to_html(md_content):
     html = '\n'.join(result)
     html = re.sub(r'^---$', '<hr>', html, flags=re.MULTILINE)
     
+    # 8. Restauração dos blocos de código
+    for i, block in enumerate(code_blocks):
+        placeholder = f"___CODE_BLOCK_{i}___"
+        html = html.replace(f'<p>{placeholder}</p>', block)
+        html = html.replace(placeholder, block)
+
     # Badges
     html = html.replace('⭐', '<span class="badge star">⭐</span>')
     html = html.replace('✅', '<span class="badge success">✅</span>')
@@ -730,6 +865,15 @@ def save_html_files(html_file, title, html_content, active_flags):
     }
     all_flags.update(active_flags)
     
+    # Apenas a categoria que contém a página ativa inicia expandida ("open"); as demais iniciam retraídas/fechadas
+    usuario_keys = ['index_active', 'docs_index_active', 'guide_active']
+    conectividade_keys = ['migracao_active', 'sharing_active', 'api_active', 'instagram_active', 'lomadee_active']
+    processamento_keys = ['silver_active', 'delta_active', 'git_active', 'dbt_reports_active', 'metabase_active']
+
+    all_flags['usuario_open'] = 'open' if any(all_flags.get(k) for k in usuario_keys) else ''
+    all_flags['conectividade_open'] = 'open' if any(all_flags.get(k) for k in conectividade_keys) else ''
+    all_flags['processamento_open'] = 'open' if any(all_flags.get(k) for k in processamento_keys) else ''
+
     # 1. Aplicar mascaramento estático para a versão externa
     masked_content = mask_secrets_statically(html_content)
     
@@ -751,7 +895,17 @@ def save_html_files(html_file, title, html_content, active_flags):
     # 3. Versão interna (src/codeigniter-app/docs/) - com link de credenciais
     internal_flags = all_flags.copy()
     cred_active = 'class="active"' if html_file == 'credenciais.html' else ''
-    internal_flags['sidebar_extra'] = f'<li><a href="credenciais.html" {cred_active}>🔑 Credenciais Internas</a></li>'
+    cred_open = 'open' if html_file == 'credenciais.html' else ''
+    internal_flags['sidebar_extra'] = f'''
+                <details class="sidebar-category" {cred_open}>
+                    <summary class="sidebar-category-title">
+                        <span>🔒 Segurança</span>
+                        <span class="chevron">▼</span>
+                    </summary>
+                    <ul class="sidebar-sublist">
+                        <li><a href="credenciais.html" {cred_active}>🔑 Credenciais Internas</a></li>
+                    </ul>
+                </details>'''
     
     content_to_write = html_content if html_file == 'credenciais.html' else masked_content
     

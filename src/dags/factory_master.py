@@ -321,6 +321,20 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
     # Se for None, não for um inteiro, ou for < 1, assume 1.
     effective_max_runs = int(max_runs_from_metadata) if isinstance(max_runs_from_metadata, int) and max_runs_from_metadata >= 1 else 1 
     
+    from airflow.models.param import Param
+    dag_params = {
+        'keyword': Param(
+            default='moda fitness',
+            type='string',
+            description='Filtro de busca / Palavra-chave do nicho (ex: moda fitness, eletronicos, smartwatch, maquiagem)'
+        ),
+        'limit': Param(
+            default=50,
+            type='integer',
+            description='Quantidade máxima de ofertas a buscar (ex: 10, 50, 100)'
+        )
+    }
+
     dag = DAG(
         dag_id=dag_id,
         schedule_interval=dag_metadata.get('schedule_interval'),
@@ -330,8 +344,10 @@ def create_dynamic_dag(dag_config: Dict[str, Any]) -> DAG:
         tags=dag_metadata.get('tags'),
         max_active_runs=effective_max_runs, # Aplica a correção
         doc_md=dag_metadata.get('description', f"DAG gerada dinamicamente a partir dos metadados da tabela dag_configurations (ID: {dag_id})"),
-        access_control=access_control
+        access_control=access_control,
+        params=dag_params
     )
+
 
     # 3. Criar a Tarefa Principal (ETL/ELT - PythonOperator)
     python_module_path = task_config.get('python_module_path')

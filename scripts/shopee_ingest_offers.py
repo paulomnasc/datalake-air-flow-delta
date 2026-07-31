@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 # Configurações Padrão
 DEFAULT_APP_ID = os.getenv("SHOPEE_APP_ID", "18312081087")
 DEFAULT_APP_SECRET = os.getenv("SHOPEE_APP_SECRET", "3XUFNK25O7MSAMSWBDPZM6VMLB5HBPCQ")
+DEFAULT_KEYWORD = os.getenv("SHOPEE_KEYWORD", "moda fitness")
 SHOPEE_ENDPOINT = "https://open-api.affiliate.shopee.com.br/graphql"
 DEFAULT_BUCKET = os.getenv("USER_BUCKET", "paulomnasc-558")
 DEFAULT_TARGET_KEY = "raw/promocao-shopee/shopee_data.json"
@@ -46,11 +47,14 @@ def generate_shopee_signature(app_id: str, app_secret: str, payload_str: str, ti
 
 
 
-def fetch_shopee_offers(keyword: str = "moda fitness", limit: int = 50, sort_type: int = 2, app_id: str = DEFAULT_APP_ID, app_secret: str = DEFAULT_APP_SECRET):
+def fetch_shopee_offers(keyword: str = None, limit: int = 50, sort_type: int = 2, app_id: str = DEFAULT_APP_ID, app_secret: str = DEFAULT_APP_SECRET):
     """
     Executa a requisição POST GraphQL na API de Afiliados da Shopee.
     """
+    if not keyword:
+        keyword = DEFAULT_KEYWORD
     log.info(f"🔎 Buscando ofertas na Shopee para keyword='{keyword}', limit={limit}, sort_type={sort_type}")
+
 
     graphql_query = """
     query SearchNicheProducts($keyword: String, $limit: Int, $sortType: Int) {

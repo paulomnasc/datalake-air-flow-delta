@@ -1,16 +1,21 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.models.param import Param
 from datetime import datetime, timedelta
 import subprocess
 import os
 import sys
 
-def run_shopee_ingestion_script():
+def run_shopee_ingestion_script(**context):
     """
     Executa o script de extração da API da Shopee (shopee_ingest_offers.py).
-    Testa primeiro o caminho mapeado no contêiner do worker e fallback para o repositório local.
+    Recupera os parâmetros 'keyword' e 'limit' fornecidos via Airflow Console UI.
     """
+    params = context.get('params', {})
+    keyword = str(params.get('keyword', 'moda fitness'))
+    limit = str(params.get('limit', 50))
+
     script_paths = [
         '/usr/local/bin/scripts/shopee_ingest_offers.py',
         '/root/datalake-air-flow-delta/scripts/shopee_ingest_offers.py',
@@ -26,8 +31,8 @@ def run_shopee_ingestion_script():
     if not selected_script:
         selected_script = script_paths[0]
 
-    cmd = [sys.executable, selected_script, "moda fitness", "50"]
-    print(f"🚀 Executando script extrator da Shopee: {' '.join(cmd)}")
+    cmd = [sys.executable, selected_script, keyword, limit]
+    print(f"🚀 Executando script extrator da Shopee com keyword='{keyword}', limit={limit}: {' '.join(cmd)}")
 
     result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -55,7 +60,19 @@ dag = DAG(
     schedule=None,  # Disparo manual ou agendado
     catchup=False,
     description="Consome a API GraphQL da Shopee via HMAC-SHA256 e grava em s3://paulomnasc-558/raw/promocao-shopee/",
-    tags=['shopee', 'affiliate', 'raw', 'ingestion']
+    tags=['shopee', 'affiliate', 'raw', 'ingestion'],
+    params={
+        'keyword': Param(
+            default='moda fitness',
+            type='string',
+            description='Palavra-chave / Nicho de produtos na Shopee (ex: moda fitness, eletronicos, smartwatch, maquiagem)'
+        ),
+        'limit': Param(
+            default=50,
+            type='integer',
+            description='Quantidade máxima de ofertas a buscar (ex: 10, 50, 100)'
+        )
+    }
 )
 
 # 1. Tarefa de Extração da API da Shopee

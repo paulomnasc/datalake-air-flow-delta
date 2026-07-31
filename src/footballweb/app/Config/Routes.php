@@ -49,6 +49,7 @@ $routes->get('/football-trends/live-scores', 'FootballTrendsController::liveScor
 
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);
+$routes->match(['get', 'head'], '/team-logo/(:num)', 'FootballTrendsController::teamLogo/$1', ['as'=>'football.team-logo']);
 
 
 

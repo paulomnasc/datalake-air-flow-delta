@@ -562,5 +562,44 @@ class FootballTrendsController extends BaseController
             'fixtures'  => $fixtures
         ]);
     }
+
+    /**
+     * Proxy seguro e com cache local para os escudos dos times (evita bloqueio por AdBlockers/CORS)
+     */
+    public function teamLogo($teamId = null)
+    {
+        $teamId = (int)$teamId;
+        if ($teamId <= 0) {
+            return $this->response->setStatusCode(404);
+        }
+
+        $cache = \Config\Services::cache();
+        $cacheKey = "team_logo_{$teamId}";
+        $imageData = $cache->get($cacheKey);
+
+        if (!$imageData) {
+            $url = "https://media.api-sports.io/football/teams/{$teamId}.png";
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+            $imageData = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode === 200 && !empty($imageData)) {
+                $cache->save($cacheKey, $imageData, 604800); // 7 dias
+            } else {
+                return $this->response->setStatusCode(404);
+            }
+        }
+
+        return $this->response
+            ->setHeader('Content-Type', 'image/png')
+            ->setHeader('Cache-Control', 'public, max-age=604800')
+            ->setBody($imageData);
+    }
 }
+
 

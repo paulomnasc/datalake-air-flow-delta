@@ -563,6 +563,13 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         background: #f47c20;
     }
 
+    .bet-team-logo {
+        width: 32px;
+        height: 32px;
+        object-fit: contain;
+        flex-shrink: 0;
+    }
+
     .bet-team-row:last-child .bet-team-dot {
         background: #3b82f6;
     }
@@ -1540,7 +1547,11 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                     <div class="bet-teams-box">
                                         <div class="bet-team-row-wrapper" style="margin-bottom: 12px;">
                                             <div class="bet-team-row" style="margin-bottom: 2px;">
-                                                <span class="bet-team-dot"></span>
+                                                <?php if (!empty($fix->home_team_id)): ?>
+                                                    <img src="<?= base_url('team-logo/' . $fix->home_team_id) ?>" alt="<?= htmlspecialchars($fix->home_team) ?>" class="bet-team-logo" loading="lazy" onerror="this.onerror=null; this.style.display='none';">
+                                                <?php else: ?>
+                                                    <span class="bet-team-dot"></span>
+                                                <?php endif; ?>
                                                 <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?></span>
                                                 <span class="bet-team-score" data-fixture-score-home="<?= $fix->fixture_id ?>"><?= (isset($fix->goals_home) && $fix->goals_home !== null) ? $fix->goals_home : '' ?></span>
                                             </div>
@@ -1572,7 +1583,11 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
 
                                         <div class="bet-team-row-wrapper">
                                             <div class="bet-team-row" style="margin-bottom: 2px;">
-                                                <span class="bet-team-dot"></span>
+                                                <?php if (!empty($fix->away_team_id)): ?>
+                                                    <img src="<?= base_url('team-logo/' . $fix->away_team_id) ?>" alt="<?= htmlspecialchars($fix->away_team) ?>" class="bet-team-logo" loading="lazy" onerror="this.onerror=null; this.style.display='none';">
+                                                <?php else: ?>
+                                                    <span class="bet-team-dot"></span>
+                                                <?php endif; ?>
                                                 <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?></span>
                                                 <span class="bet-team-score" data-fixture-score-away="<?= $fix->fixture_id ?>"><?= (isset($fix->goals_away) && $fix->goals_away !== null) ? $fix->goals_away : '' ?></span>
                                             </div>

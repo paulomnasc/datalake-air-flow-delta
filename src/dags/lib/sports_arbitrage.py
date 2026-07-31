@@ -145,11 +145,43 @@ def calculate_surebet(odd_casa: float, odd_empate: float, odd_visitante: float, 
         "stake_visitante": round(stake_visitante, 2),
     }
 
+CACHE_FILE_PATH = "/tmp/sports_arbitrage_live_cache.json"
+
 def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None, min_pre_match_minutes: int = 30):
     """
-    Busca odds das casas de apostas para todas as ligas de futebol ativas via The Odds API,
+    Busca odds das casas de apostas para ligas de futebol ativas via The Odds API,
     filtrando apenas partidas em PRÉ-JOGO que faltem no mínimo `min_pre_match_minutes` para iniciar.
+    Utiliza cache local com TTL e regiões otimizadas (eu,uk) para economizar a cota da API.
     """
+    # 0. Verifica cache local se estiver dentro do TTL
+    cache_ttl_minutes = int(os.environ.get('ARBITRAGE_CACHE_TTL_MINUTES', '30'))
+    bypass_cache = str(os.environ.get('ARBITRAGE_BYPASS_CACHE', 'false')).lower() in ('true', '1', 'yes')
+
+    if not bypass_cache and os.path.exists(CACHE_FILE_PATH):
+        try:
+            mtime = os.path.getmtime(CACHE_FILE_PATH)
+            age_minutes = (datetime.now().timestamp() - mtime) / 60.0
+            if age_minutes < cache_ttl_minutes:
+                with open(CACHE_FILE_PATH, 'r', encoding='utf-8') as f_cache:
+                    cached_data = json.load(f_cache)
+                    if cached_data:
+                        log.info(f"[LIVE-ODDS-CACHE] Utilizando {len(cached_data)} partidas salvas em cache local ({age_minutes:.1f} min atrás / TTL: {cache_ttl_minutes} min). Nenhum token consumido!")
+                        return cached_data
+        except Exception as e_cache:
+            log.warning(f"[LIVE-ODDS-CACHE] Falha ao ler cache local: {e_cache}. Prosseguindo com consulta à API.")
+
+    # Suporte a múltiplas chaves separadas por vírgula em ODDS_API_KEY
+    api_keys = [k.strip() for k in (api_key or '').split(',') if k.strip()]
+    if not api_keys:
+        log.error("[LIVE-ODDS] Nenhuma chave da The Odds API foi configurada.")
+        return []
+
+    current_key_idx = 0
+    active_api_key = api_keys[current_key_idx]
+
+    # Regiões otimizadas para casas brasileiras/européias (eu, uk). Evita us, us2 e au que multiplicam a cota sem trazer casas relevantes.
+    regions = os.environ.get('ARBITRAGE_REGIONS', 'eu,uk')
+
     # Lista das principais ligas globais priorizadas para não estourar a cota da API
     priority_keys = [
         "soccer_brazil_campeonato",
@@ -173,7 +205,7 @@ def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None, min_pr
     
     # 1. Tenta buscar dinamicamente ligas ativas priorizando as principais competições
     try:
-        sports_url = f"https://api.the-odds-api.com/v4/sports/?apiKey={api_key}"
+        sports_url = f"https://api.the-odds-api.com/v4/sports/?apiKey={active_api_key}"
         req_sports = urllib.request.Request(sports_url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req_sports, timeout=10) as resp_s:
             all_sports = json.loads(resp_s.read().decode('utf-8'))
@@ -199,94 +231,137 @@ def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None, min_pr
             ("soccer_conmebol_copa_sudamericana", "Copa Sudamericana")
         ]
         
-    # Limita o número de ligas consultadas por execução para economizar cota da API (padrão: 3 ligas por rodada)
-    max_leagues = int(os.environ.get('ARBITRAGE_MAX_LEAGUES', '3'))
+    # Limita o número de ligas consultadas por execução para economizar cota da API (padrão: 2 ligas por rodada)
+    max_leagues = int(os.environ.get('ARBITRAGE_MAX_LEAGUES', '2'))
     sports_to_fetch = sports_to_fetch[:max_leagues]
     
     parsed_matches = []
 
-
-    
     for sport_key, league_name in sports_to_fetch:
-        log.info(f"[LIVE-ODDS] Buscando partidas ao vivo de {league_name} ({sport_key})...")
-        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}&regions=us,us2,uk,eu,au&markets=h2h"
-
+        log.info(f"[LIVE-ODDS] Buscando partidas ao vivo de {league_name} ({sport_key}) [Regiões: {regions}]...")
         
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                events = json.loads(resp.read().decode('utf-8'))
-                log.info(f"[LIVE-ODDS] Sucesso! Encontradas {len(events)} partidas para {league_name}.")
-                
-                for ev in events:
-                    home_team = ev.get('home_team')
-                    away_team = ev.get('away_team')
-                    commence_time = ev.get('commence_time', '')
+        success = False
+        while current_key_idx < len(api_keys) and not success:
+            active_api_key = api_keys[current_key_idx]
+            url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={active_api_key}&regions={regions}&markets=h2h"
+
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    events = json.loads(resp.read().decode('utf-8'))
+                    log.info(f"[LIVE-ODDS] Sucesso! Encontradas {len(events)} partidas para {league_name}.")
+                    success = True
                     
-                    try:
-                        dt = datetime.fromisoformat(commence_time.replace('Z', '+00:00'))
-                        dt_brt = dt.astimezone(timezone(timedelta(hours=-3)))
-                        date_str = dt_brt.strftime("%d/%m %H:%M")
+                    for ev in events:
+                        home_team = ev.get('home_team')
+                        away_team = ev.get('away_team')
+                        commence_time = ev.get('commence_time', '')
                         
-                        # Filtro PRÉ-JOGO: Valida se faltam pelo menos `min_pre_match_minutes` para o jogo iniciar
-                        if min_pre_match_minutes > 0:
-                            now_utc = datetime.now(timezone.utc)
-                            minutes_until_start = (dt - now_utc).total_seconds() / 60.0
-                            if minutes_until_start < min_pre_match_minutes:
-                                log.info(f"[LIVE-ODDS] Ignorando partida '{home_team} vs {away_team}': começa em {minutes_until_start:.1f} min (mínimo exigido para PRÉ-JOGO: {min_pre_match_minutes} min).")
-                                continue
-                    except Exception as e_dt:
-                        log.warning(f"[LIVE-ODDS] Falha ao processar commence_time ({commence_time}): {e_dt}")
-                        date_str = commence_time
+                        try:
+                            dt = datetime.fromisoformat(commence_time.replace('Z', '+00:00'))
+                            dt_brt = dt.astimezone(timezone(timedelta(hours=-3)))
+                            date_str = dt_brt.strftime("%d/%m %H:%M")
+                            
+                            # Filtro PRÉ-JOGO: Valida se faltam pelo menos `min_pre_match_minutes` para o jogo iniciar
+                            if min_pre_match_minutes > 0:
+                                now_utc = datetime.now(timezone.utc)
+                                minutes_until_start = (dt - now_utc).total_seconds() / 60.0
+                                if minutes_until_start < min_pre_match_minutes:
+                                    log.info(f"[LIVE-ODDS] Ignorando partida '{home_team} vs {away_team}': começa em {minutes_until_start:.1f} min (mínimo exigido para PRÉ-JOGO: {min_pre_match_minutes} min).")
+                                    continue
+                        except Exception as e_dt:
+                            log.warning(f"[LIVE-ODDS] Falha ao processar commence_time ({commence_time}): {e_dt}")
+                            date_str = commence_time
+                            
+                        bookmakers = ev.get('bookmakers', [])
+                        odds_dict = {}
                         
-                    bookmakers = ev.get('bookmakers', [])
-                    odds_dict = {}
-                    
-                    for bm in bookmakers:
-                        bm_raw_name = bm.get('title', bm.get('key'))
-                        bm_norm_name = normalize_bookmaker_name(bm_raw_name)
-                        
-                        markets = bm.get('markets', [])
-                        
-                        for m in markets:
-                            if m.get('key') == 'h2h':
-                                outcomes = m.get('outcomes', [])
-                                odd_h, odd_d, odd_a = 0.0, 0.0, 0.0
-                                for out in outcomes:
-                                    name = out.get('name')
-                                    price = float(out.get('price', 0.0))
-                                    if name == home_team:
-                                        odd_h = price
-                                    elif name == away_team:
-                                        odd_a = price
-                                    elif name.lower() in ['draw', 'empate']:
-                                        odd_d = price
+                        for bm in bookmakers:
+                            bm_raw_name = bm.get('title', bm.get('key'))
+                            bm_norm_name = normalize_bookmaker_name(bm_raw_name)
+                            
+                            markets = bm.get('markets', [])
+                            
+                            for m in markets:
+                                if m.get('key') == 'h2h':
+                                    outcomes = m.get('outcomes', [])
+                                    odd_h, odd_d, odd_a = 0.0, 0.0, 0.0
+                                    for out in outcomes:
+                                        name = out.get('name')
+                                        price = float(out.get('price', 0.0))
+                                        if name == home_team:
+                                            odd_h = price
+                                        elif name == away_team:
+                                            odd_a = price
+                                        elif name.lower() in ['draw', 'empate']:
+                                            odd_d = price
+                                            
+                                    if odd_h > 0 and odd_d > 0 and odd_a > 0:
+                                        odds_dict[bm_norm_name] = {
+                                            "casa": round(odd_h, 2),
+                                            "empate": round(odd_d, 2),
+                                            "visitante": round(odd_a, 2),
+                                            "nome_original": bm_raw_name
+                                        }
                                         
-                                if odd_h > 0 and odd_d > 0 and odd_a > 0:
-                                    odds_dict[bm_norm_name] = {
-                                        "casa": round(odd_h, 2),
-                                        "empate": round(odd_d, 2),
-                                        "visitante": round(odd_a, 2),
-                                        "nome_original": bm_raw_name
-                                    }
-                                    
-                    if odds_dict:
-                        parsed_matches.append({
-                            "campeonato": league_name,
-                            "time_casa": home_team,
-                            "time_visitante": away_team,
-                            "data_jogo": date_str,
-                            "odds": odds_dict
-                        })
-        except urllib.error.HTTPError as e_http:
-            log.error(f"[LIVE-ODDS] Erro HTTP {e_http.code} ao consultar {sport_key}: {e_http}")
-            if e_http.code in (401, 429):
-                log.warning("[LIVE-ODDS] Limite de cota ou autenticação atingido na API. Interrompendo chamadas nesta rodada.")
+                        if odds_dict:
+                            parsed_matches.append({
+                                "campeonato": league_name,
+                                "time_casa": home_team,
+                                "time_visitante": away_team,
+                                "data_jogo": date_str,
+                                "odds": odds_dict
+                            })
+            except urllib.error.HTTPError as e_http:
+                log.error(f"[LIVE-ODDS] Erro HTTP {e_http.code} ao consultar {sport_key} com chave {current_key_idx+1}/{len(api_keys)}: {e_http}")
+                if e_http.code in (401, 429):
+                    current_key_idx += 1
+                    if current_key_idx < len(api_keys):
+                        log.warning(f"[LIVE-ODDS] Alternando automaticamente para a próxima chave de API ({current_key_idx+1}/{len(api_keys)})...")
+                    else:
+                        log.warning("[LIVE-ODDS] Todas as chaves da API atingiram limite de cota ou falharam. Interrompendo chamadas nesta rodada.")
+                        break
+                else:
+                    break
+            except Exception as e:
+                log.error(f"[LIVE-ODDS] Erro ao consultar {sport_key}: {e}")
                 break
-        except Exception as e:
-            log.error(f"[LIVE-ODDS] Erro ao consultar {sport_key}: {e}")
-            
+
+    # Salva resultado no cache se houver dados
+    if parsed_matches:
+        try:
+            with open(CACHE_FILE_PATH, 'w', encoding='utf-8') as f_cache:
+                json.dump(parsed_matches, f_cache, ensure_ascii=False, indent=2)
+            log.info(f"[LIVE-ODDS-CACHE] Salvos {len(parsed_matches)} partidas em cache local: {CACHE_FILE_PATH}")
+        except Exception as e_save_cache:
+            log.warning(f"[LIVE-ODDS-CACHE] Não foi possível salvar em cache: {e_save_cache}")
+
     return parsed_matches
+
+
+def get_live_env_vars():
+    """Lê diretamente o arquivo .env para refletir alterações instantaneamente sem reiniciar os containers."""
+    env_vars = {}
+    search_paths = [
+        '/opt/airflow/.env',
+        '/opt/airflow/dags/../../.env',
+        '/opt/airflow/dags/../.env',
+        '/root/datalake-air-flow-delta/.env',
+        './.env',
+        '../.env'
+    ]
+    for p in search_paths:
+        if os.path.exists(p):
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            k, v = line.split('=', 1)
+                            env_vars[k.strip()] = v.strip().strip('"').strip("'")
+            except Exception:
+                pass
+    return env_vars
 
 
 def fetch_bookmaker_odds(casas_permitidas: list = None, min_pre_match_minutes: int = 30):
@@ -294,7 +369,8 @@ def fetch_bookmaker_odds(casas_permitidas: list = None, min_pre_match_minutes: i
     Recupera odds ao vivo da The Odds API e executa scrapers complementares (Betnacional, Bet365).
     Funde todas as odds por partida em um dicionário único por confronto.
     """
-    odds_api_key = os.environ.get('ODDS_API_KEY')
+    file_env = get_live_env_vars()
+    odds_api_key = file_env.get('ODDS_API_KEY') or os.environ.get('ODDS_API_KEY')
     
     if not odds_api_key:
         try:
@@ -304,6 +380,7 @@ def fetch_bookmaker_odds(casas_permitidas: list = None, min_pre_match_minutes: i
             odds_api_key = DEFAULT_ODDS_API_KEY
             
     live_data = fetch_live_odds_from_api(odds_api_key, casas_permitidas=casas_permitidas, min_pre_match_minutes=min_pre_match_minutes)
+
     
     # Importa os scrapers customizados
     try:

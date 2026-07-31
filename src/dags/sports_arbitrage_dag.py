@@ -377,12 +377,13 @@ def send_arbitrage_email(**context):
 _live_env = get_live_env_vars()
 _raw_casas = _live_env.get('ARBITRAGE_CASAS_USUARIO') or os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, Pinnacle, Betsson")
 _default_casas_filtered = ", ".join([c.strip() for c in _raw_casas.split(',') if c.strip() and c.strip().lower() != '1xbet'])
+_schedule_interval = _live_env.get('ARBITRAGE_SCHEDULE_INTERVAL') or os.environ.get('ARBITRAGE_SCHEDULE_INTERVAL', '0 15,18,21 * * *')
 
 with DAG(
     'sports_arbitrage_dag',
     default_args=default_args,
     description='Scraping e Cálculo de Arbitragem (Surebets) para o Brasileirão Série A/B com suporte a casas personalizadas (Betnacional, Bet365, Betano, etc.)',
-    schedule_interval='*/30 12-23 * * *',
+    schedule_interval=_schedule_interval,
     catchup=False,
     max_active_runs=1,
     params={

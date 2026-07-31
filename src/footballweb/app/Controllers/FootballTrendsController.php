@@ -324,7 +324,9 @@ class FootballTrendsController extends BaseController
         $messages[] = ['role' => 'user', 'content' => $userMessage];
 
         try {
-            $client = \Config\Services::curlrequest();
+            $client = \Config\Services::curlrequest([
+                'http_errors' => false,
+            ]);
             $apiUrl = env('VISION_API_URL') ?: 'https://api.groq.com/openai/v1/chat/completions';
             $model = env('TEXT_API_MODEL') ?: 'llama-3.3-70b-versatile';
 
@@ -342,6 +344,16 @@ class FootballTrendsController extends BaseController
 
             $statusCode = $response->getStatusCode();
             if ($statusCode !== 200) {
+                $bodyText = $response->getBody();
+
+                if ($statusCode === 429 || $statusCode === 402) {
+                    $this->notifyAdminQuotaExceeded($statusCode, $bodyText);
+                    return $this->response->setJSON([
+                        'success' => false,
+                        'message' => 'O assistente de IA atingiu temporariamente o limite de consultas por minuto/dia do servidor. O administrador foi notificado para expansão do plano.'
+                    ]);
+                }
+
                 return $this->response->setJSON([
                     'success' => false,
                     'message' => "Erro na chamada da API de IA (HTTP {$statusCode})."
@@ -370,11 +382,84 @@ class FootballTrendsController extends BaseController
             ]);
 
         } catch (\Exception $e) {
+            $msg = $e->getMessage();
+
+            if (strpos($msg, '429') !== false || strpos($msg, '402') !== false || stripos($msg, 'rate limit') !== false) {
+                $this->notifyAdminQuotaExceeded(429, $msg);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'O assistente de IA atingiu temporariamente o limite de consultas por minuto/dia do servidor. O administrador foi notificado para expansão do plano.'
+                ]);
+            }
+
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Erro interno ao se comunicar com o Groq: ' . $e->getMessage()
+                'message' => 'Erro interno ao se comunicar com o Groq: ' . $msg
             ]);
         }
+    }
+
+    /**
+     * Notifica o administrador quando a cota/rate limit da Groq API for excedida (HTTP 429 / 402)
+     */
+    private function notifyAdminQuotaExceeded(int $statusCode, string $errorMessage = '')
+    {
+        $cacheKey = 'groq_api_quota_alert_sent';
+        $cache = \Config\Services::cache();
+
+        // Evita flood de notificações: envia no máximo 1 notificação a cada 15 minutos (900s)
+        if ($cache->get($cacheKey)) {
+            return;
+        }
+
+        // 1. Log Crítico no Servidor
+        log_message('critical', "[GROQ API ALERT] Limite de cota/rate limit atingido (HTTP {$statusCode}). Detalhes: {$errorMessage}");
+
+        $now = date('Y-m-d H:i:s');
+        $webhookUrl = env('GROQ_ALERT_WEBHOOK_URL');
+        $adminEmail = env('ADMIN_ALERT_EMAIL') ?: 'admin@estudotabela.com.br';
+
+        // 2. Notificação via Webhook (Discord / Telegram / n8n / Slack)
+        if (!empty($webhookUrl)) {
+            try {
+                $client = \Config\Services::curlrequest(['timeout' => 5]);
+                $client->post($webhookUrl, [
+                    'json' => [
+                        'event' => 'GROQ_API_QUOTA_EXCEEDED',
+                        'status_code' => $statusCode,
+                        'message' => "🚨 ALERTA GROQ API: Limite de cota/rate limit atingido (HTTP {$statusCode}). É necessário fazer upgrade para o plano pago na Groq Cloud (api.groq.com).",
+                        'timestamp' => $now,
+                        'details' => $errorMessage
+                    ]
+                ]);
+            } catch (\Exception $e) {
+                log_message('error', "[GROQ ALERT WEBHOOK FAIL] Erro ao enviar webhook: " . $e->getMessage());
+            }
+        }
+
+        // 3. Notificação via E-mail
+        if (!empty($adminEmail)) {
+            try {
+                $emailService = \Config\Services::email();
+                $emailService->setTo($adminEmail);
+                $emailService->setSubject("🚨 [ALERTA FOOTBALLWEB] Limite da Groq API Excedido (HTTP {$statusCode})");
+                $emailService->setMessage(
+                    "Atenção Administrador,\n\n" .
+                    "A chave da API Groq (utilizada pelo Grok AI) atingiu o limite do plano gratuito ou estourou a cota de requisições por minuto/dia.\n\n" .
+                    "Data/Hora: {$now}\n" .
+                    "Status Code: {$statusCode}\n" .
+                    "Detalhes: {$errorMessage}\n\n" .
+                    "Ação Necessária: Acesse https://console.groq.com/ e faça o upgrade da sua conta para o plano pago (Pay-as-you-go).\n\n" .
+                    "Atenciosamente,\nFootballWeb System"
+                );
+                $emailService->send(false);
+            } catch (\Exception $e) {
+                log_message('error', "[GROQ ALERT EMAIL FAIL] Erro ao enviar email: " . $e->getMessage());
+            }
+        }
+
+        // Define a trava de 15 minutos (900 segundos) para evitar spam de alertas
+        $cache->save($cacheKey, true, 900);
     }
 
     /**

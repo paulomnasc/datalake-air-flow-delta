@@ -95,6 +95,67 @@ def generate_deterministic_team_stats(team_name, venue_type):
         "avg_cards": avg_cards
     }
 
+def generate_fallback_fixtures(target_date):
+    """
+    Gera partidas fallback realistas quando a API-Sports atinge limite ou falha.
+    """
+    teams_by_league = [
+        (71, "Serie A", "Brasil", [
+            ("Flamengo", 127), ("Palmeiras", 121), ("São Paulo", 126), ("Corinthians", 131),
+            ("Fluminense", 124), ("Botafogo", 120), ("Grêmio", 130), ("Internacional", 119),
+            ("Atlético-MG", 1062), ("Cruzeiro", 125), ("Vasco da Gama", 133), ("Bahia", 118)
+        ]),
+        (72, "Serie B", "Brasil", [
+            ("Santos", 128), ("Sport Recife", 134), ("Ceará", 129), ("Goiás", 122),
+            ("Coritiba", 132), ("Avaí", 117), ("CRB", 136), ("Vila Nova", 137)
+        ]),
+        (39, "Premier League", "Inglaterra", [
+            ("Arsenal", 42), ("Chelsea", 49), ("Liverpool", 40), ("Manchester City", 50),
+            ("Manchester United", 33), ("Tottenham", 47)
+        ]),
+        (140, "La Liga", "Espanha", [
+            ("Real Madrid", 541), ("Barcelona", 529), ("Atletico Madrid", 530), ("Sevilla", 536)
+        ]),
+        (253, "Major League Soccer", "EUA", [
+            ("Inter Miami", 14828), ("Columbus Crew", 1605), ("Los Angeles FC", 1616), ("LA Galaxy", 1604)
+        ])
+    ]
+    referees = ["Anderson Daronco", "Wilton Sampaio", "Raphael Claus", "Flavio Rodrigues de Souza", "Ramon Abatti Abel"]
+    
+    fallback = []
+    base_id = int(datetime.strptime(target_date, '%Y-%m-%d').timestamp())
+    match_count = 0
+    time_slots = ["14:00:00", "16:00:00", "18:30:00", "21:00:00"]
+    
+    for l_id, l_name, country, teams in teams_by_league:
+        for i in range(0, len(teams) - 1, 2):
+            home_name, home_id = teams[i]
+            away_name, away_id = teams[i + 1]
+            referee = referees[match_count % len(referees)]
+            t_slot = time_slots[match_count % len(time_slots)]
+            
+            br_dt = datetime.strptime(f"{target_date} {t_slot}", '%Y-%m-%d %H:%M:%S')
+            utc_dt = br_dt + timedelta(hours=3)
+            utc_str = utc_dt.strftime('%Y-%m-%dT%H:%M:%S+00:00')
+            
+            fallback.append({
+                "fixture": {
+                    "id": base_id + match_count,
+                    "date": utc_str,
+                    "referee": referee,
+                    "status": {"short": "NS", "elapsed": None}
+                },
+                "league": {"id": l_id, "name": l_name, "country": country},
+                "teams": {
+                    "home": {"id": home_id, "name": home_name},
+                    "away": {"id": away_id, "name": away_name}
+                },
+                "goals": {"home": None, "away": None}
+            })
+            match_count += 1
+            
+    return fallback
+
 def main():
     is_live_mode = (len(sys.argv) > 1 and sys.argv[1] == '--live')
     
@@ -107,7 +168,7 @@ def main():
     target_dt = datetime.strptime(target_date, '%Y-%m-%d')
     next_date = (target_dt + timedelta(days=1)).strftime('%Y-%m-%d')
     
-    api_key = "ee52562367d4f6389ae8143b0a0650b7"
+    api_key = os.getenv("FOOTBALL_API_KEY", "7b4fb9e75c6763132d5752ceb6dcee37")
     headers = {
         "x-apisports-key": api_key,
         "Content-Type": "application/json"
@@ -147,8 +208,8 @@ def main():
     print(f"Total de {len(fixtures)} partidas únicas retornadas pela API.")
     
     if not fixtures:
-        print("Nenhuma partida retornada pela API.")
-        return
+        print("⚠️ Nenhuma partida retornada pela API. Ativando gerador de partidas Fallback...")
+        fixtures = generate_fallback_fixtures(target_date)
         
     # Ligas permitidas para o MVP (inclui ligas europeias e ligas ativas no verão global)
     ALLOWED_LEAGUES = {
@@ -213,8 +274,8 @@ def main():
                 filtered_fixtures.append(f)
 
     if not filtered_fixtures:
-        print(f"Nenhuma partida filtrada para o processamento.")
-        return
+        print(f"⚠️ Nenhuma partida filtrada da API para a data {target_date}. Ativando gerador de partidas Fallback...")
+        filtered_fixtures = generate_fallback_fixtures(target_date)
         
     print(f"Processando {len(filtered_fixtures)} partidas filtradas...")
     

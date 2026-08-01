@@ -116,9 +116,21 @@ class FootballTrendsController extends BaseController
 
         // Extrai ligas únicas para filtro em abas na View
         $leagues = [];
+        $needsGoalsUpdate = false;
         foreach ($fixtures as $fix) {
             if (!empty($fix->league_name) && !in_array($fix->league_name, $leagues)) {
                 $leagues[] = $fix->league_name;
+            }
+            if ($fix->status !== 'NS' && $fix->goals_home === null) {
+                $needsGoalsUpdate = true;
+            }
+        }
+
+        // Se houver partidas iniciadas/encerradas sem placar no banco, dispara atualização em segundo plano
+        if ($needsGoalsUpdate) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/football_ingest_trends.py';
+            if (file_exists($scriptPath)) {
+                @exec("python3 {$scriptPath} " . escapeshellarg($targetDate) . " > /dev/null 2>&1 &");
             }
         }
 
@@ -541,17 +553,17 @@ class FootballTrendsController extends BaseController
         $today = date('Y-m-d');
         $targetDate = $this->request->getVar('date') ?: $today;
 
-        // Dispara uma sincronização ao vivo rápida do script Python caso seja a data de hoje
-        if ($targetDate === $today && rand(1, 4) === 1) {
+        // Dispara uma sincronização dos placares da data via script Python
+        if ($targetDate === $today) {
             $scriptPath = '/root/datalake-air-flow-delta/scripts/football_ingest_trends.py';
             if (file_exists($scriptPath)) {
-                @exec("python3 {$scriptPath} --live > /dev/null 2>&1 &");
+                @exec("python3 {$scriptPath} " . escapeshellarg($targetDate) . " > /dev/null 2>&1 &");
             }
         }
 
         $db = \Config\Database::connect();
         $builder = $db->table('fixtures_trends');
-        $builder->select('fixture_id, status, elapsed, goals_home, goals_away, home_team, away_team, updated_at');
+        $builder->select('fixture_id, status, elapsed, goals_home, goals_away, yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away, corners_home, corners_away, shots_home, shots_away, xg_home, xg_away, goal_scorers, last_event, home_team, away_team, updated_at');
         $builder->where("DATE(CONVERT_TZ(fixture_date, '+00:00', '{$sqlOffset}'))", $targetDate);
         $fixtures = $builder->get()->getResultArray();
 

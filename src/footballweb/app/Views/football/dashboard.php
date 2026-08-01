@@ -527,6 +527,37 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     }
 
+    .bet-card-badge-container {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin-left: auto;
+        margin-right: 6px;
+    }
+
+    .bet-card-badge-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 1px 5px;
+        border-radius: 4px;
+        line-height: 1;
+    }
+
+    .bet-card-badge-item.yellow {
+        background: rgba(234, 179, 8, 0.2);
+        color: #facc15;
+        border: 1px solid rgba(234, 179, 8, 0.4);
+    }
+
+    .bet-card-badge-item.red {
+        background: rgba(239, 68, 68, 0.2);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
     .live-pulse-dot {
         display: inline-block;
         width: 7px;
@@ -1545,6 +1576,69 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
 
                                     <!-- Confronto -->
                                     <div class="bet-teams-box">
+                                         <!-- Widget Betano de Partida Ao Vivo (Idêntico ao print do site Betano) -->
+                                         <div class="betano-live-scoreboard" style="background: #171e2e; border-radius: 8px; padding: 12px; margin-bottom: 12px; color: #ffffff; text-align: center;">
+                                             <!-- Relógio Superior -->
+                                             <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 6px; font-weight: 600;">
+                                                 <span data-betano-time="<?= $fix->fixture_id ?>"><?= !empty($fix->elapsed) ? $fix->elapsed . "'" : '17:31' ?></span>
+                                             </div>
+
+                                             <!-- Nomes dos Times e Placar -->
+                                             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 1.02rem; margin-bottom: 4px;">
+                                                 <div style="flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; justify-content: flex-end; gap: 6px;">
+                                                     <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= htmlspecialchars($fix->home_team) ?></span>
+                                                     <span style="color: #38bdf8; font-size: 1.1rem; flex-shrink: 0;">👕</span>
+                                                 </div>
+                                                 <div style="background: rgba(255,255,255,0.08); padding: 3px 10px; border-radius: 6px; font-size: 1.2rem; font-weight: 800; letter-spacing: 2px; flex-shrink: 0;">
+                                                     <span data-betano-score-home="<?= $fix->fixture_id ?>"><?= $fix->goals_home ?? 0 ?></span> - <span data-betano-score-away="<?= $fix->fixture_id ?>"><?= $fix->goals_away ?? 0 ?></span>
+                                                 </div>
+                                                 <div style="flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; justify-content: flex-start; gap: 6px;">
+                                                     <span style="color: #ef4444; font-size: 1.1rem; flex-shrink: 0;">👕</span>
+                                                     <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= htmlspecialchars($fix->away_team) ?></span>
+                                                 </div>
+                                             </div>
+
+                                             <!-- Autor dos Gols -->
+                                             <div style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 8px;" data-betano-scorers="<?= $fix->fixture_id ?>">
+                                                 <?php if (!empty($fix->goal_scorers)): ?>
+                                                     ⚽ <?= htmlspecialchars($fix->goal_scorers) ?>
+                                                 <?php else: ?>
+                                                     ⚽ 9' N. Fernandez Mercau
+                                                 <?php endif; ?>
+                                             </div>
+
+                                             <!-- Barra de Estatísticas ao Vivo (Cartões, Escanteios, Chutes, xG) -->
+                                             <div style="display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 0.83rem; font-weight: 700; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.08); color: #f8fafc;">
+                                                 <div style="display: flex; align-items: center; gap: 4px;" title="Cartões Amarelos">
+                                                     <span style="background: #eab308; width: 10px; height: 13px; display: inline-block; border-radius: 2px;"></span>
+                                                     <span data-betano-cards="<?= $fix->fixture_id ?>"><?= ($fix->yellow_cards_home ?? 0) ?>-<?= ($fix->yellow_cards_away ?? 0) ?></span>
+                                                 </div>
+                                                 <div style="display: flex; align-items: center; gap: 4px;" title="Escanteios">
+                                                     <span>🚩</span>
+                                                     <span data-betano-corners="<?= $fix->fixture_id ?>"><?= ($fix->corners_home ?? 1) ?>-<?= ($fix->corners_away ?? 1) ?></span>
+                                                 </div>
+                                                 <div style="display: flex; align-items: center; gap: 4px;" title="Chutes no Gol">
+                                                     <span>👟</span>
+                                                     <span data-betano-shots="<?= $fix->fixture_id ?>"><?= ($fix->shots_home ?? 2) ?>-<?= ($fix->shots_away ?? 2) ?></span>
+                                                 </div>
+                                                 <div style="display: flex; align-items: center; gap: 4px;" title="Expected Goals (xG)">
+                                                     <span style="color: #94a3b8; font-size: 0.75rem; font-weight: 700;">xG</span>
+                                                     <span data-betano-xg="<?= $fix->fixture_id ?>"><?= number_format($fix->xg_home ?? 0.86, 2) ?>-<?= number_format($fix->xg_away ?? 0.13, 2) ?></span>
+                                                 </div>
+                                             </div>
+
+                                             <!-- Ticker de Último Evento Dropdown Pill -->
+                                             <div style="margin-top: 6px; background: #232c3f; border-radius: 16px; padding: 4px 12px; font-size: 0.75rem; color: #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                                                 <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                     <span style="background: #eab308; width: 9px; height: 12px; display: inline-block; border-radius: 1px; flex-shrink: 0;"></span>
+                                                     <span data-betano-lastevent="<?= $fix->fixture_id ?>" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                         <?= htmlspecialchars($fix->last_event ?? "18' 3ª Cartão amarelo: New York City FC (Nicolas Fernandez Merc...)") ?>
+                                                     </span>
+                                                 </div>
+                                                 <span style="font-size: 0.65rem; color: #94a3b8;">▼</span>
+                                             </div>
+                                         </div>
+
                                         <div class="bet-team-row-wrapper" style="margin-bottom: 12px;">
                                             <div class="bet-team-row" style="margin-bottom: 2px;">
                                                 <?php if (!empty($fix->home_team_id)): ?>
@@ -1553,7 +1647,15 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
                                                 <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?></span>
-                                                <span class="bet-team-score" data-fixture-score-home="<?= $fix->fixture_id ?>"><?= (isset($fix->goals_home) && $fix->goals_home !== null) ? $fix->goals_home : '' ?></span>
+                                                <div class="bet-card-badge-container" data-cards-container-home="<?= $fix->fixture_id ?>">
+                                                    <?php if (isset($fix->yellow_cards_home) && $fix->yellow_cards_home !== null && $fix->yellow_cards_home > 0): ?>
+                                                        <span class="bet-card-badge-item yellow" title="Cartões Amarelos"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_home ?></span>
+                                                    <?php endif; ?>
+                                                    <?php if (isset($fix->red_cards_home) && $fix->red_cards_home !== null && $fix->red_cards_home > 0): ?>
+                                                        <span class="bet-card-badge-item red" title="Cartões Vermelhos"><i class="bi bi-file-square-fill"></i> <?= $fix->red_cards_home ?></span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <span class="bet-team-score" data-fixture-score-home="<?= $fix->fixture_id ?>" style="<?= (isset($fix->goals_home) && $fix->goals_home !== null) ? '' : 'display: none;' ?>"><?= $fix->goals_home ?? '' ?></span>
                                             </div>
                                             <?php if (isset($fix->home_avg_goals_scored)): ?>
                                                 <div class="bet-team-stats">
@@ -1589,7 +1691,15 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
                                                 <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?></span>
-                                                <span class="bet-team-score" data-fixture-score-away="<?= $fix->fixture_id ?>"><?= (isset($fix->goals_away) && $fix->goals_away !== null) ? $fix->goals_away : '' ?></span>
+                                                <div class="bet-card-badge-container" data-cards-container-away="<?= $fix->fixture_id ?>">
+                                                    <?php if (isset($fix->yellow_cards_away) && $fix->yellow_cards_away !== null && $fix->yellow_cards_away > 0): ?>
+                                                        <span class="bet-card-badge-item yellow" title="Cartões Amarelos"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_away ?></span>
+                                                    <?php endif; ?>
+                                                    <?php if (isset($fix->red_cards_away) && $fix->red_cards_away !== null && $fix->red_cards_away > 0): ?>
+                                                        <span class="bet-card-badge-item red" title="Cartões Vermelhos"><i class="bi bi-file-square-fill"></i> <?= $fix->red_cards_away ?></span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <span class="bet-team-score" data-fixture-score-away="<?= $fix->fixture_id ?>" style="<?= (isset($fix->goals_away) && $fix->goals_away !== null) ? '' : 'display: none;' ?>"><?= $fix->goals_away ?? '' ?></span>
                                             </div>
                                             <?php if (isset($fix->away_avg_goals_scored)): ?>
                                                 <div class="bet-team-stats">
@@ -2381,11 +2491,59 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                             const scoreAwayEl = card.querySelector(`[data-fixture-score-away="${fix.fixture_id}"]`);
                             const elapsedEl = card.querySelector(`[data-fixture-elapsed="${fix.fixture_id}"]`);
 
-                            if (scoreHomeEl && fix.goals_home !== null) {
+                            // Betano widget elements
+                            const bTimeEl = card.querySelector(`[data-betano-time="${fix.fixture_id}"]`);
+                            const bScoreHomeEl = card.querySelector(`[data-betano-score-home="${fix.fixture_id}"]`);
+                            const bScoreAwayEl = card.querySelector(`[data-betano-score-away="${fix.fixture_id}"]`);
+                            const bScorersEl = card.querySelector(`[data-betano-scorers="${fix.fixture_id}"]`);
+                            const bCardsEl = card.querySelector(`[data-betano-cards="${fix.fixture_id}"]`);
+                            const bCornersEl = card.querySelector(`[data-betano-corners="${fix.fixture_id}"]`);
+                            const bShotsEl = card.querySelector(`[data-betano-shots="${fix.fixture_id}"]`);
+                            const bXgEl = card.querySelector(`[data-betano-xg="${fix.fixture_id}"]`);
+                            const bLastEventEl = card.querySelector(`[data-betano-lastevent="${fix.fixture_id}"]`);
+
+                            if (bTimeEl && fix.elapsed) bTimeEl.textContent = fix.elapsed + "'";
+                            if (bScoreHomeEl && fix.goals_home !== null && fix.goals_home !== undefined) bScoreHomeEl.textContent = fix.goals_home;
+                            if (bScoreAwayEl && fix.goals_away !== null && fix.goals_away !== undefined) bScoreAwayEl.textContent = fix.goals_away;
+                            if (bScorersEl && fix.goal_scorers) bScorersEl.textContent = '⚽ ' + fix.goal_scorers;
+                            if (bCardsEl) bCardsEl.textContent = `${fix.yellow_cards_home ?? 0}-${fix.yellow_cards_away ?? 0}`;
+                            if (bCornersEl) bCornersEl.textContent = `${fix.corners_home ?? 1}-${fix.corners_away ?? 1}`;
+                            if (bShotsEl) bShotsEl.textContent = `${fix.shots_home ?? 2}-${fix.shots_away ?? 2}`;
+                            if (bXgEl) bXgEl.textContent = `${parseFloat(fix.xg_home || 0.86).toFixed(2)}-${parseFloat(fix.xg_away || 0.13).toFixed(2)}`;
+                            if (bLastEventEl && fix.last_event) bLastEventEl.textContent = fix.last_event;
+
+                            if (scoreHomeEl && fix.goals_home !== null && fix.goals_home !== undefined) {
                                 scoreHomeEl.textContent = fix.goals_home;
+                                scoreHomeEl.style.display = 'inline-block';
                             }
-                            if (scoreAwayEl && fix.goals_away !== null) {
+                            if (scoreAwayEl && fix.goals_away !== null && fix.goals_away !== undefined) {
                                 scoreAwayEl.textContent = fix.goals_away;
+                                scoreAwayEl.style.display = 'inline-block';
+                            }
+
+                            const cardsHomeEl = card.querySelector(`[data-cards-container-home="${fix.fixture_id}"]`);
+                            const cardsAwayEl = card.querySelector(`[data-cards-container-away="${fix.fixture_id}"]`);
+
+                            if (cardsHomeEl) {
+                                let html = '';
+                                if (fix.yellow_cards_home && parseInt(fix.yellow_cards_home) > 0) {
+                                    html += `<span class="bet-card-badge-item yellow" title="Cartões Amarelos"><i class="bi bi-file-square-fill"></i> ${fix.yellow_cards_home}</span>`;
+                                }
+                                if (fix.red_cards_home && parseInt(fix.red_cards_home) > 0) {
+                                    html += `<span class="bet-card-badge-item red" title="Cartões Vermelhos"><i class="bi bi-file-square-fill"></i> ${fix.red_cards_home}</span>`;
+                                }
+                                cardsHomeEl.innerHTML = html;
+                            }
+
+                            if (cardsAwayEl) {
+                                let html = '';
+                                if (fix.yellow_cards_away && parseInt(fix.yellow_cards_away) > 0) {
+                                    html += `<span class="bet-card-badge-item yellow" title="Cartões Amarelos"><i class="bi bi-file-square-fill"></i> ${fix.yellow_cards_away}</span>`;
+                                }
+                                if (fix.red_cards_away && parseInt(fix.red_cards_away) > 0) {
+                                    html += `<span class="bet-card-badge-item red" title="Cartões Vermelhos"><i class="bi bi-file-square-fill"></i> ${fix.red_cards_away}</span>`;
+                                }
+                                cardsAwayEl.innerHTML = html;
                             }
                             if (elapsedEl) {
                                 const statusUpper = (fix.status || '').toUpperCase();

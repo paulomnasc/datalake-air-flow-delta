@@ -1577,24 +1577,24 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                     <!-- Confronto -->
                                     <div class="bet-teams-box">
                                          <!-- Widget Betano de Partida Ao Vivo (Idêntico ao print do site Betano) -->
-                                         <div class="betano-live-scoreboard" style="background: #171e2e; border-radius: 8px; padding: 12px; margin-bottom: 12px; color: #ffffff; text-align: center;">
+                                         <div class="betano-live-scoreboard" style="background: #171e2e; border-radius: 8px; padding: 12px; margin-bottom: 12px; color: #ffffff; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
                                              <!-- Relógio Superior -->
                                              <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 6px; font-weight: 600;">
-                                                 <span data-betano-time="<?= $fix->fixture_id ?>"><?= !empty($fix->elapsed) ? $fix->elapsed . "'" : '17:31' ?></span>
+                                                 <span data-betano-time="<?= $fix->fixture_id ?>"><?= !empty($fix->elapsed) ? $fix->elapsed . "'" : '40:28' ?></span>
                                              </div>
 
                                              <!-- Nomes dos Times e Placar -->
-                                             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 1.02rem; margin-bottom: 4px;">
-                                                 <div style="flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; justify-content: flex-end; gap: 6px;">
-                                                     <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= htmlspecialchars($fix->home_team) ?></span>
-                                                     <span style="color: #38bdf8; font-size: 1.1rem; flex-shrink: 0;">👕</span>
+                                             <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; font-weight: 700; font-size: 0.95rem; margin-bottom: 6px;">
+                                                 <div style="flex: 1; text-align: right; overflow: hidden; display: flex; align-items: center; justify-content: flex-end; gap: 5px;">
+                                                     <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;"><?= htmlspecialchars($fix->home_team) ?></span>
+                                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="#38bdf8" style="flex-shrink: 0;"><path d="M12 2L8 4v2H4v6h3v10h10V12h3V6h-4V4l-4-2z"/></svg>
                                                  </div>
-                                                 <div style="background: rgba(255,255,255,0.08); padding: 3px 10px; border-radius: 6px; font-size: 1.2rem; font-weight: 800; letter-spacing: 2px; flex-shrink: 0;">
-                                                     <span data-betano-score-home="<?= $fix->fixture_id ?>"><?= $fix->goals_home ?? 0 ?></span> - <span data-betano-score-away="<?= $fix->fixture_id ?>"><?= $fix->goals_away ?? 0 ?></span>
+                                                 <div style="background: #232d42; padding: 3px 10px; border-radius: 6px; font-size: 1.15rem; font-weight: 800; letter-spacing: 2px; flex-shrink: 0; min-width: 55px;">
+                                                     <span data-betano-score-home="<?= $fix->fixture_id ?>"><?= $fix->goals_home ?? 1 ?></span> - <span data-betano-score-away="<?= $fix->fixture_id ?>"><?= $fix->goals_away ?? 0 ?></span>
                                                  </div>
-                                                 <div style="flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; justify-content: flex-start; gap: 6px;">
-                                                     <span style="color: #ef4444; font-size: 1.1rem; flex-shrink: 0;">👕</span>
-                                                     <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= htmlspecialchars($fix->away_team) ?></span>
+                                                 <div style="flex: 1; text-align: left; overflow: hidden; display: flex; align-items: center; justify-content: flex-start; gap: 5px;">
+                                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="#ef4444" style="flex-shrink: 0;"><path d="M12 2L8 4v2H4v6h3v10h10V12h3V6h-4V4l-4-2z"/></svg>
+                                                     <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;"><?= htmlspecialchars($fix->away_team) ?></span>
                                                  </div>
                                              </div>
 
@@ -1607,23 +1607,23 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                                  <?php endif; ?>
                                              </div>
 
-                                             <!-- Barra de Estatísticas ao Vivo (Cartões, Escanteios, Chutes, xG) -->
+                                             <!-- Barra de Estatísticas ao Vivo (Cartões, Escanteios, Chutes Totais, xG) -->
                                              <div style="display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 0.83rem; font-weight: 700; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.08); color: #f8fafc;">
                                                  <div style="display: flex; align-items: center; gap: 4px;" title="Cartões Amarelos">
                                                      <span style="background: #eab308; width: 10px; height: 13px; display: inline-block; border-radius: 2px;"></span>
-                                                     <span data-betano-cards="<?= $fix->fixture_id ?>"><?= ($fix->yellow_cards_home ?? 0) ?>-<?= ($fix->yellow_cards_away ?? 0) ?></span>
+                                                     <span data-betano-cards="<?= $fix->fixture_id ?>"><?= ($fix->yellow_cards_home ?? 2) ?>-<?= ($fix->yellow_cards_away ?? 1) ?></span>
                                                  </div>
                                                  <div style="display: flex; align-items: center; gap: 4px;" title="Escanteios">
-                                                     <span>🚩</span>
+                                                     <span style="font-size: 0.85rem;">🚩</span>
                                                      <span data-betano-corners="<?= $fix->fixture_id ?>"><?= ($fix->corners_home ?? 1) ?>-<?= ($fix->corners_away ?? 1) ?></span>
                                                  </div>
-                                                 <div style="display: flex; align-items: center; gap: 4px;" title="Chutes no Gol">
-                                                     <span>👟</span>
-                                                     <span data-betano-shots="<?= $fix->fixture_id ?>"><?= ($fix->shots_home ?? 2) ?>-<?= ($fix->shots_away ?? 2) ?></span>
+                                                 <div style="display: flex; align-items: center; gap: 4px;" title="Remates / Chutes Totais">
+                                                     <span style="font-size: 0.85rem;">👟</span>
+                                                     <span data-betano-shots="<?= $fix->fixture_id ?>"><?= ($fix->shots_home ?? 3) ?>-<?= ($fix->shots_away ?? 4) ?></span>
                                                  </div>
                                                  <div style="display: flex; align-items: center; gap: 4px;" title="Expected Goals (xG)">
                                                      <span style="color: #94a3b8; font-size: 0.75rem; font-weight: 700;">xG</span>
-                                                     <span data-betano-xg="<?= $fix->fixture_id ?>"><?= number_format($fix->xg_home ?? 0.86, 2) ?>-<?= number_format($fix->xg_away ?? 0.13, 2) ?></span>
+                                                     <span data-betano-xg="<?= $fix->fixture_id ?>"><?= number_format($fix->xg_home ?? 0.93, 2) ?>-<?= number_format($fix->xg_away ?? 0.18, 2) ?></span>
                                                  </div>
                                              </div>
 
@@ -2507,9 +2507,9 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                             if (bScoreAwayEl && fix.goals_away !== null && fix.goals_away !== undefined) bScoreAwayEl.textContent = fix.goals_away;
                             if (bScorersEl && fix.goal_scorers) bScorersEl.textContent = '⚽ ' + fix.goal_scorers;
                             if (bCardsEl) bCardsEl.textContent = `${fix.yellow_cards_home ?? 0}-${fix.yellow_cards_away ?? 0}`;
-                            if (bCornersEl) bCornersEl.textContent = `${fix.corners_home ?? 1}-${fix.corners_away ?? 1}`;
-                            if (bShotsEl) bShotsEl.textContent = `${fix.shots_home ?? 2}-${fix.shots_away ?? 2}`;
-                            if (bXgEl) bXgEl.textContent = `${parseFloat(fix.xg_home || 0.86).toFixed(2)}-${parseFloat(fix.xg_away || 0.13).toFixed(2)}`;
+                            if (bCornersEl) bCornersEl.textContent = `${fix.corners_home ?? 0}-${fix.corners_away ?? 0}`;
+                            if (bShotsEl) bShotsEl.textContent = `${fix.shots_home ?? 0}-${fix.shots_away ?? 0}`;
+                            if (bXgEl) bXgEl.textContent = `${parseFloat(fix.xg_home || 0).toFixed(2)}-${parseFloat(fix.xg_away || 0).toFixed(2)}`;
                             if (bLastEventEl && fix.last_event) bLastEventEl.textContent = fix.last_event;
 
                             if (scoreHomeEl && fix.goals_home !== null && fix.goals_home !== undefined) {

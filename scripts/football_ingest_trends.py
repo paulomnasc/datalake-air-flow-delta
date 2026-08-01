@@ -362,6 +362,43 @@ def main():
             last_event_str = None
 
             if status not in ['NS', 'PST', 'CANCELLED', 'POSTPONED']:
+                # 1. Busca estatísticas oficiais da partida (escanteios, chutes no gol, xG)
+                try:
+                    stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fix_id}"
+                    st_res = requests.get(stats_url, headers=headers, timeout=10)
+                    if st_res.status_code == 200:
+                        st_data = st_res.json().get("response", [])
+                        for team_st in st_data:
+                            t_id = team_st.get("team", {}).get("id")
+                            is_home = (t_id == home_team_id)
+                            stats_list = team_st.get("statistics", [])
+                            ck, sg, xg_val = 0, 0, 0.0
+                            for s in stats_list:
+                                s_type = s.get("type")
+                                s_val = s.get("value")
+                                if s_type == "Corner Kicks" and s_val is not None:
+                                    ck = int(s_val)
+                                elif s_type in ["Total Shots", "Shots on Goal"] and s_val is not None:
+                                    if s_type == "Total Shots" or sg == 0:
+                                        sg = int(s_val)
+                                elif s_type == "expected_goals" and s_val is not None:
+                                    try:
+                                        xg_val = float(s_val)
+                                    except (ValueError, TypeError):
+                                        xg_val = 0.0
+
+                            if is_home:
+                                corners_home = ck
+                                shots_home = sg
+                                xg_home = xg_val
+                            else:
+                                corners_away = ck
+                                shots_away = sg
+                                xg_away = xg_val
+                except Exception as e:
+                    print(f"Aviso ao buscar estatísticas para partida {fix_id}: {e}")
+
+                # 2. Busca eventos oficiais da partida (cartões e gols)
                 try:
                     events_url = f"https://v3.football.api-sports.io/fixtures/events?fixture={fix_id}"
                     ev_res = requests.get(events_url, headers=headers, timeout=10)
@@ -406,28 +443,9 @@ def main():
                 except Exception as e:
                     print(f"Aviso ao buscar cartões/eventos para partida {fix_id}: {e}")
 
-                # Se não obtivermos escanteios/chutes/xG via API de eventos, geramos valores realistas baseados na partida
-                h_seed = int(hashlib.md5(f"stats_{fix_id}".encode('utf-8')).hexdigest(), 16)
-                r_seed = random.Random(h_seed)
-                
-                # Valores realistas se ainda forem 0
-                c_h = r_seed.randint(1, 5) if (goals_home or 0) > 0 else r_seed.randint(1, 4)
-                c_a = r_seed.randint(1, 4) if (goals_away or 0) > 0 else r_seed.randint(0, 3)
-                s_h = max(c_h, (goals_home or 0) + r_seed.randint(1, 3))
-                s_a = max(c_a, (goals_away or 0) + r_seed.randint(0, 2))
-                x_h = round((goals_home or 0) * 0.65 + s_h * 0.12 + r_seed.uniform(0.05, 0.25), 2)
-                x_a = round((goals_away or 0) * 0.65 + s_a * 0.08 + r_seed.uniform(0.02, 0.18), 2)
-
-                corners_home = c_h
-                corners_away = c_a
-                shots_home = s_h
-                shots_away = s_a
-                xg_home = x_h
-                xg_away = x_a
-
-                if yellow_cards_home is None: yellow_cards_home = 0 if status not in ['NS', 'PST', 'CANCELLED', 'POSTPONED'] else None
-                if yellow_cards_away is None: yellow_cards_away = 0 if status not in ['NS', 'PST', 'CANCELLED', 'POSTPONED'] else None
-                if not last_event_str and status not in ['NS', 'PST', 'CANCELLED', 'POSTPONED']:
+                if yellow_cards_home is None: yellow_cards_home = 0
+                if yellow_cards_away is None: yellow_cards_away = 0
+                if not last_event_str:
                     tot_cards = (yellow_cards_home or 0) + (yellow_cards_away or 0)
                     last_event_str = f"{elapsed or 18}' {tot_cards}º Cartão amarelo: {home_team} ({home_team.split()[0]})"
 

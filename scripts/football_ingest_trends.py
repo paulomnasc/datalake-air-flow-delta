@@ -354,12 +354,18 @@ def main():
                 exp_cards = (team_cards_combined * 0.55) + (yellows * 0.45)
                 over_cards_prob = round(min(95.0, max(20.0, 50.0 + (exp_cards - 4.5) * 16.5)), 2)
 
-                if rigor == "Rigoroso":
-                    prediction_text = f"🔥 Árbitro {referee_name} possui estilo de arbitragem rigoroso, com média alta de {yellows} cartões amarelos por partida. Excelente oportunidade para mercado Over 4.5 Cartões."
-                elif rigor == "Moderado":
-                    prediction_text = f"⚖️ O árbitro {referee_name} apita de forma moderada (média de {yellows} cartões amarelos por jogo). Expectativa de controle de jogo padrão."
+                if over_cards_prob >= 55.0:
+                    if rigor == "Permissivo":
+                        prediction_text = f"🔥 Embora o árbitro {referee_name} seja permissivo (média de {yellows} amarelos/jogo), o alto histórico de cartões das equipes ({home_team}: {home_c_stats['avg_cards']} e {away_team}: {away_c_stats['avg_cards']}) eleva a tendência para Over 4.5 Cartões ({over_cards_prob}%)."
+                    else:
+                        prediction_text = f"🔥 Árbitro {referee_name} ({rigor.lower()}, média de {yellows} amarelos/jogo) aliado ao perfil faltoso das equipes traz alta tendência para Over 4.5 Cartões ({over_cards_prob}%)."
+                elif over_cards_prob <= 45.0:
+                    if rigor == "Rigoroso":
+                        prediction_text = f"❄️ Apesar do árbitro {referee_name} ser rigoroso (média de {yellows} amarelos/jogo), o histórico disciplinado das equipes reduz a expectativa para Under 4.5 Cartões ({over_cards_prob}%)."
+                    else:
+                        prediction_text = f"❄️ Árbitro {referee_name} ({rigor.lower()}, média de {yellows} amarelos/jogo) e o baixo histórico de cartões das equipes indicam tendência para Under 4.5 Cartões ({over_cards_prob}%)."
                 else:
-                    prediction_text = f"❄️ Árbitro {referee_name} é permissivo e costuma deixar a partida correr (média de {yellows} cartões amarelos por jogo). Tendência para Under 4.5 Cartões."
+                    prediction_text = f"⚖️ O árbitro {referee_name} ({rigor.lower()}, média de {yellows} amarelos/jogo) e o histórico dos times indicam expectativa de jogo equilibrado em cartões ({over_cards_prob}%)."
             
             # Garante que os times possuam estatísticas na tabela team_moving_averages
             if home_team_id:

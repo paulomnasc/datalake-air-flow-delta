@@ -1400,8 +1400,9 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                 <!-- Controles de Data e Pesquisa -->
                 <div class="bet-controls-row">
                     <form method="get" id="filterForm" class="m-0">
-                        <div class="row align-items-center g-3">
-                            <div class="col-lg-5 col-md-12">
+                        <!-- Linha 1: Navegação por datas e Opções de Exibição -->
+                        <div class="row align-items-center g-3 mb-3">
+                            <div class="col-xl-6 col-lg-7 col-md-12">
                                 <div class="d-flex gap-2 align-items-center flex-wrap">
                                     <?php
                                     $yesterday = date('Y-m-d', strtotime('-1 day'));
@@ -1427,7 +1428,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                             </div>
                             
                             <!-- Toggle switches column -->
-                            <div class="col-lg-4 col-md-6 d-flex align-items-center justify-content-lg-center gap-3 flex-wrap">
+                            <div class="col-xl-6 col-lg-5 col-md-12 d-flex align-items-center justify-content-lg-end gap-3 flex-wrap">
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #aeb9c4; font-weight: 600;"><?= lang('App.show_finished_games') ?></span>
                                     <label class="bet-switch">
@@ -1449,17 +1450,21 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                     </span>
                                 </div>
                             </div>
-                            
-                            <!-- Search column -->
-                            <div class="col-lg-3 col-md-6">
-                                <div class="d-flex gap-2">
+                        </div>
+                        
+                        <!-- Linha 2: Busca por Texto (Abaixo da navegação entre datas) -->
+                        <div class="row align-items-center g-2 pt-3" style="border-top: 1px solid rgba(255, 255, 255, 0.05);">
+                            <div class="col-12">
+                                <div class="d-flex gap-2 align-items-center">
                                     <div class="position-relative flex-grow-1">
                                         <i class="bi bi-search bet-search-icon"></i>
                                         <input type="text" name="search" id="teamSearchInput" class="bet-search-input" placeholder="<?= lang('App.search_placeholder') ?>" value="<?= htmlspecialchars($search ?? '', ENT_QUOTES) ?>" autocomplete="off">
                                     </div>
-                                    <button type="submit" class="btn btn-secondary rounded-3 px-3"><?= lang('App.filter') ?></button>
+                                    <button type="submit" class="btn btn-secondary rounded-3 px-3 d-flex align-items-center gap-1" style="background: #243447; border-color: rgba(255,255,255,0.1); color: #ffffff; font-weight: 600;">
+                                        <i class="bi bi-funnel-fill" style="color: #f47c20;"></i> <?= lang('App.filter') ?>
+                                    </button>
                                     <?php if(!empty($search) || $showFinished || !empty($showPostponed)): ?>
-                                        <a href="?date=<?= $targetDate ?>" class="btn btn-outline-danger d-flex align-items-center justify-content-center px-3" style="border-radius: 8px;"><?= lang('App.clear') ?></a>
+                                        <a href="?date=<?= $targetDate ?>" class="btn btn-outline-danger d-flex align-items-center justify-content-center px-3" style="border-radius: 8px; font-weight: 600;"><?= lang('App.clear') ?></a>
                                     <?php endif; ?>
                                 </div>
                             </div>

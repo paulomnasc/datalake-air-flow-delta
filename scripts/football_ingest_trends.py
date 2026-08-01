@@ -255,6 +255,11 @@ def main():
             prediction_text = "Sem análise disponível para este confronto."
             over_cards_prob = 50.00
             
+            # Média determinística de cartões dos times
+            home_c_stats = generate_deterministic_team_stats(home_team, 'home')
+            away_c_stats = generate_deterministic_team_stats(away_team, 'away')
+            team_cards_combined = home_c_stats["avg_cards"] + away_c_stats["avg_cards"]
+
             if referee_raw:
                 # Trata "Anderson Daronco, Brazil" -> "Anderson Daronco"
                 referee_name = referee_raw.split(',')[0].strip()
@@ -280,19 +285,18 @@ def main():
                     cursor.execute("SELECT * FROM referee_stats WHERE name = %s", (referee_name,))
                     ref_data = cursor.fetchone()
                 
-                # Gera predição baseada no árbitro
+                # Gera predição combinada (Times + Árbitro)
                 rigor = ref_data["rigor_level"]
                 yellows = float(ref_data["average_yellow_cards"])
                 
-                # Probabilidade baseada no rigor
+                exp_cards = (team_cards_combined * 0.55) + (yellows * 0.45)
+                over_cards_prob = round(min(95.0, max(20.0, 50.0 + (exp_cards - 4.5) * 16.5)), 2)
+
                 if rigor == "Rigoroso":
-                    over_cards_prob = round(random.uniform(75.0, 92.0), 2)
                     prediction_text = f"🔥 Árbitro {referee_name} possui estilo de arbitragem rigoroso, com média alta de {yellows} cartões amarelos por partida. Excelente oportunidade para mercado Over 4.5 Cartões."
                 elif rigor == "Moderado":
-                    over_cards_prob = round(random.uniform(55.0, 72.0), 2)
                     prediction_text = f"⚖️ O árbitro {referee_name} apita de forma moderada (média de {yellows} cartões amarelos por jogo). Expectativa de controle de jogo padrão."
                 else:
-                    over_cards_prob = round(random.uniform(25.0, 48.0), 2)
                     prediction_text = f"❄️ Árbitro {referee_name} é permissivo e costuma deixar a partida correr (média de {yellows} cartões amarelos por jogo). Tendência para Under 4.5 Cartões."
             
             # Garante que os times possuam estatísticas na tabela team_moving_averages
@@ -362,7 +366,7 @@ def main():
             last_event_str = None
 
             if status not in ['NS', 'PST', 'CANCELLED', 'POSTPONED']:
-                # 1. Busca estatísticas oficiais da partida (escanteios, chutes no gol, xG)
+                # 1. Busca estatísticas oficiais da partida (escanteios, chutes no gol, xG, cartões)
                 try:
                     stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fix_id}"
                     st_res = requests.get(stats_url, headers=headers, timeout=10)
@@ -373,32 +377,41 @@ def main():
                             is_home = (t_id == home_team_id)
                             stats_list = team_st.get("statistics", [])
                             ck, sg, xg_val = 0, 0, 0.0
+                            yc, rc = 0, 0
                             for s in stats_list:
-                                s_type = s.get("type")
+                                s_type = (s.get("type") or "").strip()
                                 s_val = s.get("value")
                                 if s_type == "Corner Kicks" and s_val is not None:
                                     ck = int(s_val)
                                 elif s_type in ["Total Shots", "Shots on Goal"] and s_val is not None:
                                     if s_type == "Total Shots" or sg == 0:
                                         sg = int(s_val)
-                                elif s_type == "expected_goals" and s_val is not None:
+                                elif s_type.lower() in ["expected_goals", "expected goals", "xg"] and s_val is not None:
                                     try:
                                         xg_val = float(s_val)
                                     except (ValueError, TypeError):
                                         xg_val = 0.0
+                                elif s_type == "Yellow Cards" and s_val is not None:
+                                    yc = int(s_val)
+                                elif s_type == "Red Cards" and s_val is not None:
+                                    rc = int(s_val)
 
                             if is_home:
                                 corners_home = ck
                                 shots_home = sg
                                 xg_home = xg_val
+                                yellow_cards_home = yc
+                                red_cards_home = rc
                             else:
                                 corners_away = ck
                                 shots_away = sg
                                 xg_away = xg_val
+                                yellow_cards_away = yc
+                                red_cards_away = rc
                 except Exception as e:
                     print(f"Aviso ao buscar estatísticas para partida {fix_id}: {e}")
 
-                # 2. Busca eventos oficiais da partida (cartões e gols)
+                # 2. Busca eventos oficiais da partida (cartões, gols, substituições)
                 try:
                     events_url = f"https://v3.football.api-sports.io/fixtures/events?fixture={fix_id}"
                     ev_res = requests.get(events_url, headers=headers, timeout=10)
@@ -408,33 +421,45 @@ def main():
                         ev_data = ev_res.json().get("response", [])
                         yh, ya, rh, ra = 0, 0, 0, 0
                         card_count = 0
+                        sub_count = 0
                         for ev in ev_data:
                             team_id = ev.get("team", {}).get("id")
                             is_home = (team_id == home_team_id)
                             team_name_ev = home_team if is_home else away_team
                             ev_type = ev.get("type")
                             detail = ev.get("detail", "")
-                            elapsed_min = ev.get("time", {}).get("elapsed", 0)
+                            time_info = ev.get("time", {})
+                            elapsed_min = time_info.get("elapsed", 0)
+                            extra_min = time_info.get("extra")
+                            time_str = f"{elapsed_min}+{extra_min}'" if extra_min else f"{elapsed_min}'"
                             player_name = ev.get("player", {}).get("name", "")
+                            assist_name = ev.get("assist", {}).get("name", "")
 
                             if ev_type == "Card":
                                 card_count += 1
                                 if "Yellow" in detail:
                                     if is_home: yh += 1
                                     else: ya += 1
-                                    last_ev_text = f"{elapsed_min}' {card_count}º Cartão amarelo: {team_name_ev} ({player_name})"
+                                    last_ev_text = f"{time_str} {card_count}º Cartão amarelo: {team_name_ev} ({player_name})"
                                 elif "Red" in detail:
                                     if is_home: rh += 1
                                     else: ra += 1
-                                    last_ev_text = f"{elapsed_min}' Cartão vermelho: {team_name_ev} ({player_name})"
+                                    last_ev_text = f"{time_str} Cartão vermelho: {team_name_ev} ({player_name})"
                             elif ev_type == "Goal":
-                                goals_list.append(f"{elapsed_min}' {player_name}".strip())
-                                last_ev_text = f"{elapsed_min}' Gol: {team_name_ev} ({player_name})"
+                                goals_list.append(f"{time_str} {player_name}".strip())
+                                last_ev_text = f"{time_str} Gol: {team_name_ev} ({player_name})"
+                            elif ev_type in ["subst", "Subst", "Substitution"]:
+                                sub_count += 1
+                                if assist_name:
+                                    last_ev_text = f"{time_str} {sub_count}ª Substituição: {assist_name} (Entra), {player_name} (Sai)"
+                                else:
+                                    last_ev_text = f"{time_str} {sub_count}ª Substituição: {team_name_ev} ({player_name})"
                         
-                        yellow_cards_home = yh
-                        yellow_cards_away = ya
-                        red_cards_home = rh
-                        red_cards_away = ra
+                        yellow_cards_home = max(yellow_cards_home or 0, yh)
+                        yellow_cards_away = max(yellow_cards_away or 0, ya)
+                        red_cards_home = max(red_cards_home or 0, rh)
+                        red_cards_away = max(red_cards_away or 0, ra)
+
                         if goals_list:
                             goal_scorers_str = ", ".join(goals_list)
                         if last_ev_text:
@@ -445,9 +470,6 @@ def main():
 
                 if yellow_cards_home is None: yellow_cards_home = 0
                 if yellow_cards_away is None: yellow_cards_away = 0
-                if not last_event_str:
-                    tot_cards = (yellow_cards_home or 0) + (yellow_cards_away or 0)
-                    last_event_str = f"{elapsed or 18}' {tot_cards}º Cartão amarelo: {home_team} ({home_team.split()[0]})"
 
             # Insere ou atualiza a partida com placar, minutos decorridos, cartões, cantos, chutes, xG e eventos
             cursor.execute("""

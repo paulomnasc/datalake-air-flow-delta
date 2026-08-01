@@ -557,7 +557,7 @@ class FootballTrendsController extends BaseController
         if ($targetDate === $today) {
             $scriptPath = '/root/datalake-air-flow-delta/scripts/football_ingest_trends.py';
             if (file_exists($scriptPath)) {
-                @exec("python3 {$scriptPath} " . escapeshellarg($targetDate) . " > /dev/null 2>&1 &");
+                @exec("python3 {$scriptPath} --live > /dev/null 2>&1 &");
             }
         }
 

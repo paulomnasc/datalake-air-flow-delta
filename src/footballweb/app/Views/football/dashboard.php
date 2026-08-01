@@ -1486,13 +1486,35 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                     <?php else: ?>
                         <?php foreach ($fixtures as $fix): ?>
                             <?php
-                            $prob = (float)$fix->over_cards_probability;
-                            if ($prob >= 70.0) {
+                            $totalLiveCards = (int)($fix->yellow_cards_home ?? 0) + (int)($fix->yellow_cards_away ?? 0) + (int)($fix->red_cards_home ?? 0) + (int)($fix->red_cards_away ?? 0);
+                            $isMarketHit = ($totalLiveCards >= 5);
+
+                            if ($isMarketHit) {
+                                $prob = 100.0;
+                                $probDisplay = '100% (BATEU 🟢)';
                                 $class = 'high';
-                            } elseif ($prob >= 50.0) {
-                                $class = 'medium';
                             } else {
-                                $class = 'low';
+                                $homeAvgC = isset($fix->home_avg_cards) ? (float)$fix->home_avg_cards : 2.5;
+                                $awayAvgC = isset($fix->away_avg_cards) ? (float)$fix->away_avg_cards : 2.5;
+                                $refAvgC = isset($fix->average_yellow_cards) ? (float)$fix->average_yellow_cards : 4.2;
+                                
+                                $combinedExpectedCards = ($homeAvgC + $awayAvgC) * 0.55 + ($refAvgC * 0.45);
+                                $calculatedProb = round(min(95.0, max(20.0, 50.0 + ($combinedExpectedCards - 4.5) * 16.5)), 2);
+                                
+                                if (!empty($fix->over_cards_probability) && (float)$fix->over_cards_probability > 0) {
+                                    $prob = round(($calculatedProb * 0.7) + ((float)$fix->over_cards_probability * 0.3), 2);
+                                } else {
+                                    $prob = $calculatedProb;
+                                }
+                                
+                                if ($prob >= 70.0) {
+                                    $class = 'high';
+                                } elseif ($prob >= 50.0) {
+                                    $class = 'medium';
+                                } else {
+                                    $class = 'low';
+                                }
+                                $probDisplay = number_format($prob, 2) . '%';
                             }
 
                             // Formata hora convertendo de UTC para o fuso horário ativo do usuário
@@ -1550,7 +1572,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                  $elapsedDisplay = '⚠️ ADIADO';
                              } elseif ($isLiveMatch) {
                                  $elapsedClass = 'live';
-                                 $minDisplay = !empty($fix->elapsed) ? $fix->elapsed . "'" : $elapsedText;
+                                 $minDisplay = ($statusClean === 'HT') ? 'Int' : (!empty($fix->elapsed) ? $fix->elapsed . "'" : 'Ao Vivo');
                                  $elapsedDisplay = '<span class="live-pulse-dot"></span> ' . $minDisplay;
                              } else {
                                  $elapsedDisplay = $elapsedText;
@@ -1580,7 +1602,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                          <div class="betano-live-scoreboard" style="background: #171e2e; border-radius: 8px; padding: 12px; margin-bottom: 12px; color: #ffffff; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
                                              <!-- Relógio Superior -->
                                              <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 6px; font-weight: 600;">
-                                                 <span data-betano-time="<?= $fix->fixture_id ?>"><?= !empty($fix->elapsed) ? $fix->elapsed . "'" : '40:28' ?></span>
+                                                 <span data-betano-time="<?= $fix->fixture_id ?>"><?= !empty($fix->elapsed) ? $fix->elapsed . "'" : ($statusClean === 'FT' ? 'Encerrado' : ($statusClean === 'NS' ? 'Pré-jogo' : '')) ?></span>
                                              </div>
 
                                              <!-- Nomes dos Times e Placar -->
@@ -1590,7 +1612,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#38bdf8" style="flex-shrink: 0;"><path d="M12 2L8 4v2H4v6h3v10h10V12h3V6h-4V4l-4-2z"/></svg>
                                                  </div>
                                                  <div style="background: #232d42; padding: 3px 10px; border-radius: 6px; font-size: 1.15rem; font-weight: 800; letter-spacing: 2px; flex-shrink: 0; min-width: 55px;">
-                                                     <span data-betano-score-home="<?= $fix->fixture_id ?>"><?= $fix->goals_home ?? 1 ?></span> - <span data-betano-score-away="<?= $fix->fixture_id ?>"><?= $fix->goals_away ?? 0 ?></span>
+                                                     <span data-betano-score-home="<?= $fix->fixture_id ?>"><?= $fix->goals_home ?? 0 ?></span> - <span data-betano-score-away="<?= $fix->fixture_id ?>"><?= $fix->goals_away ?? 0 ?></span>
                                                  </div>
                                                  <div style="flex: 1; text-align: left; overflow: hidden; display: flex; align-items: center; justify-content: flex-start; gap: 5px;">
                                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#ef4444" style="flex-shrink: 0;"><path d="M12 2L8 4v2H4v6h3v10h10V12h3V6h-4V4l-4-2z"/></svg>
@@ -1599,11 +1621,9 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                              </div>
 
                                              <!-- Autor dos Gols -->
-                                             <div style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 8px;" data-betano-scorers="<?= $fix->fixture_id ?>">
+                                             <div style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 8px; <?= empty($fix->goal_scorers) ? 'display: none;' : '' ?>" data-betano-scorers="<?= $fix->fixture_id ?>">
                                                  <?php if (!empty($fix->goal_scorers)): ?>
                                                      ⚽ <?= htmlspecialchars($fix->goal_scorers) ?>
-                                                 <?php else: ?>
-                                                     ⚽ 9' N. Fernandez Mercau
                                                  <?php endif; ?>
                                              </div>
 
@@ -1611,28 +1631,33 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                              <div style="display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 0.83rem; font-weight: 700; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.08); color: #f8fafc;">
                                                  <div style="display: flex; align-items: center; gap: 4px;" title="Cartões Amarelos">
                                                      <span style="background: #eab308; width: 10px; height: 13px; display: inline-block; border-radius: 2px;"></span>
-                                                     <span data-betano-cards="<?= $fix->fixture_id ?>"><?= ($fix->yellow_cards_home ?? 2) ?>-<?= ($fix->yellow_cards_away ?? 1) ?></span>
+                                                     <span data-betano-cards="<?= $fix->fixture_id ?>"><?= ($fix->yellow_cards_home ?? 0) ?>-<?= ($fix->yellow_cards_away ?? 0) ?></span>
+                                                 </div>
+                                                 <?php $hasRedCards = ((int)($fix->red_cards_home ?? 0) + (int)($fix->red_cards_away ?? 0)) > 0; ?>
+                                                 <div style="display: flex; align-items: center; gap: 4px; <?= $hasRedCards ? '' : 'display: none;' ?>" title="Cartões Vermelhos" data-betano-redcards-container="<?= $fix->fixture_id ?>">
+                                                     <span style="background: #ef4444; width: 10px; height: 13px; display: inline-block; border-radius: 2px;"></span>
+                                                     <span data-betano-redcards="<?= $fix->fixture_id ?>"><?= ($fix->red_cards_home ?? 0) ?>-<?= ($fix->red_cards_away ?? 0) ?></span>
                                                  </div>
                                                  <div style="display: flex; align-items: center; gap: 4px;" title="Escanteios">
                                                      <span style="font-size: 0.85rem;">🚩</span>
-                                                     <span data-betano-corners="<?= $fix->fixture_id ?>"><?= ($fix->corners_home ?? 1) ?>-<?= ($fix->corners_away ?? 1) ?></span>
+                                                     <span data-betano-corners="<?= $fix->fixture_id ?>"><?= ($fix->corners_home ?? 0) ?>-<?= ($fix->corners_away ?? 0) ?></span>
                                                  </div>
                                                  <div style="display: flex; align-items: center; gap: 4px;" title="Remates / Chutes Totais">
                                                      <span style="font-size: 0.85rem;">👟</span>
-                                                     <span data-betano-shots="<?= $fix->fixture_id ?>"><?= ($fix->shots_home ?? 3) ?>-<?= ($fix->shots_away ?? 4) ?></span>
+                                                     <span data-betano-shots="<?= $fix->fixture_id ?>"><?= ($fix->shots_home ?? 0) ?>-<?= ($fix->shots_away ?? 0) ?></span>
                                                  </div>
                                                  <div style="display: flex; align-items: center; gap: 4px;" title="Expected Goals (xG)">
                                                      <span style="color: #94a3b8; font-size: 0.75rem; font-weight: 700;">xG</span>
-                                                     <span data-betano-xg="<?= $fix->fixture_id ?>"><?= number_format($fix->xg_home ?? 0.93, 2) ?>-<?= number_format($fix->xg_away ?? 0.18, 2) ?></span>
+                                                     <span data-betano-xg="<?= $fix->fixture_id ?>"><?= number_format($fix->xg_home ?? 0.00, 2) ?>-<?= number_format($fix->xg_away ?? 0.00, 2) ?></span>
                                                  </div>
                                              </div>
 
                                              <!-- Ticker de Último Evento Dropdown Pill -->
-                                             <div style="margin-top: 6px; background: #232c3f; border-radius: 16px; padding: 4px 12px; font-size: 0.75rem; color: #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                                             <div style="margin-top: 6px; background: #232c3f; border-radius: 16px; padding: 4px 12px; font-size: 0.75rem; color: #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 6px; <?= empty($fix->last_event) ? 'display: none;' : '' ?>" data-betano-lastevent-container="<?= $fix->fixture_id ?>">
                                                  <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                                      <span style="background: #eab308; width: 9px; height: 12px; display: inline-block; border-radius: 1px; flex-shrink: 0;"></span>
                                                      <span data-betano-lastevent="<?= $fix->fixture_id ?>" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                                         <?= htmlspecialchars($fix->last_event ?? "18' 3ª Cartão amarelo: New York City FC (Nicolas Fernandez Merc...)") ?>
+                                                         <?= htmlspecialchars($fix->last_event ?? '') ?>
                                                      </span>
                                                  </div>
                                                  <span style="font-size: 0.65rem; color: #94a3b8;">▼</span>
@@ -1734,10 +1759,10 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                     <div class="bet-prob-container">
                                         <div class="bet-prob-value-row">
                                             <span class="bet-prob-label"><?= lang('App.over_cards') ?></span>
-                                            <span class="bet-prob-value <?= $class ?>"><?= $prob ?>%</span>
+                                            <span class="bet-prob-value <?= $class ?>" data-prob-value="<?= $fix->fixture_id ?>"><?= $probDisplay ?></span>
                                         </div>
                                         <div class="bet-progress-track">
-                                            <div class="bet-progress-fill <?= $class ?>" style="width: <?= $prob ?>%"></div>
+                                            <div class="bet-progress-fill <?= $class ?>" data-prob-fill="<?= $fix->fixture_id ?>" style="width: <?= $prob ?>%"></div>
                                         </div>
                                     </div>
 
@@ -2505,12 +2530,49 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                             if (bTimeEl && fix.elapsed) bTimeEl.textContent = fix.elapsed + "'";
                             if (bScoreHomeEl && fix.goals_home !== null && fix.goals_home !== undefined) bScoreHomeEl.textContent = fix.goals_home;
                             if (bScoreAwayEl && fix.goals_away !== null && fix.goals_away !== undefined) bScoreAwayEl.textContent = fix.goals_away;
-                            if (bScorersEl && fix.goal_scorers) bScorersEl.textContent = '⚽ ' + fix.goal_scorers;
+                            if (bScorersEl) {
+                                if (fix.goal_scorers) {
+                                    bScorersEl.textContent = '⚽ ' + fix.goal_scorers;
+                                    bScorersEl.style.display = 'block';
+                                } else {
+                                    bScorersEl.style.display = 'none';
+                                }
+                            }
+                            const bRedCardsEl = card.querySelector(`[data-betano-redcards="${fix.fixture_id}"]`);
+                            const bRedCardsContainer = card.querySelector(`[data-betano-redcards-container="${fix.fixture_id}"]`);
+                            if (bRedCardsEl) bRedCardsEl.textContent = `${fix.red_cards_home ?? 0}-${fix.red_cards_away ?? 0}`;
+                            if (bRedCardsContainer) {
+                                const totalRedCards = (parseInt(fix.red_cards_home || 0) + parseInt(fix.red_cards_away || 0));
+                                bRedCardsContainer.style.display = totalRedCards > 0 ? 'flex' : 'none';
+                            }
+
                             if (bCardsEl) bCardsEl.textContent = `${fix.yellow_cards_home ?? 0}-${fix.yellow_cards_away ?? 0}`;
+
+                            const totalCardsInGame = (parseInt(fix.yellow_cards_home || 0) + parseInt(fix.yellow_cards_away || 0) + parseInt(fix.red_cards_home || 0) + parseInt(fix.red_cards_away || 0));
+                            const probValEl = card.querySelector(`[data-prob-value="${fix.fixture_id}"]`);
+                            const probFillEl = card.querySelector(`[data-prob-fill="${fix.fixture_id}"]`);
+                            if (totalCardsInGame >= 5) {
+                                if (probValEl) {
+                                    probValEl.textContent = '100% (BATEU 🟢)';
+                                    probValEl.className = 'bet-prob-value high';
+                                }
+                                if (probFillEl) {
+                                    probFillEl.style.width = '100%';
+                                    probFillEl.className = 'bet-progress-fill high';
+                                }
+                            }
                             if (bCornersEl) bCornersEl.textContent = `${fix.corners_home ?? 0}-${fix.corners_away ?? 0}`;
                             if (bShotsEl) bShotsEl.textContent = `${fix.shots_home ?? 0}-${fix.shots_away ?? 0}`;
                             if (bXgEl) bXgEl.textContent = `${parseFloat(fix.xg_home || 0).toFixed(2)}-${parseFloat(fix.xg_away || 0).toFixed(2)}`;
-                            if (bLastEventEl && fix.last_event) bLastEventEl.textContent = fix.last_event;
+                            if (bLastEventEl) {
+                                const lastEvContainer = card.querySelector(`[data-betano-lastevent-container="${fix.fixture_id}"]`);
+                                if (fix.last_event) {
+                                    bLastEventEl.textContent = fix.last_event;
+                                    if (lastEvContainer) lastEvContainer.style.display = 'flex';
+                                } else {
+                                    if (lastEvContainer) lastEvContainer.style.display = 'none';
+                                }
+                            }
 
                             if (scoreHomeEl && fix.goals_home !== null && fix.goals_home !== undefined) {
                                 scoreHomeEl.textContent = fix.goals_home;

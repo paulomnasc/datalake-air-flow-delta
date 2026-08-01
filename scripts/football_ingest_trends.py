@@ -103,11 +103,11 @@ def generate_fallback_fixtures(target_date):
         (71, "Serie A", "Brasil", [
             ("Flamengo", 127), ("Palmeiras", 121), ("São Paulo", 126), ("Corinthians", 131),
             ("Fluminense", 124), ("Botafogo", 120), ("Grêmio", 130), ("Internacional", 119),
-            ("Atlético-MG", 1062), ("Cruzeiro", 125), ("Vasco da Gama", 133), ("Bahia", 118)
+            ("Atlético-MG", 1062), ("Cruzeiro", 135), ("Vasco da Gama", 133), ("Bahia", 118)
         ]),
         (72, "Serie B", "Brasil", [
             ("Santos", 128), ("Sport Recife", 134), ("Ceará", 129), ("Goiás", 122),
-            ("Coritiba", 132), ("Avaí", 117), ("CRB", 136), ("Vila Nova", 137)
+            ("Coritiba", 147), ("Avaí", 117), ("CRB", 136), ("Vila Nova", 137)
         ]),
         (39, "Premier League", "Inglaterra", [
             ("Arsenal", 42), ("Chelsea", 49), ("Liverpool", 40), ("Manchester City", 50),
@@ -155,6 +155,21 @@ def generate_fallback_fixtures(target_date):
             match_count += 1
             
     return fallback
+
+def count_real_fixtures_in_db(conn, target_date):
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT COUNT(*) as cnt 
+                FROM fixtures_trends 
+                WHERE fixture_id <= 1500000000 
+                  AND DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) = %s
+            """, (target_date,))
+            row = cursor.fetchone()
+            return row['cnt'] if row else 0
+    except Exception as e:
+        print(f"Erro ao consultar jogos reais no banco: {e}")
+        return 0
 
 def main():
     is_live_mode = (len(sys.argv) > 1 and sys.argv[1] == '--live')
@@ -207,10 +222,6 @@ def main():
     fixtures = list(fixtures_map.values())
     print(f"Total de {len(fixtures)} partidas únicas retornadas pela API.")
     
-    if not fixtures:
-        print("⚠️ Nenhuma partida retornada pela API. Ativando gerador de partidas Fallback...")
-        fixtures = generate_fallback_fixtures(target_date)
-        
     # Ligas permitidas para o MVP (inclui ligas europeias e ligas ativas no verão global)
     ALLOWED_LEAGUES = {
         71: "Serie A (Brasil)",
@@ -273,14 +284,31 @@ def main():
             except Exception:
                 filtered_fixtures.append(f)
 
-    if not filtered_fixtures:
-        print(f"⚠️ Nenhuma partida filtrada da API para a data {target_date}. Ativando gerador de partidas Fallback...")
-        filtered_fixtures = generate_fallback_fixtures(target_date)
-        
-    print(f"Processando {len(filtered_fixtures)} partidas filtradas...")
-    
     conn = get_mysql_connection()
     cursor = conn.cursor()
+
+    if not filtered_fixtures:
+        real_in_db = count_real_fixtures_in_db(conn, target_date)
+        if real_in_db > 0:
+            print(f"ℹ️ {real_in_db} partidas reais já existem no banco para a data {target_date}. Ignorando geração de fallback fictício.")
+        else:
+            print(f"⚠️ Nenhuma partida filtrada da API nem no banco para a data {target_date}. Ativando gerador de partidas Fallback...")
+            filtered_fixtures = generate_fallback_fixtures(target_date)
+    else:
+        # Se temos jogos reais para ingerir, limpa quaisquer jogos fictícios de fallback que existirem no banco para esta data
+        try:
+            cursor.execute("""
+                DELETE FROM fixtures_trends 
+                WHERE fixture_id > 1500000000 
+                  AND DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) = %s
+            """, (target_date,))
+            if cursor.rowcount > 0:
+                conn.commit()
+                print(f"🧹 Limpeza automática: removidas {cursor.rowcount} partidas fictícias de fallback da data {target_date}.")
+        except Exception as e:
+            print(f"Aviso ao limpar fallback no banco: {e}")
+
+    print(f"Processando {len(filtered_fixtures)} partidas...")
     
     inserted_referees = 0
     inserted_fixtures = 0

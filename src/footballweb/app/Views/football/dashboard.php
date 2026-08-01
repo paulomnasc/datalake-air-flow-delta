@@ -1455,7 +1455,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                 <div class="d-flex gap-2">
                                     <div class="position-relative flex-grow-1">
                                         <i class="bi bi-search bet-search-icon"></i>
-                                        <input type="text" name="search" class="bet-search-input" placeholder="<?= lang('App.search_placeholder') ?>" value="<?= htmlspecialchars($search ?? '') ?>">
+                                        <input type="text" name="search" id="teamSearchInput" class="bet-search-input" placeholder="<?= lang('App.search_placeholder') ?>" value="<?= htmlspecialchars($search ?? '', ENT_QUOTES) ?>" autocomplete="off">
                                     </div>
                                     <button type="submit" class="btn btn-secondary rounded-3 px-3"><?= lang('App.filter') ?></button>
                                     <?php if(!empty($search) || $showFinished || !empty($showPostponed)): ?>
@@ -1578,7 +1578,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                  $elapsedDisplay = $elapsedText;
                              }
                              ?>
-                             <div class="bet-card" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name) ?>" data-prob="<?= $prob ?>" style="position: relative;">
+                             <div class="bet-card" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
@@ -2074,6 +2074,12 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
 <script>
     let currentLeagueFilter = 'all';
     let currentTabFilter = 'competicoes';
+    let currentSearchFilter = '<?= htmlspecialchars($search ?? '', ENT_QUOTES) ?>';
+
+    function normalizeText(str) {
+        if (!str) return '';
+        return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
 
     // Estado e Histórico do Chatbot
     let chatHistory = [];
@@ -2300,24 +2306,39 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
             });
         }
 
+        const searchInput = document.getElementById('teamSearchInput');
+        if (searchInput) {
+            currentSearchFilter = searchInput.value;
+            searchInput.addEventListener('input', function() {
+                currentSearchFilter = this.value;
+                applyFilters();
+            });
+        }
+
         // Inicializa e agenda a atualização do tempo decorrido
         updateElapsedTimes();
         setInterval(updateElapsedTimes, 10000);
+
+        // Aplica os filtros iniciais
+        applyFilters();
     });
 
-    // Aplica os filtros combinados (Liga + Aba de Destaques)
+    // Aplica os filtros combinados (Liga + Aba de Destaques + Busca por Texto nos Cartões)
     function applyFilters() {
         const cards = document.querySelectorAll('.bet-card');
         let visibleCount = 0;
+        const searchNormalized = normalizeText(currentSearchFilter).trim();
         
         cards.forEach(card => {
             const cardLeague = card.getAttribute('data-league');
             const cardProb = parseFloat(card.getAttribute('data-prob') || '0');
+            const cardTeamsNormalized = normalizeText(card.getAttribute('data-teams') || '');
             
             const matchLeague = (currentLeagueFilter === 'all' || cardLeague === currentLeagueFilter);
             const matchTab = (currentTabFilter === 'competicoes' || cardProb >= 70.0);
+            const matchText = (searchNormalized === '' || cardTeamsNormalized.includes(searchNormalized));
             
-            if (matchLeague && matchTab) {
+            if (matchLeague && matchTab && matchText) {
                 card.style.display = 'flex';
                 visibleCount++;
             } else {

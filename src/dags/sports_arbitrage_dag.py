@@ -15,6 +15,8 @@ import io
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 
 import pendulum
 
@@ -352,13 +354,30 @@ def send_arbitrage_email(**context):
 
     log.info(f"[EMAIL-ARBITRAGEM] Preparando envio de e-mail SMTP via {smtp_host}:{smtp_port} para {to_email} (CC: {cc_email})...")
 
-    msg = MIMEMultipart("alternative")
+    timestamp = ti.xcom_pull(task_ids='extract_and_calculate_arbitrage_task', key='timestamp') or datetime.now().strftime("%Y%m%d_%H%M%S")
+    attachment_filename = f"brasileirao_arbitrage_{timestamp}.csv"
+
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
     msg["From"] = f"{smtp_from_name} <{smtp_from}>"
     msg["To"] = to_email
     msg["Cc"] = cc_email
 
-    msg.attach(MIMEText(html_content, "html", "utf-8"))
+    # Corpo do e-mail em HTML
+    html_part = MIMEText(html_content, "html", "utf-8")
+    msg.attach(html_part)
+
+    # Anexo do arquivo CSV
+    csv_bytes = csv_content.encode("utf-8-sig")
+    part = MIMEBase("text", "csv")
+    part.set_payload(csv_bytes)
+    encoders.encode_base64(part)
+    part.add_header(
+        "Content-Disposition",
+        f'attachment; filename="{attachment_filename}"',
+    )
+    msg.attach(part)
+    log.info(f"[EMAIL-ARBITRAGEM] Anexo '{attachment_filename}' ({len(csv_bytes)} bytes) adicionado com sucesso ao e-mail.")
 
     try:
         smtp_client = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
@@ -368,7 +387,7 @@ def send_arbitrage_email(**context):
 
         smtp_client.sendmail(smtp_from, recipients, msg.as_string())
         smtp_client.quit()
-        log.info(f"[EMAIL-ARBITRAGEM] E-mail enviado com sucesso para {recipients}!")
+        log.info(f"[EMAIL-ARBITRAGEM] E-mail com anexo CSV enviado com sucesso para {recipients}!")
     except Exception as err:
         log.error(f"[EMAIL-ARBITRAGEM] Falha ao enviar e-mail via SMTP: {err}")
         raise

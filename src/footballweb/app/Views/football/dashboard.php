@@ -1608,14 +1608,13 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                              <!-- Nomes dos Times e Placar -->
                                              <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; font-weight: 700; font-size: 0.95rem; margin-bottom: 6px;">
                                                  <div style="flex: 1; text-align: right; overflow: hidden; display: flex; align-items: center; justify-content: flex-end; gap: 5px;">
+                                                     <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.85rem; flex-shrink: 0;" title="Mandante (Casa)"></i>
                                                      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;"><?= htmlspecialchars($fix->home_team) ?></span>
-                                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="#38bdf8" style="flex-shrink: 0;"><path d="M12 2L8 4v2H4v6h3v10h10V12h3V6h-4V4l-4-2z"/></svg>
                                                  </div>
                                                  <div style="background: #232d42; padding: 3px 10px; border-radius: 6px; font-size: 1.15rem; font-weight: 800; letter-spacing: 2px; flex-shrink: 0; min-width: 55px;">
                                                      <span data-betano-score-home="<?= $fix->fixture_id ?>"><?= $fix->goals_home ?? 0 ?></span> - <span data-betano-score-away="<?= $fix->fixture_id ?>"><?= $fix->goals_away ?? 0 ?></span>
                                                  </div>
                                                  <div style="flex: 1; text-align: left; overflow: hidden; display: flex; align-items: center; justify-content: flex-start; gap: 5px;">
-                                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="#ef4444" style="flex-shrink: 0;"><path d="M12 2L8 4v2H4v6h3v10h10V12h3V6h-4V4l-4-2z"/></svg>
                                                      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;"><?= htmlspecialchars($fix->away_team) ?></span>
                                                  </div>
                                              </div>
@@ -1671,7 +1670,7 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                                 <?php else: ?>
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
-                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?> <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.8rem; margin-left: 4px;" title="Mandante (Casa)"></i></span>
                                                 <div class="bet-card-badge-container" data-cards-container-home="<?= $fix->fixture_id ?>">
                                                     <?php if (isset($fix->yellow_cards_home) && $fix->yellow_cards_home !== null && $fix->yellow_cards_home > 0): ?>
                                                         <span class="bet-card-badge-item yellow" title="Cartões Amarelos"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_home ?></span>

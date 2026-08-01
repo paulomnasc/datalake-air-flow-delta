@@ -114,6 +114,15 @@ class FootballTrendsController extends BaseController
         $builder->orderBy('ft.fixture_date', 'ASC');
         $fixtures = $builder->get()->getResultObject();
 
+        // Se não houver partidas no banco para a data solicitada, dispara a ingestão (API ou Fallback) e recarrega
+        if (empty($fixtures)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/football_ingest_trends.py';
+            if (file_exists($scriptPath)) {
+                @exec("python3 {$scriptPath} " . escapeshellarg($targetDate));
+                $fixtures = $builder->get()->getResultObject();
+            }
+        }
+
         // Extrai ligas únicas para filtro em abas na View
         $leagues = [];
         $needsGoalsUpdate = false;

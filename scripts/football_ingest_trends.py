@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
+import time
 import requests
 import pymysql
 import hashlib
@@ -486,25 +487,25 @@ def main():
                     fixture_date = VALUES(fixture_date),
                     home_team_id = VALUES(home_team_id),
                     away_team_id = VALUES(away_team_id),
-                    referee_name = VALUES(referee_name),
-                    prediction_text = VALUES(prediction_text),
+                    referee_name = COALESCE(VALUES(referee_name), referee_name),
+                    prediction_text = COALESCE(VALUES(prediction_text), prediction_text),
                     over_cards_probability = VALUES(over_cards_probability),
                     status = VALUES(status),
-                    goals_home = VALUES(goals_home),
-                    goals_away = VALUES(goals_away),
-                    elapsed = VALUES(elapsed),
-                    yellow_cards_home = VALUES(yellow_cards_home),
-                    yellow_cards_away = VALUES(yellow_cards_away),
-                    red_cards_home = VALUES(red_cards_home),
-                    red_cards_away = VALUES(red_cards_away),
-                    corners_home = VALUES(corners_home),
-                    corners_away = VALUES(corners_away),
-                    shots_home = VALUES(shots_home),
-                    shots_away = VALUES(shots_away),
-                    xg_home = VALUES(xg_home),
-                    xg_away = VALUES(xg_away),
-                    goal_scorers = VALUES(goal_scorers),
-                    last_event = VALUES(last_event);
+                    goals_home = COALESCE(VALUES(goals_home), goals_home),
+                    goals_away = COALESCE(VALUES(goals_away), goals_away),
+                    elapsed = COALESCE(VALUES(elapsed), elapsed),
+                    yellow_cards_home = IF(VALUES(yellow_cards_home) > 0, VALUES(yellow_cards_home), yellow_cards_home),
+                    yellow_cards_away = IF(VALUES(yellow_cards_away) > 0, VALUES(yellow_cards_away), yellow_cards_away),
+                    red_cards_home = IF(VALUES(red_cards_home) IS NOT NULL AND VALUES(red_cards_home) > 0, VALUES(red_cards_home), red_cards_home),
+                    red_cards_away = IF(VALUES(red_cards_away) IS NOT NULL AND VALUES(red_cards_away) > 0, VALUES(red_cards_away), red_cards_away),
+                    corners_home = IF(VALUES(corners_home) > 0, VALUES(corners_home), corners_home),
+                    corners_away = IF(VALUES(corners_away) > 0, VALUES(corners_away), corners_away),
+                    shots_home = IF(VALUES(shots_home) > 0, VALUES(shots_home), shots_home),
+                    shots_away = IF(VALUES(shots_away) > 0, VALUES(shots_away), shots_away),
+                    xg_home = IF(VALUES(xg_home) > 0, VALUES(xg_home), xg_home),
+                    xg_away = IF(VALUES(xg_away) > 0, VALUES(xg_away), xg_away),
+                    goal_scorers = COALESCE(VALUES(goal_scorers), goal_scorers),
+                    last_event = COALESCE(VALUES(last_event), last_event);
             """, (
                 fix_id, fix_date, league_id, league_name, home_team, away_team,
                 home_team_id, away_team_id,

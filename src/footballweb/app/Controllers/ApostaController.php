@@ -443,4 +443,82 @@ class ApostaController extends BaseController
             'message' => 'Script de processamento de apostas não encontrado no servidor.'
         ]);
     }
+
+    /**
+     * Exibe o Relatório Rank Top 5 Mercado + Palpite Vencedores (Abre em nova aba)
+     */
+    public function relatorioTop5()
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated']) {
+            session()->setFlashdata('error', 'Você precisa estar logado para visualizar o relatório.');
+            return redirect()->to('/loginUsuario');
+        }
+
+        $userId = $access['user_id'];
+        $db = \Config\Database::connect();
+
+        // Top 5 Combinações (Mercado + Palpite) com mais vitórias do Usuário
+        $queryUser = $db->query("
+            SELECT 
+                mercado,
+                palpite,
+                COUNT(*) as total_vitorias,
+                SUM(valor_aposta) as total_apostado,
+                SUM(ganhos_potenciais) as retorno_total,
+                (SUM(ganhos_potenciais) - SUM(valor_aposta)) as lucro_liquido,
+                AVG(odd) as odd_media
+            FROM apostas
+            WHERE usuario_id = ? AND status = 'Ganha'
+            GROUP BY mercado, palpite
+            ORDER BY total_vitorias DESC, lucro_liquido DESC
+            LIMIT 5
+        ", [$userId]);
+
+        $top5Usuario = $queryUser->getResultArray();
+
+        // Top 5 Combinações da Plataforma (Geral)
+        $queryGeral = $db->query("
+            SELECT 
+                mercado,
+                palpite,
+                COUNT(*) as total_vitorias,
+                SUM(valor_aposta) as total_apostado,
+                SUM(ganhos_potenciais) as retorno_total,
+                (SUM(ganhos_potenciais) - SUM(valor_aposta)) as lucro_liquido,
+                AVG(odd) as odd_media
+            FROM apostas
+            WHERE status = 'Ganha'
+            GROUP BY mercado, palpite
+            ORDER BY total_vitorias DESC, lucro_liquido DESC
+            LIMIT 5
+        ");
+
+        $top5Geral = $queryGeral->getResultArray();
+
+        // Resumo estatístico do Usuário
+        $statSummary = $db->query("
+            SELECT 
+                COUNT(*) as total_apostas,
+                SUM(CASE WHEN status = 'Ganha' THEN 1 ELSE 0 END) as total_ganhas,
+                SUM(CASE WHEN status = 'Perdida' THEN 1 ELSE 0 END) as total_perdidas,
+                COALESCE(SUM(CASE WHEN status = 'Ganha' THEN ganhos_potenciais ELSE 0 END), 0) as retorno_ganhas,
+                COALESCE(SUM(valor_aposta), 0) as total_investido
+            FROM apostas
+            WHERE usuario_id = ?
+        ", [$userId])->getRowArray();
+
+        $data = [
+            'title'       => 'Relatório Rank Top 5 | Mercados & Palpites Vencedores',
+            'user'        => $access['user'],
+            'top5Usuario' => $top5Usuario,
+            'top5Geral'   => $top5Geral,
+            'statSummary' => $statSummary
+        ];
+
+        return view('header', $data)
+             . view('apostas/relatorio_top5', $data)
+             . view('footer');
+    }
 }

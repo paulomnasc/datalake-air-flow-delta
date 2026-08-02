@@ -638,6 +638,10 @@
         <input type="text" id="betSearchInput" placeholder="Buscar aposta..." onkeyup="searchBets()">
       </div>
       
+      <a href="<?= base_url('apostas/relatorio-top5') ?>" target="_blank" class="btn btn-outline-warning rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;">
+        <i class="bi bi-trophy-fill text-warning"></i> Rank Top 5 Vencedores
+      </a>
+
       <button class="btn-new-bet" data-bs-toggle="modal" data-bs-target="#newBetModal">
         <i class="bi bi-plus-lg"></i> Nova Aposta
       </button>

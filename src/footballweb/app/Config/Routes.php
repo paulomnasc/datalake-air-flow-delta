@@ -59,6 +59,7 @@ $routes->post('/apostas/cashout', 'ApostaController::cashout', ['as' => 'apostas
 $routes->post('/apostas/reapostar/(:num)', 'ApostaController::reapostar/$1', ['as' => 'apostas.reapostar']);
 $routes->post('/apostas/reapostar', 'ApostaController::reapostar', ['as' => 'apostas.reapostar_post']);
 $routes->post('/apostas/processar', 'ApostaController::processar', ['as' => 'apostas.processar']);
+$routes->get('/apostas/relatorio-top5', 'ApostaController::relatorioTop5', ['as' => 'apostas.relatorio_top5']);
 
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);

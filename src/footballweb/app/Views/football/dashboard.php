@@ -100,6 +100,117 @@ foreach ($fixtures as $fix) {
     }
 }
 ksort($groupedLeagues); // Ordena países alfabeticamente
+
+if (!function_exists('getBetDecisionTree')) {
+    function getBetDecisionTree($fix) {
+        $leagueName = strtolower($fix->league_name ?? '');
+        
+        // Mapeamento de Países / Palavras-chave da América do Sul / Central
+        $southCentralKeywords = [
+            'brasil', 'brazil', 'serie a', 'serie b', 'serie c', 'carioca', 'paulista', 'mineiro', 'gaucho',
+            'argentina', 'chile', 'colombia', 'colômbia', 'uruguay', 'uruguai', 'paraguay', 'paraguai',
+            'peru', 'ecuador', 'equador', 'bolivia', 'bolívia', 'venezuela', 'mexico', 'méxico',
+            'libertadores', 'sudamericana', 'concacaf', 'primera division', 'categoria primera', 'liga mx'
+        ];
+
+        $isSouthCentral = false;
+        foreach ($southCentralKeywords as $kw) {
+            if (strpos($leagueName, $kw) !== false) {
+                $isSouthCentral = true;
+                break;
+            }
+        }
+
+        // Estatísticas de Faltas/Cartões das Equipes (Média combinada)
+        $homeAvg = isset($fix->home_avg_cards) ? (float)$fix->home_avg_cards : 2.5;
+        $awayAvg = isset($fix->away_avg_cards) ? (float)$fix->away_avg_cards : 2.5;
+        $combinedAvg = $homeAvg + $awayAvg;
+        $isFaltoso = ($combinedAvg >= 4.5);
+
+        // Estatísticas do Árbitro
+        $refAvg = isset($fix->average_yellow_cards) ? (float)$fix->average_yellow_cards : 4.2;
+        $rigorLevel = strtolower($fix->rigor_level ?? '');
+        $isRigoroso = ($refAvg >= 4.5 || strpos($rigorLevel, 'alto') !== false || strpos($rigorLevel, 'muito alto') !== false);
+
+        if ($isSouthCentral) {
+            $regionFull = 'América do Sul / Central';
+            $regionShort = 'Sul/Centro-Am.';
+            
+            if ($isFaltoso && $isRigoroso) {
+                return [
+                    'market'        => 'Mais de 4.5 Cartões',
+                    'line_tag'      => 'OVER 4.5 🟨',
+                    'badge_bg'      => 'background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5);',
+                    'region'        => $regionFull,
+                    'region_short'  => $regionShort,
+                    'foul_style'    => 'Equipes Faltosas (' . number_format($combinedAvg, 1) . ' c/j)',
+                    'foul_short'    => 'Faltoso (' . number_format($combinedAvg, 1) . ')',
+                    'referee'       => 'Árbitro Rigoroso (' . number_format($refAvg, 1) . ' c/j)',
+                    'referee_short' => 'Rigoroso (' . number_format($refAvg, 1) . ')',
+                    'rationale'     => 'Jogo físico na América do Sul/Central + equipes faltosas + árbitro rigoroso. Alta probabilidade de 5+ cartões.'
+                ];
+            } elseif ($isFaltoso && !$isRigoroso) {
+                return [
+                    'market'        => 'Menos de 7.5 Cartões',
+                    'line_tag'      => 'UNDER 7.5 🛡️',
+                    'badge_bg'      => 'background: rgba(59, 130, 246, 0.25); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.5);',
+                    'region'        => $regionFull,
+                    'region_short'  => $regionShort,
+                    'foul_style'    => 'Equipes Faltosas (' . number_format($combinedAvg, 1) . ' c/j)',
+                    'foul_short'    => 'Faltoso (' . number_format($combinedAvg, 1) . ')',
+                    'referee'       => 'Árbitro Moderado/Brando (' . number_format($refAvg, 1) . ' c/j)',
+                    'referee_short' => 'Brando (' . number_format($refAvg, 1) . ')',
+                    'rationale'     => 'Times faltosos, porém o árbitro brando evita chuva de amarelos. Proteção de segurança no Under 7.5.'
+                ];
+            } else {
+                return [
+                    'market'        => 'Menos de 6.5 Cartões',
+                    'line_tag'      => 'UNDER 6.5 🛡️',
+                    'badge_bg'      => 'background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5);',
+                    'region'        => $regionFull,
+                    'region_short'  => $regionShort,
+                    'foul_style'    => 'Faltas Moderadas (' . number_format($combinedAvg, 1) . ' c/j)',
+                    'foul_short'    => 'Moderado (' . number_format($combinedAvg, 1) . ')',
+                    'referee'       => ($isRigoroso ? 'Árbitro Rigoroso' : 'Árbitro Moderado') . ' (' . number_format($refAvg, 1) . ' c/j)',
+                    'referee_short' => ($isRigoroso ? 'Rigoroso' : 'Moderado') . ' (' . number_format($refAvg, 1) . ')',
+                    'rationale'     => 'Média de faltas contida das equipes garante teto sob controle. Entrada recomendada em Under 6.5.'
+                ];
+            }
+        } else {
+            // Europa / América do Norte / Outros
+            $regionFull = 'Europa / América do Norte (MLS)';
+            $regionShort = 'Euro / MLS';
+            
+            if ($isRigoroso) {
+                return [
+                    'market'        => 'Menos de 5.5 Cartões',
+                    'line_tag'      => 'UNDER 5.5 🛡️',
+                    'badge_bg'      => 'background: rgba(139, 92, 246, 0.25); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.5);',
+                    'region'        => $regionFull,
+                    'region_short'  => $regionShort,
+                    'foul_style'    => 'Jogo Fluido / Poucas Faltas (' . number_format($combinedAvg, 1) . ' c/j)',
+                    'foul_short'    => 'Pouco Faltoso (' . number_format($combinedAvg, 1) . ')',
+                    'referee'       => 'Árbitro Rigoroso (' . number_format($refAvg, 1) . ' c/j)',
+                    'referee_short' => 'Rigoroso (' . number_format($refAvg, 1) . ')',
+                    'rationale'     => 'Estilo fluido com poucas faltas táticas. Mesmo com juiz rigoroso, o teto da partida dificilmente supera 5 cartões.'
+                ];
+            } else {
+                return [
+                    'market'        => 'Menos de 4.5 ou 5.5 Cartões',
+                    'line_tag'      => 'UNDER 4.5 🛡️',
+                    'badge_bg'      => 'background: rgba(6, 182, 212, 0.25); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.5);',
+                    'region'        => $regionFull,
+                    'region_short'  => $regionShort,
+                    'foul_style'    => 'Jogo Limpo (' . number_format($combinedAvg, 1) . ' c/j)',
+                    'foul_short'    => 'Jogo Limpo (' . number_format($combinedAvg, 1) . ')',
+                    'referee'       => 'Árbitro Moderado/Brando (' . number_format($refAvg, 1) . ' c/j)',
+                    'referee_short' => 'Brando (' . number_format($refAvg, 1) . ')',
+                    'rationale'     => 'Jogo limpo sem faltas duras e arbitragem condescendente. Elevada tendência de poucos cartões (Under 4.5).'
+                ];
+            }
+        }
+    }
+}
 ?>
 
 <style>
@@ -1775,6 +1886,38 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                         <?= htmlspecialchars($fix->prediction_text) ?>
                                     </p>
 
+                                    <!-- Árvore de Decisão: Sugestão de Aposta -->
+                                    <?php $decision = getBetDecisionTree($fix); ?>
+                                    <div class="bet-decision-tree-box" style="margin: 10px 0; padding: 10px 12px; background: rgba(15, 23, 42, 0.85); border-radius: 8px; border-left: 4px solid #f47c20; font-size: 0.8rem; color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
+                                            <span style="font-weight: 700; color: #f47c20; display: flex; align-items: center; gap: 5px; font-size: 0.82rem;">
+                                                <i class="bi bi-diagram-3-fill"></i> Árvore de Decisão:
+                                            </span>
+                                            <span class="badge" style="<?= $decision['badge_bg'] ?> font-weight: 700; font-size: 0.76rem; padding: 4px 8px; border-radius: 4px; letter-spacing: 0.5px;">
+                                                <?= $decision['line_tag'] ?>
+                                            </span>
+                                        </div>
+                                        
+                                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; font-size: 0.72rem; text-align: center; background: rgba(30, 41, 59, 0.6); padding: 5px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                                            <div style="padding: 2px;">
+                                                <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🌎 Região</span>
+                                                <strong style="color: #e2e8f0; font-size: 0.72rem;"><?= $decision['region_short'] ?></strong>
+                                            </div>
+                                            <div style="padding: 2px; border-left: 1px solid rgba(255,255,255,0.08); border-right: 1px solid rgba(255,255,255,0.08);">
+                                                <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🟨 Times</span>
+                                                <strong style="color: #fbbf24; font-size: 0.72rem;"><?= $decision['foul_short'] ?></strong>
+                                            </div>
+                                            <div style="padding: 2px;">
+                                                <span style="display: block; color: #94a3b8; font-size: 0.67rem;">⚖️ Árbitro</span>
+                                                <strong style="color: #38bdf8; font-size: 0.72rem;"><?= $decision['referee_short'] ?></strong>
+                                            </div>
+                                        </div>
+
+                                        <div style="font-size: 0.75rem; color: #e2e8f0; line-height: 1.35; background: rgba(30, 41, 59, 0.7); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(244, 124, 32, 0.2);">
+                                            💡 <strong>Sugestão:</strong> <?= $decision['rationale'] ?>
+                                        </div>
+                                    </div>
+
                                     <!-- Painel Expansível de Estatísticas Detalhadas -->
                                     <div id="detailed-stats-<?= $fix->fixture_id ?>" class="detailed-stats-panel" style="display: none; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(244, 124, 32, 0.4); border-radius: 8px; padding: 12px; margin: 10px 0; font-size: 0.82rem; color: #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
@@ -1872,7 +2015,8 @@ ksort($groupedLeagues); // Ordena países alfabeticamente
                                             <ul style="padding-left: 15px; margin-bottom: 0; color: #cbd5e1; line-height: 1.45;">
                                                 <li style="margin-bottom: 4px;">⚽ <strong>Gols:</strong> <?= $insightGols ?></li>
                                                 <li style="margin-bottom: 4px;">🚩 <strong>Escanteios:</strong> <?= $insightCantos ?></li>
-                                                <li>🟨 <strong>Cartões:</strong> <?= $insightCartoes ?></li>
+                                                <li style="margin-bottom: 4px;">🟨 <strong>Cartões:</strong> <?= $insightCartoes ?></li>
+                                                <li>🌳 <strong>Árvore de Decisão:</strong> <strong><?= $decision['market'] ?></strong> (Região: <?= $decision['region_short'] ?> | Times: <?= $decision['foul_short'] ?> | Árbitro: <?= $decision['referee_short'] ?>) — <?= $decision['rationale'] ?></li>
                                             </ul>
                                         </div>
                                     </div>

@@ -203,25 +203,57 @@ class ApostaController extends BaseController
         }
 
         $apostaId = (int)($id ?? $this->request->getPost('id'));
-        $aposta = $this->apostaModel->find($apostaId);
-
-        if (!$aposta || (int)$aposta->usuario_id !== $access['user_id']) {
+        if ($apostaId <= 0) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Aposta não encontrada ou acesso negado.'
+                'message' => 'ID de aposta inválido.'
+            ])->setStatusCode(400);
+        }
+
+        $aposta = $this->apostaModel->find($apostaId);
+
+        if (!$aposta) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Aposta não encontrada.'
             ])->setStatusCode(404);
         }
 
-        $timeCasa        = trim($this->request->getPost('time_casa') ?? $aposta->time_casa);
-        $timeFora        = trim($this->request->getPost('time_fora') ?? $aposta->time_fora);
-        $mercado         = trim($this->request->getPost('mercado') ?? $aposta->mercado);
-        $palpite         = trim($this->request->getPost('palpite') ?? $aposta->palpite);
-        $odd             = $this->request->getPost('odd') !== null ? (float)$this->request->getPost('odd') : (float)$aposta->odd;
-        $valorAposta     = $this->request->getPost('valor_aposta') !== null ? (float)$this->request->getPost('valor_aposta') : (float)$aposta->valor_aposta;
-        $status          = trim($this->request->getPost('status') ?? $aposta->status);
-        $tipo            = trim($this->request->getPost('tipo') ?? $aposta->tipo);
-        $cashOut         = $this->request->getPost('cash_out') !== null && $this->request->getPost('cash_out') !== ''
-                           ? (float)$this->request->getPost('cash_out') : $aposta->cash_out;
+        // Permite atualização se for o dono da aposta ou se for admin (ID 146)
+        if ((int)$aposta->usuario_id !== (int)$access['user_id'] && (int)$access['user_id'] !== 146) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Aposta não encontrada ou acesso negado.'
+            ])->setStatusCode(403);
+        }
+
+        $postTimeCasa  = $this->request->getPost('time_casa');
+        $postTimeFora  = $this->request->getPost('time_fora');
+        $postMercado   = $this->request->getPost('mercado');
+        $postPalpite   = $this->request->getPost('palpite');
+        $postOdd       = $this->request->getPost('odd');
+        $postValor     = $this->request->getPost('valor_aposta');
+        $postStatus    = $this->request->getPost('status');
+        $postTipo      = $this->request->getPost('tipo');
+        $postCashOut   = $this->request->getPost('cash_out');
+
+        $timeCasa  = ($postTimeCasa !== null && trim($postTimeCasa) !== '') ? trim($postTimeCasa) : $aposta->time_casa;
+        $timeFora  = ($postTimeFora !== null && trim($postTimeFora) !== '') ? trim($postTimeFora) : $aposta->time_fora;
+        $mercado   = ($postMercado  !== null && trim($postMercado) !== '')  ? trim($postMercado)  : $aposta->mercado;
+        $palpite   = ($postPalpite  !== null && trim($postPalpite) !== '')  ? trim($postPalpite)  : $aposta->palpite;
+        $odd       = ($postOdd !== null && $postOdd !== '') ? (float)$postOdd : (float)$aposta->odd;
+        $valorAposta = ($postValor !== null && $postValor !== '') ? (float)$postValor : (float)$aposta->valor_aposta;
+        $status    = ($postStatus   !== null && trim($postStatus) !== '')   ? trim($postStatus)   : $aposta->status;
+        $tipo      = ($postTipo     !== null && trim($postTipo) !== '')     ? trim($postTipo)     : $aposta->tipo;
+
+        $cashOut   = ($postCashOut !== null && trim((string)$postCashOut) !== '') ? (float)$postCashOut : $aposta->cash_out;
+
+        if (empty($timeCasa) || empty($timeFora) || empty($palpite) || $odd <= 0 || $valorAposta <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Por favor, preencha corretamente os campos obrigatórios (Times, Palpite, Odd e Valor da Aposta).'
+            ]);
+        }
 
         $ganhosPotenciais = round($odd * $valorAposta, 2);
 
@@ -239,12 +271,26 @@ class ApostaController extends BaseController
             'updated_at'        => date('Y-m-d H:i:s')
         ];
 
-        $this->apostaModel->update($apostaId, $dataUpdate);
+        try {
+            $updated = $this->apostaModel->update($apostaId, $dataUpdate);
+            if ($updated === false) {
+                $errors = implode(', ', $this->apostaModel->errors() ?: ['Erro ao atualizar registro.']);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Erro ao salvar no banco: ' . $errors
+                ]);
+            }
 
-        return $this->response->setJSON([
-            'success' => true,
-            'message' => 'Aposta atualizada com sucesso!'
-        ]);
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Aposta atualizada com sucesso!'
+            ]);
+        } catch (\Throwable $e) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro no banco de dados: ' . $e->getMessage()
+            ]);
+        }
     }
 
     /**
@@ -264,10 +310,10 @@ class ApostaController extends BaseController
         $apostaId = (int)($id ?? $this->request->getPost('id'));
         $aposta = $this->apostaModel->find($apostaId);
 
-        if (!$aposta || (int)$aposta->usuario_id !== $access['user_id']) {
+        if (!$aposta || ((int)$aposta->usuario_id !== (int)$access['user_id'] && (int)$access['user_id'] !== 146)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Aposta não encontrada.'
+                'message' => 'Aposta não encontrada ou acesso negado.'
             ]);
         }
 
@@ -288,7 +334,7 @@ class ApostaController extends BaseController
     }
 
     /**
-     * Duplica/Reaposta uma aposta existente (AJAX)
+     * Duplica/Reapostar uma aposta existente (AJAX)
      */
     public function reapostar($id = null)
     {
@@ -304,7 +350,7 @@ class ApostaController extends BaseController
         $apostaId = (int)($id ?? $this->request->getPost('id'));
         $aposta = $this->apostaModel->find($apostaId);
 
-        if (!$aposta || (int)$aposta->usuario_id !== $access['user_id']) {
+        if (!$aposta || ((int)$aposta->usuario_id !== (int)$access['user_id'] && (int)$access['user_id'] !== 146)) {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => 'Aposta não encontrada.'
@@ -352,7 +398,7 @@ class ApostaController extends BaseController
         $apostaId = (int)($id ?? $this->request->getPost('id'));
         $aposta = $this->apostaModel->find($apostaId);
 
-        if (!$aposta || (int)$aposta->usuario_id !== $access['user_id']) {
+        if (!$aposta || ((int)$aposta->usuario_id !== (int)$access['user_id'] && (int)$access['user_id'] !== 146)) {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => 'Aposta não encontrada ou acesso negado.'

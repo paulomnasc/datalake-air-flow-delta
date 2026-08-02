@@ -712,12 +712,12 @@
             </div>
 
             <div class="actions-secondary">
-              <button class="btn-icon-link" onclick="shareBet('<?= htmlspecialchars($aposta->time_casa) ?>', '<?= htmlspecialchars($aposta->time_fora) ?>', '<?= htmlspecialchars($aposta->palpite) ?>', '<?= number_format($aposta->odd, 2) ?>')">
+              <button class="btn-icon-link" onclick="shareBet('<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', '<?= number_format($aposta->odd, 2) ?>')">
                 <i class="bi bi-share"></i> Compartilhar
               </button>
 
               <div class="d-flex gap-2">
-                <button class="btn-icon-link" onclick="openEditModal(<?= htmlspecialchars(json_encode($aposta)) ?>)" title="Editar Aposta">
+                <button class="btn-icon-link" onclick="openEditModal(<?= htmlspecialchars(json_encode($aposta, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)" title="Editar Aposta">
                   <i class="bi bi-pencil"></i> Editar
                 </button>
                 <button class="btn-icon-link danger" onclick="handleDelete(<?= $aposta->id ?>)" title="Excluir Aposta">
@@ -976,7 +976,7 @@
     formData.append('status', document.getElementById('statusSelect').value);
     formData.append('fixture_id', document.getElementById('fixtureSelect').value);
 
-    fetch('<?= base_url('apostas/store') ?>', {
+    fetch('/apostas/store', {
       method: 'POST',
       body: formData
     })
@@ -1027,7 +1027,7 @@
     formData.append('tipo', document.getElementById('editTipoSelect').value);
     formData.append('status', document.getElementById('editStatusSelect').value);
 
-    fetch('<?= base_url('apostas/update') ?>/' + id, {
+    fetch('/apostas/update/' + id, {
       method: 'POST',
       body: formData
     })
@@ -1053,7 +1053,7 @@
     formData.append('id', id);
     formData.append('valor_cashout', valor);
 
-    fetch('<?= base_url('apostas/cashout') ?>/' + id, {
+    fetch('/apostas/cashout/' + id, {
       method: 'POST',
       body: formData
     })
@@ -1074,7 +1074,7 @@
     const formData = new FormData();
     formData.append('id', id);
 
-    fetch('<?= base_url('apostas/reapostar') ?>/' + id, {
+    fetch('/apostas/reapostar/' + id, {
       method: 'POST',
       body: formData
     })
@@ -1095,7 +1095,7 @@
     const formData = new FormData();
     formData.append('id', id);
 
-    fetch('<?= base_url('apostas/delete') ?>/' + id, {
+    fetch('/apostas/delete/' + id, {
       method: 'POST',
       body: formData
     })
@@ -1124,7 +1124,7 @@
   function triggerProcessarDAG() {
     if (!confirm('Deseja disparar manualmente a auditoria e verificação das 23:00 hs para liquidar apostas pendentes do dia?')) return;
 
-    fetch('<?= base_url('apostas/processar') ?>', {
+    fetch('/apostas/processar', {
       method: 'POST'
     })
     .then(r => r.json())

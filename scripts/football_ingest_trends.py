@@ -183,7 +183,7 @@ def main():
     target_dt = datetime.strptime(target_date, '%Y-%m-%d')
     next_date = (target_dt + timedelta(days=1)).strftime('%Y-%m-%d')
     
-    api_key = os.getenv("FOOTBALL_API_KEY", "7b4fb9e75c6763132d5752ceb6dcee37")
+    api_key = os.getenv("FOOTBALL_API_KEY", "0327019c6fab54df2ea46009b5f0844b")
     headers = {
         "x-apisports-key": api_key,
         "Content-Type": "application/json"
@@ -198,6 +198,8 @@ def main():
             response = requests.get(url, headers=headers, timeout=30)
             response.raise_for_status()
             data = response.json()
+            if data.get("errors"):
+                print(f"⚠️ Erro/Aviso retornado pela API-Football: {data.get('errors')}")
             for fix in data.get("response", []):
                 fix_id = fix.get("fixture", {}).get("id")
                 if fix_id:
@@ -212,6 +214,8 @@ def main():
                 response = requests.get(url, headers=headers, timeout=30)
                 response.raise_for_status()
                 data = response.json()
+                if data.get("errors"):
+                    print(f"⚠️ Erro/Aviso retornado pela API-Football (data {d}): {data.get('errors')}")
                 for fix in data.get("response", []):
                     fix_id = fix.get("fixture", {}).get("id")
                     if fix_id:

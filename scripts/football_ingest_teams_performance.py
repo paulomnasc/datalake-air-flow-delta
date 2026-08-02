@@ -93,7 +93,7 @@ def main():
     
     print(f"Encontrados {len(teams)} times únicos na agenda para processar nos próximos 7 dias.")
     
-    api_key = os.getenv("FOOTBALL_API_KEY", "7b4fb9e75c6763132d5752ceb6dcee37")
+    api_key = os.getenv("FOOTBALL_API_KEY", "0327019c6fab54df2ea46009b5f0844b")
     headers = {
         "x-apisports-key": api_key,
         "Content-Type": "application/json"

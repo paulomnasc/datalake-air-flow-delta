@@ -1,0 +1,1144 @@
+<?php
+/**
+ * View: Gestão de Apostas (CRUD & UX)
+ * Apenas acessível para usuários com tokens de consulta.
+ */
+?>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bet-bg: #0d1117;
+    --bet-card-bg: #161b22;
+    --bet-card-border: #21262d;
+    --bet-primary: #00e676;
+    --bet-primary-glow: rgba(0, 230, 118, 0.25);
+    --bet-accent: #00b0ff;
+    --bet-gold: #ffd600;
+    --bet-danger: #ff5252;
+    --bet-text-main: #f0f6fc;
+    --bet-text-muted: #8b949e;
+  }
+
+  body {
+    background-color: var(--bet-bg) !important;
+    font-family: 'Inter', sans-serif;
+    color: var(--bet-text-main);
+  }
+
+  .bet-container {
+    max-width: 1300px;
+    margin: 30px auto;
+    padding: 0 20px 60px 20px;
+  }
+
+  /* Header banner */
+  .bet-header {
+    background: linear-gradient(135deg, #161b22 0%, #1f2937 100%);
+    border: 1px solid var(--bet-card-border);
+    border-radius: 16px;
+    padding: 28px 36px;
+    margin-bottom: 30px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  .bet-title h1 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 2.2rem;
+    color: #ffffff;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .bet-title h1 i {
+    color: var(--bet-primary);
+    text-shadow: 0 0 15px var(--bet-primary-glow);
+  }
+
+  .bet-subtitle {
+    color: var(--bet-text-muted);
+    margin-top: 6px;
+    font-size: 0.95rem;
+  }
+
+  .token-badge {
+    background: rgba(0, 230, 118, 0.12);
+    border: 1px solid rgba(0, 230, 118, 0.3);
+    color: var(--bet-primary);
+    padding: 8px 18px;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .token-badge-locked {
+    background: rgba(255, 82, 82, 0.12);
+    border: 1px solid rgba(255, 82, 82, 0.3);
+    color: var(--bet-danger);
+  }
+
+  /* Cards Resumo */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+  }
+
+  .stat-card {
+    background: var(--bet-card-bg);
+    border: 1px solid var(--bet-card-border);
+    border-radius: 14px;
+    padding: 20px 24px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  }
+
+  .stat-label {
+    color: var(--bet-text-muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .stat-value.primary { color: var(--bet-primary); }
+  .stat-value.accent  { color: var(--bet-accent); }
+  .stat-value.gold    { color: var(--bet-gold); }
+
+  /* Toolbar */
+  .bet-toolbar {
+    background: var(--bet-card-bg);
+    border: 1px solid var(--bet-card-border);
+    border-radius: 14px;
+    padding: 16px 24px;
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .bet-filters {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: var(--bet-text-muted);
+    padding: 8px 16px;
+    border-radius: 30px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .filter-btn.active, .filter-btn:hover {
+    background: var(--bet-primary);
+    color: #000000;
+    border-color: var(--bet-primary);
+    font-weight: 700;
+  }
+
+  .search-box {
+    position: relative;
+    min-width: 240px;
+  }
+
+  .search-box input {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    color: #ffffff;
+    padding: 8px 16px 8px 38px;
+    border-radius: 30px;
+    font-size: 0.9rem;
+    width: 100%;
+  }
+
+  .search-box i {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--bet-text-muted);
+  }
+
+  .btn-new-bet {
+    background: linear-gradient(135deg, #00e676 0%, #00b0ff 100%);
+    color: #000000;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+    padding: 10px 24px;
+    border-radius: 30px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 15px var(--bet-primary-glow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-new-bet:hover {
+    transform: scale(1.03);
+    box-shadow: 0 6px 20px rgba(0, 230, 118, 0.4);
+    color: #000000;
+  }
+
+  /* Bet Cards Grid */
+  .bets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 24px;
+  }
+
+  .bet-card-item {
+    background: var(--bet-card-bg);
+    border: 1px solid var(--bet-card-border);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .bet-card-item:hover {
+    transform: translateY(-4px);
+    border-color: rgba(0, 230, 118, 0.4);
+  }
+
+  .bet-card-header {
+    background: #1c2128;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--bet-card-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .match-teams {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #ffffff;
+  }
+
+  .match-time {
+    font-size: 0.8rem;
+    color: var(--bet-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .bet-card-body {
+    padding: 20px;
+    flex: 1;
+  }
+
+  .market-info {
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .market-name {
+    font-size: 0.85rem;
+    color: var(--bet-text-muted);
+    font-weight: 500;
+  }
+
+  .palpite-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-top: 2px;
+  }
+
+  .odd-badge {
+    background: var(--bet-primary);
+    color: #000000;
+    font-weight: 800;
+    font-size: 1.1rem;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .values-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .val-box {
+    background: #1c2128;
+    padding: 12px;
+    border-radius: 10px;
+    text-align: center;
+    border: 1px solid #282e38;
+  }
+
+  .val-box.highlight {
+    background: rgba(0, 230, 118, 0.06);
+    border-color: rgba(0, 230, 118, 0.2);
+  }
+
+  .val-title {
+    font-size: 0.75rem;
+    color: var(--bet-text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .val-amount {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: 1.25rem;
+    color: #ffffff;
+    margin-top: 2px;
+  }
+
+  .val-amount.primary { color: var(--bet-primary); }
+
+  .status-tag {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .status-Pendente { background: rgba(255, 214, 0, 0.15); color: var(--bet-gold); border: 1px solid rgba(255, 214, 0, 0.3); }
+  .status-Ganha    { background: rgba(0, 230, 118, 0.15); color: var(--bet-primary); border: 1px solid rgba(0, 230, 118, 0.3); }
+  .status-Perdida  { background: rgba(255, 82, 82, 0.15); color: var(--bet-danger); border: 1px solid rgba(255, 82, 82, 0.3); }
+  .status-Cashout  { background: rgba(0, 176, 255, 0.15); color: var(--bet-accent); border: 1px solid rgba(0, 176, 255, 0.3); }
+
+  .bet-card-footer {
+    padding: 16px 20px;
+    background: #14181f;
+    border-top: 1px solid var(--bet-card-border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .actions-primary {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn-cashout {
+    flex: 1;
+    background: linear-gradient(135deg, #ff9100 0%, #ff3d00 100%);
+    color: #ffffff;
+    font-weight: 800;
+    font-family: 'Outfit', sans-serif;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s, opacity 0.2s;
+    font-size: 0.95rem;
+  }
+
+  .btn-cashout:hover {
+    transform: scale(1.02);
+    opacity: 0.95;
+  }
+
+  .btn-reapostar {
+    background: #21262d;
+    color: #ffffff;
+    border: 1px solid #30363d;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 0.85rem;
+  }
+
+  .btn-reapostar:hover {
+    background: #30363d;
+  }
+
+  .actions-secondary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .btn-icon-link {
+    background: transparent;
+    border: none;
+    color: var(--bet-text-muted);
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: color 0.2s;
+  }
+
+  .btn-icon-link:hover {
+    color: #ffffff;
+  }
+
+  .btn-icon-link.danger:hover {
+    color: var(--bet-danger);
+  }
+
+  /* Locked overlay CSS */
+  .locked-container {
+    position: relative;
+  }
+
+  .blur-overlay {
+    filter: blur(6px);
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.4;
+  }
+
+  .lock-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(13, 17, 23, 0.85);
+    backdrop-filter: blur(10px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .lock-modal-card {
+    background: #161b22;
+    border: 1px solid rgba(255, 82, 82, 0.4);
+    border-radius: 24px;
+    padding: 40px;
+    max-width: 540px;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(255, 82, 82, 0.15);
+  }
+
+  .lock-icon-circle {
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 82, 82, 0.1);
+    border: 2px solid var(--bet-danger);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px auto;
+    color: var(--bet-danger);
+    font-size: 2.2rem;
+  }
+
+  .lock-modal-card h2 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 1.8rem;
+    color: #ffffff;
+    margin-bottom: 12px;
+  }
+
+  .lock-modal-card p {
+    color: var(--bet-text-muted);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 28px;
+  }
+
+  .btn-recharge {
+    background: linear-gradient(135deg, #00e676 0%, #00b0ff 100%);
+    color: #000000;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 1.1rem;
+    padding: 14px 32px;
+    border-radius: 50px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 6px 20px var(--bet-primary-glow);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .btn-recharge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 230, 118, 0.4);
+    color: #000000;
+  }
+
+  /* Modal Form Styling */
+  .modal-dark .modal-content {
+    background-color: var(--bet-card-bg);
+    border: 1px solid var(--bet-card-border);
+    color: var(--bet-text-main);
+    border-radius: 16px;
+  }
+
+  .modal-dark .modal-header {
+    border-bottom: 1px solid var(--bet-card-border);
+  }
+
+  .modal-dark .modal-footer {
+    border-top: 1px solid var(--bet-card-border);
+  }
+
+  .modal-dark .form-control, .modal-dark .form-select {
+    background-color: #0d1117;
+    border: 1px solid #30363d;
+    color: #ffffff;
+  }
+
+  .modal-dark .form-control:focus, .modal-dark .form-select:focus {
+    border-color: var(--bet-primary);
+    box-shadow: 0 0 0 0.25rem var(--bet-primary-glow);
+  }
+</style>
+
+<!-- MODAL BLOQUEIO SE NÃO TIVER TOKENS -->
+<?php if (!$hasTokens): ?>
+  <div class="lock-modal-backdrop">
+    <div class="lock-modal-card">
+      <div class="lock-icon-circle">
+        <i class="bi bi-lock-fill"></i>
+      </div>
+      <h2>Acesso Restrito a Gestão de Apostas</h2>
+      <p>
+        A persistência e o acompanhamento de apostas na plataforma são recursos exclusivos para usuários que possuem <strong>Tokens de Consulta</strong> ativos.
+        <br><br>
+        Seu saldo atual: <strong class="text-danger">0 Tokens</strong>. Recarreague agora mesmo para liberar o painel completo de palpites e acompanhamento.
+      </p>
+      <a href="<?= base_url('subscription/buyGrokCredits') ?>" class="btn-recharge">
+        <i class="bi bi-lightning-charge-fill"></i> Recarregar Tokens de Consulta (R$ 10,00)
+      </a>
+    </div>
+  </div>
+<?php endif; ?>
+
+<div class="bet-container <?= !$hasTokens ? 'locked-container blur-overlay' : '' ?>">
+
+  <!-- Header -->
+  <div class="bet-header">
+    <div class="bet-title">
+      <h1><i class="bi bi-ticket-detailed-fill"></i> Minhas Apostas</h1>
+      <div class="bet-subtitle">Gerencie e persista suas apostas, odds, retornos potenciais e controle de cash out.</div>
+    </div>
+    <div>
+      <?php if ($hasTokens): ?>
+        <div class="token-badge">
+          <i class="bi bi-coin"></i> Tokens de Consulta: <strong><?= $userCredits ?> disponíveis</strong>
+        </div>
+      <?php else: ?>
+        <div class="token-badge token-badge-locked">
+          <i class="bi bi-exclamation-triangle-fill"></i> Tokens Insuficientes (0)
+        </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- DAG 23:00 Notification & Manual Trigger Bar -->
+  <div style="background: rgba(0, 176, 255, 0.08); border: 1px solid rgba(0, 176, 255, 0.25); border-radius: 14px; padding: 16px 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+    <div class="d-flex align-items-center gap-3">
+      <div style="width: 42px; height: 42px; background: rgba(0, 176, 255, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--bet-accent); font-size: 1.3rem;">
+        <i class="bi bi-clock-history"></i>
+      </div>
+      <div>
+        <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">Processamento Automático Diário (Airflow DAG - 23:00 hs)</div>
+        <div style="font-size: 0.82rem; color: var(--bet-text-muted);">As apostas dos jogos encerrados do dia são auditadas e liquidadas automaticamente todas as noites às 23:00 hs.</div>
+      </div>
+    </div>
+    <button class="btn btn-sm btn-outline-info rounded-pill px-3 fw-bold d-flex align-items-center gap-2" onclick="triggerProcessarDAG()">
+      <i class="bi bi-arrow-clockwise"></i> Executar Verificação das 23h Agora
+    </button>
+  </div>
+
+  <!-- Cards Resumo Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label"><i class="bi bi-cash-stack"></i> Total Apostado</div>
+      <div class="stat-value">R$ <?= number_format($resumo['total_apostado'] ?? 0, 2, ',', '.') ?></div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label"><i class="bi bi-trophy"></i> Ganhos Potenciais</div>
+      <div class="stat-value primary">R$ <?= number_format($resumo['ganhos_totais'] ?? 0, 2, ',', '.') ?></div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label"><i class="bi bi-box-arrow-in-down-left"></i> Retorno Cash Out</div>
+      <div class="stat-value accent">R$ <?= number_format($resumo['total_cashout'] ?? 0, 2, ',', '.') ?></div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label"><i class="bi bi-list-check"></i> Total de Apostas</div>
+      <div class="stat-value gold"><?= $resumo['total_apostas'] ?? 0 ?></div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="bet-toolbar">
+    <div class="bet-filters">
+      <button class="filter-btn active" onclick="filterBets('all', this)">Todas (<?= count($apostas) ?>)</button>
+      <button class="filter-btn" onclick="filterBets('Pendente', this)">Pendentes (<?= $resumo['pendentes'] ?? 0 ?>)</button>
+      <button class="filter-btn" onclick="filterBets('Ganha', this)">Ganhas (<?= $resumo['ganhas'] ?? 0 ?>)</button>
+      <button class="filter-btn" onclick="filterBets('Perdida', this)">Perdidas (<?= $resumo['perdidas'] ?? 0 ?>)</button>
+      <button class="filter-btn" onclick="filterBets('Cashout', this)">Cashout (<?= $resumo['cashouts'] ?? 0 ?>)</button>
+    </div>
+
+    <div class="d-flex align-items-center gap-3">
+      <div class="search-box">
+        <i class="bi bi-search"></i>
+        <input type="text" id="betSearchInput" placeholder="Buscar aposta..." onkeyup="searchBets()">
+      </div>
+      
+      <button class="btn-new-bet" data-bs-toggle="modal" data-bs-target="#newBetModal">
+        <i class="bi bi-plus-lg"></i> Nova Aposta
+      </button>
+    </div>
+  </div>
+
+  <!-- Bet Cards Grid -->
+  <div class="bets-grid" id="betsContainer">
+    <?php if (empty($apostas)): ?>
+      <div class="w-100 text-center py-5" style="grid-column: 1 / -1; color: var(--bet-text-muted);">
+        <i class="bi bi-inbox" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
+        <h5>Nenhuma aposta cadastrada ainda.</h5>
+        <p>Clique no botão <strong>Nova Aposta</strong> acima para adicionar seu primeiro palpite.</p>
+      </div>
+    <?php else: ?>
+      <?php foreach ($apostas as $aposta): ?>
+        <div class="bet-card-item" data-status="<?= htmlspecialchars($aposta->status) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
+          
+          <div class="bet-card-header">
+            <div class="match-teams">
+              <?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?>
+            </div>
+            <div class="match-time">
+              <i class="bi bi-clock"></i>
+              <?= $aposta->data_hora_jogo ? date('d/m H:i', strtotime($aposta->data_hora_jogo)) : 'Hoje' ?>
+            </div>
+          </div>
+
+          <div class="bet-card-body">
+            <div class="market-info">
+              <div>
+                <div class="market-name"><?= htmlspecialchars($aposta->mercado) ?></div>
+                <div class="palpite-name"><?= htmlspecialchars($aposta->palpite) ?></div>
+              </div>
+              <div class="odd-badge"><?= number_format($aposta->odd, 2) ?></div>
+            </div>
+
+            <div class="values-grid">
+              <div class="val-box">
+                <div class="val-title">Aposta</div>
+                <div class="val-amount">R$ <?= number_format($aposta->valor_aposta, 2, ',', '.') ?></div>
+              </div>
+              <div class="val-box highlight">
+                <div class="val-title">Ganhos Potenciais</div>
+                <div class="val-amount primary">R$ <?= number_format($aposta->ganhos_potenciais, 2, ',', '.') ?></div>
+              </div>
+            </div>
+
+            <?php if (!empty($aposta->resultado_detalhado)): ?>
+              <div style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: center; gap: 6px;">
+                <i class="bi bi-info-circle-fill text-info"></i>
+                <span><?= htmlspecialchars($aposta->resultado_detalhado) ?></span>
+              </div>
+            <?php endif; ?>
+
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="status-tag status-<?= $aposta->status ?>"><?= $aposta->status ?></span>
+              <span style="font-size: 0.8rem; color: var(--bet-text-muted); font-weight: 600; text-transform: uppercase;">
+                Tipo: <?= htmlspecialchars($aposta->tipo) ?>
+              </span>
+            </div>
+          </div>
+
+          <div class="bet-card-footer">
+            <div class="actions-primary">
+              <button class="btn-cashout" onclick="handleCashout(<?= $aposta->id ?>, <?= $aposta->cash_out ?? $aposta->valor_aposta ?>)">
+                CASH OUT R$ <?= number_format($aposta->cash_out ?? $aposta->valor_aposta, 2, ',', '.') ?>
+              </button>
+              <button class="btn-reapostar" onclick="handleReapostar(<?= $aposta->id ?>)" title="Duplicar Aposta">
+                <i class="bi bi-arrow-repeat"></i> Reapostar
+              </button>
+            </div>
+
+            <div class="actions-secondary">
+              <button class="btn-icon-link" onclick="shareBet('<?= htmlspecialchars($aposta->time_casa) ?>', '<?= htmlspecialchars($aposta->time_fora) ?>', '<?= htmlspecialchars($aposta->palpite) ?>', '<?= number_format($aposta->odd, 2) ?>')">
+                <i class="bi bi-share"></i> Compartilhar
+              </button>
+
+              <div class="d-flex gap-2">
+                <button class="btn-icon-link" onclick="openEditModal(<?= htmlspecialchars(json_encode($aposta)) ?>)" title="Editar Aposta">
+                  <i class="bi bi-pencil"></i> Editar
+                </button>
+                <button class="btn-icon-link danger" onclick="handleDelete(<?= $aposta->id ?>)" title="Excluir Aposta">
+                  <i class="bi bi-trash"></i> Excluir
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+
+</div>
+
+<!-- MODAL CRIAR APOSTA -->
+<div class="modal fade modal-dark" id="newBetModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title font-weight-bold" style="font-family: 'Outfit', sans-serif;"><i class="bi bi-plus-circle text-success me-2"></i> Adicionar Nova Aposta</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="newBetForm" onsubmit="submitNewBet(event)">
+        <div class="modal-body">
+          
+          <div class="mb-3">
+            <label class="form-label text-muted small fw-bold">VINCULAR A UM JOGO DO BANCO (OPCIONAL)</label>
+            <select class="form-select" id="fixtureSelect" onchange="autofillFixture(this)">
+              <option value="">-- Selecione ou digite manualmente abaixo --</option>
+              <?php foreach ($fixtures as $fix): ?>
+                <option value="<?= $fix->fixture_id ?>" data-home="<?= htmlspecialchars($fix->home_team) ?>" data-away="<?= htmlspecialchars($fix->away_team) ?>" data-date="<?= $fix->fixture_date ?>">
+                  <?= date('d/m H:i', strtotime($fix->fixture_date)) ?> | <?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?> (<?= htmlspecialchars($fix->league_name) ?>)
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label text-white">Time Casa *</label>
+              <input type="text" class="form-control" id="timeCasaInput" required placeholder="Ex: Mirassol">
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label text-white">Time Fora *</label>
+              <input type="text" class="form-control" id="timeForaInput" required placeholder="Ex: Grêmio">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label text-white">Mercado *</label>
+              <input type="text" class="form-control" id="mercadoInput" required value="Total de Cartões" placeholder="Ex: Total de Cartões">
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label text-white">Palpite *</label>
+              <input type="text" class="form-control" id="palpiteInput" required placeholder="Ex: Menos de 6.5">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Odd *</label>
+              <input type="number" step="0.01" class="form-control" id="oddInput" required placeholder="1.47" oninput="calcGanhos()">
+            </div>
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Valor Aposta (R$) *</label>
+              <input type="number" step="0.01" class="form-control" id="valorInput" required placeholder="10.00" value="10.00" oninput="calcGanhos()">
+            </div>
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Ganhos Potenciais</label>
+              <input type="text" class="form-control text-success fw-bold" id="ganhosDisplay" readonly placeholder="R$ 14,70">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Cash Out (R$)</label>
+              <input type="number" step="0.01" class="form-control" id="cashoutInput" placeholder="10.00" value="10.00">
+            </div>
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Tipo</label>
+              <select class="form-select" id="tipoSelect">
+                <option value="Simples" selected>Simples</option>
+                <option value="Múltipla">Múltipla</option>
+                <option value="Criar Aposta">Criar Aposta</option>
+              </select>
+            </div>
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Status</label>
+              <select class="form-select" id="statusSelect">
+                <option value="Pendente" selected>Pendente</option>
+                <option value="Ganha">Ganha</option>
+                <option value="Perdida">Perdida</option>
+                <option value="Cashout">Cashout</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-success fw-bold px-4">Salvar Aposta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR APOSTA -->
+<div class="modal fade modal-dark" id="editBetModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title font-weight-bold" style="font-family: 'Outfit', sans-serif;"><i class="bi bi-pencil-square text-info me-2"></i> Editar Aposta</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="editBetForm" onsubmit="submitEditBet(event)">
+        <input type="hidden" id="editIdInput">
+        <div class="modal-body">
+
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label text-white">Time Casa *</label>
+              <input type="text" class="form-control" id="editTimeCasaInput" required>
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label text-white">Time Fora *</label>
+              <input type="text" class="form-control" id="editTimeForaInput" required>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label text-white">Mercado *</label>
+              <input type="text" class="form-control" id="editMercadoInput" required>
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label text-white">Palpite *</label>
+              <input type="text" class="form-control" id="editPalpiteInput" required>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Odd *</label>
+              <input type="number" step="0.01" class="form-control" id="editOddInput" required oninput="calcEditGanhos()">
+            </div>
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Valor Aposta (R$) *</label>
+              <input type="number" step="0.01" class="form-control" id="editValorInput" required oninput="calcEditGanhos()">
+            </div>
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Ganhos Potenciais</label>
+              <input type="text" class="form-control text-success fw-bold" id="editGanhosDisplay" readonly>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Cash Out (R$)</label>
+              <input type="number" step="0.01" class="form-control" id="editCashoutInput">
+            </div>
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Tipo</label>
+              <select class="form-select" id="editTipoSelect">
+                <option value="Simples">Simples</option>
+                <option value="Múltipla">Múltipla</option>
+                <option value="Criar Aposta">Criar Aposta</option>
+              </select>
+            </div>
+            <div class="col-4 mb-3">
+              <label class="form-label text-white">Status</label>
+              <select class="form-select" id="editStatusSelect">
+                <option value="Pendente">Pendente</option>
+                <option value="Ganha">Ganha</option>
+                <option value="Perdida">Perdida</option>
+                <option value="Cashout">Cashout</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-info fw-bold px-4 text-white">Atualizar Aposta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  function calcGanhos() {
+    const odd = parseFloat(document.getElementById('oddInput').value) || 0;
+    const val = parseFloat(document.getElementById('valorInput').value) || 0;
+    const res = odd * val;
+    document.getElementById('ganhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+  }
+
+  function calcEditGanhos() {
+    const odd = parseFloat(document.getElementById('editOddInput').value) || 0;
+    const val = parseFloat(document.getElementById('editValorInput').value) || 0;
+    const res = odd * val;
+    document.getElementById('editGanhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+  }
+
+  function autofillFixture(selectEl) {
+    const opt = selectEl.options[selectEl.selectedIndex];
+    if (opt && opt.value) {
+      document.getElementById('timeCasaInput').value = opt.getAttribute('data-home') || '';
+      document.getElementById('timeForaInput').value = opt.getAttribute('data-away') || '';
+    }
+  }
+
+  function filterBets(status, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const cards = document.querySelectorAll('.bet-card-item');
+    cards.forEach(card => {
+      if (status === 'all' || card.getAttribute('data-status') === status) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  function searchBets() {
+    const term = document.getElementById('betSearchInput').value.toLowerCase().trim();
+    const cards = document.querySelectorAll('.bet-card-item');
+
+    cards.forEach(card => {
+      const searchData = card.getAttribute('data-search') || '';
+      if (!term || searchData.includes(term)) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  function submitNewBet(e) {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('time_casa', document.getElementById('timeCasaInput').value);
+    formData.append('time_fora', document.getElementById('timeForaInput').value);
+    formData.append('mercado', document.getElementById('mercadoInput').value);
+    formData.append('palpite', document.getElementById('palpiteInput').value);
+    formData.append('odd', document.getElementById('oddInput').value);
+    formData.append('valor_aposta', document.getElementById('valorInput').value);
+    formData.append('cash_out', document.getElementById('cashoutInput').value);
+    formData.append('tipo', document.getElementById('tipoSelect').value);
+    formData.append('status', document.getElementById('statusSelect').value);
+    formData.append('fixture_id', document.getElementById('fixtureSelect').value);
+
+    fetch('<?= base_url('apostas/store') ?>', {
+      method: 'POST',
+      body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('✓ ' + data.message);
+        location.reload();
+      } else {
+        alert('❌ ' + data.message);
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert('Erro na requisição.');
+    });
+  }
+
+  function openEditModal(aposta) {
+    document.getElementById('editIdInput').value = aposta.id;
+    document.getElementById('editTimeCasaInput').value = aposta.time_casa;
+    document.getElementById('editTimeForaInput').value = aposta.time_fora;
+    document.getElementById('editMercadoInput').value = aposta.mercado;
+    document.getElementById('editPalpiteInput').value = aposta.palpite;
+    document.getElementById('editOddInput').value = aposta.odd;
+    document.getElementById('editValorInput').value = aposta.valor_aposta;
+    document.getElementById('editCashoutInput').value = aposta.cash_out || '';
+    document.getElementById('editTipoSelect').value = aposta.tipo || 'Simples';
+    document.getElementById('editStatusSelect').value = aposta.status || 'Pendente';
+    calcEditGanhos();
+
+    const editModal = new bootstrap.Modal(document.getElementById('editBetModal'));
+    editModal.show();
+  }
+
+  function submitEditBet(e) {
+    e.preventDefault();
+    const id = document.getElementById('editIdInput').value;
+    const formData = new FormData();
+    formData.append('id', id);
+    formData.append('time_casa', document.getElementById('editTimeCasaInput').value);
+    formData.append('time_fora', document.getElementById('editTimeForaInput').value);
+    formData.append('mercado', document.getElementById('editMercadoInput').value);
+    formData.append('palpite', document.getElementById('editPalpiteInput').value);
+    formData.append('odd', document.getElementById('editOddInput').value);
+    formData.append('valor_aposta', document.getElementById('editValorInput').value);
+    formData.append('cash_out', document.getElementById('editCashoutInput').value);
+    formData.append('tipo', document.getElementById('editTipoSelect').value);
+    formData.append('status', document.getElementById('editStatusSelect').value);
+
+    fetch('<?= base_url('apostas/update') ?>/' + id, {
+      method: 'POST',
+      body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('✓ ' + data.message);
+        location.reload();
+      } else {
+        alert('❌ ' + data.message);
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert('Erro na atualização.');
+    });
+  }
+
+  function handleCashout(id, valor) {
+    if (!confirm('Deseja realizar o Cash Out nesta aposta no valor de R$ ' + parseFloat(valor).toFixed(2).replace('.', ',') + '?')) return;
+
+    const formData = new FormData();
+    formData.append('id', id);
+    formData.append('valor_cashout', valor);
+
+    fetch('<?= base_url('apostas/cashout') ?>/' + id, {
+      method: 'POST',
+      body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('✓ ' + data.message);
+        location.reload();
+      } else {
+        alert('❌ ' + data.message);
+      }
+    });
+  }
+
+  function handleReapostar(id) {
+    if (!confirm('Deseja reapostar (duplicar) este palpite?')) return;
+
+    const formData = new FormData();
+    formData.append('id', id);
+
+    fetch('<?= base_url('apostas/reapostar') ?>/' + id, {
+      method: 'POST',
+      body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('✓ ' + data.message);
+        location.reload();
+      } else {
+        alert('❌ ' + data.message);
+      }
+    });
+  }
+
+  function handleDelete(id) {
+    if (!confirm('Tem certeza que deseja excluir esta aposta?')) return;
+
+    const formData = new FormData();
+    formData.append('id', id);
+
+    fetch('<?= base_url('apostas/delete') ?>/' + id, {
+      method: 'POST',
+      body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('✓ ' + data.message);
+        location.reload();
+      } else {
+        alert('❌ ' + data.message);
+      }
+    });
+  }
+
+  function shareBet(timeCasa, timeFora, palpite, odd) {
+    const text = `🎯 Meu Palpite em CristalBet:\n⚽ ${timeCasa} vs ${timeFora}\n📊 Mercado: ${palpite} @ Odd ${odd}\n\nAcompanhe e crie suas apostas no CristalBet!`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert('✓ Palpite copiado para a área de transferência!\n\n' + text);
+      });
+    } else {
+      alert(text);
+    }
+  }
+
+  function triggerProcessarDAG() {
+    if (!confirm('Deseja disparar manualmente a auditoria e verificação das 23:00 hs para liquidar apostas pendentes do dia?')) return;
+
+    fetch('<?= base_url('apostas/processar') ?>', {
+      method: 'POST'
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('✓ ' + data.message + '\n\n' + (data.output || ''));
+        location.reload();
+      } else {
+        alert('❌ ' + data.message);
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert('Erro ao executar o processamento.');
+    });
+  }
+</script>

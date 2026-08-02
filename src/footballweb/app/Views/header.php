@@ -674,7 +674,13 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                 </li>
                 <li class="nav-item">
                     <a href="/" class="nav-link px-2 px-lg-2" title="Início">
-                        <i class="fas fa-home" style="font-size: 28px; vertical-align: middle;"></i>
+                        <i class="fas fa-home" style="font-size: 24px; vertical-align: middle;"></i>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('apostas') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-success d-flex align-items-center gap-1" title="Minhas Apostas">
+                        <i class="bi bi-ticket-detailed-fill" style="font-size: 20px;"></i>
+                        <span>Minhas Apostas</span>
                     </a>
                 </li>
             </ul>

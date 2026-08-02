@@ -47,6 +47,19 @@ $routes->post('/football-trends/ingest', 'FootballTrendsController::triggerInges
 $routes->post('/football-trends/ask-ai', 'FootballTrendsController::askAi', ['as'=>'football.ask-ai']);
 $routes->get('/football-trends/live-scores', 'FootballTrendsController::liveScores', ['as'=>'football.live-scores']);
 
+// Rotas da Gestão de Apostas (CRUD com controle de tokens)
+$routes->get('/apostas', 'ApostaController::index', ['as' => 'apostas.index']);
+$routes->post('/apostas/store', 'ApostaController::store', ['as' => 'apostas.store']);
+$routes->post('/apostas/update/(:num)', 'ApostaController::update/$1', ['as' => 'apostas.update']);
+$routes->post('/apostas/update', 'ApostaController::update', ['as' => 'apostas.update_post']);
+$routes->post('/apostas/delete/(:num)', 'ApostaController::delete/$1', ['as' => 'apostas.delete']);
+$routes->post('/apostas/delete', 'ApostaController::delete', ['as' => 'apostas.delete_post']);
+$routes->post('/apostas/cashout/(:num)', 'ApostaController::cashout/$1', ['as' => 'apostas.cashout']);
+$routes->post('/apostas/cashout', 'ApostaController::cashout', ['as' => 'apostas.cashout_post']);
+$routes->post('/apostas/reapostar/(:num)', 'ApostaController::reapostar/$1', ['as' => 'apostas.reapostar']);
+$routes->post('/apostas/reapostar', 'ApostaController::reapostar', ['as' => 'apostas.reapostar_post']);
+$routes->post('/apostas/processar', 'ApostaController::processar', ['as' => 'apostas.processar']);
+
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);
 $routes->match(['get', 'head'], '/team-logo/(:num)', 'FootballTrendsController::teamLogo/$1', ['as'=>'football.team-logo']);

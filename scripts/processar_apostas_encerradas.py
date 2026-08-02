@@ -11,7 +11,7 @@ import re
 import pymysql
 import hashlib
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def get_db_connection():
     """
@@ -256,6 +256,16 @@ def process_pending_bets():
             
             cursor.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
             fixture = cursor.fetchone()
+
+        # Verificar se a partida já aconteceu / finalizou
+        fixture_date = fixture.get('fixture_date')
+        status = fixture.get('status')
+        now = datetime.now()
+
+        if status != 'FT':
+            if fixture_date and (fixture_date + timedelta(minutes=110)) > now:
+                print(f"⏳ Partida {time_casa} vs {time_fora} ({fixture_date}) ainda não finalizou. Aposta #{aposta_id} permanece Pendente.")
+                continue
 
         # Atualizar/Obter estatísticas de encerramento do jogo
         stats = ensure_fixture_stats(cursor, fixture)

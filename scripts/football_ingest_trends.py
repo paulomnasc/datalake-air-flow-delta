@@ -109,6 +109,10 @@ def generate_fallback_fixtures(target_date):
             ("Santos", 128), ("Sport Recife", 134), ("Ceará", 129), ("Goiás", 122),
             ("Coritiba", 147), ("Avaí", 117), ("CRB", 136), ("Vila Nova", 137)
         ]),
+        (73, "Copa do Brasil", "Brasil", [
+            ("Chapecoense", 132), ("Cruzeiro", 135), ("Internacional", 119), ("Corinthians", 131),
+            ("Mirassol", 7848), ("Grêmio", 130), ("Palmeiras", 121), ("Fortaleza EC", 154)
+        ]),
         (39, "Premier League", "Inglaterra", [
             ("Arsenal", 42), ("Chelsea", 49), ("Liverpool", 40), ("Manchester City", 50),
             ("Manchester United", 33), ("Tottenham", 47)

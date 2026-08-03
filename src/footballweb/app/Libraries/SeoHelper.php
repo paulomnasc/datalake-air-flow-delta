@@ -25,8 +25,8 @@ class SeoHelper
     {
         $baseUrl = function_exists('base_url') ? base_url() : 'https://www.cristalbet.com.br/';
         
-        $this->title       = "CristalBet | Estatísticas de Futebol e Previsões de Cartões e Escanteios";
-        $this->description = "A bola de cristal das estatísticas esportivas. Análise matemática completa de times, médias de escanteios e perfil rigoroso de árbitros para lucrar no mercado de cartões.";
+        $this->title       = "Estatísticas de Futebol, Cartões e Escanteios | CristalBet";
+        $this->description = "Análise matemática de futebol, médias de cartões de árbitros, escanteios e tendências da rodada para palpites no CristalBet.";
         $this->keywords    = "estatísticas de futebol, média de cartões árbitros, palpites escanteios, estatísticas cartões brasileirão, robô de palpites, cristalbet";
         $this->image       = function_exists('base_url') ? base_url('assets/banner-cristalbet.png') : 'https://www.cristalbet.com.br/assets/banner-cristalbet.png';
         $this->url         = $baseUrl;
@@ -44,11 +44,12 @@ class SeoHelper
         $canonicalUrl = rtrim($baseUrl, '/') . '/football-trends';
         
         $formattedDate = !empty($targetDate) ? date('d/m/Y', strtotime($targetDate)) : date('d/m/Y');
+        $formattedShortDate = !empty($targetDate) ? date('d/m', strtotime($targetDate)) : date('d/m');
         
         $leagueText = !empty($leagues) ? implode(', ', array_slice($leagues, 0, 4)) : 'Brasileirão, Champions League e Ligas Europeias';
 
-        $this->title       = "Tendências de Futebol Hoje ({$formattedDate}) & Estatísticas de Cartões | CristalBet";
-        $this->description = "Confira as estatísticas de futebol hoje ({$formattedDate}), médias de cartões de árbitros, escanteios e tendências de partidas da rodada ({$leagueText}). Análise matemática com Grok AI.";
+        $this->title       = "Tendências de Futebol Hoje ({$formattedShortDate}) e Cartões | CristalBet";
+        $this->description = "Estatísticas de futebol hoje ({$formattedDate}), médias de cartões de árbitros, escanteios e tendências de partidas da rodada ({$leagueText}).";
         $this->keywords    = "tendências de futebol hoje, estatísticas futebol virtual, estatísticas cartões brasileirão, média cartões árbitro, palpites escanteios hoje, robô de palpites futebol, cristalbet";
         $this->image       = function_exists('base_url') ? base_url('assets/banner-cristalbet.png') : 'https://www.cristalbet.com.br/assets/banner-cristalbet.png';
         $this->url         = $canonicalUrl;
@@ -103,7 +104,7 @@ class SeoHelper
         
         $refereeText = !empty($refereeName) ? $refereeName : 'Não definido';
         
-        $this->title       = "Estatísticas de Cartões {$homeTeam} x {$awayTeam} e Árbitro | CristalBet";
+        $this->title       = "Cartões {$homeTeam} x {$awayTeam} e Árbitro | CristalBet";
         $this->description = "Confira a análise de cartões e escanteios para {$homeTeam} x {$awayTeam}. Média de faltas dos times e estatísticas completas do árbitro {$refereeText} para a rodada.";
         $this->keywords    = "cartoes {$homeTeam} x {$awayTeam}, arbitro {$refereeText} estatisticas, escanteios {$homeTeam}, palpites {$homeTeam} x {$awayTeam}";
         $this->ogType      = "article";

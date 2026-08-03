@@ -280,6 +280,102 @@
     flex-direction: column;
   }
 
+  /* Slide View Toggle Switcher */
+  .view-toggle-pill {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 30px;
+    padding: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .view-toggle-btn {
+    background: transparent;
+    border: none;
+    color: var(--bet-text-muted);
+    padding: 6px 14px;
+    border-radius: 25px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .view-toggle-btn.active {
+    background: var(--bet-primary);
+    color: #000000;
+    font-weight: 700;
+    box-shadow: 0 2px 10px rgba(0, 230, 118, 0.35);
+  }
+
+  /* Modo Lista (List View Layout) */
+  .bets-grid.list-view {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .bets-grid.list-view .bet-card-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-radius: 12px;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .bets-grid.list-view .bet-card-header {
+    background: transparent;
+    padding: 0;
+    border-bottom: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 200px;
+  }
+  .bets-grid.list-view .bet-card-body {
+    padding: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+    min-width: 320px;
+  }
+  .bets-grid.list-view .market-info {
+    margin-bottom: 0;
+    flex: 1;
+    min-width: 180px;
+  }
+  .bets-grid.list-view .values-grid {
+    margin-bottom: 0;
+    grid-template-columns: auto auto;
+    gap: 16px;
+  }
+  .bets-grid.list-view .bet-card-footer {
+    background: transparent;
+    padding: 0;
+    border-top: none;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+  }
+  .bets-grid.list-view .actions-primary {
+    display: flex;
+    gap: 8px;
+  }
+  .bets-grid.list-view .actions-secondary {
+    margin-top: 0;
+    border-top: none;
+    padding-top: 0;
+  }
+
   .bet-card-item:hover {
     transform: translateY(-4px);
     border-color: rgba(0, 230, 118, 0.4);
@@ -693,6 +789,16 @@
     </div>
 
     <div class="d-flex align-items-center gap-3 flex-wrap">
+      <!-- Botão Slide para alternar entre Lista e Cards -->
+      <div class="view-toggle-pill" title="Alternar Modo de Exibição">
+        <button type="button" class="view-toggle-btn active" id="btnViewList" onclick="setViewMode('list')" title="Exibir em Lista">
+          <i class="bi bi-list-ul"></i> Lista
+        </button>
+        <button type="button" class="view-toggle-btn" id="btnViewGrid" onclick="setViewMode('grid')" title="Exibir em Cards">
+          <i class="bi bi-grid-fill"></i> Cards
+        </button>
+      </div>
+
       <div class="search-box">
         <i class="bi bi-search"></i>
         <input type="text" id="betSearchInput" placeholder="Buscar aposta..." onkeyup="applyBetFilters()">
@@ -708,8 +814,8 @@
     </div>
   </div>
 
-  <!-- Bet Cards Grid -->
-  <div class="bets-grid" id="betsContainer">
+  <!-- Bet Cards / List Container -->
+  <div class="bets-grid list-view" id="betsContainer">
     <?php if (empty($apostas)): ?>
       <div class="w-100 text-center py-5" style="grid-column: 1 / -1; color: var(--bet-text-muted);">
         <i class="bi bi-inbox" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
@@ -1013,8 +1119,32 @@
     }
   }
 
+  let currentViewMode = 'list';
+
+  function setViewMode(mode) {
+    currentViewMode = mode;
+    const container = document.getElementById('betsContainer');
+    const btnList = document.getElementById('btnViewList');
+    const btnGrid = document.getElementById('btnViewGrid');
+
+    if (!container) return;
+
+    if (mode === 'list') {
+      container.classList.add('list-view');
+      container.classList.remove('grid-view');
+      if (btnList) btnList.classList.add('active');
+      if (btnGrid) btnGrid.classList.remove('active');
+    } else {
+      container.classList.remove('list-view');
+      container.classList.add('grid-view');
+      if (btnGrid) btnGrid.classList.add('active');
+      if (btnList) btnList.classList.remove('active');
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     initFixtureOptions();
+    setViewMode('list'); // Padrão em Lista no load
     
     const newBetModalEl = document.getElementById('newBetModal');
     if (newBetModalEl) {

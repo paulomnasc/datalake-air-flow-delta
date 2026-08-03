@@ -228,6 +228,54 @@
     border-radius: 16px;
     overflow: hidden;
     transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+
+  /* Custom Searchable Dropdown Combobox */
+  .custom-combobox-wrapper {
+    position: relative;
+  }
+  .custom-combobox-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1060;
+    max-height: 240px;
+    overflow-y: auto;
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    margin-top: 4px;
+  }
+  .custom-combobox-item {
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    color: #c9d1d9;
+    cursor: pointer;
+    border-bottom: 1px solid #21262d;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .custom-combobox-item:last-child {
+    border-bottom: none;
+  }
+  .custom-combobox-item:hover, .custom-combobox-item.highlighted {
+    background-color: #21262d;
+    color: var(--bet-primary, #00e676);
+  }
+  .custom-combobox-item.selected {
+    background-color: rgba(0, 230, 118, 0.15);
+    color: #00e676;
+    font-weight: 600;
+  }
+  .custom-combobox-empty {
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    color: #8b949e;
+    text-align: center;
+  }
+  
+  .bet-card-item {
     display: flex;
     flex-direction: column;
   }
@@ -749,9 +797,17 @@
       <form id="newBetForm" onsubmit="submitNewBet(event)">
         <div class="modal-body">
           
-          <div class="mb-3">
+          <div class="mb-3 custom-combobox-wrapper" id="fixtureComboboxContainer">
             <label class="form-label text-muted small fw-bold">VINCULAR A UM JOGO DO BANCO (OPCIONAL)</label>
-            <select class="form-select" id="fixtureSelect" onchange="autofillFixture(this)">
+            <div class="input-group">
+              <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-search"></i></span>
+              <input type="text" class="form-control bg-dark text-white border-secondary" id="fixtureSearchInput" placeholder="Digite para filtrar partidas (ex: Time, Liga, Data)..." autocomplete="off" oninput="filterFixtureSelect(this.value)" onfocus="openFixtureDropdown()" onclick="openFixtureDropdown()">
+              <button class="btn btn-outline-secondary border-secondary text-muted" type="button" onclick="clearFixtureSelection()" title="Limpar Seleção"><i class="bi bi-x-lg"></i></button>
+            </div>
+            
+            <div id="fixtureDropdownList" class="custom-combobox-dropdown" style="display: none;"></div>
+
+            <select class="form-select" id="fixtureSelect" onchange="autofillFixture(this)" style="display: none;">
               <option value="">-- Selecione ou digite manualmente abaixo --</option>
               <?php foreach ($fixtures as $fix): ?>
                 <option value="<?= $fix->fixture_id ?>" data-home="<?= htmlspecialchars($fix->home_team) ?>" data-away="<?= htmlspecialchars($fix->away_team) ?>" data-date="<?= $fix->fixture_date ?>">
@@ -759,6 +815,7 @@
                 </option>
               <?php endforeach; ?>
             </select>
+            <div id="fixtureCountBadge" class="form-text text-muted small mt-1"></div>
           </div>
 
           <div class="row">
@@ -916,6 +973,147 @@
 </div>
 
 <script>
+  let allFixtureOptions = [];
+
+  function initFixtureOptions() {
+    const select = document.getElementById('fixtureSelect');
+    if (!select || allFixtureOptions.length > 0) return;
+    
+    allFixtureOptions = [];
+    for (let i = 0; i < select.options.length; i++) {
+      const opt = select.options[i];
+      if (opt.value === '') continue;
+      allFixtureOptions.push({
+        value: opt.value,
+        text: opt.text,
+        home: opt.getAttribute('data-home') || '',
+        away: opt.getAttribute('data-away') || '',
+        date: opt.getAttribute('data-date') || ''
+      });
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initFixtureOptions();
+    
+    const newBetModalEl = document.getElementById('newBetModal');
+    if (newBetModalEl) {
+      newBetModalEl.addEventListener('show.bs.modal', function() {
+        initFixtureOptions();
+        clearFixtureSelection();
+      });
+    }
+
+    // Fechar dropdown ao clicar fora do container
+    document.addEventListener('click', function(e) {
+      const container = document.getElementById('fixtureComboboxContainer');
+      if (container && !container.contains(e.target)) {
+        closeFixtureDropdown();
+      }
+    });
+  });
+
+  function openFixtureDropdown() {
+    initFixtureOptions();
+    const dropdown = document.getElementById('fixtureDropdownList');
+    if (dropdown) {
+      dropdown.style.display = 'block';
+      const searchInput = document.getElementById('fixtureSearchInput');
+      filterFixtureSelect(searchInput ? searchInput.value : '');
+    }
+  }
+
+  function closeFixtureDropdown() {
+    const dropdown = document.getElementById('fixtureDropdownList');
+    if (dropdown) {
+      dropdown.style.display = 'none';
+    }
+  }
+
+  function filterFixtureSelect(query) {
+    initFixtureOptions();
+    const dropdown = document.getElementById('fixtureDropdownList');
+    if (!dropdown) return;
+
+    dropdown.style.display = 'block';
+
+    const term = (query || '').toLowerCase().trim();
+    const currentVal = document.getElementById('fixtureSelect').value;
+
+    dropdown.innerHTML = '';
+
+    let matchCount = 0;
+    allFixtureOptions.forEach((optData) => {
+      const textMatch = optData.text.toLowerCase().includes(term);
+      const homeMatch = optData.home.toLowerCase().includes(term);
+      const awayMatch = optData.away.toLowerCase().includes(term);
+
+      if (!term || textMatch || homeMatch || awayMatch) {
+        matchCount++;
+        const itemEl = document.createElement('div');
+        itemEl.className = 'custom-combobox-item' + (optData.value === currentVal ? ' selected' : '');
+        itemEl.innerHTML = `<i class="bi bi-calendar-event me-1 text-success"></i> ${escapeHtml(optData.text)}`;
+        itemEl.onclick = function() {
+          selectFixtureOption(optData);
+        };
+        dropdown.appendChild(itemEl);
+      }
+    });
+
+    if (matchCount === 0) {
+      const emptyEl = document.createElement('div');
+      emptyEl.className = 'custom-combobox-empty';
+      emptyEl.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i> Nenhuma partida encontrada para "${escapeHtml(query)}"`;
+      dropdown.appendChild(emptyEl);
+    }
+
+    const badge = document.getElementById('fixtureCountBadge');
+    if (badge) {
+      if (term) {
+        badge.textContent = `${matchCount} partida(s) encontrada(s)`;
+        badge.className = matchCount > 0 ? 'form-text text-success small mt-1' : 'form-text text-danger small mt-1';
+      } else {
+        badge.textContent = `${allFixtureOptions.length} partidas disponíveis. Digite para filtrar.`;
+        badge.className = 'form-text text-muted small mt-1';
+      }
+    }
+  }
+
+  function selectFixtureOption(optData) {
+    const select = document.getElementById('fixtureSelect');
+    const searchInput = document.getElementById('fixtureSearchInput');
+
+    if (select) select.value = optData.value;
+    if (searchInput) searchInput.value = optData.text;
+
+    document.getElementById('timeCasaInput').value = optData.home;
+    document.getElementById('timeForaInput').value = optData.away;
+
+    closeFixtureDropdown();
+  }
+
+  function clearFixtureSelection() {
+    const select = document.getElementById('fixtureSelect');
+    const searchInput = document.getElementById('fixtureSearchInput');
+    const badge = document.getElementById('fixtureCountBadge');
+
+    if (select) select.value = '';
+    if (searchInput) searchInput.value = '';
+    if (badge) badge.textContent = '';
+    closeFixtureDropdown();
+  }
+
+  function escapeHtml(text) {
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return (text || '').replace(/[&<>"']/g, m => map[m]);
+  }
+
   function calcGanhos() {
     const odd = parseFloat(document.getElementById('oddInput').value) || 0;
     const val = parseFloat(document.getElementById('valorInput').value) || 0;

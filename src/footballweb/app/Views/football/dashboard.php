@@ -1433,7 +1433,38 @@ if (!function_exists('getBetDecisionTree')) {
                 <button type="button" class="btn-update-betano" onclick="triggerIngestion('<?= $targetDate ?>')">
                     <i class="bi bi-arrow-repeat"></i> <?= lang('App.update_data_api') ?>
                 </button>
+            </div>
         </div>
+
+        <!-- Seção de Vídeo em Destaque / Tutorial -->
+        <section class="bet-video-section mb-4 p-3 p-md-4 rounded" style="background: linear-gradient(135deg, rgba(23, 34, 48, 0.9) 0%, rgba(15, 23, 36, 0.95) 100%); border: 1px solid rgba(244, 124, 32, 0.35); box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                <h2 class="mb-0 text-white font-weight-bold d-flex align-items-center gap-2" style="font-size: 1.15rem;">
+                    <i class="bi bi-play-circle-fill" style="color: #f47c20; font-size: 1.3rem;"></i> 
+                    Vídeo Demonstrativo - FootballWeb
+                </h2>
+                <a href="https://youtu.be/_Hhg3B1MldQ" target="_blank" rel="noopener noreferrer" class="btn btn-sm text-white font-weight-bold d-inline-flex align-items-center gap-1" style="background: #ff0000; border-radius: 8px; padding: 6px 14px; font-size: 0.88rem; text-decoration: none;">
+                    <i class="bi bi-youtube"></i> Assistir no YouTube <i class="bi bi-box-arrow-up-right" style="font-size: 0.75rem;"></i>
+                </a>
+            </div>
+            <div style="max-width: 33.333%; min-width: 280px; margin: 0 auto;">
+                <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); border: 1px solid rgba(255, 255, 255, 0.1);">
+                    <iframe src="https://www.youtube.com/embed/_Hhg3B1MldQ" 
+                            title="Vídeo Demonstrativo FootballWeb" 
+                            frameborder="0" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allowfullscreen 
+                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;">
+                    </iframe>
+                </div>
+            </div>
+            <div class="mt-2 text-center">
+                <small style="color: #94a3b8; font-size: 0.8rem;">
+                    <i class="bi bi-info-circle"></i> Caso o vídeo exija verificação de idade pelo YouTube no player embutido, <a href="https://youtu.be/_Hhg3B1MldQ" target="_blank" rel="noopener noreferrer" style="color: #f47c20; text-decoration: underline;">clique aqui para assistir diretamente no YouTube</a>.
+                </small>
+            </div>
+        </section>
 
         <!-- Bloco SEO Server-Side Rendered (SSR) -->
         <section class="bet-seo-header mb-4 p-3 rounded" style="background: rgba(23, 34, 48, 0.6); border: 1px solid rgba(255, 255, 255, 0.05);">

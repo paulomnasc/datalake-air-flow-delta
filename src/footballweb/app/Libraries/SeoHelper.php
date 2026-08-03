@@ -48,7 +48,7 @@ class SeoHelper
         
         $leagueText = !empty($leagues) ? implode(', ', array_slice($leagues, 0, 4)) : 'Brasileirão, Champions League e Ligas Europeias';
 
-        $this->title       = "Tendências de Futebol Hoje ({$formattedShortDate}) e Cartões | CristalBet";
+        $this->title       = "Tendências de Futebol e Cartões ({$formattedShortDate}) | CristalBet";
         $this->description = "Estatísticas de futebol hoje ({$formattedDate}), médias de cartões de árbitros, escanteios e tendências de partidas da rodada ({$leagueText}).";
         $this->keywords    = "tendências de futebol hoje, estatísticas futebol virtual, estatísticas cartões brasileirão, média cartões árbitro, palpites escanteios hoje, robô de palpites futebol, cristalbet";
         $this->image       = function_exists('base_url') ? base_url('assets/banner-cristalbet.png') : 'https://www.cristalbet.com.br/assets/banner-cristalbet.png';

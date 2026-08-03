@@ -672,18 +672,30 @@
 
   <!-- Toolbar -->
   <div class="bet-toolbar">
-    <div class="bet-filters">
-      <button class="filter-btn active" onclick="filterBets('all', this)">Todas (<?= count($apostas) ?>)</button>
-      <button class="filter-btn" onclick="filterBets('Pendente', this)">Pendentes (<?= $resumo['pendentes'] ?? 0 ?>)</button>
-      <button class="filter-btn" onclick="filterBets('Ganha', this)">Ganhas (<?= $resumo['ganhas'] ?? 0 ?>)</button>
-      <button class="filter-btn" onclick="filterBets('Perdida', this)">Perdidas (<?= $resumo['perdidas'] ?? 0 ?>)</button>
-      <button class="filter-btn" onclick="filterBets('Cashout', this)">Cashout (<?= $resumo['cashouts'] ?? 0 ?>)</button>
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <!-- Status Filters -->
+      <div class="bet-filters">
+        <button class="filter-btn active" onclick="filterBets('all', this)">Todas (<?= count($apostas) ?>)</button>
+        <button class="filter-btn" onclick="filterBets('Pendente', this)">Pendentes (<?= $resumo['pendentes'] ?? 0 ?>)</button>
+        <button class="filter-btn" onclick="filterBets('Ganha', this)">Ganhas (<?= $resumo['ganhas'] ?? 0 ?>)</button>
+        <button class="filter-btn" onclick="filterBets('Perdida', this)">Perdidas (<?= $resumo['perdidas'] ?? 0 ?>)</button>
+        <button class="filter-btn" onclick="filterBets('Cashout', this)">Cashout (<?= $resumo['cashouts'] ?? 0 ?>)</button>
+      </div>
+
+      <!-- Filtro de Período (2 Datas) -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;">
+        <span class="text-muted fw-bold d-flex align-items-center gap-1"><i class="bi bi-calendar-range text-info"></i> Período:</span>
+        <input type="date" id="betStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="applyBetFilters()" title="Data Inicial (De)">
+        <span class="text-muted small">até</span>
+        <input type="date" id="betEndDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="applyBetFilters()" title="Data Final (Até)">
+        <button class="btn btn-sm btn-outline-secondary border-0 text-muted p-1" onclick="clearDateFilter()" title="Limpar Filtro de Período"><i class="bi bi-x-circle-fill"></i></button>
+      </div>
     </div>
 
-    <div class="d-flex align-items-center gap-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
       <div class="search-box">
         <i class="bi bi-search"></i>
-        <input type="text" id="betSearchInput" placeholder="Buscar aposta..." onkeyup="searchBets()">
+        <input type="text" id="betSearchInput" placeholder="Buscar aposta..." onkeyup="applyBetFilters()">
       </div>
       
       <a href="<?= base_url('apostas/relatorio-top5') ?>" target="_blank" class="btn btn-outline-warning rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;">
@@ -706,7 +718,15 @@
       </div>
     <?php else: ?>
       <?php foreach ($apostas as $aposta): ?>
-        <div class="bet-card-item" data-status="<?= htmlspecialchars($aposta->status) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
+        <?php 
+          $itemDate = '';
+          if (!empty($aposta->data_hora_jogo)) {
+            $itemDate = date('Y-m-d', strtotime($aposta->data_hora_jogo));
+          } elseif (!empty($aposta->criado_em)) {
+            $itemDate = date('Y-m-d', strtotime($aposta->criado_em));
+          }
+        ?>
+        <div class="bet-card-item" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
           
           <div class="bet-card-header">
             <div class="match-teams">
@@ -1136,32 +1156,96 @@
     }
   }
 
-  function filterBets(status, btn) {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+  let currentStatusFilter = 'all';
 
-    const cards = document.querySelectorAll('.bet-card-item');
-    cards.forEach(card => {
-      if (status === 'all' || card.getAttribute('data-status') === status) {
-        card.style.display = 'flex';
-      } else {
-        card.style.display = 'none';
-      }
-    });
+  function filterBets(status, btn) {
+    if (btn) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    currentStatusFilter = status;
+    applyBetFilters();
   }
 
   function searchBets() {
-    const term = document.getElementById('betSearchInput').value.toLowerCase().trim();
+    applyBetFilters();
+  }
+
+  function clearDateFilter() {
+    const startEl = document.getElementById('betStartDateInput');
+    const endEl = document.getElementById('betEndDateInput');
+    if (startEl) startEl.value = '';
+    if (endEl) endEl.value = '';
+    applyBetFilters();
+  }
+
+  function applyBetFilters() {
+    const status = currentStatusFilter;
+    const term = (document.getElementById('betSearchInput')?.value || '').toLowerCase().trim();
+    const startDate = document.getElementById('betStartDateInput')?.value || '';
+    const endDate = document.getElementById('betEndDateInput')?.value || '';
+
     const cards = document.querySelectorAll('.bet-card-item');
+    let visibleCount = 0;
 
     cards.forEach(card => {
-      const searchData = card.getAttribute('data-search') || '';
-      if (!term || searchData.includes(term)) {
+      const cardStatus = card.getAttribute('data-status') || '';
+      const cardSearch = card.getAttribute('data-search') || '';
+      const cardDate = card.getAttribute('data-date') || ''; // 'YYYY-MM-DD'
+
+      const statusMatch = (status === 'all' || cardStatus === status);
+      const searchMatch = (!term || cardSearch.includes(term));
+      
+      let dateMatch = true;
+      if (startDate && cardDate) {
+        if (cardDate < startDate) dateMatch = false;
+      }
+      if (endDate && cardDate) {
+        if (cardDate > endDate) dateMatch = false;
+      }
+
+      if (statusMatch && searchMatch && dateMatch) {
         card.style.display = 'flex';
+        visibleCount++;
       } else {
         card.style.display = 'none';
       }
     });
+
+    let emptyNotice = document.getElementById('noFilteredBetsNotice');
+    if (visibleCount === 0 && cards.length > 0) {
+      if (!emptyNotice) {
+        emptyNotice = document.createElement('div');
+        emptyNotice.id = 'noFilteredBetsNotice';
+        emptyNotice.className = 'w-100 text-center py-5';
+        emptyNotice.style.gridColumn = '1 / -1';
+        emptyNotice.style.color = 'var(--bet-text-muted)';
+        emptyNotice.innerHTML = `
+          <i class="bi bi-funnel" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
+          <h5>Nenhuma aposta encontrada</h5>
+          <p>Nenhuma aposta corresponde aos filtros aplicados (Status, Período de datas ou Busca).</p>
+          <button class="btn btn-sm btn-outline-success mt-2" onclick="resetAllBetFilters()"><i class="bi bi-arrow-counterclockwise me-1"></i> Resetar Filtros</button>
+        `;
+        const container = document.getElementById('betsContainer');
+        if (container) container.appendChild(emptyNotice);
+      } else {
+        emptyNotice.style.display = 'block';
+      }
+    } else if (emptyNotice) {
+      emptyNotice.style.display = 'none';
+    }
+  }
+
+  function resetAllBetFilters() {
+    currentStatusFilter = 'all';
+    const firstBtn = document.querySelector('.filter-btn');
+    if (firstBtn) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      firstBtn.classList.add('active');
+    }
+    const searchEl = document.getElementById('betSearchInput');
+    if (searchEl) searchEl.value = '';
+    clearDateFilter();
   }
 
   function submitNewBet(e) {

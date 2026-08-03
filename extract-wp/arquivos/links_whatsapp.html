@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Envios WhatsApp (Links Diretos)</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: #f0f2f5; margin: 0; padding: 20px; color: #111b21; }
+        .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        h1 { color: #00a884; margin-top: 0; font-size: 24px; text-align: center; }
+        p.subtitle { text-align: center; color: #667781; margin-bottom: 24px; }
+        .config-box { background: #e7fce3; border: 1px solid #00a884; border-radius: 8px; padding: 16px; margin-bottom: 24px; }
+        .config-box label { font-weight: bold; color: #008069; display: block; margin-bottom: 8px; }
+        textarea { width: 100%; height: 90px; border: 1px solid #ccc; border-radius: 6px; padding: 10px; font-size: 14px; resize: vertical; }
+        .stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-weight: bold; }
+        .counter { color: #008069; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e9edef; font-size: 14px; }
+        th { background-color: #f7f8fa; color: #54656f; }
+        tr:hover { background-color: #f5f6f8; }
+        .btn-send { background-color: #25d366; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; text-decoration: none; display: inline-block; transition: background 0.2s; }
+        .btn-send:hover { background-color: #1ebd59; }
+        .btn-send.sent { background-color: #8696a0; opacity: 0.7; }
+        .badge { background: #e9edef; color: #54656f; padding: 3px 8px; border-radius: 12px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Painel de Envio Direto (WhatsApp)</h1>
+        <p class="subtitle">Disparo semi-manual via link oficial <code>https://wa.me/</code> sem risco de bloqueio</p>
+        
+        <div class="config-box">
+            <label for="msgInput">✏️ Digite a mensagem padrão que será enviada:</label>
+            <textarea id="msgInput" placeholder="Ex: Olá! Tudo bem? Estou entrando em contato sobre os palpites de futebol...">Olá! Tudo bem?</textarea>
+        </div>
+
+        <div class="stats">
+            <span>Contatos carregados: <span class="counter" id="totalCount">45</span></span>
+            <span>Enviados: <span class="counter" id="sentCount">0</span> / 45</span>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Telefone</th>
+                    <th>Grupo de Origem</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody id="contactsTable">
+
+                <tr id="row-1">
+                    <td>1</td>
+                    <td><strong>+55 11 92553-2709</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5511925532709?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5511925532709"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-2">
+                    <td>2</td>
+                    <td><strong>+55 11 93221-1312</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5511932211312?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5511932211312"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-3">
+                    <td>3</td>
+                    <td><strong>55 11 95483-6803</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5511954836803?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5511954836803"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-4">
+                    <td>4</td>
+                    <td><strong>+55 11 96125-6563</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5511961256563?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5511961256563"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-5">
+                    <td>5</td>
+                    <td><strong>+55 11 96784-6720</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5511967846720?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5511967846720"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-6">
+                    <td>6</td>
+                    <td><strong>+55 15 92002-1300</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5515920021300?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5515920021300"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-7">
+                    <td>7</td>
+                    <td><strong>+55 17 97604-7480</strong></td>
+                    <td><span class="badge">Grupo Oficial de Palpites e Apostas</span></td>
+                    <td>
+                        <a href="https://wa.me/5517976047480?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5517976047480"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-8">
+                    <td>8</td>
+                    <td><strong>+55 21 97107-1572</strong></td>
+                    <td><span class="badge">Grupo Oficial de Palpites e Apostas</span></td>
+                    <td>
+                        <a href="https://wa.me/5521971071572?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5521971071572"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-9">
+                    <td>9</td>
+                    <td><strong>+55 21 97178-4910</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5521971784910?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5521971784910"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-10">
+                    <td>10</td>
+                    <td><strong>+55 21 97677-4340</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5521976774340?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5521976774340"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-11">
+                    <td>11</td>
+                    <td><strong>+55 21 98098-9739</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5521980989739?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5521980989739"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-12">
+                    <td>12</td>
+                    <td><strong>+55 28 99934-0772</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5528999340772?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5528999340772"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-13">
+                    <td>13</td>
+                    <td><strong>+55 31 9599-6136</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/553195996136?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="553195996136"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-14">
+                    <td>14</td>
+                    <td><strong>+55 31 9873-0300</strong></td>
+                    <td><span class="badge">Grupo Oficial de Palpites e Apostas</span></td>
+                    <td>
+                        <a href="https://wa.me/553198730300?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="553198730300"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-15">
+                    <td>15</td>
+                    <td><strong>+55 33 8415-6771</strong></td>
+                    <td><span class="badge">Grupo Palpites de Futebol</span></td>
+                    <td>
+                        <a href="https://wa.me/553384156771?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="553384156771"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-16">
+                    <td>16</td>
+                    <td><strong>+55 35 93300-9154</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5535933009154?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5535933009154"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-17">
+                    <td>17</td>
+                    <td><strong>+55 41 8460-8209</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/554184608209?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="554184608209"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-18">
+                    <td>18</td>
+                    <td><strong>+55 41 8794-6015</strong></td>
+                    <td><span class="badge">Grupo Oficial de Palpites e Apostas</span></td>
+                    <td>
+                        <a href="https://wa.me/554187946015?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="554187946015"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-19">
+                    <td>19</td>
+                    <td><strong>+55 48 9972-1612</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/554899721612?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="554899721612"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-20">
+                    <td>20</td>
+                    <td><strong>+55 51 9630-1964</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/555196301964?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="555196301964"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-21">
+                    <td>21</td>
+                    <td><strong>+55 55 9687-7202</strong></td>
+                    <td><span class="badge">Grupo Oficial de Palpites e Apostas</span></td>
+                    <td>
+                        <a href="https://wa.me/555596877202?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="555596877202"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-22">
+                    <td>22</td>
+                    <td><strong>+55 61 8191-5566</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/556181915566?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="556181915566"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-23">
+                    <td>23</td>
+                    <td><strong>+55 61 8484-7932</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/556184847932?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="556184847932"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-24">
+                    <td>24</td>
+                    <td><strong>+55 61 8601-8438</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/556186018438?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="556186018438"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-25">
+                    <td>25</td>
+                    <td><strong>+55 61 9271-2419</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/556192712419?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="556192712419"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-26">
+                    <td>26</td>
+                    <td><strong>+55 61 9816-9784</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/556198169784?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="556198169784"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-27">
+                    <td>27</td>
+                    <td><strong>+55 61 9944-8782</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/556199448782?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="556199448782"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-28">
+                    <td>28</td>
+                    <td><strong>+55 62 93300-2789</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5562933002789?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5562933002789"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-29">
+                    <td>29</td>
+                    <td><strong>+55 65 9685-3389</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/556596853389?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="556596853389"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-30">
+                    <td>30</td>
+                    <td><strong>55 67 9989-6143</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/556799896143?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="556799896143"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-31">
+                    <td>31</td>
+                    <td><strong>+55 71 8512-0155</strong></td>
+                    <td><span class="badge">Grupo Palpites de Futebol</span></td>
+                    <td>
+                        <a href="https://wa.me/557185120155?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="557185120155"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-32">
+                    <td>32</td>
+                    <td><strong>+55 71 9147-9268</strong></td>
+                    <td><span class="badge">Grupo Oficial de Palpites e Apostas</span></td>
+                    <td>
+                        <a href="https://wa.me/557191479268?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="557191479268"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-33">
+                    <td>33</td>
+                    <td><strong>+55 77 9847-4128</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/557798474128?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="557798474128"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-34">
+                    <td>34</td>
+                    <td><strong>+55 79 92001-6744</strong></td>
+                    <td><span class="badge">Grupo Oficial de Palpites e Apostas</span></td>
+                    <td>
+                        <a href="https://wa.me/5579920016744?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5579920016744"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-35">
+                    <td>35</td>
+                    <td><strong>+55 79 9609-3446</strong></td>
+                    <td><span class="badge">Grupo Palpites de Futebol</span></td>
+                    <td>
+                        <a href="https://wa.me/557996093446?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="557996093446"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-36">
+                    <td>36</td>
+                    <td><strong>+55 82 8823-0705</strong></td>
+                    <td><span class="badge">Grupo Palpites de Futebol</span></td>
+                    <td>
+                        <a href="https://wa.me/558288230705?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="558288230705"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-37">
+                    <td>37</td>
+                    <td><strong>+55 83 8902-4244</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/558389024244?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="558389024244"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-38">
+                    <td>38</td>
+                    <td><strong>+55 84 9636-3828</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/558496363828?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="558496363828"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-39">
+                    <td>39</td>
+                    <td><strong>+55 84 9816-9273</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/558498169273?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="558498169273"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-40">
+                    <td>40</td>
+                    <td><strong>+55 84 9993-9457</strong></td>
+                    <td><span class="badge">Grupo Palpites de Futebol</span></td>
+                    <td>
+                        <a href="https://wa.me/558499939457?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="558499939457"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-41">
+                    <td>41</td>
+                    <td><strong>+55 85 8755-7729</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/558587557729?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="558587557729"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-42">
+                    <td>42</td>
+                    <td><strong>+55 86 92001-8226</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5586920018226?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5586920018226"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-43">
+                    <td>43</td>
+                    <td><strong>+55 88 93300-8054</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/5588933008054?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="5588933008054"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-44">
+                    <td>44</td>
+                    <td><strong>+595 982 778671</strong></td>
+                    <td><span class="badge">Grupo Palpites de Futebol</span></td>
+                    <td>
+                        <a href="https://wa.me/595982778671?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="595982778671"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+                <tr id="row-45">
+                    <td>45</td>
+                    <td><strong>+62 838-5468-8151</strong></td>
+                    <td><span class="badge">Grupo Balao Campeao</span></td>
+                    <td>
+                        <a href="https://wa.me/6283854688151?text=Olá!%20Tudo%20bem?" 
+                           target="_blank" 
+                           class="btn-send" 
+                           data-phone="6283854688151"
+                           onclick="markSent(this)">
+                           💬 Enviar Mensagem
+                        </a>
+                    </td>
+                </tr>
+
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let sentCount = 0;
+        const msgInput = document.getElementById('msgInput');
+
+        function updateLinks() {
+            const text = encodeURIComponent(msgInput.value);
+            const links = document.querySelectorAll('.btn-send');
+            links.forEach(link => {
+                const phone = link.getAttribute('data-phone');
+                link.href = `https://wa.me/${phone}?text=${text}`;
+            });
+        }
+
+        msgInput.addEventListener('input', updateLinks);
+
+        function markSent(btn) {
+            if (!btn.classList.contains('sent')) {
+                btn.classList.add('sent');
+                btn.innerText = '✅ Enviado';
+                sentCount++;
+                document.getElementById('sentCount').innerText = sentCount;
+            }
+        }
+    </script>
+</body>
+</html>

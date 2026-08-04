@@ -101,113 +101,83 @@ foreach ($fixtures as $fix) {
 }
 ksort($groupedLeagues); // Ordena países alfabeticamente
 
+if (!function_exists('factorial_php')) {
+    function factorial_php($n) {
+        if ($n <= 1) return 1;
+        $res = 1;
+        for ($i = 2; $i <= $n; $i++) $res *= $i;
+        return $res;
+    }
+}
+
+if (!function_exists('calculate_poisson_php')) {
+    function calculate_poisson_php($xc, $line = 4.5) {
+        if ($xc <= 0) return ['over' => 0.0, 'under' => 100.0];
+        $kMax = (int)floor($line);
+        $probUnderCdf = 0.0;
+        for ($k = 0; $k <= $kMax; $k++) {
+            $probUnderCdf += (exp(-$xc) * pow($xc, $k)) / factorial_php($k);
+        }
+        $probOver = max(0.0, min(100.0, (1.0 - $probUnderCdf) * 100.0));
+        $probUnder = max(0.0, min(100.0, $probUnderCdf * 100.0));
+        return ['over' => round($probOver, 2), 'under' => round($probUnder, 2)];
+    }
+}
+
 if (!function_exists('getBetDecisionTree')) {
     function getBetDecisionTree($fix) {
-        $leagueName = strtolower($fix->league_name ?? '');
-        
-        // Mapeamento de Países / Palavras-chave da América do Sul / Central
-        $southCentralKeywords = [
-            'brasil', 'brazil', 'serie a', 'serie b', 'serie c', 'carioca', 'paulista', 'mineiro', 'gaucho',
-            'argentina', 'chile', 'colombia', 'colômbia', 'uruguay', 'uruguai', 'paraguay', 'paraguai',
-            'peru', 'ecuador', 'equador', 'bolivia', 'bolívia', 'venezuela', 'mexico', 'méxico',
-            'libertadores', 'sudamericana', 'concacaf', 'primera division', 'categoria primera', 'liga mx'
-        ];
-
-        $isSouthCentral = false;
-        foreach ($southCentralKeywords as $kw) {
-            if (strpos($leagueName, $kw) !== false) {
-                $isSouthCentral = true;
-                break;
-            }
-        }
-
-        // Estatísticas de Faltas/Cartões das Equipes (Média combinada)
-        $homeAvg = isset($fix->home_avg_cards) ? (float)$fix->home_avg_cards : 2.5;
-        $awayAvg = isset($fix->away_avg_cards) ? (float)$fix->away_avg_cards : 2.5;
+        $homeAvg = isset($fix->home_avg_cards) ? (float)$fix->home_avg_cards : 2.0;
+        $awayAvg = isset($fix->away_avg_cards) ? (float)$fix->away_avg_cards : 2.0;
         $combinedAvg = $homeAvg + $awayAvg;
-        $isFaltoso = ($combinedAvg >= 4.5);
-
-        // Estatísticas do Árbitro
         $refAvg = isset($fix->average_yellow_cards) ? (float)$fix->average_yellow_cards : 4.2;
-        $rigorLevel = strtolower($fix->rigor_level ?? '');
-        $isRigoroso = ($refAvg >= 4.5 || strpos($rigorLevel, 'alto') !== false || strpos($rigorLevel, 'muito alto') !== false);
-
-        if ($isSouthCentral) {
-            $regionFull = 'América do Sul / Central';
-            $regionShort = 'Sul/Centro-Am.';
-            
-            if ($isFaltoso && $isRigoroso) {
-                return [
-                    'market'        => 'Mais de 4.5 Cartões',
-                    'line_tag'      => 'OVER 4.5 🟨',
-                    'badge_bg'      => 'background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5);',
-                    'region'        => $regionFull,
-                    'region_short'  => $regionShort,
-                    'foul_style'    => 'Equipes Faltosas (' . number_format($combinedAvg, 1) . ' c/j)',
-                    'foul_short'    => 'Faltoso (' . number_format($combinedAvg, 1) . ')',
-                    'referee'       => 'Árbitro Rigoroso (' . number_format($refAvg, 1) . ' c/j)',
-                    'referee_short' => 'Rigoroso (' . number_format($refAvg, 1) . ')',
-                    'rationale'     => 'Jogo físico na América do Sul/Central + equipes faltosas + árbitro rigoroso. Alta probabilidade de 5+ cartões.'
-                ];
-            } elseif ($isFaltoso && !$isRigoroso) {
-                return [
-                    'market'        => 'Menos de 7.5 Cartões',
-                    'line_tag'      => 'UNDER 7.5 🛡️',
-                    'badge_bg'      => 'background: rgba(59, 130, 246, 0.25); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.5);',
-                    'region'        => $regionFull,
-                    'region_short'  => $regionShort,
-                    'foul_style'    => 'Equipes Faltosas (' . number_format($combinedAvg, 1) . ' c/j)',
-                    'foul_short'    => 'Faltoso (' . number_format($combinedAvg, 1) . ')',
-                    'referee'       => 'Árbitro Moderado/Brando (' . number_format($refAvg, 1) . ' c/j)',
-                    'referee_short' => 'Brando (' . number_format($refAvg, 1) . ')',
-                    'rationale'     => 'Times faltosos, porém o árbitro brando evita chuva de amarelos. Proteção de segurança no Under 7.5.'
-                ];
-            } else {
-                return [
-                    'market'        => 'Menos de 6.5 Cartões',
-                    'line_tag'      => 'UNDER 6.5 🛡️',
-                    'badge_bg'      => 'background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5);',
-                    'region'        => $regionFull,
-                    'region_short'  => $regionShort,
-                    'foul_style'    => 'Faltas Moderadas (' . number_format($combinedAvg, 1) . ' c/j)',
-                    'foul_short'    => 'Moderado (' . number_format($combinedAvg, 1) . ')',
-                    'referee'       => ($isRigoroso ? 'Árbitro Rigoroso' : 'Árbitro Moderado') . ' (' . number_format($refAvg, 1) . ' c/j)',
-                    'referee_short' => ($isRigoroso ? 'Rigoroso' : 'Moderado') . ' (' . number_format($refAvg, 1) . ')',
-                    'rationale'     => 'Média de faltas contida das equipes garante teto sob controle. Entrada recomendada em Under 6.5.'
-                ];
-            }
+        $refFouls = isset($fix->average_fouls) ? (float)$fix->average_fouls : 24.0;
+        
+        $foulContext = $combinedAvg * ($refFouls / 24.0);
+        $xc = round(($combinedAvg * 0.50) + ($refAvg * 0.35) + ($foulContext * 0.15), 2);
+        
+        $poisson = calculate_poisson_php($xc, 4.5);
+        $overProb = $poisson['over'];
+        $underProb = $poisson['under'];
+        
+        if ($xc >= 4.80 && $overProb >= 50.0) {
+            return [
+                'market'        => 'Mais de 4.5 Cartões',
+                'line_tag'      => 'OVER 4.5 🟨',
+                'badge_bg'      => 'background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5);',
+                'region'        => 'Expectativa xC',
+                'region_short'  => 'xC: ' . $xc,
+                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
+                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
+                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
+                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
+                'rationale'     => 'Expectativa elevada (xC = ' . $xc . '). Alta tendência estatística para 5+ cartões.'
+            ];
+        } elseif ($xc <= 4.20 || $underProb >= 60.0) {
+            return [
+                'market'        => 'Menos de 4.5 Cartões',
+                'line_tag'      => 'UNDER 4.5 🛡️',
+                'badge_bg'      => 'background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5);',
+                'region'        => 'Expectativa xC',
+                'region_short'  => 'xC: ' . $xc,
+                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
+                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
+                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
+                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
+                'rationale'     => 'Média combinada dos times e arbitragem mantêm expectativa contida (xC = ' . $xc . '). Tendência Under 4.5.'
+            ];
         } else {
-            // Europa / América do Norte / Outros
-            $regionFull = 'Europa / América do Norte (MLS)';
-            $regionShort = 'Euro / MLS';
-            
-            if ($isRigoroso) {
-                return [
-                    'market'        => 'Menos de 5.5 Cartões',
-                    'line_tag'      => 'UNDER 5.5 🛡️',
-                    'badge_bg'      => 'background: rgba(139, 92, 246, 0.25); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.5);',
-                    'region'        => $regionFull,
-                    'region_short'  => $regionShort,
-                    'foul_style'    => 'Jogo Fluido / Poucas Faltas (' . number_format($combinedAvg, 1) . ' c/j)',
-                    'foul_short'    => 'Pouco Faltoso (' . number_format($combinedAvg, 1) . ')',
-                    'referee'       => 'Árbitro Rigoroso (' . number_format($refAvg, 1) . ' c/j)',
-                    'referee_short' => 'Rigoroso (' . number_format($refAvg, 1) . ')',
-                    'rationale'     => 'Estilo fluido com poucas faltas táticas. Mesmo com juiz rigoroso, o teto da partida dificilmente supera 5 cartões.'
-                ];
-            } else {
-                return [
-                    'market'        => 'Menos de 4.5 ou 5.5 Cartões',
-                    'line_tag'      => 'UNDER 4.5 🛡️',
-                    'badge_bg'      => 'background: rgba(6, 182, 212, 0.25); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.5);',
-                    'region'        => $regionFull,
-                    'region_short'  => $regionShort,
-                    'foul_style'    => 'Jogo Limpo (' . number_format($combinedAvg, 1) . ' c/j)',
-                    'foul_short'    => 'Jogo Limpo (' . number_format($combinedAvg, 1) . ')',
-                    'referee'       => 'Árbitro Moderado/Brando (' . number_format($refAvg, 1) . ' c/j)',
-                    'referee_short' => 'Brando (' . number_format($refAvg, 1) . ')',
-                    'rationale'     => 'Jogo limpo sem faltas duras e arbitragem condescendente. Elevada tendência de poucos cartões (Under 4.5).'
-                ];
-            }
+            return [
+                'market'        => 'Linha Neutra / Sem Valor',
+                'line_tag'      => 'SEM APOSTA ⚖️',
+                'badge_bg'      => 'background: rgba(148, 163, 184, 0.25); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.5);',
+                'region'        => 'Expectativa xC',
+                'region_short'  => 'xC: ' . $xc,
+                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
+                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
+                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
+                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
+                'rationale'     => 'Expectativa mediana (xC = ' . $xc . '). Linha Over 4.5 desfavorável (Poisson Over 4.5: ' . $overProb . '%).'
+            ];
         }
     }
 }
@@ -1641,22 +1611,25 @@ if (!function_exists('getBetDecisionTree')) {
                                 $probDisplay = '100% (BATEU 🟢)';
                                 $class = 'high';
                             } else {
-                                $homeAvgC = isset($fix->home_avg_cards) ? (float)$fix->home_avg_cards : 2.5;
-                                $awayAvgC = isset($fix->away_avg_cards) ? (float)$fix->away_avg_cards : 2.5;
-                                $refAvgC = isset($fix->average_yellow_cards) ? (float)$fix->average_yellow_cards : 4.2;
-                                
-                                $combinedExpectedCards = ($homeAvgC + $awayAvgC) * 0.55 + ($refAvgC * 0.45);
-                                $calculatedProb = round(min(95.0, max(20.0, 50.0 + ($combinedExpectedCards - 4.5) * 16.5)), 2);
-                                
-                                if (!empty($fix->over_cards_probability) && (float)$fix->over_cards_probability > 0) {
-                                    $prob = round(($calculatedProb * 0.7) + ((float)$fix->over_cards_probability * 0.3), 2);
+                                if (isset($fix->over_cards_probability) && (float)$fix->over_cards_probability > 0) {
+                                    $prob = (float)$fix->over_cards_probability;
                                 } else {
-                                    $prob = $calculatedProb;
+                                    $homeAvgC = isset($fix->home_avg_cards) ? (float)$fix->home_avg_cards : 2.0;
+                                    $awayAvgC = isset($fix->away_avg_cards) ? (float)$fix->away_avg_cards : 2.0;
+                                    $refAvgC = isset($fix->average_yellow_cards) ? (float)$fix->average_yellow_cards : 4.2;
+                                    $refFouls = isset($fix->average_fouls) ? (float)$fix->average_fouls : 24.0;
+                                    
+                                    $combinedAvg = $homeAvgC + $awayAvgC;
+                                    $foulContext = $combinedAvg * ($refFouls / 24.0);
+                                    $xc = round(($combinedAvg * 0.50) + ($refAvgC * 0.35) + ($foulContext * 0.15), 2);
+                                    
+                                    $poisson = calculate_poisson_php($xc, 4.5);
+                                    $prob = $poisson['over'];
                                 }
                                 
-                                if ($prob >= 70.0) {
+                                if ($prob >= 55.0) {
                                     $class = 'high';
-                                } elseif ($prob >= 50.0) {
+                                } elseif ($prob >= 40.0) {
                                     $class = 'medium';
                                 } else {
                                     $class = 'low';

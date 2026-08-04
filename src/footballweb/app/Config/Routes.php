@@ -43,6 +43,7 @@ $routes->get('/lang/(:segment)', 'LanguageController::switchLanguage/$1', ['as'=
 
 // Rotas do App Football Trends
 $routes->match(['get', 'head'], '/football-trends', 'FootballTrendsController::index', ['as'=>'football.trends']);
+$routes->match(['get', 'head'], '/football', 'FootballTrendsController::index');
 $routes->post('/football-trends/ingest', 'FootballTrendsController::triggerIngest', ['as'=>'football.ingest']);
 $routes->post('/football-trends/ask-ai', 'FootballTrendsController::askAi', ['as'=>'football.ask-ai']);
 $routes->get('/football-trends/live-scores', 'FootballTrendsController::liveScores', ['as'=>'football.live-scores']);

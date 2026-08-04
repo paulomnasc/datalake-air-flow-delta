@@ -835,8 +835,16 @@
         <div class="bet-card-item" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
           
           <div class="bet-card-header">
-            <div class="match-teams">
-              <?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?>
+            <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
+              <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
+              <?php if (!empty($aposta->fixture_id)): ?>
+                <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
+                   class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
+                   style="font-size: 0.75rem; transition: all 0.2s ease;" 
+                   title="Ir para o Card de Origem no Dashboard">
+                  <i class="bi bi-box-arrow-up-right me-1"></i> Card Origem
+                </a>
+              <?php endif; ?>
             </div>
             <div class="match-time">
               <i class="bi bi-clock"></i>
@@ -890,6 +898,20 @@
             </div>
 
             <div class="actions-secondary">
+              <?php if (!empty($aposta->fixture_id)): ?>
+                <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
+                   class="btn-icon-link text-warning fw-semibold text-decoration-none" 
+                   title="Ver Card de Origem da Aposta no Dashboard">
+                  <i class="bi bi-box-arrow-up-right me-1"></i> Card Origem
+                </a>
+              <?php else: ?>
+                <a href="<?= base_url('football-trends?search=' . urlencode($aposta->time_casa)) ?>" 
+                   class="btn-icon-link text-muted text-decoration-none" 
+                   title="Buscar Partida no Dashboard">
+                  <i class="bi bi-search me-1"></i> Card Origem
+                </a>
+              <?php endif; ?>
+
               <button class="btn-icon-link" onclick="shareBet('<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', '<?= number_format($aposta->odd, 2) ?>')">
                 <i class="bi bi-share"></i> Compartilhar
               </button>
@@ -1152,6 +1174,27 @@
         initFixtureOptions();
         clearFixtureSelection();
       });
+    }
+
+    // Auto-abrir modal e selecionar jogo se informado via parâmetros da URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const fixtureIdParam = urlParams.get('fixture_id');
+    const autoOpenNewBet = urlParams.get('new_bet') === '1' || urlParams.get('action') === 'new';
+
+    if ((autoOpenNewBet || fixtureIdParam) && newBetModalEl) {
+      setTimeout(function() {
+        const bsModal = new bootstrap.Modal(newBetModalEl);
+        bsModal.show();
+        if (fixtureIdParam) {
+          const matchOpt = allFixtureOptions.find(o => o.value == fixtureIdParam);
+          if (matchOpt) {
+            selectFixtureOption(matchOpt);
+          } else {
+            const selectEl = document.getElementById('fixtureSelect');
+            if (selectEl) selectEl.value = fixtureIdParam;
+          }
+        }
+      }, 300);
     }
 
     // Fechar dropdown ao clicar fora do container

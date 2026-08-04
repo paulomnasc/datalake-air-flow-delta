@@ -532,6 +532,18 @@ if (!function_exists('getBetDecisionTree')) {
         border-color: rgba(244, 124, 32, 0.2);
     }
 
+    @keyframes cardGlowPulse {
+        0% { box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.8); border-color: #00e676; }
+        50% { box-shadow: 0 0 30px 10px rgba(0, 230, 118, 0.9); border-color: #00e676; transform: scale(1.02); }
+        100% { box-shadow: 0 0 0 0 rgba(0, 230, 118, 0); border-color: rgba(255, 255, 255, 0.05); }
+    }
+
+    .card-highlight-pulse {
+        animation: cardGlowPulse 1.8s ease-in-out 3;
+        border: 2px solid #00e676 !important;
+        z-index: 10;
+    }
+
     .bet-card-header {
         display: flex;
         justify-content: space-between;
@@ -1698,7 +1710,7 @@ if (!function_exists('getBetDecisionTree')) {
                                  $elapsedDisplay = $elapsedText;
                              }
                              ?>
-                             <div class="bet-card" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
+                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
@@ -2044,6 +2056,14 @@ if (!function_exists('getBetDecisionTree')) {
                                     <?php endif; ?>
 
                                     <div style="display: flex; align-items: center; gap: 6px;">
+                                        <!-- Botão Registrar Aposta vinculado ao card -->
+                                        <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id) ?>" 
+                                           class="bet-stats-btn" 
+                                           style="border-color: rgba(0, 230, 118, 0.4); color: #00e676; text-decoration: none;" 
+                                           title="Registrar Aposta para esta partida">
+                                            <i class="bi bi-journal-plus"></i> Apostar
+                                        </a>
+
                                         <!-- Botão Estatísticas à esquerda de Grok AI -->
                                         <button type="button" 
                                                 class="bet-stats-btn" 
@@ -2800,6 +2820,33 @@ if (!function_exists('getBetDecisionTree')) {
 
     // Inicia a atualização automática a cada 30 segundos
     setInterval(updateLiveScores, 30000);
+
+    // Auto-scroll e destaque visual para o card de origem ao navegar a partir da aposta
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        let targetFixtureId = urlParams.get('fixture_id');
+        const searchQuery = urlParams.get('search');
+
+        if (!targetFixtureId && window.location.hash.startsWith('#card-')) {
+            targetFixtureId = window.location.hash.replace('#card-', '');
+        }
+
+        if (targetFixtureId) {
+            const targetCard = document.querySelector(`.bet-card[data-fixture-id="${targetFixtureId}"], #card-${targetFixtureId}`);
+            if (targetCard) {
+                setTimeout(function() {
+                    targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    targetCard.classList.add('card-highlight-pulse');
+                }, 400);
+            }
+        } else if (searchQuery) {
+            const searchInput = document.getElementById('teamSearchInput');
+            if (searchInput) {
+                searchInput.value = searchQuery;
+                searchInput.dispatchEvent(new Event('input'));
+            }
+        }
+    });
 </script>
 
 <?php

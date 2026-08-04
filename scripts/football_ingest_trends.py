@@ -28,6 +28,29 @@ def calculate_poisson_over_under(xc, line=4.5):
     return round(prob_over, 2), round(prob_under, 2)
 
 
+def calculate_poisson_under_lines(xc):
+    """
+    Calcula as probabilidades de Under para várias linhas de cartões (3.5, 4.5, 5.5, 6.5) via Poisson.
+    Retorna um dicionário {linha: prob_under}.
+    """
+    lines = [3.5, 4.5, 5.5, 6.5]
+    results = {}
+    if xc <= 0:
+        for l in lines:
+            results[l] = 100.0
+        return results
+    
+    for l in lines:
+        k_max = int(math.floor(l))
+        prob_under_cdf = 0.0
+        for k in range(k_max + 1):
+            prob_under_cdf += (math.exp(-xc) * (xc ** k)) / math.factorial(k)
+        results[l] = round(max(0.0, min(100.0, prob_under_cdf * 100.0)), 2)
+        
+    return results
+
+
+
 # Conexão MySQL robusta
 def get_mysql_connection():
     # Tenta conexão pela rede interna do docker
@@ -402,35 +425,60 @@ def main():
                     # Se já existe, recalcula/lê os dados para a predição
                     cursor.execute("SELECT * FROM referee_stats WHERE name = %s", (referee_name,))
                     ref_data = cursor.fetchone()
+            else:
+                referee_name = "Árbitro Não Informado"
+                ref_data = {
+                    "rigor_level": "Moderado",
+                    "average_yellow_cards": 4.00,
+                    "average_fouls": 24.0
+                }
                 
-                # Gera predição combinada ponderada (50% Times, 35% Árbitro, 15% Faltas/Contexto)
-                rigor = ref_data["rigor_level"]
-                yellows = float(ref_data["average_yellow_cards"])
-                ref_fouls = float(ref_data.get("average_fouls", 24.0))
-                
-                # Fator de conversão e intensidade de faltas
-                foul_conversion_context = team_cards_combined * (ref_fouls / 24.0)
-                
-                # xC: Expected Cards
-                exp_cards = round((team_cards_combined * 0.50) + (yellows * 0.35) + (foul_conversion_context * 0.15), 2)
-                
-                # Probabilidade real calculada via Distribuição de Poisson (linha 4.5)
-                over_cards_prob, under_cards_prob = calculate_poisson_over_under(exp_cards, line=4.5)
+            # Gera predição combinada ponderada (50% Times, 35% Árbitro, 15% Faltas/Contexto)
+            rigor = ref_data["rigor_level"]
+            yellows = float(ref_data["average_yellow_cards"])
+            ref_fouls = float(ref_data.get("average_fouls", 24.0))
+            
+            # Fator de conversão e intensidade de faltas
+            foul_conversion_context = team_cards_combined * (ref_fouls / 24.0)
+            
+            # xC: Expected Cards
+            exp_cards = round((team_cards_combined * 0.50) + (yellows * 0.35) + (foul_conversion_context * 0.15), 2)
+            
+            # Probabilidades de Under via Distribuição de Poisson em múltiplas linhas
+            under_probs = calculate_poisson_under_lines(exp_cards)
+            u35 = under_probs[3.5]
+            u45 = under_probs[4.5]
+            u55 = under_probs[5.5]
+            u65 = under_probs[6.5]
+            
+            over_cards_prob = round(100.0 - u45, 2)
 
-                # Trava Anticontradição (Margin Gatekeeper):
-                # Só indica Over 4.5 se o xC for >= 4.80 (margem estatística real acima da linha 4.5)
-                if exp_cards >= 4.80 and over_cards_prob >= 50.0:
-                    if rigor == "Permissivo":
-                        prediction_text = f"🔥 Embora o árbitro {referee_name} seja permissivo ({yellows} amarelos/jogo), a alta média combinada das equipes ({home_team}: {home_c_stats['avg_cards']} e {away_team}: {away_c_stats['avg_cards']}) eleva o xC para {exp_cards} cartões (Over 4.5: {over_cards_prob}%)."
-                    else:
-                        prediction_text = f"🔥 Árbitro {referee_name} ({rigor.lower()}, {yellows} amarelos/jogo) aliado ao histórico dos times indica alta expectativa ({exp_cards} cartões) para Over 4.5 ({over_cards_prob}%)."
-                elif exp_cards <= 4.20 or under_cards_prob >= 60.0:
-                    if rigor == "Rigoroso":
-                        prediction_text = f"❄️ Apesar do árbitro {referee_name} ser rigoroso ({yellows} amarelos/jogo), o histórico disciplinado das equipes ancora o xC em {exp_cards} cartões (Under 4.5: {under_cards_prob}%)."
-                    else:
-                        prediction_text = f"❄️ Árbitro {referee_name} ({rigor.lower()}, {yellows} amarelos/jogo) e a média combinada dos times ({team_cards_combined:.1f}) indicam tendência Under 4.5 ({under_cards_prob}%)."
-                else:
-                    prediction_text = f"⚖️ Árbitro {referee_name} ({yellows} amarelos/jogo) e times (média combinada {team_cards_combined:.1f}) geram xC de {exp_cards} cartões. Linha de Over 4.5 desfavorável (Poisson Over: {over_cards_prob}%)."
+            # POLÍTICA EXCLUSIVA UNDER E TRAVA DE SEGURANÇA NO_BET MULTI-NÍVEL:
+            # Nunca sugere "Over". Apresenta sempre 2 opções Under se seguro (xC <= 5.80), senão emite NO_BET.
+            if exp_cards <= 3.50:
+                # Cenário de excelente disciplina
+                op1 = f"Under 4.5 ({u45}%)"
+                op2 = f"Under 5.5 ({u55}%)"
+                prediction_text = f"🛡️ Estratégia Under (xC: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
+
+            elif exp_cards <= 4.80:
+                # Cenário de expectativa contida/moderada
+                op1 = f"Under 5.5 ({u55}%)"
+                op2 = f"Under 6.5 ({u65}%)"
+                prediction_text = f"🛡️ Estratégia Under (xC: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
+
+            elif exp_cards <= 5.80 and u65 >= 60.0:
+                # Cenário de expectativa mais alta, porém seguro em Under 6.5
+                op1 = f"Under 6.5 ({u65}%)"
+                op2 = f"Under 5.5 ({u55}%)"
+                prediction_text = f"🛡️ Estratégia Under (xC: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
+
+            else:
+                # Trava NO_BET: Risco elevado para entradas Under (xC > 5.80 ou probabilidade de Under 6.5 < 60%)
+                prediction_text = f"🚫 NO_BET: Partida com xC elevado ({exp_cards} cartões). Árbitro {referee_name} ({yellows} amarelos/jogo) e média combinada dos times ({team_cards_combined:.1f}) tornam o Under arriscado. Entrada não recomendada."
+
+
+
             
             # Garante que os times possuam estatísticas na tabela team_moving_averages
             if home_team_id:

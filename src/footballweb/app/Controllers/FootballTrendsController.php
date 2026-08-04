@@ -78,6 +78,11 @@ class FootballTrendsController extends BaseController
         $showPostponedParam = $this->request->getVar('show_postponed');
         $showPostponed = ($showPostponedParam === '1' || $showPostponedParam === 'true' || $showPostponedParam === 'sim');
 
+        // Filtro para exibir apenas apostas seguras (Under com alta confiança)
+        $onlySafeParam = $this->request->getVar('only_safe');
+        $onlySafe = ($onlySafeParam === '1' || $onlySafeParam === 'true' || $onlySafeParam === 'sim');
+
+
         // Conecta ao banco para realizar a query com join
         $db = \Config\Database::connect();
         $builder = $db->table('fixtures_trends ft');
@@ -153,11 +158,13 @@ class FootballTrendsController extends BaseController
             'search'        => $search,
             'showFinished'  => $showFinished,
             'showPostponed' => $showPostponed,
+            'onlySafe'      => $onlySafe,
             'fixtures'      => $fixtures,
             'leagues'       => $leagues,
             'title'         => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
             'metaTags'      => $seo->generateMetaTags()
         ];
+
 
         return $this->loadView('football/dashboard', $data);
     }

@@ -258,8 +258,150 @@
 
   .metric-value.profit { color: var(--accent-green); }
 
+  /* Filter Card */
+  .filter-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 25px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+  .filter-card-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #ffffff;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .filter-input {
+    background-color: #0d1117 !important;
+    border: 1px solid #30363d !important;
+    color: #f0f6fc !important;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+  .filter-input:focus {
+    border-color: var(--accent-blue) !important;
+    box-shadow: 0 0 0 2px rgba(0, 176, 255, 0.25) !important;
+  }
+  .filter-btn {
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 8px 18px;
+    font-size: 0.9rem;
+  }
+  .filter-badge-period {
+    background: rgba(0, 176, 255, 0.15);
+    color: var(--accent-blue);
+    border: 1px solid rgba(0, 176, 255, 0.3);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .quick-btn {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #8b949e;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .quick-btn:hover {
+    background: #30363d;
+    color: #ffffff;
+  }
+
+  /* Performance & Projection Panel */
+  .performance-panel {
+    background: linear-gradient(145deg, #161b22 0%, #1c2128 100%);
+    border: 1px solid #30363d;
+    border-radius: 18px;
+    padding: 24px 28px;
+    margin-bottom: 35px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  }
+  .performance-panel-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: 1.25rem;
+    color: #ffffff;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .metric-pill-box {
+    background: rgba(13, 17, 23, 0.7);
+    border: 1px solid #21262d;
+    border-radius: 12px;
+    padding: 16px 20px;
+    height: 100%;
+  }
+  .metric-pill-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .metric-pill-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-top: 4px;
+  }
+  .metric-pill-sub {
+    font-size: 0.8rem;
+    color: #8b949e;
+    margin-top: 4px;
+  }
+  .projection-card {
+    background: linear-gradient(135deg, rgba(0, 230, 118, 0.05) 0%, rgba(0, 176, 255, 0.05) 100%);
+    border: 1px solid rgba(0, 230, 118, 0.2);
+    border-radius: 14px;
+    padding: 18px 20px;
+    text-align: center;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+  .projection-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent-green);
+  }
+  .projection-card.negative {
+    background: linear-gradient(135deg, rgba(255, 23, 68, 0.05) 0%, rgba(255, 82, 82, 0.05) 100%);
+    border-color: rgba(255, 23, 68, 0.2);
+  }
+  .projection-card.negative:hover {
+    border-color: #ff1744;
+  }
+  .projection-volume {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #8b949e;
+    letter-spacing: 0.5px;
+  }
+  .projection-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-top: 6px;
+  }
+
   @media print {
-    .header-actions { display: none !important; }
+    .header-actions, .filter-card, .performance-panel { display: none !important; }
     body { background-color: #ffffff !important; color: #000000 !important; }
     .report-header, .rank-card, .summary-card { background: #ffffff !important; border: 1px solid #ccc !important; color: #000 !important; }
     .report-title h1, .pick-name, .metric-value, .summary-value { color: #000000 !important; }
@@ -285,6 +427,61 @@
     </div>
   </div>
 
+  <!-- Filter Card -->
+  <div class="filter-card">
+    <div class="filter-card-title">
+      <div>
+        <i class="bi bi-calendar-range text-info me-2"></i> Filtrar por Período
+      </div>
+      <div>
+        <?php if (!empty($dataInicio) || !empty($dataFim)): ?>
+          <span class="filter-badge-period">
+            <i class="bi bi-funnel-fill me-1"></i>
+            Período: <?= !empty($dataInicio) ? date('d/m/Y', strtotime($dataInicio)) : 'Início' ?> 
+            até <?= !empty($dataFim) ? date('d/m/Y', strtotime($dataFim)) : 'Hoje' ?>
+          </span>
+        <?php else: ?>
+          <span class="filter-badge-period text-muted" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: #8b949e;">
+            <i class="bi bi-globe me-1"></i> Todo o histórico
+          </span>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <form method="GET" action="<?= base_url('apostas/relatorio-top5') ?>" id="filterForm">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-3 col-sm-6">
+          <label class="form-label text-muted small fw-semibold mb-1">Data Início</label>
+          <input type="date" name="data_inicio" id="data_inicio" class="form-control filter-input" value="<?= esc($dataInicio ?? '') ?>">
+        </div>
+
+        <div class="col-md-3 col-sm-6">
+          <label class="form-label text-muted small fw-semibold mb-1">Data Final</label>
+          <input type="date" name="data_fim" id="data_fim" class="form-control filter-input" value="<?= esc($dataFim ?? '') ?>">
+        </div>
+
+        <div class="col-md-6 col-sm-12 d-flex align-items-end gap-2 flex-wrap">
+          <button type="submit" class="btn btn-primary filter-btn">
+            <i class="bi bi-search me-1"></i> Filtrar Período
+          </button>
+
+          <?php if (!empty($dataInicio) || !empty($dataFim)): ?>
+            <a href="<?= base_url('apostas/relatorio-top5') ?>" class="btn btn-outline-secondary filter-btn filter-btn-clear">
+              <i class="bi bi-x-circle me-1"></i> Limpar
+            </a>
+          <?php endif; ?>
+
+          <div class="ms-auto d-flex gap-1 align-items-center flex-wrap">
+            <span class="text-muted small me-1">Atalhos:</span>
+            <button type="button" class="quick-btn" onclick="setPeriodQuick(7)">7D</button>
+            <button type="button" class="quick-btn" onclick="setPeriodQuick(30)">30D</button>
+            <button type="button" class="quick-btn" onclick="setPeriodMonth()">Este Mês</button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+
   <!-- Summary Cards -->
   <div class="summary-grid">
     <div class="summary-card">
@@ -292,34 +489,137 @@
         <i class="bi bi-check-circle-fill"></i>
       </div>
       <div>
-        <div class="summary-label">Apostas Ganhas</div>
-        <div class="summary-value"><?= $statSummary['total_ganhas'] ?? 0 ?> / <?= $statSummary['total_apostas'] ?? 0 ?></div>
+        <div class="summary-label">Apostas Encerradas</div>
+        <div class="summary-value"><?= $statSummary['total_ganhas'] ?? 0 ?>G / <?= $statSummary['total_perdidas'] ?? 0 ?>P (<?= $statSummary['total_encerradas'] ?? 0 ?>)</div>
       </div>
     </div>
 
     <div class="summary-card">
-      <div class="summary-icon gold">
+      <div class="summary-icon <?= ($statSummary['lucro_liquido'] ?? 0) >= 0 ? 'gold' : 'red' ?>" style="<?= ($statSummary['lucro_liquido'] ?? 0) < 0 ? 'background: rgba(255,23,68,0.15); color: #ff1744;' : '' ?>">
         <i class="bi bi-cash-coin"></i>
       </div>
       <div>
-        <div class="summary-label">Retorno das Vitórias</div>
-        <div class="summary-value">R$ <?= number_format($statSummary['retorno_ganhas'] ?? 0, 2, ',', '.') ?></div>
+        <div class="summary-label">Lucro Líquido Aferido</div>
+        <div class="summary-value" style="color: <?= ($statSummary['lucro_liquido'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
+          <?= ($statSummary['lucro_liquido'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format($statSummary['lucro_liquido'] ?? 0, 2, ',', '.') ?>
+        </div>
       </div>
     </div>
 
     <div class="summary-card">
       <div class="summary-icon blue">
-        <i class="bi bi-pie-chart-fill"></i>
+        <i class="bi bi-graph-up"></i>
       </div>
       <div>
-        <div class="summary-label">Taxa de Eficiência</div>
-        <div class="summary-value">
-          <?php 
-            $tot = (int)($statSummary['total_apostas'] ?? 0);
-            $gan = (int)($statSummary['total_ganhas'] ?? 0);
-            $rate = ($tot > 0) ? round(($gan / $tot) * 100, 1) : 0;
-            echo $rate . '%';
-          ?>
+        <div class="summary-label">ROI / Yield Aferido</div>
+        <div class="summary-value" style="color: <?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
+          <?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? '+' : '' ?><?= number_format($statSummary['roi_percentual'] ?? 0, 2, ',', '.') ?>%
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Painel de Performance & Projeção +EV de Longo Prazo -->
+  <div class="performance-panel">
+    <div class="performance-panel-title">
+      <div>
+        <i class="bi bi-cpu-fill text-warning me-2"></i> Performance & Projeção +EV de Longo Prazo
+      </div>
+      <span class="badge bg-dark border border-secondary text-muted px-3 py-2 fw-semibold" style="font-size: 0.8rem;">
+        <i class="bi bi-shield-check text-success me-1"></i> Baseado no Período Selecionado
+      </span>
+    </div>
+
+    <!-- Linha 1: Métricas de Eficiência e Break-Even -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3 col-sm-6">
+        <div class="metric-pill-box">
+          <div class="metric-pill-label">Taxa de Acerto Real</div>
+          <div class="metric-pill-value text-info">
+            <?= number_format($statSummary['win_rate'] ?? 0, 1, ',', '.') ?>%
+          </div>
+          <div class="metric-pill-sub">
+            <?= $statSummary['total_ganhas'] ?? 0 ?> acertos em <?= $statSummary['total_encerradas'] ?? 0 ?> jogos
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3 col-sm-6">
+        <div class="metric-pill-box">
+          <div class="metric-pill-label">Break-Even (Ponto Nulo)</div>
+          <div class="metric-pill-value text-warning">
+            <?= number_format($statSummary['break_even_rate'] ?? 0, 1, ',', '.') ?>%
+          </div>
+          <div class="metric-pill-sub">
+            Mínimo exigido para Odd Média <?= number_format($statSummary['odd_media'] ?? 1.0, 2) ?>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3 col-sm-6">
+        <div class="metric-pill-box">
+          <div class="metric-pill-label">Margem de Eficiência (Edge)</div>
+          <div class="metric-pill-value" style="color: <?= ($statSummary['edge_percentual'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
+            <?= ($statSummary['edge_percentual'] ?? 0) >= 0 ? '+' : '' ?><?= number_format($statSummary['edge_percentual'] ?? 0, 1, ',', '.') ?>%
+          </div>
+          <div class="metric-pill-sub">
+            <?= ($statSummary['edge_percentual'] ?? 0) >= 0 ? 'Vantagem sobre a banca' : 'Abaixo do break-even' ?>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3 col-sm-6">
+        <div class="metric-pill-box">
+          <div class="metric-pill-label">Stake Média por Aposta</div>
+          <div class="metric-pill-value text-white">
+            R$ <?= number_format($statSummary['stake_media'] ?? 0, 2, ',', '.') ?>
+          </div>
+          <div class="metric-pill-sub">
+            Total investido: R$ <?= number_format($statSummary['total_investido'] ?? 0, 2, ',', '.') ?>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Linha 2: Projeção Futura em Múltiplos Volumes -->
+    <div class="pt-2">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="fw-bold text-white small text-uppercase" style="letter-spacing: 0.5px;">
+          <i class="bi bi-rocket-takeoff-fill text-primary me-2"></i> Lucro Acumulado Projetado (+EV Futuro)
+        </div>
+        <div class="text-muted small">
+          Lucro esperado por aposta: <strong class="<?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? 'text-success' : 'text-danger' ?>">
+            <?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format(($statSummary['stake_media'] ?? 0) * (($statSummary['roi_percentual'] ?? 0) / 100), 2, ',', '.') ?>
+          </strong>
+        </div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="projection-card <?= ($statSummary['projecao_100'] ?? 0) < 0 ? 'negative' : '' ?>">
+            <div class="projection-volume"><i class="bi bi-layers-fill me-1"></i> Próximas 100 Apostas</div>
+            <div class="projection-value" style="color: <?= ($statSummary['projecao_100'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
+              <?= ($statSummary['projecao_100'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format($statSummary['projecao_100'] ?? 0, 2, ',', '.') ?>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="projection-card <?= ($statSummary['projecao_500'] ?? 0) < 0 ? 'negative' : '' ?>">
+            <div class="projection-volume"><i class="bi bi-stack me-1"></i> Próximas 500 Apostas</div>
+            <div class="projection-value" style="color: <?= ($statSummary['projecao_500'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
+              <?= ($statSummary['projecao_500'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format($statSummary['projecao_500'] ?? 0, 2, ',', '.') ?>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="projection-card <?= ($statSummary['projecao_1000'] ?? 0) < 0 ? 'negative' : '' ?>">
+            <div class="projection-volume"><i class="bi bi-award-fill me-1"></i> Próximas 1.000 Apostas</div>
+            <div class="projection-value" style="color: <?= ($statSummary['projecao_1000'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
+              <?= ($statSummary['projecao_1000'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format($statSummary['projecao_1000'] ?? 0, 2, ',', '.') ?>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -443,3 +743,25 @@
   </div>
 
 </div>
+
+<script>
+function setPeriodQuick(days) {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(endDate.getDate() - days);
+  
+  document.getElementById('data_inicio').value = startDate.toISOString().split('T')[0];
+  document.getElementById('data_fim').value = endDate.toISOString().split('T')[0];
+  document.getElementById('filterForm').submit();
+}
+
+function setPeriodMonth() {
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  
+  document.getElementById('data_inicio').value = startDate.toISOString().split('T')[0];
+  document.getElementById('data_fim').value = endDate.toISOString().split('T')[0];
+  document.getElementById('filterForm').submit();
+}
+</script>

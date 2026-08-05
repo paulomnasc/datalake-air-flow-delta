@@ -598,6 +598,35 @@ class ApostaController extends BaseController
         $userId = $access['user_id'];
         $db = \Config\Database::connect();
 
+        // Filtro de datas enviado via GET
+        $dataInicio = trim((string)$this->request->getGet('data_inicio'));
+        $dataFim    = trim((string)$this->request->getGet('data_fim'));
+
+        $whereDateUser = "";
+        $whereDateGeral = "";
+        $whereDateSummary = "";
+        $paramsUser = [$userId];
+        $paramsGeral = [];
+        $paramsSummary = [$userId];
+
+        if (!empty($dataInicio)) {
+            $whereDateUser .= " AND COALESCE(data_hora_jogo, criado_em) >= ?";
+            $whereDateGeral .= " AND COALESCE(data_hora_jogo, criado_em) >= ?";
+            $whereDateSummary .= " AND COALESCE(data_hora_jogo, criado_em) >= ?";
+            $paramsUser[] = $dataInicio . ' 00:00:00';
+            $paramsGeral[] = $dataInicio . ' 00:00:00';
+            $paramsSummary[] = $dataInicio . ' 00:00:00';
+        }
+
+        if (!empty($dataFim)) {
+            $whereDateUser .= " AND COALESCE(data_hora_jogo, criado_em) <= ?";
+            $whereDateGeral .= " AND COALESCE(data_hora_jogo, criado_em) <= ?";
+            $whereDateSummary .= " AND COALESCE(data_hora_jogo, criado_em) <= ?";
+            $paramsUser[] = $dataFim . ' 23:59:59';
+            $paramsGeral[] = $dataFim . ' 23:59:59';
+            $paramsSummary[] = $dataFim . ' 23:59:59';
+        }
+
         // Top 5 Combinações (Mercado + Palpite) com mais vitórias do Usuário
         $queryUser = $db->query("
             SELECT 
@@ -609,16 +638,16 @@ class ApostaController extends BaseController
                 (SUM(ganhos_potenciais) - SUM(valor_aposta)) as lucro_liquido,
                 AVG(odd) as odd_media
             FROM apostas
-            WHERE usuario_id = ? AND status = 'Ganha'
+            WHERE usuario_id = ? AND status = 'Ganha' {$whereDateUser}
             GROUP BY mercado, palpite
             ORDER BY total_vitorias DESC, lucro_liquido DESC
             LIMIT 5
-        ", [$userId]);
+        ", $paramsUser);
 
         $top5Usuario = $queryUser->getResultArray();
 
         // Top 5 Combinações da Plataforma (Geral)
-        $queryGeral = $db->query("
+        $sqlGeral = "
             SELECT 
                 mercado,
                 palpite,
@@ -628,32 +657,82 @@ class ApostaController extends BaseController
                 (SUM(ganhos_potenciais) - SUM(valor_aposta)) as lucro_liquido,
                 AVG(odd) as odd_media
             FROM apostas
-            WHERE status = 'Ganha'
+            WHERE status = 'Ganha' {$whereDateGeral}
             GROUP BY mercado, palpite
             ORDER BY total_vitorias DESC, lucro_liquido DESC
             LIMIT 5
-        ");
+        ";
+        $queryGeral = !empty($paramsGeral) ? $db->query($sqlGeral, $paramsGeral) : $db->query($sqlGeral);
 
         $top5Geral = $queryGeral->getResultArray();
 
-        // Resumo estatístico do Usuário
-        $statSummary = $db->query("
+        // Resumo estatístico e Métricas de Performance do Usuário
+        $rawSummary = $db->query("
             SELECT 
                 COUNT(*) as total_apostas,
+                SUM(CASE WHEN status IN ('Ganha', 'Perdida') THEN 1 ELSE 0 END) as total_encerradas,
                 SUM(CASE WHEN status = 'Ganha' THEN 1 ELSE 0 END) as total_ganhas,
                 SUM(CASE WHEN status = 'Perdida' THEN 1 ELSE 0 END) as total_perdidas,
                 COALESCE(SUM(CASE WHEN status = 'Ganha' THEN ganhos_potenciais ELSE 0 END), 0) as retorno_ganhas,
-                COALESCE(SUM(valor_aposta), 0) as total_investido
+                COALESCE(SUM(valor_aposta), 0) as total_investido,
+                COALESCE(SUM(CASE WHEN status IN ('Ganha', 'Perdida') THEN valor_aposta ELSE 0 END), 0) as total_investido_encerradas,
+                COALESCE(SUM(CASE WHEN status IN ('Ganha', 'Perdida') THEN odd * valor_aposta ELSE 0 END), 0) as soma_odd_ponderada
             FROM apostas
-            WHERE usuario_id = ?
-        ", [$userId])->getRowArray();
+            WHERE usuario_id = ? {$whereDateSummary}
+        ", $paramsSummary)->getRowArray();
+
+        $totApostas   = (int)($rawSummary['total_apostas'] ?? 0);
+        $totEncerradas= (int)($rawSummary['total_encerradas'] ?? 0);
+        $totGanhas    = (int)($rawSummary['total_ganhas'] ?? 0);
+        $totPerdidas  = (int)($rawSummary['total_perdidas'] ?? 0);
+        $retornoGanhas= (float)($rawSummary['retorno_ganhas'] ?? 0.0);
+        $totInvestido = (float)($rawSummary['total_investido'] ?? 0.0);
+        $totInvestEnc = (float)($rawSummary['total_investido_encerradas'] ?? 0.0);
+        $somaOddPond  = (float)($rawSummary['soma_odd_ponderada'] ?? 0.0);
+
+        $baseInvestida = ($totInvestEnc > 0) ? $totInvestEnc : $totInvestido;
+        $lucroLiquido  = $retornoGanhas - $baseInvestida;
+        $roiPercentual = ($baseInvestida > 0) ? round(($lucroLiquido / $baseInvestida) * 100, 2) : 0.0;
+        
+        $winRate       = ($totEncerradas > 0) ? round(($totGanhas / $totEncerradas) * 100, 2) : 0.0;
+        $oddMedia      = ($totInvestEnc > 0) ? round($somaOddPond / $totInvestEnc, 2) : 1.0;
+        $breakEvenRate = ($oddMedia > 0) ? round((1.0 / $oddMedia) * 100, 2) : 0.0;
+        $edgePercentual= round($winRate - $breakEvenRate, 2);
+        $stakeMedia    = ($totEncerradas > 0) ? round($baseInvestida / $totEncerradas, 2) : 0.0;
+
+        // Projeções Futuras de Longo Prazo (+EV Projeção)
+        $lucroEsperadoPorAposta = $stakeMedia * ($roiPercentual / 100.0);
+        $projecao100  = round(100 * $lucroEsperadoPorAposta, 2);
+        $projecao500  = round(500 * $lucroEsperadoPorAposta, 2);
+        $projecao1000 = round(1000 * $lucroEsperadoPorAposta, 2);
+
+        $statSummary = [
+            'total_apostas'      => $totApostas,
+            'total_encerradas'   => $totEncerradas,
+            'total_ganhas'       => $totGanhas,
+            'total_perdidas'     => $totPerdidas,
+            'retorno_ganhas'     => $retornoGanhas,
+            'total_investido'    => $totInvestido,
+            'lucro_liquido'      => $lucroLiquido,
+            'roi_percentual'     => $roiPercentual,
+            'win_rate'           => $winRate,
+            'odd_media'          => $oddMedia,
+            'break_even_rate'    => $breakEvenRate,
+            'edge_percentual'    => $edgePercentual,
+            'stake_media'        => $stakeMedia,
+            'projecao_100'       => $projecao100,
+            'projecao_500'       => $projecao500,
+            'projecao_1000'      => $projecao1000,
+        ];
 
         $data = [
             'title'       => 'Relatório Rank Top 5 | Mercados & Palpites Vencedores',
             'user'        => $access['user'],
             'top5Usuario' => $top5Usuario,
             'top5Geral'   => $top5Geral,
-            'statSummary' => $statSummary
+            'statSummary' => $statSummary,
+            'dataInicio'  => $dataInicio,
+            'dataFim'     => $dataFim
         ];
 
         return view('header', $data)

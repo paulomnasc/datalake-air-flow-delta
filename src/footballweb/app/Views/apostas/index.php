@@ -885,6 +885,32 @@
                 Tipo: <?= htmlspecialchars($aposta->tipo) ?>
               </span>
             </div>
+
+            <?php if (!empty($aposta->status_gatekeeper)): ?>
+              <div class="mt-2 d-flex align-items-center gap-2 flex-wrap" style="font-size: 0.78rem;">
+                <?php if ($aposta->status_gatekeeper === 'APROVADO'): ?>
+                  <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1">
+                    <i class="bi bi-shield-check me-1"></i> Gatekeeper: +EV Aprovado
+                  </span>
+                <?php else: ?>
+                  <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50 px-2 py-1">
+                    <i class="bi bi-shield-x me-1"></i> Gatekeeper: NO_BET (Sem Valor)
+                  </span>
+                <?php endif; ?>
+
+                <?php if (!empty($aposta->odd_justa)): ?>
+                  <span class="badge bg-dark text-muted border border-secondary px-2 py-1" title="Odd Justa calculada pelo modelo de Poisson">
+                    Odd Justa: <?= number_format($aposta->odd_justa, 2) ?>
+                  </span>
+                <?php endif; ?>
+
+                <?php if (!empty($aposta->ev_percentual)): ?>
+                  <span class="badge <?= $aposta->ev_percentual > 0 ? 'bg-success text-white' : 'bg-danger text-white' ?> px-2 py-1">
+                    EV: <?= ($aposta->ev_percentual > 0 ? '+' : '') . number_format($aposta->ev_percentual, 1) ?>%
+                  </span>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
           </div>
 
           <div class="bet-card-footer">
@@ -958,7 +984,7 @@
             <select class="form-select" id="fixtureSelect" onchange="autofillFixture(this)" style="display: none;">
               <option value="">-- Selecione ou digite manualmente abaixo --</option>
               <?php foreach ($fixtures as $fix): ?>
-                <option value="<?= $fix->fixture_id ?>" data-home="<?= htmlspecialchars($fix->home_team) ?>" data-away="<?= htmlspecialchars($fix->away_team) ?>" data-date="<?= $fix->fixture_date ?>">
+                <option value="<?= $fix->fixture_id ?>" data-home="<?= htmlspecialchars($fix->home_team) ?>" data-away="<?= htmlspecialchars($fix->away_team) ?>" data-date="<?= $fix->fixture_date ?>" data-palpite="<?= htmlspecialchars($fix->suggested_palpite ?? 'Menos de 5.5') ?>">
                   <?= date('d/m H:i', strtotime($fix->fixture_date)) ?> | <?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?> (<?= htmlspecialchars($fix->league_name) ?>)
                 </option>
               <?php endforeach; ?>
@@ -1136,7 +1162,8 @@
         text: opt.text,
         home: opt.getAttribute('data-home') || '',
         away: opt.getAttribute('data-away') || '',
-        date: opt.getAttribute('data-date') || ''
+        date: opt.getAttribute('data-date') || '',
+        palpite: opt.getAttribute('data-palpite') || ''
       });
     }
   }
@@ -1179,9 +1206,10 @@
     // Auto-abrir modal e selecionar jogo se informado via parâmetros da URL
     const urlParams = new URLSearchParams(window.location.search);
     const fixtureIdParam = urlParams.get('fixture_id');
+    const palpiteParam = urlParams.get('palpite');
     const autoOpenNewBet = urlParams.get('new_bet') === '1' || urlParams.get('action') === 'new';
 
-    if ((autoOpenNewBet || fixtureIdParam) && newBetModalEl) {
+    if ((autoOpenNewBet || fixtureIdParam || palpiteParam) && newBetModalEl) {
       setTimeout(function() {
         const bsModal = new bootstrap.Modal(newBetModalEl);
         bsModal.show();
@@ -1193,6 +1221,9 @@
             const selectEl = document.getElementById('fixtureSelect');
             if (selectEl) selectEl.value = fixtureIdParam;
           }
+        }
+        if (palpiteParam) {
+          document.getElementById('palpiteInput').value = palpiteParam;
         }
       }, 300);
     }
@@ -1281,6 +1312,9 @@
 
     document.getElementById('timeCasaInput').value = optData.home;
     document.getElementById('timeForaInput').value = optData.away;
+    if (optData.palpite) {
+      document.getElementById('palpiteInput').value = optData.palpite;
+    }
 
     closeFixtureDropdown();
   }
@@ -1326,6 +1360,10 @@
     if (opt && opt.value) {
       document.getElementById('timeCasaInput').value = opt.getAttribute('data-home') || '';
       document.getElementById('timeForaInput').value = opt.getAttribute('data-away') || '';
+      const palpite = opt.getAttribute('data-palpite');
+      if (palpite) {
+        document.getElementById('palpiteInput').value = palpite;
+      }
     }
   }
 

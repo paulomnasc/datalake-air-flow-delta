@@ -454,28 +454,26 @@ def main():
             over_cards_prob = round(100.0 - u45, 2)
 
             # POLÍTICA EXCLUSIVA UNDER E TRAVA DE SEGURANÇA NO_BET MULTI-NÍVEL:
-            # Nunca sugere "Over". Apresenta sempre 2 opções Under se seguro (xC <= 5.80), senão emite NO_BET.
-            if exp_cards <= 3.50:
-                # Cenário de excelente disciplina
-                op1 = f"Under 4.5 ({u45}%)"
-                op2 = f"Under 5.5 ({u55}%)"
-                prediction_text = f"🛡️ Estratégia Under (xC: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
+            # Calcula Odds Justas (100 / P) para cada linha
+            odd_u35 = round(100.0 / u35, 2) if u35 > 0 else 99.00
+            odd_u45 = round(100.0 / u45, 2) if u45 > 0 else 99.00
+            odd_u55 = round(100.0 / u55, 2) if u55 > 0 else 99.00
+            odd_u65 = round(100.0 / u65, 2) if u65 > 0 else 99.00
 
+            if exp_cards <= 4.20 and u55 >= 75.0:
+                # Cenário Aprovado pelo Gatekeeper de Cartões
+                op1 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
+                op2 = f"Under 4.5 ({u45}% | Odd Justa: {odd_u45})"
+                prediction_text = f"🛡️ Estratégia Under (xC: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
             elif exp_cards <= 4.80:
-                # Cenário de expectativa contida/moderada
-                op1 = f"Under 5.5 ({u55}%)"
-                op2 = f"Under 6.5 ({u65}%)"
+                # Cenário de expectativa moderada
+                op1 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
+                op2 = f"Under 6.5 ({u65}% | Odd Justa: {odd_u65})"
                 prediction_text = f"🛡️ Estratégia Under (xC: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
-
-            elif exp_cards <= 5.80 and u65 >= 60.0:
-                # Cenário de expectativa mais alta, porém seguro em Under 6.5
-                op1 = f"Under 6.5 ({u65}%)"
-                op2 = f"Under 5.5 ({u55}%)"
-                prediction_text = f"🛡️ Estratégia Under (xC: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
-
             else:
-                # Trava NO_BET: Risco elevado para entradas Under (xC > 5.80 ou probabilidade de Under 6.5 < 60%)
+                # Trava NO_BET: Risco elevado para entradas Under (xC > 4.20 ou probabilidade < 75%)
                 prediction_text = f"🚫 NO_BET: Partida com xC elevado ({exp_cards} cartões). Árbitro {referee_name} ({yellows} amarelos/jogo) e média combinada dos times ({team_cards_combined:.1f}) tornam o Under arriscado. Entrada não recomendada."
+
 
 
 

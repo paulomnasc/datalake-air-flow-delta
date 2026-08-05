@@ -17,19 +17,21 @@ Em análises anteriores de partidas, observou-se uma contradição estatística 
 
 ---
 
-## 2. Arquitetura da Solução Estatística
+## 2. Arquitetura da Solução Estatística & Financeira
 
-A nova arquitetura combina a **Expectativa Matemática Ponderada de Cartões ($xC$)** com a **Distribuição de Poisson** e a **Trava de Segurança Exclusiva Under**.
+A arquitetura combina a **Expectativa Matemática Ponderada de Cartões ($xC$)**, a **Distribuição de Poisson**, a **Odd Justa ($\text{Odd}_{\text{Fair}}$)** e a **Leitura de Mercado (+EV)** com a **Trava de Segurança Exclusiva Under**.
 
 ```mermaid
 graph TD
     A[Média Times: M_times 50%] --> D[Cálculo de xC Expected Cards]
     B[Média Árbitro: M_arbitro 35%] --> D
     C[Perfil Faltoso e Conversão: M_contexto 15%] --> D
-    D --> E[Distribuição de Poisson P_X em Múltiplas Linhas Under]
-    E --> F{Gatekeeper Check: Seguras 2+ Linhas Under?}
-    F -- Não (xC > 4.20 ou Prob Insuficiente) --> G[Status: NO BET / Entrada Não Recomendada]
-    F -- Sim --> H[Gera 2 Opções de Valor Under N.5]
+    D --> E[Distribuição de Poisson P_X em Linhas Under]
+    E --> F[Calcula Odd Justa = 1 / P]
+    F --> G[Entrada da Odd Real da Casa no Cadastro]
+    G --> H{Gatekeeper Check: xC <= 4.20 & P >= 75% & EV > 0?}
+    H -- Não (xC > 4.20 ou P < 75% ou EV <= 0) --> I[Status: NO_BET / Sem Valor no Mercado]
+    H -- Sim --> J[Status: APROVADO / Entrada de Valor Liberada]
 ```
 
 ---
@@ -70,19 +72,41 @@ As probabilidades para as linhas principais de Under são calculadas dinamicamen
 
 ---
 
+### 3.3. Cálculo da Odd Justa ($\text{Odd}_{\text{Fair}}$) e Valor Esperado ($EV$)
+
+Para cada probabilidade $P = P(X \le N)$ em decimal ($0 \le P \le 1$):
+
+$$\text{Odd}_{\text{Fair}} = \frac{1}{P}$$
+
+No momento do cadastro da aposta no sistema (via preenchimento manual ou automação), o usuário/sistema informa a **Odd Real da Casa ($\text{Odd}_{\text{Casa}}$)**. O Valor Esperado ($EV$) é calculado por:
+
+$$EV = (P \times \text{Odd}_{\text{Casa}}) - 1$$
+
+- **$EV > 0$ ($\text{Odd}_{\text{Casa}} > \text{Odd}_{\text{Fair}}$):** Aposta com valor financeiro positivo (Aprovada pelo filtro financeiro).
+- **$EV \le 0$ ($\text{Odd}_{\text{Casa}} \le \text{Odd}_{\text{Fair}}$):** Aposta sem valor no mercado (Sinalizado como `NO_BET`).
+
+---
+
 ## 4. Regras de Segurança e Trava (Under Gatekeepers)
 
 ### 4.1. Regra de Sugestão Dupla Under
 O sistema deve obrigatoriamente identificar **pelo menos 2 linhas de Under** com probabilidade de Poisson de alta confiança (ex: a principal com $\ge 75\%$ e a secundária com $\ge 60\%$).
 
 Exemplo de saída recomendada:
-- **Opção Principal:** Under 5.5 Cartões (Probabilidade: 86.4%)
-- **Opção Secundária:** Under 4.5 Cartões (Probabilidade: 72.8%)
+- **Opção Principal:** Under 5.5 Cartões (Probabilidade: 86.37% | Odd Justa: 1.16)
+- **Opção Secundária:** Under 4.5 Cartões (Probabilidade: 72.82% | Odd Justa: 1.37)
 
-### 4.2. Trava de Emissão de `NO_BET`
-- **Condição 1:** Se $xC > 4.20$ (expectativa de cartões alta, tornando qualquer linha de Under arriscada).
-- **Condição 2:** Se a linha de Under 5.5 tiver probabilidade acumulada $< 75\%$.
-- **Ação:** NENHUM palpite em Over será gerado. O sistema obrigatoriamente exibirá o status `NO_BET` (Sem Aposta Recomendada / Partida com Risco Elevado para Under).
+### 4.2. Trava do Gatekeeper no Cadastro (Triplo Filtro)
+No cadastro/entrada da aposta no **footballweb**, a validação avalia 3 critérios cumulativos:
+
+| Filtro | Parâmetro | Validação |
+| :--- | :--- | :--- |
+| **1. Risco Estatístico ($xC$)** | $xC \le 4.20$ | Impede apostas Under em partidas com expectativa alta de faltas/cartões. |
+| **2. Probabilidade Mínima ($P$)** | $P(\text{Under 5.5}) \ge 75\%$ | Garante margem estatística suficiente de acerto. |
+| **3. Retorno Financeiro ($EV$)** | $\text{Odd}_{\text{Casa}} > \text{Odd}_{\text{Fair}}$ ($EV > 0$) | Assegura que a casa está pagando mais do que o risco real da aposta. |
+
+- **Status `APROVADO`:** Todos os 3 critérios são atendidos. Aposta liberada com selo Green Light.
+- **Status `NO_BET`:** Se qualquer um dos 3 critérios falhar (ex: $xC > 4.20$, $P < 75\%$ ou Odd da Casa caindo abaixo da Odd Justa). A aposta é registrada/notificada como sem valor de mercado.
 
 ---
 
@@ -96,27 +120,37 @@ Dados de Entrada:
 **1. Cálculo do $xC$:**
 $$xC = (0.50 \times 3.00) + (0.35 \times 4.33) + (0.15 \times 3.30) = \mathbf{3.51 \text{ cartões}}$$
 
-**2. Probabilidades Poisson ($\lambda = 3.51$):**
-- $P(\text{Under 6.5}) = \mathbf{93.61\%}$
-- $P(\text{Under 5.5}) = \mathbf{86.37\%}$
-- $P(\text{Under 4.5}) = \mathbf{72.82\%}$
+**2. Probabilidades Poisson e Odds Justas ($\lambda = 3.51$):**
+- $P(\text{Under 6.5}) = \mathbf{93.61\%} \implies \text{Odd Justa} = \mathbf{1.07}$
+- $P(\text{Under 5.5}) = \mathbf{86.37\%} \implies \text{Odd Justa} = \mathbf{1.16}$
+- $P(\text{Under 4.5}) = \mathbf{72.82\%} \implies \text{Odd Justa} = \mathbf{1.37}$
 
-**3. Validação do Gatekeeper:**
-- $xC = 3.51 \le 4.20 \rightarrow$ **APROVADO para Under**.
-- **Dupla Sugestão Gerada:**
-  1. 🛡️ **Linha Conservadora:** Under 5.5 Cartões (**86.37%**)
-  2. 🎯 **Linha Principal:** Under 4.5 Cartões (**72.82%**)
-- **Over 4.5 / Over 3.5:** PROIBIDO.
+**3. Validação do Gatekeeper no Cadastro:**
+- **Cenário A (Odd da Casa = 1.71 para Under 5.5):**
+  - $xC = 3.51 \le 4.20$ ✅
+  - $P = 86.37\% \ge 75\%$ ✅
+  - $EV = (0.8637 \times 1.71) - 1 = \mathbf{+47.69\%} > 0$ ($\text{Odd Real } 1.71 > \text{Odd Justa } 1.16$) ✅
+  - **Status:** 🟢 `APROVADO` (Aposta de Alto Valor).
+
+- **Cenário B (Odd da Casa cai para 1.10 para Under 5.5):**
+  - $xC = 3.51 \le 4.20$ ✅
+  - $P = 86.37\% \ge 75\%$ ✅
+  - $EV = (0.8637 \times 1.10) - 1 = \mathbf{-4.99\%} \le 0$ ($\text{Odd Real } 1.10 < \text{Odd Justa } 1.16$) ❌
+  - **Status:** 🔴 `NO_BET` (Sem valor financeiro no mercado).
 
 ---
 
 ## 6. Alterações no Código
 
-### Arquivo Alvo:
-1. `scripts/football_ingest_trends.py`
-   - Atualizar a função de avaliação de predição para calcular probabilidades acumuladas em Under 6.5, Under 5.5, Under 4.5 e Under 3.5.
-   - Forçar recomendação dupla de Under ou emissão do aviso `NO_BET`.
-   - Bloquear totalmente a geração de textos que sugiram apostar em "Over".
+### Arquivos Alvo:
+1. `scripts/football_ingest_trends.py`:
+   - Calcular e armazenar dinamicamente as probabilidades de Poisson e odds justas para todas as linhas de Under.
+2. `src/footballweb/app/Database/Migrations/create_apostas_table.sql`:
+   - Adicionar colunas `odd_justa`, `probabilidade_poisson`, `ev_percentual` e `status_gatekeeper`.
+3. `src/footballweb/app/Controllers/ApostaController.php`:
+   - Integrar o Gatekeeper de triplo filtro no método `store()`.
+4. `src/footballweb/app/Views/apostas/index.php`:
+   - Atualizar interface e badges para refletir a validação `APROVADO` vs `NO_BET`.
 
 ---
-*Documento atualizado com a diretriz de Predição Exclusiva Under e Sinal NO_BET.*
+*Documento atualizado com a diretriz de Predição Exclusiva Under, Cálculo de Odd Justa, Análise de EV de Mercado e Sinal NO_BET.*

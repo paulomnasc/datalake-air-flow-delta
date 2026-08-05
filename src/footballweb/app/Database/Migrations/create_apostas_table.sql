@@ -8,6 +8,10 @@ CREATE TABLE IF NOT EXISTS `apostas` (
   `mercado` VARCHAR(100) NOT NULL DEFAULT 'Total de Cartões',
   `palpite` VARCHAR(100) NOT NULL,
   `odd` DECIMAL(5,2) NOT NULL,
+  `odd_justa` DECIMAL(5,2) NULL DEFAULT NULL,
+  `probabilidade_poisson` DECIMAL(5,2) NULL DEFAULT NULL,
+  `ev_percentual` DECIMAL(5,2) NULL DEFAULT NULL,
+  `status_gatekeeper` VARCHAR(50) NOT NULL DEFAULT 'APROVADO',
   `data_hora_jogo` DATETIME NULL DEFAULT NULL,
   `valor_aposta` DECIMAL(10,2) NOT NULL DEFAULT 10.00,
   `ganhos_potenciais` DECIMAL(10,2) NOT NULL,
@@ -18,5 +22,7 @@ CREATE TABLE IF NOT EXISTS `apostas` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_usuario_id` (`usuario_id`),
   INDEX `idx_status` (`status`),
+  INDEX `idx_status_gatekeeper` (`status_gatekeeper`),
   CONSTRAINT `fk_apostas_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuario` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

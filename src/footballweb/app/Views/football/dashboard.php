@@ -2091,8 +2091,14 @@ if (!function_exists('getBetDecisionTree')) {
                                     <?php endif; ?>
 
                                     <div style="display: flex; align-items: center; gap: 6px;">
+                                        <?php
+                                            $cardPalpite = 'Menos de 5.5';
+                                            if (!empty($fix->prediction_text) && preg_match('/Under\s*(\d+\.\d+|\d+)/i', $fix->prediction_text, $mPalpite)) {
+                                                $cardPalpite = 'Menos de ' . $mPalpite[1];
+                                            }
+                                        ?>
                                         <!-- Botão Registrar Aposta vinculado ao card -->
-                                        <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id) ?>" 
+                                        <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id . '&palpite=' . urlencode($cardPalpite)) ?>" 
                                            class="bet-stats-btn" 
                                            style="border-color: rgba(0, 230, 118, 0.4); color: #00e676; text-decoration: none;" 
                                            title="Registrar Aposta para esta partida">

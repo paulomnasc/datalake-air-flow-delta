@@ -80,11 +80,19 @@ class ApostaController extends BaseController
         // Buscar lista de jogos disponíveis para associar (fixtures_trends)
         $db = \Config\Database::connect();
         $fixtures = $db->table('fixtures_trends')
-            ->select('fixture_id, home_team, away_team, fixture_date, league_name')
+            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text')
             ->orderBy('fixture_date', 'DESC')
             ->limit(50)
             ->get()
             ->getResultObject();
+
+        foreach ($fixtures as $fix) {
+            $suggested = 'Menos de 5.5';
+            if (!empty($fix->prediction_text) && preg_match('/Under\s*(\d+\.\d+|\d+)/i', $fix->prediction_text, $m)) {
+                $suggested = 'Menos de ' . $m[1];
+            }
+            $fix->suggested_palpite = $suggested;
+        }
 
         $apostas = [];
         $resumo  = [
@@ -157,28 +165,82 @@ class ApostaController extends BaseController
 
         $ganhosPotenciais = round($odd * $valorAposta, 2);
 
+        // Validação do Gatekeeper de Cartões (+EV & Odd Real)
+        $oddJusta = null;
+        $probPoisson = null;
+        $evPercentual = null;
+        $statusGatekeeper = 'APROVADO';
+        $gatekeeperMsg = 'Aposta liberada.';
+
+        if (stripos($mercado, 'cartõ') !== false || stripos($mercado, 'card') !== false) {
+            if ($fixtureId) {
+                $db = \Config\Database::connect();
+                $fixture = $db->table('fixtures_trends')->where('fixture_id', $fixtureId)->get()->getRow();
+                if ($fixture && !empty($fixture->prediction_text)) {
+                    preg_match('/Under\s*(\d+\.\d+|\d+)/i', $palpite, $matchesLine);
+                    $line = !empty($matchesLine[1]) ? (float)$matchesLine[1] : 5.5;
+
+                    preg_match('/xC:\s*(\d+\.\d+|\d+)/i', $fixture->prediction_text, $matchesXc);
+                    $xc = !empty($matchesXc[1]) ? (float)$matchesXc[1] : null;
+
+                    if ($xc !== null && $xc > 0) {
+                        $kMax = (int)floor($line);
+                        $probUnderCdf = 0.0;
+                        for ($k = 0; $k <= $kMax; $k++) {
+                            $probUnderCdf += (exp(-$xc) * pow($xc, $k)) / $this->factorial($k);
+                        }
+                        $probPoisson = round(min(100.0, max(0.0, $probUnderCdf * 100.0)), 2);
+                        if ($probPoisson > 0) {
+                            $oddJusta = round(100.0 / $probPoisson, 2);
+                            $evPercentual = round((($probPoisson / 100.0) * $odd - 1.0) * 100.0, 2);
+                        }
+
+                        if ($xc > 4.20 || ($evPercentual !== null && $evPercentual < 0)) {
+                            $statusGatekeeper = 'NO_BET';
+                            if ($xc > 4.20) {
+                                $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Partida com xC elevado ({$xc} > 4.20). Entrada de risco.";
+                            } else {
+                                $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) abaixo da Odd Justa ({$oddJusta}) - EV: {$evPercentual}%.";
+                            }
+                        } else {
+                            $statusGatekeeper = 'APROVADO';
+                            $gatekeeperMsg = "Gatekeeper Green Light (+EV): Odd Real ({$odd}) > Odd Justa ({$oddJusta}) | EV: +{$evPercentual}%.";
+                        }
+                    }
+                }
+            }
+        }
+
         $newId = $this->apostaModel->insert([
-            'usuario_id'        => $userId,
-            'fixture_id'        => $fixtureId,
-            'time_casa'         => $timeCasa,
-            'time_fora'         => $timeFora,
-            'mercado'           => $mercado,
-            'palpite'           => $palpite,
-            'odd'               => $odd,
-            'data_hora_jogo'    => $dataHoraJogo,
-            'valor_aposta'      => $valorAposta,
-            'ganhos_potenciais' => $ganhosPotenciais,
-            'cash_out'          => $cashOut,
-            'tipo'              => $tipo,
-            'status'            => $status,
-            'criado_em'         => date('Y-m-d H:i:s')
+            'usuario_id'            => $userId,
+            'fixture_id'            => $fixtureId,
+            'time_casa'             => $timeCasa,
+            'time_fora'             => $timeFora,
+            'mercado'               => $mercado,
+            'palpite'               => $palpite,
+            'odd'                   => $odd,
+            'odd_justa'             => $oddJusta,
+            'probabilidade_poisson' => $probPoisson,
+            'ev_percentual'         => $evPercentual,
+            'status_gatekeeper'     => $statusGatekeeper,
+            'data_hora_jogo'        => $dataHoraJogo,
+            'valor_aposta'          => $valorAposta,
+            'ganhos_potenciais'     => $ganhosPotenciais,
+            'cash_out'              => $cashOut,
+            'tipo'                  => $tipo,
+            'status'                => $status,
+            'criado_em'             => date('Y-m-d H:i:s')
         ]);
 
         if ($newId) {
             return $this->response->setJSON([
-                'success' => true,
-                'message' => 'Aposta registrada com sucesso!',
-                'id'      => $newId
+                'success'           => true,
+                'message'           => 'Aposta registrada com sucesso! ' . $gatekeeperMsg,
+                'id'                => $newId,
+                'status_gatekeeper' => $statusGatekeeper,
+                'odd_justa'         => $oddJusta,
+                'ev_percentual'     => $evPercentual,
+                'gatekeeper_msg'    => $gatekeeperMsg
             ]);
         }
 
@@ -521,4 +583,18 @@ class ApostaController extends BaseController
              . view('apostas/relatorio_top5', $data)
              . view('footer');
     }
+
+    /**
+     * Calcula o fatorial de um número inteiro (auxiliar para Distribuição de Poisson)
+     */
+    private function factorial(int $n): float
+    {
+        if ($n <= 1) return 1.0;
+        $res = 1.0;
+        for ($i = 2; $i <= $n; $i++) {
+            $res *= $i;
+        }
+        return $res;
+    }
 }
+

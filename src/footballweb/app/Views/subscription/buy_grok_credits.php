@@ -52,6 +52,36 @@ require VIEWPATH . '/header.php';
                         <a href="/football-trends" class="btn btn-link mt-3 text-muted" style="text-decoration: none; font-size: 0.9rem;"><i class="bi bi-arrow-left"></i> Voltar ao Dashboard</a>
                     </div>
                 <?php else: ?>
+                    <!-- Vídeo Demonstrativo da Plataforma (Mesmo vídeo exibido na Home) -->
+                    <div class="mb-4 p-3 rounded text-center" style="background: linear-gradient(135deg, rgba(23, 34, 48, 0.9) 0%, rgba(15, 23, 36, 0.95) 100%); border: 1px solid rgba(244, 124, 32, 0.35); box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                            <h5 class="mb-0 text-white font-weight-bold d-flex align-items-center gap-2" style="font-size: 1.05rem;">
+                                <i class="bi bi-play-circle-fill" style="color: #f47c20; font-size: 1.2rem;"></i> 
+                                Vídeo Demonstrativo - FootballWeb
+                            </h5>
+                            <a href="https://youtu.be/_Hhg3B1MldQ" target="_blank" rel="noopener noreferrer" class="btn btn-sm text-white font-weight-bold d-inline-flex align-items-center gap-1" style="background: #ff0000; border-radius: 8px; padding: 4px 10px; font-size: 0.8rem; text-decoration: none;">
+                                <i class="bi bi-youtube"></i> Ver no YouTube <i class="bi bi-box-arrow-up-right" style="font-size: 0.7rem;"></i>
+                            </a>
+                        </div>
+                        <div style="max-width: 100%; margin: 0 auto;">
+                            <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); border: 1px solid rgba(255, 255, 255, 0.1);">
+                                <iframe src="https://www.youtube.com/embed/_Hhg3B1MldQ" 
+                                        title="Vídeo Demonstrativo FootballWeb" 
+                                        frameborder="0" 
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                                        referrerpolicy="strict-origin-when-cross-origin"
+                                        allowfullscreen 
+                                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;">
+                                </iframe>
+                            </div>
+                        </div>
+                        <div class="mt-2 text-center">
+                            <small style="color: #94a3b8; font-size: 0.8rem;">
+                                <i class="bi bi-info-circle"></i> Caso o vídeo exija verificação de idade pelo YouTube no player embutido, <a href="https://youtu.be/_Hhg3B1MldQ" target="_blank" rel="noopener noreferrer" style="color: #f47c20; text-decoration: underline;">clique aqui para assistir diretamente no YouTube</a>.
+                            </small>
+                        </div>
+                    </div>
+
                     <!-- Benefícios e Transparência -->
                     <div class="p-3 mb-4 rounded text-center" style="background: rgba(244, 124, 32, 0.08); border: 1px solid rgba(244, 124, 32, 0.2);">
                         <h5 style="color: #f47c20; font-weight: 700; margin-bottom: 12px;">O que está incluído nesta recarga?</h5>

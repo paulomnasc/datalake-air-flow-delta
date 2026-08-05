@@ -401,37 +401,32 @@ def main():
             away_c_stats = generate_deterministic_team_stats(away_team, 'away')
             team_cards_combined = home_c_stats["avg_cards"] + away_c_stats["avg_cards"]
 
-            if referee_raw:
+            if referee_raw and referee_raw.strip():
                 # Trata "Anderson Daronco, Brazil" -> "Anderson Daronco"
                 referee_name = referee_raw.split(',')[0].strip()
-                
-                # Verifica ou insere estatísticas do árbitro
-                cursor.execute("SELECT name FROM referee_stats WHERE name = %s", (referee_name,))
-                ref = cursor.fetchone()
-                
-                if not ref:
-                    stats = generate_referee_stats(referee_name)
-                    cursor.execute("""
-                        INSERT INTO referee_stats (
-                            name, average_yellow_cards, average_red_cards, average_fouls, total_games, rigor_level
-                        ) VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (
-                        stats["name"], stats["average_yellow_cards"], stats["average_red_cards"],
-                        stats["average_fouls"], stats["total_games"], stats["rigor_level"]
-                    ))
-                    inserted_referees += 1
-                    ref_data = stats
-                else:
-                    # Se já existe, recalcula/lê os dados para a predição
-                    cursor.execute("SELECT * FROM referee_stats WHERE name = %s", (referee_name,))
-                    ref_data = cursor.fetchone()
             else:
                 referee_name = "Árbitro Não Informado"
-                ref_data = {
-                    "rigor_level": "Moderado",
-                    "average_yellow_cards": 4.00,
-                    "average_fouls": 24.0
-                }
+                
+            # Verifica ou insere estatísticas do árbitro
+            cursor.execute("SELECT name FROM referee_stats WHERE name = %s", (referee_name,))
+            ref = cursor.fetchone()
+            
+            if not ref:
+                stats = generate_referee_stats(referee_name)
+                cursor.execute("""
+                    INSERT INTO referee_stats (
+                        name, average_yellow_cards, average_red_cards, average_fouls, total_games, rigor_level
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                """, (
+                    stats["name"], stats["average_yellow_cards"], stats["average_red_cards"],
+                    stats["average_fouls"], stats["total_games"], stats["rigor_level"]
+                ))
+                inserted_referees += 1
+                ref_data = stats
+            else:
+                # Se já existe, recalcula/lê os dados para a predição
+                cursor.execute("SELECT * FROM referee_stats WHERE name = %s", (referee_name,))
+                ref_data = cursor.fetchone()
                 
             # Gera predição combinada ponderada (50% Times, 35% Árbitro, 15% Faltas/Contexto)
             rigor = ref_data["rigor_level"]

@@ -165,50 +165,20 @@ class ApostaController extends BaseController
 
         $ganhosPotenciais = round($odd * $valorAposta, 2);
 
-        // Validação do Gatekeeper de Cartões (+EV & Odd Real)
-        $oddJusta = null;
-        $probPoisson = null;
-        $evPercentual = null;
-        $statusGatekeeper = 'APROVADO';
-        $gatekeeperMsg = 'Aposta liberada.';
+        // Validação do Gatekeeper
+        $eval = $this->evaluateGatekeeper($fixtureId, $timeCasa, $timeFora, $mercado, $palpite, $odd);
+        $fixtureId        = $eval['fixtureId'];
+        $oddJusta         = $eval['oddJusta'];
+        $probPoisson      = $eval['probPoisson'];
+        $evPercentual     = $eval['evPercentual'];
+        $statusGatekeeper = $eval['statusGatekeeper'];
+        $gatekeeperMsg    = $eval['gatekeeperMsg'];
 
-        if (stripos($mercado, 'cartõ') !== false || stripos($mercado, 'card') !== false) {
-            if ($fixtureId) {
-                $db = \Config\Database::connect();
-                $fixture = $db->table('fixtures_trends')->where('fixture_id', $fixtureId)->get()->getRow();
-                if ($fixture && !empty($fixture->prediction_text)) {
-                    preg_match('/Under\s*(\d+\.\d+|\d+)/i', $palpite, $matchesLine);
-                    $line = !empty($matchesLine[1]) ? (float)$matchesLine[1] : 5.5;
-
-                    preg_match('/xC:\s*(\d+\.\d+|\d+)/i', $fixture->prediction_text, $matchesXc);
-                    $xc = !empty($matchesXc[1]) ? (float)$matchesXc[1] : null;
-
-                    if ($xc !== null && $xc > 0) {
-                        $kMax = (int)floor($line);
-                        $probUnderCdf = 0.0;
-                        for ($k = 0; $k <= $kMax; $k++) {
-                            $probUnderCdf += (exp(-$xc) * pow($xc, $k)) / $this->factorial($k);
-                        }
-                        $probPoisson = round(min(100.0, max(0.0, $probUnderCdf * 100.0)), 2);
-                        if ($probPoisson > 0) {
-                            $oddJusta = round(100.0 / $probPoisson, 2);
-                            $evPercentual = round((($probPoisson / 100.0) * $odd - 1.0) * 100.0, 2);
-                        }
-
-                        if ($xc > 4.20 || ($evPercentual !== null && $evPercentual < 0)) {
-                            $statusGatekeeper = 'NO_BET';
-                            if ($xc > 4.20) {
-                                $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Partida com xC elevado ({$xc} > 4.20). Entrada de risco.";
-                            } else {
-                                $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) abaixo da Odd Justa ({$oddJusta}) - EV: {$evPercentual}%.";
-                            }
-                        } else {
-                            $statusGatekeeper = 'APROVADO';
-                            $gatekeeperMsg = "Gatekeeper Green Light (+EV): Odd Real ({$odd}) > Odd Justa ({$oddJusta}) | EV: +{$evPercentual}%.";
-                        }
-                    }
-                }
-            }
+        if ($statusGatekeeper === 'NO_BET') {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => '🚫 Aposta recusada pelo Gatekeeper! ' . $gatekeeperMsg
+            ]);
         }
 
         $newId = $this->apostaModel->insert([
@@ -235,7 +205,7 @@ class ApostaController extends BaseController
         if ($newId) {
             return $this->response->setJSON([
                 'success'           => true,
-                'message'           => 'Aposta registrada com sucesso! ' . $gatekeeperMsg,
+                'message'           => 'Aposta registrada! ' . $gatekeeperMsg,
                 'id'                => $newId,
                 'status_gatekeeper' => $statusGatekeeper,
                 'odd_justa'         => $oddJusta,
@@ -248,6 +218,94 @@ class ApostaController extends BaseController
             'success' => false,
             'message' => 'Erro ao salvar aposta no banco de dados.'
         ]);
+    }
+
+    /**
+     * Reavalia o Gatekeeper para uma aposta (+EV, Odd Justa, Poisson)
+     */
+    private function evaluateGatekeeper(?int $fixtureId, string $timeCasa, string $timeFora, string $mercado, string $palpite, float $odd): array
+    {
+        $oddJusta = null;
+        $probPoisson = null;
+        $evPercentual = null;
+        $statusGatekeeper = 'NAO_ANALISADO';
+        $gatekeeperMsg = 'Aposta sem análise de estatísticas.';
+
+        if (stripos($mercado, 'cartõ') === false && stripos($mercado, 'card') === false) {
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+        }
+
+        $db = \Config\Database::connect();
+        $fixture = null;
+
+        if ($fixtureId) {
+            $fixture = $db->table('fixtures_trends')->where('fixture_id', $fixtureId)->get()->getRow();
+        }
+
+        if (!$fixture && !empty($timeCasa) && !empty($timeFora)) {
+            $fixture = $db->table('fixtures_trends')
+                ->groupStart()
+                    ->like('home_team', $timeCasa)
+                    ->orLike('away_team', $timeCasa)
+                ->groupEnd()
+                ->groupStart()
+                    ->like('home_team', $timeFora)
+                    ->orLike('away_team', $timeFora)
+                ->groupEnd()
+                ->orderBy('fixture_date', 'DESC')
+                ->get()
+                ->getRow();
+            if ($fixture) {
+                $fixtureId = (int)$fixture->fixture_id;
+            }
+        }
+
+        if ($fixture && !empty($fixture->prediction_text)) {
+            preg_match('/xC(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)/i', $fixture->prediction_text, $matchesXc);
+            $xc = !empty($matchesXc[1]) ? (float)$matchesXc[1] : null;
+
+            if ($xc !== null && $xc > 0) {
+                $isOver = (stripos($palpite, 'over') !== false || stripos($palpite, 'mais') !== false);
+
+                preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLine);
+                $line = !empty($matchesLine[1]) ? (float)$matchesLine[1] : 5.5;
+
+                $kMax = (int)floor($line);
+                $probUnderCdf = 0.0;
+                for ($k = 0; $k <= $kMax; $k++) {
+                    $probUnderCdf += (exp(-$xc) * pow($xc, $k)) / $this->factorial($k);
+                }
+
+                if ($isOver) {
+                    $probPoisson = round(min(100.0, max(0.0, (1.0 - $probUnderCdf) * 100.0)), 2);
+                } else {
+                    $probPoisson = round(min(100.0, max(0.0, $probUnderCdf * 100.0)), 2);
+                }
+
+                if ($probPoisson > 0) {
+                    $oddJusta = round(100.0 / $probPoisson, 2);
+                    $evPercentual = round((($probPoisson / 100.0) * $odd - 1.0) * 100.0, 2);
+                }
+
+                // Trava de Segurança da Banca (Odd > 1.40 é considerada armadilha/indução da casa de apostas)
+                if ($odd > 1.40) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) excede o limite máximo de segurança (1.40). Risco elevado de armadilha/indução da banca.";
+                } elseif ($evPercentual !== null && $evPercentual >= 0 && $probPoisson >= 50.0) {
+                    $statusGatekeeper = 'APROVADO';
+                    $gatekeeperMsg = "Gatekeeper Green Light (+EV): Odd Real ({$odd}) <= 1.40 e >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}%.";
+                } else {
+                    $statusGatekeeper = 'NO_BET';
+                    if ($evPercentual !== null && $evPercentual < 0) {
+                        $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) abaixo da Odd Justa ({$oddJusta}) - EV: {$evPercentual}%. Entrada sem valor esperado.";
+                    } else {
+                        $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Probabilidade estimada de sucesso ({$probPoisson}%) é baixa para esta linha.";
+                    }
+                }
+            }
+        }
+
+        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
     }
 
     /**
@@ -319,18 +377,34 @@ class ApostaController extends BaseController
 
         $ganhosPotenciais = round($odd * $valorAposta, 2);
 
+        // Reavalia o Gatekeeper ao editar a aposta
+        $fixtureId = $aposta->fixture_id ? (int)$aposta->fixture_id : null;
+        $eval = $this->evaluateGatekeeper($fixtureId, $timeCasa, $timeFora, $mercado, $palpite, $odd);
+
+        if ($eval['statusGatekeeper'] === 'NO_BET') {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => '🚫 Aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
+            ]);
+        }
+
         $dataUpdate = [
-            'time_casa'         => $timeCasa,
-            'time_fora'         => $timeFora,
-            'mercado'           => $mercado,
-            'palpite'           => $palpite,
-            'odd'               => $odd,
-            'valor_aposta'      => $valorAposta,
-            'ganhos_potenciais' => $ganhosPotenciais,
-            'cash_out'          => $cashOut,
-            'tipo'              => $tipo,
-            'status'            => $status,
-            'updated_at'        => date('Y-m-d H:i:s')
+            'fixture_id'            => $eval['fixtureId'],
+            'time_casa'             => $timeCasa,
+            'time_fora'             => $timeFora,
+            'mercado'               => $mercado,
+            'palpite'               => $palpite,
+            'odd'                   => $odd,
+            'odd_justa'             => $eval['oddJusta'],
+            'probabilidade_poisson' => $eval['probPoisson'],
+            'ev_percentual'         => $eval['evPercentual'],
+            'status_gatekeeper'     => $eval['statusGatekeeper'],
+            'valor_aposta'          => $valorAposta,
+            'ganhos_potenciais'     => $ganhosPotenciais,
+            'cash_out'              => $cashOut,
+            'tipo'                  => $tipo,
+            'status'                => $status,
+            'updated_at'            => date('Y-m-d H:i:s')
         ];
 
         try {
@@ -344,8 +418,11 @@ class ApostaController extends BaseController
             }
 
             return $this->response->setJSON([
-                'success' => true,
-                'message' => 'Aposta atualizada com sucesso!'
+                'success'           => true,
+                'message'           => 'Aposta atualizada com sucesso! ' . $eval['gatekeeperMsg'],
+                'status_gatekeeper' => $eval['statusGatekeeper'],
+                'odd_justa'         => $eval['oddJusta'],
+                'ev_percentual'     => $eval['evPercentual']
             ]);
         } catch (\Throwable $e) {
             return $this->response->setJSON([

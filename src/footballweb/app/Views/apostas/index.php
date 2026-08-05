@@ -886,13 +886,13 @@
               </span>
             </div>
 
-            <?php if (!empty($aposta->status_gatekeeper)): ?>
+            <?php if (!empty($aposta->status_gatekeeper) && $aposta->status_gatekeeper !== 'NAO_ANALISADO'): ?>
               <div class="mt-2 d-flex align-items-center gap-2 flex-wrap" style="font-size: 0.78rem;">
                 <?php if ($aposta->status_gatekeeper === 'APROVADO'): ?>
                   <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1">
                     <i class="bi bi-shield-check me-1"></i> Gatekeeper: +EV Aprovado
                   </span>
-                <?php else: ?>
+                <?php elseif ($aposta->status_gatekeeper === 'NO_BET'): ?>
                   <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50 px-2 py-1">
                     <i class="bi bi-shield-x me-1"></i> Gatekeeper: NO_BET (Sem Valor)
                   </span>

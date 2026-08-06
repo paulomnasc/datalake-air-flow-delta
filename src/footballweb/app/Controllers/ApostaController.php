@@ -221,7 +221,7 @@ class ApostaController extends BaseController
     }
 
     /**
-     * Reavalia o Gatekeeper para uma aposta (+EV, Odd Justa, Poisson)
+     * Reavalia o Gatekeeper para uma aposta (+EV, Odd Justa, Poisson e Teto Dinâmico de Segurança)
      */
     private function evaluateGatekeeper(?int $fixtureId, string $timeCasa, string $timeFora, string $mercado, string $palpite, float $odd): array
     {
@@ -246,6 +246,23 @@ class ApostaController extends BaseController
         }
 
         $db = \Config\Database::connect();
+
+        // 1. Média Histórica Dinâmica de Odds Vencedoras (Under Cartões) e Teto Dinâmico de Segurança
+        $rowAvg = $db->query("
+            SELECT AVG(odd) as avg_odd, COUNT(*) as total_vitorias 
+            FROM apostas 
+            WHERE status = 'Ganha' 
+              AND (mercado LIKE '%cartõ%' OR mercado LIKE '%card%') 
+              AND (palpite LIKE '%Menos%' OR palpite LIKE '%under%')
+        ")->getRow();
+
+        $avgWinningOdd = ($rowAvg && $rowAvg->avg_odd && (int)$rowAvg->total_vitorias > 0) 
+            ? round((float)$rowAvg->avg_odd, 2) 
+            : 1.60;
+
+        // Teto dinâmico flexível: Média + 0.35 com piso mínimo de 2.00 (evita auto-afunilamento e bloqueia apenas distorções irreais)
+        $maxAllowedOdd = round(max(2.00, $avgWinningOdd + 0.35), 2);
+
         $fixture = null;
 
         if ($fixtureId) {
@@ -291,19 +308,19 @@ class ApostaController extends BaseController
                     $evPercentual = round((($probPoisson / 100.0) * $odd - 1.0) * 100.0, 2);
                 }
 
-                // Trava de Segurança da Banca (Odd > 1.50 é considerada armadilha/indução da casa de apostas)
-                if ($odd > 1.50) {
+                // Avaliação do Gatekeeper (+EV Real + Probabilidade Poisson >= 50% + Teto Dinâmico)
+                if ($odd > $maxAllowedOdd) {
                     $statusGatekeeper = 'NO_BET';
-                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) excede o limite máximo de segurança (1.50). Risco elevado de armadilha/indução da banca.";
+                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) excede o teto dinâmico de segurança ({$maxAllowedOdd}) derivado da média histórica de vitórias ({$avgWinningOdd}).";
                 } elseif ($evPercentual !== null && $evPercentual >= 0 && $probPoisson >= 50.0) {
                     $statusGatekeeper = 'APROVADO';
-                    $gatekeeperMsg = "Gatekeeper Green Light (+EV): Odd Real ({$odd}) <= 1.50 e >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}%.";
+                    $gatekeeperMsg = "Gatekeeper Green Light (+EV): Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% | Prob. Poisson: {$probPoisson}% | Teto Dinâmico: {$maxAllowedOdd}.";
                 } else {
                     $statusGatekeeper = 'NO_BET';
                     if ($evPercentual !== null && $evPercentual < 0) {
                         $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) abaixo da Odd Justa ({$oddJusta}) - EV: {$evPercentual}%. Entrada sem valor esperado.";
                     } else {
-                        $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Probabilidade estimada de sucesso ({$probPoisson}%) é baixa para esta linha.";
+                        $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Probabilidade estimada de sucesso ({$probPoisson}%) é baixa para esta linha (mínimo exigido: 50%).";
                     }
                 }
             }
@@ -724,23 +741,42 @@ class ApostaController extends BaseController
         $projecao500  = round(500 * $lucroEsperadoPorAposta, 2);
         $projecao1000 = round(1000 * $lucroEsperadoPorAposta, 2);
 
+        // Métricas de Range Ideal de Odd do Gatekeeper (Under Cartões)
+        $rowGkAvg = $db->query("
+            SELECT AVG(odd) as avg_odd, COUNT(*) as total_vitorias 
+            FROM apostas 
+            WHERE status = 'Ganha' 
+              AND (mercado LIKE '%cartõ%' OR mercado LIKE '%card%') 
+              AND (palpite LIKE '%Menos%' OR palpite LIKE '%under%')
+        ")->getRow();
+
+        $gkOddMediaVencedora = ($rowGkAvg && $rowGkAvg->avg_odd && (int)$rowGkAvg->total_vitorias > 0) 
+            ? round((float)$rowGkAvg->avg_odd, 2) 
+            : 1.69;
+
+        $gkTetoMaximo = round(max(2.00, $gkOddMediaVencedora + 0.35), 2);
+        $gkOddMinima  = 1.25;
+
         $statSummary = [
-            'total_apostas'      => $totApostas,
-            'total_encerradas'   => $totEncerradas,
-            'total_ganhas'       => $totGanhas,
-            'total_perdidas'     => $totPerdidas,
-            'retorno_ganhas'     => $retornoGanhas,
-            'total_investido'    => $totInvestido,
-            'lucro_liquido'      => $lucroLiquido,
-            'roi_percentual'     => $roiPercentual,
-            'win_rate'           => $winRate,
-            'odd_media'          => $oddMedia,
-            'break_even_rate'    => $breakEvenRate,
-            'edge_percentual'    => $edgePercentual,
-            'stake_media'        => $stakeMedia,
-            'projecao_100'       => $projecao100,
-            'projecao_500'       => $projecao500,
-            'projecao_1000'      => $projecao1000,
+            'total_apostas'          => $totApostas,
+            'total_encerradas'       => $totEncerradas,
+            'total_ganhas'           => $totGanhas,
+            'total_perdidas'         => $totPerdidas,
+            'retorno_ganhas'         => $retornoGanhas,
+            'total_investido'        => $totInvestido,
+            'lucro_liquido'          => $lucroLiquido,
+            'roi_percentual'         => $roiPercentual,
+            'win_rate'               => $winRate,
+            'odd_media'              => $oddMedia,
+            'break_even_rate'        => $breakEvenRate,
+            'edge_percentual'        => $edgePercentual,
+            'stake_media'            => $stakeMedia,
+            'projecao_100'           => $projecao100,
+            'projecao_500'           => $projecao500,
+            'projecao_1000'          => $projecao1000,
+            'gk_odd_media_vencedora' => $gkOddMediaVencedora,
+            'gk_teto_maximo'         => $gkTetoMaximo,
+            'gk_odd_minima'          => $gkOddMinima,
         ];
 
         $data = [

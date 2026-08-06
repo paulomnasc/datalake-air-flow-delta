@@ -558,6 +558,91 @@
       </span>
     </div>
 
+    <!-- Banner Especial: Range Ideal de Odds do Gatekeeper (+EV) -->
+    <div class="row g-3 mb-4">
+      <div class="col-12">
+        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, rgba(0,230,118,0.08) 0%, rgba(0,176,255,0.08) 100%); border: 1px solid rgba(0,230,118,0.25);">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+            <div class="d-flex align-items-center gap-3">
+              <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 44px; height: 44px; background: rgba(0,230,118,0.15); border: 1px solid var(--accent-green);">
+                <i class="bi bi-bullseye text-success fs-4"></i>
+              </div>
+              <div>
+                <div class="fw-bold text-white fs-5" style="font-family: 'Outfit', sans-serif;">
+                  Range Ideal de Odds Recomendado (Gatekeeper +EV)
+                </div>
+                <div class="text-white small" style="color: #ffffff !important;">
+                  Entenda o significado dos limites operacionais calculados para o mercado de Under Cartões
+                </div>
+              </div>
+            </div>
+            <div>
+              <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fw-semibold">
+                <i class="bi bi-check-circle-fill me-1"></i> Modelo Estatístico Poisson + Histórico Real
+              </span>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <!-- Box 1: Range Operacional -->
+            <div class="col-md-4">
+              <div class="p-3 rounded-3 h-100" style="background: #161b22; border: 1px solid #30363d;">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                  <span class="text-muted fw-bold" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <i class="bi bi-shield-check text-success me-1"></i> Range Operacional (+EV)
+                  </span>
+                  <span class="badge bg-success-subtle text-success" style="font-size: 0.65rem;">Zona Verde</span>
+                </div>
+                <div class="fw-bold text-success fs-4 my-1">
+                  <?= number_format($statSummary['gk_odd_minima'] ?? 1.25, 2) ?> a <?= number_format($statSummary['gk_teto_maximo'] ?? 2.04, 2) ?>
+                </div>
+                <div class="text-white" style="font-size: 0.78rem; line-height: 1.35; color: #ffffff !important;">
+                  <strong class="text-white">O que significa:</strong> Intervalo seguro onde a odd da casa paga acima do risco real estimado pela distribuição de Poisson.
+                </div>
+              </div>
+            </div>
+
+            <!-- Box 2: Média Vencedora -->
+            <div class="col-md-4">
+              <div class="p-3 rounded-3 h-100" style="background: #161b22; border: 1px solid #30363d;">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                  <span class="text-muted fw-bold" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <i class="bi bi-graph-up-arrow text-warning me-1"></i> Média Vencedora Histórica
+                  </span>
+                  <span class="badge bg-warning-subtle text-warning" style="font-size: 0.65rem;">Ponto de Referência</span>
+                </div>
+                <div class="fw-bold text-warning fs-4 my-1">
+                  <?= number_format($statSummary['gk_odd_media_vencedora'] ?? 1.69, 2) ?>
+                </div>
+                <div class="text-white" style="font-size: 0.78rem; line-height: 1.35; color: #ffffff !important;">
+                  <strong class="text-white">O que significa:</strong> Odd média real de todas as apostas vencedoras (Green) em Under Cartões registradas no seu histórico.
+                </div>
+              </div>
+            </div>
+
+            <!-- Box 3: Teto de Segurança -->
+            <div class="col-md-4">
+              <div class="p-3 rounded-3 h-100" style="background: #161b22; border: 1px solid #30363d;">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                  <span class="text-muted fw-bold" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <i class="bi bi-slash-circle text-info me-1"></i> Teto Máximo de Segurança
+                  </span>
+                  <span class="badge bg-info-subtle text-info" style="font-size: 0.65rem;">Limite Flexível</span>
+                </div>
+                <div class="fw-bold text-info fs-4 my-1">
+                  <?= number_format($statSummary['gk_teto_maximo'] ?? 2.04, 2) ?>
+                </div>
+                <div class="text-white" style="font-size: 0.78rem; line-height: 1.35; color: #ffffff !important;">
+                  <strong class="text-white">O que significa:</strong> Limite dinâmico máximo (Média + 0,35) para barrar odds infladas e armadilhas da banca.
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
     <!-- Linha 1: Métricas de Eficiência e Break-Even -->
     <div class="row g-3 mb-4">
       <div class="col-md-3 col-sm-6">
@@ -681,7 +766,19 @@
             </div>
 
             <div class="combination-info">
-              <div class="market-tag"><i class="bi bi-tag-fill me-1"></i> <?= htmlspecialchars($item['mercado']) ?></div>
+              <div class="market-tag">
+                <i class="bi bi-tag-fill me-1"></i> <?= htmlspecialchars($item['mercado']) ?>
+                <?php 
+                  $oddItem = (float)($item['odd_media'] ?? 0);
+                  $oddMin = (float)($statSummary['gk_odd_minima'] ?? 1.25);
+                  $oddMax = (float)($statSummary['gk_teto_maximo'] ?? 2.04);
+                  if ($oddItem >= $oddMin && $oddItem <= $oddMax):
+                ?>
+                  <span class="badge bg-success-subtle text-success border border-success-subtle ms-2" style="font-size: 0.72rem;">
+                    <i class="bi bi-check-circle-fill me-1"></i> Range +EV
+                  </span>
+                <?php endif; ?>
+              </div>
               <div class="pick-name">
                 <?= htmlspecialchars($item['palpite']) ?>
               </div>
@@ -742,7 +839,19 @@
             </div>
 
             <div class="combination-info">
-              <div class="market-tag"><i class="bi bi-tag-fill me-1"></i> <?= htmlspecialchars($item['mercado']) ?></div>
+              <div class="market-tag">
+                <i class="bi bi-tag-fill me-1"></i> <?= htmlspecialchars($item['mercado']) ?>
+                <?php 
+                  $oddItem = (float)($item['odd_media'] ?? 0);
+                  $oddMin = (float)($statSummary['gk_odd_minima'] ?? 1.25);
+                  $oddMax = (float)($statSummary['gk_teto_maximo'] ?? 2.04);
+                  if ($oddItem >= $oddMin && $oddItem <= $oddMax):
+                ?>
+                  <span class="badge bg-success-subtle text-success border border-success-subtle ms-2" style="font-size: 0.72rem;">
+                    <i class="bi bi-check-circle-fill me-1"></i> Range +EV
+                  </span>
+                <?php endif; ?>
+              </div>
               <div class="pick-name">
                 <?= htmlspecialchars($item['palpite']) ?>
               </div>

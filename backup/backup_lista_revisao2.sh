@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Backup config
-DATABASES=("${MYSQL_DB:-lista_revisao2}" "fiscal")
+DATABASES=("${MYSQL_DB:-lista_revisao2}" "fiscal" "footballweb")
 DB_HOST="${MYSQL_HOST:-172.18.0.1}"
 DB_PORT="${MYSQL_PORT:-23306}"
 DB_USER="${MYSQL_USER:-backup_lista_revisao2}"

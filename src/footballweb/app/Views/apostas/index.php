@@ -19,7 +19,7 @@
     --bet-gold: #ffd600;
     --bet-danger: #ff5252;
     --bet-text-main: #f0f6fc;
-    --bet-text-muted: #8b949e;
+    --bet-text-muted: #94a3b8;
   }
 
   body {
@@ -780,12 +780,12 @@
 
       <!-- Filtro de Período (2 Datas) -->
       <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;">
-        <span class="text-muted fw-bold d-flex align-items-center gap-1"><i class="bi bi-calendar-range text-info"></i> Período:</span>
+        <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-calendar-range text-info"></i> Período:</span>
         <input type="date" id="betStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="applyBetFilters()" title="Data Inicial (De)">
-        <span class="text-muted small">até</span>
+        <span class="text-light-50 small">até</span>
         <input type="date" id="betEndDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="applyBetFilters()" title="Data Final (Até)">
         <button class="btn btn-sm btn-outline-info text-info border-secondary px-2 py-0.5 ms-1 fw-semibold" onclick="setTodayDateFilter()" title="Selecionar Data de Hoje" style="font-size: 0.78rem;"><i class="bi bi-calendar-check me-1"></i>Hoje</button>
-        <button class="btn btn-sm btn-outline-secondary border-0 text-muted p-1" onclick="clearDateFilter()" title="Limpar Filtro de Período"><i class="bi bi-x-circle-fill"></i></button>
+        <button class="btn btn-sm btn-outline-secondary border-0 text-light-50 p-1" onclick="clearDateFilter()" title="Limpar Filtro de Período"><i class="bi bi-x-circle-fill"></i></button>
       </div>
     </div>
 
@@ -900,8 +900,8 @@
                 <?php endif; ?>
 
                 <?php if (!empty($aposta->odd_justa)): ?>
-                  <span class="badge bg-dark text-muted border border-secondary px-2 py-1" title="Odd Justa calculada pelo modelo de Poisson">
-                    Odd Justa: <?= number_format($aposta->odd_justa, 2) ?>
+                  <span class="badge px-2.5 py-1 fw-bold" style="background-color: #00b0ff; color: #000000;" title="Odd Justa calculada pelo modelo de Poisson">
+                    <i class="bi bi-calculator-fill me-1"></i> Odd Justa: <?= number_format($aposta->odd_justa, 2) ?>
                   </span>
                 <?php endif; ?>
 

@@ -553,7 +553,7 @@
       <div>
         <i class="bi bi-cpu-fill text-warning me-2"></i> Performance & Projeção +EV de Longo Prazo
       </div>
-      <span class="badge bg-dark border border-secondary text-muted px-3 py-2 fw-semibold" style="font-size: 0.8rem;">
+      <span class="badge bg-secondary bg-opacity-25 border border-secondary text-light px-3 py-2 fw-semibold" style="font-size: 0.8rem;">
         <i class="bi bi-shield-check text-success me-1"></i> Baseado no Período Selecionado
       </span>
     </div>

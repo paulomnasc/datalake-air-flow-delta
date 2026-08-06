@@ -79,3 +79,32 @@ $$\text{Margem de Edge (\%)} = \text{Taxa de Acerto Real (\%)} - \text{Break-Eve
 
 * **Edge Positivo ($\Delta > 0$):** O apostador está superando a margem da banca e gerando lucro sustentável.
 * **Edge Negativo ($\Delta < 0$):** A taxa de acerto atual é insuficiente para cobrir o valor das odds apostadas.
+
+### 5.1. Conceito Prático de Manutenção de ROI Positivo
+
+Para garantir lucro sustentável ou manter o ROI positivo em qualquer cenário de odds, a **Taxa de Acerto Real deve ser estritamente superior à Taxa de Break-Even**.
+
+* **Taxa de Acerto Real > Break-Even Rate:** ROI Positivo / Lucro Líquido (+)
+* **Taxa de Acerto Real = Break-Even Rate:** Ponto Nulo / Lucro Zero (R$ 0,00)
+* **Taxa de Acerto Real < Break-Even Rate:** ROI Negativo / Prejuízo (-)
+
+### 5.2. Estudo de Caso: Odd Média 1.26 e Limiar de 80% de Acerto
+
+Ao operar com uma **Odd Média de 1.26**:
+
+$$\text{Break-Even Rate} = \left( \frac{1}{1.26} \right) \times 100 \approx 79,4\%$$
+
+Neste cenário:
+1. **Ponto Nulo (79,4%):** É necessário acertar no mínimo 79,4% dos jogos para não perder capital.
+2. **Meta de Lucro (80%+):** Manter uma taxa de acerto de **80% ou mais** garante que você permaneça na zona de **ROI Positivo**, obtendo um **Edge (Margem de Eficiência)** positivo sobre a banca.
+
+### 5.3. O Desafio da Proporção de Recuperação (Risco em Odds Baixas)
+
+Em odds reduzidas (como 1.26), a relação risco/retorno exige um controle rigoroso de consistência:
+
+* **Lucro por Vitória (Stake R$ 5,00):** $\text{R\$ } 5,00 \times 0,26 = \mathbf{+\text{R\$ } 1,30}$
+* **Perda por Derrota (Stake R$ 5,00):** $\text{R\$ } 5,00 \times 1,00 = \mathbf{-\text{R\$ } 5,00}$
+* **Proporção de Recuperação:** 1 *Red* (derrota) consome o lucro de **~3,85 apostas ganhas** ($\text{R\$ } 5,00 / \text{R\$ } 1,30 \approx 3,85$).
+
+> **Conclusão:** Para que uma estratégia em odds de 1.26 permaneça com ROI positivo, o apostador precisa manter a taxa de acertos **acima de 79,4% (idealmente 80%+)**, compensando o peso desproporcional de eventuais derrotas.
+

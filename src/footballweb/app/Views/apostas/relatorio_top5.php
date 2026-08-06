@@ -400,6 +400,29 @@
     margin-top: 6px;
   }
 
+  .modal-dark .modal-content {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    color: var(--text-main);
+    border-radius: 16px;
+  }
+  .modal-dark .modal-header {
+    border-bottom: 1px solid var(--card-border);
+  }
+  .modal-dark .modal-footer {
+    border-top: 1px solid var(--card-border);
+  }
+  .modal-dark .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+  }
+  .modal-explanation-box {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+
   @media print {
     .header-actions, .filter-card, .performance-panel { display: none !important; }
     body { background-color: #ffffff !important; color: #000000 !important; }
@@ -470,6 +493,10 @@
               <i class="bi bi-x-circle me-1"></i> Limpar
             </a>
           <?php endif; ?>
+
+          <button type="button" class="btn btn-outline-info filter-btn" data-bs-toggle="modal" data-bs-target="#modalExplicacaoIndicadores">
+            <i class="bi bi-info-circle me-1"></i> Exibir Explicação indicadores
+          </button>
 
           <div class="ms-auto d-flex gap-1 align-items-center flex-wrap">
             <span class="text-muted small me-1">Atalhos:</span>
@@ -765,3 +792,83 @@ function setPeriodMonth() {
   document.getElementById('filterForm').submit();
 }
 </script>
+
+<!-- Modal de Explicação de Indicadores -->
+<div class="modal fade modal-dark" id="modalExplicacaoIndicadores" tabindex="-1" aria-labelledby="modalExplicacaoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title font-weight-bold" id="modalExplicacaoLabel" style="font-family: 'Outfit', sans-serif;">
+          <i class="bi bi-book-half text-info me-2"></i> Guia de Indicadores de Eficiência e Projeção +EV
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Bloco 1: ROI / Yield -->
+        <div class="modal-explanation-box">
+          <h6 class="text-warning fw-bold mb-2">
+            <i class="bi bi-graph-up me-1"></i> 1. ROI / Yield Aferido
+          </h6>
+          <p class="small text-muted mb-2">
+            Mede a rentabilidade real obtida sobre todo o capital investido nas apostas encerradas do período filtrado.
+          </p>
+          <div class="p-2 rounded bg-dark border border-secondary text-center font-monospace small mb-2 text-info">
+            ROI (%) = (Lucro Líquido / Total Investido) × 100
+          </div>
+        </div>
+
+        <!-- Bloco 2: Break-Even & Edge -->
+        <div class="modal-explanation-box">
+          <h6 class="text-warning fw-bold mb-2">
+            <i class="bi bi-cpu-fill me-1"></i> 2. Break-Even (Ponto Nulo) e Margem de Edge
+          </h6>
+          <p class="small text-muted mb-2">
+            O <strong>Break-Even Rate</strong> é a taxa mínima de acerto exigida para não ter prejuízo, calculada em função da Odd Média Ponderada.
+          </p>
+          <div class="p-2 rounded bg-dark border border-secondary text-center font-monospace small mb-2 text-warning">
+            Break-Even (%) = (1 / Odd Média) × 100
+          </div>
+          <div class="p-2 rounded bg-dark border border-secondary text-center font-monospace small mb-2 text-success">
+            Edge (%) = Taxa de Acerto Real (%) - Break-Even Rate (%)
+          </div>
+          <ul class="small text-muted mb-0 ps-3">
+            <li><strong class="text-success">Edge Positivo:</strong> Taxa de acerto superior ao ponto nulo = Lucro Sustentável (+EV).</li>
+            <li><strong class="text-danger">Edge Negativo:</strong> Taxa de acerto abaixo do ponto nulo = Prejuízo no longo prazo.</li>
+          </ul>
+        </div>
+
+        <!-- Bloco 3: Conceito de 80% e Odd 1.26 -->
+        <div class="modal-explanation-box">
+          <h6 class="text-warning fw-bold mb-2">
+            <i class="bi bi-shield-check me-1"></i> 3. Manutenção de ROI Positivo & Estudo de Caso (Odd 1.26)
+          </h6>
+          <p class="small text-muted mb-2">
+            Para manter o ROI positivo, sua <strong>Taxa de Acerto Real deve ser estritamente superior à taxa de Break-Even</strong>.
+          </p>
+          
+          <div class="alert alert-dark border-info small mb-0">
+            <strong class="text-info"><i class="bi bi-lightbulb-fill me-1"></i> Exemplo Prático (Odd Média 1.26):</strong><br>
+            • <strong>Ponto Nulo (79,4%):</strong> Break-Even = <code>(1 / 1.26) × 100 ≈ 79,4%</code>.<br>
+            • <strong>Meta de 80%+ de Acertos:</strong> Mantendo 80% ou mais de acerto, você garante permanência na zona de <strong>ROI Positivo</strong>.<br>
+            • <strong>Proporção de Risco (1 Red vs Green):</strong> Com stake de R$ 5,00, cada vitória rende +R$ 1,30 e cada derrota custa -R$ 5,00. Assim, <strong>1 derrota exige ~3,85 vitórias seguidas</strong> só para ser recuperada.
+          </div>
+        </div>
+
+        <!-- Bloco 4: Projeções +EV -->
+        <div class="modal-explanation-box mb-0">
+          <h6 class="text-warning fw-bold mb-2">
+            <i class="bi bi-rocket-takeoff-fill me-1"></i> 4. Projeções de Longo Prazo (+EV)
+          </h6>
+          <p class="small text-muted mb-2">
+            Estima o acumulado financeiro futuro em 100, 500 e 1.000 apostas com base no Lucro Esperado por Aposta (<em>Stake Média × ROI / 100</em>).
+          </p>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>

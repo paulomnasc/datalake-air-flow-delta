@@ -291,13 +291,13 @@ class ApostaController extends BaseController
                     $evPercentual = round((($probPoisson / 100.0) * $odd - 1.0) * 100.0, 2);
                 }
 
-                // Trava de Segurança da Banca (Odd > 1.40 é considerada armadilha/indução da casa de apostas)
-                if ($odd > 1.40) {
+                // Trava de Segurança da Banca (Odd > 1.50 é considerada armadilha/indução da casa de apostas)
+                if ($odd > 1.50) {
                     $statusGatekeeper = 'NO_BET';
-                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) excede o limite máximo de segurança (1.40). Risco elevado de armadilha/indução da banca.";
+                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) excede o limite máximo de segurança (1.50). Risco elevado de armadilha/indução da banca.";
                 } elseif ($evPercentual !== null && $evPercentual >= 0 && $probPoisson >= 50.0) {
                     $statusGatekeeper = 'APROVADO';
-                    $gatekeeperMsg = "Gatekeeper Green Light (+EV): Odd Real ({$odd}) <= 1.40 e >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}%.";
+                    $gatekeeperMsg = "Gatekeeper Green Light (+EV): Odd Real ({$odd}) <= 1.50 e >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}%.";
                 } else {
                     $statusGatekeeper = 'NO_BET';
                     if ($evPercentual !== null && $evPercentual < 0) {

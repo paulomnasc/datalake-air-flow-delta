@@ -784,6 +784,7 @@
         <input type="date" id="betStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="applyBetFilters()" title="Data Inicial (De)">
         <span class="text-muted small">até</span>
         <input type="date" id="betEndDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="applyBetFilters()" title="Data Final (Até)">
+        <button class="btn btn-sm btn-outline-info text-info border-secondary px-2 py-0.5 ms-1 fw-semibold" onclick="setTodayDateFilter()" title="Selecionar Data de Hoje" style="font-size: 0.78rem;"><i class="bi bi-calendar-check me-1"></i>Hoje</button>
         <button class="btn btn-sm btn-outline-secondary border-0 text-muted p-1" onclick="clearDateFilter()" title="Limpar Filtro de Período"><i class="bi bi-x-circle-fill"></i></button>
       </div>
     </div>
@@ -1379,6 +1380,20 @@
   }
 
   function searchBets() {
+    applyBetFilters();
+  }
+
+  function setTodayDateFilter() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
+    const startEl = document.getElementById('betStartDateInput');
+    const endEl = document.getElementById('betEndDateInput');
+    if (startEl) startEl.value = todayStr;
+    if (endEl) endEl.value = todayStr;
     applyBetFilters();
   }
 

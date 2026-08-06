@@ -500,6 +500,7 @@
 
           <div class="ms-auto d-flex gap-1 align-items-center flex-wrap">
             <span class="text-muted small me-1">Atalhos:</span>
+            <button type="button" class="quick-btn" onclick="setPeriodToday()">Hoje</button>
             <button type="button" class="quick-btn" onclick="setPeriodQuick(7)">7D</button>
             <button type="button" class="quick-btn" onclick="setPeriodQuick(30)">30D</button>
             <button type="button" class="quick-btn" onclick="setPeriodMonth()">Este Mês</button>
@@ -772,6 +773,18 @@
 </div>
 
 <script>
+function setPeriodToday() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const todayStr = `${year}-${month}-${day}`;
+
+  document.getElementById('data_inicio').value = todayStr;
+  document.getElementById('data_fim').value = todayStr;
+  document.getElementById('filterForm').submit();
+}
+
 function setPeriodQuick(days) {
   const endDate = new Date();
   const startDate = new Date();

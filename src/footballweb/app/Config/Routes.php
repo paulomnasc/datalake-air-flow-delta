@@ -337,6 +337,7 @@ $routes->post('insertOrdemServico', 'OrdemServicoController::insert');
 $routes->post('updateOrdemServico', 'OrdemServicoController::update');
 $routes->post('concluirOrdemServico/(:num)', 'OrdemServicoController::concluir/$1');
 $routes->delete('deleteOrdemServico/(:num)', 'OrdemServicoController::delete/$1');
+$routes->match(['get', 'post'], 'cloneOrdemServico/(:num)', 'OrdemServicoController::clone/$1');
 $routes->get('listItemOs', 'ItemOsController::index');
 $routes->post('addItemOs', 'ItemOsController::add');
 $routes->get('addItemOs', 'ItemOsController::add');

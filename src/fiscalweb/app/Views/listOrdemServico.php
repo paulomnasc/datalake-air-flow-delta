@@ -21,6 +21,7 @@ require VIEWPATH.'/header.php';
                     <th>ID</th>
                     <th>Contrato</th>
                     <th>HorasAlocadas</th><th>NupSei</th><th>DataEmissao</th><th>DataAceite</th><th>Status</th>
+                    <th>Clone</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -30,6 +31,11 @@ require VIEWPATH.'/header.php';
                     <td> <?php echo $item->id ?> </td>
                     <td> <?php echo esc($item->Numero_Contrato ?? 'Nenhum') ?> </td>
                     <td> <?php echo $item->Horas_Alocadas ?> </td><td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->Data_Emissao ?> </td><td> <?php echo $item->Data_Aceite ?> </td><td> <?php echo esc($item->status ?? 'Rascunho') ?> </td>
+                    <td>
+                        <form action="<?php echo site_url('cloneOrdemServico/' . $item->id); ?>" method="post">
+                            <button class="clone-button" type="submit" title="Clonar (Duplicar como Rascunho)">📋</button>
+                        </form>
+                    </td>
                     <td> 
                         <div class="sidebyside-container">
                             <form action="<?php echo site_url('updOrdemServico'); ?>" method="post">
@@ -37,7 +43,16 @@ require VIEWPATH.'/header.php';
                                 <button class="edit-button" type="submit">✏️</button>
                             </form>
                             <form id="deleteForm-<?php echo $item->id; ?>">
-                                <button class="delete-button" type="button" onclick="confirmDelete('<?php echo $item->id; ?>', '<?php echo site_url('deleteOrdemServico/' . $item->id); ?>', 'deleteForm-<?php echo $item->id; ?>')">🗑️</button>
+                                <?php 
+                                    $statusNorm = strtolower(trim($item->status ?? 'Rascunho'));
+                                    $canDelete = in_array($statusNorm, ['rascunho', 'aguardando assinatura'], true);
+                                ?>
+                                <button class="delete-button" type="button" 
+                                    <?php if ($canDelete): ?>
+                                        onclick="confirmDelete('<?php echo $item->id; ?>', '<?php echo site_url('deleteOrdemServico/' . $item->id); ?>', 'deleteForm-<?php echo $item->id; ?>')"
+                                    <?php else: ?>
+                                        disabled title="Apenas OS nos status Rascunho ou Aguardando assinatura podem ser excluídas" style="opacity: 0.4; cursor: not-allowed;"
+                                    <?php endif; ?>>🗑️</button>
                             </form>
                         </div>
                     </td>
@@ -58,11 +73,12 @@ require VIEWPATH.'/header.php';
                                 $('#row-' + id).remove();
                                 $('#success-message').html(result.mensagem).show().delay(6000).fadeOut();
                             } else {
-                                $('#error-message').html('Erro ao excluir o registro.').show().delay(6000).fadeOut();
+                                $('#error-message').html(result.mensagem || 'Erro ao excluir o registro.').show().delay(6000).fadeOut();
                             }
                         },
                         error: function(err) {
-                            $('#error-message').html('Erro ao excluir o registro.').show().delay(6000).fadeOut();
+                            var msg = (err.responseJSON && err.responseJSON.mensagem) ? err.responseJSON.mensagem : 'Erro ao excluir o registro.';
+                            $('#error-message').html(msg).show().delay(6000).fadeOut();
                             console.log(err);
                         }
                     });

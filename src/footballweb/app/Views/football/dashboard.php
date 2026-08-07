@@ -1591,9 +1591,8 @@ if (!function_exists('getBetDecisionTree')) {
                                     
                                     $showFinishedQuery = $showFinished ? '&show_finished=1' : '';
                                     $showPostponedQuery = !empty($showPostponed) ? '&show_postponed=1' : '';
-                                    $onlySurebetQuery = !empty($onlySurebet) ? '&only_surebet=1' : '';
                                     $searchQuery = !empty($search) ? '&search=' . urlencode($search) : '';
-                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $onlySurebetQuery . $searchQuery;
+                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $searchQuery;
                                     ?>
                                     <a href="?start_date=<?= $yesterday ?>&end_date=<?= $yesterday ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $yesterday && $endDate === $yesterday) ? 'active' : '' ?>">
                                         <i class="bi bi-chevron-left"></i> <?= lang('App.yesterday') ?>

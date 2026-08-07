@@ -117,9 +117,8 @@ class FootballTrendsController extends BaseController
             $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}')) <=", $endDate);
         }
 
-        if ($onlySurebet) {
-            $builder->where('ft.is_surebet', 1);
-        }
+        // Nota: A filtragem de Surebets e Apostas Seguras e tratada dinamicamente via JS na View (dashboard.php)
+        // para que o usuario possa alternar os toggles instantaneamente sem perder as partidas carregadas.
 
         // Se showFinished for falso (default), exclui jogos encerrados
         if (!$showFinished) {

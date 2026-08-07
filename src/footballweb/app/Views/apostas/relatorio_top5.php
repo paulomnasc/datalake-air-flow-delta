@@ -65,7 +65,7 @@
   }
 
   .report-subtitle {
-    color: var(--text-muted);
+    color: #ffffff;
     margin-top: 8px;
     font-size: 1rem;
   }
@@ -131,7 +131,7 @@
 
   .summary-label {
     font-size: 0.85rem;
-    color: var(--text-muted);
+    color: #ffffff;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.6px;
@@ -243,7 +243,7 @@
 
   .metric-title {
     font-size: 0.78rem;
-    color: var(--text-muted);
+    color: #ffffff;
     text-transform: uppercase;
     font-weight: 600;
   }
@@ -309,7 +309,7 @@
   .quick-btn {
     background: #21262d;
     border: 1px solid #30363d;
-    color: #8b949e;
+    color: #ffffff;
     font-size: 0.8rem;
     border-radius: 6px;
     padding: 4px 10px;
@@ -351,7 +351,7 @@
   }
   .metric-pill-label {
     font-size: 0.8rem;
-    color: var(--text-muted);
+    color: #ffffff;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     font-weight: 600;
@@ -364,7 +364,7 @@
   }
   .metric-pill-sub {
     font-size: 0.8rem;
-    color: #8b949e;
+    color: #cbd5e1;
     margin-top: 4px;
   }
   .projection-card {
@@ -390,7 +390,7 @@
     font-size: 0.85rem;
     font-weight: 700;
     text-transform: uppercase;
-    color: #8b949e;
+    color: #ffffff;
     letter-spacing: 0.5px;
   }
   .projection-value {
@@ -474,12 +474,12 @@
     <form method="GET" action="<?= base_url('apostas/relatorio-top5') ?>" id="filterForm">
       <div class="row g-3 align-items-end">
         <div class="col-md-3 col-sm-6">
-          <label class="form-label text-muted small fw-semibold mb-1">Data Início</label>
+          <label class="form-label text-white small fw-semibold mb-1">Data Início</label>
           <input type="date" name="data_inicio" id="data_inicio" class="form-control filter-input" value="<?= esc($dataInicio ?? '') ?>">
         </div>
 
         <div class="col-md-3 col-sm-6">
-          <label class="form-label text-muted small fw-semibold mb-1">Data Final</label>
+          <label class="form-label text-white small fw-semibold mb-1">Data Final</label>
           <input type="date" name="data_fim" id="data_fim" class="form-control filter-input" value="<?= esc($dataFim ?? '') ?>">
         </div>
 
@@ -499,7 +499,7 @@
           </button>
 
           <div class="ms-auto d-flex gap-1 align-items-center flex-wrap">
-            <span class="text-muted small me-1">Atalhos:</span>
+            <span class="text-white small me-1">Atalhos:</span>
             <button type="button" class="quick-btn" onclick="setPeriodToday()">Hoje</button>
             <button type="button" class="quick-btn" onclick="setPeriodQuick(7)">7D</button>
             <button type="button" class="quick-btn" onclick="setPeriodQuick(30)">30D</button>
@@ -588,7 +588,7 @@
             <div class="col-md-4">
               <div class="p-3 rounded-3 h-100" style="background: #161b22; border: 1px solid #30363d;">
                 <div class="d-flex align-items-center justify-content-between mb-1">
-                  <span class="text-muted fw-bold" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                  <span class="text-white fw-bold" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
                     <i class="bi bi-shield-check text-success me-1"></i> Range Operacional (+EV)
                   </span>
                   <span class="badge bg-success-subtle text-success" style="font-size: 0.65rem;">Zona Verde</span>
@@ -606,7 +606,7 @@
             <div class="col-md-4">
               <div class="p-3 rounded-3 h-100" style="background: #161b22; border: 1px solid #30363d;">
                 <div class="d-flex align-items-center justify-content-between mb-1">
-                  <span class="text-muted fw-bold" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                  <span class="text-white fw-bold" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
                     <i class="bi bi-graph-up-arrow text-warning me-1"></i> Média Vencedora Histórica
                   </span>
                   <span class="badge bg-warning-subtle text-warning" style="font-size: 0.65rem;">Ponto de Referência</span>
@@ -624,7 +624,7 @@
             <div class="col-md-4">
               <div class="p-3 rounded-3 h-100" style="background: #161b22; border: 1px solid #30363d;">
                 <div class="d-flex align-items-center justify-content-between mb-1">
-                  <span class="text-muted fw-bold" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                  <span class="text-white fw-bold" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
                     <i class="bi bi-slash-circle text-info me-1"></i> Teto Máximo de Segurança
                   </span>
                   <span class="badge bg-info-subtle text-info" style="font-size: 0.65rem;">Limite Flexível</span>

@@ -79,12 +79,36 @@ class ApostaController extends BaseController
 
         // Buscar lista de jogos disponíveis para associar (fixtures_trends)
         $db = \Config\Database::connect();
-        $fixtures = $db->table('fixtures_trends')
-            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text')
-            ->orderBy('fixture_date', 'DESC')
-            ->limit(50)
+        $targetFixId = $this->request->getVar('fixture_id');
+
+        $builderFix = $db->table('fixtures_trends')
+            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text');
+        
+        $fixtures = $builderFix->orderBy('fixture_date', 'DESC')
+            ->limit(100)
             ->get()
             ->getResultObject();
+
+        // Se fixture_id foi requisitada via URL mas nao esta na lista inicial, busca explicitamente
+        if (!empty($targetFixId)) {
+            $exists = false;
+            foreach ($fixtures as $f) {
+                if ((string)$f->fixture_id === (string)$targetFixId) {
+                    $exists = true;
+                    break;
+                }
+            }
+            if (!$exists) {
+                $targetFix = $db->table('fixtures_trends')
+                    ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text')
+                    ->where('fixture_id', $targetFixId)
+                    ->get()
+                    ->getRow();
+                if ($targetFix) {
+                    array_unshift($fixtures, $targetFix);
+                }
+            }
+        }
 
         foreach ($fixtures as $fix) {
             $suggested = 'Menos de 5.5';

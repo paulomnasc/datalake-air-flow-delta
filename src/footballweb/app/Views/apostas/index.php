@@ -1653,4 +1653,34 @@
       alert('Erro ao executar o processamento.');
     });
   }
+
+  // Auto-abrir modal e preencher dados quando direcionado do card do FootballWeb (?new_bet=1&fixture_id=123)
+  document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isNewBet = urlParams.get('new_bet');
+    const fixId = urlParams.get('fixture_id');
+    const palpiteParam = urlParams.get('palpite');
+
+    if (isNewBet || fixId) {
+      const modalEl = document.getElementById('newBetModal');
+      if (modalEl) {
+        const bsModal = new bootstrap.Modal(modalEl);
+        bsModal.show();
+
+        if (fixId) {
+          const selectEl = document.getElementById('fixtureSelect');
+          if (selectEl) {
+            selectEl.value = fixId;
+            autofillFixture(selectEl);
+          }
+        }
+        if (palpiteParam) {
+          const palpiteInput = document.getElementById('palpiteInput');
+          if (palpiteInput) {
+            palpiteInput.value = palpiteParam;
+          }
+        }
+      }
+    }
+  });
 </script>

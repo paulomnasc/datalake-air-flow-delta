@@ -54,6 +54,40 @@ Além de simplificar a decisão entre duas opções (Mandante ou Visitante), o H
 
 ---
 
+### 🎯 Caso Concreto Real: *Operário-PR vs São Bernardo* na Betano
+
+Este caso real ilustra como utilizar o card de análises do **FootballWeb** como suporte de decisão diretamente na interface de apostas da **Betano**:
+
+#### 1. Diagnóstico Gerado pelo Card do FootballWeb:
+- **Sugestão de Aposta:** `🎯 Handicap 0.0 (Empate Anula)`
+- **Nível de Confiança:** `66.00%`
+- **Análise do Sistema:** *Confronto bastante equilibrado entre as equipes (xG Operário-PR: 1.6 vs xG São Bernardo: 1.5). Recomenda-se a proteção de reembolso no empate.*
+
+#### 2. Cotações Reais Extraídas do Painel do Handicap Asiático da Betano:
+- `Operário-PR 0.0`: **Odd 1.40**
+- `Operário-PR -0.25`: **Odd 1.67**
+- `Operário-PR -0.5`: **Odd 1.93**
+- `São Bernardo +0.25`: **Odd 2.18**
+- `São Bernardo 0.0`: **Odd 2.87**
+
+#### 3. Tomada de Decisão & Execução das Estratégias:
+
+- **Estratégia 1: Entrada Principal Conservadora (Alinhada 100% ao FootballWeb)**
+  - **Seleção na Betano:** Clique na opção **`Operário-PR 0.0`** (Odd **`1.40`**).
+  - **Comportamento da Aposta:**
+    - 🟢 **Vitória do Operário-PR:** Lucro 100% (Odd 1.40).
+    - 🟡 **Empate:** Reembolso 100% do dinheiro investido.
+    - 🔴 **Vitória do São Bernardo:** Aposta perdida.
+
+- **Estratégia 2: Entrada Alternativa de Alto Valor (Zebra com Proteção de Vantagem)**
+  - **Seleção na Betano:** Clique na opção **`São Bernardo +0.25`** (Odd **`2.18`**).
+  - **Comportamento da Aposta:**
+    - 🟢 **Vitória do São Bernardo:** Lucro 100% com cotação alta (**Odd 2.18**).
+    - 🟢 **Empate:** Lucro de 50% (Meio Ganho) e devolução do valor inicial.
+    - 🔴 **Vitória do Operário-PR:** Aposta perdida.
+
+---
+
 ## 🏗️ Arquitetura Técnica do Módulo no FootballWeb
 
 O módulo no FootballWeb projeta as linhas de Handicap Asiático combinando a **Expectativa de Gols ($xG$)** e o **Saldo de Mando de Campo** das equipes.

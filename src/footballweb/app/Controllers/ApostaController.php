@@ -708,29 +708,37 @@ class ApostaController extends BaseController
         $dataInicio = trim((string)$this->request->getGet('data_inicio'));
         $dataFim    = trim((string)$this->request->getGet('data_fim'));
 
+        $dateExpr = "(CASE WHEN data_hora_jogo IS NOT NULL AND data_hora_jogo > '2000-01-01' THEN data_hora_jogo ELSE criado_em END)";
+
         $whereDateUser = "";
         $whereDateGeral = "";
         $whereDateSummary = "";
+        $whereDateGk = "";
         $paramsUser = [$userId];
         $paramsGeral = [];
         $paramsSummary = [$userId];
+        $paramsGk = [];
 
         if (!empty($dataInicio)) {
-            $whereDateUser .= " AND COALESCE(data_hora_jogo, criado_em) >= ?";
-            $whereDateGeral .= " AND COALESCE(data_hora_jogo, criado_em) >= ?";
-            $whereDateSummary .= " AND COALESCE(data_hora_jogo, criado_em) >= ?";
+            $whereDateUser .= " AND {$dateExpr} >= ?";
+            $whereDateGeral .= " AND {$dateExpr} >= ?";
+            $whereDateSummary .= " AND {$dateExpr} >= ?";
+            $whereDateGk .= " AND {$dateExpr} >= ?";
             $paramsUser[] = $dataInicio . ' 00:00:00';
             $paramsGeral[] = $dataInicio . ' 00:00:00';
             $paramsSummary[] = $dataInicio . ' 00:00:00';
+            $paramsGk[] = $dataInicio . ' 00:00:00';
         }
 
         if (!empty($dataFim)) {
-            $whereDateUser .= " AND COALESCE(data_hora_jogo, criado_em) <= ?";
-            $whereDateGeral .= " AND COALESCE(data_hora_jogo, criado_em) <= ?";
-            $whereDateSummary .= " AND COALESCE(data_hora_jogo, criado_em) <= ?";
+            $whereDateUser .= " AND {$dateExpr} <= ?";
+            $whereDateGeral .= " AND {$dateExpr} <= ?";
+            $whereDateSummary .= " AND {$dateExpr} <= ?";
+            $whereDateGk .= " AND {$dateExpr} <= ?";
             $paramsUser[] = $dataFim . ' 23:59:59';
             $paramsGeral[] = $dataFim . ' 23:59:59';
             $paramsSummary[] = $dataFim . ' 23:59:59';
+            $paramsGk[] = $dataFim . ' 23:59:59';
         }
 
         // Top 5 Combinações (Mercado + Palpite) com mais vitórias do Usuário
@@ -812,14 +820,13 @@ class ApostaController extends BaseController
         $projecao500  = round(500 * $lucroEsperadoPorAposta, 2);
         $projecao1000 = round(1000 * $lucroEsperadoPorAposta, 2);
 
-        // Métricas de Range Ideal de Odd do Gatekeeper (Under Cartões)
-        $rowGkAvg = $db->query("
+        // Métricas de Range Ideal de Odd do Gatekeeper (+EV Geral para todas as modalidades)
+        $sqlGk = "
             SELECT AVG(odd) as avg_odd, COUNT(*) as total_vitorias 
             FROM apostas 
-            WHERE status = 'Ganha' 
-              AND (mercado LIKE '%cartõ%' OR mercado LIKE '%card%') 
-              AND (palpite LIKE '%Menos%' OR palpite LIKE '%under%')
-        ")->getRow();
+            WHERE status = 'Ganha' {$whereDateGk}
+        ";
+        $rowGkAvg = !empty($paramsGk) ? $db->query($sqlGk, $paramsGk)->getRow() : $db->query($sqlGk)->getRow();
 
         $gkOddMediaVencedora = ($rowGkAvg && $rowGkAvg->avg_odd && (int)$rowGkAvg->total_vitorias > 0) 
             ? round((float)$rowGkAvg->avg_odd, 2) 

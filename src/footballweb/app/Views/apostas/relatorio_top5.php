@@ -572,7 +572,7 @@
                   Range Ideal de Odds Recomendado (Gatekeeper +EV)
                 </div>
                 <div class="text-white small" style="color: #ffffff !important;">
-                  Entenda o significado dos limites operacionais calculados para o mercado de Under Cartões
+                  Entenda o significado dos limites operacionais calculados para as modalidades ativas (Cartões e Handicap Asiático)
                 </div>
               </div>
             </div>
@@ -615,7 +615,7 @@
                   <?= number_format($statSummary['gk_odd_media_vencedora'] ?? 1.69, 2) ?>
                 </div>
                 <div class="text-white" style="font-size: 0.78rem; line-height: 1.35; color: #ffffff !important;">
-                  <strong class="text-white">O que significa:</strong> Odd média real de todas as apostas vencedoras (Green) em Under Cartões registradas no seu histórico.
+                  <strong class="text-white">O que significa:</strong> Odd média real de todas as apostas vencedoras (Green) registradas no histórico geral (Cartões e Handicap Asiático).
                 </div>
               </div>
             </div>
@@ -882,12 +882,16 @@
 </div>
 
 <script>
+function formatDateLocal(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function setPeriodToday() {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const todayStr = `${year}-${month}-${day}`;
+  const todayStr = formatDateLocal(now);
 
   document.getElementById('data_inicio').value = todayStr;
   document.getElementById('data_fim').value = todayStr;
@@ -899,8 +903,8 @@ function setPeriodQuick(days) {
   const startDate = new Date();
   startDate.setDate(endDate.getDate() - days);
   
-  document.getElementById('data_inicio').value = startDate.toISOString().split('T')[0];
-  document.getElementById('data_fim').value = endDate.toISOString().split('T')[0];
+  document.getElementById('data_inicio').value = formatDateLocal(startDate);
+  document.getElementById('data_fim').value = formatDateLocal(endDate);
   document.getElementById('filterForm').submit();
 }
 
@@ -909,8 +913,8 @@ function setPeriodMonth() {
   const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
   const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   
-  document.getElementById('data_inicio').value = startDate.toISOString().split('T')[0];
-  document.getElementById('data_fim').value = endDate.toISOString().split('T')[0];
+  document.getElementById('data_inicio').value = formatDateLocal(startDate);
+  document.getElementById('data_fim').value = formatDateLocal(endDate);
   document.getElementById('filterForm').submit();
 }
 </script>

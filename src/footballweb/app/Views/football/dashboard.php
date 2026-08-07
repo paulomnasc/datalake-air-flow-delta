@@ -2088,6 +2088,25 @@ if (!function_exists('getBetDecisionTree')) {
                                             </div>
                                         </div>
 
+                                        <!-- Sugestão de Handicap Asiático -->
+                                        <?php if (!empty($fix->ah_suggestion)): ?>
+                                            <div class="asian-handicap-widget-box" style="margin: 10px 0; padding: 10px 12px; background: rgba(15, 23, 42, 0.85); border-radius: 8px; border-left: 4px solid #38bdf8; font-size: 0.8rem; color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
+                                                    <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 5px; font-size: 0.82rem;">
+                                                        <i class="bi bi-shield-shaded"></i> Mercado de Gols (Handicap Asiático):
+                                                    </span>
+                                                    <span class="badge" style="background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; color: #38bdf8; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 4px;">
+                                                        🎯 <?= htmlspecialchars($fix->ah_suggestion) ?> (<?= number_format($fix->ah_confidence ?? 65, 1) ?>%)
+                                                    </span>
+                                                </div>
+                                                <?php if (!empty($fix->ah_reasoning)): ?>
+                                                    <div style="font-size: 0.75rem; color: #94a3b8; line-height: 1.35; background: rgba(30, 41, 59, 0.5); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.15); font-style: italic;">
+                                                        ⚽ <strong>Análise:</strong> <?= htmlspecialchars($fix->ah_reasoning) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endif; ?>
+
                                         <div style="font-size: 0.75rem; color: #e2e8f0; line-height: 1.35; background: rgba(30, 41, 59, 0.7); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(244, 124, 32, 0.2);">
                                             💡 <strong>Sugestão:</strong> <?= $decision['rationale'] ?>
                                         </div>

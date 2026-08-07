@@ -49,6 +49,46 @@ def calculate_poisson_under_lines(xc):
         
     return results
 
+def calculate_asian_handicap_suggestion(home_goals_scored, home_goals_conceded, away_goals_scored, away_goals_conceded, home_team, away_team):
+    """
+    Calcula a sugestao de Handicap Asiatico com base na expectativa de gols (xG) e saldo de gols dos times.
+    Retorna: (ah_suggestion, ah_confidence, ah_reasoning)
+    """
+    lambda_home = max(0.4, (home_goals_scored + away_goals_conceded) / 2.0)
+    lambda_away = max(0.4, (away_goals_scored + home_goals_conceded) / 2.0)
+    delta_goals = lambda_home - lambda_away
+
+    if delta_goals >= 1.30:
+        suggestion = f"{home_team} -1.0 AH"
+        confidence = round(min(88.0, 68.0 + delta_goals * 10), 2)
+        reasoning = f"Ataque forte do {home_team} ({home_goals_scored:.1f} g/j) contra defesa fragil do {away_team} ({away_goals_conceded:.1f} g/j). Expectativa de vitoria por 2+ gols."
+    elif delta_goals >= 0.65:
+        suggestion = f"{home_team} -0.5 AH"
+        confidence = round(min(82.0, 62.0 + delta_goals * 12), 2)
+        reasoning = f"Vantagem de mando para o {home_team} com saldo positivo (+{delta_goals:.2f} gols esperados)."
+    elif delta_goals >= 0.20:
+        suggestion = f"{home_team} -0.25 AH"
+        confidence = round(min(75.0, 58.0 + delta_goals * 14), 2)
+        reasoning = f"Ligeiro favoritismo do {home_team} em casa. Protecao de meia estaca em caso de empate."
+    elif delta_goals >= -0.20:
+        suggestion = "Handicap 0.0 (Empate Anula)"
+        confidence = 66.00
+        reasoning = f"Confronto equilibrado ({home_team} xG: {lambda_home:.1f} vs {away_team} xG: {lambda_away:.1f}). Protecao de reembolso no empate."
+    elif delta_goals >= -0.65:
+        suggestion = f"{away_team} +0.25 AH"
+        confidence = round(min(75.0, 58.0 + abs(delta_goals) * 14), 2)
+        reasoning = f"Boa fase do {away_team} fora de casa. Vantagem de empate a favor."
+    elif delta_goals >= -1.30:
+        suggestion = f"{away_team} +0.5 AH (Dupla Chance)"
+        confidence = round(min(82.0, 62.0 + abs(delta_goals) * 12), 2)
+        reasoning = f"Excelente momento do visitante {away_team} ({away_goals_scored:.1f} g/j fora). Cobertura em vitoria e empate."
+    else:
+        suggestion = f"{away_team} -1.0 AH"
+        confidence = round(min(88.0, 68.0 + abs(delta_goals) * 10), 2)
+        reasoning = f"Amplo favoritismo do visitante {away_team} com alta producao ofensiva ({away_goals_scored:.1f} g/j)."
+
+    return suggestion, confidence, reasoning
+
 
 
 # Conexão MySQL robusta
@@ -401,6 +441,13 @@ def main():
             away_c_stats = generate_deterministic_team_stats(away_team, 'away')
             team_cards_combined = home_c_stats["avg_cards"] + away_c_stats["avg_cards"]
 
+            # Cálculo do Handicap Asiático (Expected Goals / Saldo)
+            ah_suggestion, ah_confidence, ah_reasoning = calculate_asian_handicap_suggestion(
+                home_c_stats["avg_goals_scored"], home_c_stats["avg_goals_conceded"],
+                away_c_stats["avg_goals_scored"], away_c_stats["avg_goals_conceded"],
+                home_team, away_team
+            )
+
             if referee_raw and referee_raw.strip():
                 # Trata "Anderson Daronco, Brazil" -> "Anderson Daronco"
                 referee_name = referee_raw.split(',')[0].strip()
@@ -645,7 +692,7 @@ def main():
                 if yellow_cards_home is None: yellow_cards_home = 0
                 if yellow_cards_away is None: yellow_cards_away = 0
 
-            # Insere ou atualiza a partida com placar, minutos decorridos, cartões, cantos, chutes, xG e eventos
+            # Insere ou atualiza a partida com placar, minutos decorridos, cartões, cantos, chutes, xG, Handicap Asiatico e eventos
             cursor.execute("""
                 INSERT INTO fixtures_trends (
                     fixture_id, fixture_date, league_id, league_name, home_team, away_team, 
@@ -654,8 +701,8 @@ def main():
                     goals_home, goals_away, elapsed,
                     yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away,
                     corners_home, corners_away, shots_home, shots_away, xg_home, xg_away,
-                    goal_scorers, last_event
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    goal_scorers, last_event, ah_suggestion, ah_confidence, ah_reasoning
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     fixture_date = VALUES(fixture_date),
                     home_team_id = VALUES(home_team_id),
@@ -678,7 +725,10 @@ def main():
                     xg_home = IF(VALUES(xg_home) > 0, VALUES(xg_home), xg_home),
                     xg_away = IF(VALUES(xg_away) > 0, VALUES(xg_away), xg_away),
                     goal_scorers = COALESCE(VALUES(goal_scorers), goal_scorers),
-                    last_event = COALESCE(VALUES(last_event), last_event);
+                    last_event = COALESCE(VALUES(last_event), last_event),
+                    ah_suggestion = VALUES(ah_suggestion),
+                    ah_confidence = VALUES(ah_confidence),
+                    ah_reasoning = VALUES(ah_reasoning);
             """, (
                 fix_id, fix_date, league_id, league_name, home_team, away_team,
                 home_team_id, away_team_id,
@@ -686,7 +736,7 @@ def main():
                 goals_home, goals_away, elapsed,
                 yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away,
                 corners_home, corners_away, shots_home, shots_away, xg_home, xg_away,
-                goal_scorers_str, last_event_str
+                goal_scorers_str, last_event_str, ah_suggestion, ah_confidence, ah_reasoning
             ))
             inserted_fixtures += 1
             

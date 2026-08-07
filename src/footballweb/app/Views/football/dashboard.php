@@ -4,6 +4,37 @@ if (! defined('VIEWPATH')) {
 }
 require VIEWPATH.'/header.php';
 
+if (!function_exists('getBookmakerUrl')) {
+    function getBookmakerUrl($bmName) {
+        $bm = strtoupper(trim($bmName ?? ''));
+        $urls = [
+            'BETANO'       => 'https://br.betano.com/',
+            'SPORTINGBET'  => 'https://www.sportingbet.com/pt-br',
+            'BET365'       => 'https://www.bet365.com/',
+            'SUPERBET'     => 'https://superbet.com/pt-br/',
+            'KTO'          => 'https://www.kto.com/pt/',
+            'BETFAIR'      => 'https://www.betfair.com/br',
+            'BETNACIONAL'  => 'https://betnacional.com/',
+            'NOVIBET'      => 'https://www.novibet.com.br/',
+            'STAKE'        => 'https://stake.com/',
+            'PARIMATCH'    => 'https://parimatch.com.br/',
+            'PINNACLE'     => 'https://www.pinnacle.com/',
+            'ESTRELA'      => 'https://estrelabet.com/',
+            'RIVALO'       => 'https://www.rivalo.com/pt',
+            '1XBET'        => 'https://br.1xbet.com/',
+            'GALERA'       => 'https://www.galera.bet/',
+            'BLAZE'        => 'https://blaze.com/'
+        ];
+        
+        foreach ($urls as $key => $url) {
+            if (strpos($bm, $key) !== false) {
+                return $url;
+            }
+        }
+        return 'https://www.google.com/search?q=' . urlencode('casa de aposta ' . $bmName);
+    }
+}
+
 // Controle de Créditos do Grok AI e Ligas Premium
 $userLoggedIn = false;
 $userGrokCredits = 0;
@@ -558,6 +589,13 @@ if (!function_exists('getBetDecisionTree')) {
         animation: cardGlowPulse 1.8s ease-in-out 3;
         border: 2px solid #00e676 !important;
         z-index: 10;
+    }
+
+    .oddspedia-link-box:hover {
+        background: rgba(255, 255, 255, 0.12) !important;
+        border-color: rgba(255, 255, 255, 0.3) !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     }
 
     .bet-card-header {
@@ -1935,6 +1973,11 @@ if (!function_exists('getBetDecisionTree')) {
 
                                      <!-- Odds 1X2 & Surebet do Oddspedia -->
                                      <?php if (!empty($fix->odd_home) && !empty($fix->odd_draw) && !empty($fix->odd_away)): ?>
+                                         <?php
+                                         $urlHome = getBookmakerUrl($fix->casa_odd_home ?? '');
+                                         $urlDraw = getBookmakerUrl($fix->casa_odd_draw ?? '');
+                                         $urlAway = getBookmakerUrl($fix->casa_odd_away ?? '');
+                                         ?>
                                          <div class="oddspedia-widget-box" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
                                              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                                  <span style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
@@ -1948,32 +1991,35 @@ if (!function_exists('getBetDecisionTree')) {
                                              </div>
                                              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center;">
                                                  <!-- Casa 1 -->
-                                                 <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;">
-                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
-                                                         Casa (<?= htmlspecialchars($fix->casa_odd_home ?? '1') ?>)
+                                                 <a href="<?= $urlHome ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="Apostar na <?= htmlspecialchars($fix->casa_odd_home ?? 'Casa') ?> em nova aba">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
+                                                         <span>Casa (<?= htmlspecialchars($fix->casa_odd_home ?? '1') ?>)</span>
+                                                         <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #38bdf8;"></i>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #38bdf8;">
                                                          <?= number_format($fix->odd_home, 2) ?>
                                                      </div>
-                                                 </div>
+                                                 </a>
                                                  <!-- Empate X -->
-                                                 <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;">
-                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
-                                                         Empate (<?= htmlspecialchars($fix->casa_odd_draw ?? 'X') ?>)
+                                                 <a href="<?= $urlDraw ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="Apostar no <?= htmlspecialchars($fix->casa_odd_draw ?? 'Empate') ?> em nova aba">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
+                                                         <span>Empate (<?= htmlspecialchars($fix->casa_odd_draw ?? 'X') ?>)</span>
+                                                         <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #facc15;"></i>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #facc15;">
                                                          <?= number_format($fix->odd_draw, 2) ?>
                                                      </div>
-                                                 </div>
+                                                 </a>
                                                  <!-- Fora 2 -->
-                                                 <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;">
-                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
-                                                         Fora (<?= htmlspecialchars($fix->casa_odd_away ?? '2') ?>)
+                                                 <a href="<?= $urlAway ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="Apostar no <?= htmlspecialchars($fix->casa_odd_away ?? 'Fora') ?> em nova aba">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
+                                                         <span>Fora (<?= htmlspecialchars($fix->casa_odd_away ?? '2') ?>)</span>
+                                                         <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #f47c20;"></i>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #f47c20;">
                                                          <?= number_format($fix->odd_away, 2) ?>
                                                      </div>
-                                                 </div>
+                                                 </a>
                                              </div>
                                          </div>
                                      <?php endif; ?>

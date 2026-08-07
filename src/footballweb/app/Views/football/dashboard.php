@@ -2438,36 +2438,64 @@ if (!function_exists('getBetDecisionTree')) {
         return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     }
 
-    // Estado e Histórico do Chatbot
+    // Estado e Histórico do Chatbot por Partida
+    let chatSessions = {};
+    let activeMatchKey = null;
     let chatHistory = [];
     let activeChatContext = null;
+
+    function saveCurrentChatSession() {
+        if (activeMatchKey) {
+            const messagesArea = document.getElementById('chatMessages');
+            chatSessions[activeMatchKey] = {
+                context: activeChatContext,
+                history: chatHistory,
+                html: messagesArea ? messagesArea.innerHTML : ''
+            };
+        }
+    }
 
     function openAiChat(homeTeam, awayTeam, leagueName, refereeName, predictionText, prob,
                         homeAvgGoalsScored, homeAvgGoalsConceded, homeCleanSheetsPct, homeAvgCorners, homeAvgCards,
                         awayAvgGoalsScored, awayAvgGoalsConceded, awayCleanSheetsPct, awayAvgCorners, awayAvgCards,
                         refereeRigor, refereeYellows, refereeReds, refereeFouls, refereeGames) {
+        
+        saveCurrentChatSession();
+
+        const matchKey = `${homeTeam}_${awayTeam}`.toLowerCase().replace(/\s+/g, '_');
+        activeMatchKey = matchKey;
+
         activeChatContext = {
             homeTeam, awayTeam, leagueName, refereeName, predictionText, prob,
             homeAvgGoalsScored, homeAvgGoalsConceded, homeCleanSheetsPct, homeAvgCorners, homeAvgCards,
             awayAvgGoalsScored, awayAvgGoalsConceded, awayCleanSheetsPct, awayAvgCorners, awayAvgCards,
             refereeRigor, refereeYellows, refereeReds, refereeFouls, refereeGames
         };
-        chatHistory = []; // Limpa o histórico de sessões anteriores
-        
+
         document.getElementById('chatContextText').innerText = `${homeTeam} vs ${awayTeam} (${leagueName})`;
-        
         const messagesArea = document.getElementById('chatMessages');
-        messagesArea.innerHTML = '';
-        
-        const welcomeText = `Fala, apostador! Sou o Grok. Analisando o jogo **${homeTeam} vs ${awayTeam}** (${leagueName}) com probabilidade de **${prob}%** para Over 4.5 Cartões.\n\n`
-            + `Além de cartões, estou com todas as estatísticas do card carregadas (Média de Gols, Clean Sheets, Escanteios, Rigor do Árbitro, etc.).\n\n`
-            + `Você pode me perguntar sobre:\n`
-            + `* **Mercado de Gols** (Média de marcados/sofridos e Clean Sheets);\n`
-            + `* **Mercado de Escanteios** (Média de cantos de cada equipe);\n`
-            + `* **Mercados de Cartões Alternativos/Híbridos** (ex: Ambas recebem 2+, cartões por tempo/equipe).\n\n`
-            + `Como quer montar sua estratégia para esse jogo hoje?`;
+
+        if (chatSessions[matchKey] && chatSessions[matchKey].html) {
+            // Restaura a conversa anterior mantendo tudo o que foi falado
+            chatHistory = chatSessions[matchKey].history || [];
+            messagesArea.innerHTML = chatSessions[matchKey].html;
+            setTimeout(() => { messagesArea.scrollTop = messagesArea.scrollHeight; }, 50);
+        } else {
+            // Inicializa uma nova conversa para esta partida
+            chatHistory = [];
+            messagesArea.innerHTML = '';
             
-        appendChatMessage('ai', welcomeText);
+            const welcomeText = `Fala, apostador! Sou o Grok. Analisando o jogo **${homeTeam} vs ${awayTeam}** (${leagueName}) com probabilidade de **${prob}%** para Over 4.5 Cartões.\n\n`
+                + `Além de cartões, estou com todas as estatísticas do card carregadas (Média de Gols, Clean Sheets, Escanteios, Rigor do Árbitro, etc.).\n\n`
+                + `Você pode me perguntar sobre:\n`
+                + `* **Mercado de Gols** (Média de marcados/sofridos e Clean Sheets);\n`
+                + `* **Mercado de Escanteios** (Média de cantos de cada equipe);\n`
+                + `* **Mercados de Cartões Alternativos/Híbridos** (ex: Ambas recebem 2+, cartões por tempo/equipe).\n\n`
+                + `Como quer montar sua estratégia para esse jogo hoje?`;
+                
+            appendChatMessage('ai', welcomeText);
+            saveCurrentChatSession();
+        }
         
         const drawer = document.getElementById('chatDrawer');
         drawer.classList.add('open');
@@ -2476,10 +2504,9 @@ if (!function_exists('getBetDecisionTree')) {
     }
 
     function closeAiChat() {
+        saveCurrentChatSession();
         const drawer = document.getElementById('chatDrawer');
         drawer.classList.remove('open');
-        activeChatContext = null;
-        chatHistory = [];
     }
 
     function appendChatMessage(role, text) {
@@ -2564,6 +2591,7 @@ if (!function_exists('getBetDecisionTree')) {
                 
                 chatHistory.push({ role: 'user', content: text });
                 chatHistory.push({ role: 'assistant', content: aiResponse });
+                saveCurrentChatSession();
 
                 // Dispara evento GA4 de consulta com sucesso
                 if (typeof gtag === 'function') {

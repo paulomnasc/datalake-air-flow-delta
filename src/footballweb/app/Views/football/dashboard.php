@@ -1601,6 +1601,18 @@ if (!function_exists('getBetDecisionTree')) {
                                         <?= !empty($onlySafe) ? 'Sim' : 'Não' ?>
                                     </span>
                                 </div>
+                                <div class="d-flex align-items-center gap-2" style="background: rgba(0, 230, 118, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0, 230, 118, 0.3);">
+                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #00e676; font-weight: 600;">
+                                        ⚡ Surebets (Oddspedia)
+                                    </span>
+                                    <label class="bet-switch">
+                                        <input type="checkbox" id="onlySurebetToggle" name="only_surebet" value="1" <?= !empty($onlySurebet) ? 'checked' : '' ?> onchange="toggleSurebetsFilter(this)">
+                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
+                                    </label>
+                                    <span id="onlySurebetToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlySurebet) ? '#00e676' : '#8a99a8' ?>;">
+                                        <?= !empty($onlySurebet) ? 'Sim' : 'Não' ?>
+                                    </span>
+                                </div>
                             </div>
                         </div>
                         
@@ -1745,7 +1757,7 @@ if (!function_exists('getBetDecisionTree')) {
                                  $elapsedDisplay = $elapsedText;
                              }
                              ?>
-                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= ($class === 'high' && strpos($fix->prediction_text, 'NO_BET') === false) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
+                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= ($class === 'high' && strpos($fix->prediction_text, 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
@@ -1919,7 +1931,52 @@ if (!function_exists('getBetDecisionTree')) {
                                         </div>
                                     </div>
 
-                                    <div class="bet-divider"></div>
+                                     <div class="bet-divider"></div>
+
+                                     <!-- Odds 1X2 & Surebet do Oddspedia -->
+                                     <?php if (!empty($fix->odd_home) && !empty($fix->odd_draw) && !empty($fix->odd_away)): ?>
+                                         <div class="oddspedia-widget-box" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
+                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                                 <span style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
+                                                     <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> Cotações 1X2 (Oddspedia)
+                                                 </span>
+                                                 <?php if (!empty($fix->is_surebet)): ?>
+                                                     <span class="badge" style="background: rgba(0, 230, 118, 0.2); border: 1px solid #00e676; color: #00e676; font-weight: 800; font-size: 0.75rem; padding: 3px 8px; border-radius: 20px; box-shadow: 0 0 10px rgba(0, 230, 118, 0.4); animation: pulse-live 1.5s infinite;">
+                                                         ⚡ SUREBET +<?= number_format($fix->surebet_profit_pct ?? 0, 2) ?>%
+                                                     </span>
+                                                 <?php endif; ?>
+                                             </div>
+                                             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center;">
+                                                 <!-- Casa 1 -->
+                                                 <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                                                         Casa (<?= htmlspecialchars($fix->casa_odd_home ?? '1') ?>)
+                                                     </div>
+                                                     <div style="font-size: 0.95rem; font-weight: 800; color: #38bdf8;">
+                                                         <?= number_format($fix->odd_home, 2) ?>
+                                                     </div>
+                                                 </div>
+                                                 <!-- Empate X -->
+                                                 <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                                                         Empate (<?= htmlspecialchars($fix->casa_odd_draw ?? 'X') ?>)
+                                                     </div>
+                                                     <div style="font-size: 0.95rem; font-weight: 800; color: #facc15;">
+                                                         <?= number_format($fix->odd_draw, 2) ?>
+                                                     </div>
+                                                 </div>
+                                                 <!-- Fora 2 -->
+                                                 <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px;">
+                                                     <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                                                         Fora (<?= htmlspecialchars($fix->casa_odd_away ?? '2') ?>)
+                                                     </div>
+                                                     <div style="font-size: 0.95rem; font-weight: 800; color: #f47c20;">
+                                                         <?= number_format($fix->odd_away, 2) ?>
+                                                     </div>
+                                                 </div>
+                                             </div>
+                                         </div>
+                                     <?php endif; ?>
 
                                     <!-- Probabilidade de Cartões -->
                                     <div class="bet-prob-container">
@@ -2538,6 +2595,7 @@ if (!function_exists('getBetDecisionTree')) {
     });
 
     let currentOnlySafeFilter = <?= !empty($onlySafe) ? 'true' : 'false' ?>;
+    let currentOnlySurebetFilter = <?= !empty($onlySurebet) ? 'true' : 'false' ?>;
 
     function toggleSafeBetsFilter(checkbox) {
         currentOnlySafeFilter = checkbox.checked;
@@ -2549,7 +2607,17 @@ if (!function_exists('getBetDecisionTree')) {
         applyFilters();
     }
 
-    // Aplica os filtros combinados (Liga + Aba de Destaques + Busca por Texto + Apenas Apostas Seguras)
+    function toggleSurebetsFilter(checkbox) {
+        currentOnlySurebetFilter = checkbox.checked;
+        const statusSpan = document.getElementById('onlySurebetToggleStatus');
+        if (statusSpan) {
+            statusSpan.innerText = currentOnlySurebetFilter ? 'Sim' : 'Não';
+            statusSpan.style.color = currentOnlySurebetFilter ? '#00e676' : '#8a99a8';
+        }
+        applyFilters();
+    }
+
+    // Aplica os filtros combinados (Liga + Aba de Destaques + Busca por Texto + Apenas Apostas Seguras + Surebets)
     function applyFilters() {
         const cards = document.querySelectorAll('.bet-card');
         let visibleCount = 0;
@@ -2560,13 +2628,15 @@ if (!function_exists('getBetDecisionTree')) {
             const cardProb = parseFloat(card.getAttribute('data-prob') || '0');
             const cardTeamsNormalized = normalizeText(card.getAttribute('data-teams') || '');
             const isSafe = card.getAttribute('data-is-safe') === '1';
+            const isSurebet = card.getAttribute('data-is-surebet') === '1';
             
             const matchLeague = (currentLeagueFilter === 'all' || cardLeague === currentLeagueFilter);
             const matchTab = (currentTabFilter === 'competicoes' || cardProb >= 70.0);
             const matchText = (searchNormalized === '' || cardTeamsNormalized.includes(searchNormalized));
             const matchSafe = (!currentOnlySafeFilter || isSafe);
+            const matchSurebet = (!currentOnlySurebetFilter || isSurebet);
             
-            if (matchLeague && matchTab && matchText && matchSafe) {
+            if (matchLeague && matchTab && matchText && matchSafe && matchSurebet) {
                 card.style.display = 'flex';
                 visibleCount++;
             } else {

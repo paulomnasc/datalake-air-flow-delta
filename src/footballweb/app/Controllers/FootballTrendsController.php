@@ -82,6 +82,9 @@ class FootballTrendsController extends BaseController
         $onlySafeParam = $this->request->getVar('only_safe');
         $onlySafe = ($onlySafeParam === '1' || $onlySafeParam === 'true' || $onlySafeParam === 'sim');
 
+        // Filtro para exibir apenas Surebets (oportunidades de arbitragem)
+        $onlySurebetParam = $this->request->getVar('only_surebet');
+        $onlySurebet = ($onlySurebetParam === '1' || $onlySurebetParam === 'true' || $onlySurebetParam === 'sim');
 
         // Conecta ao banco para realizar a query com join
         $db = \Config\Database::connect();
@@ -93,6 +96,10 @@ class FootballTrendsController extends BaseController
         $builder->join('team_moving_averages th', 'ft.home_team_id = th.team_id AND th.venue_type = "home"', 'left');
         $builder->join('team_moving_averages ta', 'ft.away_team_id = ta.team_id AND ta.venue_type = "away"', 'left');
         $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}'))", $targetDate);
+
+        if ($onlySurebet) {
+            $builder->where('ft.is_surebet', 1);
+        }
 
         // Se showFinished for falso (default), exclui jogos encerrados
         if (!$showFinished) {
@@ -159,6 +166,7 @@ class FootballTrendsController extends BaseController
             'showFinished'  => $showFinished,
             'showPostponed' => $showPostponed,
             'onlySafe'      => $onlySafe,
+            'onlySurebet'   => $onlySurebet,
             'fixtures'      => $fixtures,
             'leagues'       => $leagues,
             'title'         => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',

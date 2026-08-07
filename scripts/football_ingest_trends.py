@@ -691,6 +691,13 @@ def main():
             inserted_fixtures += 1
             
         conn.commit()
+        
+        # Enriquecimento com Odds e Surebets do Oddspedia
+        try:
+            update_oddspedia_odds(conn)
+        except Exception as e_op:
+            print(f"Aviso ao executar update_oddspedia_odds: {e_op}")
+
         print(f"\n--- RESUMO DE INGESTÃO ---")
         print(f"Modo Ao Vivo: {is_live_mode}")
         print(f"Data: {target_date}")
@@ -703,6 +710,77 @@ def main():
     finally:
         cursor.close()
         conn.close()
+
+def update_oddspedia_odds(conn):
+    try:
+        sys.path.insert(0, '/root/datalake-air-flow-delta/src/dags')
+        from lib.scrapers import scrape_oddspedia_odds
+        from lib.sports_arbitrage import normalize_team_name, calculate_surebet
+        
+        print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS VIA ODDSPEDIA ---")
+        scraped_matches = scrape_oddspedia_odds(leagues=['serie-a', 'serie-b'])
+        if not scraped_matches:
+            print("Nenhuma partida retornada pelo Oddspedia.")
+            return
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT fixture_id, home_team, away_team FROM fixtures_trends")
+        db_fixtures = cursor.fetchall()
+        
+        updated_count = 0
+        for fix in db_fixtures:
+            fix_id = fix['fixture_id']
+            db_home = normalize_team_name(fix['home_team'])
+            db_away = normalize_team_name(fix['away_team'])
+            
+            for m in scraped_matches:
+                s_home = normalize_team_name(m['time_casa'])
+                s_away = normalize_team_name(m['time_visitante'])
+                
+                if db_home == s_home and db_away == s_away:
+                    odds = m.get('odds', {})
+                    if not odds:
+                        continue
+                        
+                    best_c1, best_bm1 = 0.0, ""
+                    best_cX, best_bmX = 0.0, ""
+                    best_c2, best_bm2 = 0.0, ""
+                    
+                    for bm_name, cota in odds.items():
+                        c1 = float(cota.get('casa', 0.0))
+                        cX = float(cota.get('empate', 0.0))
+                        c2 = float(cota.get('visitante', 0.0))
+                        
+                        if c1 > best_c1: best_c1, best_bm1 = c1, bm_name
+                        if cX > best_cX: best_cX, best_bmX = cX, bm_name
+                        if c2 > best_c2: best_c2, best_bm2 = c2, bm_name
+                        
+                    if best_c1 > 0 and best_cX > 0 and best_c2 > 0:
+                        calc = calculate_surebet(best_c1, best_cX, best_c2)
+                        is_surebet = 1 if (calc and calc['is_surebet']) else 0
+                        profit_pct = calc['lucro_percentual'] if calc else 0.0
+                        
+                        cursor.execute("""
+                            UPDATE fixtures_trends SET
+                                odd_home = %s, casa_odd_home = %s,
+                                odd_draw = %s, casa_odd_draw = %s,
+                                odd_away = %s, casa_odd_away = %s,
+                                is_surebet = %s, surebet_profit_pct = %s
+                            WHERE fixture_id = %s
+                        """, (
+                            best_c1, best_bm1,
+                            best_cX, best_bmX,
+                            best_c2, best_bm2,
+                            is_surebet, profit_pct,
+                            fix_id
+                        ))
+                        updated_count += 1
+                        print(f"Odds atualizadas para {fix['home_team']} vs {fix['away_team']}: 1({best_bm1}={best_c1}), X({best_bmX}={best_cX}), 2({best_bm2}={best_c2}) | Surebet: {is_surebet}")
+                        break
+        conn.commit()
+        print(f"Total de {updated_count} partidas enriquecidas com odds do Oddspedia!\n")
+    except Exception as e:
+        print(f"Aviso no enriquecimento de odds via Oddspedia: {e}")
 
 if __name__ == '__main__':
     main()

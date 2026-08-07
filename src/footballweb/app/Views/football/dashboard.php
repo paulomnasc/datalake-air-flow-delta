@@ -1586,21 +1586,35 @@ if (!function_exists('getBetDecisionTree')) {
                                     $yesterday = date('Y-m-d', strtotime('-1 day'));
                                     $today = date('Y-m-d');
                                     $tomorrow = date('Y-m-d', strtotime('+1 day'));
+                                    $next3days = date('Y-m-d', strtotime('+3 days'));
+                                    $next7days = date('Y-m-d', strtotime('+7 days'));
+                                    
                                     $showFinishedQuery = $showFinished ? '&show_finished=1' : '';
                                     $showPostponedQuery = !empty($showPostponed) ? '&show_postponed=1' : '';
+                                    $onlySurebetQuery = !empty($onlySurebet) ? '&only_surebet=1' : '';
                                     $searchQuery = !empty($search) ? '&search=' . urlencode($search) : '';
+                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $onlySurebetQuery . $searchQuery;
                                     ?>
-                                    <a href="?date=<?= $yesterday ?><?= $showFinishedQuery ?><?= $showPostponedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $yesterday ? 'active' : '' ?>">
+                                    <a href="?start_date=<?= $yesterday ?>&end_date=<?= $yesterday ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $yesterday && $endDate === $yesterday) ? 'active' : '' ?>">
                                         <i class="bi bi-chevron-left"></i> <?= lang('App.yesterday') ?>
                                     </a>
-                                    <a href="?date=<?= $today ?><?= $showFinishedQuery ?><?= $showPostponedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $today ? 'active' : '' ?>">
+                                    <a href="?start_date=<?= $today ?>&end_date=<?= $today ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $today && $endDate === $today) ? 'active' : '' ?>">
                                         <?= lang('App.today') ?>
                                     </a>
-                                    <a href="?date=<?= $tomorrow ?><?= $showFinishedQuery ?><?= $showPostponedQuery ?><?= $searchQuery ?>" class="bet-date-btn <?= $targetDate === $tomorrow ? 'active' : '' ?>">
-                                        <?= lang('App.tomorrow') ?> <i class="bi bi-chevron-right"></i>
+                                    <a href="?start_date=<?= $tomorrow ?>&end_date=<?= $tomorrow ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $tomorrow && $endDate === $tomorrow) ? 'active' : '' ?>">
+                                        <?= lang('App.tomorrow') ?>
                                     </a>
-                                    <div class="position-relative d-inline-block">
-                                        <input type="date" name="date" class="bet-date-input" value="<?= $targetDate ?>" onchange="document.getElementById('filterForm').submit()">
+                                    <a href="?start_date=<?= $today ?>&end_date=<?= $next3days ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $today && $endDate === $next3days) ? 'active' : '' ?>" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                                        ⚡ Próx. 3 Dias
+                                    </a>
+                                    <a href="?start_date=<?= $today ?>&end_date=<?= $next7days ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $today && $endDate === $next7days) ? 'active' : '' ?>" style="border-color: rgba(0, 230, 118, 0.4); color: #00e676;">
+                                        🚀 Próx. 7 Dias
+                                    </a>
+                                    <div class="d-flex align-items-center gap-1" style="background: rgba(255, 255, 255, 0.04); padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08);">
+                                        <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">De:</span>
+                                        <input type="date" name="start_date" class="bet-date-input" value="<?= $startDate ?>" onchange="document.getElementById('filterForm').submit()">
+                                        <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600; margin-left: 4px;">Até:</span>
+                                        <input type="date" name="end_date" class="bet-date-input" value="<?= $endDate ?>" onchange="document.getElementById('filterForm').submit()">
                                     </div>
                                 </div>
                             </div>
@@ -1805,7 +1819,15 @@ if (!function_exists('getBetDecisionTree')) {
                                         </span>
                                         <div class="bet-time-container">
                                             <span class="bet-time-badge">
-                                                <i class="bi bi-clock"></i> <?= $timeStr ?>
+                                                 <?php
+                                                 $fixDateBadge = '';
+                                                 try {
+                                                     $dtFix = new DateTime($fix->fixture_date, new DateTimeZone('UTC'));
+                                                     $dtFix->setTimezone(new DateTimeZone($displayTz ?? 'America/Sao_Paulo'));
+                                                     $fixDateBadge = $dtFix->format('d/m ');
+                                                 } catch (\Exception $e) {}
+                                                 ?>
+                                                 <i class="bi bi-calendar3" style="font-size: 0.7rem; opacity: 0.8;"></i> <?= $fixDateBadge ?><i class="bi bi-clock"></i> <?= $timeStr ?>
                                             </span>
                                             <span class="bet-elapsed-time <?= $elapsedClass ?>" data-fixture-elapsed="<?= $fix->fixture_id ?>" data-start-utc="<?= $fix->fixture_date ?>" data-status="<?= $statusClean ?>">
                                                 <?= $elapsedDisplay ?>

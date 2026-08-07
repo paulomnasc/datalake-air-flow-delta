@@ -55,12 +55,27 @@ class FootballTrendsController extends BaseController
         date_default_timezone_set($userTimezone);
         $sqlOffset = $this->getTimezoneSqlOffset($userTimezone);
 
-        // Recebe a data de filtro (default: hoje)
+        // Recebe as datas de filtro (suporta data única 'date' ou intervalo 'start_date' & 'end_date')
         $today = date('Y-m-d');
+        $startDate = $this->request->getVar('start_date');
+        $endDate = $this->request->getVar('end_date');
         $targetDate = $this->request->getVar('date');
-        if (empty($targetDate)) {
-            $targetDate = $today;
+
+        if (empty($startDate) && empty($endDate)) {
+            $startDate = !empty($targetDate) ? $targetDate : $today;
+            $endDate = $startDate;
+        } elseif (empty($startDate)) {
+            $startDate = $endDate;
+        } elseif (empty($endDate)) {
+            $endDate = $startDate;
         }
+
+        if ($startDate > $endDate) {
+            $temp = $startDate;
+            $startDate = $endDate;
+            $endDate = $temp;
+        }
+        $targetDate = $startDate;
 
         // Filtro de busca por time ou árbitro
         $search = $this->request->getVar('search');
@@ -68,8 +83,7 @@ class FootballTrendsController extends BaseController
         // Filtro para mostrar ou ocultar jogos encerrados
         $showFinishedParam = $this->request->getVar('show_finished');
         if ($showFinishedParam === null) {
-            // Se não especificado na URL e a data for no passado, exibe encerrados por padrão
-            $showFinished = ($targetDate < $today);
+            $showFinished = ($startDate < $today);
         } else {
             $showFinished = ($showFinishedParam === '1' || $showFinishedParam === 'true' || $showFinishedParam === 'sim');
         }
@@ -95,7 +109,13 @@ class FootballTrendsController extends BaseController
         $builder->join('referee_stats rs', 'ft.referee_name = rs.name', 'left');
         $builder->join('team_moving_averages th', 'ft.home_team_id = th.team_id AND th.venue_type = "home"', 'left');
         $builder->join('team_moving_averages ta', 'ft.away_team_id = ta.team_id AND ta.venue_type = "away"', 'left');
-        $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}'))", $targetDate);
+        
+        if ($startDate === $endDate) {
+            $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}'))", $startDate);
+        } else {
+            $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}')) >=", $startDate);
+            $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}')) <=", $endDate);
+        }
 
         if ($onlySurebet) {
             $builder->where('ft.is_surebet', 1);
@@ -161,6 +181,8 @@ class FootballTrendsController extends BaseController
         // Prepara dados para a view
         $data = [
             'targetDate'    => $targetDate,
+            'startDate'     => $startDate,
+            'endDate'       => $endDate,
             'userTimezone'  => $userTimezone,
             'search'        => $search,
             'showFinished'  => $showFinished,

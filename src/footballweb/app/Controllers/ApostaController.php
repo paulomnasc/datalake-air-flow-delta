@@ -82,7 +82,7 @@ class ApostaController extends BaseController
         $targetFixId = $this->request->getVar('fixture_id');
 
         $builderFix = $db->table('fixtures_trends')
-            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text');
+            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion');
         
         $fixtures = $builderFix->orderBy('fixture_date', 'DESC')
             ->limit(100)
@@ -100,7 +100,7 @@ class ApostaController extends BaseController
             }
             if (!$exists) {
                 $targetFix = $db->table('fixtures_trends')
-                    ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text')
+                    ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion')
                     ->where('fixture_id', $targetFixId)
                     ->get()
                     ->getRow();
@@ -111,11 +111,13 @@ class ApostaController extends BaseController
         }
 
         foreach ($fixtures as $fix) {
-            $suggested = 'Menos de 5.5';
+            $suggestedCards = 'Menos de 5.5';
             if (!empty($fix->prediction_text) && preg_match('/Under\s*(\d+\.\d+|\d+)/i', $fix->prediction_text, $m)) {
-                $suggested = 'Menos de ' . $m[1];
+                $suggestedCards = 'Menos de ' . $m[1];
             }
-            $fix->suggested_palpite = $suggested;
+            $fix->suggested_palpite_cards = $suggestedCards;
+            $fix->suggested_palpite_ah = !empty($fix->ah_suggestion) ? $fix->ah_suggestion : 'Handicap 0.0 (Empate Anula)';
+            $fix->suggested_palpite = $suggestedCards;
         }
 
         $apostas = [];

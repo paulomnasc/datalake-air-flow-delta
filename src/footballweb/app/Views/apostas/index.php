@@ -985,7 +985,13 @@
             <select class="form-select" id="fixtureSelect" onchange="autofillFixture(this)" style="display: none;">
               <option value="">-- Selecione ou digite manualmente abaixo --</option>
               <?php foreach ($fixtures as $fix): ?>
-                <option value="<?= $fix->fixture_id ?>" data-home="<?= htmlspecialchars($fix->home_team) ?>" data-away="<?= htmlspecialchars($fix->away_team) ?>" data-date="<?= $fix->fixture_date ?>" data-palpite="<?= htmlspecialchars($fix->suggested_palpite ?? 'Menos de 5.5') ?>">
+                <option value="<?= $fix->fixture_id ?>" 
+                        data-home="<?= htmlspecialchars($fix->home_team) ?>" 
+                        data-away="<?= htmlspecialchars($fix->away_team) ?>" 
+                        data-date="<?= $fix->fixture_date ?>" 
+                        data-palpite-cards="<?= htmlspecialchars($fix->suggested_palpite_cards ?? 'Menos de 5.5') ?>"
+                        data-palpite-ah="<?= htmlspecialchars($fix->suggested_palpite_ah ?? 'Handicap 0.0 (Empate Anula)') ?>"
+                        data-palpite="<?= htmlspecialchars($fix->suggested_palpite_cards ?? 'Menos de 5.5') ?>">
                   <?= date('d/m H:i', strtotime($fix->fixture_date)) ?> | <?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?> (<?= htmlspecialchars($fix->league_name) ?>)
                 </option>
               <?php endforeach; ?>
@@ -1006,12 +1012,19 @@
 
           <div class="row">
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Mercado *</label>
-              <input type="text" class="form-control" id="mercadoInput" required value="Total de Cartões" placeholder="Ex: Total de Cartões">
+              <label class="form-label text-white">Mercado de Apostas *</label>
+              <select class="form-select" id="mercadoTypeSelect" onchange="onMercadoTypeChange(this)">
+                <option value="Total de Cartões" selected>🟨 Total de Cartões</option>
+                <option value="Handicap Asiático">⚽ Handicap Asiático</option>
+                <option value="Escanteios">🚩 Escanteios</option>
+                <option value="Resultado Final (1X2)">⚽ Resultado Final (1X2)</option>
+                <option value="Ambas Marcam (BTTS)">⚽ Ambas Marcam (BTTS)</option>
+              </select>
+              <input type="hidden" id="mercadoInput" name="mercado" value="Total de Cartões">
             </div>
             <div class="col-6 mb-3">
               <label class="form-label text-white">Palpite *</label>
-              <input type="text" class="form-control" id="palpiteInput" required placeholder="Ex: Menos de 6.5">
+              <input type="text" class="form-control" id="palpiteInput" required placeholder="Ex: Menos de 6.5 ou Mandante -0.25 AH">
             </div>
           </div>
 
@@ -1356,14 +1369,37 @@
     document.getElementById('editGanhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
   }
 
+  function onMercadoTypeChange(selectEl) {
+    const val = selectEl.value;
+    const inputMercado = document.getElementById('mercadoInput');
+    if (inputMercado) inputMercado.value = val;
+
+    const fixSelect = document.getElementById('fixtureSelect');
+    if (fixSelect && fixSelect.selectedIndex > 0) {
+      const opt = fixSelect.options[fixSelect.selectedIndex];
+      if (val === 'Handicap Asiático') {
+        const palpiteAH = opt.getAttribute('data-palpite-ah');
+        if (palpiteAH) document.getElementById('palpiteInput').value = palpiteAH;
+      } else if (val === 'Total de Cartões') {
+        const palpiteCards = opt.getAttribute('data-palpite-cards');
+        if (palpiteCards) document.getElementById('palpiteInput').value = palpiteCards;
+      }
+    }
+  }
+
   function autofillFixture(selectEl) {
     const opt = selectEl.options[selectEl.selectedIndex];
     if (opt && opt.value) {
       document.getElementById('timeCasaInput').value = opt.getAttribute('data-home') || '';
       document.getElementById('timeForaInput').value = opt.getAttribute('data-away') || '';
-      const palpite = opt.getAttribute('data-palpite');
-      if (palpite) {
-        document.getElementById('palpiteInput').value = palpite;
+      
+      const currentMercado = document.getElementById('mercadoTypeSelect')?.value || 'Total de Cartões';
+      if (currentMercado === 'Handicap Asiático') {
+        const palpiteAH = opt.getAttribute('data-palpite-ah');
+        if (palpiteAH) document.getElementById('palpiteInput').value = palpiteAH;
+      } else {
+        const palpiteCards = opt.getAttribute('data-palpite-cards') || opt.getAttribute('data-palpite');
+        if (palpiteCards) document.getElementById('palpiteInput').value = palpiteCards;
       }
     }
   }
@@ -1659,6 +1695,7 @@
     const urlParams = new URLSearchParams(window.location.search);
     const isNewBet = urlParams.get('new_bet');
     const fixId = urlParams.get('fixture_id');
+    const mercadoParam = urlParams.get('mercado');
     const palpiteParam = urlParams.get('palpite');
 
     if (isNewBet || fixId) {
@@ -1667,6 +1704,18 @@
         const bsModal = new bootstrap.Modal(modalEl);
         bsModal.show();
 
+        if (mercadoParam) {
+          const mercadoSelect = document.getElementById('mercadoTypeSelect');
+          const mercadoInput = document.getElementById('mercadoInput');
+          if (mercadoParam.toLowerCase() === 'handicap' || mercadoParam.toLowerCase() === 'handicap asiático') {
+            if (mercadoSelect) mercadoSelect.value = 'Handicap Asiático';
+            if (mercadoInput) mercadoInput.value = 'Handicap Asiático';
+          } else if (mercadoParam.toLowerCase() === 'cartoes' || mercadoParam.toLowerCase() === 'cartões') {
+            if (mercadoSelect) mercadoSelect.value = 'Total de Cartões';
+            if (mercadoInput) mercadoInput.value = 'Total de Cartões';
+          }
+        }
+
         if (fixId) {
           const selectEl = document.getElementById('fixtureSelect');
           if (selectEl) {
@@ -1674,6 +1723,7 @@
             autofillFixture(selectEl);
           }
         }
+
         if (palpiteParam) {
           const palpiteInput = document.getElementById('palpiteInput');
           if (palpiteInput) {

@@ -2066,7 +2066,7 @@ if (!function_exists('getBetDecisionTree')) {
                                     <div class="bet-decision-tree-box" style="margin: 10px 0; padding: 10px 12px; background: rgba(15, 23, 42, 0.85); border-radius: 8px; border-left: 4px solid #f47c20; font-size: 0.8rem; color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
                                             <span style="font-weight: 700; color: #f47c20; display: flex; align-items: center; gap: 5px; font-size: 0.82rem;">
-                                                <i class="bi bi-diagram-3-fill"></i> Árvore de Decisão:
+                                                <i class="bi bi-card-amber"></i> Mercado de Cartões (Árvore de Decisão):
                                             </span>
                                             <span class="badge" style="<?= $decision['badge_bg'] ?> font-weight: 700; font-size: 0.76rem; padding: 4px 8px; border-radius: 4px; letter-spacing: 0.5px;">
                                                 <?= $decision['line_tag'] ?>
@@ -2240,12 +2240,18 @@ if (!function_exists('getBetDecisionTree')) {
                                                 $cardPalpite = 'Menos de ' . $mPalpite[1];
                                             }
                                         ?>
-                                        <!-- Botão Registrar Aposta vinculado ao card -->
-                                        <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id . '&palpite=' . urlencode($cardPalpite)) ?>" 
+                                        <!-- Botões Tipificados de Registrar Aposta vinculados ao card -->
+                                        <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id . '&mercado=cartoes&palpite=' . urlencode($cardPalpite)) ?>" 
                                            class="bet-stats-btn" 
-                                           style="border-color: rgba(0, 230, 118, 0.4); color: #00e676; text-decoration: none;" 
-                                           title="Registrar Aposta para esta partida">
-                                            <i class="bi bi-journal-plus"></i> Apostar
+                                           style="border-color: rgba(251, 191, 36, 0.4); color: #fbbf24; text-decoration: none; padding: 4px 8px; font-size: 0.75rem;" 
+                                           title="Registrar Aposta no Mercado de Cartões">
+                                            <i class="bi bi-card-amber"></i> Cartões
+                                        </a>
+                                        <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id . '&mercado=handicap&palpite=' . urlencode($fix->ah_suggestion ?? 'Handicap 0.0 (Empate Anula)')) ?>" 
+                                           class="bet-stats-btn" 
+                                           style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; text-decoration: none; padding: 4px 8px; font-size: 0.75rem;" 
+                                           title="Registrar Aposta no Mercado de Handicap Asiático">
+                                            <i class="bi bi-shield-shaded"></i> Handicap AH
                                         </a>
 
                                         <!-- Botão Estatísticas à esquerda de Grok AI -->

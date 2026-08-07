@@ -88,6 +88,36 @@ Este caso real ilustra como utilizar o card de análises do **FootballWeb** como
 
 ---
 
+### 🎯 Caso Concreto Real 2: *Ceará vs Ponte Preta* na Betano (Favoritismo Elevado)
+
+Este caso exemplifica a tomada de decisão quando há **forte favoritismo do time da casa** no **FootballWeb**:
+
+#### 1. Cotações Reais Extraídas do Painel da Betano:
+- `Ceará -0.75`: **Odd 1.52**
+- `Ceará -1.0`: **Odd 1.67**
+- `Ceará -1.25`: **Odd 1.95**
+- `Ceará -1.5`: **Odd 2.22**
+- `Ponte Preta +1.0`: **Odd 2.15**
+- `Ponte Preta +1.25`: **Odd 1.83**
+
+#### 2. Análise Estratégica das Linhas de Aposta:
+
+- **Estratégia 1: Entrada Equilibrada com Reembolso no Placar Mínimo (`Ceará -1.0 AH` @ Odd 1.67)**
+  - 🟢 **Ceará vence por 2 ou mais gols (2x0, 3x0, 3x1):** Aposta **Ganha 100%** (Lucro total).
+  - 🟡 **Ceará vence por 1 gol exato (1x0, 2x1):** **Reembolso 100%** (Dinheiro totalmente devolvido sem prejuízo).
+  - 🔴 **Empate ou Vitória da Ponte Preta:** Aposta perdida.
+
+- **Estratégia 2: Entrada Conservadora com Meio Ganho (`Ceará -0.75 AH` @ Odd 1.52)**
+  - 🟢 **Ceará vence por 2 ou mais gols:** Aposta **Ganha 100%**.
+  - 🟡 **Ceará vence por 1 gol exato:** **Ganha 50% do Lucro (Meio Ganho)** + 100% do valor apostado de volta.
+  - 🔴 **Empate ou Vitória da Ponte Preta:** Aposta perdida.
+
+- **Estratégia 3: Busca por Lucro Máximo (`Ceará -1.5 AH` @ Odd 2.22)**
+  - 🟢 **Ceará vence por 2 ou mais gols:** Aposta **Ganha 100%** com cotação alta (**Odd 2.22**).
+  - 🔴 **Ceará vence por apenas 1 gol (1x0, 2x1), empata ou perde:** Aposta perdida.
+
+---
+
 ## 🏗️ Arquitetura Técnica do Módulo no FootballWeb
 
 O módulo no FootballWeb projeta as linhas de Handicap Asiático combinando a **Expectativa de Gols ($xG$)** e o **Saldo de Mando de Campo** das equipes.

@@ -77,7 +77,10 @@ foreach ($apostas as $aposta) {
     $evPercentual = null;
     $statusGatekeeper = 'NAO_ANALISADO';
 
-    if ($isOver || ($isCartoes && $isOver)) {
+    preg_match('/(\d+\.\d+|\d+)/', $palpite, $mLineChk);
+    $lineChk = !empty($mLineChk[1]) ? (float)$mLineChk[1] : 5.5;
+
+    if ($isOver || ($isCartoes && $isOver) || ($isCartoes && $lineChk < 7.5)) {
         $statusGatekeeper = 'NO_BET';
     } elseif ($isCartoes) {
         $fixture = null;

@@ -271,6 +271,16 @@ class ApostaController extends BaseController
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
+        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Estratégia Exclusiva Under 7.5+)
+        preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
+        $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
+
+        if ($lineCheck < 7.5) {
+            $statusGatekeeper = 'NO_BET';
+            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Apostas no mercado 'Total de Cartões' com linhas inferiores a 7.5 (ex: Under 6.5, 5.5, 4.5, 3.5) são bloqueadas pelo modelo devido ao elevado risco de perda histórico. Apenas linhas de Under 7.5 ou superior possuem margem de segurança aprovada.";
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+        }
+
         $db = \Config\Database::connect();
 
         // 1. Média Histórica Dinâmica de Odds Vencedoras (Under Cartões) e Teto Dinâmico de Segurança

@@ -67,9 +67,10 @@ try:
             odd_justa = None
             prob_poisson = None
             ev_percentual = None
-            status_gatekeeper = 'NAO_ANALISADO'
+            match_line_chk = re.search(r'(\d+\.\d+|\d+)', palpite)
+            line_chk = float(match_line_chk.group(1)) if match_line_chk else 5.5
 
-            if is_over or (is_cartoes and is_over):
+            if is_over or (is_cartoes and is_over) or (is_cartoes and line_chk < 7.5):
                 status_gatekeeper = 'NO_BET'
             elif is_cartoes:
                 fixture = None

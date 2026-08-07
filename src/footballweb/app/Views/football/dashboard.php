@@ -866,22 +866,36 @@ if (!function_exists('getBetDecisionTree')) {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
         margin-top: 12px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .bet-referee-actions {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        max-width: 100%;
     }
 
     .bet-referee-btn {
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.05);
         color: #aeb9c4;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         font-weight: 600;
-        padding: 5px 10px;
+        padding: 4px 8px;
         border-radius: 20px;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
         gap: 5px;
         transition: all 0.2s;
+        white-space: nowrap;
+        max-width: 100%;
     }
 
     .bet-referee-btn:hover {
@@ -1082,15 +1096,17 @@ if (!function_exists('getBetDecisionTree')) {
         background: rgba(244, 124, 32, 0.1);
         border: 1px solid rgba(244, 124, 32, 0.25);
         color: #f47c20;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         font-weight: 700;
-        padding: 5px 10px;
+        padding: 4px 8px;
         border-radius: 20px;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
         gap: 5px;
         transition: all 0.2s;
+        white-space: nowrap;
+        max-width: 100%;
     }
 
     .bet-ai-btn:hover {
@@ -1104,15 +1120,17 @@ if (!function_exists('getBetDecisionTree')) {
         background: rgba(56, 189, 248, 0.1);
         border: 1px solid rgba(56, 189, 248, 0.3);
         color: #38bdf8;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         font-weight: 700;
-        padding: 5px 10px;
+        padding: 4px 8px;
         border-radius: 20px;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
         gap: 5px;
         transition: all 0.2s;
+        white-space: nowrap;
+        max-width: 100%;
     }
 
     .bet-stats-btn:hover {
@@ -1121,14 +1139,35 @@ if (!function_exists('getBetDecisionTree')) {
         box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
     }
 
+    /* AI Chat Backdrop */
+    .bet-chat-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        z-index: 99998;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .bet-chat-backdrop.open {
+        opacity: 1;
+        visibility: visible;
+    }
+
     /* AI Chat Drawer Style */
     .bet-chat-drawer {
         position: fixed;
         top: 0;
         bottom: 0;
-        right: -400px;
-        width: 400px;
-        max-width: 100vw;
+        right: -420px;
+        width: 420px;
+        max-width: 90vw;
         height: 100vh;
         height: 100dvh;
         background: #172230;
@@ -2233,7 +2272,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         <span class="text-muted" style="font-size: 0.8rem;"><i class="bi bi-person-x"></i> <?= lang('App.no_referee') ?></span>
                                     <?php endif; ?>
 
-                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div class="bet-referee-actions">
                                         <?php
                                             $cardPalpite = 'Menos de 5.5';
                                             if (!empty($fix->prediction_text) && preg_match('/Under\s*(\d+\.\d+|\d+)/i', $fix->prediction_text, $mPalpite)) {
@@ -2413,7 +2452,8 @@ if (!function_exists('getBetDecisionTree')) {
     <p class="text-muted" style="font-size: 0.9rem; margin: 0;">O Apache Airflow está processando a chamada. Por favor, aguarde.</p>
 </div>
 
-<!-- AI Chat Drawer -->
+<!-- AI Chat Backdrop & Drawer -->
+<div class="bet-chat-backdrop" id="chatBackdrop" onclick="closeAiChat()"></div>
 <div class="bet-chat-drawer" id="chatDrawer">
     <div class="bet-chat-header">
         <h3 class="bet-chat-title">
@@ -2504,7 +2544,9 @@ if (!function_exists('getBetDecisionTree')) {
         }
         
         const drawer = document.getElementById('chatDrawer');
+        const backdrop = document.getElementById('chatBackdrop');
         drawer.classList.add('open');
+        if (backdrop) backdrop.classList.add('open');
         
         setTimeout(() => document.getElementById('chatInput').focus(), 300);
     }
@@ -2512,7 +2554,9 @@ if (!function_exists('getBetDecisionTree')) {
     function closeAiChat() {
         saveCurrentChatSession();
         const drawer = document.getElementById('chatDrawer');
-        drawer.classList.remove('open');
+        const backdrop = document.getElementById('chatBackdrop');
+        if (drawer) drawer.classList.remove('open');
+        if (backdrop) backdrop.classList.remove('open');
     }
 
     function appendChatMessage(role, text) {
@@ -2906,6 +2950,14 @@ if (!function_exists('getBetDecisionTree')) {
             closeAiChat();
         }
     }
+
+    // Tecla ESC para fechar modais e chat
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeAiChat();
+            closeRefereeModal();
+        }
+    });
 
     // Trigger de Ingestão via Airflow
     function triggerIngestion(date) {

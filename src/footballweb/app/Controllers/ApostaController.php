@@ -308,19 +308,64 @@ class ApostaController extends BaseController
                     $evPercentual = round((($probPoisson / 100.0) * $odd - 1.0) * 100.0, 2);
                 }
 
-                // Avaliação do Gatekeeper (+EV Real + Probabilidade Poisson >= 50% + Teto Dinâmico)
+                // 2. MATRIZ DINÂMICA DE RISCO (Odd vs Probabilidade Mínima Poisson + Margem EV)
+                $isUnknownRef = false;
+                if (!empty($fixture->referee_name) && (stripos($fixture->referee_name, 'Não Informado') !== false || stripos($fixture->referee_name, 'Desconhecido') !== false)) {
+                    $isUnknownRef = true;
+                }
+
+                // Definição dos limiares da Matriz Dinâmica
+                if ($odd <= 1.55) {
+                    $minProbExigida = 50.0;
+                    $minEvExigido   = 0.0;
+                    $faixaRisco     = "Conservadora (Odd <= 1.55)";
+                } elseif ($odd <= 1.75) {
+                    $minProbExigida = 60.0;
+                    $minEvExigido   = 5.0;
+                    $faixaRisco     = "Intermediária (Odd 1.56 - 1.75)";
+                } else {
+                    $minProbExigida = 65.0;
+                    $minEvExigido   = 10.0;
+                    $faixaRisco     = "Agressiva (Odd > 1.75)";
+                }
+
+                // Ajuste de trava se Árbitro não estiver cadastrado na API-Football (+5% prob exigida)
+                if ($isUnknownRef) {
+                    $minProbExigida += 5.0;
+                    $minEvExigido   += 3.0;
+                }
+
+                // 3. Verificação de Duplicidade / Exposição por Evento
+                $duplicateCount = 0;
+                if ($fixtureId) {
+                    $duplicateCount = (int)$db->table('apostas')
+                        ->where('fixture_id', $fixtureId)
+                        ->groupStart()
+                            ->where('status', 'Pendente')
+                            ->orWhere('status', 'Ganha')
+                        ->groupEnd()
+                        ->countAllResults();
+                }
+
+                $duplicidadeMsg = ($duplicateCount > 0) 
+                    ? " ⚠️ [ALERTA DE GESTÃO DE RISCO: Já existe(m) {$duplicateCount} aposta(s) aberta(s) nesta partida]."
+                    : "";
+
+                // Avaliação final do Gatekeeper
                 if ($odd > $maxAllowedOdd) {
                     $statusGatekeeper = 'NO_BET';
-                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) excede o teto dinâmico de segurança ({$maxAllowedOdd}) derivado da média histórica de vitórias ({$avgWinningOdd}).";
-                } elseif ($evPercentual !== null && $evPercentual >= 0 && $probPoisson >= 50.0) {
+                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) excede o teto dinâmico de segurança ({$maxAllowedOdd}) derivado da média histórica de vitórias ({$avgWinningOdd}).{$duplicidadeMsg}";
+                } elseif ($evPercentual !== null && $evPercentual >= $minEvExigido && $probPoisson >= $minProbExigida) {
                     $statusGatekeeper = 'APROVADO';
-                    $gatekeeperMsg = "Gatekeeper Green Light (+EV): Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% | Prob. Poisson: {$probPoisson}% | Teto Dinâmico: {$maxAllowedOdd}.";
+                    $refMsg = $isUnknownRef ? " | Árbitro: Genérico (+5% Rigor Exigido)" : "";
+                    $gatekeeperMsg = "Gatekeeper Green Light (+EV): Faixa {$faixaRisco} | Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% (Mínimo: +{$minEvExigido}%) | Prob. Poisson: {$probPoisson}% (Mínimo: {$minProbExigida}%){$refMsg} | Teto: {$maxAllowedOdd}.{$duplicidadeMsg}";
                 } else {
                     $statusGatekeeper = 'NO_BET';
-                    if ($evPercentual !== null && $evPercentual < 0) {
-                        $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) abaixo da Odd Justa ({$oddJusta}) - EV: {$evPercentual}%. Entrada sem valor esperado.";
+                    if ($evPercentual !== null && $evPercentual < $minEvExigido) {
+                        $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Faixa {$faixaRisco} exige EV mínimo de +{$minEvExigido}% (EV Atual: {$evPercentual}%).{$duplicidadeMsg}";
                     } else {
-                        $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Probabilidade estimada de sucesso ({$probPoisson}%) é baixa para esta linha (mínimo exigido: 50%).";
+                        $refMsg = $isUnknownRef ? " (Árbitro não informado na API exige +5% de margem)" : "";
+                        $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Probabilidade Poisson ({$probPoisson}%) abaixo do mínimo exigido ({$minProbExigida}%) para a Faixa {$faixaRisco}{$refMsg}.{$duplicidadeMsg}";
                     }
                 }
             }

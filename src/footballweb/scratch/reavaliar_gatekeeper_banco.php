@@ -126,9 +126,31 @@ foreach ($apostas as $aposta) {
                     $evPercentual = round((($probPoisson / 100.0) * $odd - 1.0) * 100.0, 2);
                 }
 
+                // Matriz Dinâmica de Risco (Odd vs Poisson + Margem EV + Trava Árbitro)
+                $isUnknownRef = false;
+                if (!empty($fixture['referee_name']) && (stripos($fixture['referee_name'], 'Não Informado') !== false || stripos($fixture['referee_name'], 'Desconhecido') !== false)) {
+                    $isUnknownRef = true;
+                }
+
+                if ($odd <= 1.55) {
+                    $minProbExigida = 50.0;
+                    $minEvExigido   = 0.0;
+                } elseif ($odd <= 1.75) {
+                    $minProbExigida = 60.0;
+                    $minEvExigido   = 5.0;
+                } else {
+                    $minProbExigida = 65.0;
+                    $minEvExigido   = 10.0;
+                }
+
+                if ($isUnknownRef) {
+                    $minProbExigida += 5.0;
+                    $minEvExigido   += 3.0;
+                }
+
                 if ($odd > $maxAllowedOdd) {
                     $statusGatekeeper = 'NO_BET';
-                } elseif ($evPercentual !== null && $evPercentual >= 0 && $probPoisson >= 50.0) {
+                } elseif ($evPercentual !== null && $evPercentual >= $minEvExigido && $probPoisson >= $minProbExigida) {
                     $statusGatekeeper = 'APROVADO';
                 } else {
                     $statusGatekeeper = 'NO_BET';

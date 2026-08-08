@@ -585,6 +585,62 @@ def get_mysql_connection():
         print(f"ERRO CRÍTICO: Não foi possível conectar ao banco MySQL: {e}")
         sys.exit(1)
 
+def sync_pending_past_fixtures(conn, headers):
+    """
+    Sincroniza automaticamente resultados de partidas encerradas ou passadas que continuam sem placar/status no banco.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT fixture_id, fixture_date, home_team, away_team, status
+            FROM fixtures_trends
+            WHERE fixture_date <= NOW() AND (status NOT IN ('FT', 'AET', 'PEN', 'PST', 'CANC') OR goals_home IS NULL)
+            ORDER BY fixture_date DESC
+            LIMIT 300
+        """)
+        pending = cursor.fetchall()
+        if not pending:
+            return
+
+        print(f"\n🔄 Sincronizando resultados de {len(pending)} partidas encerradas pendentes no banco...")
+        dates_to_sync = set(p['fixture_date'].strftime('%Y-%m-%d') for p in pending if p.get('fixture_date'))
+        updated_count = 0
+        
+        for d in sorted(list(dates_to_sync)):
+            url = f"https://v3.football.api-sports.io/fixtures?date={d}"
+            try:
+                resp = requests.get(url, headers=headers, timeout=20).json()
+                fixtures_api = {f['fixture']['id']: f for f in resp.get('response', [])}
+                
+                for p in pending:
+                    fid = p['fixture_id']
+                    if fid in fixtures_api:
+                        f_data = fixtures_api[fid]
+                        status = f_data['fixture']['status']['short']
+                        gh = f_data['goals']['home']
+                        ga = f_data['goals']['away']
+                        elapsed = f_data['fixture']['status']['elapsed']
+                        
+                        cursor.execute("""
+                            UPDATE fixtures_trends
+                            SET status = %s,
+                                goals_home = %s,
+                                goals_away = %s,
+                                elapsed = %s,
+                                updated_at = NOW()
+                            WHERE fixture_id = %s
+                        """, (status, gh, ga, elapsed, fid))
+                        updated_count += 1
+            except Exception as e_date:
+                print(f"Aviso ao sincronizar partidas passadas da data {d}: {e_date}")
+
+        conn.commit()
+        print(f"✅ Sincronizadas {updated_count} partidas passadas no banco com sucesso!")
+    except Exception as e:
+        print(f"Aviso na sincronização de partidas passadas: {e}")
+    finally:
+        cursor.close()
+
 # Gerador determinístico de estatísticas de árbitro baseado no nome
 def generate_referee_stats(name):
     h = int(hashlib.md5(name.encode('utf-8')).hexdigest(), 16)
@@ -727,6 +783,7 @@ def main():
         target_date = datetime.now().strftime('%Y-%m-%d')
         
     target_dt = datetime.strptime(target_date, '%Y-%m-%d')
+    prev_date = (target_dt - timedelta(days=1)).strftime('%Y-%m-%d')
     next_date = (target_dt + timedelta(days=1)).strftime('%Y-%m-%d')
     
     api_key = os.getenv("FOOTBALL_API_KEY", "0327019c6fab54df2ea46009b5f0844b")
@@ -753,8 +810,8 @@ def main():
         except Exception as e:
             print(f"Erro ao chamar a API-Football para partidas ao vivo: {e}")
     else:
-        print(f"Iniciando ingestão de tendências para a data BRT: {target_date} (buscando UTC {target_date} e {next_date})...")
-        for d in [target_date, next_date]:
+        print(f"Iniciando ingestão de tendências para a data BRT: {target_date} (buscando UTC {prev_date}, {target_date} e {next_date})...")
+        for d in [prev_date, target_date, next_date]:
             url = f"https://v3.football.api-sports.io/fixtures?date={d}"
             try:
                 response = requests.get(url, headers=headers, timeout=30)
@@ -829,12 +886,13 @@ def main():
                 dt_utc = datetime.strptime(fix_date_clean[:19], '%Y-%m-%d %H:%M:%S')
                 dt_br = dt_utc - timedelta(hours=3)
                 br_date_str = dt_br.strftime('%Y-%m-%d')
-                if br_date_str == target_date:
+                if br_date_str in [prev_date, target_date, next_date]:
                     filtered_fixtures.append(f)
             except Exception:
                 filtered_fixtures.append(f)
 
     conn = get_mysql_connection()
+    sync_pending_past_fixtures(conn, headers)
     cursor = conn.cursor()
 
     if not filtered_fixtures:

@@ -161,7 +161,8 @@ class FootballTrendsController extends BaseController
             if (!empty($fix->league_name) && !in_array($fix->league_name, $leagues)) {
                 $leagues[] = $fix->league_name;
             }
-            if ($fix->status !== 'NS' && $fix->goals_home === null) {
+            $fixTimestamp = !empty($fix->fixture_date) ? strtotime($fix->fixture_date) : 0;
+            if (($fix->status !== 'NS' || ($fixTimestamp > 0 && $fixTimestamp <= time())) && $fix->goals_home === null) {
                 $needsGoalsUpdate = true;
             }
         }

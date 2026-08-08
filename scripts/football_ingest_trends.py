@@ -279,11 +279,19 @@ def build_natural_language_motivation(
             f"Combinado ao Reajuste Realista do Fator Mando (+20%) e à consistência do {home_team} em casa ({home_text}), a vantagem foi confirmada a favor do {home_team}."
         )
     elif delta_goals >= 0.10:
+        if odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0:
+            if float(odd_home) <= float(odd_away):
+                odds_market_text = f"As odds do mercado confirmam o favoritismo do {home_team}{odd_str}, convergindo a probabilidade estatística ao consenso das apostas."
+            else:
+                odds_market_text = f"Apesar das odds de mercado indicarem favoritismo do visitante{odd_str}, o modelo estatístico projeta vantagem ao {home_team} pelo peso do mando de campo."
+        else:
+            odds_market_text = f"Análise estatística interna aplicada para o {home_team} (odds de mercado não disponíveis no momento)."
+
         return (
             f"🎯 Fator Crucial: Peso do Mando de Campo (+20%) e Favoritismo Ponderado ({home_team} +{delta_goals:.2f} xG Esperados).\n"
             f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
             f"• 🏟️ Reajuste Realista do Fator Mando (+20% em casa / -12% fora): A força de jogar em seus domínios impulsiona a produção ofensiva do {home_team} ({home_goals_scored:.1f} g/j).\n"
-            f"• 📈 Integração das Odds de Mercado: As odds do mercado confirmam o favoritismo do {home_team}{odd_str}, convergindo a probabilidade estatística ao consenso das apostas.\n"
+            f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
             f"• 🛡️ Isolamento de Oscilação Fora de Casa: O desempenho do {home_team} em casa é preservado ({home_cs_pct:.1f}% Clean Sheet), desconsiderando penalizações indevidas por perdas fora de casa."
         )
     elif delta_goals >= -0.20:
@@ -1272,25 +1280,45 @@ def update_oddspedia_odds(conn):
                         
                     if best_c1 > 0 and best_cX > 0 and best_c2 > 0:
                         calc = calculate_surebet(best_c1, best_cX, best_c2)
-                        is_surebet = 1 if (calc and calc['is_surebet']) else 0
-                        profit_pct = calc['lucro_percentual'] if calc else 0.0
+                        casas_usadas = {best_bm1.upper(), best_bmX.upper(), best_bm2.upper()} - {""}
+                        is_surebet = 1 if (calc and calc['is_surebet'] and len(casas_usadas) > 1) else 0
+                        profit_pct = calc['lucro_percentual'] if (calc and is_surebet) else 0.0
                         
+                        # Recalcula o palpite e a motivação com as novas odds de mercado
+                        home_last5 = fetch_team_last5_form(cursor, fix['home_team'], fix.get('home_team_id')) if fix.get('home_team_id') else {'v': 2, 'e': 1, 'd': 2, 'pts': 7, 'text': '2V-1E-2D', 'matches': []}
+                        away_last5 = fetch_team_last5_form(cursor, fix['away_team'], fix.get('away_team_id')) if fix.get('away_team_id') else {'v': 2, 'e': 1, 'd': 2, 'pts': 7, 'text': '2V-1E-2D', 'matches': []}
+                        home_losses = home_last5.get('d', 0) if home_last5.get('v', 0) == 0 else 0
+                        away_losses = away_last5.get('d', 0) if away_last5.get('v', 0) == 0 else 0
+
+                        sug, conf, reason = calculate_asian_handicap_suggestion(
+                            home_goals_scored=1.5, home_goals_conceded=1.0,
+                            away_goals_scored=1.2, away_goals_conceded=1.2,
+                            home_team=fix['home_team'], away_team=fix['away_team'],
+                            home_cs_pct=30.0, away_cs_pct=30.0,
+                            home_recent_losses=home_losses, away_recent_losses=away_losses,
+                            home_recent_wins=home_last5.get('v', 0), away_recent_wins=away_last5.get('v', 0),
+                            home_last5=home_last5, away_last5=away_last5,
+                            odd_home=best_c1, odd_draw=best_cX, odd_away=best_c2
+                        )
+
                         cursor.execute("""
                             UPDATE fixtures_trends SET
                                 odd_home = %s, casa_odd_home = %s,
                                 odd_draw = %s, casa_odd_draw = %s,
                                 odd_away = %s, casa_odd_away = %s,
-                                is_surebet = %s, surebet_profit_pct = %s
+                                is_surebet = %s, surebet_profit_pct = %s,
+                                ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s
                             WHERE fixture_id = %s
                         """, (
                             best_c1, best_bm1,
                             best_cX, best_bmX,
                             best_c2, best_bm2,
                             is_surebet, profit_pct,
+                            sug, conf, reason,
                             fix_id
                         ))
                         updated_count += 1
-                        print(f"Odds atualizadas para {fix['home_team']} vs {fix['away_team']}: 1({best_bm1}={best_c1}), X({best_bmX}={best_cX}), 2({best_bm2}={best_c2}) | Surebet: {is_surebet}")
+                        print(f"Odds e motivação atualizadas para {fix['home_team']} vs {fix['away_team']}: 1({best_bm1}={best_c1}), X({best_bmX}={best_cX}), 2({best_bm2}={best_c2}) | Surebet: {is_surebet}")
                         break
         conn.commit()
         print(f"Total de {updated_count} partidas enriquecidas com odds do Oddspedia!\n")

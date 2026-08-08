@@ -11,6 +11,7 @@ import asyncio
 import re
 import json
 import requests
+from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
@@ -47,7 +48,7 @@ def fetch_via_flaresolverr(url: str, method: str = "request.get", post_data: Opt
     env_url = os.environ.get("FLARESOLVERR_URL")
     if env_url:
         endpoints.append(env_url)
-    endpoints.extend(["http://flaresolverr:8191/v1", "http://localhost:8191/v1", "http://127.0.0.1:8191/v1"])
+    endpoints.extend(["http://localhost:8191/v1", "http://127.0.0.1:8191/v1", "http://flaresolverr:8191/v1"])
 
     payload = {
         "cmd": method,
@@ -62,7 +63,7 @@ def fetch_via_flaresolverr(url: str, method: str = "request.get", post_data: Opt
     for ep in endpoints:
         try:
             log.info(f"[FLARESOLVERR] Solicitando bypass do Cloudflare para '{url}' via '{ep}'...")
-            resp = requests.post(ep, json=payload, headers=headers, timeout=(timeout_ms / 1000) + 15)
+            resp = requests.post(ep, json=payload, headers=headers, timeout=(3.0, (timeout_ms / 1000) + 15))
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("status") == "ok":
@@ -240,10 +241,48 @@ def scrape_bet365_odds() -> List[Dict[str, Any]]:
     log.info(f"[SCRAPER-BET365] Concluído. Total de partidas extraídas: {len(matches)}")
     return matches
 
+def _fetch_oddspedia_via_playwright(target_url: str, cookies: list = None, user_agent: str = None) -> Optional[str]:
+    """
+    Fallback usando Playwright para renderizar o JavaScript da página no navegador Chromium.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+        log.info(f"[SCRAPER-ODDSPEDIA-PLAYWRIGHT] Executando fallback via Chromium headless para: {target_url}")
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-blink-features=AutomationControlled'])
+            context = browser.new_context(
+                viewport={'width': 1280, 'height': 800},
+                user_agent=user_agent or 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            )
+            if cookies:
+                pw_cookies = []
+                for c in cookies:
+                    pw_cookies.append({
+                        'name': c.get('name'),
+                        'value': c.get('value'),
+                        'domain': c.get('domain', '.oddspedia.com'),
+                        'path': c.get('path', '/')
+                    })
+                try:
+                    context.add_cookies(pw_cookies)
+                except Exception as e_c:
+                    pass
+
+            page = context.new_page()
+            page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
+            page.goto(target_url, wait_until='domcontentloaded', timeout=30000)
+            page.wait_for_timeout(3000)
+            html = page.content()
+            browser.close()
+            return html
+    except Exception as e_pw:
+        log.error(f"[SCRAPER-ODDSPEDIA-PLAYWRIGHT] Erro durante o fallback com Playwright para {target_url}: {e_pw}")
+        return None
+
 def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Dict[str, Any]]:
     """
     Realiza a raspagem de odds agregadas no Oddspedia para as ligas especificadas.
-    Utiliza o FlareSolverr para contornar o bloqueio Cloudflare.
+    Utiliza o FlareSolverr como fluxo principal e o Playwright como fallback de renderização de tela.
     """
     log.info(f"[SCRAPER-ODDSPEDIA] Iniciando extração para ligas: {leagues}")
     all_matches = []
@@ -260,11 +299,18 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
             
         log.info(f"[SCRAPER-ODDSPEDIA] Acessando {url} via FlareSolverr...")
         fs_res = fetch_via_flaresolverr(url)
-        if not fs_res or not fs_res.get("html"):
-            log.warning(f"[SCRAPER-ODDSPEDIA] Falha ao obter HTML de {url}")
+        solved_cookies = fs_res.get("cookies", []) if fs_res else []
+        solved_ua = fs_res.get("userAgent", "") if fs_res else ""
+        html = fs_res.get("response") or fs_res.get("html") if fs_res else None
+        
+        if not html:
+            log.warning(f"[SCRAPER-ODDSPEDIA] FlareSolverr não retornou HTML para {url}. Disparando Fallback Playwright...")
+            html = _fetch_oddspedia_via_playwright(url, cookies=solved_cookies, user_agent=solved_ua)
+            
+        if not html:
+            log.error(f"[SCRAPER-ODDSPEDIA] Falha crítica ao obter HTML de {url} via FlareSolverr e Playwright.")
             continue
             
-        html = fs_res["html"]
         soup = BeautifulSoup(html, 'html.parser')
         
         # 1. Extração de Metadados via JSON-LD
@@ -282,8 +328,12 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
                     
                 for item in items:
                     if item.get('@type') == 'SportsEvent':
-                        h_name = item.get('homeTeam', {}).get('name')
-                        a_name = item.get('awayTeam', {}).get('name')
+                        name = item.get('name', '')
+                        h_name = item.get('homeTeam', {}).get('name') if isinstance(item.get('homeTeam'), dict) else None
+                        a_name = item.get('awayTeam', {}).get('name') if isinstance(item.get('awayTeam'), dict) else None
+                        if not h_name and ' - ' in name:
+                            parts = name.split(' - ')
+                            h_name, a_name = parts[0].strip(), parts[1].strip()
                         m_url = item.get('url')
                         if h_name and a_name:
                             events.append({
@@ -306,47 +356,70 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
                 detail_url = ev['url'] if ev['url'].startswith('http') else f"https://oddspedia.com{ev['url']}"
                 log.info(f"[SCRAPER-ODDSPEDIA] Acessando detalhes do jogo: {ev['home_team']} vs {ev['away_team']}")
                 detail_fs = fetch_via_flaresolverr(detail_url)
-                if detail_fs and detail_fs.get("html"):
-                    detail_html = detail_fs["html"]
+                if detail_fs:
+                    detail_html = detail_fs.get("response") or detail_fs.get("html")
+                if not detail_html:
+                    log.warning(f"[SCRAPER-ODDSPEDIA] Detalhes do jogo {ev['home_team']} vs {ev['away_team']} falhou no FlareSolverr. Disparando Fallback Playwright...")
+                    detail_html = _fetch_oddspedia_via_playwright(detail_url, cookies=solved_cookies, user_agent=solved_ua)
                     
             target_html = detail_html or html
             m_soup = BeautifulSoup(target_html, 'html.parser')
-            
             bookmakers_odds = {}
-            
-            rows = m_soup.find_all(['tr', 'div'], class_=re.compile(r'odd-row|bookmaker-row|market-row|match-odds', re.I))
-            if not rows:
-                rows = m_soup.find_all(['tr', 'div'])
+            known_bms = ['betano', 'bet365', 'stake', 'sportingbet', 'kto', 'superbet', '1xbet', 'pinnacle', 'novibet', 'parimatch', '10bet', 'betfair', 'betsson', 'blaze']
+
+            for img in m_soup.find_all('img'):
+                alt = (img.get('alt') or '').strip()
+                src = (img.get('src') or '').strip()
                 
-            for r in rows:
-                r_text = r.get_text(separator=' ', strip=True)
-                if any(hdr in r_text for hdr in ['Melhores odds', 'Índice de confiança', 'Palpites', 'Intervalo', 'Análise', 'Mercado']):
+                matched_bm = None
+                for bm in known_bms:
+                    if bm in alt.lower() or bm in src.lower():
+                        matched_bm = bm.upper()
+                        break
+                        
+                if not matched_bm:
+                    continue
+
+                # Ignora logos que estejam em áreas de navegação, cabeçalhos, rodapés ou outros mercados (Handicap, Ambas, Over/Under)
+                p_check = img.parent
+                ignore_section = False
+                for _ in range(8):
+                    if not p_check:
+                        break
+                    p_text = p_check.get_text(separator=' ', strip=True).lower()
+                    p_class = ' '.join(p_check.get('class', [])).lower()
+                    if any(bad in p_class or bad in p_text for bad in ['handicap', 'ambas', 'both-teams', 'over', 'under', 'nav-secondary', 'footer', 'análise da', 'oferta']):
+                        ignore_section = True
+                        break
+                    p_check = p_check.parent
+
+                if ignore_section:
                     continue
                     
-                all_bm_imgs = [img for img in r.find_all('img', alt=True) if any(bm in img.get('alt', '').lower() for bm in ['bet365', 'betano', 'sportingbet', 'betfair', 'kto', 'superbet', '1xbet', 'stake', 'rivalo', 'novibet', 'parimatch', '10bet', 'dafabet', 'estrela', 'galera', 'blaze', 'pinnacle', 'bc.game', 'betsson'])]
-                
-                if len(all_bm_imgs) != 1:
-                    continue
-                    
-                bm_name = all_bm_imgs[0].get('alt', '').strip().upper()
-                
-                odd_vals = []
-                for child in r.find_all(['span', 'div', 'td', 'a'], class_=re.compile(r'odd|price|rate|value|cota', re.I)):
-                    t = child.get_text(strip=True)
-                    if re.match(r'^\d+[\.,]\d+$', t):
+                parent = img.parent
+                for _ in range(5):
+                    if not parent:
+                        break
+                    text = parent.get_text(separator=' ', strip=True)
+                    nums = re.findall(r'\b\d+[\.,]\d+\b', text)
+                    clean_nums = []
+                    for n in nums:
                         try:
-                            val = float(t.replace(',', '.'))
-                            if 1.01 <= val <= 100.0 and val not in odd_vals:
-                                odd_vals.append(val)
+                            val = float(n.replace(',', '.'))
+                            if 1.01 <= val <= 100.0 and val not in clean_nums:
+                                clean_nums.append(val)
                         except ValueError:
                             pass
                             
-                if len(odd_vals) >= 3 and bm_name not in bookmakers_odds:
-                    bookmakers_odds[bm_name] = {
-                        "casa": odd_vals[0],
-                        "empate": odd_vals[1],
-                        "visitante": odd_vals[2]
-                    }
+                    if len(clean_nums) >= 3:
+                        if matched_bm not in bookmakers_odds:
+                            bookmakers_odds[matched_bm] = {
+                                "casa": clean_nums[0],
+                                "empate": clean_nums[1],
+                                "visitante": clean_nums[2]
+                            }
+                        break
+                    parent = parent.parent
                     
             if bookmakers_odds:
                 all_matches.append({

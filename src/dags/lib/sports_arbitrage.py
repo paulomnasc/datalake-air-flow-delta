@@ -501,7 +501,7 @@ def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = 
         
         if calc:
             casas_usadas = {melhor_casa_odd1, melhor_casa_oddX, melhor_casa_odd2} - {""}
-            eh_surebet_valida = calc["is_surebet"] and (len(casas_usadas) == 3)
+            eh_surebet_valida = calc["is_surebet"] and (len(casas_usadas) > 1)
 
             row = {
                 "Campeonato": campeonato,

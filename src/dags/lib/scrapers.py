@@ -388,7 +388,7 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
                         break
                     p_text = p_check.get_text(separator=' ', strip=True).lower()
                     p_class = ' '.join(p_check.get('class', [])).lower()
-                    if any(bad in p_class or bad in p_text for bad in ['handicap', 'ambas', 'both-teams', 'over', 'under', 'nav-secondary', 'footer', 'análise da', 'oferta']):
+                    if any(bad in p_class or bad in p_text for bad in ['handicap', 'ambas', 'both-teams', 'over', 'under', 'nav-secondary', 'footer', 'análise da', 'oferta', 'boost', 'especial', 'special', 'promotional', 'acumulado', 'aumentado']):
                         ignore_section = True
                         break
                     p_check = p_check.parent
@@ -433,4 +433,16 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
 
     log.info(f"[SCRAPER-ODDSPEDIA] Extração concluída. Total de partidas com odds: {len(all_matches)}")
     return all_matches
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    print("=== EXECUTANDO RASPAGEM DIRETA DO ODDSPEDIA ===")
+    res = scrape_oddspedia_odds(['serie-a', 'serie-b'])
+    print(f"\nTotal de {len(res)} partidas extraídas com sucesso do Oddspedia:\n")
+    for m in res:
+        print(f"⚽ {m['time_casa']} vs {m['time_visitante']} ({m['liga'].upper()}) | Data: {m.get('data')}")
+        for bm, odds in m['odds'].items():
+            print(f"   🏛️  {bm:12s} -> Casa: {odds['casa']:.2f} | Empate: {odds['empate']:.2f} | Visitante: {odds['visitante']:.2f}")
+        print("-" * 65)
 

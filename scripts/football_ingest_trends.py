@@ -295,18 +295,29 @@ def build_natural_language_motivation(
             f"• 🛡️ Isolamento de Oscilação Fora de Casa: O desempenho do {home_team} em casa é preservado ({home_cs_pct:.1f}% Clean Sheet), desconsiderando penalizações indevidas por perdas fora de casa."
         )
     elif delta_goals >= -0.20:
+        if odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0:
+            if float(odd_home) > float(odd_away):
+                odds_market_text = f"Embora as odds do Oddspedia indiquem ligeiro favoritismo do visitante {away_team} (odd {float(odd_away):.2f} vs {float(odd_home):.2f}), o modelo projeta valor no {home_team} com a proteção do mando."
+            else:
+                odds_market_text = f"As odds do mercado no Oddspedia (odd {float(odd_home):.2f} vs {float(odd_away):.2f}) convergem com a projeção de valor a favor do {home_team}."
+        else:
+            odds_market_text = f"Análise estatística interna aplicada para {home_team} e {away_team}."
+
         if home_team.lower() in suggestion.lower():
             return (
                 f"🎯 Fator Crucial: Fator Mando de Campo (+20%) em Confronto Equilibrado.\n"
                 f"Apesar do equilíbrio nos números brutos ({home_team} xG: {home_goals_scored:.1f} / U5J: {home_text} vs {away_team} xG: {away_goals_scored:.1f} / U5J: {away_text}), "
-                f"o {home_team} prevaleceu pela combinação do Reajuste do Fator Mando (+20% em casa) com o Isolamento de Oscilações Fora ({home_cs_pct:.1f}% Clean Sheet). "
+                f"o {home_team} prevaleceu pela combinação do Reajuste do Fator Mando (+20% em casa) com o Isolamento de Oscilações Fora ({home_cs_pct:.1f}% Clean Sheet).\n"
+                f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
                 f"A indicação garante a proteção total de reembolso (Empate Anula)."
             )
         else:
             return (
                 f"🎯 Fator Crucial: Superioridade do Visitante Ponderada pelo Mercado.\n"
                 f"Apesar da vantagem de mando do {home_team}, o visitante {away_team} sobressaiu-se na análise combinada por apresentar desempenho superior ajustado "
-                f"({away_goals_scored:.1f} xG / U5J: {away_text} e {away_cs_pct:.1f}% Clean Sheet fora){odd_str}. Indicação com proteção no empate."
+                f"({away_goals_scored:.1f} xG / U5J: {away_text} e {away_cs_pct:.1f}% Clean Sheet fora).\n"
+                f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
+                f"Indicação com proteção no empate."
             )
     else:
         return (

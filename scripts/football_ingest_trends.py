@@ -253,6 +253,19 @@ def build_natural_language_motivation(
     away_text = away_last5.get("text", "2V-1E-2D")
     odd_str = f" [Odds Mercado: H:{odd_home:.2f}/A:{odd_away:.2f}]" if (odd_home and odd_away and float(odd_home) > 1.0) else ""
 
+    home_pts = home_last5.get("pts", 0)
+    away_pts = away_last5.get("pts", 0)
+
+    # Prioridade Máxima: Contraste Severo de Forma Recente (Streak/Momentum Differential)
+    if (away_pts >= 9 or away_last5.get("v", 0) >= 3) and (home_pts <= 7 or home_last5.get("d", 0) >= 2):
+        return (
+            f"🎯 Fator Crucial: Contraste de Forma Recente e Sequência Vitoriosa do Visitante ({away_team} {away_text} vs {home_team} {home_text}).\n"
+            f"A indicação a favor do visitante {away_team} fundamenta-se na priorização de 3 critérios de alta precisão:\n"
+            f"• 🔥 Contraste de Forma Recente (Streak Superior): O momento excelente do {away_team} ({away_text} / {away_pts} pts em U5J) sobressai-se à sequência de derrotas/oscilação do mandante {home_team} ({home_text}).\n"
+            f"• ⚡ Neutralização do Fator Casa: A disparidade de momentum recente anula o bônus de mando de campo do {home_team}.\n"
+            f"• 📈 Precificação Ponderada do Mercado: O mercado estatístico ajustado direciona a proteção/vantagem para o visitante {away_team}{odd_str}."
+        )
+
     if home_in_crisis and not away_in_crisis:
         return (
             f"🎯 Fator Crucial: Alerta de Crise e Sequência Negativa do Mandante ({home_text} em U5J).\n"
@@ -274,8 +287,6 @@ def build_natural_language_motivation(
             f"• 🛡️ Isolamento de Oscilação Fora de Casa: O desempenho do {home_team} em casa é preservado ({home_cs_pct:.1f}% Clean Sheet), desconsiderando penalizações indevidas por perdas fora de casa."
         )
     elif delta_goals >= -0.20:
-        home_pts = home_last5.get("pts", 0)
-        away_pts = away_last5.get("pts", 0)
         if home_team.lower() in suggestion.lower():
             return (
                 f"🎯 Fator Crucial: Fator Mando de Campo (+20%) em Confronto Equilibrado.\n"
@@ -318,7 +329,7 @@ def calculate_asian_handicap_suggestion(
     if away_last5 is None:
         away_last5 = {"v": 2, "e": 1, "d": 2, "pts": 7, "text": "2V-1E-2D", "matches": []}
 
-    # 1. Fator Mando de Campo Recalibrado (Mando em Casa no futebol sul-americano é forte)
+    # 1. Fator Mando de Campo Recalibrado
     home_mando_factor = 1.20  # Bônus realista de jogar em casa (+20%)
     away_mando_factor = 0.88  # Ajuste de visitante fora de casa (-12%)
 
@@ -331,24 +342,21 @@ def calculate_asian_handicap_suggestion(
     elif home_pts >= 9 or home_v >= 3:
         home_last5_factor = 1.15  # Boa forma (+15%)
     elif home_pts <= 2 or home_d >= 4:
-        home_last5_factor = 0.70  # Penalidade por má fase (-30%)
+        home_last5_factor = 0.65  # Penalidade severa por má fase (-35%)
     elif home_pts <= 4 or home_d >= 3:
-        home_last5_factor = 0.82  # Penalidade por derrotas (-18%)
-    elif home_pts <= 5:
-        home_last5_factor = 0.92  # Fase oscilante (-8%)
+        home_last5_factor = 0.78  # Penalidade forte por derrotas (-22%)
+    elif home_pts <= 7 or home_d >= 2:
+        home_last5_factor = 0.85  # Sequência negativa/oscilante (-15%)
     else:
         home_last5_factor = 1.00
-
-    # Para jogos em casa, atuar em domínios próprios não deve sofrer penalidade excessiva por oscilação fora
-    home_last5_factor = max(0.92, home_last5_factor)
 
     away_pts = away_last5.get("pts", 7)
     away_d = away_last5.get("d", 0)
     away_v = away_last5.get("v", 0)
     if away_pts >= 12 or away_v >= 4:
-        away_last5_factor = 1.25
+        away_last5_factor = 1.30
     elif away_pts >= 9 or away_v >= 3:
-        away_last5_factor = 1.15
+        away_last5_factor = 1.20
     elif away_pts <= 2 or away_d >= 4:
         away_last5_factor = 0.65
     elif away_pts <= 4 or away_d >= 3:
@@ -357,6 +365,16 @@ def calculate_asian_handicap_suggestion(
         away_last5_factor = 0.88
     else:
         away_last5_factor = 1.00
+
+    # CONTRASTE DE FORMA RECENTE (Momentum Differential)
+    # Se o visitante vem em excelente fase (pts >= 9 ou v >= 3) e o mandante vem oscilando/perdendo (pts <= 7 ou d >= 2):
+    form_contrast = (away_pts >= 9 or away_v >= 3) and (home_pts <= 7 or home_d >= 2 or home_recent_losses >= 2)
+    if form_contrast:
+        home_mando_factor = 0.95  # Neutraliza o bônus de casa devido à crise/sequência ruim
+        away_streak_factor = max(1.25, away_recent_wins * 0.10 + 1.15)
+    else:
+        # Apenas se NÃO houver contraste severo contra o mandante, preserva-se o piso em casa
+        home_last5_factor = max(0.90, home_last5_factor)
 
     # 3. Fator Proteção Defensiva (Clean Sheets)
     home_cs_factor = max(0.85, min(1.20, 1.0 + (home_cs_pct - 30.0) * 0.005))
@@ -457,7 +475,11 @@ def calculate_asian_handicap_suggestion(
         warning_notes.append(f"{away_team} U5J: {away_last5.get('text')}")
         note_str = f" [Avisos: {', '.join(warning_notes)}]" if warning_notes else ""
 
-        if delta_goals >= 1.30:
+        if form_contrast:
+            suggestion = f"{away_team} +0.25 AH"
+            confidence = 72.00
+            main_reason = f"Contraste de Forma Recente: O excelente momento do {away_team} ({away_last5.get('text')}) sobressai-se à oscilação do mandante {home_team} ({home_last5.get('text')}). Vantagem dada ao visitante com cobertura.{note_str}"
+        elif delta_goals >= 1.30:
             suggestion = f"{home_team} -1.0 AH"
             confidence = round(min(88.0, 68.0 + delta_goals * 10), 2)
             main_reason = f"Ataque forte do {home_team} ({home_goals_scored:.1f} g/j) contra defesa frágil do {away_team}. Expectativa de vitória por 2+ gols.{note_str}"

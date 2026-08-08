@@ -116,7 +116,11 @@ class ApostaController extends BaseController
                 $suggestedCards = 'Menos de ' . $m[1];
             }
             $fix->suggested_palpite_cards = $suggestedCards;
-            $fix->suggested_palpite_ah = !empty($fix->ah_suggestion) ? $fix->ah_suggestion : 'Handicap 0.0 (Empate Anula)';
+            $ahSug = $fix->ah_suggestion ?? '';
+            if (empty($ahSug) || $ahSug === 'Handicap 0.0 (Empate Anula)') {
+                $ahSug = "{$fix->home_team} 0.0 (Empate Anula)";
+            }
+            $fix->suggested_palpite_ah = $ahSug;
             $fix->suggested_palpite = $suggestedCards;
         }
 

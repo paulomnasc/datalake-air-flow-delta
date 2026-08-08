@@ -177,21 +177,46 @@ class FootballTrendsController extends BaseController
         $seo = new \App\Libraries\SeoHelper();
         $seo->setFootballTrendsDefaults($targetDate, count($fixtures), $leagues);
 
+        // Consulta apostas cadastradas para identificar partidas com palpite/aposta
+        $userBetFixtureIds = [];
+        $allBetFixtureIds  = [];
+        if ($db->tableExists('apostas')) {
+            $userId = $_SESSION['id_usuario_logado'] ?? session()->get('id_usuario_logado') ?? null;
+            if (!empty($userId)) {
+                $userBets = $db->table('apostas')
+                    ->select('fixture_id')
+                    ->where('usuario_id', $userId)
+                    ->where('fixture_id IS NOT NULL')
+                    ->get()
+                    ->getResultArray();
+                $userBetFixtureIds = array_map('intval', array_column($userBets, 'fixture_id'));
+            }
+
+            $allBets = $db->table('apostas')
+                ->select('fixture_id')
+                ->where('fixture_id IS NOT NULL')
+                ->get()
+                ->getResultArray();
+            $allBetFixtureIds = array_map('intval', array_column($allBets, 'fixture_id'));
+        }
+
         // Prepara dados para a view
         $data = [
-            'targetDate'    => $targetDate,
-            'startDate'     => $startDate,
-            'endDate'       => $endDate,
-            'userTimezone'  => $userTimezone,
-            'search'        => $search,
-            'showFinished'  => $showFinished,
-            'showPostponed' => $showPostponed,
-            'onlySafe'      => $onlySafe,
-            'onlySurebet'   => $onlySurebet,
-            'fixtures'      => $fixtures,
-            'leagues'       => $leagues,
-            'title'         => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
-            'metaTags'      => $seo->generateMetaTags()
+            'targetDate'        => $targetDate,
+            'startDate'         => $startDate,
+            'endDate'           => $endDate,
+            'userTimezone'      => $userTimezone,
+            'search'            => $search,
+            'showFinished'      => $showFinished,
+            'showPostponed'     => $showPostponed,
+            'onlySafe'          => $onlySafe,
+            'onlySurebet'       => $onlySurebet,
+            'userBetFixtureIds' => $userBetFixtureIds,
+            'allBetFixtureIds'  => $allBetFixtureIds,
+            'fixtures'          => $fixtures,
+            'leagues'           => $leagues,
+            'title'             => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
+            'metaTags'          => $seo->generateMetaTags()
         ];
 
 

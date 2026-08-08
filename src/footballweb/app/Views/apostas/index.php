@@ -833,11 +833,14 @@
             $itemDate = date('Y-m-d', strtotime($aposta->criado_em));
           }
         ?>
-        <div class="bet-card-item" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
+        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
           
           <div class="bet-card-header">
             <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
               <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
+              <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Aposta cadastrada e vinculada">
+                🂠 Aposta Registrada
+              </span>
               <?php if (!empty($aposta->fixture_id)): ?>
                 <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
                    class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
@@ -1024,7 +1027,8 @@
             </div>
             <div class="col-6 mb-3">
               <label class="form-label text-white">Palpite *</label>
-              <input type="text" class="form-control" id="palpiteInput" required placeholder="Ex: Menos de 6.5 ou Mandante -0.25 AH">
+              <input type="text" class="form-control" id="palpiteInput" required placeholder="Ex: Menos de 6.5 ou Operário-PR 0.0 (Empate Anula)" oninput="updatePalpiteExplanation()">
+              <div id="palpiteExplanationBox" style="display:none; font-size: 0.75rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 6px 10px; margin-top: 6px; color: #e2e8f0;"></div>
             </div>
           </div>
 
@@ -1217,30 +1221,7 @@
       });
     }
 
-    // Auto-abrir modal e selecionar jogo se informado via parâmetros da URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const fixtureIdParam = urlParams.get('fixture_id');
-    const palpiteParam = urlParams.get('palpite');
-    const autoOpenNewBet = urlParams.get('new_bet') === '1' || urlParams.get('action') === 'new';
 
-    if ((autoOpenNewBet || fixtureIdParam || palpiteParam) && newBetModalEl) {
-      setTimeout(function() {
-        const bsModal = new bootstrap.Modal(newBetModalEl);
-        bsModal.show();
-        if (fixtureIdParam) {
-          const matchOpt = allFixtureOptions.find(o => o.value == fixtureIdParam);
-          if (matchOpt) {
-            selectFixtureOption(matchOpt);
-          } else {
-            const selectEl = document.getElementById('fixtureSelect');
-            if (selectEl) selectEl.value = fixtureIdParam;
-          }
-        }
-        if (palpiteParam) {
-          document.getElementById('palpiteInput').value = palpiteParam;
-        }
-      }, 300);
-    }
 
     // Fechar dropdown ao clicar fora do container
     document.addEventListener('click', function(e) {
@@ -1369,6 +1350,54 @@
     document.getElementById('editGanhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
   }
 
+  function updatePalpiteExplanation() {
+    const val = document.getElementById('palpiteInput')?.value || '';
+    const tc = document.getElementById('timeCasaInput')?.value || 'Mandante';
+    const tf = document.getElementById('timeForaInput')?.value || 'Visitante';
+    const box = document.getElementById('palpiteExplanationBox');
+    if (!box) return;
+
+    if (!val) {
+      box.style.display = 'none';
+      return;
+    }
+
+    let text = '';
+    if (val.includes('0.0') || val.includes('Empate Anula')) {
+      const isAway = val.toLowerCase().includes(tf.toLowerCase());
+      const fav = isAway ? tf : tc;
+      const opp = isAway ? tc : tf;
+      text = `🟢 Vitória do ${fav}: Aposta Ganha (100% Lucro).\n🟡 Empate: 100% Devolvido (Reembolso).\n🔴 Vitória do ${opp}: Aposta Perdida.`;
+    } else if (val.includes('-0.25')) {
+      const isAway = val.toLowerCase().includes(tf.toLowerCase());
+      const fav = isAway ? tf : tc;
+      const opp = isAway ? tc : tf;
+      text = `🟢 Vitória do ${fav}: Aposta Ganha.\n🟡 Empate: Perde 50% e recupera 50%.\n🔴 Vitória do ${opp}: Aposta Perdida.`;
+    } else if (val.includes('+0.25')) {
+      const isAway = val.toLowerCase().includes(tf.toLowerCase());
+      const fav = isAway ? tf : tc;
+      const opp = isAway ? tc : tf;
+      text = `🟢 Vitória do ${fav}: Aposta Ganha.\n🟢 Empate: Ganha 50% do Lucro + 100% da aposta de volta.\n🔴 Vitória do ${opp}: Aposta Perdida.`;
+    } else if (val.includes('-0.5')) {
+      const isAway = val.toLowerCase().includes(tf.toLowerCase());
+      const fav = isAway ? tf : tc;
+      const opp = isAway ? tc : tf;
+      text = `🟢 Vitória do ${fav}: Aposta Ganha (Vitória Simples).\n🔴 Empate ou Vitória do ${opp}: Aposta Perdida.`;
+    } else if (val.includes('+0.5')) {
+      const isAway = val.toLowerCase().includes(tf.toLowerCase());
+      const fav = isAway ? tf : tc;
+      const opp = isAway ? tc : tf;
+      text = `🟢 Vitória do ${fav} ou Empate: Aposta Ganha (Dupla Chance).\n🔴 Vitória do ${opp}: Aposta Perdida.`;
+    }
+
+    if (text) {
+      box.style.display = 'block';
+      box.innerHTML = `<strong><i class="bi bi-chat-left-text-fill text-success me-1"></i> Como funciona:</strong><br><span style="white-space: pre-line;">${text}</span>`;
+    } else {
+      box.style.display = 'none';
+    }
+  }
+
   function onMercadoTypeChange(selectEl) {
     const val = selectEl.value;
     const inputMercado = document.getElementById('mercadoInput');
@@ -1385,6 +1414,7 @@
         if (palpiteCards) document.getElementById('palpiteInput').value = palpiteCards;
       }
     }
+    updatePalpiteExplanation();
   }
 
   function autofillFixture(selectEl) {
@@ -1402,6 +1432,7 @@
         if (palpiteCards) document.getElementById('palpiteInput').value = palpiteCards;
       }
     }
+    updatePalpiteExplanation();
   }
 
   let currentStatusFilter = 'all';
@@ -1690,15 +1721,36 @@
     });
   }
 
-  // Auto-abrir modal e preencher dados quando direcionado do card do FootballWeb (?new_bet=1&fixture_id=123)
+  // Auto-abrir modal e preencher dados quando direcionado do card do FootballWeb
   document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
-    const isNewBet = urlParams.get('new_bet');
+    const isNewBet = urlParams.get('new_bet') === '1' || urlParams.get('action') === 'new';
+    const actionParam = urlParams.get('action');
     const fixId = urlParams.get('fixture_id');
     const mercadoParam = urlParams.get('mercado');
     const palpiteParam = urlParams.get('palpite');
 
-    if (isNewBet || fixId) {
+    const userApostas = <?= json_encode($apostas ?? []) ?>;
+
+    // Se fixture_id foi fornecido e NÃO foi explicitamente solicitado cadastrar nova aposta (new_bet=1)
+    if (fixId && !isNewBet) {
+      const existingBet = userApostas.find(a => String(a.fixture_id) === String(fixId));
+      if (existingBet) {
+        // Carrega e abre modal de EDIÇÃO com os dados completos salvos da aposta
+        openEditModal(existingBet);
+
+        // Destaca a aposta na listagem
+        const cardItem = document.getElementById('aposta-card-' + existingBet.id);
+        if (cardItem) {
+          cardItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          cardItem.style.boxShadow = '0 0 20px rgba(0, 230, 118, 0.6)';
+        }
+        return;
+      }
+    }
+
+    // Caso seja uma nova aposta (new_bet=1 OU sem aposta cadastrada para a fixture):
+    if (isNewBet || (fixId && actionParam !== 'edit')) {
       const modalEl = document.getElementById('newBetModal');
       if (modalEl) {
         const bsModal = new bootstrap.Modal(modalEl);

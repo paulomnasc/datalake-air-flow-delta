@@ -59,9 +59,16 @@ Além de simplificar a decisão entre duas opções (Mandante ou Visitante), o H
 Este caso real ilustra como utilizar o card de análises do **FootballWeb** como suporte de decisão diretamente na interface de apostas da **Betano**:
 
 #### 1. Diagnóstico Gerado pelo Card do FootballWeb:
-- **Sugestão de Aposta:** `🎯 Handicap 0.0 (Empate Anula)`
+- **Sugestão de Aposta:** `🎯 Operário-PR 0.0 (Empate Anula)`
 - **Nível de Confiança:** `66.00%`
-- **Análise do Sistema:** *Confronto bastante equilibrado entre as equipes (xG Operário-PR: 1.6 vs xG São Bernardo: 1.5). Recomenda-se a proteção de reembolso no empate.*
+- **Explicação em Linguagem Natural:**
+  - 🟢 **Vitória do Operário-PR:** Você GANHA 100% da aposta (Lucro Total).
+  - 🟡 **Empate:** 100% do valor apostado é DEVOLVIDO (Reembolso).
+  - 🔴 **Vitória do São Bernardo:** Aposta PERDIDA.
+- **Tabela Retrospectiva U5J:**
+  - Operário-PR: 1 pt (0V-1E-4D)
+  - São Bernardo: 10 pts (3V-1E-1D)
+- **Motivação do Palpite:** *🎯 **Fator Crucial: Alerta de Crise e Sequência Negativa do Mandante (0V-1E-4D em U5J).** Este palpite foi gerado devido à severa má fase do Operário-PR em casa. Em contrapartida, o São Bernardo atravessa um momento muito mais consistente (3V-1E-1D em U5J). O algoritmo identificou alto risco no mandante e transferiu a vantagem para o visitante São Bernardo com cobertura no empate.*
 
 #### 2. Cotações Reais Extraídas do Painel do Handicap Asiático da Betano:
 - `Operário-PR 0.0`: **Odd 1.40**
@@ -120,26 +127,70 @@ Este caso exemplifica a tomada de decisão quando há **forte favoritismo do tim
 
 ## 🏗️ Arquitetura Técnica do Módulo no FootballWeb
 
-O módulo no FootballWeb projeta as linhas de Handicap Asiático combinando a **Expectativa de Gols ($xG$)** e o **Saldo de Mando de Campo** das equipes.
+O módulo no FootballWeb projeta as linhas de Handicap Asiático combinando a **Expectativa de Gols ($xG$)**, **Fator Mando de Campo (Casa/Fora)**, **Forma dos Últimos 5 Jogos ($V$-$E$-$D$)**, **Proteção Defensiva (Clean Sheets %)** e o **Fator de Crise/Streak** das equipes.
 
-### 1. Cálculo dos Gols Esperados ($\lambda$)
+### 1. Cálculo dos Gols Esperados Ajustados ($\lambda_{\text{adj}}$)
 
-$$\lambda_{\text{casa}} = \frac{\text{Gols Pró Casa} + \text{Gols Sofridos Fora}}{2}$$
+$$\lambda_{\text{casa, base}} = \frac{\text{Gols Pró Casa} + \text{Gols Sofridos Fora}}{2}$$
 
-$$\lambda_{\text{fora}} = \frac{\text{Gols Pró Fora} + \text{Gols Sofridos Casa}}{2}$$
+$$\lambda_{\text{fora, base}} = \frac{\text{Gols Pró Fora} + \text{Gols Sofridos Casa}}{2}$$
 
-$$\Delta G = \lambda_{\text{casa}} - \lambda_{\text{fora}}$$
+#### Multiplicadores & Ponderações:
+- **Fator Mando de Campo ($F_{\text{mando}}$):** 
+  - Mandante em Casa: $F_{\text{mando, casa}} = 1.10$ (+10% bônus de mando de campo)
+  - Visitante Fora: $F_{\text{mando, fora}} = 0.95$ (-5% ajuste de visitante)
+- **Fator Forma dos Últimos 5 Jogos ($F_{\text{last5}}$):**
+  - Pontuação $P = 3V + 1E$ nos últimos 5 jogos.
+  - $P \ge 12$ pts (4V+): $F_{\text{last5}} = 1.12$ (+12% excelente forma)
+  - $P \ge 9$ pts (3V): $F_{\text{last5}} = 1.06$ (+6% boa forma)
+  - $P \le 3$ pts (0V/1V): $F_{\text{last5}} = 0.85$ (-15% má fase)
+  - $P \le 5$ pts: $F_{\text{last5}} = 0.92$ (-8% oscilação)
+- **Fator Clean Sheet ($CS_{\text{fator}}$):** Pondera a consistência em manter a meta limpa:
+  $$CS_{\text{fator}} = 1.0 + (\text{CleanSheet}_{\%} - 30\%) \times 0.005$$
+- **Fator de Forma Recente / Streak ($F_{\text{streak}}$):**
+  - Sequência $\ge 5$ derrotas consecutivas: Penalidade de **-35%** no $xG$ ($F_{\text{streak}} = 0.65$).
+  - Sequência de 3 ou 4 derrotas consecutivas: Penalidade de **-20%** no $xG$ ($F_{\text{streak}} = 0.80$).
+  - Sequência invicta / vitoriosa (3+ vitórias): Bônus de **+15%** no $xG$ ($F_{\text{streak}} = 1.15$).
 
-### 2. Mapeamento de Sugestão de Mercado:
+$$\lambda_{\text{casa, adj}} = \lambda_{\text{casa, base}} \times F_{\text{mando, casa}} \times F_{\text{last5, casa}} \times CS_{\text{fator, casa}} \times F_{\text{streak, casa}}$$
+
+$$\lambda_{\text{fora, adj}} = \lambda_{\text{fora, base}} \times F_{\text{mando, fora}} \times F_{\text{last5, fora}} \times CS_{\text{fator, fora}} \times F_{\text{streak, fora}}$$
+
+$$\Delta G = \lambda_{\text{casa, adj}} - \lambda_{\text{fora, adj}}$$
+
+---
+
+### 2. Memória de Cálculo Transparente na UX
+
+No widget visual **`🛡️ Mercado de Gols (Handicap Asiático)`** no `dashboard.php`, o sistema inclui um painel expansível **`📐 Ver Memória de Cálculo Detalhada`** que exibe o passo a passo de todas as variáveis multiplicativas aplicadas tanto para o mandante quanto para o visitante.
+
+---
+
+### 3. Regras de Intervenção de Risco & Gatekeeper em Crise Estrita
+
+- 🛑 **Gatilho Estrito de Crise:** A Trava de Crise (com potencial inversão de palpite para o visitante) é acionada **APENAS** se a equipe mandante tiver **3 ou mais DERROTAS recentes E zero vitórias em U5J** ($D \ge 3 \text{ e } V = 0$ em U5J, ex: `0V-1E-4D`). **Empates isolados não geram crise.**
+- 🛡️ **Amortecimento para Favoritos ($xG_{\text{base}} \ge 1.50$):** Equipes com forte produção ofensiva em casa (ex: **Ceará**, **Palmeiras**, **Flamengo**) têm suas oscilações amortecidas pelo mando de campo (+10%), mantendo a indicação no mandante (`Ceará -0.5 AH` ou `Ceará -0.75 AH`) sem falsa sinalização de risco.
+
+---
+
+### 4. Mapeamento de Sugestão de Mercado:
 - $\Delta G \ge +1.30 \rightarrow$ **Mandante -1.0 AH**
 - $+0.65 \le \Delta G < +1.30 \rightarrow$ **Mandante -0.5 AH**
 - $+0.20 \le \Delta G < +0.65 \rightarrow$ **Mandante -0.25 AH**
-- $-0.19 \le \Delta G \le +0.19 \rightarrow$ **Handicap 0.0 (Empate Anula)**
+- $-0.19 \le \Delta G \le +0.19 \rightarrow$ **Handicap 0.0 (Empate Anula)** *(sem alertas de crise)*
 - $-0.65 \le \Delta G < -0.20 \rightarrow$ **Visitante +0.25 AH**
 - $-1.30 \le \Delta G < -0.65 \rightarrow$ **Visitante +0.5 AH**
 - $\Delta G < -1.30 \rightarrow$ **Visitante -1.0 AH**
 
-### 3. Componentes no Código
+---
+
+### 5. Estudo de Caso & Aprendizado: *Operário-PR vs São Bernardo (1 x 3)*
+- **O que aconteceu:** O modelo legado sugeriu `Operário-PR 0.0` por considerar apenas a média simples em casa. O Operário vinha de má fase recente e concedeu 3 gols.
+- **Como o modelo ajustado responde agora:** Com o novo algoritmo, os fatores $F_{\text{mando}}$, $F_{\text{last5}}$ (0V-1E-4D) e a baixa taxa de clean sheet ativam a trava de crise, alterando a sugestão para `São Bernardo -0.5 AH` com o aviso: *`⚠️ Alerta de Crise: Severa má fase do Operário-PR (U5J: 0V-1E-4D). Favoritismo direto para o visitante São Bernardo.`* e exibindo toda a memória de cálculo expandida.
+
+---
+
+### 6. Componentes no Código
 - **MySQL (`fixtures_trends`):** Armazena `ah_suggestion`, `ah_confidence` e `ah_reasoning`.
-- **Ingestão (`scripts/football_ingest_trends.py`):** Executa o cálculo determinístico de Poisson e Expected Goals para todas as partidas.
-- **Interface (`app/Views/football/dashboard.php`):** Renderiza o widget visual **`🛡️ Mercado de Gols (Handicap Asiático)`** nos cards de partidas.
+- **Ingestão (`scripts/football_ingest_trends.py`):** Executa o cálculo ponderado em `calculate_asian_handicap_suggestion()` e recupera os últimos 5 jogos com `fetch_team_last5_form()`.
+- **Interface (`app/Views/football/dashboard.php`):** Renderiza o widget visual **`🛡️ Mercado de Gols (Handicap Asiático)`** e o painel de memória de cálculo detalhada.

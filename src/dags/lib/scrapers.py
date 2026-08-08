@@ -351,18 +351,7 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
             h_norm = ev['home_team'].lower()
             a_norm = ev['away_team'].lower()
             
-            detail_html = None
-            if ev.get('url'):
-                detail_url = ev['url'] if ev['url'].startswith('http') else f"https://oddspedia.com{ev['url']}"
-                log.info(f"[SCRAPER-ODDSPEDIA] Acessando detalhes do jogo: {ev['home_team']} vs {ev['away_team']}")
-                detail_fs = fetch_via_flaresolverr(detail_url)
-                if detail_fs:
-                    detail_html = detail_fs.get("response") or detail_fs.get("html")
-                if not detail_html:
-                    log.warning(f"[SCRAPER-ODDSPEDIA] Detalhes do jogo {ev['home_team']} vs {ev['away_team']} falhou no FlareSolverr. Disparando Fallback Playwright...")
-                    detail_html = _fetch_oddspedia_via_playwright(detail_url, cookies=solved_cookies, user_agent=solved_ua)
-                    
-            target_html = detail_html or html
+            target_html = html
             m_soup = BeautifulSoup(target_html, 'html.parser')
             bookmakers_odds = {}
             known_bms = ['betano', 'bet365', 'stake', 'sportingbet', 'kto', 'superbet', '1xbet', 'pinnacle', 'novibet', 'parimatch', '10bet', 'betfair', 'betsson', 'blaze']
@@ -448,14 +437,87 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
     return all_matches
 
 
+def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Dict[str, Any]]:
+    """
+    Realiza a raspagem de odds agregadas no Futbol24 (https://www.futbol24.com/) para as ligas especificadas.
+    Atua como fonte alternativa/complementar ao Oddspedia para diversificar as casas de apostas.
+    """
+    log.info(f"[SCRAPER-FUTBOL24] Iniciando extração alternativa para ligas: {leagues}")
+    all_matches = []
+    
+    league_urls = {
+        'serie-a': 'https://www.futbol24.com/national/Brazil/Serie-A/2026/',
+        'serie-b': 'https://www.futbol24.com/national/Brazil/Serie-B/2026/'
+    }
+    
+    known_bms = ['bet365', 'betano', 'sportingbet', 'superbet', 'kto', 'stake', '1xbet', 'pinnacle', 'novibet', 'bwin', 'betway', '10bet', 'betfair', 'betsson']
+    
+    for l_key in leagues:
+        url = league_urls.get(l_key.lower())
+        if not url:
+            continue
+            
+        log.info(f"[SCRAPER-FUTBOL24] Acessando {url} via FlareSolverr...")
+        fs_res = fetch_via_flaresolverr(url)
+        solved_cookies = fs_res.get("cookies", []) if fs_res else []
+        solved_ua = fs_res.get("userAgent", "") if fs_res else ""
+        html = fs_res.get("response") or fs_res.get("html") if fs_res else None
+        
+        if not html:
+            log.warning(f"[SCRAPER-FUTBOL24] FlareSolverr não retornou HTML para {url}. Disparando Fallback Playwright...")
+            html = _fetch_oddspedia_via_playwright(url, cookies=solved_cookies, user_agent=solved_ua)
+            
+        if not html:
+            log.error(f"[SCRAPER-FUTBOL24] Falha ao obter HTML de {url}.")
+            continue
+            
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        for container in soup.find_all(['div', 'tr', 'li']):
+            text = container.get_text(separator=' ', strip=True)
+            nums = re.findall(r'\b\d+[\.,]\d+\b', text)
+            clean_nums = []
+            for n in nums:
+                try:
+                    val = float(n.replace(',', '.'))
+                    if 1.01 <= val <= 100.0 and val not in clean_nums:
+                        clean_nums.append(val)
+                except ValueError:
+                    pass
+            
+            if len(clean_nums) >= 3:
+                team_links = [a.get_text(strip=True) for a in container.find_all('a') if '/team/' in (a.get('href') or '') or '/team-compare/' in (a.get('href') or '')]
+                if len(team_links) >= 2:
+                    h_team = team_links[0].split('/')[0].strip()
+                    a_team = team_links[1].split('/')[0].strip()
+                    
+                    matched_bm = "SPORTINGBET"
+                    for bm in known_bms:
+                        if bm in text.lower():
+                            matched_bm = bm.upper()
+                            break
+                            
+                    all_matches.append({
+                        "liga": l_key,
+                        "time_casa": h_team,
+                        "time_visitante": a_team,
+                        "odds": {
+                            matched_bm: {
+                                "casa": clean_nums[0],
+                                "empate": clean_nums[1],
+                                "visitante": clean_nums[2]
+                            }
+                        }
+                    })
+    
+    log.info(f"[SCRAPER-FUTBOL24] Extração concluída. Total de {len(all_matches)} partidas extraídas do Futbol24.")
+    return all_matches
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    print("=== EXECUTANDO RASPAGEM DIRETA DO ODDSPEDIA ===")
-    res = scrape_oddspedia_odds(['serie-a', 'serie-b'])
-    print(f"\nTotal de {len(res)} partidas extraídas com sucesso do Oddspedia:\n")
-    for m in res:
-        print(f"⚽ {m['time_casa']} vs {m['time_visitante']} ({m['liga'].upper()}) | Data: {m.get('data')}")
-        for bm, odds in m['odds'].items():
-            print(f"   🏛️  {bm:12s} -> Casa: {odds['casa']:.2f} | Empate: {odds['empate']:.2f} | Visitante: {odds['visitante']:.2f}")
-        print("-" * 65)
+    print("=== EXECUTANDO RASPAGEM DIRETA DO ODDSPEDIA & FUTBOL24 ===")
+    res_op = scrape_oddspedia_odds(['serie-a', 'serie-b'])
+    res_f24 = scrape_futbol24_odds(['serie-a', 'serie-b'])
+    print(f"\nTotal Oddspedia: {len(res_op)} | Total Futbol24: {len(res_f24)}\n")
 

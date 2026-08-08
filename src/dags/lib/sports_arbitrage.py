@@ -47,7 +47,7 @@ TEAM_ALIASES = {
     "MIRASSOL": ["MIRASSOL", "MIRASSOL FC", "MIR"],
     "NOVORIZONTINO": ["NOVORIZONTINO", "GE NOVORIZONTINO", "NOV"],
     "SPORT": ["SPORT", "SPORT RECIFE", "SPORT CLUB DO RECIFE", "SPT"],
-    "AMERICA-MG": ["AMERICA-MG", "AMÉRICA-MG", "AMÉRICA MINEIRO", "AME"],
+    "AMERICA-MG": ["AMERICA-MG", "AMÉRICA-MG", "AMÉRICA MINEIRO", "AMERICA MINEIRO", "AMERICA MINEIRO MG", "AME"],
     "GOIAS": ["GOIAS", "GOIÁS", "GOIÁS EC", "GOI"],
     "VILA NOVA": ["VILA NOVA", "VILA NOVA FC", "VIL"],
     "CORITIBA": ["CORITIBA", "CORITIBA FBC", "CFC"],
@@ -58,7 +58,7 @@ TEAM_ALIASES = {
     "GUARANI": ["GUARANI", "GUARANI FC", "GUA"],
     "OPERARIO-PR": ["OPERARIO-PR", "OPERÁRIO-PR", "OPERÁRIO FEC", "OPE"],
     "CHAPECOENSE": ["CHAPECOENSE", "ASSOCIACAO CHAPECOENSE", "CHA"],
-    "BOTAFOGO-SP": ["BOTAFOGO-SP", "BOTAFOGO SP", "BSO"],
+    "BOTAFOGO-SP": ["BOTAFOGO-SP", "BOTAFOGO SP", "BOTAFOGO FC SP", "BOTAFOGO/SP", "BSO"],
     "BRUSQUE": ["BRUSQUE", "BRUSQUE FC", "BRU"],
     "ITUANO": ["ITUANO", "ITUANO FC", "ITU"],
     "AMAZONAS": ["AMAZONAS", "AMAZONAS FC", "AMA"],
@@ -99,15 +99,32 @@ def normalize_bookmaker_name(name: str) -> str:
                 return standard_name
     return clean_name.title()
 
+import unicodedata
+
+def _remove_accents(text: str) -> str:
+    if not text:
+        return ""
+    nfkd = unicodedata.normalize('NFKD', text)
+    return ''.join([c for c in nfkd if not unicodedata.combining(c)])
+
+FAST_TEAM_ALIASES = {}
+for _std, _aliases in TEAM_ALIASES.items():
+    for _alias in _aliases:
+        _clean_a = re.sub(r'[^A-Z0-9\s-]', '', _remove_accents(_alias.upper())).strip()
+        FAST_TEAM_ALIASES[_clean_a] = _std
+
 def normalize_team_name(name: str) -> str:
-    """Normaliza o nome do time para uma chave padronizada."""
+    """Normaliza o nome do time para uma chave padronizada com busca O(1) sem acentos."""
     if not name:
         return "DESCONHECIDO"
-    clean_name = re.sub(r'[^A-Z0-9\s-]', '', name.upper()).strip()
-    
+    clean_name = re.sub(r'[^A-Z0-9\s-]', '', _remove_accents(name.upper())).strip()
+    if clean_name in FAST_TEAM_ALIASES:
+        return FAST_TEAM_ALIASES[clean_name]
+        
     for standard_name, aliases in TEAM_ALIASES.items():
         for alias in aliases:
-            if alias == clean_name or difflib.SequenceMatcher(None, alias, clean_name).ratio() > 0.85:
+            _clean_alias = re.sub(r'[^A-Z0-9\s-]', '', _remove_accents(alias.upper())).strip()
+            if len(_clean_alias) >= 4 and (_clean_alias in clean_name or clean_name in _clean_alias):
                 return standard_name
     return clean_name
 

@@ -1306,13 +1306,57 @@ def main():
 def update_oddspedia_odds(conn):
     try:
         sys.path.insert(0, '/root/datalake-air-flow-delta/src/dags')
-        from lib.scrapers import scrape_oddspedia_odds
-        from lib.sports_arbitrage import normalize_team_name, calculate_surebet
+        from lib.scrapers import scrape_oddspedia_odds, scrape_futbol24_odds
+        from lib.sports_arbitrage import normalize_team_name, calculate_surebet, fetch_live_odds_from_api
         
-        print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS VIA ODDSPEDIA ---")
-        scraped_matches = scrape_oddspedia_odds(leagues=['serie-a', 'serie-b'])
+        print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS MULTI-FONTE (THE ODDS API + ODDSPEDIA + FUTBOL24) ---")
+        api_odds_matches = []
+        try:
+            api_odds_matches = fetch_live_odds_from_api("19034934454fd9bd0a06735a67cd8f1b") or []
+        except Exception as e_api:
+            print(f"Aviso ao consultar The Odds API: {e_api}")
+
+        scraped_matches_op = []
+        try:
+            scraped_matches_op = scrape_oddspedia_odds(leagues=['serie-a', 'serie-b']) or []
+        except Exception as e_op:
+            print(f"Aviso ao consultar Oddspedia: {e_op}")
+
+        scraped_matches_f24 = []
+        try:
+            scraped_matches_f24 = scrape_futbol24_odds(leagues=['serie-a', 'serie-b']) or []
+        except Exception as e_f24:
+            print(f"Aviso ao consultar Futbol24: {e_f24}")
+        
+        # Consolidação de partidas e odds de todas as fontes disponíveis
+        scraped_by_teams = {}
+        for m in api_odds_matches + scraped_matches_op + scraped_matches_f24:
+            s_home = normalize_team_name(m.get('time_casa', ''))
+            s_away = normalize_team_name(m.get('time_visitante', ''))
+            if not s_home or not s_away or s_home == 'DESCONHECIDO' or s_away == 'DESCONHECIDO':
+                continue
+            key = (s_home, s_away)
+            if key not in scraped_by_teams:
+                scraped_by_teams[key] = {
+                    "time_casa": m['time_casa'],
+                    "time_visitante": m['time_visitante'],
+                    "odds": {}
+                }
+            for bm, cota in m.get('odds', {}).items():
+                bm_norm = bm.upper()
+                c_home = float(cota.get("casa", 0.0))
+                c_draw = float(cota.get("empate", 0.0))
+                c_away = float(cota.get("visitante", 0.0))
+                if c_home > 1.0 and c_draw > 1.0 and c_away > 1.0:
+                    scraped_by_teams[key]['odds'][bm_norm] = {
+                        "casa": c_home,
+                        "empate": c_draw,
+                        "visitante": c_away
+                    }
+
+        scraped_matches = list(scraped_by_teams.values())
         if not scraped_matches:
-            print("Nenhuma partida retornada pelo Oddspedia.")
+            print("Nenhuma partida retornada pelas fontes de odds.")
             return
 
         cursor = conn.cursor()
@@ -1352,16 +1396,42 @@ def update_oddspedia_odds(conn):
                         med2 = statistics.median(valid_c2.values())
                         valid_c2 = {bm: val for bm, val in valid_c2.items() if val <= med2 * 1.12}
 
-                    best_c1, best_bm1 = 0.0, ""
-                    best_cX, best_bmX = 0.0, ""
-                    best_c2, best_bm2 = 0.0, ""
+                    def select_multi_bookmaker_odds(valid_c1: dict, valid_cX: dict, valid_c2: dict) -> tuple:
+                        if not valid_c1 or not valid_cX or not valid_c2:
+                            return 0.0, "", 0.0, "", 0.0, ""
 
-                    for bm, val in valid_c1.items():
-                        if val > best_c1: best_c1, best_bm1 = val, bm
-                    for bm, val in valid_cX.items():
-                        if val > best_cX: best_cX, best_bmX = val, bm
-                    for bm, val in valid_c2.items():
-                        if val > best_c2: best_c2, best_bm2 = val, bm
+                        primary_bms = ['BET365', 'BETANO', 'SPORTINGBET', 'SUPERBET', 'KTO', 'STAKE', '1XBET', 'NOVIBET', 'BETFAIR SPORTSBOOK', 'BETFAIR', 'BETWAY', 'PINNACLE', 'BETSSON']
+
+                        def is_primary(bm):
+                            return any(p in bm.upper() for p in primary_bms)
+
+                        best_score = -1.0
+                        best_combo = (0.0, "", 0.0, "", 0.0, "")
+
+                        for bm1, val1 in valid_c1.items():
+                            for bmX, valX in valid_cX.items():
+                                for bm2, val2 in valid_c2.items():
+                                    houses = {bm1.upper(), bmX.upper(), bm2.upper()}
+                                    if len(houses) < 2:
+                                        continue
+
+                                    prim_count = sum([1 for h in [bm1, bmX, bm2] if is_primary(h)])
+                                    top_count = sum([1 for h in [bm1, bmX, bm2] if any(t in h.upper() for t in ['BET365', 'BETANO'])])
+                                    score = (val1 + valX + val2) + (top_count * 2.0) + (prim_count * 0.5)
+
+                                    if score > best_score:
+                                        best_score = score
+                                        best_combo = (val1, bm1, valX, bmX, val2, bm2)
+
+                        if best_combo[0] == 0.0:
+                            b1, m1 = max(valid_c1.items(), key=lambda x: x[1]) if valid_c1 else (0.0, "")
+                            bX, mX = max(valid_cX.items(), key=lambda x: x[1]) if valid_cX else (0.0, "")
+                            b2, m2 = max(valid_c2.items(), key=lambda x: x[1]) if valid_c2 else (0.0, "")
+                            return b1, m1, bX, mX, b2, m2
+
+                        return best_combo
+
+                    best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = select_multi_bookmaker_odds(valid_c1, valid_cX, valid_c2)
 
                     if best_c1 > 0 and best_cX > 0 and best_c2 > 0:
                         calc = calculate_surebet(best_c1, best_cX, best_c2)

@@ -2245,24 +2245,9 @@ if (!function_exists('getBetDecisionTree')) {
                                                     $calc_details = isset($ah_parts[1]) ? trim($ah_parts[1]) : '';
                                                 }
 
-                                                // Garantir que a motivação no card sempre explique explicitamente o Fator Crucial (ex: por que o Ceará foi escolhido)
-                                                if (empty($motivation) || strpos($motivation, 'Fator Crucial') === false) {
-                                                    $sugText = $fix->ah_suggestion ?? '';
-                                                    $homeTeam = $fix->home_team ?? 'Mandante';
-                                                    $awayTeam = $fix->away_team ?? 'Visitante';
-                                                    $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
-                                                    
-                                                    if (strpos($motivation, 'Confronto equilibrado') !== false || strpos($sugText, '0.0') !== false || strpos($sugText, 'Empate Anula') !== false) {
-                                                        if ($teamFav === $homeTeam) {
-                                                            $motivation = "🎯 Fator Crucial: Fator Mando de Campo e Solidez Defensiva em Casa.\n" .
-                                                                "Apesar do equilíbrio estatístico de expectativa de gols entre as equipes, o {$homeTeam} foi a equipe escolhida por jogar em seus domínios (bônus de mando de +10%) e apresentar maior estabilidade defensiva diante de sua torcida. A indicação a favor do {$homeTeam} garante a proteção total de 100% de reembolso (Empate Anula) em caso de igualdade no placar.";
-                                                        } else {
-                                                            $motivation = "🎯 Fator Crucial: Regularidade do Visitante Fora de Casa.\n" .
-                                                                "Apesar do equilíbrio estatístico entre as equipes, o {$awayTeam} foi a equipe escolhida por apresentar maior consistência recente fora de casa. A indicação a favor do {$awayTeam} garante a segurança de 100% de reembolso em caso de empate.";
-                                                        }
-                                                    } elseif (!empty($motivation)) {
-                                                        $motivation = "🎯 Fator Crucial: " . $motivation;
-                                                    }
+                                                // Garantir apenas a formatação do prefixo Fator Crucial se não estiver presente, sem alterar o conteúdo derivado dos dados
+                                                if (!empty($motivation) && strpos($motivation, 'Fator Crucial') === false) {
+                                                    $motivation = "🎯 Fator Crucial: " . $motivation;
                                                 }
 
                                                 if (empty($nl_explanation)) {

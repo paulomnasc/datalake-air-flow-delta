@@ -240,60 +240,60 @@ def build_natural_language_motivation(
     suggestion, home_team, away_team, delta_goals,
     home_goals_scored, away_goals_conceded, away_goals_scored, home_goals_conceded,
     home_cs_pct, away_cs_pct, home_last5, away_last5,
-    home_in_crisis, away_in_crisis
+    home_in_crisis, away_in_crisis,
+    odd_home=None, odd_away=None
 ):
     """
-    Gera a motivação do palpite em linguagem natural amigável destacando de forma transparente e explícita o FATOR CRUCIAL.
+    Gera a motivação do palpite em linguagem natural amigável destacando em alto nível os 3 critérios aplicados:
+    1. Reajuste Realista do Fator Mando de Campo (+20% em casa / -12% fora)
+    2. Integração das Odds de Mercado (Market Implied xG)
+    3. Isolamento de Oscilação Fora de Casa (preservação do histórico de jogos em casa)
     """
     home_text = home_last5.get("text", "2V-1E-2D")
     away_text = away_last5.get("text", "2V-1E-2D")
+    odd_str = f" [Odds Mercado: H:{odd_home:.2f}/A:{odd_away:.2f}]" if (odd_home and odd_away and float(odd_home) > 1.0) else ""
 
     if home_in_crisis and not away_in_crisis:
         return (
             f"🎯 Fator Crucial: Alerta de Crise e Sequência Negativa do Mandante ({home_text} em U5J).\n"
-            f"Este palpite foi gerado devido à severa má fase do {home_team} em casa (0V em U5J e baixa taxa de defesa intacta de {home_cs_pct:.1f}%). "
-            f"Em contrapartida, o {away_team} atravessa um momento muito mais consistente ({away_text}). "
-            f"O algoritmo identificou alto risco no mandante e transferiu a vantagem para o visitante {away_team} com cobertura no empate."
+            f"Este palpite foi gerado devido à severa má fase do {home_team} em casa (0V em U5J e Clean Sheet de {home_cs_pct:.1f}%). "
+            f"Em contrapartida, o visitante {away_team} atravessa momento superior ({away_text}), invertendo a recomendação para {away_team} com cobertura no empate."
         )
     elif away_in_crisis and not home_in_crisis:
         return (
             f"🎯 Fator Crucial: Instabilidade do Visitante e Sequência de Derrotas ({away_text} em U5J).\n"
             f"Este palpite foi gerado pelo momento delicado do visitante {away_team} fora de casa ({away_text} em U5J). "
-            f"Com a consistência do {home_team} diante da sua torcida ({home_text}), a vantagem estatística foi confirmada a favor do {home_team}."
+            f"Combinado ao Reajuste Realista do Fator Mando (+20%) e à consistência do {home_team} em casa ({home_text}), a vantagem foi confirmada a favor do {home_team}."
         )
-    elif delta_goals >= 1.20:
+    elif delta_goals >= 0.10:
         return (
-            f"🎯 Fator Crucial: Superioridade Ofensiva e Elevada Expectativa de Gols (+{delta_goals:.2f} gols esperados).\n"
-            f"Este palpite foi gerado pelo forte volume ofensivo do {home_team} em casa (média de {home_goals_scored:.1f} gols/jogo) "
-            f"somado ao retrospecto defensivo mais vulnerável do {away_team} fora de casa (sofre {away_goals_conceded:.1f} gols/jogo). "
-            f"O saldo positivo esperado justifica a aposta na vitória do {home_team} por margem estendida."
-        )
-    elif delta_goals >= 0.20:
-        return (
-            f"🎯 Fator Crucial: Solidez Defensiva e Peso do Mando de Campo ({home_cs_pct:.1f}% Clean Sheet).\n"
-            f"Este palpite foi gerado porque o {home_team} jogando em casa apresenta produção ofensiva consistente ({home_goals_scored:.1f} gols/jogo) "
-            f"e boa proteção defensiva ({home_cs_pct:.1f}% de jogos sem sofrer gols). O peso do mando de campo garante o favoritismo ao {home_team} com proteção de meia-estaca."
+            f"🎯 Fator Crucial: Peso do Mando de Campo (+20%) e Favoritismo Ponderado ({home_team} +{delta_goals:.2f} xG Esperados).\n"
+            f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
+            f"• 🏟️ Reajuste Realista do Fator Mando (+20% em casa / -12% fora): A força de jogar em seus domínios impulsiona a produção ofensiva do {home_team} ({home_goals_scored:.1f} g/j).\n"
+            f"• 📈 Integração das Odds de Mercado: As odds do mercado confirmam o favoritismo do {home_team}{odd_str}, convergindo a probabilidade estatística ao consenso das apostas.\n"
+            f"• 🛡️ Isolamento de Oscilação Fora de Casa: O desempenho do {home_team} em casa é preservado ({home_cs_pct:.1f}% Clean Sheet), desconsiderando penalizações indevidas por perdas fora de casa."
         )
     elif delta_goals >= -0.20:
+        home_pts = home_last5.get("pts", 0)
+        away_pts = away_last5.get("pts", 0)
         if home_team.lower() in suggestion.lower():
             return (
-                f"🎯 Fator Crucial: Fator Mando de Campo e Solidez Defensiva em Casa.\n"
-                f"Apesar do equilíbrio estatístico de expectativa de gols ({home_team} xG: {home_goals_scored:.1f} vs {away_team} xG: {away_goals_scored:.1f}), "
-                f"o {home_team} foi a equipe escolhida por jogar em seus domínios (bônus de mando de campo de +10%) e possuir maior regularidade defensiva em casa ({home_cs_pct:.1f}% Clean Sheet). "
-                f"A indicação a favor do {home_team} inclui a proteção total de 100% de reembolso (Empate Anula) em caso de igualdade no placar."
+                f"🎯 Fator Crucial: Fator Mando de Campo (+20%) em Confronto Equilibrado.\n"
+                f"Apesar do equilíbrio nos números brutos ({home_team} xG: {home_goals_scored:.1f} / U5J: {home_text} vs {away_team} xG: {away_goals_scored:.1f} / U5J: {away_text}), "
+                f"o {home_team} prevaleceu pela combinação do Reajuste do Fator Mando (+20% em casa) com o Isolamento de Oscilações Fora ({home_cs_pct:.1f}% Clean Sheet). "
+                f"A indicação garante a proteção total de reembolso (Empate Anula)."
             )
         else:
             return (
-                f"🎯 Fator Crucial: Regularidade do Visitante Fora de Casa.\n"
-                f"Apesar do equilíbrio estatístico ({home_team} xG: {home_goals_scored:.1f} vs {away_team} xG: {away_goals_scored:.1f}), "
-                f"o {away_team} foi a equipe escolhida por apresentar melhor desempenho recente fora de casa ({away_text} em U5J e {away_cs_pct:.1f}% Clean Sheet). "
-                f"A indicação a favor do {away_team} inclui a segurança de 100% de reembolso no empate."
+                f"🎯 Fator Crucial: Superioridade do Visitante Ponderada pelo Mercado.\n"
+                f"Apesar da vantagem de mando do {home_team}, o visitante {away_team} sobressaiu-se na análise combinada por apresentar desempenho superior ajustado "
+                f"({away_goals_scored:.1f} xG / U5J: {away_text} e {away_cs_pct:.1f}% Clean Sheet fora){odd_str}. Indicação com proteção no empate."
             )
     else:
         return (
-            f"🎯 Fator Crucial: Excelente Momento e Volume Ofensivo do Visitante ({away_text} em U5J).\n"
-            f"Este palpite foi gerado pelo excelente momento do visitante {away_team} fora de casa ({away_text} em U5J / {away_goals_scored:.1f} gols/jogo). "
-            f"A vantagem estatística e a melhor fase recente favorecem o {away_team} no confronto."
+            f"🎯 Fator Crucial: Amplo Favoritismo do Visitante ({away_team} +{abs(delta_goals):.2f} xG).\n"
+            f"Este palpite foi gerado pelo excelente momento do visitante {away_team} fora de casa ({away_text} em U5J / {away_goals_scored:.1f} g/j){odd_str}, "
+            f"superando significativamente o fator casa do mandante {home_team}."
         )
 
 def calculate_asian_handicap_suggestion(
@@ -303,11 +303,12 @@ def calculate_asian_handicap_suggestion(
     home_cs_pct=30.0, away_cs_pct=30.0,
     home_recent_losses=0, away_recent_losses=0,
     home_recent_wins=0, away_recent_wins=0,
-    home_last5=None, away_last5=None
+    home_last5=None, away_last5=None,
+    odd_home=None, odd_draw=None, odd_away=None
 ):
     """
-    Calcula a sugestão de Handicap Asiático ponderando xG, Fator Mando de Campo (Casa/Fora),
-    Forma dos Últimos 5 Jogos (V-E-D), Clean Sheets e Streak.
+    Calcula a sugestão de Handicap Asiático ponderando xG, Fator Mando de Campo (Casa/Fora: +20% / -12%),
+    Odds do Mercado de Apostas (quando disponíveis), Forma dos Últimos 5 Jogos (V-E-D), Clean Sheets e Streak.
     Retorna: (ah_suggestion, ah_confidence, ah_reasoning)
     """
     import json
@@ -317,9 +318,9 @@ def calculate_asian_handicap_suggestion(
     if away_last5 is None:
         away_last5 = {"v": 2, "e": 1, "d": 2, "pts": 7, "text": "2V-1E-2D", "matches": []}
 
-    # 1. Fator Mando de Campo (Home vs Away Split)
-    home_mando_factor = 1.10  # Bônus de jogar em casa (+10%)
-    away_mando_factor = 0.95  # Ajuste de visitante fora de casa (-5%)
+    # 1. Fator Mando de Campo Recalibrado (Mando em Casa no futebol sul-americano é forte)
+    home_mando_factor = 1.20  # Bônus realista de jogar em casa (+20%)
+    away_mando_factor = 0.88  # Ajuste de visitante fora de casa (-12%)
 
     # 2. Fator Últimos 5 Jogos (Forma Recente: V-E-D)
     home_pts = home_last5.get("pts", 7)
@@ -330,13 +331,16 @@ def calculate_asian_handicap_suggestion(
     elif home_pts >= 9 or home_v >= 3:
         home_last5_factor = 1.15  # Boa forma (+15%)
     elif home_pts <= 2 or home_d >= 4:
-        home_last5_factor = 0.65  # Penalidade severa por má fase (-35%)
+        home_last5_factor = 0.70  # Penalidade por má fase (-30%)
     elif home_pts <= 4 or home_d >= 3:
-        home_last5_factor = 0.78  # Penalidade forte por Derrotas (-22%)
+        home_last5_factor = 0.82  # Penalidade por derrotas (-18%)
     elif home_pts <= 5:
-        home_last5_factor = 0.88  # Fase oscilante (-12%)
+        home_last5_factor = 0.92  # Fase oscilante (-8%)
     else:
         home_last5_factor = 1.00
+
+    # Para jogos em casa, atuar em domínios próprios não deve sofrer penalidade excessiva por oscilação fora
+    home_last5_factor = max(0.92, home_last5_factor)
 
     away_pts = away_last5.get("pts", 7)
     away_d = away_last5.get("d", 0)
@@ -355,16 +359,16 @@ def calculate_asian_handicap_suggestion(
         away_last5_factor = 1.00
 
     # 3. Fator Proteção Defensiva (Clean Sheets)
-    home_cs_factor = max(0.80, min(1.20, 1.0 + (home_cs_pct - 30.0) * 0.005))
-    away_cs_factor = max(0.80, min(1.20, 1.0 + (away_cs_pct - 30.0) * 0.005))
+    home_cs_factor = max(0.85, min(1.20, 1.0 + (home_cs_pct - 30.0) * 0.005))
+    away_cs_factor = max(0.85, min(1.20, 1.0 + (away_cs_pct - 30.0) * 0.005))
 
     # 4. Fator de Forma Recente / Streak
     if home_recent_losses >= 4 or home_d >= 4:
-        home_streak_factor = 0.65  # Penalidade severa de -35% por crise
+        home_streak_factor = 0.70  # Penalidade de crise moderada
     elif home_recent_losses >= 3 or home_d >= 3:
-        home_streak_factor = 0.75  # Penalidade moderada de -25%
+        home_streak_factor = 0.80
     elif home_recent_wins >= 3 or home_v >= 3:
-        home_streak_factor = 1.20  # Bônus de +20% por sequência vitoriosa
+        home_streak_factor = 1.20
     else:
         home_streak_factor = 1.0
 
@@ -377,22 +381,44 @@ def calculate_asian_handicap_suggestion(
     else:
         away_streak_factor = 1.0
 
-    # 5. Expectativa Ajustada de Gols (Lambda) com Amortecimento por Força Ofensiva Base
+    # 5. Expectativa Ajustada de Gols (Lambda) com Integração de Odds de Mercado
     lambda_home_base = max(0.4, (home_goals_scored + away_goals_conceded) / 2.0)
     lambda_away_base = max(0.4, (away_goals_scored + home_goals_conceded) / 2.0)
 
-    # Amortecimento: se o mandante for um favorito forte (xG base >= 1.50), o fator de forma recente não cai abaixo de 0.85
-    if lambda_home_base >= 1.50:
-        home_last5_factor = max(0.85, home_last5_factor)
-        home_streak_factor = max(0.85, home_streak_factor)
+    # Incorporação das Odds de Mercado (probabilidades implícitas das casas de apostas)
+    market_home_boost = 1.0
+    market_away_boost = 1.0
+    market_str = ""
+    if odd_home and odd_away:
+        try:
+            oh = float(odd_home)
+            oa = float(odd_away)
+            od = float(odd_draw) if (odd_draw and float(odd_draw) > 1.0) else 3.20
+            if oh > 1.0 and oa > 1.0:
+                inv_h = 1.0 / oh
+                inv_d = 1.0 / od
+                inv_a = 1.0 / oa
+                sum_inv = inv_h + inv_d + inv_a
+                prob_h = inv_h / sum_inv
+                prob_a = inv_a / sum_inv
+                market_home_boost = max(0.75, min(1.35, prob_h / 0.40))
+                market_away_boost = max(0.75, min(1.35, prob_a / 0.30))
+                market_str = f" × Odds (H:{oh:.2f}/A:{oa:.2f})"
+        except Exception:
+            pass
 
-    lambda_home = lambda_home_base * home_mando_factor * home_last5_factor * home_cs_factor * home_streak_factor
-    lambda_away = lambda_away_base * away_mando_factor * away_last5_factor * away_cs_factor * away_streak_factor
+    # Amortecimento: se o mandante for um favorito forte (xG base >= 1.40), a forma não cai abaixo de 0.90
+    if lambda_home_base >= 1.40:
+        home_last5_factor = max(0.90, home_last5_factor)
+        home_streak_factor = max(0.90, home_streak_factor)
+
+    lambda_home = lambda_home_base * home_mando_factor * home_last5_factor * home_cs_factor * home_streak_factor * market_home_boost
+    lambda_away = lambda_away_base * away_mando_factor * away_last5_factor * away_cs_factor * away_streak_factor * market_away_boost
     delta_goals = lambda_home - lambda_away
 
-    # Memória de Cálculo formatada para o Card da UX
+    # Memória de Cálculo formatada para a UX
     calc_memory = (
-        f"🏠 {home_team} (Em Casa): xG Base {lambda_home_base:.2f} × Mando {home_mando_factor:.2f} × U5J {home_last5_factor:.2f} ({home_last5.get('text')}) × CS {home_cs_factor:.2f} ({home_cs_pct:.1f}%) × Streak {home_streak_factor:.2f} = xG Adj {lambda_home:.2f} | "
+        f"🏠 {home_team} (Em Casa): xG Base {lambda_home_base:.2f} × Mando {home_mando_factor:.2f} × U5J {home_last5_factor:.2f} ({home_last5.get('text')}) × CS {home_cs_factor:.2f} ({home_cs_pct:.1f}%) × Streak {home_streak_factor:.2f}{market_str} = xG Adj {lambda_home:.2f} | "
         f"✈️ {away_team} (Fora): xG Base {lambda_away_base:.2f} × Mando {away_mando_factor:.2f} × U5J {away_last5_factor:.2f} ({away_last5.get('text')}) × CS {away_cs_factor:.2f} ({away_cs_pct:.1f}%) × Streak {away_streak_factor:.2f} = xG Adj {lambda_away:.2f} | "
         f"⚖️ Saldo Esperado (ΔG): {delta_goals:+.2f} gols."
     )
@@ -435,11 +461,11 @@ def calculate_asian_handicap_suggestion(
             suggestion = f"{home_team} -1.0 AH"
             confidence = round(min(88.0, 68.0 + delta_goals * 10), 2)
             main_reason = f"Ataque forte do {home_team} ({home_goals_scored:.1f} g/j) contra defesa frágil do {away_team}. Expectativa de vitória por 2+ gols.{note_str}"
-        elif delta_goals >= 0.65:
+        elif delta_goals >= 0.40:
             suggestion = f"{home_team} -0.5 AH"
             confidence = round(min(82.0, 62.0 + delta_goals * 12), 2)
             main_reason = f"Vantagem de mando para o {home_team} em casa com saldo positivo (+{delta_goals:.2f} gols esperados).{note_str}"
-        elif delta_goals >= 0.20:
+        elif delta_goals >= 0.10:
             suggestion = f"{home_team} -0.25 AH"
             confidence = round(min(75.0, 58.0 + abs(delta_goals) * 14), 2)
             main_reason = f"Ligeiro favoritismo do {home_team} em casa. Proteção de meia estaca em caso de empate.{note_str}"
@@ -449,7 +475,7 @@ def calculate_asian_handicap_suggestion(
                 suggestion = f"{away_team} 0.0 (Empate Anula)"
             elif away_in_crisis and not home_in_crisis:
                 suggestion = f"{home_team} 0.0 (Empate Anula)"
-            elif delta_goals >= -0.05:
+            elif delta_goals >= 0.0:
                 suggestion = f"{home_team} 0.0 (Empate Anula)"
             else:
                 suggestion = f"{away_team} 0.0 (Empate Anula)"
@@ -473,7 +499,8 @@ def calculate_asian_handicap_suggestion(
         suggestion, home_team, away_team, delta_goals,
         home_goals_scored, away_goals_conceded, away_goals_scored, home_goals_conceded,
         home_cs_pct, away_cs_pct, home_last5, away_last5,
-        home_in_crisis, away_in_crisis
+        home_in_crisis, away_in_crisis,
+        odd_home=odd_home, odd_away=odd_away
     )
     u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
 
@@ -846,7 +873,7 @@ def main():
             home_wins = home_last5.get("v", 0)
             away_wins = away_last5.get("v", 0)
 
-            # Cálculo do Handicap Asiático (xG / Mando Casa-Fora / Últimos 5 Jogos / Clean Sheets / Streak)
+            # Cálculo do Handicap Asiático (xG / Mando Casa-Fora / Odds Mercado / Últimos 5 Jogos / Clean Sheets / Streak)
             ah_suggestion, ah_confidence, ah_reasoning = calculate_asian_handicap_suggestion(
                 home_c_stats["avg_goals_scored"], home_c_stats["avg_goals_conceded"],
                 away_c_stats["avg_goals_scored"], away_c_stats["avg_goals_conceded"],
@@ -858,7 +885,10 @@ def main():
                 home_recent_wins=home_wins,
                 away_recent_wins=away_wins,
                 home_last5=home_last5,
-                away_last5=away_last5
+                away_last5=away_last5,
+                odd_home=f.get("odd_home"),
+                odd_draw=f.get("odd_draw"),
+                odd_away=f.get("odd_away")
             )
 
             if referee_raw and referee_raw.strip():

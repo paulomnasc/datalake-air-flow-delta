@@ -1276,53 +1276,40 @@ def update_oddspedia_odds(conn):
                     if not odds:
                         continue
                         
-                    from itertools import permutations, product
+                    import statistics
+                    valid_c1 = {bm: float(odds[bm]['casa']) for bm in odds if float(odds[bm].get('casa', 0.0)) > 1.0}
+                    valid_cX = {bm: float(odds[bm]['empate']) for bm in odds if float(odds[bm].get('empate', 0.0)) > 1.0}
+                    valid_c2 = {bm: float(odds[bm]['visitante']) for bm in odds if float(odds[bm].get('visitante', 0.0)) > 1.0}
+
+                    # Filtro de outliers: se houver >= 2 casas, descarta odds que excedam 12% da mediana do mercado
+                    if len(valid_c1) >= 2:
+                        med1 = statistics.median(valid_c1.values())
+                        valid_c1 = {bm: val for bm, val in valid_c1.items() if val <= med1 * 1.12}
+
+                    if len(valid_cX) >= 2:
+                        medX = statistics.median(valid_cX.values())
+                        valid_cX = {bm: val for bm, val in valid_cX.items() if val <= medX * 1.12}
+
+                    if len(valid_c2) >= 2:
+                        med2 = statistics.median(valid_c2.values())
+                        valid_c2 = {bm: val for bm, val in valid_c2.items() if val <= med2 * 1.12}
+
                     best_c1, best_bm1 = 0.0, ""
                     best_cX, best_bmX = 0.0, ""
                     best_c2, best_bm2 = 0.0, ""
-                    
-                    bms = list(odds.keys())
-                    best_combination = None
-                    max_odds_sum = -1.0
 
-                    if len(bms) >= 3:
-                        for bm1, bmX, bm2 in permutations(bms, 3):
-                            c1 = float(odds[bm1].get('casa', 0.0))
-                            cX = float(odds[bmX].get('empate', 0.0))
-                            c2 = float(odds[bm2].get('visitante', 0.0))
-                            if c1 > 0 and cX > 0 and c2 > 0:
-                                total_val = c1 + cX + c2
-                                if total_val > max_odds_sum:
-                                    max_odds_sum = total_val
-                                    best_combination = (c1, bm1, cX, bmX, c2, bm2)
+                    for bm, val in valid_c1.items():
+                        if val > best_c1: best_c1, best_bm1 = val, bm
+                    for bm, val in valid_cX.items():
+                        if val > best_cX: best_cX, best_bmX = val, bm
+                    for bm, val in valid_c2.items():
+                        if val > best_c2: best_c2, best_bm2 = val, bm
 
-                    if not best_combination and len(bms) >= 2:
-                        for bm1, bmX, bm2 in product(bms, repeat=3):
-                            if len({bm1, bmX, bm2}) >= 2:
-                                c1 = float(odds[bm1].get('casa', 0.0))
-                                cX = float(odds[bmX].get('empate', 0.0))
-                                c2 = float(odds[bm2].get('visitante', 0.0))
-                                if c1 > 0 and cX > 0 and c2 > 0:
-                                    total_val = c1 + cX + c2
-                                    if total_val > max_odds_sum:
-                                        max_odds_sum = total_val
-                                        best_combination = (c1, bm1, cX, bmX, c2, bm2)
-
-                    if best_combination:
-                        best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = best_combination
-                    else:
-                        for bm_name, cota in odds.items():
-                            c1 = float(cota.get('casa', 0.0))
-                            cX = float(cota.get('empate', 0.0))
-                            c2 = float(cota.get('visitante', 0.0))
-                            if c1 > best_c1: best_c1, best_bm1 = c1, bm_name
-                            if cX > best_cX: best_cX, best_bmX = cX, bm_name
-                            if c2 > best_c2: best_c2, best_bm2 = c2, bm_name
-                        
                     if best_c1 > 0 and best_cX > 0 and best_c2 > 0:
                         calc = calculate_surebet(best_c1, best_cX, best_c2)
                         casas_usadas = {best_bm1.upper(), best_bmX.upper(), best_bm2.upper()} - {""}
-                        is_surebet = 1 if (calc and calc['is_surebet'] and len(casas_usadas) > 1) else 0
+                        # Validação de segurança: Surebet exige > 1 casa e lucro <= 15% (lucros maiores são ruídos de parsing)
+                        is_surebet = 1 if (calc and calc['is_surebet'] and len(casas_usadas) > 1 and calc['lucro_percentual'] <= 15.0) else 0
                         profit_pct = calc['lucro_percentual'] if (calc and is_surebet) else 0.0
                         
                         # Recalcula o palpite e a motivação com as novas odds de mercado

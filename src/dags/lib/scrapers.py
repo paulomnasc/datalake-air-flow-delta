@@ -422,14 +422,27 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
                     parent = parent.parent
                     
             if bookmakers_odds:
-                all_matches.append({
-                    "liga": l_key,
-                    "time_casa": ev['home_team'],
-                    "time_visitante": ev['away_team'],
-                    "data": ev['start_time'],
-                    "odds": bookmakers_odds
-                })
-                log.info(f"[SCRAPER-ODDSPEDIA] Partida '{ev['home_team']} vs {ev['away_team']}': {len(bookmakers_odds)} casas extraídas.")
+                # Sanitização de ruídos e outliers entre casas de apostas para o mesmo jogo
+                if len(bookmakers_odds) >= 2:
+                    import statistics
+                    for market_key in ['casa', 'empate', 'visitante']:
+                        vals = [bm_o[market_key] for bm_o in bookmakers_odds.values() if bm_o.get(market_key, 0.0) > 1.0]
+                        if len(vals) >= 2:
+                            med = statistics.median(vals)
+                            to_remove = [bm for bm, bm_o in bookmakers_odds.items() if bm_o.get(market_key, 0.0) > med * 1.15]
+                            for bm in to_remove:
+                                log.warning(f"[SCRAPER-ODDSPEDIA] Removido ruído/outlier de odd para {bm} no mercado '{market_key}': {bookmakers_odds[bm][market_key]} (Mediana mercado: {med:.2f})")
+                                del bookmakers_odds[bm]
+
+                if bookmakers_odds:
+                    all_matches.append({
+                        "liga": l_key,
+                        "time_casa": ev['home_team'],
+                        "time_visitante": ev['away_team'],
+                        "data": ev['start_time'],
+                        "odds": bookmakers_odds
+                    })
+                    log.info(f"[SCRAPER-ODDSPEDIA] Partida '{ev['home_team']} vs {ev['away_team']}': {len(bookmakers_odds)} casas extraídas.")
 
     log.info(f"[SCRAPER-ODDSPEDIA] Extração concluída. Total de partidas com odds: {len(all_matches)}")
     return all_matches

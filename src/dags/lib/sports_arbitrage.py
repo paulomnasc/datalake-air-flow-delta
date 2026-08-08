@@ -456,13 +456,12 @@ def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = 
             c1 = odds[bm1]["casa"]
             if c1 <= 1.0: continue
             for bm2 in bookmakers_available:
-                if bm2 == bm1: continue
                 cX = odds[bm2]["empate"]
                 if cX <= 1.0: continue
                 for bm3 in bookmakers_available:
-                    if bm3 == bm1 or bm3 == bm2: continue
                     c2 = odds[bm3]["visitante"]
                     if c2 <= 1.0: continue
+                    if len({bm1, bm2, bm3}) < 2: continue
                     
                     prob_sum = (1.0 / c1) + (1.0 / cX) + (1.0 / c2)
                     if prob_sum < best_prob_sum:
@@ -481,7 +480,7 @@ def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = 
             melhor_casa_odd2 = best_distinct_combo["bm2"]
             melhor_odd_visitante = round(best_distinct_combo["odd2"], 2)
         else:
-            # Fallback caso não existam 3 casas distintas registradas na partida
+            # Fallback caso não existam 2+ casas distintas registradas na partida
             melhor_odd_casa = 0.0
             melhor_casa_odd1 = ""
             melhor_odd_empate = 0.0
@@ -501,7 +500,7 @@ def process_arbitrage_report(banca_total: float = 1000.0, casas_usuario: list = 
         
         if calc:
             casas_usadas = {melhor_casa_odd1, melhor_casa_oddX, melhor_casa_odd2} - {""}
-            eh_surebet_valida = calc["is_surebet"] and (len(casas_usadas) > 1)
+            eh_surebet_valida = calc["is_surebet"] and (len(casas_usadas) > 1) and (calc["lucro_percentual"] <= 15.0)
 
             row = {
                 "Campeonato": campeonato,

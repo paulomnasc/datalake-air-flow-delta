@@ -1213,6 +1213,14 @@
     initFixtureOptions();
     setViewMode('list'); // Padrão em Lista no load
     
+    // Selecionar data de hoje por padrão no primeiro load do formulário
+    const urlParams = new URLSearchParams(window.location.search);
+    if (!urlParams.get('fixture_id')) {
+      setTodayDateFilter();
+    } else {
+      applyBetFilters();
+    }
+    
     const newBetModalEl = document.getElementById('newBetModal');
     if (newBetModalEl) {
       newBetModalEl.addEventListener('show.bs.modal', function() {

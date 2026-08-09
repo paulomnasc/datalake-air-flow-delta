@@ -956,7 +956,18 @@
               </button>
 
               <div class="d-flex gap-2">
-                <button class="btn-icon-link" onclick="openEditModal(<?= htmlspecialchars(json_encode($aposta, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)" title="Editar Aposta">
+                <button type="button" class="btn-icon-link" 
+                        data-id="<?= $aposta->id ?>" 
+                        data-home="<?= htmlspecialchars($aposta->time_casa ?? '', ENT_QUOTES, 'UTF-8') ?>" 
+                        data-away="<?= htmlspecialchars($aposta->time_fora ?? '', ENT_QUOTES, 'UTF-8') ?>" 
+                        data-mercado="<?= htmlspecialchars($aposta->mercado ?? '', ENT_QUOTES, 'UTF-8') ?>" 
+                        data-palpite="<?= htmlspecialchars($aposta->palpite ?? '', ENT_QUOTES, 'UTF-8') ?>" 
+                        data-odd="<?= number_format((float)($aposta->odd ?? 1.0), 2, '.', '') ?>" 
+                        data-valor="<?= number_format((float)($aposta->valor_aposta ?? 10.0), 2, '.', '') ?>" 
+                        data-tipo="<?= htmlspecialchars($aposta->tipo ?? 'Simples', ENT_QUOTES, 'UTF-8') ?>" 
+                        data-status="<?= htmlspecialchars($aposta->status ?? 'Pendente', ENT_QUOTES, 'UTF-8') ?>" 
+                        onclick="handleOpenEditModal(this)" 
+                        title="Editar Aposta">
                   <i class="bi bi-pencil"></i> Editar
                 </button>
                 <button class="btn-icon-link danger" onclick="handleDelete(<?= $aposta->id ?>)" title="Excluir Aposta">
@@ -1011,7 +1022,6 @@
             <div id="fixtureCountBadge" class="form-text text-muted small mt-1"></div>
           </div>
 
-          <div class="row">
           <div class="row">
             <div class="col-6 mb-3">
               <label class="form-label text-white">Time Casa *</label>
@@ -1607,21 +1617,110 @@
     });
   }
 
+  function showModalSafely(modalEl) {
+    if (!modalEl) return;
+
+    // Remove eventuais backdrops residuais travados
+    const oldBackdrops = document.querySelectorAll('.modal-backdrop');
+    oldBackdrops.forEach(b => b.remove());
+
+    // 1. Tenta API oficial do Bootstrap 5 (getOrCreateInstance)
+    try {
+      if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modalObj = bootstrap.Modal.getOrCreateInstance(modalEl);
+        if (modalObj) {
+          modalObj.show();
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Bootstrap 5 JS Modal error:', e);
+    }
+
+    // 2. Tenta jQuery Bootstrap (4/3)
+    try {
+      if (typeof $ !== 'undefined' && typeof $(modalEl).modal === 'function') {
+        $(modalEl).modal('show');
+        return;
+      }
+    } catch (e) {
+      console.warn('jQuery Modal error:', e);
+    }
+
+    // 3. Fallback CSS / DOM puro
+    modalEl.style.display = 'block';
+    modalEl.style.opacity = '1';
+    modalEl.classList.add('show');
+    modalEl.setAttribute('aria-modal', 'true');
+    modalEl.removeAttribute('aria-hidden');
+    document.body.classList.add('modal-open');
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop fade show';
+    backdrop.id = 'manual-backdrop-' + modalEl.id;
+    document.body.appendChild(backdrop);
+  }
+
+  function handleOpenEditModal(btn) {
+    if (!btn) return;
+    try {
+      const getAttr = (attr) => btn.getAttribute(attr) || '';
+      const id = getAttr('data-id');
+      const home = getAttr('data-home');
+      const away = getAttr('data-away');
+      const mercado = getAttr('data-mercado');
+      const palpite = getAttr('data-palpite');
+      const odd = getAttr('data-odd');
+      const valor = getAttr('data-valor');
+      const tipo = getAttr('data-tipo') || 'Simples';
+      const status = getAttr('data-status') || 'Pendente';
+
+      const setVal = (elemId, val) => {
+        const el = document.getElementById(elemId);
+        if (el) el.value = val;
+      };
+
+      setVal('editIdInput', id);
+      setVal('editTimeCasaInput', home);
+      setVal('editTimeForaInput', away);
+      setVal('editMercadoInput', mercado);
+      setVal('editPalpiteInput', palpite);
+      setVal('editOddInput', odd);
+      setVal('editValorInput', valor);
+      setVal('editCashoutInput', valor);
+      setVal('editTipoSelect', tipo);
+      setVal('editStatusSelect', status);
+
+      if (typeof calcEditGanhos === 'function') {
+        calcEditGanhos();
+      }
+    } catch (err) {
+      console.error('Error populating edit modal:', err);
+    }
+
+    showModalSafely(document.getElementById('editBetModal'));
+  }
+
+  function populateEditModal(btn) {
+    handleOpenEditModal(btn);
+  }
+
   function openEditModal(aposta) {
-    document.getElementById('editIdInput').value = aposta.id;
-    document.getElementById('editTimeCasaInput').value = aposta.time_casa;
-    document.getElementById('editTimeForaInput').value = aposta.time_fora;
-    document.getElementById('editMercadoInput').value = aposta.mercado;
-    document.getElementById('editPalpiteInput').value = aposta.palpite;
-    document.getElementById('editOddInput').value = aposta.odd;
-    document.getElementById('editValorInput').value = aposta.valor_aposta;
-    document.getElementById('editCashoutInput').value = aposta.valor_aposta;
+    if (!aposta) return;
+    document.getElementById('editIdInput').value = aposta.id || '';
+    document.getElementById('editTimeCasaInput').value = aposta.time_casa || '';
+    document.getElementById('editTimeForaInput').value = aposta.time_fora || '';
+    document.getElementById('editMercadoInput').value = aposta.mercado || '';
+    document.getElementById('editPalpiteInput').value = aposta.palpite || '';
+    document.getElementById('editOddInput').value = aposta.odd || '';
+    const val = aposta.valor_aposta || '10.00';
+    document.getElementById('editValorInput').value = val;
+    document.getElementById('editCashoutInput').value = val;
     document.getElementById('editTipoSelect').value = aposta.tipo || 'Simples';
     document.getElementById('editStatusSelect').value = aposta.status || 'Pendente';
     calcEditGanhos();
 
-    const editModal = new bootstrap.Modal(document.getElementById('editBetModal'));
-    editModal.show();
+    showModalSafely(document.getElementById('editBetModal'));
   }
 
   function submitEditBet(e) {

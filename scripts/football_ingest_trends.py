@@ -269,7 +269,7 @@ def build_natural_language_motivation(
     if home_in_crisis and not away_in_crisis:
         return (
             f"🎯 Fator Crucial: Alerta de Crise e Sequência Negativa do Mandante ({home_text} em U5J).\n"
-            f"Este palpite foi gerado devido à severa má fase do {home_team} em casa (0V em U5J e Clean Sheet de {home_cs_pct:.1f}%). "
+            f"Este palpite foi gerado devido à severa má fase do {home_team} em casa (0V em U5J e Zero Gols em Casa de {home_cs_pct:.1f}%). "
             f"Em contrapartida, o visitante {away_team} atravessa momento superior ({away_text}), invertendo a recomendação para {away_team} com cobertura no empate."
         )
     elif away_in_crisis and not home_in_crisis:
@@ -292,7 +292,7 @@ def build_natural_language_motivation(
             f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
             f"• 🏟️ Reajuste Realista do Fator Mando (+20% em casa / -12% fora): A força de jogar em seus domínios impulsiona a produção ofensiva do {home_team} ({home_goals_scored:.1f} g/j).\n"
             f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
-            f"• 🛡️ Isolamento de Oscilação Fora de Casa: O desempenho do {home_team} em casa é preservado ({home_cs_pct:.1f}% Clean Sheet), desconsiderando penalizações indevidas por perdas fora de casa."
+            f"• 🛡️ Isolamento de Oscilação Fora de Casa: O desempenho do {home_team} em casa é preservado ({home_cs_pct:.1f}% Zero Gols em Casa), desconsiderando penalizações indevidas por perdas fora de casa."
         )
     elif delta_goals >= -0.20:
         if odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0:
@@ -307,7 +307,7 @@ def build_natural_language_motivation(
             return (
                 f"🎯 Fator Crucial: Fator Mando de Campo (+20%) em Confronto Equilibrado.\n"
                 f"Apesar do equilíbrio nos números brutos ({home_team} xG: {home_goals_scored:.1f} / U5J: {home_text} vs {away_team} xG: {away_goals_scored:.1f} / U5J: {away_text}), "
-                f"o {home_team} prevaleceu pela combinação do Reajuste do Fator Mando (+20% em casa) com o Isolamento de Oscilações Fora ({home_cs_pct:.1f}% Clean Sheet).\n"
+                f"o {home_team} prevaleceu pela combinação do Reajuste do Fator Mando (+20% em casa) com o Isolamento de Oscilações Fora ({home_cs_pct:.1f}% Zero Gols em Casa).\n"
                 f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
                 f"A indicação garante a proteção total de reembolso (Empate Anula)."
             )
@@ -315,7 +315,7 @@ def build_natural_language_motivation(
             return (
                 f"🎯 Fator Crucial: Superioridade do Visitante Ponderada pelo Mercado.\n"
                 f"Apesar da vantagem de mando do {home_team}, o visitante {away_team} sobressaiu-se na análise combinada por apresentar desempenho superior ajustado "
-                f"({away_goals_scored:.1f} xG / U5J: {away_text} e {away_cs_pct:.1f}% Clean Sheet fora).\n"
+                f"({away_goals_scored:.1f} xG / U5J: {away_text} e {away_cs_pct:.1f}% Zero Gols Fora).\n"
                 f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
                 f"Indicação com proteção no empate."
             )
@@ -1048,15 +1048,15 @@ def main():
                 # Cenário Aprovado pelo Gatekeeper de Cartões
                 op1 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
                 op2 = f"Under 4.5 ({u45}% | Odd Justa: {odd_u45})"
-                prediction_text = f"🛡️ Estratégia Under (xC: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
+                prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
             elif exp_cards <= 4.80:
                 # Cenário de expectativa moderada
                 op1 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
                 op2 = f"Under 6.5 ({u65}% | Odd Justa: {odd_u65})"
-                prediction_text = f"🛡️ Estratégia Under (xC: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
+                prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
             else:
                 # Trava NO_BET: Risco elevado para entradas Under (xC > 4.20 ou probabilidade < 75%)
-                prediction_text = f"🚫 NO_BET: Partida com xC elevado ({exp_cards} cartões). Árbitro {referee_name} ({yellows} amarelos/jogo) e média combinada dos times ({team_cards_combined:.1f}) tornam o Under arriscado. Entrada não recomendada."
+                prediction_text = f"🚫 NO_BET: Partida com Expectativa de Cartões elevada ({exp_cards} cartões). Árbitro {referee_name} ({yellows} amarelos/jogo) e média combinada dos times ({team_cards_combined:.1f}) tornam o Under arriscado. Entrada não recomendada."
 
 
 

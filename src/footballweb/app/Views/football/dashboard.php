@@ -157,74 +157,87 @@ if (!function_exists('calculate_poisson_php')) {
 
 if (!function_exists('getBetDecisionTree')) {
     function getBetDecisionTree($fix) {
+        $rawText = $fix->prediction_text ?? '';
+        $isNoBet = (strpos($rawText, 'NO_BET') !== false || strpos($rawText, 'não recomendada') !== false);
+        
+        $xc = null;
+        if (!empty($rawText) && preg_match('/(?:xC|Expectativa(?:\s+de\s+[Cc]artões)?(?::|\s+elevad[ao])?)\s*\(?(\d+\.\d+|\d+)/i', $rawText, $mXc)) {
+            $xc = (float)$mXc[1];
+        }
+
         $homeAvg = isset($fix->home_avg_cards) ? (float)$fix->home_avg_cards : 2.0;
         $awayAvg = isset($fix->away_avg_cards) ? (float)$fix->away_avg_cards : 2.0;
         $combinedAvg = $homeAvg + $awayAvg;
         $refAvg = isset($fix->average_yellow_cards) ? (float)$fix->average_yellow_cards : 4.2;
         $refFouls = isset($fix->average_fouls) ? (float)$fix->average_fouls : 24.0;
         
-        $foulContext = $combinedAvg * ($refFouls / 24.0);
-        $xc = round(($combinedAvg * 0.50) + ($refAvg * 0.35) + ($foulContext * 0.15), 2);
-        
+        if ($xc === null) {
+            $foulContext = $combinedAvg * ($refFouls / 24.0);
+            $xc = round(($combinedAvg * 0.50) + ($refAvg * 0.35) + ($foulContext * 0.15), 2);
+        }
+
         $u35 = calculate_poisson_php($xc, 3.5)['under'];
         $u45 = calculate_poisson_php($xc, 4.5)['under'];
         $u55 = calculate_poisson_php($xc, 5.5)['under'];
         $u65 = calculate_poisson_php($xc, 6.5)['under'];
-        
-        if ($xc <= 3.50) {
-            return [
-                'market'        => 'Menos de Cartões',
-                'line_tag'      => 'UNDER 4.5 🛡️',
-                'badge_bg'      => 'background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5);',
-                'region'        => 'Expectativa xC',
-                'region_short'  => 'xC: ' . $xc,
-                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
-                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
-                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
-                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
-                'rationale'     => 'Excelente histórico disciplinado (xC = ' . $xc . '). Opção 1: Under 4.5 (' . $u45 . '%) | Opção 2: Under 5.5 (' . $u55 . '%).'
-            ];
-        } elseif ($xc <= 4.80) {
-            return [
-                'market'        => 'Menos de Cartões',
-                'line_tag'      => 'UNDER 5.5 🛡️',
-                'badge_bg'      => 'background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5);',
-                'region'        => 'Expectativa xC',
-                'region_short'  => 'xC: ' . $xc,
-                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
-                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
-                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
-                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
-                'rationale'     => 'Expectativa contida/moderada (xC = ' . $xc . '). Opção 1: Under 5.5 (' . $u55 . '%) | Opção 2: Under 6.5 (' . $u65 . '%).'
-            ];
-        } elseif ($xc <= 5.80 && $u65 >= 60.0) {
-            return [
-                'market'        => 'Menos de Cartões',
-                'line_tag'      => 'UNDER 6.5 🛡️',
-                'badge_bg'      => 'background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5);',
-                'region'        => 'Expectativa xC',
-                'region_short'  => 'xC: ' . $xc,
-                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
-                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
-                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
-                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
-                'rationale'     => 'Expectativa moderada (xC = ' . $xc . '). Opção 1: Under 6.5 (' . $u65 . '%) | Opção 2: Under 5.5 (' . $u55 . '%).'
-            ];
-        } else {
+
+        if ($isNoBet || $xc > 4.80) {
             return [
                 'market'        => 'Entrada Não Recomendada',
                 'line_tag'      => 'NO BET 🚫',
                 'badge_bg'      => 'background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5);',
-                'region'        => 'Expectativa xC',
-                'region_short'  => 'xC: ' . $xc,
+                'box_border'    => '#ef4444',
+                'region'        => 'Expectativa de Cartões',
+                'region_short'  => 'Exp. Cartões: ' . number_format($xc, 2),
                 'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
                 'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
                 'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
                 'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
-                'rationale'     => 'Expectativa de cartões elevada (xC = ' . $xc . '). Risco elevado para Under e apostas Over bloqueadas pelo sistema.'
+                'rationale'     => 'Expectativa de cartões elevada (' . number_format($xc, 2) . ' cartões). Risco elevado para Under e apostas Over bloqueadas pelo sistema.'
+            ];
+        } elseif ($xc <= 3.50) {
+            return [
+                'market'        => 'Menos de Cartões',
+                'line_tag'      => 'UNDER 4.5 🛡️',
+                'badge_bg'      => 'background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5);',
+                'box_border'    => '#10b981',
+                'region'        => 'Expectativa de Cartões',
+                'region_short'  => 'Exp. Cartões: ' . number_format($xc, 2),
+                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
+                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
+                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
+                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
+                'rationale'     => 'Excelente histórico disciplinado (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 4.5 (' . $u45 . '%) | Opção 2: Under 5.5 (' . $u55 . '%).'
+            ];
+        } elseif ($xc <= 4.20) {
+            return [
+                'market'        => 'Menos de Cartões',
+                'line_tag'      => 'UNDER 5.5 🛡️',
+                'badge_bg'      => 'background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5);',
+                'box_border'    => '#10b981',
+                'region'        => 'Expectativa de Cartões',
+                'region_short'  => 'Exp. Cartões: ' . number_format($xc, 2),
+                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
+                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
+                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
+                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
+                'rationale'     => 'Baixa expectativa de cartões (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 5.5 (' . $u55 . '%) | Opção 2: Under 4.5 (' . $u45 . '%).'
+            ];
+        } else { // 4.20 < $xc <= 4.80
+            return [
+                'market'        => 'Menos de Cartões',
+                'line_tag'      => 'UNDER 6.5 🛡️',
+                'badge_bg'      => 'background: rgba(245, 158, 11, 0.25); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.5);',
+                'box_border'    => '#f59e0b',
+                'region'        => 'Expectativa de Cartões',
+                'region_short'  => 'Exp. Cartões: ' . number_format($xc, 2),
+                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
+                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
+                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
+                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
+                'rationale'     => 'Expectativa moderada (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 6.5 (' . $u65 . '%) | Opção 2: Under 5.5 (' . $u55 . '%).'
             ];
         }
-
     }
 }
 
@@ -877,9 +890,9 @@ if (!function_exists('getBetDecisionTree')) {
         font-size: 1.1rem;
     }
 
-    .bet-prob-value.high { color: #f47c20; }
-    .bet-prob-value.medium { color: #fbbf24; }
-    .bet-prob-value.low { color: #10b981; }
+    .bet-prob-value.safe, .bet-prob-value.high { color: #34d399; }
+    .bet-prob-value.moderate, .bet-prob-value.medium { color: #fbbf24; }
+    .bet-prob-value.nobet, .bet-prob-value.low { color: #f87171; }
 
     .bet-progress-track {
         height: 5px;
@@ -893,9 +906,9 @@ if (!function_exists('getBetDecisionTree')) {
         border-radius: 4px;
     }
 
-    .bet-progress-fill.high { background: #f47c20; }
-    .bet-progress-fill.medium { background: #fbbf24; }
-    .bet-progress-fill.low { background: #10b981; }
+    .bet-progress-fill.safe, .bet-progress-fill.high { background: linear-gradient(90deg, #10b981, #34d399); }
+    .bet-progress-fill.moderate, .bet-progress-fill.medium { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .bet-progress-fill.nobet, .bet-progress-fill.low { background: linear-gradient(90deg, #dc2626, #ef4444); }
 
     .bet-pred-text {
         font-size: 0.84rem;
@@ -907,9 +920,9 @@ if (!function_exists('getBetDecisionTree')) {
         border-left: 3px solid #f47c20;
     }
 
-    .bet-pred-text.high { border-left-color: #f47c20; }
-    .bet-pred-text.medium { border-left-color: #fbbf24; }
-    .bet-pred-text.low { border-left-color: #10b981; }
+    .bet-pred-text.safe, .bet-pred-text.high { border-left-color: #34d399; background: rgba(16, 185, 129, 0.05); }
+    .bet-pred-text.moderate, .bet-pred-text.medium { border-left-color: #fbbf24; background: rgba(245, 158, 11, 0.05); }
+    .bet-pred-text.nobet, .bet-pred-text.low { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.05); color: #fca5a5; }
 
     /* Betano style footer of cards */
     .bet-referee-bar {
@@ -1811,39 +1824,53 @@ if (!function_exists('getBetDecisionTree')) {
                             $isFinished = in_array($statusUpper, ['FT', 'AET', 'PEN', 'MATCH FINISHED', 'FINISHED']);
                             $totalLiveCards = (int)($fix->yellow_cards_home ?? 0) + (int)($fix->yellow_cards_away ?? 0) + (int)($fix->red_cards_home ?? 0) + (int)($fix->red_cards_away ?? 0);
 
-                            $homeAvgC = isset($fix->home_avg_cards) ? (float)$fix->home_avg_cards : 2.0;
-                            $awayAvgC = isset($fix->away_avg_cards) ? (float)$fix->away_avg_cards : 2.0;
-                            $refAvgC = isset($fix->average_yellow_cards) ? (float)$fix->average_yellow_cards : 4.2;
-                            $refFouls = isset($fix->average_fouls) ? (float)$fix->average_fouls : 24.0;
-                            
-                            $combinedAvg = $homeAvgC + $awayAvgC;
-                            $foulContext = $combinedAvg * ($refFouls / 24.0);
-                            $xc = round(($combinedAvg * 0.50) + ($refAvgC * 0.35) + ($foulContext * 0.15), 2);
+                            $rawPredText = $fix->prediction_text ?? '';
+                            $isNoBetFix = (strpos($rawPredText, 'NO_BET') !== false || strpos($rawPredText, 'não recomendada') !== false);
+
+                            $xc = null;
+                            if (!empty($rawPredText) && preg_match('/(?:xC|Expectativa(?:\s+de\s+[Cc]artões)?(?::|\s+elevad[ao])?)\s*\(?(\d+\.\d+|\d+)/i', $rawPredText, $mXc)) {
+                                $xc = (float)$mXc[1];
+                            }
+
+                            if ($xc === null) {
+                                $homeAvgC = isset($fix->home_avg_cards) ? (float)$fix->home_avg_cards : 2.0;
+                                $awayAvgC = isset($fix->away_avg_cards) ? (float)$fix->away_avg_cards : 2.0;
+                                $refAvgC = isset($fix->average_yellow_cards) ? (float)$fix->average_yellow_cards : 4.2;
+                                $refFouls = isset($fix->average_fouls) ? (float)$fix->average_fouls : 24.0;
+                                
+                                $combinedAvg = $homeAvgC + $awayAvgC;
+                                $foulContext = $combinedAvg * ($refFouls / 24.0);
+                                $xc = round(($combinedAvg * 0.50) + ($refAvgC * 0.35) + ($foulContext * 0.15), 2);
+                            }
 
                             $u45 = calculate_poisson_php($xc, 4.5)['under'];
                             $u55 = calculate_poisson_php($xc, 5.5)['under'];
                             $u65 = calculate_poisson_php($xc, 6.5)['under'];
 
-                            if ($isFinished && $totalLiveCards <= 5 && $xc <= 5.80) {
+                            if ($isFinished && $totalLiveCards <= 5 && $xc <= 4.80) {
                                 $prob = 100.0;
                                 $probDisplay = '100% (BATEU 🟢)';
-                                $class = 'high';
+                                $class = 'safe';
+                            } elseif ($isNoBetFix || $xc > 4.80) {
+                                $prob = 0.0;
+                                $probDisplay = 'NO BET (Risco 🚫)';
+                                $class = 'nobet';
                             } elseif ($xc <= 3.50) {
                                 $prob = $u45;
                                 $probDisplay = 'Under 4.5: ' . number_format($prob, 2) . '%';
-                                $class = 'high';
-                            } elseif ($xc <= 4.80) {
+                                $class = 'safe';
+                            } elseif ($xc <= 4.20) {
                                 $prob = $u55;
                                 $probDisplay = 'Under 5.5: ' . number_format($prob, 2) . '%';
-                                $class = 'high';
-                            } elseif ($xc <= 5.80 && $u65 >= 60.0) {
+                                $class = 'safe';
+                            } elseif ($xc <= 4.80) {
                                 $prob = $u65;
                                 $probDisplay = 'Under 6.5: ' . number_format($prob, 2) . '%';
-                                $class = 'high';
+                                $class = 'moderate';
                             } else {
                                 $prob = 0.0;
                                 $probDisplay = 'NO BET (Risco 🚫)';
-                                $class = 'low';
+                                $class = 'nobet';
                             }
 
 
@@ -1914,7 +1941,7 @@ if (!function_exists('getBetDecisionTree')) {
                              $isFixtureInAnyBets  = in_array((int)$fix->fixture_id, $allBetFixtureIds ?? []);
                              $hasAposta = $isFixtureInUserBets || $isFixtureInAnyBets;
                              ?>
-                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= ($class === 'high' && strpos($fix->prediction_text, 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
+                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
@@ -2052,7 +2079,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cleansheets') ?>">
                                                         <i class="bi bi-shield-fill-check"></i>
                                                         <span class="label"><?= lang('App.clean_sheets') ?>:</span>
-                                                        <span class="val"><?= round($fix->home_clean_sheets_pct) ?>%</span>
+                                                        <span class="val"><?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : 'Não localizado' ?></span>
                                                     </div>
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_corners') ?>">
                                                         <i class="bi bi-flag-fill"></i>
@@ -2096,7 +2123,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cleansheets') ?>">
                                                         <i class="bi bi-shield-fill-check"></i>
                                                         <span class="label"><?= lang('App.clean_sheets') ?>:</span>
-                                                        <span class="val"><?= round($fix->away_clean_sheets_pct) ?>%</span>
+                                                        <span class="val"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : 'Não localizado' ?></span>
                                                     </div>
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_corners') ?>">
                                                         <i class="bi bi-flag-fill"></i>
@@ -2186,7 +2213,7 @@ if (!function_exists('getBetDecisionTree')) {
 
                                     <!-- Árvore de Decisão: Sugestão de Aposta -->
                                     <?php $decision = getBetDecisionTree($fix); ?>
-                                    <div class="bet-decision-tree-box" style="margin: 10px 0; padding: 10px 12px; background: rgba(15, 23, 42, 0.85); border-radius: 8px; border-left: 4px solid #f47c20; font-size: 0.8rem; color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                                    <div class="bet-decision-tree-box" style="margin: 10px 0; padding: 10px 12px; background: rgba(15, 23, 42, 0.85); border-radius: 8px; border-left: 4px solid <?= $decision['box_border'] ?? '#f47c20' ?>; font-size: 0.8rem; color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
                                             <span style="font-weight: 700; color: #f47c20; display: flex; align-items: center; gap: 5px; font-size: 0.82rem;">
                                                 <i class="bi bi-card-amber"></i> Mercado de Cartões (Árvore de Decisão):
@@ -2198,7 +2225,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         
                                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; font-size: 0.72rem; text-align: center; background: rgba(30, 41, 59, 0.6); padding: 5px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
                                             <div style="padding: 2px;">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🌎 Região</span>
+                                                <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🌎 Expectativa</span>
                                                 <strong style="color: #e2e8f0; font-size: 0.72rem;"><?= $decision['region_short'] ?></strong>
                                             </div>
                                             <div style="padding: 2px; border-left: 1px solid rgba(255,255,255,0.08); border-right: 1px solid rgba(255,255,255,0.08);">
@@ -2451,9 +2478,9 @@ if (!function_exists('getBetDecisionTree')) {
                                                     <td style="text-align: right; padding: 4px; color: #38bdf8;"><?= number_format($fix->away_avg_goals_scored ?? 0, 1) ?> Pró / <?= number_format($fix->away_avg_goals_conceded ?? 0, 1) ?> Sof</td>
                                                 </tr>
                                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                                    <td style="text-align: left; padding: 4px; color: #10b981;"><?= round($fix->home_clean_sheets_pct ?? 0) ?>%</td>
-                                                    <td style="padding: 4px; color: #94a3b8;">Clean Sheet</td>
-                                                    <td style="text-align: right; padding: 4px; color: #10b981;"><?= round($fix->away_clean_sheets_pct ?? 0) ?>%</td>
+                                                    <td style="text-align: left; padding: 4px; color: #10b981;"><?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : 'Não localizado' ?></td>
+                                                    <td style="padding: 4px; color: #94a3b8;">Zero Gols em Casa</td>
+                                                    <td style="text-align: right; padding: 4px; color: #10b981;"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : 'Não localizado' ?></td>
                                                 </tr>
                                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                                     <td style="text-align: left; padding: 4px; color: #a78bfa;"><?= number_format($fix->home_avg_corners ?? 0, 1) ?></td>
@@ -2572,7 +2599,7 @@ if (!function_exists('getBetDecisionTree')) {
                                             '<?= $prob ?>',
                                             '<?= $fix->home_avg_goals_scored ?? '' ?>',
                                             '<?= $fix->home_avg_goals_conceded ?? '' ?>',
-                                            '<?= $fix->home_clean_sheets_pct ?? '' ?>',
+                                            '<?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : 'Não localizado' ?>',
                                             '<?= $fix->home_avg_corners ?? '' ?>',
                                             '<?= $fix->home_avg_cards ?? '' ?>',
                                             '<?= $fix->away_avg_goals_scored ?? '' ?>',
@@ -2789,9 +2816,9 @@ if (!function_exists('getBetDecisionTree')) {
             messagesArea.innerHTML = '';
             
             const welcomeText = `Fala, apostador! Sou o Grok. Analisando o jogo **${homeTeam} vs ${awayTeam}** (${leagueName}) com probabilidade de **${prob}%** para Over 4.5 Cartões.\n\n`
-                + `Além de cartões, estou com todas as estatísticas do card carregadas (Média de Gols, Clean Sheets, Escanteios, Rigor do Árbitro, etc.).\n\n`
+                + `Além de cartões, estou com todas as estatísticas do card carregadas (Média de Gols, Zero Gols em Casa / Fora, Escanteios, Rigor do Árbitro, etc.).\n\n`
                 + `Você pode me perguntar sobre:\n`
-                + `* **Mercado de Gols** (Média de marcados/sofridos e Clean Sheets);\n`
+                + `* **Mercado de Gols** (Média de marcados/sofridos e Zero Gols em Casa);\n`
                 + `* **Mercado de Escanteios** (Média de cantos de cada equipe);\n`
                 + `* **Mercados de Cartões Alternativos/Híbridos** (ex: Ambas recebem 2+, cartões por tempo/equipe).\n\n`
                 + `Como quer montar sua estratégia para esse jogo hoje?`;

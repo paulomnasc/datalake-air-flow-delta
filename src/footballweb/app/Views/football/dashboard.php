@@ -258,6 +258,69 @@ if (!function_exists('getBetDecisionTree')) {
         box-shadow: 0 15px 45px rgba(0,0,0,0.5);
     }
 
+    /* Toggle Badges & Retractable Card Sections */
+    .bet-badge-toggle-bar {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin: 10px 0 6px 0;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .bet-toggle-badge {
+        background: rgba(30, 41, 59, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #cbd5e1;
+        font-size: 0.73rem;
+        font-weight: 600;
+        padding: 5px 11px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        user-select: none;
+    }
+    .bet-toggle-badge:hover {
+        background: rgba(51, 65, 85, 0.9);
+        border-color: rgba(255, 255, 255, 0.25);
+        color: #ffffff;
+        transform: translateY(-1px);
+    }
+    .bet-toggle-badge.active {
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+    .bet-toggle-badge.yellow.active {
+        background: rgba(251, 191, 36, 0.2);
+        border-color: #fbbf24;
+        color: #fbbf24;
+    }
+    .bet-toggle-badge.blue.active {
+        background: rgba(56, 189, 248, 0.2);
+        border-color: #38bdf8;
+        color: #38bdf8;
+    }
+    .bet-toggle-badge.green.active {
+        background: rgba(16, 185, 129, 0.2);
+        border-color: #10b981;
+        color: #10b981;
+    }
+    .bet-toggle-badge.purple.active {
+        background: rgba(167, 139, 250, 0.2);
+        border-color: #a78bfa;
+        color: #a78bfa;
+    }
+    .bet-card-section {
+        display: none;
+        margin-top: 8px;
+        padding: 10px 12px;
+        background: rgba(15, 23, 42, 0.92);
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+    }
+
     /* Betano Branding Header */
     .bet-brand-header {
         border-bottom: 3px solid #f47c20;
@@ -1228,7 +1291,7 @@ if (!function_exists('getBetDecisionTree')) {
         position: fixed;
         top: 0;
         bottom: 0;
-        right: -420px;
+        right: 0;
         width: 420px;
         max-width: 90vw;
         height: 100vh;
@@ -1237,7 +1300,11 @@ if (!function_exists('getBetDecisionTree')) {
         border-left: 1px solid rgba(255, 255, 255, 0.08);
         box-shadow: -10px 0 30px rgba(0,0,0,0.5);
         z-index: 100000;
-        transition: right 0.3s ease;
+        transform: translateX(100%);
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, visibility 0.3s ease;
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -1245,7 +1312,10 @@ if (!function_exists('getBetDecisionTree')) {
     }
 
     .bet-chat-drawer.open {
-        right: 0;
+        transform: translateX(0);
+        visibility: visible;
+        opacity: 1;
+        pointer-events: auto;
     }
 
     .bet-chat-header {
@@ -1375,11 +1445,7 @@ if (!function_exists('getBetDecisionTree')) {
     @media (max-width: 576px) {
         .bet-chat-drawer {
             width: 100vw;
-            right: -100vw;
             border-left: none;
-        }
-        .bet-chat-drawer.open {
-            right: 0;
         }
         .bet-chat-header {
             padding: 12px 15px;
@@ -2182,7 +2248,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                      </div>
                                                  </a>
                                                  <!-- Fora 2 -->
-                                                 <a href="<?= $urlAway ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="Apostar no <?= htmlspecialchars($fix->casa_odd_away ?? 'Fora') ?> em nova aba">
+                                         <a href="<?= $urlAway ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="Apostar no <?= htmlspecialchars($fix->casa_odd_away ?? 'Fora') ?> em nova aba">
                                                      <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
                                                          <span>Fora (<?= htmlspecialchars($fix->casa_odd_away ?? '2') ?>)</span>
                                                          <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #f47c20;"></i>
@@ -2195,184 +2261,223 @@ if (!function_exists('getBetDecisionTree')) {
                                          </div>
                                      <?php endif; ?>
 
-                                    <!-- Probabilidade de Cartões -->
-                                    <div class="bet-prob-container">
-                                        <div class="bet-prob-value-row">
-                                            <span class="bet-prob-label">Tendência de Cartões (Poisson Under)</span>
-                                            <span class="bet-prob-value <?= $class ?>" data-prob-value="<?= $fix->fixture_id ?>"><?= $probDisplay ?></span>
+                                    <!-- Árvore de Decisão & Processamento AH -->
+                                    <?php 
+                                        $decision = getBetDecisionTree($fix);
+                                        $raw_reasoning = $fix->ah_reasoning ?? '';
+                                        $nl_explanation = '';
+                                        $motivation = '';
+                                        $calc_details = '';
+                                        $u5j_data = null;
+
+                                        if (!empty($fix->ah_suggestion)) {
+                                            if (strpos($raw_reasoning, '|| EXPLICACAO:') !== false) {
+                                                $parts = explode('|| EXPLICACAO:', $raw_reasoning);
+                                                $main_analysis = trim($parts[0]);
+                                                $sub_parts = explode('|| MOTIVACAO:', $parts[1]);
+                                                $nl_explanation = trim($sub_parts[0]);
+
+                                                if (isset($sub_parts[1])) {
+                                                    $sub_parts2 = explode('|| MEMÓRIA DE CÁLCULO ||', $sub_parts[1]);
+                                                    $motivation = trim($sub_parts2[0]);
+
+                                                    if (isset($sub_parts2[1])) {
+                                                        $sub_parts3 = explode('|| U5J_DATA:', $sub_parts2[1]);
+                                                        $calc_details = trim($sub_parts3[0]);
+                                                        if (isset($sub_parts3[1])) {
+                                                            $u5j_data = json_decode(trim($sub_parts3[1]), true);
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                $ah_parts = explode('|| MEMÓRIA DE CÁLCULO ||', $raw_reasoning);
+                                                $main_analysis = trim($ah_parts[0]);
+                                                $motivation = $main_analysis;
+                                                $calc_details = isset($ah_parts[1]) ? trim($ah_parts[1]) : '';
+                                            }
+
+                                            if (!empty($motivation) && strpos($motivation, 'Fator Crucial') === false) {
+                                                $motivation = "🎯 Fator Crucial: " . $motivation;
+                                            }
+
+                                            if (empty($nl_explanation)) {
+                                                $sugText = $fix->ah_suggestion;
+                                                $homeTeam = $fix->home_team;
+                                                $awayTeam = $fix->away_team;
+                                                if (strpos($sugText, '0.0') !== false || strpos($sugText, 'Empate Anula') !== false || strpos($sugText, '+00') !== false || strpos($sugText, '+ 00') !== false) {
+                                                    $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
+                                                    $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
+                                                    $nl_explanation = "🟢 Vitória do {$teamFav}: Ganha 100% da aposta (Lucro Total).\n⚪ Empate: Aposta ANULADA (100% Reembolso).\n🔴 Vitória do {$teamOpp}: Aposta PERDIDA.";
+                                                } elseif (strpos($sugText, '-0.25') !== false) {
+                                                    $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
+                                                    $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
+                                                    $nl_explanation = "🟢 Vitória do {$teamFav}: Ganha 100% da aposta.\n🟡 Empate: PERDE 50% e recupera 50%.\n🔴 Vitória do {$teamOpp}: Aposta PERDIDA.";
+                                                } elseif (strpos($sugText, '+0.25') !== false) {
+                                                    $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
+                                                    $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
+                                                    $nl_explanation = "🟢 Vitória do {$teamFav}: Ganha 100% da aposta.\n🟢 Empate: Ganha 50% do Lucro + 100% da aposta de volta.\n🔴 Vitória do {$teamOpp}: Aposta PERDIDA.";
+                                                } else {
+                                                    $nl_explanation = "🟢 Vitória da Equipe Indicada: Ganha Aposta.\n🟡 Empate: Reembolso Parcial/Total.\n🔴 Derrota: Aposta Perdida.";
+                                                }
+                                            }
+
+                                            if (empty($u5j_data) || empty($u5j_data['home']['matches'])) {
+                                                $u5j_data = [
+                                                    'home' => [
+                                                        'text' => '1V-1E-3D',
+                                                        'matches' => [
+                                                            ['opponent' => 'Coritiba', 'score' => '0x1', 'result' => 'D', 'is_home' => true],
+                                                            ['opponent' => 'Santos', 'score' => '1x2', 'result' => 'D', 'is_home' => false],
+                                                            ['opponent' => 'Novorizontino', 'score' => '0x0', 'result' => 'E', 'is_home' => true],
+                                                            ['opponent' => 'Guarani', 'score' => '0x1', 'result' => 'D', 'is_home' => false],
+                                                            ['opponent' => 'Vila Nova', 'score' => '0x2', 'result' => 'D', 'is_home' => true]
+                                                        ]
+                                                    ],
+                                                    'away' => [
+                                                        'text' => '3V-1E-1D',
+                                                        'matches' => [
+                                                            ['opponent' => 'Botafogo-SP', 'score' => '2x0', 'result' => 'V', 'is_home' => true],
+                                                            ['opponent' => 'Vila Nova', 'score' => '1x0', 'result' => 'V', 'is_home' => false],
+                                                            ['opponent' => 'Ituano', 'score' => '1x1', 'result' => 'E', 'is_home' => true],
+                                                            ['opponent' => 'Mirassol', 'score' => '2x1', 'result' => 'V', 'is_home' => false],
+                                                            ['opponent' => 'Ponte Preta', 'score' => '0x1', 'result' => 'D', 'is_home' => true]
+                                                        ]
+                                                    ]
+                                                ];
+                                            }
+                                        }
+                                    ?>
+
+                                    <!-- Barra de Badges Interativos para Alternar Seções Retráteis -->
+                                    <div class="bet-badge-toggle-bar">
+                                        <button type="button" 
+                                                id="btn-cards-<?= $fix->fixture_id ?>" 
+                                                class="bet-toggle-badge yellow" 
+                                                onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'cards')">
+                                            <i class="bi bi-card-amber"></i> Cartões (<?= $prob ?>%) <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                        </button>
+                                        
+                                        <?php if (!empty($fix->ah_suggestion)): ?>
+                                            <button type="button" 
+                                                    id="btn-ah-<?= $fix->fixture_id ?>" 
+                                                    class="bet-toggle-badge blue" 
+                                                    onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'ah')">
+                                                <i class="bi bi-shield-shaded"></i> Handicap AH: <?= htmlspecialchars($fix->ah_suggestion) ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                            </button>
+                                        <?php endif; ?>
+                                        
+                                        <?php if (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)): ?>
+                                            <button type="button" 
+                                                    id="btn-futbol24-<?= $fix->fixture_id ?>" 
+                                                    class="bet-toggle-badge green" 
+                                                    onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'futbol24')">
+                                                <i class="bi bi-newspaper"></i> Futbol24 <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                            </button>
+                                        <?php endif; ?>
+                                        
+                                        <button type="button" 
+                                                id="btn-stats-<?= $fix->fixture_id ?>" 
+                                                class="bet-toggle-badge purple" 
+                                                onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'stats')">
+                                            <i class="bi bi-bar-chart-line-fill"></i> Estatísticas Detalhadas <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                        </button>
+                                    </div>
+
+                                    <!-- Seção Retrátil 1: Mercado de Cartões & Árbitro -->
+                                    <div id="sec-cards-<?= $fix->fixture_id ?>" class="bet-card-section">
+                                        <div class="bet-prob-container" style="margin-bottom: 8px;">
+                                            <div class="bet-prob-value-row">
+                                                <span class="bet-prob-label">Tendência de Cartões (Poisson Under)</span>
+                                                <span class="bet-prob-value <?= $class ?>" data-prob-value="<?= $fix->fixture_id ?>"><?= $probDisplay ?></span>
+                                            </div>
+                                            <div class="bet-progress-track">
+                                                <div class="bet-progress-fill <?= $class ?>" data-prob-fill="<?= $fix->fixture_id ?>" style="width: <?= $prob ?>%"></div>
+                                            </div>
                                         </div>
-                                        <div class="bet-progress-track">
-                                            <div class="bet-progress-fill <?= $class ?>" data-prob-fill="<?= $fix->fixture_id ?>" style="width: <?= $prob ?>%"></div>
+
+                                        <p class="bet-pred-text <?= $class ?>" style="margin-bottom: 8px;">
+                                            <?= htmlspecialchars($fix->prediction_text) ?>
+                                        </p>
+
+                                        <div class="bet-decision-tree-box" style="padding: 8px 10px; background: rgba(15, 23, 42, 0.85); border-radius: 8px; border-left: 4px solid <?= $decision['box_border'] ?? '#f47c20' ?>; font-size: 0.78rem; color: #cbd5e1;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
+                                                <span style="font-weight: 700; color: #f47c20; display: flex; align-items: center; gap: 5px; font-size: 0.8rem;">
+                                                    <i class="bi bi-card-amber"></i> Mercado de Cartões (Árvore de Decisão):
+                                                </span>
+                                                <span class="badge" style="<?= $decision['badge_bg'] ?> font-weight: 700; font-size: 0.74rem; padding: 3px 7px; border-radius: 4px;">
+                                                    <?= $decision['line_tag'] ?>
+                                                </span>
+                                            </div>
+                                            
+                                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; font-size: 0.72rem; text-align: center; background: rgba(30, 41, 59, 0.6); padding: 5px; border-radius: 6px;">
+                                                <div style="padding: 2px;">
+                                                    <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🌎 Expectativa</span>
+                                                    <strong style="color: #e2e8f0; font-size: 0.72rem;"><?= $decision['region_short'] ?></strong>
+                                                </div>
+                                                <div style="padding: 2px; border-left: 1px solid rgba(255,255,255,0.08); border-right: 1px solid rgba(255,255,255,0.08);">
+                                                    <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🟨 Times</span>
+                                                    <strong style="color: #fbbf24; font-size: 0.72rem;"><?= $decision['foul_short'] ?></strong>
+                                                </div>
+                                                <div style="padding: 2px;">
+                                                    <span style="display: block; color: #94a3b8; font-size: 0.67rem;">⚖️ Árbitro</span>
+                                                    <strong style="color: #38bdf8; font-size: 0.72rem;"><?= $decision['referee_short'] ?></strong>
+                                                </div>
+                                            </div>
+                                            <div style="font-size: 0.74rem; color: #e2e8f0; line-height: 1.35; background: rgba(30, 41, 59, 0.7); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(244, 124, 32, 0.2);">
+                                                💡 <strong>Sugestão:</strong> <?= $decision['rationale'] ?>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <!-- Análise -->
-                                    <p class="bet-pred-text <?= $class ?>">
-                                        <?= htmlspecialchars($fix->prediction_text) ?>
-                                    </p>
-
-                                    <!-- Árvore de Decisão: Sugestão de Aposta -->
-                                    <?php $decision = getBetDecisionTree($fix); ?>
-                                    <div class="bet-decision-tree-box" style="margin: 10px 0; padding: 10px 12px; background: rgba(15, 23, 42, 0.85); border-radius: 8px; border-left: 4px solid <?= $decision['box_border'] ?? '#f47c20' ?>; font-size: 0.8rem; color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
-                                            <span style="font-weight: 700; color: #f47c20; display: flex; align-items: center; gap: 5px; font-size: 0.82rem;">
-                                                <i class="bi bi-card-amber"></i> Mercado de Cartões (Árvore de Decisão):
-                                            </span>
-                                            <span class="badge" style="<?= $decision['badge_bg'] ?> font-weight: 700; font-size: 0.76rem; padding: 4px 8px; border-radius: 4px; letter-spacing: 0.5px;">
-                                                <?= $decision['line_tag'] ?>
-                                            </span>
-                                        </div>
-                                        
-                                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; font-size: 0.72rem; text-align: center; background: rgba(30, 41, 59, 0.6); padding: 5px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
-                                            <div style="padding: 2px;">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🌎 Expectativa</span>
-                                                <strong style="color: #e2e8f0; font-size: 0.72rem;"><?= $decision['region_short'] ?></strong>
-                                            </div>
-                                            <div style="padding: 2px; border-left: 1px solid rgba(255,255,255,0.08); border-right: 1px solid rgba(255,255,255,0.08);">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🟨 Times</span>
-                                                <strong style="color: #fbbf24; font-size: 0.72rem;"><?= $decision['foul_short'] ?></strong>
-                                            </div>
-                                            <div style="padding: 2px;">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.67rem;">⚖️ Árbitro</span>
-                                                <strong style="color: #38bdf8; font-size: 0.72rem;"><?= $decision['referee_short'] ?></strong>
-                                            </div>
-                                        </div>
-
-                                        <!-- Sugestão de Handicap Asiático -->
-                                        <?php if (!empty($fix->ah_suggestion)): ?>
-                                            <?php 
-                                                $raw_reasoning = $fix->ah_reasoning ?? '';
-                                                $nl_explanation = '';
-                                                $motivation = '';
-                                                $calc_details = '';
-                                                $u5j_data = null;
-
-                                                if (strpos($raw_reasoning, '|| EXPLICACAO:') !== false) {
-                                                    $parts = explode('|| EXPLICACAO:', $raw_reasoning);
-                                                    $main_analysis = trim($parts[0]);
-                                                    $sub_parts = explode('|| MOTIVACAO:', $parts[1]);
-                                                    $nl_explanation = trim($sub_parts[0]);
-
-                                                    if (isset($sub_parts[1])) {
-                                                        $sub_parts2 = explode('|| MEMÓRIA DE CÁLCULO ||', $sub_parts[1]);
-                                                        $motivation = trim($sub_parts2[0]);
-
-                                                        if (isset($sub_parts2[1])) {
-                                                            $sub_parts3 = explode('|| U5J_DATA:', $sub_parts2[1]);
-                                                            $calc_details = trim($sub_parts3[0]);
-                                                            if (isset($sub_parts3[1])) {
-                                                                $u5j_data = json_decode(trim($sub_parts3[1]), true);
-                                                            }
-                                                        }
-                                                    }
-                                                } else {
-                                                    $ah_parts = explode('|| MEMÓRIA DE CÁLCULO ||', $raw_reasoning);
-                                                    $main_analysis = trim($ah_parts[0]);
-                                                    $motivation = $main_analysis;
-                                                    $calc_details = isset($ah_parts[1]) ? trim($ah_parts[1]) : '';
-                                                }
-
-                                                // Garantir apenas a formatação do prefixo Fator Crucial se não estiver presente, sem alterar o conteúdo derivado dos dados
-                                                if (!empty($motivation) && strpos($motivation, 'Fator Crucial') === false) {
-                                                    $motivation = "🎯 Fator Crucial: " . $motivation;
-                                                }
-
-                                                if (empty($nl_explanation)) {
-                                                    $sugText = $fix->ah_suggestion;
-                                                    $homeTeam = $fix->home_team;
-                                                    $awayTeam = $fix->away_team;
-                                                    if (strpos($sugText, '0.0') !== false || strpos($sugText, 'Empate Anula') !== false || strpos($sugText, '+00') !== false || strpos($sugText, '+ 00') !== false) {
-                                                        $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
-                                                        $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
-                                                        $nl_explanation = "🟢 Vitória do {$teamFav}: Ganha 100% da aposta (Lucro Total).\n⚪ Empate: Aposta ANULADA (100% Reembolso - Retorno igual ao valor apostado).\n🔴 Vitória do {$teamOpp}: Aposta PERDIDA.";
-                                                    } elseif (strpos($sugText, '-0.25') !== false) {
-                                                        $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
-                                                        $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
-                                                        $nl_explanation = "🟢 Vitória do {$teamFav}: Ganha 100% da aposta.\n🟡 Empate: PERDE 50% e recupera 50%.\n🔴 Vitória do {$teamOpp}: Aposta PERDIDA.";
-                                                    } elseif (strpos($sugText, '+0.25') !== false) {
-                                                        $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
-                                                        $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
-                                                        $nl_explanation = "🟢 Vitória do {$teamFav}: Ganha 100% da aposta.\n🟢 Empate: Ganha 50% do Lucro + 100% da aposta de volta.\n🔴 Vitória do {$teamOpp}: Aposta PERDIDA.";
-                                                    } else {
-                                                        $nl_explanation = "🟢 Vitória da Equipe Indicada: Ganha Aposta.\n🟡 Empate: Reembolso Parcial/Total.\n🔴 Derrota: Aposta Perdida.";
-                                                    }
-                                                }
-
-                                                if (empty($u5j_data) || empty($u5j_data['home']['matches'])) {
-                                                    $u5j_data = [
-                                                        'home' => [
-                                                            'text' => '1V-1E-3D',
-                                                            'matches' => [
-                                                                ['opponent' => 'Coritiba', 'score' => '0x1', 'result' => 'D', 'is_home' => true],
-                                                                ['opponent' => 'Santos', 'score' => '1x2', 'result' => 'D', 'is_home' => false],
-                                                                ['opponent' => 'Novorizontino', 'score' => '0x0', 'result' => 'E', 'is_home' => true],
-                                                                ['opponent' => 'Guarani', 'score' => '0x1', 'result' => 'D', 'is_home' => false],
-                                                                ['opponent' => 'Vila Nova', 'score' => '0x2', 'result' => 'D', 'is_home' => true]
-                                                            ]
-                                                        ],
-                                                        'away' => [
-                                                            'text' => '3V-1E-1D',
-                                                            'matches' => [
-                                                                ['opponent' => 'Botafogo-SP', 'score' => '2x0', 'result' => 'V', 'is_home' => true],
-                                                                ['opponent' => 'Vila Nova', 'score' => '1x0', 'result' => 'V', 'is_home' => false],
-                                                                ['opponent' => 'Ituano', 'score' => '1x1', 'result' => 'E', 'is_home' => true],
-                                                                ['opponent' => 'Mirassol', 'score' => '2x1', 'result' => 'V', 'is_home' => false],
-                                                                ['opponent' => 'Ponte Preta', 'score' => '0x1', 'result' => 'D', 'is_home' => true]
-                                                            ]
-                                                        ]
-                                                    ];
-                                                }
-                                            ?>
-                                            <div class="asian-handicap-widget-box" style="margin: 10px 0; padding: 12px; background: rgba(15, 23, 42, 0.9); border-radius: 10px; border-left: 4px solid #38bdf8; font-size: 0.8rem; color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
+                                    <!-- Seção Retrátil 2: Handicap Asiático -->
+                                    <?php if (!empty($fix->ah_suggestion)): ?>
+                                        <div id="sec-ah-<?= $fix->fixture_id ?>" class="bet-card-section">
+                                            <div class="asian-handicap-widget-box" style="padding: 8px 10px; background: rgba(15, 23, 42, 0.9); border-radius: 8px; border-left: 4px solid #38bdf8; font-size: 0.78rem; color: #cbd5e1;">
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
-                                                    <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; font-size: 0.85rem;">
+                                                    <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; font-size: 0.82rem;">
                                                         <i class="bi bi-shield-shaded"></i> Mercado de Gols (Handicap Asiático):
                                                     </span>
-                                                    <span class="badge" style="background: rgba(56, 189, 248, 0.18); border: 1px solid #38bdf8; color: #38bdf8; font-weight: 700; font-size: 0.78rem; padding: 4px 10px; border-radius: 6px;">
+                                                    <span class="badge" style="background: rgba(56, 189, 248, 0.18); border: 1px solid #38bdf8; color: #38bdf8; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 6px;">
                                                         🎯 <?= htmlspecialchars($fix->ah_suggestion) ?> (<?= number_format($fix->ah_confidence ?? 65, 1) ?>%)
                                                     </span>
                                                 </div>
 
-                                                <!-- Bloco de Linguagem Natural -->
-                                                <div style="margin-top: 6px; padding: 8px 12px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; font-size: 0.76rem; color: #e2e8f0; line-height: 1.5;">
-                                                    <div style="font-weight: 700; color: #10b981; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                                                <div style="margin-top: 6px; padding: 6px 10px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; font-size: 0.74rem; color: #e2e8f0; line-height: 1.4;">
+                                                    <div style="font-weight: 700; color: #10b981; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
                                                         <i class="bi bi-chat-left-text-fill"></i> Explicação em Linguagem Natural:
                                                     </div>
-                                                    <div style="white-space: pre-line; font-size: 0.74rem;">
+                                                    <div style="white-space: pre-line; font-size: 0.72rem;">
                                                         <?= htmlspecialchars($nl_explanation) ?>
                                                     </div>
                                                 </div>
 
-                                                <!-- Tabela de Retrospecto dos Últimos 5 Jogos -->
-                                                <div style="margin-top: 8px; padding: 8px 10px; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px;">
-                                                    <div style="font-size: 0.74rem; font-weight: 700; color: #fbbf24; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+                                                <div style="margin-top: 8px; padding: 6px 8px; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px;">
+                                                    <div style="font-size: 0.72rem; font-weight: 700; color: #fbbf24; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
                                                         <span><i class="bi bi-clock-history me-1"></i> Retrospecto dos Últimos 5 Jogos (U5J)</span>
-                                                        <span style="font-size: 0.68rem; color: #94a3b8; font-weight: normal;"><?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?></span>
+                                                        <span style="font-size: 0.65rem; color: #94a3b8; font-weight: normal;"><?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?></span>
                                                     </div>
                                                     <div class="table-responsive" style="margin: 0; padding: 0;">
-                                                        <table class="table table-sm table-borderless text-white mb-0" style="font-size: 0.7rem; align-middle: center;">
+                                                        <table class="table table-sm table-borderless text-white mb-0" style="font-size: 0.68rem;">
                                                             <thead>
                                                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94a3b8;">
                                                                     <th style="padding: 2px 4px;">Time</th>
                                                                     <th style="padding: 2px 4px; text-align: center;">Forma</th>
-                                                                    <th style="padding: 2px 4px;">Últimas Partidas (Adversário / Placar)</th>
+                                                                    <th style="padding: 2px 4px;">Últimas Partidas</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
                                                                 <tr>
-                                                                    <td style="padding: 4px; font-weight: 600; color: #38bdf8; white-space: nowrap;">
+                                                                    <td style="padding: 3px 4px; font-weight: 600; color: #38bdf8; white-space: nowrap;">
                                                                         🏠 <?= htmlspecialchars($fix->home_team) ?>
                                                                     </td>
-                                                                    <td style="padding: 4px; text-align: center; font-weight: 700; color: #fbbf24;">
+                                                                    <td style="padding: 3px 4px; text-align: center; font-weight: 700; color: #fbbf24;">
                                                                         <?= htmlspecialchars($u5j_data['home']['text'] ?? '0V-0E-0D') ?>
                                                                     </td>
-                                                                    <td style="padding: 4px;">
-                                                                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                                                    <td style="padding: 3px 4px;">
+                                                                        <div style="display: flex; gap: 3px; flex-wrap: wrap;">
                                                                             <?php foreach (($u5j_data['home']['matches'] ?? []) as $m): ?>
-                                                                                <?php 
-                                                                                    $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444');
-                                                                                ?>
-                                                                                <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.65rem; padding: 2px 5px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
+                                                                                <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
+                                                                                <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
                                                                                     <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
                                                                                 </span>
                                                                             <?php endforeach; ?>
@@ -2380,19 +2485,17 @@ if (!function_exists('getBetDecisionTree')) {
                                                                     </td>
                                                                 </tr>
                                                                 <tr>
-                                                                    <td style="padding: 4px; font-weight: 600; color: #a78bfa; white-space: nowrap;">
+                                                                    <td style="padding: 3px 4px; font-weight: 600; color: #a78bfa; white-space: nowrap;">
                                                                         ✈️ <?= htmlspecialchars($fix->away_team) ?>
                                                                     </td>
-                                                                    <td style="padding: 4px; text-align: center; font-weight: 700; color: #fbbf24;">
+                                                                    <td style="padding: 3px 4px; text-align: center; font-weight: 700; color: #fbbf24;">
                                                                         <?= htmlspecialchars($u5j_data['away']['text'] ?? '0V-0E-0D') ?>
                                                                     </td>
-                                                                    <td style="padding: 4px;">
-                                                                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                                                    <td style="padding: 3px 4px;">
+                                                                        <div style="display: flex; gap: 3px; flex-wrap: wrap;">
                                                                             <?php foreach (($u5j_data['away']['matches'] ?? []) as $m): ?>
-                                                                                <?php 
-                                                                                    $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444');
-                                                                                ?>
-                                                                                <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.65rem; padding: 2px 5px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
+                                                                                <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
+                                                                                <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
                                                                                     <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
                                                                                 </span>
                                                                             <?php endforeach; ?>
@@ -2404,66 +2507,88 @@ if (!function_exists('getBetDecisionTree')) {
                                                     </div>
                                                 </div>
 
-                                                <!-- Bloco de Motivação que Originou o Palpite -->
                                                 <?php if (!empty($motivation)): ?>
-                                                    <div style="margin-top: 8px; padding: 8px 10px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 0.74rem; color: #cbd5e1; line-height: 1.4;">
-                                                        💡 <strong>Motivação do Palpite:</strong> <?= htmlspecialchars($motivation) ?>
+                                                    <div style="margin-top: 6px; padding: 6px 8px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 0.72rem; color: #cbd5e1; line-height: 1.35;">
+                                                        💡 <strong>Motivação:</strong> <?= htmlspecialchars($motivation) ?>
                                                     </div>
                                                 <?php endif; ?>
 
-                                                <!-- Memória de Cálculo Expansível -->
                                                 <?php if (!empty($calc_details)): ?>
                                                     <div style="margin-top: 6px;">
-                                                        <button type="button" class="btn btn-sm btn-outline-info" style="font-size: 0.7rem; padding: 2px 8px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="$('#ah-calc-<?= $fix->fixture_id ?>').slideToggle(200);">
+                                                        <button type="button" class="btn btn-sm btn-outline-info" style="font-size: 0.68rem; padding: 2px 6px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="$('#ah-calc-<?= $fix->fixture_id ?>').slideToggle(200);">
                                                             📐 Ver Memória de Cálculo Detalhada <i class="bi bi-chevron-down ms-1"></i>
                                                         </button>
-                                                        <div id="ah-calc-<?= $fix->fixture_id ?>" style="display: none; margin-top: 6px; padding: 8px 10px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; font-size: 0.73rem; color: #cbd5e1; line-height: 1.4;">
-                                                            <div style="font-weight: 700; color: #38bdf8; margin-bottom: 4px; border-bottom: 1px dashed rgba(56, 189, 248, 0.2); padding-bottom: 3px;">
-                                                                🔍 Memória de Cálculo Passo a Passo (Poisson + Mando + U5J + CS + Streak):
+                                                        <div id="ah-calc-<?= $fix->fixture_id ?>" style="display: none; margin-top: 6px; padding: 6px 8px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; font-size: 0.7rem; color: #cbd5e1;">
+                                                            <div style="font-weight: 700; color: #38bdf8; margin-bottom: 4px;">
+                                                                🔍 Memória de Cálculo Passo a Passo:
                                                             </div>
-                                                            <div style="font-family: monospace; font-size: 0.72rem; color: #e2e8f0; white-space: pre-wrap;">
+                                                            <div style="font-family: monospace; font-size: 0.68rem; color: #e2e8f0; white-space: pre-wrap;">
 <?= htmlspecialchars(str_replace(' | ', "\n", $calc_details)) ?>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 <?php endif; ?>
                                             </div>
-                                        <?php endif; ?>
-
-                                        <div style="font-size: 0.75rem; color: #e2e8f0; line-height: 1.35; background: rgba(30, 41, 59, 0.7); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(244, 124, 32, 0.2);">
-                                            💡 <strong>Sugestão:</strong> <?= $decision['rationale'] ?>
                                         </div>
-                                    </div>
+                                    <?php endif; ?>
 
-                                    <!-- Painel Expansível de Estatísticas Detalhadas -->
-                                    <div id="detailed-stats-<?= $fix->fixture_id ?>" class="detailed-stats-panel" style="display: none; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(244, 124, 32, 0.4); border-radius: 8px; padding: 12px; margin: 10px 0; font-size: 0.82rem; color: #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-                                            <span style="color: #f47c20; font-weight: 700; font-size: 0.85rem;"><i class="bi bi-graph-up-arrow"></i> Estatísticas Detalhadas</span>
-                                            <span style="cursor: pointer; color: #94a3b8; font-size: 1.1rem; line-height: 1;" onclick="$('#detailed-stats-<?= $fix->fixture_id ?>').slideUp(200);">&times;</span>
+                                    <!-- Seção Retrátil 3: Palpite & Análise Futbol24 -->
+                                    <?php if (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)): ?>
+                                        <div id="sec-futbol24-<?= $fix->fixture_id ?>" class="bet-card-section">
+                                            <div style="font-size: 0.75rem; color: #e2e8f0; line-height: 1.35; background: rgba(16, 185, 129, 0.1); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.3);">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                                    <span style="color: #10b981; font-weight: 700; font-size: 0.78rem;">
+                                                        <i class="bi bi-newspaper"></i> Palpite & Análise Futbol24
+                                                    </span>
+                                                    <?php if (!empty($fix->futbol24_url)): ?>
+                                                        <a href="<?= htmlspecialchars($fix->futbol24_url) ?>" target="_blank" rel="noopener" style="color: #38bdf8; font-size: 0.7rem; text-decoration: none;">
+                                                            Ver no Futbol24 <i class="bi bi-box-arrow-up-right"></i>
+                                                        </a>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <?php if (!empty($fix->futbol24_tip)): ?>
+                                                    <div style="margin-bottom: 4px; color: #f8fafc; font-weight: 600;">
+                                                        📌 <strong>Dica Recomendada:</strong> <?= htmlspecialchars($fix->futbol24_tip) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <?php if (!empty($fix->futbol24_analysis)): ?>
+                                                    <div style="margin-top: 4px;">
+                                                        <button type="button" class="btn btn-sm btn-outline-success" style="font-size: 0.68rem; padding: 2px 6px; border-color: rgba(16, 185, 129, 0.4); color: #10b981;" onclick="$('#f24-analysis-<?= $fix->fixture_id ?>').slideToggle(200);">
+                                                            📖 Ler Análise Editorial <i class="bi bi-chevron-down ms-1"></i>
+                                                        </button>
+                                                        <div id="f24-analysis-<?= $fix->fixture_id ?>" style="display: none; margin-top: 6px; padding: 6px 8px; background: rgba(15, 23, 42, 0.9); border-radius: 4px; color: #cbd5e1; font-size: 0.73rem; line-height: 1.4;">
+                                                            <?= htmlspecialchars($fix->futbol24_analysis) ?>
+                                                        </div>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
                                         </div>
-                                        
+                                    <?php endif; ?>
+
+                                    <!-- Seção Retrátil 4: Estatísticas Detalhadas & Insights -->
+                                    <div id="sec-stats-<?= $fix->fixture_id ?>" class="bet-card-section">
                                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-bottom: 10px;">
                                             <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.7rem;">Exp. Gols Total</span>
-                                                <strong style="color: #10b981; font-size: 0.9rem;">
+                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;">Exp. Gols Total</span>
+                                                <strong style="color: #10b981; font-size: 0.88rem;">
                                                     <?= number_format(($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0), 2) ?>
                                                 </strong>
                                             </div>
                                             <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.7rem;">Proj. Cantos</span>
-                                                <strong style="color: #38bdf8; font-size: 0.9rem;">
+                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;">Proj. Cantos</span>
+                                                <strong style="color: #38bdf8; font-size: 0.88rem;">
                                                     <?= number_format(($fix->home_avg_corners ?? 0) + ($fix->away_avg_corners ?? 0), 1) ?>
                                                 </strong>
                                             </div>
                                             <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.7rem;">Proj. Cartões</span>
-                                                <strong style="color: #fbbf24; font-size: 0.9rem;">
+                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;">Proj. Cartões</span>
+                                                <strong style="color: #fbbf24; font-size: 0.88rem;">
                                                     <?= number_format(($fix->home_avg_cards ?? 0) + ($fix->away_avg_cards ?? 0), 1) ?>
                                                 </strong>
                                             </div>
                                         </div>
 
-                                        <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 0.78rem;">
+                                        <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 0.76rem;">
                                             <thead>
                                                 <tr style="color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.1);">
                                                     <th style="text-align: left; padding: 4px; width: 40%;"><?= htmlspecialchars($fix->home_team) ?></th>
@@ -2473,14 +2598,14 @@ if (!function_exists('getBetDecisionTree')) {
                                             </thead>
                                             <tbody>
                                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                                    <td style="text-align: left; padding: 4px; color: #38bdf8;"><?= number_format($fix->home_avg_goals_scored ?? 0, 1) ?> Pró / <?= number_format($fix->home_avg_goals_conceded ?? 0, 1) ?> Sof</td>
+                                                    <td style="text-align: left; padding: 4px; color: #38bdf8;"><?= number_format($fix->home_avg_goals_scored ?? 0, 1) ?> / <?= number_format($fix->home_avg_goals_conceded ?? 0, 1) ?></td>
                                                     <td style="padding: 4px; color: #94a3b8;">Gols</td>
-                                                    <td style="text-align: right; padding: 4px; color: #38bdf8;"><?= number_format($fix->away_avg_goals_scored ?? 0, 1) ?> Pró / <?= number_format($fix->away_avg_goals_conceded ?? 0, 1) ?> Sof</td>
+                                                    <td style="text-align: right; padding: 4px; color: #38bdf8;"><?= number_format($fix->away_avg_goals_scored ?? 0, 1) ?> / <?= number_format($fix->away_avg_goals_conceded ?? 0, 1) ?></td>
                                                 </tr>
                                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                                    <td style="text-align: left; padding: 4px; color: #10b981;"><?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : 'Não localizado' ?></td>
-                                                    <td style="padding: 4px; color: #94a3b8;">Zero Gols em Casa</td>
-                                                    <td style="text-align: right; padding: 4px; color: #10b981;"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : 'Não localizado' ?></td>
+                                                    <td style="text-align: left; padding: 4px; color: #10b981;"><?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : 'N/A' ?></td>
+                                                    <td style="padding: 4px; color: #94a3b8;">Clean Sheets</td>
+                                                    <td style="text-align: right; padding: 4px; color: #10b981;"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : 'N/A' ?></td>
                                                 </tr>
                                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                                     <td style="text-align: left; padding: 4px; color: #a78bfa;"><?= number_format($fix->home_avg_corners ?? 0, 1) ?></td>
@@ -2496,47 +2621,42 @@ if (!function_exists('getBetDecisionTree')) {
                                         </table>
 
                                         <?php
-                                        $expGolsTotal = ($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0);
-                                        $expCantosTotal = ($fix->home_avg_corners ?? 0) + ($fix->away_avg_corners ?? 0);
-                                        $expCartoesTotal = ($fix->home_avg_cards ?? 0) + ($fix->away_avg_cards ?? 0);
+                                            $expGolsTotal = ($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0);
+                                            $expCantosTotal = ($fix->home_avg_corners ?? 0) + ($fix->away_avg_corners ?? 0);
+                                            $expCartoesTotal = ($fix->home_avg_cards ?? 0) + ($fix->away_avg_cards ?? 0);
 
-                                        // Insights de Gols
-                                        if ($expGolsTotal >= 3.2) {
-                                            $insightGols = "Confronto com <strong>alta tendência de gols</strong> (média combinada de " . number_format($expGolsTotal, 2) . " gols/jogo). Cenário propício para <strong>Ambas Marcam (Sim)</strong> ou <strong>Over 2.5 Gols</strong>.";
-                                        } elseif ($expGolsTotal >= 2.5) {
-                                            $insightGols = "Expectativa moderada de gols (" . number_format($expGolsTotal, 2) . " gols/jogo). Média de " . number_format($fix->home_avg_goals_scored ?? 0, 1) . " marcados pelo mandante e " . number_format($fix->away_avg_goals_conceded ?? 0, 1) . " sofridos pelo visitante.";
-                                        } else {
-                                            $insightGols = "Jogo com tendência <strong>truncada/defensiva</strong> (média de " . number_format($expGolsTotal, 2) . " gols combinados). Atentar para linhas de <strong>Under Gols</strong>.";
-                                        }
+                                            if ($expGolsTotal >= 3.2) {
+                                                $insightGols = "Confronto com <strong>alta tendência de gols</strong> (média de " . number_format($expGolsTotal, 2) . " gols/jogo). Propício para <strong>Ambas Marcam</strong> ou <strong>Over 2.5</strong>.";
+                                            } elseif ($expGolsTotal >= 2.5) {
+                                                $insightGols = "Expectativa moderada de gols (" . number_format($expGolsTotal, 2) . " gols/jogo).";
+                                            } else {
+                                                $insightGols = "Jogo com tendência <strong>defensiva</strong> (média de " . number_format($expGolsTotal, 2) . " gols/jogo). Atentar para <strong>Under Gols</strong>.";
+                                            }
 
-                                        // Insights de Escanteios
-                                        if ($expCantosTotal >= 11.0) {
-                                            $insightCantos = "Volume ofensivo elevado com projeção de <strong>~" . round($expCantosTotal) . " escanteios</strong> (Mandante: " . number_format($fix->home_avg_corners ?? 0, 1) . " / Visitante: " . number_format($fix->away_avg_corners ?? 0, 1) . "). Excelente oportunidade no mercado de <strong>Over Cantos</strong>.";
-                                        } else {
-                                            $insightCantos = "Projeção de <strong>~" . round($expCantosTotal) . " escanteios no total</strong> (" . number_format($fix->home_avg_corners ?? 0, 1) . " a favor do mandante e " . number_format($fix->away_avg_corners ?? 0, 1) . " a favor do visitante).";
-                                        }
+                                            if ($expCantosTotal >= 11.0) {
+                                                $insightCantos = "Volume ofensivo elevado com projeção de <strong>~" . round($expCantosTotal) . " escanteios</strong>. Excelente para <strong>Over Cantos</strong>.";
+                                            } else {
+                                                $insightCantos = "Projeção de <strong>~" . round($expCantosTotal) . " escanteios no total</strong>.";
+                                            }
 
-                                        // Insights de Cartões
-                                        if (($fix->away_avg_cards ?? 0) >= 3.0) {
-                                            $insightCartoes = "Projeção de <strong>~" . round($expCartoesTotal) . " cartões no total</strong>. Destaque disciplinar para " . htmlspecialchars($fix->away_team) . " com média de " . number_format($fix->away_avg_cards ?? 0, 1) . " cartões fora de casa.";
-                                        } elseif (($fix->home_avg_cards ?? 0) >= 3.0) {
-                                            $insightCartoes = "Projeção de <strong>~" . round($expCartoesTotal) . " cartões</strong> na partida. Destaque disciplinar para " . htmlspecialchars($fix->home_team) . " com média de " . number_format($fix->home_avg_cards ?? 0, 1) . " cartões em casa.";
-                                        } else {
-                                            $insightCartoes = "Média combinada de <strong>" . number_format($expCartoesTotal, 1) . " cartões</strong> por jogo (" . number_format($fix->home_avg_cards ?? 0, 1) . " mandante + " . number_format($fix->away_avg_cards ?? 0, 1) . " visitante).";
-                                        }
+                                            if (($fix->away_avg_cards ?? 0) >= 3.0) {
+                                                $insightCartoes = "Projeção de <strong>~" . round($expCartoesTotal) . " cartões</strong>. Destaque disciplinar para " . htmlspecialchars($fix->away_team) . " (" . number_format($fix->away_avg_cards ?? 0, 1) . " c/j fora).";
+                                            } elseif (($fix->home_avg_cards ?? 0) >= 3.0) {
+                                                $insightCartoes = "Projeção de <strong>~" . round($expCartoesTotal) . " cartões</strong>. Destaque disciplinar para " . htmlspecialchars($fix->home_team) . " (" . number_format($fix->home_avg_cards ?? 0, 1) . " c/j casa).";
+                                            } else {
+                                                $insightCartoes = "Média combinada de <strong>" . number_format($expCartoesTotal, 1) . " cartões</strong> por jogo.";
+                                            }
                                         ?>
 
-                                        <!-- Bloco de Insights & Mercado -->
-                                        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(255, 255, 255, 0.15); font-size: 0.78rem;">
-                                            <span style="color: #f47c20; font-weight: 700; display: block; margin-bottom: 4px;"><i class="bi bi-lightbulb-fill"></i> Insights & Tendências de Apostas</span>
-                                            <ul style="padding-left: 15px; margin-bottom: 0; color: #cbd5e1; line-height: 1.45;">
-                                                <li style="margin-bottom: 4px;">⚽ <strong>Gols:</strong> <?= $insightGols ?></li>
-                                                <li style="margin-bottom: 4px;">🚩 <strong>Escanteios:</strong> <?= $insightCantos ?></li>
-                                                <li style="margin-bottom: 4px;">🟨 <strong>Cartões:</strong> <?= $insightCartoes ?></li>
+                                        <div style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(255, 255, 255, 0.15); font-size: 0.74rem;">
+                                            <span style="color: #f47c20; font-weight: 700; display: block; margin-bottom: 4px;"><i class="bi bi-lightbulb-fill"></i> Insights & Tendências</span>
+                                            <ul style="padding-left: 15px; margin-bottom: 0; color: #cbd5e1; line-height: 1.4;">
+                                                <li style="margin-bottom: 3px;">⚽ <strong>Gols:</strong> <?= $insightGols ?></li>
+                                                <li style="margin-bottom: 3px;">🚩 <strong>Escanteios:</strong> <?= $insightCantos ?></li>
+                                                <li style="margin-bottom: 3px;">🟨 <strong>Cartões:</strong> <?= $insightCartoes ?></li>
                                                 <li>🌳 <strong>Árvore de Decisão:</strong> <strong><?= $decision['market'] ?></strong> (Região: <?= $decision['region_short'] ?> | Times: <?= $decision['foul_short'] ?> | Árbitro: <?= $decision['referee_short'] ?>) — <?= $decision['rationale'] ?></li>
                                             </ul>
                                         </div>
-                                    </div>
                                 </div>
 
                                 <!-- Rodapé com Árbitro e Status -->
@@ -2590,7 +2710,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         </button>
 
                                         <!-- Botão Conversar com Grok AI -->
-                                        <button class="bet-ai-btn" title="Conversar com o Assistente de IA Grok" onclick="openAiChat(
+                                        <button type="button" class="bet-ai-btn" title="Conversar com o Assistente de IA Grok" onclick="event.stopPropagation(); openAiChat(
                                             '<?= htmlspecialchars($fix->home_team) ?>',
                                             '<?= htmlspecialchars($fix->away_team) ?>',
                                             '<?= htmlspecialchars($fix->league_name) ?>',
@@ -2611,13 +2731,16 @@ if (!function_exists('getBetDecisionTree')) {
                                             '<?= $fix->average_yellow_cards ?? '' ?>',
                                             '<?= $fix->average_red_cards ?? '' ?>',
                                             '<?= $fix->average_fouls ?? '' ?>',
-                                            '<?= $fix->total_games ?? '' ?>'
+                                            '<?= $fix->total_games ?? '' ?>',
+                                            '<?= htmlspecialchars($fix->futbol24_tip ?? '', ENT_QUOTES) ?>',
+                                            '<?= htmlspecialchars($fix->futbol24_analysis ?? '', ENT_QUOTES) ?>'
                                         )">
                                             <i class="bi bi-chat-left-text-fill"></i> Grok AI
                                         </button>
-                                    </div>
-                                </div>
-                                </div> <!-- end of bet-card-locked wrapper -->
+                                    </div> <!-- end of bet-referee-actions -->
+                                </div> <!-- end of bet-referee-bar -->
+                            </div> <!-- end of inner content div -->
+                        </div> <!-- end of bet-card-locked wrapper -->
                                 <?php if ($isCardLocked): ?>
                                     <div class="bet-card-lock-overlay">
                                         <i class="bi bi-lock-fill" style="font-size: 2rem; color: #f47c20; margin-bottom: 8px;"></i>
@@ -2746,7 +2869,7 @@ if (!function_exists('getBetDecisionTree')) {
         <button class="bet-chat-close-btn" onclick="closeAiChat()"><i class="bi bi-x-lg"></i></button>
     </div>
     <div class="bet-chat-game-context">
-        <span>Partida: </span><strong id="chatContextText">Pumas vs Pachuca</strong>
+        <span>Partida: </span><strong id="chatContextText">Selecione uma partida</strong>
     </div>
     <div class="bet-chat-messages" id="chatMessages">
         <!-- Messages will go here -->
@@ -2788,7 +2911,8 @@ if (!function_exists('getBetDecisionTree')) {
     function openAiChat(homeTeam, awayTeam, leagueName, refereeName, predictionText, prob,
                         homeAvgGoalsScored, homeAvgGoalsConceded, homeCleanSheetsPct, homeAvgCorners, homeAvgCards,
                         awayAvgGoalsScored, awayAvgGoalsConceded, awayCleanSheetsPct, awayAvgCorners, awayAvgCards,
-                        refereeRigor, refereeYellows, refereeReds, refereeFouls, refereeGames) {
+                        refereeRigor, refereeYellows, refereeReds, refereeFouls, refereeGames,
+                        futbol24Tip, futbol24Analysis) {
         
         saveCurrentChatSession();
 
@@ -2799,7 +2923,8 @@ if (!function_exists('getBetDecisionTree')) {
             homeTeam, awayTeam, leagueName, refereeName, predictionText, prob,
             homeAvgGoalsScored, homeAvgGoalsConceded, homeCleanSheetsPct, homeAvgCorners, homeAvgCards,
             awayAvgGoalsScored, awayAvgGoalsConceded, awayCleanSheetsPct, awayAvgCorners, awayAvgCards,
-            refereeRigor, refereeYellows, refereeReds, refereeFouls, refereeGames
+            refereeRigor, refereeYellows, refereeReds, refereeFouls, refereeGames,
+            futbol24Tip, futbol24Analysis
         };
 
         document.getElementById('chatContextText').innerText = `${homeTeam} vs ${awayTeam} (${leagueName})`;
@@ -2815,12 +2940,16 @@ if (!function_exists('getBetDecisionTree')) {
             chatHistory = [];
             messagesArea.innerHTML = '';
             
-            const welcomeText = `Fala, apostador! Sou o Grok. Analisando o jogo **${homeTeam} vs ${awayTeam}** (${leagueName}) com probabilidade de **${prob}%** para Over 4.5 Cartões.\n\n`
-                + `Além de cartões, estou com todas as estatísticas do card carregadas (Média de Gols, Zero Gols em Casa / Fora, Escanteios, Rigor do Árbitro, etc.).\n\n`
+            let welcomeText = `Fala, apostador! Sou o Grok. Analisando o jogo **${homeTeam} vs ${awayTeam}** (${leagueName}) com probabilidade de **${prob}%** para Over 4.5 Cartões.\n\n`;
+            if (futbol24Tip) {
+                welcomeText += `📰 **Dica Editorial Futbol24:** ${futbol24Tip}\n\n`;
+            }
+            welcomeText += `Além de cartões, estou com todas as estatísticas do card carregadas (Média de Gols, Zero Gols em Casa / Fora, Escanteios, Rigor do Árbitro, etc.).\n\n`
                 + `Você pode me perguntar sobre:\n`
                 + `* **Mercado de Gols** (Média de marcados/sofridos e Zero Gols em Casa);\n`
                 + `* **Mercado de Escanteios** (Média de cantos de cada equipe);\n`
-                + `* **Mercados de Cartões Alternativos/Híbridos** (ex: Ambas recebem 2+, cartões por tempo/equipe).\n\n`
+                + `* **Mercados de Cartões Alternativos/Híbridos** (ex: Ambas recebem 2+, cartões por tempo/equipe);\n`
+                + `* **Análise Editorial do Futbol24** (palpite e recomendação da imprensa).\n\n`
                 + `Como quer montar sua estratégia para esse jogo hoje?`;
                 
             appendChatMessage('ai', welcomeText);
@@ -2903,6 +3032,9 @@ if (!function_exists('getBetDecisionTree')) {
         formData.append('referee_reds', activeChatContext.refereeReds);
         formData.append('referee_fouls', activeChatContext.refereeFouls);
         formData.append('referee_games', activeChatContext.refereeGames);
+
+        formData.append('futbol24_tip', activeChatContext.futbol24Tip || '');
+        formData.append('futbol24_analysis', activeChatContext.futbol24Analysis || '');
 
         formData.append('message', text);
         formData.append('history', JSON.stringify(chatHistory));
@@ -3418,6 +3550,9 @@ if (!function_exists('getBetDecisionTree')) {
 
     // Auto-scroll e destaque visual para o card de origem ao navegar a partir da aposta
     document.addEventListener('DOMContentLoaded', function() {
+        // Garantir que a gaveta do Grok AI inicie recolhida por padrão no carregamento
+        closeAiChat();
+
         const urlParams = new URLSearchParams(window.location.search);
         let targetFixtureId = urlParams.get('fixture_id');
         const searchQuery = urlParams.get('search');
@@ -3442,6 +3577,22 @@ if (!function_exists('getBetDecisionTree')) {
             }
         }
     });
+
+    // Alternar exibição das seções retráteis dos cards por badges
+    function toggleCardSection(fixtureId, sectionType) {
+        const sec = $('#sec-' + sectionType + '-' + fixtureId);
+        const btn = $('#btn-' + sectionType + '-' + fixtureId);
+        
+        sec.slideToggle(200, function() {
+            if (sec.is(':visible')) {
+                btn.addClass('active');
+                btn.find('.icon-arrow').removeClass('bi-chevron-down').addClass('bi-chevron-up');
+            } else {
+                btn.removeClass('active');
+                btn.find('.icon-arrow').removeClass('bi-chevron-up').addClass('bi-chevron-down');
+            }
+        });
+    }
 </script>
 
 <?php

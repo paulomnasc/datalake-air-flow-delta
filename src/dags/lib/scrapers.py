@@ -514,10 +514,91 @@ def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Di
     return all_matches
 
 
+def scrape_futbol24_previews() -> List[Dict[str, Any]]:
+    """
+    Realiza a raspagem de prévias e palpites editoriais do Futbol24 (https://www.futbol24.com/pt/apostas-palpites/).
+    Retorna uma lista de dicionários contendo os campos: home_team, away_team, tip, analysis, url.
+    """
+    url = 'https://www.futbol24.com/pt/apostas-palpites/'
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
+    results = []
+    try:
+        log.info(f"[SCRAPER-FUTBOL24-PREVIEWS] Acessando {url}...")
+        resp = requests.get(url, headers=headers, timeout=15)
+        if resp.status_code != 200:
+            log.warning(f"[SCRAPER-FUTBOL24-PREVIEWS] Status HTTP {resp.status_code} em {url}")
+            return results
+            
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        preview_links = set()
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            if '/apostas-palpites/previa/' in href:
+                if not href.startswith('http'):
+                    href = 'https://www.futbol24.com' + href
+                preview_links.add(href)
+                
+        log.info(f"[SCRAPER-FUTBOL24-PREVIEWS] Encontrados {len(preview_links)} links de prévias.")
+        
+        for p_url in list(preview_links)[:15]:
+            try:
+                r = requests.get(p_url, headers=headers, timeout=5)
+                if r.status_code != 200:
+                    continue
+                psoup = BeautifulSoup(r.text, 'html.parser')
+                
+                # Times (Match)
+                match_elem = psoup.find(class_='betting-tips-match') or psoup.find('h1')
+                match_text = match_elem.text.strip() if match_elem else ''
+                
+                # Tip
+                tip_elem = psoup.find(class_='betting-tips-tip')
+                tip_text = tip_elem.text.strip() if tip_elem else ''
+                if not tip_text:
+                    for p in psoup.find_all('p'):
+                        if 'palpite' in p.text.lower() or 'dica' in p.text.lower() or '@' in p.text:
+                            tip_text = p.text.strip()
+                            break
+                            
+                # Analysis
+                analysis_elem = psoup.find(class_='betting-tips-analysis') or psoup.find('p', class_='betting-tips-matchgen')
+                analysis_text = analysis_elem.text.strip() if analysis_elem else ''
+                if not analysis_text:
+                    paragraphs = [p.text.strip() for p in psoup.find_all('p') if len(p.text.strip()) > 40]
+                    analysis_text = ' '.join(paragraphs[:2])
+                    
+                # Extract Home / Away
+                home_team, away_team = '', ''
+                if ' vs ' in match_text:
+                    parts = match_text.split(' vs ')
+                    home_team = parts[0].replace('- Palpites e Apostas', '').replace('Palpite para o ', '').split('|')[0].strip()
+                    away_team = parts[1].replace('- Palpites e Apostas', '').split('|')[0].strip()
+                elif ' x ' in match_text:
+                    parts = match_text.split(' x ')
+                    home_team = parts[0].replace('- Palpites e Apostas', '').replace('Palpite para o ', '').split('|')[0].strip()
+                    away_team = parts[1].replace('- Palpites e Apostas', '').split('|')[0].strip()
+                    
+                if home_team and away_team and (tip_text or analysis_text):
+                    results.append({
+                        'home_team': home_team,
+                        'away_team': away_team,
+                        'tip': tip_text,
+                        'analysis': analysis_text,
+                        'url': p_url
+                    })
+            except Exception as e_p:
+                log.warning(f"[SCRAPER-FUTBOL24-PREVIEWS] Erro na prévia {p_url}: {e_p}")
+    except Exception as e:
+        log.error(f"[SCRAPER-FUTBOL24-PREVIEWS] Erro ao buscar prévias: {e}")
+    return results
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     print("=== EXECUTANDO RASPAGEM DIRETA DO ODDSPEDIA & FUTBOL24 ===")
     res_op = scrape_oddspedia_odds(['serie-a', 'serie-b'])
     res_f24 = scrape_futbol24_odds(['serie-a', 'serie-b'])
-    print(f"\nTotal Oddspedia: {len(res_op)} | Total Futbol24: {len(res_f24)}\n")
+    res_prev = scrape_futbol24_previews()
+    print(f"\nTotal Oddspedia: {len(res_op)} | Total Futbol24 Odds: {len(res_f24)} | Total Prévias Futbol24: {len(res_prev)}\n")
+
 

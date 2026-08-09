@@ -1284,7 +1284,7 @@ def main():
             
         conn.commit()
         
-        # Enriquecimento com Odds e Surebets do Oddspedia
+        # Enriquecimento com Odds, Surebets e Prévias Futbol24
         try:
             update_oddspedia_odds(conn)
         except Exception as e_op:
@@ -1304,12 +1304,19 @@ def main():
         conn.close()
 
 def update_oddspedia_odds(conn):
+
     try:
         sys.path.insert(0, '/root/datalake-air-flow-delta/src/dags')
-        from lib.scrapers import scrape_oddspedia_odds, scrape_futbol24_odds
+        from lib.scrapers import scrape_oddspedia_odds, scrape_futbol24_odds, scrape_futbol24_previews
         from lib.sports_arbitrage import normalize_team_name, calculate_surebet, fetch_live_odds_from_api
         
         print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS MULTI-FONTE (THE ODDS API + ODDSPEDIA + FUTBOL24) ---")
+        scraped_previews_f24 = []
+        try:
+            scraped_previews_f24 = scrape_futbol24_previews() or []
+        except Exception as e_prev:
+            print(f"Aviso ao consultar Prévias Futbol24: {e_prev}")
+
         api_odds_matches = []
         try:
             api_odds_matches = fetch_live_odds_from_api("19034934454fd9bd0a06735a67cd8f1b") or []
@@ -1354,15 +1361,44 @@ def update_oddspedia_odds(conn):
                         "visitante": c_away
                     }
 
+        cursor = conn.cursor()
+        cursor.execute("SELECT fixture_id, home_team, away_team FROM fixtures_trends")
+        db_fixtures = cursor.fetchall()
+
+        # 1. Ingestão de prévias e palpites editoriais do Futbol24
+        if scraped_previews_f24:
+            prev_updated = 0
+            for fix in db_fixtures:
+                fix_id = fix['fixture_id']
+                db_home = normalize_team_name(fix['home_team'])
+                db_away = normalize_team_name(fix['away_team'])
+                for prev in scraped_previews_f24:
+                    p_home = normalize_team_name(prev.get('home_team', ''))
+                    p_away = normalize_team_name(prev.get('away_team', ''))
+                    if db_home == p_home and db_away == p_away:
+                        cursor.execute("""
+                            UPDATE fixtures_trends SET
+                                futbol24_tip = %s,
+                                futbol24_analysis = %s,
+                                futbol24_url = %s
+                            WHERE fixture_id = %s
+                        """, (
+                            prev.get('tip'),
+                            prev.get('analysis'),
+                            prev.get('url'),
+                            fix_id
+                        ))
+                        prev_updated += 1
+                        print(f"📰 Prévias do Futbol24 gravadas para {fix['home_team']} vs {fix['away_team']}")
+                        break
+            conn.commit()
+            print(f"Total de {prev_updated} prévias do Futbol24 associadas com sucesso!")
+
         scraped_matches = list(scraped_by_teams.values())
         if not scraped_matches:
             print("Nenhuma partida retornada pelas fontes de odds.")
             return
 
-        cursor = conn.cursor()
-        cursor.execute("SELECT fixture_id, home_team, away_team FROM fixtures_trends")
-        db_fixtures = cursor.fetchall()
-        
         updated_count = 0
         for fix in db_fixtures:
             fix_id = fix['fixture_id']
@@ -1383,15 +1419,13 @@ def update_oddspedia_odds(conn):
                     valid_cX = {bm: float(odds[bm]['empate']) for bm in odds if float(odds[bm].get('empate', 0.0)) > 1.0}
                     valid_c2 = {bm: float(odds[bm]['visitante']) for bm in odds if float(odds[bm].get('visitante', 0.0)) > 1.0}
 
-                    # Filtro de outliers: se houver >= 2 casas, descarta odds que excedam 12% da mediana do mercado
+                    # Filtro de outliers
                     if len(valid_c1) >= 2:
                         med1 = statistics.median(valid_c1.values())
                         valid_c1 = {bm: val for bm, val in valid_c1.items() if val <= med1 * 1.12}
-
                     if len(valid_cX) >= 2:
                         medX = statistics.median(valid_cX.values())
                         valid_cX = {bm: val for bm, val in valid_cX.items() if val <= medX * 1.12}
-
                     if len(valid_c2) >= 2:
                         med2 = statistics.median(valid_c2.values())
                         valid_c2 = {bm: val for bm, val in valid_c2.items() if val <= med2 * 1.12}
@@ -1400,61 +1434,51 @@ def update_oddspedia_odds(conn):
                         if not valid_c1 or not valid_cX or not valid_c2:
                             return 0.0, "", 0.0, "", 0.0, ""
 
-                        primary_bms = ['BET365', 'BETANO', 'SPORTINGBET', 'SUPERBET', 'KTO', 'STAKE', '1XBET', 'NOVIBET', 'BETFAIR SPORTSBOOK', 'BETFAIR', 'BETWAY', 'PINNACLE', 'BETSSON']
+                        all_bms = set(valid_c1.keys()) & set(valid_cX.keys()) & set(valid_c2.keys())
+                        best_combo = None
+                        max_p = -1.0
 
-                        def is_primary(bm):
-                            return any(p in bm.upper() for p in primary_bms)
+                        for b1, c1 in valid_c1.items():
+                            for bX, cX in valid_cX.items():
+                                for b2, c2 in valid_c2.items():
+                                    inv = (1.0/c1) + (1.0/cX) + (1.0/c2)
+                                    p = ((1.0 - inv) * 100.0) if inv < 1.0 else -((inv - 1.0) * 100.0)
+                                    num_diff_bms = len({b1, bX, b2})
+                                    if num_diff_bms > 1 and 0.0 <= p <= 15.0:
+                                        if p > max_p:
+                                            max_p = p
+                                            best_combo = (c1, b1, cX, bX, c2, b2)
 
-                        best_score = -1.0
-                        best_combo = (0.0, "", 0.0, "", 0.0, "")
+                        if best_combo:
+                            return best_combo
 
-                        for bm1, val1 in valid_c1.items():
-                            for bmX, valX in valid_cX.items():
-                                for bm2, val2 in valid_c2.items():
-                                    houses = {bm1.upper(), bmX.upper(), bm2.upper()}
-                                    if len(houses) < 2:
-                                        continue
+                        pinnacle_bms = [b for b in all_bms if 'PINNACLE' in b]
+                        target_bm = pinnacle_bms[0] if pinnacle_bms else (list(all_bms)[0] if all_bms else None)
+                        if target_bm:
+                            return valid_c1[target_bm], target_bm, valid_cX[target_bm], target_bm, valid_c2[target_bm], target_bm
 
-                                    prim_count = sum([1 for h in [bm1, bmX, bm2] if is_primary(h)])
-                                    top_count = sum([1 for h in [bm1, bmX, bm2] if any(t in h.upper() for t in ['BET365', 'BETANO'])])
-                                    score = (val1 + valX + val2) + (top_count * 2.0) + (prim_count * 0.5)
-
-                                    if score > best_score:
-                                        best_score = score
-                                        best_combo = (val1, bm1, valX, bmX, val2, bm2)
-
-                        if best_combo[0] == 0.0:
-                            b1, m1 = max(valid_c1.items(), key=lambda x: x[1]) if valid_c1 else (0.0, "")
-                            bX, mX = max(valid_cX.items(), key=lambda x: x[1]) if valid_cX else (0.0, "")
-                            b2, m2 = max(valid_c2.items(), key=lambda x: x[1]) if valid_c2 else (0.0, "")
-                            return b1, m1, bX, mX, b2, m2
-
-                        return best_combo
+                        b1, m1 = max(valid_c1.items(), key=lambda x: x[1])
+                        bX, mX = max(valid_cX.items(), key=lambda x: x[1])
+                        b2, m2 = max(valid_c2.items(), key=lambda x: x[1])
+                        return b1, m1, bX, mX, b2, m2
 
                     best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = select_multi_bookmaker_odds(valid_c1, valid_cX, valid_c2)
 
                     if best_c1 > 0 and best_cX > 0 and best_c2 > 0:
                         calc = calculate_surebet(best_c1, best_cX, best_c2)
                         casas_usadas = {best_bm1.upper(), best_bmX.upper(), best_bm2.upper()} - {""}
-                        # Validação de segurança: Surebet exige > 1 casa e lucro <= 15% (lucros maiores são ruídos de parsing)
                         is_surebet = 1 if (calc and calc['is_surebet'] and len(casas_usadas) > 1 and calc['lucro_percentual'] <= 15.0) else 0
                         profit_pct = calc['lucro_percentual'] if (calc and is_surebet) else 0.0
                         
-                        # Recalcula o palpite e a motivação com as novas odds de mercado
-                        home_last5 = fetch_team_last5_form(cursor, fix['home_team'], fix.get('home_team_id')) if fix.get('home_team_id') else {'v': 2, 'e': 1, 'd': 2, 'pts': 7, 'text': '2V-1E-2D', 'matches': []}
-                        away_last5 = fetch_team_last5_form(cursor, fix['away_team'], fix.get('away_team_id')) if fix.get('away_team_id') else {'v': 2, 'e': 1, 'd': 2, 'pts': 7, 'text': '2V-1E-2D', 'matches': []}
+                        # Recalcula palpite AH
+                        home_last5 = fetch_team_last5_form(cursor, fix['home_team'], fix.get('home_team_id'))
+                        away_last5 = fetch_team_last5_form(cursor, fix['away_team'], fix.get('away_team_id'))
                         home_losses = home_last5.get('d', 0) if home_last5.get('v', 0) == 0 else 0
                         away_losses = away_last5.get('d', 0) if away_last5.get('v', 0) == 0 else 0
-
                         sug, conf, reason = calculate_asian_handicap_suggestion(
-                            home_goals_scored=1.5, home_goals_conceded=1.0,
-                            away_goals_scored=1.2, away_goals_conceded=1.2,
-                            home_team=fix['home_team'], away_team=fix['away_team'],
-                            home_cs_pct=30.0, away_cs_pct=30.0,
-                            home_recent_losses=home_losses, away_recent_losses=away_losses,
-                            home_recent_wins=home_last5.get('v', 0), away_recent_wins=away_last5.get('v', 0),
-                            home_last5=home_last5, away_last5=away_last5,
-                            odd_home=best_c1, odd_draw=best_cX, odd_away=best_c2
+                            1.5, 1.0, 1.2, 1.2, fix['home_team'], fix['away_team'], 30.0, 30.0,
+                            home_losses, away_losses, home_last5.get('v', 0), away_last5.get('v', 0),
+                            home_last5, away_last5, best_c1, best_cX, best_c2
                         )
 
                         cursor.execute("""
@@ -1465,14 +1489,7 @@ def update_oddspedia_odds(conn):
                                 is_surebet = %s, surebet_profit_pct = %s,
                                 ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s
                             WHERE fixture_id = %s
-                        """, (
-                            best_c1, best_bm1,
-                            best_cX, best_bmX,
-                            best_c2, best_bm2,
-                            is_surebet, profit_pct,
-                            sug, conf, reason,
-                            fix_id
-                        ))
+                        """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, is_surebet, profit_pct, sug, conf, reason, fix_id))
                         updated_count += 1
                         print(f"Odds e motivação atualizadas para {fix['home_team']} vs {fix['away_team']}: 1({best_bm1}={best_c1}), X({best_bmX}={best_cX}), 2({best_bm2}={best_c2}) | Surebet: {is_surebet}")
                         break

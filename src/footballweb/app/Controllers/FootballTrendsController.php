@@ -277,6 +277,9 @@ class FootballTrendsController extends BaseController
         $refereeReds = $this->request->getPost('referee_reds');
         $refereeFouls = $this->request->getPost('referee_fouls');
         $refereeGames = $this->request->getPost('referee_games');
+
+        $futbol24Tip = $this->request->getPost('futbol24_tip');
+        $futbol24Analysis = $this->request->getPost('futbol24_analysis');
         
         // Verificar se o usuário está logado
         if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
@@ -369,6 +372,12 @@ class FootballTrendsController extends BaseController
                 . "- Total de jogos registrados: " . (is_numeric($refereeGames) ? $refereeGames : 'N/A') . "\n";
         }
 
+        if (!empty($futbol24Tip) || !empty($futbol24Analysis)) {
+            $statsContent .= "\n📰 Análise Editorial e Dica Futbol24:\n"
+                . (!empty($futbol24Tip) ? "- Dica Futbol24: {$futbol24Tip}\n" : "")
+                . (!empty($futbol24Analysis) ? "- Análise Editorial Futbol24: {$futbol24Analysis}\n" : "");
+        }
+
         // Prompt de Sistema detalhado com base nas orientações fornecidas
         $systemContent = "Você é o Grok, um assistente inteligente especialista em apostas esportivas e análise estatística de futebol na plataforma MyFlow Trends. "
             . "O usuário está analisando a partida: {$homeTeam} vs {$awayTeam} pela liga '{$leagueName}'.\n\n"
@@ -384,7 +393,8 @@ class FootballTrendsController extends BaseController
             . "   - Mercado de Escanteios (Cantos): Utilize as médias de escanteios de cada equipe para fundamentar projeções de Over/Under escanteios ou o mercado de 'Quem terá mais escanteios'.\n"
             . "   - Mercado de Cartões por Equipe / Individuais: Indique qual time costuma receber mais cartões com base na média individual de cartões e na postura do árbitro.\n"
             . "   - Mercados Híbridos/Alternativos para Cartões (ex: 'Ambas as equipes receberão 2 ou mais cartões') caso a linha direta esteja esticada ou indisponível em ligas Tier 2 na Betano/Superbet.\n"
-            . "3. Use a nossa análise pré-gerada e o rigor do árbitro para fundamentar a sua resposta técnica. Responda de forma concisa e evite textos excessivamente longos.";
+            . "   - Análise Humana/Editorial Futbol24: Se o usuário perguntar o que o Futbol24 sugeriu, cite a Dica e a Análise Editorial do Futbol24 inclusas acima.\n"
+            . "3. Use a nossa análise pré-gerada, a análise do Futbol24 e o rigor do árbitro para fundamentar a sua resposta técnica. Responda de forma concisa e evite textos excessivamente longos.";
 
         $messages[] = ['role' => 'system', 'content' => $systemContent];
 

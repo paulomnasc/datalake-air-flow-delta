@@ -2371,7 +2371,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                     id="btn-futbol24-<?= $fix->fixture_id ?>" 
                                                     class="bet-toggle-badge green" 
                                                     onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'futbol24')">
-                                                <i class="bi bi-newspaper"></i> Futbol24 <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                                <i class="bi bi-chat-quote-fill"></i> Resenha <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                             </button>
                                         <?php endif; ?>
                                         
@@ -2538,7 +2538,7 @@ if (!function_exists('getBetDecisionTree')) {
                                             <div style="font-size: 0.75rem; color: #e2e8f0; line-height: 1.35; background: rgba(16, 185, 129, 0.1); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.3);">
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                                                     <span style="color: #10b981; font-weight: 700; font-size: 0.78rem;">
-                                                        <i class="bi bi-newspaper"></i> Palpite & Análise Futbol24
+                                                        <i class="bi bi-chat-quote-fill"></i> Resenha & Análise (Futbol24)
                                                     </span>
                                                     <?php if (!empty($fix->futbol24_url)): ?>
                                                         <a href="<?= htmlspecialchars($fix->futbol24_url) ?>" target="_blank" rel="noopener" style="color: #38bdf8; font-size: 0.7rem; text-decoration: none;">

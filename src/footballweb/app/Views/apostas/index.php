@@ -782,8 +782,10 @@
         <button class="filter-btn active" onclick="filterBets('all', this)">Todas (<?= count($apostas) ?>)</button>
         <button class="filter-btn" onclick="filterBets('Pendente', this)">Pendentes (<?= $resumo['pendentes'] ?? 0 ?>)</button>
         <button class="filter-btn" onclick="filterBets('Ganha', this)">Ganhas (<?= $resumo['ganhas'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Perdida', this)">Perdidas (<?= $resumo['perdidas'] ?? 0 ?>)</button>
+        <button class="filter-btn" onclick="filterBets('Meio Ganha', this)">Meio Ganhas (<?= $resumo['meio_ganhas'] ?? 0 ?>)</button>
         <button class="filter-btn" onclick="filterBets('ANULADA', this)">Anuladas (<?= $resumo['anuladas'] ?? 0 ?>)</button>
+        <button class="filter-btn" onclick="filterBets('Meio Perdida', this)">Meio Perdidas (<?= $resumo['meio_perdidas'] ?? 0 ?>)</button>
+        <button class="filter-btn" onclick="filterBets('Perdida', this)">Perdidas (<?= $resumo['perdidas'] ?? 0 ?>)</button>
         <button class="filter-btn" onclick="filterBets('Cashout', this)">Cashout (<?= $resumo['cashouts'] ?? 0 ?>)</button>
       </div>
 
@@ -1085,8 +1087,10 @@
               <select class="form-select" id="statusSelect">
                 <option value="Pendente" selected>Pendente</option>
                 <option value="Ganha">Ganha</option>
-                <option value="Perdida">Perdida</option>
+                <option value="Meio Ganha">Meio Ganha</option>
                 <option value="ANULADA">ANULADA</option>
+                <option value="Meio Perdida">Meio Perdida</option>
+                <option value="Perdida">Perdida</option>
                 <option value="Cashout">Cashout</option>
               </select>
             </div>
@@ -1169,8 +1173,10 @@
               <select class="form-select" id="editStatusSelect">
                 <option value="Pendente">Pendente</option>
                 <option value="Ganha">Ganha</option>
-                <option value="Perdida">Perdida</option>
+                <option value="Meio Ganha">Meio Ganha</option>
                 <option value="ANULADA">ANULADA</option>
+                <option value="Meio Perdida">Meio Perdida</option>
+                <option value="Perdida">Perdida</option>
                 <option value="Cashout">Cashout</option>
               </select>
             </div>

@@ -194,7 +194,17 @@ class ApostaController extends BaseController
             ]);
         }
 
-        $ganhosPotenciais = ($status === 'ANULADA') ? $valorAposta : round($odd * $valorAposta, 2);
+        if ($status === 'ANULADA') {
+            $ganhosPotenciais = $valorAposta;
+        } elseif ($status === 'Meio Ganha') {
+            $ganhosPotenciais = round($valorAposta * (($odd + 1) / 2), 2);
+        } elseif ($status === 'Meio Perdida') {
+            $ganhosPotenciais = round($valorAposta * 0.5, 2);
+        } elseif ($status === 'Perdida') {
+            $ganhosPotenciais = 0.00;
+        } else {
+            $ganhosPotenciais = round($odd * $valorAposta, 2);
+        }
 
         // Validação do Gatekeeper
         $eval = $this->evaluateGatekeeper($fixtureId, $timeCasa, $timeFora, $mercado, $palpite, $odd);
@@ -495,7 +505,17 @@ class ApostaController extends BaseController
             ]);
         }
 
-        $ganhosPotenciais = ($status === 'ANULADA') ? $valorAposta : round($odd * $valorAposta, 2);
+        if ($status === 'ANULADA') {
+            $ganhosPotenciais = $valorAposta;
+        } elseif ($status === 'Meio Ganha') {
+            $ganhosPotenciais = round($valorAposta * (($odd + 1) / 2), 2);
+        } elseif ($status === 'Meio Perdida') {
+            $ganhosPotenciais = round($valorAposta * 0.5, 2);
+        } elseif ($status === 'Perdida') {
+            $ganhosPotenciais = 0.00;
+        } else {
+            $ganhosPotenciais = round($odd * $valorAposta, 2);
+        }
 
         // Reavalia o Gatekeeper ao editar a aposta
         $fixtureId = $aposta->fixture_id ? (int)$aposta->fixture_id : null;

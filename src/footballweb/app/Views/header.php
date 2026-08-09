@@ -698,6 +698,9 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     </ul>
                 </div>
 
+                <?php echo anchor("contactUs","Entre em contato", ['class' => 'nav-link px-2 px-lg-2 text-nowrap'])  ?>
+                <?php echo anchor("reportError","Reportar um erro", ['class' => 'nav-link px-2 px-lg-2 text-nowrap'])  ?>
+
                 <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
                     <?php echo anchor(route_to('Usuario.logOut'), lang('App.exit'), ['class' => 'nav-link px-2 px-lg-2']); ?>
                 <?php else: ?>

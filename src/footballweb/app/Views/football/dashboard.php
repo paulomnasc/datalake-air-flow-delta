@@ -1886,6 +1886,9 @@ if (!function_exists('getBetDecisionTree')) {
                     <?php else: ?>
                         <?php foreach ($fixtures as $fix): ?>
                             <?php
+                            $jsAttr = function($val) {
+                                return htmlspecialchars(json_encode((string)($val ?? '')), ENT_QUOTES, 'UTF-8');
+                            };
                             $statusUpper = strtoupper($fix->status ?? '');
                             $isFinished = in_array($statusUpper, ['FT', 'AET', 'PEN', 'MATCH FINISHED', 'FINISHED']);
                             $totalLiveCards = (int)($fix->yellow_cards_home ?? 0) + (int)($fix->yellow_cards_away ?? 0) + (int)($fix->red_cards_home ?? 0) + (int)($fix->red_cards_away ?? 0);
@@ -2711,29 +2714,29 @@ if (!function_exists('getBetDecisionTree')) {
 
                                         <!-- Botão Conversar com Grok AI -->
                                         <button type="button" class="bet-ai-btn" title="Conversar com o Assistente de IA Grok" onclick="event.stopPropagation(); openAiChat(
-                                            '<?= htmlspecialchars($fix->home_team) ?>',
-                                            '<?= htmlspecialchars($fix->away_team) ?>',
-                                            '<?= htmlspecialchars($fix->league_name) ?>',
-                                            '<?= htmlspecialchars($fix->referee_name ?? '') ?>',
-                                            '<?= htmlspecialchars($fix->prediction_text) ?>',
-                                            '<?= $prob ?>',
-                                            '<?= $fix->home_avg_goals_scored ?? '' ?>',
-                                            '<?= $fix->home_avg_goals_conceded ?? '' ?>',
-                                            '<?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : 'Não localizado' ?>',
-                                            '<?= $fix->home_avg_corners ?? '' ?>',
-                                            '<?= $fix->home_avg_cards ?? '' ?>',
-                                            '<?= $fix->away_avg_goals_scored ?? '' ?>',
-                                            '<?= $fix->away_avg_goals_conceded ?? '' ?>',
-                                            '<?= $fix->away_clean_sheets_pct ?? '' ?>',
-                                            '<?= $fix->away_avg_corners ?? '' ?>',
-                                            '<?= $fix->away_avg_cards ?? '' ?>',
-                                            '<?= $fix->rigor_level ?? 'Moderado' ?>',
-                                            '<?= $fix->average_yellow_cards ?? '' ?>',
-                                            '<?= $fix->average_red_cards ?? '' ?>',
-                                            '<?= $fix->average_fouls ?? '' ?>',
-                                            '<?= $fix->total_games ?? '' ?>',
-                                            '<?= htmlspecialchars($fix->futbol24_tip ?? '', ENT_QUOTES) ?>',
-                                            '<?= htmlspecialchars($fix->futbol24_analysis ?? '', ENT_QUOTES) ?>'
+                                            <?= $jsAttr($fix->home_team) ?>,
+                                            <?= $jsAttr($fix->away_team) ?>,
+                                            <?= $jsAttr($fix->league_name) ?>,
+                                            <?= $jsAttr($fix->referee_name ?? '') ?>,
+                                            <?= $jsAttr($fix->prediction_text ?? '') ?>,
+                                            <?= $jsAttr($prob) ?>,
+                                            <?= $jsAttr($fix->home_avg_goals_scored ?? '') ?>,
+                                            <?= $jsAttr($fix->home_avg_goals_conceded ?? '') ?>,
+                                            <?= $jsAttr((isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : 'Não localizado') ?>,
+                                            <?= $jsAttr($fix->home_avg_corners ?? '') ?>,
+                                            <?= $jsAttr($fix->home_avg_cards ?? '') ?>,
+                                            <?= $jsAttr($fix->away_avg_goals_scored ?? '') ?>,
+                                            <?= $jsAttr($fix->away_avg_goals_conceded ?? '') ?>,
+                                            <?= $jsAttr($fix->away_clean_sheets_pct ?? '') ?>,
+                                            <?= $jsAttr($fix->away_avg_corners ?? '') ?>,
+                                            <?= $jsAttr($fix->away_avg_cards ?? '') ?>,
+                                            <?= $jsAttr($fix->rigor_level ?? 'Moderado') ?>,
+                                            <?= $jsAttr($fix->average_yellow_cards ?? '') ?>,
+                                            <?= $jsAttr($fix->average_red_cards ?? '') ?>,
+                                            <?= $jsAttr($fix->average_fouls ?? '') ?>,
+                                            <?= $jsAttr($fix->total_games ?? '') ?>,
+                                            <?= $jsAttr($fix->futbol24_tip ?? '') ?>,
+                                            <?= $jsAttr($fix->futbol24_analysis ?? '') ?>
                                         )">
                                             <i class="bi bi-chat-left-text-fill"></i> Grok AI
                                         </button>

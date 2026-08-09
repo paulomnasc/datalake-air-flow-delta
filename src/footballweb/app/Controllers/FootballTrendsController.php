@@ -348,25 +348,25 @@ class FootballTrendsController extends BaseController
         // Monta o panorama de estatísticas de cada time e do árbitro
         $statsContent = "\n\nDados Estatísticos Detalhados dos Times:\n"
             . "- {$homeTeam} (Mandante):\n"
-            . "  * Média de Gols Marcados: " . ($homeAvgGoalsScored !== '' && $homeAvgGoalsScored !== null ? number_format($homeAvgGoalsScored, 1) : 'N/A') . "\n"
-            . "  * Média de Gols Sofridos: " . ($homeAvgGoalsConceded !== '' && $homeAvgGoalsConceded !== null ? number_format($homeAvgGoalsConceded, 1) : 'N/A') . "\n"
-            . "  * Zero Gols em Casa (Sem sofrer gols): " . ($homeCleanSheetsPct !== '' && $homeCleanSheetsPct !== null ? round($homeCleanSheetsPct) . '%' : 'N/A') . "\n"
-            . "  * Média de Escanteios a favor: " . ($homeAvgCorners !== '' && $homeAvgCorners !== null ? number_format($homeAvgCorners, 1) : 'N/A') . "\n"
-            . "  * Média de Cartões recebidos: " . ($homeAvgCards !== '' && $homeAvgCards !== null ? number_format($homeAvgCards, 1) : 'N/A') . "\n"
+            . "  * Média de Gols Marcados: " . (is_numeric($homeAvgGoalsScored) ? number_format((float)$homeAvgGoalsScored, 1) : 'N/A') . "\n"
+            . "  * Média de Gols Sofridos: " . (is_numeric($homeAvgGoalsConceded) ? number_format((float)$homeAvgGoalsConceded, 1) : 'N/A') . "\n"
+            . "  * Zero Gols em Casa (Sem sofrer gols): " . (is_numeric($homeCleanSheetsPct) ? round((float)$homeCleanSheetsPct) . '%' : 'N/A') . "\n"
+            . "  * Média de Escanteios a favor: " . (is_numeric($homeAvgCorners) ? number_format((float)$homeAvgCorners, 1) : 'N/A') . "\n"
+            . "  * Média de Cartões recebidos: " . (is_numeric($homeAvgCards) ? number_format((float)$homeAvgCards, 1) : 'N/A') . "\n"
             . "- {$awayTeam} (Visitante):\n"
-            . "  * Média de Gols Marcados: " . ($awayAvgGoalsScored !== '' && $awayAvgGoalsScored !== null ? number_format($awayAvgGoalsScored, 1) : 'N/A') . "\n"
-            . "  * Média de Gols Sofridos: " . ($awayAvgGoalsConceded !== '' && $awayAvgGoalsConceded !== null ? number_format($awayAvgGoalsConceded, 1) : 'N/A') . "\n"
-            . "  * Zero Gols Fora (Sem sofrer gols): " . ($awayCleanSheetsPct !== '' && $awayCleanSheetsPct !== null ? round($awayCleanSheetsPct) . '%' : 'N/A') . "\n"
-            . "  * Média de Escanteios a favor: " . ($awayAvgCorners !== '' && $awayAvgCorners !== null ? number_format($awayAvgCorners, 1) : 'N/A') . "\n"
-            . "  * Média de Cartões recebidos: " . ($awayAvgCards !== '' && $awayAvgCards !== null ? number_format($awayAvgCards, 1) : 'N/A') . "\n";
+            . "  * Média de Gols Marcados: " . (is_numeric($awayAvgGoalsScored) ? number_format((float)$awayAvgGoalsScored, 1) : 'N/A') . "\n"
+            . "  * Média de Gols Sofridos: " . (is_numeric($awayAvgGoalsConceded) ? number_format((float)$awayAvgGoalsConceded, 1) : 'N/A') . "\n"
+            . "  * Zero Gols Fora (Sem sofrer gols): " . (is_numeric($awayCleanSheetsPct) ? round((float)$awayCleanSheetsPct) . '%' : 'N/A') . "\n"
+            . "  * Média de Escanteios a favor: " . (is_numeric($awayAvgCorners) ? number_format((float)$awayAvgCorners, 1) : 'N/A') . "\n"
+            . "  * Média de Cartões recebidos: " . (is_numeric($awayAvgCards) ? number_format((float)$awayAvgCards, 1) : 'N/A') . "\n";
 
         if (!empty($refereeName)) {
             $statsContent .= "\nDados Estatísticos Detalhados do Árbitro ({$refereeName}):\n"
                 . "- Rigor da Arbitragem: {$refereeRigor}\n"
-                . "- Média de Amarelos por partida: " . ($refereeYellows !== '' && $refereeYellows !== null ? number_format($refereeYellows, 2) : 'N/A') . "\n"
-                . "- Média de Vermelhos por partida: " . ($refereeReds !== '' && $refereeReds !== null ? number_format($refereeReds, 2) : 'N/A') . "\n"
-                . "- Média de Faltas por partida: " . ($refereeFouls !== '' && $refereeFouls !== null ? number_format($refereeFouls, 2) : 'N/A') . "\n"
-                . "- Total de jogos registrados: " . ($refereeGames !== '' && $refereeGames !== null ? $refereeGames : 'N/A') . "\n";
+                . "- Média de Amarelos por partida: " . (is_numeric($refereeYellows) ? number_format((float)$refereeYellows, 2) : 'N/A') . "\n"
+                . "- Média de Vermelhos por partida: " . (is_numeric($refereeReds) ? number_format((float)$refereeReds, 2) : 'N/A') . "\n"
+                . "- Média de Faltas por partida: " . (is_numeric($refereeFouls) ? number_format((float)$refereeFouls, 2) : 'N/A') . "\n"
+                . "- Total de jogos registrados: " . (is_numeric($refereeGames) ? $refereeGames : 'N/A') . "\n";
         }
 
         // Prompt de Sistema detalhado com base nas orientações fornecidas
@@ -464,7 +464,7 @@ class FootballTrendsController extends BaseController
                 'remaining_credits' => $credits - 1
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $msg = $e->getMessage();
 
             if (strpos($msg, '429') !== false || strpos($msg, '402') !== false || stripos($msg, 'rate limit') !== false) {

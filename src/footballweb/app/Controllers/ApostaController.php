@@ -840,20 +840,18 @@ class ApostaController extends BaseController
         $rawSummary = $db->query("
             SELECT 
                 COUNT(*) as total_apostas,
-                SUM(CASE WHEN status IN ('Ganha', 'Perdida', 'ANULADA') THEN 1 ELSE 0 END) as total_encerradas,
-                SUM(CASE WHEN status = 'Ganha' THEN 1 ELSE 0 END) as total_ganhas,
-                SUM(CASE WHEN status = 'Perdida' THEN 1 ELSE 0 END) as total_perdidas,
+                SUM(CASE WHEN status IN ('Ganha', 'Meio Ganha', 'Meio Perdida', 'Perdida', 'ANULADA') THEN 1 ELSE 0 END) as total_encerradas,
+                SUM(CASE WHEN status IN ('Ganha', 'Meio Ganha') THEN 1 ELSE 0 END) as total_ganhas,
+                SUM(CASE WHEN status IN ('Perdida', 'Meio Perdida') THEN 1 ELSE 0 END) as total_perdidas,
                 SUM(CASE WHEN status = 'ANULADA' THEN 1 ELSE 0 END) as total_anuladas,
                 COALESCE(SUM(CASE 
-                    WHEN status = 'Ganha' THEN ganhos_potenciais 
-                    WHEN status = 'ANULADA' THEN valor_aposta 
+                    WHEN status IN ('Ganha', 'Meio Ganha', 'Meio Perdida', 'ANULADA') THEN ganhos_potenciais 
                     ELSE 0 
                 END), 0) as retorno_ganhas,
                 COALESCE(SUM(valor_aposta), 0) as total_investido,
-                COALESCE(SUM(CASE WHEN status IN ('Ganha', 'Perdida', 'ANULADA') THEN valor_aposta ELSE 0 END), 0) as total_investido_encerradas,
+                COALESCE(SUM(CASE WHEN status IN ('Ganha', 'Meio Ganha', 'Meio Perdida', 'Perdida', 'ANULADA') THEN valor_aposta ELSE 0 END), 0) as total_investido_encerradas,
                 COALESCE(SUM(CASE 
-                    WHEN status = 'Ganha' THEN odd * valor_aposta 
-                    WHEN status = 'ANULADA' THEN 1.0 * valor_aposta 
+                    WHEN status IN ('Ganha', 'Meio Ganha', 'Meio Perdida', 'ANULADA') THEN ganhos_potenciais 
                     ELSE 0 
                 END), 0) as soma_odd_ponderada
             FROM apostas

@@ -438,8 +438,8 @@ def calculate_asian_handicap_suggestion(
                 sum_inv = inv_h + inv_d + inv_a
                 prob_h = inv_h / sum_inv
                 prob_a = inv_a / sum_inv
-                market_home_boost = max(0.75, min(1.35, prob_h / 0.40))
-                market_away_boost = max(0.75, min(1.35, prob_a / 0.30))
+                market_home_boost = max(0.90, min(1.12, 1.0 + (prob_h - 0.45) * 0.30))
+                market_away_boost = max(0.90, min(1.12, 1.0 + (prob_a - 0.30) * 0.30))
                 market_str = f" × Odds (H:{oh:.2f}/A:{oa:.2f})"
         except Exception:
             pass
@@ -498,20 +498,23 @@ def calculate_asian_handicap_suggestion(
             suggestion = f"{away_team} +0.25 AH"
             confidence = 72.00
             main_reason = f"Contraste de Forma Recente: O excelente momento do {away_team} ({away_last5.get('text')}) sobressai-se à oscilação do mandante {home_team} ({home_last5.get('text')}). Vantagem dada ao visitante com cobertura.{note_str}"
-        elif delta_goals >= 1.30:
+        elif delta_goals >= 2.00:
+            # Requer domínio maciço (saldo xG >= 2.00) para sugerir -1.0 AH
             suggestion = f"{home_team} -1.0 AH"
             confidence = round(min(88.0, 68.0 + delta_goals * 10), 2)
-            main_reason = f"Ataque forte do {home_team} ({home_goals_scored:.1f} g/j) contra defesa frágil do {away_team}. Expectativa de vitória por 2+ gols.{note_str}"
-        elif delta_goals >= 0.40:
+            main_reason = f"Domínio estrito do {home_team} ({home_goals_scored:.1f} g/j) contra defesa frágil do {away_team}. Expectativa de vitória por 2+ gols.{note_str}"
+        elif delta_goals >= 1.50:
+            # Requer favoritismo muito claro (saldo xG >= 1.50) para sugerir vitória simples (-0.5 AH)
             suggestion = f"{home_team} -0.5 AH"
             confidence = round(min(82.0, 62.0 + delta_goals * 12), 2)
-            main_reason = f"Vantagem de mando para o {home_team} em casa com saldo positivo (+{delta_goals:.2f} gols esperados).{note_str}"
-        elif delta_goals >= 0.10:
+            main_reason = f"Vantagem sólida de mando para o {home_team} em casa com saldo positivo significativo (+{delta_goals:.2f} gols esperados).{note_str}"
+        elif delta_goals >= 1.05:
+            # Favoritismo alto (1.05 <= delta_goals < 1.50): sugere -0.25 AH
             suggestion = f"{home_team} -0.25 AH"
             confidence = round(min(75.0, 58.0 + abs(delta_goals) * 14), 2)
-            main_reason = f"Ligeiro favoritismo do {home_team} em casa. Proteção de meia estaca em caso de empate.{note_str}"
-        elif delta_goals >= -0.20:
-            # No zoneamento neutro, a menos que o mandante esteja em crise estrita, a proteção 0.0 é a favor do mandante
+            main_reason = f"Favoritismo do {home_team} em casa (+{delta_goals:.2f} gols esperados). Proteção conservadora de meia estaca (AH -0.25) em caso de empate.{note_str}"
+        elif delta_goals >= -0.60:
+            # Zona Neutra / Conservadora Ampliada (-0.60 <= delta_goals < 1.05): sugere 0.0 (Empate Anula) para 100% de proteção de patrimônio
             if home_in_crisis and not away_in_crisis:
                 suggestion = f"{away_team} 0.0 (Empate Anula)"
             elif away_in_crisis and not home_in_crisis:
@@ -520,13 +523,14 @@ def calculate_asian_handicap_suggestion(
                 suggestion = f"{home_team} 0.0 (Empate Anula)"
             else:
                 suggestion = f"{away_team} 0.0 (Empate Anula)"
-            confidence = 66.00
-            main_reason = f"Confronto equilibrado ({home_team} xG: {lambda_home:.1f} vs {away_team} xG: {lambda_away:.1f}). Recomendada a proteção de reembolso no empate para {suggestion.split(' ')[0]}.{note_str}"
-        elif delta_goals >= -0.65:
+            confidence = 70.00
+            main_reason = f"Confronto com risco de empate ({home_team} xG: {lambda_home:.1f} vs {away_team} xG: {lambda_away:.1f} | Saldo: +{delta_goals:.2f}). Proteção conservadora de reembolso total (0.0 DNB / Empate Anula) ativada para proteger a banca.{note_str}"
+        elif delta_goals >= -1.10:
+            # Visitante com vantagem: sugere +0.25 AH a favor do visitante
             suggestion = f"{away_team} +0.25 AH"
             confidence = round(min(75.0, 58.0 + abs(delta_goals) * 14), 2)
-            main_reason = f"Boa fase do {away_team} fora de casa ({away_last5.get('text')}). Vantagem de empate a favor.{note_str}"
-        elif delta_goals >= -1.30:
+            main_reason = f"Boa fase do {away_team} fora de casa ({away_last5.get('text')}). Proteção conservadora com vantagem de empate (+0.25 AH).{note_str}"
+        elif delta_goals >= -1.85:
             suggestion = f"{away_team} +0.5 AH (Dupla Chance)"
             confidence = round(min(82.0, 62.0 + abs(delta_goals) * 12), 2)
             main_reason = f"Excelente momento do visitante {away_team} ({away_goals_scored:.1f} g/j fora / U5J: {away_last5.get('text')}). Cobertura em vitória e empate.{note_str}"

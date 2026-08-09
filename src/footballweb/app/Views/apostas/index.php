@@ -492,6 +492,8 @@
 
   .status-Pendente { background: rgba(255, 214, 0, 0.15); color: var(--bet-gold); border: 1px solid rgba(255, 214, 0, 0.3); }
   .status-Ganha    { background: rgba(0, 230, 118, 0.15); color: var(--bet-primary); border: 1px solid rgba(0, 230, 118, 0.3); }
+  .status-Meio-Ganha, .status-Meio_Ganha { background: rgba(76, 175, 80, 0.2); color: #81c784; border: 1px solid rgba(76, 175, 80, 0.4); }
+  .status-Meio-Perdida, .status-Meio_Perdida { background: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid rgba(255, 152, 0, 0.4); }
   .status-Perdida  { background: rgba(255, 82, 82, 0.15); color: var(--bet-danger); border: 1px solid rgba(255, 82, 82, 0.3); }
   .status-ANULADA, .status-Anulada { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }
   .status-Cashout  { background: rgba(0, 176, 255, 0.15); color: var(--bet-accent); border: 1px solid rgba(0, 176, 255, 0.3); }
@@ -886,7 +888,7 @@
             <?php endif; ?>
 
             <div class="d-flex justify-content-between align-items-center">
-              <span class="status-tag status-<?= $aposta->status ?>"><?= $aposta->status ?></span>
+              <span class="status-tag status-<?= str_replace(' ', '-', $aposta->status) ?>"><?= $aposta->status ?></span>
               <span style="font-size: 0.8rem; color: var(--bet-text-muted); font-weight: 600; text-transform: uppercase;">
                 Tipo: <?= htmlspecialchars($aposta->tipo) ?>
               </span>

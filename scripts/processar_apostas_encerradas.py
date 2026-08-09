@@ -138,38 +138,62 @@ def evaluate_bet(aposta, stats):
     palpite_norm = palpite.lower()
     mercado_norm = mercado.lower()
 
-    # 0. MERCADO: HANDICAP 0.0 / EMPATE ANULA / TIME + 00 (ANULA) / DNB
-    is_empate_anula = (
-        '0.0' in palpite_norm or '0,0' in palpite_norm or
-        '+00' in palpite_norm or '+ 00' in palpite_norm or
+    # 0. MERCADO: HANDICAP ASIÁTICO / EMPATE ANULA / DNB
+    is_handicap_market = (
+        'handicap' in mercado_norm or 'handicap' in palpite_norm or
         'empate anula' in palpite_norm or 'empate anula' in mercado_norm or
-        'anula' in palpite_norm or 'dnb' in palpite_norm or 'dnb' in mercado_norm or
-        'handicap 0' in palpite_norm or 'handicap 0' in mercado_norm
+        'dnb' in palpite_norm or 'dnb' in mercado_norm or
+        'ah' in palpite_norm or 'ah' in mercado_norm
     )
 
-    if is_empate_anula:
-        # Se houve EMPATE
-        if goals_home == goals_away:
-            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} (Empate em aposta +00 / Empate Anula) -> Aposta ANULADA (Reembolso R$ {valor_aposta:.2f})"
-            return 'ANULADA', detalhe, valor_aposta  # valor computado = valor apostado (sem lucro / odd 1.0)
-
-        # Se NÃO HOUVE EMPATE, verifica qual time venceu
+    if is_handicap_market or '0.0' in palpite_norm or '0,0' in palpite_norm:
+        # Identifica se a aposta é no Visitante ou Mandante
         is_away_bet = False
         if time_fora and time_fora.lower() in palpite_norm:
             is_away_bet = True
-        elif 'fora' in palpite_norm or ' 2 ' in palpite_norm or palpite_norm.startswith('2'):
+        elif 'fora' in palpite_norm or ' 2 ' in palpite_norm:
             is_away_bet = True
 
-        if is_away_bet:
-            won = (goals_away > goals_home)
-        else:
-            won = (goals_home > goals_away)
+        # Extrai o valor da linha de Handicap (ex: -0.25, +0.25, -0.75, +0.75, 0.0, -0.5, +0.5, -1.0)
+        line = 0.0
+        match_line = re.search(r'([+-]?\d+(?:[\.,]\d+)?)', palpite)
+        if match_line:
+            try:
+                line = float(match_line.group(1).replace(',', '.'))
+            except Exception:
+                line = 0.0
 
-        if won:
-            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} -> Aposta GANHA!"
-            return 'Ganha', detalhe, ganhos_originais
+        # Diferença de gols do time apostado
+        if is_away_bet:
+            diff_gols = goals_away - goals_home
+            team_bet = time_fora or "Visitante"
         else:
-            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} -> Aposta PERDIDA"
+            diff_gols = goals_home - goals_away
+            team_bet = time_casa or "Mandante"
+
+        # Saldo Ajustado do Handicap
+        adj = diff_gols + line
+
+        if adj > 0.25:
+            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta GANHA!"
+            return 'Ganha', detalhe, ganhos_originais
+        elif abs(adj - 0.25) < 0.01:
+            # MEIO GANHA (50% ganha na odd + 50% reembolsada)
+            valor_computado = valor_aposta * ((odd_original + 1.0) / 2.0)
+            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO GANHA (Retorno R$ {valor_computado:.2f})"
+            return 'Meio Ganha', detalhe, valor_computado
+        elif abs(adj) < 0.01:
+            # ANULADA (100% Reembolsada)
+            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta ANULADA (Reembolso R$ {valor_aposta:.2f})"
+            return 'ANULADA', detalhe, valor_aposta
+        elif abs(adj - (-0.25)) < 0.01:
+            # MEIO PERDIDA (50% Reembolsada + 50% Perdida)
+            valor_computado = valor_aposta * 0.5
+            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO PERDIDA (Retorno R$ {valor_computado:.2f})"
+            return 'Meio Perdida', detalhe, valor_computado
+        else:
+            # PERDIDA (100% Perdida)
+            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta PERDIDA"
             return 'Perdida', detalhe, 0.0
 
     # 1. MERCADO: TOTAL DE CARTÕES (Ex: "Menos de 6.5", "Menos de 4.5", "Mais de 5.5")

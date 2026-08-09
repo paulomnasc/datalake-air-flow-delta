@@ -828,7 +828,7 @@ class ApostaController extends BaseController
                 (SUM(ganhos_potenciais) - SUM(valor_aposta)) as lucro_liquido,
                 AVG(odd) as odd_media
             FROM apostas
-            WHERE usuario_id = ? AND status = 'Ganha' {$whereDateUser}
+            WHERE usuario_id = ? AND status IN ('Ganha', 'Meio Ganha') {$whereDateUser}
             GROUP BY mercado, 2
             ORDER BY total_vitorias DESC, lucro_liquido DESC
             LIMIT 5
@@ -847,7 +847,7 @@ class ApostaController extends BaseController
                 (SUM(ganhos_potenciais) - SUM(valor_aposta)) as lucro_liquido,
                 AVG(odd) as odd_media
             FROM apostas
-            WHERE status = 'Ganha' {$whereDateGeral}
+            WHERE status IN ('Ganha', 'Meio Ganha') {$whereDateGeral}
             GROUP BY mercado, 2
             ORDER BY total_vitorias DESC, lucro_liquido DESC
             LIMIT 5
@@ -861,8 +861,10 @@ class ApostaController extends BaseController
             SELECT 
                 COUNT(*) as total_apostas,
                 SUM(CASE WHEN status IN ('Ganha', 'Meio Ganha', 'Meio Perdida', 'Perdida', 'ANULADA') THEN 1 ELSE 0 END) as total_encerradas,
-                SUM(CASE WHEN status IN ('Ganha', 'Meio Ganha') THEN 1 ELSE 0 END) as total_ganhas,
-                SUM(CASE WHEN status IN ('Perdida', 'Meio Perdida') THEN 1 ELSE 0 END) as total_perdidas,
+                SUM(CASE WHEN status = 'Ganha' THEN 1 ELSE 0 END) as count_ganha_pura,
+                SUM(CASE WHEN status = 'Meio Ganha' THEN 1 ELSE 0 END) as count_meio_ganha,
+                SUM(CASE WHEN status = 'Meio Perdida' THEN 1 ELSE 0 END) as count_meio_perdida,
+                SUM(CASE WHEN status = 'Perdida' THEN 1 ELSE 0 END) as count_perdida_pura,
                 SUM(CASE WHEN status = 'ANULADA' THEN 1 ELSE 0 END) as total_anuladas,
                 COALESCE(SUM(CASE 
                     WHEN status IN ('Ganha', 'Meio Ganha', 'Meio Perdida', 'ANULADA') THEN ganhos_potenciais 
@@ -871,29 +873,37 @@ class ApostaController extends BaseController
                 COALESCE(SUM(valor_aposta), 0) as total_investido,
                 COALESCE(SUM(CASE WHEN status IN ('Ganha', 'Meio Ganha', 'Meio Perdida', 'Perdida', 'ANULADA') THEN valor_aposta ELSE 0 END), 0) as total_investido_encerradas,
                 COALESCE(SUM(CASE 
-                    WHEN status IN ('Ganha', 'Meio Ganha', 'Meio Perdida', 'ANULADA') THEN ganhos_potenciais 
+                    WHEN status IN ('Ganha', 'Meio Ganha', 'Meio Perdida', 'Perdida', 'ANULADA') THEN (odd * valor_aposta) 
                     ELSE 0 
                 END), 0) as soma_odd_ponderada
             FROM apostas
             WHERE usuario_id = ? {$whereDateSummary}
         ", $paramsSummary)->getRowArray();
 
-        $totApostas   = (int)($rawSummary['total_apostas'] ?? 0);
-        $totEncerradas= (int)($rawSummary['total_encerradas'] ?? 0);
-        $totGanhas    = (int)($rawSummary['total_ganhas'] ?? 0);
-        $totPerdidas  = (int)($rawSummary['total_perdidas'] ?? 0);
-        $totAnuladas  = (int)($rawSummary['total_anuladas'] ?? 0);
-        $retornoGanhas= (float)($rawSummary['retorno_ganhas'] ?? 0.0);
-        $totInvestido = (float)($rawSummary['total_investido'] ?? 0.0);
-        $totInvestEnc = (float)($rawSummary['total_investido_encerradas'] ?? 0.0);
-        $somaOddPond  = (float)($rawSummary['soma_odd_ponderada'] ?? 0.0);
+        $totApostas    = (int)($rawSummary['total_apostas'] ?? 0);
+        $totEncerradas = (int)($rawSummary['total_encerradas'] ?? 0);
+        $cntGanhaPura  = (int)($rawSummary['count_ganha_pura'] ?? 0);
+        $cntMeioGanha  = (int)($rawSummary['count_meio_ganha'] ?? 0);
+        $cntMeioPerdida= (int)($rawSummary['count_meio_perdida'] ?? 0);
+        $cntPerdidaPura= (int)($rawSummary['count_perdida_pura'] ?? 0);
+        $totAnuladas   = (int)($rawSummary['total_anuladas'] ?? 0);
+
+        $totGanhas     = $cntGanhaPura + $cntMeioGanha;
+        $totPerdidas   = $cntPerdidaPura + $cntMeioPerdida;
+        $retornoGanhas = (float)($rawSummary['retorno_ganhas'] ?? 0.0);
+        $totInvestido  = (float)($rawSummary['total_investido'] ?? 0.0);
+        $totInvestEnc  = (float)($rawSummary['total_investido_encerradas'] ?? 0.0);
+        $somaOddPond   = (float)($rawSummary['soma_odd_ponderada'] ?? 0.0);
 
         $baseInvestida = ($totInvestEnc > 0) ? $totInvestEnc : $totInvestido;
         $lucroLiquido  = $retornoGanhas - $baseInvestida;
         $roiPercentual = ($baseInvestida > 0) ? round(($lucroLiquido / $baseInvestida) * 100, 2) : 0.0;
         
-        $totDecididas  = $totGanhas + $totPerdidas;
-        $winRate       = ($totDecididas > 0) ? round(($totGanhas / $totDecididas) * 100, 2) : (($totEncerradas > 0) ? round(($totGanhas / $totEncerradas) * 100, 2) : 0.0);
+        $totDecididas  = $cntGanhaPura + $cntMeioGanha + $cntMeioPerdida + $cntPerdidaPura;
+        // Abordagem Fracionada: Ganha=1.0, Meio Ganha=0.75, Meio Perdida=0.25 (stake salva), Perdida=0.0
+        $pontosVitorias= ($cntGanhaPura * 1.0) + ($cntMeioGanha * 0.75) + ($cntMeioPerdida * 0.25);
+        $winRate       = ($totDecididas > 0) ? round(($pontosVitorias / $totDecididas) * 100, 2) : 0.0;
+
         $oddMedia      = ($totInvestEnc > 0) ? round($somaOddPond / $totInvestEnc, 2) : 1.0;
         $breakEvenRate = ($oddMedia > 0) ? round((1.0 / $oddMedia) * 100, 2) : 0.0;
         $edgePercentual= round($winRate - $breakEvenRate, 2);
@@ -909,7 +919,7 @@ class ApostaController extends BaseController
         $sqlGk = "
             SELECT AVG(odd) as avg_odd, COUNT(*) as total_vitorias 
             FROM apostas 
-            WHERE status = 'Ganha' {$whereDateGk}
+            WHERE status IN ('Ganha', 'Meio Ganha') {$whereDateGk}
         ";
         $rowGkAvg = !empty($paramsGk) ? $db->query($sqlGk, $paramsGk)->getRow() : $db->query($sqlGk)->getRow();
 
@@ -923,6 +933,7 @@ class ApostaController extends BaseController
         $statSummary = [
             'total_apostas'          => $totApostas,
             'total_encerradas'       => $totEncerradas,
+            'total_decididas'        => $totDecididas,
             'total_ganhas'           => $totGanhas,
             'total_perdidas'         => $totPerdidas,
             'total_anuladas'         => $totAnuladas,

@@ -652,7 +652,7 @@
             <?= number_format($statSummary['win_rate'] ?? 0, 1, ',', '.') ?>%
           </div>
           <div class="metric-pill-sub">
-            <?= $statSummary['total_ganhas'] ?? 0 ?> acertos em <?= $statSummary['total_encerradas'] ?? 0 ?> jogos
+            <?= $statSummary['total_ganhas'] ?? 0 ?> acerto(s) em <?= $statSummary['total_decididas'] ?? ($statSummary['total_encerradas'] ?? 0) ?> jogos decididos
           </div>
         </div>
       </div>

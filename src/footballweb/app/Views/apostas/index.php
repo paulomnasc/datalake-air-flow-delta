@@ -1217,10 +1217,15 @@
     initFixtureOptions();
     setViewMode('list'); // Padrão em Lista no load
     
-    // Selecionar data de hoje por padrão no primeiro load do formulário
+    // Selecionar data de hoje por padrão, mas com fallback se não houver apostas no dia de hoje
     const urlParams = new URLSearchParams(window.location.search);
     if (!urlParams.get('fixture_id')) {
       setTodayDateFilter();
+      const visibleCount = document.querySelectorAll('.bet-card-item[style*="display: flex"]').length;
+      const totalCards = document.querySelectorAll('.bet-card-item').length;
+      if (visibleCount === 0 && totalCards > 0) {
+        clearDateFilter();
+      }
     } else {
       applyBetFilters();
     }

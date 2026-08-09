@@ -181,7 +181,7 @@ class ApostaController extends BaseController
         $odd             = (float)$this->request->getPost('odd');
         $valorAposta     = (float)$this->request->getPost('valor_aposta');
         $fixtureId       = $this->request->getPost('fixture_id') ? (int)$this->request->getPost('fixture_id') : null;
-        $dataHoraJogo    = $this->request->getPost('data_hora_jogo') ?: date('Y-m-d H:i:s');
+        $dataHoraInput   = trim($this->request->getPost('data_hora_jogo') ?? '');
         $tipo            = trim($this->request->getPost('tipo') ?? 'Simples');
         $status          = trim($this->request->getPost('status') ?? 'Pendente');
         $cashOut         = $this->request->getPost('cash_out') !== null && $this->request->getPost('cash_out') !== '' 
@@ -212,6 +212,19 @@ class ApostaController extends BaseController
             ]);
         }
 
+        // Definição da data_hora_jogo (fuso horário America/Sao_Paulo)
+        $nowBr = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+        if (!empty($dataHoraInput)) {
+            $dataHoraJogo = $dataHoraInput;
+        } elseif ($fixtureId) {
+            $dbFix = \Config\Database::connect();
+            $fixRow = $dbFix->table('fixtures_trends')->select('fixture_date')->where('fixture_id', $fixtureId)->get()->getRow();
+            $dataHoraJogo = (!empty($fixRow) && !empty($fixRow->fixture_date)) ? $fixRow->fixture_date : $nowBr;
+        } else {
+            // Caso não haja fixture_id e nem data informada, grava com a data de hoje em America/Sao_Paulo
+            $dataHoraJogo = $nowBr;
+        }
+
         $newId = $this->apostaModel->insert([
             'usuario_id'            => $userId,
             'fixture_id'            => $fixtureId,
@@ -230,7 +243,7 @@ class ApostaController extends BaseController
             'cash_out'              => $cashOut,
             'tipo'                  => $tipo,
             'status'                => $status,
-            'criado_em'             => date('Y-m-d H:i:s')
+            'criado_em'             => $nowBr
         ]);
 
         if ($newId) {
@@ -613,6 +626,19 @@ class ApostaController extends BaseController
             ]);
         }
 
+        $nowBr = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+        $dataHoraJogo = $aposta->data_hora_jogo;
+        if (!empty($eval['fixtureId'])) {
+            $dbFix = \Config\Database::connect();
+            $fixRow = $dbFix->table('fixtures_trends')->select('fixture_date')->where('fixture_id', $eval['fixtureId'])->get()->getRow();
+            if (!empty($fixRow) && !empty($fixRow->fixture_date)) {
+                $dataHoraJogo = $fixRow->fixture_date;
+            }
+        }
+        if (empty($dataHoraJogo)) {
+            $dataHoraJogo = $nowBr;
+        }
+
         $novoId = $this->apostaModel->insert([
             'usuario_id'            => $access['user_id'],
             'fixture_id'            => $eval['fixtureId'],
@@ -625,13 +651,13 @@ class ApostaController extends BaseController
             'probabilidade_poisson' => $eval['probPoisson'],
             'ev_percentual'         => $eval['evPercentual'],
             'status_gatekeeper'     => $eval['statusGatekeeper'],
-            'data_hora_jogo'        => date('Y-m-d H:i:s'),
+            'data_hora_jogo'        => $dataHoraJogo,
             'valor_aposta'          => $aposta->valor_aposta,
             'ganhos_potenciais'     => $aposta->ganhos_potenciais,
             'cash_out'              => $aposta->cash_out,
             'tipo'                  => $aposta->tipo,
             'status'                => 'Pendente',
-            'criado_em'             => date('Y-m-d H:i:s')
+            'criado_em'             => $nowBr
         ]);
 
         return $this->response->setJSON([

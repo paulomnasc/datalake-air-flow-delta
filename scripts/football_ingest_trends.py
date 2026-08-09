@@ -123,7 +123,7 @@ def build_natural_language_explanation(suggestion, home_team, away_team):
     """
     Gera a explicação detalhada em linguagem natural com ícones de resultado (🟢 🟡 🔴).
     """
-    if "0.0" in suggestion or "Empate Anula" in suggestion:
+    if "0.0" in suggestion or "Empate Anula" in suggestion or "+00" in suggestion or "+ 00" in suggestion:
         if away_team.lower() in suggestion.lower():
             team_fav = away_team
             team_opp = home_team
@@ -132,7 +132,7 @@ def build_natural_language_explanation(suggestion, home_team, away_team):
             team_opp = away_team
         return (
             f"🟢 Vitória do {team_fav}: Você GANHA 100% da aposta (Lucro Total).\n"
-            f"🟡 Empate: 100% do valor apostado é DEVOLVIDO (Reembolso).\n"
+            f"⚪ Empate: Aposta ANULADA (100% do valor apostado é devolvido - Retorno igual ao valor apostado).\n"
             f"🔴 Vitória do {team_opp}: Aposta PERDIDA."
         )
     elif "-0.25" in suggestion:

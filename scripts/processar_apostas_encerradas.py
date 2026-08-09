@@ -117,21 +117,60 @@ def ensure_fixture_stats(cursor, fixture):
 
 def evaluate_bet(aposta, stats):
     """
-    Avalia se o palpite da aposta foi GANHO ou PERDIDO com base nas estatísticas finais da partida.
-    Retorna tupla: (novo_status: 'Ganha'|'Perdida', detalhe: str)
+    Avalia se o palpite da aposta foi GANHO, PERDIDO ou ANULADO com base nas estatísticas finais da partida.
+    Retorna tupla: (novo_status: 'Ganha'|'Perdida'|'ANULADA', detalhe: str, valor_computado: float)
     """
     palpite = aposta.get('palpite', '').strip()
     mercado = aposta.get('mercado', '').strip()
+    valor_aposta = float(aposta.get('valor_aposta', 0.0) or 0.0)
+    odd_original = float(aposta.get('odd', 1.0) or 1.0)
+    ganhos_originais = float(aposta.get('ganhos_potenciais', 0.0) or (valor_aposta * odd_original))
     
     total_cards = stats['total_cards']
     total_goals = stats['total_goals']
     total_corners = stats['total_corners']
     goals_home = stats['goals_home']
     goals_away = stats['goals_away']
+    time_casa = aposta.get('time_casa', '').strip()
+    time_fora = aposta.get('time_fora', '').strip()
     
     # Normalização de texto para regex
     palpite_norm = palpite.lower()
     mercado_norm = mercado.lower()
+
+    # 0. MERCADO: HANDICAP 0.0 / EMPATE ANULA / TIME + 00 (ANULA) / DNB
+    is_empate_anula = (
+        '0.0' in palpite_norm or '0,0' in palpite_norm or
+        '+00' in palpite_norm or '+ 00' in palpite_norm or
+        'empate anula' in palpite_norm or 'empate anula' in mercado_norm or
+        'anula' in palpite_norm or 'dnb' in palpite_norm or 'dnb' in mercado_norm or
+        'handicap 0' in palpite_norm or 'handicap 0' in mercado_norm
+    )
+
+    if is_empate_anula:
+        # Se houve EMPATE
+        if goals_home == goals_away:
+            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} (Empate em aposta +00 / Empate Anula) -> Aposta ANULADA (Reembolso R$ {valor_aposta:.2f})"
+            return 'ANULADA', detalhe, valor_aposta  # valor computado = valor apostado (sem lucro / odd 1.0)
+
+        # Se NÃO HOUVE EMPATE, verifica qual time venceu
+        is_away_bet = False
+        if time_fora and time_fora.lower() in palpite_norm:
+            is_away_bet = True
+        elif 'fora' in palpite_norm or ' 2 ' in palpite_norm or palpite_norm.startswith('2'):
+            is_away_bet = True
+
+        if is_away_bet:
+            won = (goals_away > goals_home)
+        else:
+            won = (goals_home > goals_away)
+
+        if won:
+            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} -> Aposta GANHA!"
+            return 'Ganha', detalhe, ganhos_originais
+        else:
+            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} -> Aposta PERDIDA"
+            return 'Perdida', detalhe, 0.0
 
     # 1. MERCADO: TOTAL DE CARTÕES (Ex: "Menos de 6.5", "Menos de 4.5", "Mais de 5.5")
     if 'cart' in mercado_norm or 'cart' in palpite_norm:
@@ -153,7 +192,7 @@ def evaluate_bet(aposta, stats):
 
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT 23:00 | Total Cartões: {total_cards} ({stats['yellow_cards_home']}C+{stats['yellow_cards_away']}F) {comp} {threshold} -> Aposta {status_str.upper()}"
-        return status_str, detalhe
+        return status_str, detalhe, (ganhos_originais if won else 0.0)
 
     # 2. MERCADO: GOLS (Ex: "Menos de 2.5", "Mais de 2.5")
     elif 'gol' in mercado_norm or 'gol' in palpite_norm:
@@ -172,7 +211,7 @@ def evaluate_bet(aposta, stats):
 
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} (Total {total_goals} Gols {comp} {threshold}) -> Aposta {status_str.upper()}"
-        return status_str, detalhe
+        return status_str, detalhe, (ganhos_originais if won else 0.0)
 
     # 3. MERCADO: RESULTADO / VENCEDOR (Ex: "Casa Vence", "Empate", "Fora Vence")
     elif 'vencedor' in mercado_norm or 'resultado' in mercado_norm or 'vence' in palpite_norm:
@@ -187,7 +226,7 @@ def evaluate_bet(aposta, stats):
 
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT 23:00 | Placar Final: {goals_home}x{goals_away} -> Aposta {status_str.upper()}"
-        return status_str, detalhe
+        return status_str, detalhe, (ganhos_originais if won else 0.0)
 
     # FALLBACK GENÉRICO (Trata palpites tipo "Menos de X")
     match_thresh = re.search(r'(\d+(?:\.\d+)?)', palpite)
@@ -196,10 +235,10 @@ def evaluate_bet(aposta, stats):
         won = (total_cards < threshold)
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT 23:00 | Resultado {total_cards} vs Limite {threshold} -> Aposta {status_str.upper()}"
-        return status_str, detalhe
+        return status_str, detalhe, (ganhos_originais if won else 0.0)
 
     # Se não conseguir avaliar, marca como Ganha por default para simulação
-    return 'Ganha', f"FT 23:00 | Jogo Encerrado -> Aposta GANHA!"
+    return 'Ganha', f"FT 23:00 | Jogo Encerrado -> Aposta GANHA!", ganhos_originais
 
 def process_pending_bets():
     """
@@ -228,6 +267,7 @@ def process_pending_bets():
     processadas = 0
     ganhas = 0
     perdidas = 0
+    anuladas = 0
 
     for aposta in pendentes:
         aposta_id = aposta['id']
@@ -271,21 +311,24 @@ def process_pending_bets():
         stats = ensure_fixture_stats(cursor, fixture)
 
         # Avaliar Aposta
-        novo_status, detalhe = evaluate_bet(aposta, stats)
+        novo_status, detalhe, valor_computado = evaluate_bet(aposta, stats)
 
         # Atualizar aposta no banco de dados
         cursor.execute("""
             UPDATE apostas
             SET status = %s,
                 resultado_detalhado = %s,
+                ganhos_potenciais = %s,
                 processado_em = NOW(),
                 updated_at = NOW()
             WHERE id = %s
-        """, (novo_status, detalhe, aposta_id))
+        """, (novo_status, detalhe, valor_computado, aposta_id))
 
         processadas += 1
         if novo_status == 'Ganha':
             ganhas += 1
+        elif novo_status == 'ANULADA':
+            anuladas += 1
         else:
             perdidas += 1
 
@@ -295,8 +338,11 @@ def process_pending_bets():
     print(f"✅ PROCESSAMENTO CONCLUÍDO ÀS 23:00 HS!")
     print(f"📊 Total Apostas Processadas: {processadas}")
     print(f"🟢 Apostas Ganhas: {ganhas}")
+    print(f"⚪ Apostas Anuladas: {anuladas}")
     print(f"🔴 Apostas Perdidas: {perdidas}")
     print("=======================================================")
+
+    conn.close()
 
     conn.close()
 

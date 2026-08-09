@@ -493,6 +493,7 @@
   .status-Pendente { background: rgba(255, 214, 0, 0.15); color: var(--bet-gold); border: 1px solid rgba(255, 214, 0, 0.3); }
   .status-Ganha    { background: rgba(0, 230, 118, 0.15); color: var(--bet-primary); border: 1px solid rgba(0, 230, 118, 0.3); }
   .status-Perdida  { background: rgba(255, 82, 82, 0.15); color: var(--bet-danger); border: 1px solid rgba(255, 82, 82, 0.3); }
+  .status-ANULADA, .status-Anulada { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }
   .status-Cashout  { background: rgba(0, 176, 255, 0.15); color: var(--bet-accent); border: 1px solid rgba(0, 176, 255, 0.3); }
 
   .bet-card-footer {
@@ -775,6 +776,7 @@
         <button class="filter-btn" onclick="filterBets('Pendente', this)">Pendentes (<?= $resumo['pendentes'] ?? 0 ?>)</button>
         <button class="filter-btn" onclick="filterBets('Ganha', this)">Ganhas (<?= $resumo['ganhas'] ?? 0 ?>)</button>
         <button class="filter-btn" onclick="filterBets('Perdida', this)">Perdidas (<?= $resumo['perdidas'] ?? 0 ?>)</button>
+        <button class="filter-btn" onclick="filterBets('ANULADA', this)">Anuladas (<?= $resumo['anuladas'] ?? 0 ?>)</button>
         <button class="filter-btn" onclick="filterBets('Cashout', this)">Cashout (<?= $resumo['cashouts'] ?? 0 ?>)</button>
       </div>
 
@@ -1066,6 +1068,7 @@
                 <option value="Pendente" selected>Pendente</option>
                 <option value="Ganha">Ganha</option>
                 <option value="Perdida">Perdida</option>
+                <option value="ANULADA">ANULADA</option>
                 <option value="Cashout">Cashout</option>
               </select>
             </div>
@@ -1149,6 +1152,7 @@
                 <option value="Pendente">Pendente</option>
                 <option value="Ganha">Ganha</option>
                 <option value="Perdida">Perdida</option>
+                <option value="ANULADA">ANULADA</option>
                 <option value="Cashout">Cashout</option>
               </select>
             </div>
@@ -1371,11 +1375,11 @@
     }
 
     let text = '';
-    if (val.includes('0.0') || val.includes('Empate Anula')) {
+    if (val.includes('0.0') || val.includes('Empate Anula') || val.includes('+00') || val.includes('+ 00') || val.includes('Anula')) {
       const isAway = val.toLowerCase().includes(tf.toLowerCase());
       const fav = isAway ? tf : tc;
       const opp = isAway ? tc : tf;
-      text = `🟢 Vitória do ${fav}: Aposta Ganha (100% Lucro).\n🟡 Empate: 100% Devolvido (Reembolso).\n🔴 Vitória do ${opp}: Aposta Perdida.`;
+      text = `🟢 Vitória do ${fav}: Aposta Ganha (100% Lucro).\n⚪ Empate: Aposta ANULADA (100% Devolvido / Reembolso - Valor Computado igual Apostado).\n🔴 Vitória do ${opp}: Aposta Perdida.`;
     } else if (val.includes('-0.25')) {
       const isAway = val.toLowerCase().includes(tf.toLowerCase());
       const fav = isAway ? tf : tc;

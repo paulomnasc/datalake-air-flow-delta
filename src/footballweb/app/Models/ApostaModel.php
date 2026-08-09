@@ -53,10 +53,16 @@ class ApostaModel extends Model
         $builderSelect = $db->table($this->table)
             ->select('
                 COALESCE(SUM(valor_aposta), 0) as total_apostado,
-                COALESCE(SUM(ganhos_potenciais), 0) as ganhos_totais,
+                COALESCE(SUM(CASE 
+                    WHEN status = "Ganha" THEN ganhos_potenciais 
+                    WHEN status = "ANULADA" THEN valor_aposta 
+                    WHEN status = "Cashout" THEN cash_out 
+                    ELSE 0 
+                END), 0) as ganhos_totais,
                 COALESCE(SUM(cash_out), 0) as total_cashout,
                 SUM(CASE WHEN status = "Ganha" THEN 1 ELSE 0 END) as ganhas,
                 SUM(CASE WHEN status = "Perdida" THEN 1 ELSE 0 END) as perdidas,
+                SUM(CASE WHEN status = "ANULADA" THEN 1 ELSE 0 END) as anuladas,
                 SUM(CASE WHEN status = "Pendente" THEN 1 ELSE 0 END) as pendentes,
                 SUM(CASE WHEN status = "Cashout" THEN 1 ELSE 0 END) as cashouts
             ')
@@ -74,6 +80,7 @@ class ApostaModel extends Model
             'total_cashout' => 0,
             'ganhas' => 0,
             'perdidas' => 0,
+            'anuladas' => 0,
             'pendentes' => 0,
             'cashouts' => 0
         ];

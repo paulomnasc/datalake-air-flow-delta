@@ -2254,10 +2254,10 @@ if (!function_exists('getBetDecisionTree')) {
                                                     $sugText = $fix->ah_suggestion;
                                                     $homeTeam = $fix->home_team;
                                                     $awayTeam = $fix->away_team;
-                                                    if (strpos($sugText, '0.0') !== false || strpos($sugText, 'Empate Anula') !== false) {
+                                                    if (strpos($sugText, '0.0') !== false || strpos($sugText, 'Empate Anula') !== false || strpos($sugText, '+00') !== false || strpos($sugText, '+ 00') !== false) {
                                                         $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
                                                         $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
-                                                        $nl_explanation = "🟢 Vitória do {$teamFav}: Ganha 100% da aposta (Lucro Total).\n🟡 Empate: 100% do valor é DEVOLVIDO (Reembolso).\n🔴 Vitória do {$teamOpp}: Aposta PERDIDA.";
+                                                        $nl_explanation = "🟢 Vitória do {$teamFav}: Ganha 100% da aposta (Lucro Total).\n⚪ Empate: Aposta ANULADA (100% Reembolso - Retorno igual ao valor apostado).\n🔴 Vitória do {$teamOpp}: Aposta PERDIDA.";
                                                     } elseif (strpos($sugText, '-0.25') !== false) {
                                                         $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
                                                         $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;

@@ -132,6 +132,7 @@ class ApostaController extends BaseController
             'total_cashout'  => 0,
             'ganhas'         => 0,
             'perdidas'       => 0,
+            'anuladas'       => 0,
             'pendentes'      => 0,
             'cashouts'       => 0
         ];
@@ -193,7 +194,7 @@ class ApostaController extends BaseController
             ]);
         }
 
-        $ganhosPotenciais = round($odd * $valorAposta, 2);
+        $ganhosPotenciais = ($status === 'ANULADA') ? $valorAposta : round($odd * $valorAposta, 2);
 
         // Validação do Gatekeeper
         $eval = $this->evaluateGatekeeper($fixtureId, $timeCasa, $timeFora, $mercado, $palpite, $odd);
@@ -481,7 +482,7 @@ class ApostaController extends BaseController
             ]);
         }
 
-        $ganhosPotenciais = round($odd * $valorAposta, 2);
+        $ganhosPotenciais = ($status === 'ANULADA') ? $valorAposta : round($odd * $valorAposta, 2);
 
         // Reavalia o Gatekeeper ao editar a aposta
         $fixtureId = $aposta->fixture_id ? (int)$aposta->fixture_id : null;
@@ -755,11 +756,26 @@ class ApostaController extends BaseController
             $paramsGk[] = $dataFim . ' 23:59:59';
         }
 
+        $cleanPalpiteExpr = "
+            TRIM(
+                CASE
+                    WHEN time_casa IS NOT NULL AND TRIM(time_casa) != '' AND palpite LIKE CONCAT(TRIM(time_casa), ' %') 
+                        THEN SUBSTRING(palpite, CHAR_LENGTH(TRIM(time_casa)) + 2)
+                    WHEN time_fora IS NOT NULL AND TRIM(time_fora) != '' AND palpite LIKE CONCAT(TRIM(time_fora), ' %') 
+                        THEN SUBSTRING(palpite, CHAR_LENGTH(TRIM(time_fora)) + 2)
+                    WHEN palpite REGEXP '^[A-Za-z0-9à-úÀ-Ú\\\\.\\\\-\\\\s]+\\\\s+(\\\\+?0\\\\.0.*|\\\\+?00.*|\\\\-?\\\\d+\\\\.\\\\d+.*)$'
+                         AND palpite NOT LIKE 'Menos de %' AND palpite NOT LIKE 'Mais de %' AND palpite NOT LIKE 'Over %' AND palpite NOT LIKE 'Under %'
+                        THEN REGEXP_REPLACE(palpite, '^[A-Za-z0-9à-úÀ-Ú\\\\.\\\\-\\\\s]+\\\\s+(\\\\+?0\\\\.0.*|\\\\+?00.*|\\\\-?\\\\d+\\\\.\\\\d+.*)$', '$1')
+                    ELSE palpite
+                END
+            )
+        ";
+
         // Top 5 Combinações (Mercado + Palpite) com mais vitórias do Usuário
         $queryUser = $db->query("
             SELECT 
                 mercado,
-                palpite,
+                {$cleanPalpiteExpr} as palpite,
                 COUNT(*) as total_vitorias,
                 SUM(valor_aposta) as total_apostado,
                 SUM(ganhos_potenciais) as retorno_total,
@@ -767,7 +783,7 @@ class ApostaController extends BaseController
                 AVG(odd) as odd_media
             FROM apostas
             WHERE usuario_id = ? AND status = 'Ganha' {$whereDateUser}
-            GROUP BY mercado, palpite
+            GROUP BY mercado, 2
             ORDER BY total_vitorias DESC, lucro_liquido DESC
             LIMIT 5
         ", $paramsUser);
@@ -778,7 +794,7 @@ class ApostaController extends BaseController
         $sqlGeral = "
             SELECT 
                 mercado,
-                palpite,
+                {$cleanPalpiteExpr} as palpite,
                 COUNT(*) as total_vitorias,
                 SUM(valor_aposta) as total_apostado,
                 SUM(ganhos_potenciais) as retorno_total,
@@ -786,7 +802,7 @@ class ApostaController extends BaseController
                 AVG(odd) as odd_media
             FROM apostas
             WHERE status = 'Ganha' {$whereDateGeral}
-            GROUP BY mercado, palpite
+            GROUP BY mercado, 2
             ORDER BY total_vitorias DESC, lucro_liquido DESC
             LIMIT 5
         ";
@@ -798,13 +814,22 @@ class ApostaController extends BaseController
         $rawSummary = $db->query("
             SELECT 
                 COUNT(*) as total_apostas,
-                SUM(CASE WHEN status IN ('Ganha', 'Perdida') THEN 1 ELSE 0 END) as total_encerradas,
+                SUM(CASE WHEN status IN ('Ganha', 'Perdida', 'ANULADA') THEN 1 ELSE 0 END) as total_encerradas,
                 SUM(CASE WHEN status = 'Ganha' THEN 1 ELSE 0 END) as total_ganhas,
                 SUM(CASE WHEN status = 'Perdida' THEN 1 ELSE 0 END) as total_perdidas,
-                COALESCE(SUM(CASE WHEN status = 'Ganha' THEN ganhos_potenciais ELSE 0 END), 0) as retorno_ganhas,
+                SUM(CASE WHEN status = 'ANULADA' THEN 1 ELSE 0 END) as total_anuladas,
+                COALESCE(SUM(CASE 
+                    WHEN status = 'Ganha' THEN ganhos_potenciais 
+                    WHEN status = 'ANULADA' THEN valor_aposta 
+                    ELSE 0 
+                END), 0) as retorno_ganhas,
                 COALESCE(SUM(valor_aposta), 0) as total_investido,
-                COALESCE(SUM(CASE WHEN status IN ('Ganha', 'Perdida') THEN valor_aposta ELSE 0 END), 0) as total_investido_encerradas,
-                COALESCE(SUM(CASE WHEN status IN ('Ganha', 'Perdida') THEN odd * valor_aposta ELSE 0 END), 0) as soma_odd_ponderada
+                COALESCE(SUM(CASE WHEN status IN ('Ganha', 'Perdida', 'ANULADA') THEN valor_aposta ELSE 0 END), 0) as total_investido_encerradas,
+                COALESCE(SUM(CASE 
+                    WHEN status = 'Ganha' THEN odd * valor_aposta 
+                    WHEN status = 'ANULADA' THEN 1.0 * valor_aposta 
+                    ELSE 0 
+                END), 0) as soma_odd_ponderada
             FROM apostas
             WHERE usuario_id = ? {$whereDateSummary}
         ", $paramsSummary)->getRowArray();
@@ -813,6 +838,7 @@ class ApostaController extends BaseController
         $totEncerradas= (int)($rawSummary['total_encerradas'] ?? 0);
         $totGanhas    = (int)($rawSummary['total_ganhas'] ?? 0);
         $totPerdidas  = (int)($rawSummary['total_perdidas'] ?? 0);
+        $totAnuladas  = (int)($rawSummary['total_anuladas'] ?? 0);
         $retornoGanhas= (float)($rawSummary['retorno_ganhas'] ?? 0.0);
         $totInvestido = (float)($rawSummary['total_investido'] ?? 0.0);
         $totInvestEnc = (float)($rawSummary['total_investido_encerradas'] ?? 0.0);
@@ -822,7 +848,8 @@ class ApostaController extends BaseController
         $lucroLiquido  = $retornoGanhas - $baseInvestida;
         $roiPercentual = ($baseInvestida > 0) ? round(($lucroLiquido / $baseInvestida) * 100, 2) : 0.0;
         
-        $winRate       = ($totEncerradas > 0) ? round(($totGanhas / $totEncerradas) * 100, 2) : 0.0;
+        $totDecididas  = $totGanhas + $totPerdidas;
+        $winRate       = ($totDecididas > 0) ? round(($totGanhas / $totDecididas) * 100, 2) : (($totEncerradas > 0) ? round(($totGanhas / $totEncerradas) * 100, 2) : 0.0);
         $oddMedia      = ($totInvestEnc > 0) ? round($somaOddPond / $totInvestEnc, 2) : 1.0;
         $breakEvenRate = ($oddMedia > 0) ? round((1.0 / $oddMedia) * 100, 2) : 0.0;
         $edgePercentual= round($winRate - $breakEvenRate, 2);
@@ -854,6 +881,7 @@ class ApostaController extends BaseController
             'total_encerradas'       => $totEncerradas,
             'total_ganhas'           => $totGanhas,
             'total_perdidas'         => $totPerdidas,
+            'total_anuladas'         => $totAnuladas,
             'retorno_ganhas'         => $retornoGanhas,
             'total_investido'        => $totInvestido,
             'lucro_liquido'          => $lucroLiquido,

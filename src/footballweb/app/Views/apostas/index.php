@@ -662,6 +662,11 @@
   }
 
   /* Modal Form Styling */
+  .modal-dark .modal-dialog {
+    max-width: 580px;
+    width: 92%;
+  }
+
   .modal-dark .modal-content {
     background-color: var(--bet-card-bg);
     border: 1px solid var(--bet-card-border);
@@ -1031,7 +1036,7 @@
             </div>
             <div class="col-6 mb-3">
               <label class="form-label text-white">Palpite *</label>
-              <input type="text" class="form-control" id="palpiteInput" required placeholder="Ex: Menos de 6.5 ou Operário-PR 0.0 (Empate Anula)" oninput="updatePalpiteExplanation()">
+              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="palpiteInput" readonly required placeholder="Ex: Menos de 6.5 ou Operário-PR 0.0 (Empate Anula)" oninput="updatePalpiteExplanation()" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
               <div id="palpiteExplanationBox" style="display:none; font-size: 0.75rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 6px 10px; margin-top: 6px; color: #e2e8f0;"></div>
             </div>
           </div>
@@ -1116,7 +1121,7 @@
             </div>
             <div class="col-6 mb-3">
               <label class="form-label text-white">Palpite *</label>
-              <input type="text" class="form-control" id="editPalpiteInput" required>
+              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editPalpiteInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
           </div>
 

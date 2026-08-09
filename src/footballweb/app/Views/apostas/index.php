@@ -1012,20 +1012,21 @@
           </div>
 
           <div class="row">
+          <div class="row">
             <div class="col-6 mb-3">
               <label class="form-label text-white">Time Casa *</label>
-              <input type="text" class="form-control" id="timeCasaInput" required placeholder="Ex: Mirassol">
+              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="timeCasaInput" readonly required placeholder="Ex: Mirassol" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-6 mb-3">
               <label class="form-label text-white">Time Fora *</label>
-              <input type="text" class="form-control" id="timeForaInput" required placeholder="Ex: Grêmio">
+              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="timeForaInput" readonly required placeholder="Ex: Grêmio" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
           </div>
 
           <div class="row">
             <div class="col-6 mb-3">
               <label class="form-label text-white">Mercado de Apostas *</label>
-              <select class="form-select" id="mercadoTypeSelect" onchange="onMercadoTypeChange(this)">
+              <select class="form-select text-white fw-bold bg-dark border-secondary" id="mercadoTypeSelect" disabled onchange="onMercadoTypeChange(this)" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
                 <option value="Total de Cartões" selected>🟨 Total de Cartões</option>
                 <option value="Handicap Asiático">⚽ Handicap Asiático</option>
                 <option value="Escanteios">🚩 Escanteios</option>
@@ -1059,7 +1060,7 @@
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white">Cash Out (R$)</label>
-              <input type="number" step="0.01" class="form-control" id="cashoutInput" placeholder="10.00" value="10.00">
+              <input type="number" step="0.01" class="form-control text-white fw-bold bg-dark border-secondary" id="cashoutInput" readonly placeholder="10.00" value="10.00" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white">Tipo</label>
@@ -1106,18 +1107,18 @@
           <div class="row">
             <div class="col-6 mb-3">
               <label class="form-label text-white">Time Casa *</label>
-              <input type="text" class="form-control" id="editTimeCasaInput" required>
+              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editTimeCasaInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-6 mb-3">
               <label class="form-label text-white">Time Fora *</label>
-              <input type="text" class="form-control" id="editTimeForaInput" required>
+              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editTimeForaInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
           </div>
 
           <div class="row">
             <div class="col-6 mb-3">
               <label class="form-label text-white">Mercado *</label>
-              <input type="text" class="form-control" id="editMercadoInput" required>
+              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editMercadoInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-6 mb-3">
               <label class="form-label text-white">Palpite *</label>
@@ -1143,7 +1144,7 @@
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white">Cash Out (R$)</label>
-              <input type="number" step="0.01" class="form-control" id="editCashoutInput">
+              <input type="number" step="0.01" class="form-control text-white fw-bold bg-dark border-secondary" id="editCashoutInput" readonly style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white">Tipo</label>
@@ -1362,16 +1363,24 @@
 
   function calcGanhos() {
     const odd = parseFloat(document.getElementById('oddInput').value) || 0;
-    const val = parseFloat(document.getElementById('valorInput').value) || 0;
+    const valInput = document.getElementById('valorInput');
+    const valRaw = valInput ? valInput.value : '0';
+    const val = parseFloat(valRaw) || 0;
     const res = odd * val;
     document.getElementById('ganhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+    const cashoutEl = document.getElementById('cashoutInput');
+    if (cashoutEl) cashoutEl.value = valRaw;
   }
 
   function calcEditGanhos() {
     const odd = parseFloat(document.getElementById('editOddInput').value) || 0;
-    const val = parseFloat(document.getElementById('editValorInput').value) || 0;
+    const valInput = document.getElementById('editValorInput');
+    const valRaw = valInput ? valInput.value : '0';
+    const val = parseFloat(valRaw) || 0;
     const res = odd * val;
     document.getElementById('editGanhosDisplay').value = 'R$ ' + res.toFixed(2).replace('.', ',');
+    const editCashoutEl = document.getElementById('editCashoutInput');
+    if (editCashoutEl) editCashoutEl.value = valRaw;
   }
 
   function updatePalpiteExplanation() {
@@ -1606,7 +1615,7 @@
     document.getElementById('editPalpiteInput').value = aposta.palpite;
     document.getElementById('editOddInput').value = aposta.odd;
     document.getElementById('editValorInput').value = aposta.valor_aposta;
-    document.getElementById('editCashoutInput').value = aposta.cash_out || '';
+    document.getElementById('editCashoutInput').value = aposta.valor_aposta;
     document.getElementById('editTipoSelect').value = aposta.tipo || 'Simples';
     document.getElementById('editStatusSelect').value = aposta.status || 'Pendente';
     calcEditGanhos();

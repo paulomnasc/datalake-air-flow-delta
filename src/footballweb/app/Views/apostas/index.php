@@ -820,6 +820,10 @@
         <i class="bi bi-trophy-fill text-warning"></i> Rank Top 5 Vencedores
       </a>
 
+      <a href="<?= base_url('apostas/relatorio-ia-perdas') ?>" class="btn btn-outline-danger rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;">
+        <i class="bi bi-shield-x text-danger"></i> Relatório Perdas (IA)
+      </a>
+
       <button class="btn-new-bet" data-bs-toggle="modal" data-bs-target="#newBetModal">
         <i class="bi bi-plus-lg"></i> Nova Aposta
       </button>

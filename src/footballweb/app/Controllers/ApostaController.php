@@ -970,6 +970,538 @@ class ApostaController extends BaseController
     }
 
     /**
+     * Exibe o novo Relatório de Diagnóstico de Apostas Perdidas com Groq AI
+     */
+    public function relatorioIaPerdas()
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated']) {
+            session()->setFlashdata('error', 'Você precisa estar logado para acessar o relatório de perdas.');
+            return redirect()->to('/loginUsuario');
+        }
+
+        $userId = $access['user_id'];
+        $db = \Config\Database::connect();
+
+        $startDate = $this->request->getVar('start_date');
+        $endDate   = $this->request->getVar('end_date');
+
+        if (empty($startDate) && empty($endDate)) {
+            $endDate = date('Y-m-d');
+            $startDate = date('Y-m-d', strtotime('-14 days'));
+        } elseif (empty($startDate)) {
+            $startDate = $endDate;
+        } elseif (empty($endDate)) {
+            $endDate = $startDate;
+        }
+
+        if ($startDate > $endDate) {
+            $temp = $startDate;
+            $startDate = $endDate;
+            $endDate = $temp;
+        }
+
+        // Buscar apostas perdidas ou meio perdidas no período
+        $sql = "
+            SELECT 
+                a.*,
+                f.league_name,
+                f.prediction_text,
+                f.ah_suggestion,
+                f.ah_confidence,
+                f.ah_reasoning,
+                f.over_cards_probability,
+                f.referee_name,
+                f.goals_home as ft_goals_home,
+                f.goals_away as ft_goals_away,
+                f.yellow_cards_home,
+                f.yellow_cards_away,
+                f.red_cards_home,
+                f.red_cards_away,
+                f.corners_home,
+                f.corners_away,
+                f.shots_home,
+                f.shots_away,
+                f.xg_home,
+                f.xg_away,
+                f.futbol24_tip,
+                f.futbol24_analysis,
+                rs.average_yellow_cards,
+                rs.average_red_cards,
+                rs.average_fouls,
+                rs.total_games as referee_total_games,
+                rs.rigor_level as referee_rigor_level,
+                th.avg_goals_scored as home_avg_goals_scored,
+                th.avg_goals_conceded as home_avg_goals_conceded,
+                th.clean_sheets_pct as home_clean_sheets_pct,
+                th.avg_corners as home_avg_corners,
+                th.avg_cards as home_avg_cards,
+                ta.avg_goals_scored as away_avg_goals_scored,
+                ta.avg_goals_conceded as away_avg_goals_conceded,
+                ta.clean_sheets_pct as away_clean_sheets_pct,
+                ta.avg_corners as away_avg_corners,
+                ta.avg_cards as away_avg_cards
+            FROM apostas a
+            LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)
+            LEFT JOIN referee_stats rs ON (f.referee_name IS NOT NULL AND f.referee_name = rs.name)
+            LEFT JOIN team_moving_averages th ON (f.home_team_id IS NOT NULL AND f.home_team_id = th.team_id AND th.venue_type = 'home')
+            LEFT JOIN team_moving_averages ta ON (f.away_team_id IS NOT NULL AND f.away_team_id = ta.team_id AND ta.venue_type = 'away')
+            WHERE a.usuario_id = ?
+              AND a.status IN ('Perdida', 'Meio Perdida')
+              AND DATE(a.data_hora_jogo) BETWEEN ? AND ?
+            ORDER BY a.data_hora_jogo DESC
+        ";
+
+        $apostasPerdidas = $db->query($sql, [$userId, $startDate, $endDate])->getResultObject();
+
+        // Calcular sumários do período
+        $totPerdidas = count($apostasPerdidas);
+        $totInvestidoPerdas = 0.0;
+        $prejuizoTotal = 0.0;
+        $mercadosBreakdown = [
+            'cartoes' => 0,
+            'handicap' => 0,
+            'gols' => 0,
+            'outros' => 0
+        ];
+
+        foreach ($apostasPerdidas as $ap) {
+            $val = (float)($ap->valor_aposta ?? 0);
+            $totInvestidoPerdas += $val;
+
+            if ($ap->status === 'Meio Perdida') {
+                $prejuizoTotal += ($val * 0.5);
+            } else {
+                $prejuizoTotal += $val;
+            }
+
+            $merc = strtolower(($ap->mercado ?? '') . ' ' . ($ap->palpite ?? ''));
+            if (strpos($merc, 'cart') !== false || strpos($merc, 'card') !== false || strpos($merc, 'amarelo') !== false) {
+                $mercadosBreakdown['cartoes']++;
+            } elseif (strpos($merc, 'handicap') !== false || strpos($merc, 'ah') !== false) {
+                $mercadosBreakdown['handicap']++;
+            } elseif (strpos($merc, 'gol') !== false || strpos($merc, 'goal') !== false || strpos($merc, 'ambas') !== false || strpos($merc, 'btts') !== false) {
+                $mercadosBreakdown['gols']++;
+            } else {
+                $mercadosBreakdown['outros']++;
+            }
+        }
+
+        $data = [
+            'title'              => 'Relatório de Diagnóstico de Apostas Perdidas | Groq AI',
+            'user'               => $access['user'],
+            'credits'            => $access['credits'],
+            'apostasPerdidas'    => $apostasPerdidas,
+            'startDate'          => $startDate,
+            'endDate'            => $endDate,
+            'totPerdidas'        => $totPerdidas,
+            'totInvestidoPerdas' => $totInvestidoPerdas,
+            'prejuizoTotal'      => $prejuizoTotal,
+            'mercadosBreakdown'  => $mercadosBreakdown
+        ];
+
+        return view('header', $data)
+             . view('apostas/relatorio_ia_perdas', $data)
+             . view('footer');
+    }
+
+    /**
+     * Endpoint AJAX para Análise Individual de Aposta Perdida via Groq AI
+     */
+    public function analisarPerdaIa(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para utilizar a análise de IA.'
+            ]);
+        }
+
+        $userId = $access['user_id'];
+        $apostaId = $this->request->getPost('aposta_id');
+
+        if (empty($apostaId)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'ID da aposta não informado.'
+            ]);
+        }
+
+        $db = \Config\Database::connect();
+        $userRow = $access['user'];
+
+        if (empty($userRow->google_id)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você deve estar autenticado via conta Google para utilizar os créditos do Groq AI.'
+            ]);
+        }
+
+        $credits = (int)($userRow->grok_credits ?? 0);
+
+        // Buscar aposta com dados completos do card e estatísticas
+        $sql = "
+            SELECT 
+                a.*,
+                f.league_name,
+                f.prediction_text,
+                f.ah_suggestion,
+                f.ah_confidence,
+                f.ah_reasoning,
+                f.over_cards_probability,
+                f.referee_name,
+                f.goals_home as ft_goals_home,
+                f.goals_away as ft_goals_away,
+                f.yellow_cards_home,
+                f.yellow_cards_away,
+                f.red_cards_home,
+                f.red_cards_away,
+                f.corners_home,
+                f.corners_away,
+                f.shots_home,
+                f.shots_away,
+                f.xg_home,
+                f.xg_away,
+                f.futbol24_tip,
+                f.futbol24_analysis,
+                rs.average_yellow_cards,
+                rs.average_red_cards,
+                rs.average_fouls,
+                rs.total_games as referee_total_games,
+                rs.rigor_level as referee_rigor_level,
+                th.avg_goals_scored as home_avg_goals_scored,
+                th.avg_goals_conceded as home_avg_goals_conceded,
+                th.clean_sheets_pct as home_clean_sheets_pct,
+                th.avg_corners as home_avg_corners,
+                th.avg_cards as home_avg_cards,
+                ta.avg_goals_scored as away_avg_goals_scored,
+                ta.avg_goals_conceded as away_avg_goals_conceded,
+                ta.clean_sheets_pct as away_clean_sheets_pct,
+                ta.avg_corners as away_avg_corners,
+                ta.avg_cards as away_avg_cards
+            FROM apostas a
+            LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)
+            LEFT JOIN referee_stats rs ON (f.referee_name IS NOT NULL AND f.referee_name = rs.name)
+            LEFT JOIN team_moving_averages th ON (f.home_team_id IS NOT NULL AND f.home_team_id = th.team_id AND th.venue_type = 'home')
+            LEFT JOIN team_moving_averages ta ON (f.away_team_id IS NOT NULL AND f.away_team_id = ta.team_id AND ta.venue_type = 'away')
+            WHERE a.id = ? AND a.usuario_id = ?
+        ";
+        $aposta = $db->query($sql, [$apostaId, $userId])->getRow();
+
+        if (!$aposta) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Aposta não encontrada ou não pertence ao seu usuário.'
+            ]);
+        }
+
+        // Se já possui análise salva no banco e não foi forçada reanálise, retorna direto sem gastar crédito
+        $forceReload = $this->request->getPost('force') === '1';
+        if (!empty($aposta->analise_ia_perda) && !$forceReload) {
+            return $this->response->setJSON([
+                'success' => true,
+                'analise' => $aposta->analise_ia_perda,
+                'cached'  => true,
+                'credits_left' => $credits
+            ]);
+        }
+
+        if ($credits <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você não possui saldo de créditos Groq suficientes para esta análise.'
+            ]);
+        }
+
+        $apiKey = env('VISION_API_KEY');
+        if (empty($apiKey)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Chave da API Groq não configurada no servidor.'
+            ]);
+        }
+
+        // Identificar o tipo de palpite/mercado
+        $mercadoFull = strtolower(($aposta->mercado ?? '') . ' ' . ($aposta->palpite ?? ''));
+        $categoriaSecao = 'outros';
+
+        if (strpos($mercadoFull, 'cart') !== false || strpos($mercadoFull, 'card') !== false || strpos($mercadoFull, 'amarelo') !== false) {
+            $categoriaSecao = 'cartoes';
+        } elseif (strpos($mercadoFull, 'handicap') !== false || strpos($mercadoFull, 'ah') !== false || strpos($mercadoFull, 'empate anula') !== false || strpos($mercadoFull, 'dnb') !== false) {
+            $categoriaSecao = 'handicap';
+        } elseif (strpos($mercadoFull, 'gol') !== false || strpos($mercadoFull, 'goal') !== false || strpos($mercadoFull, 'ambas') !== false || strpos($mercadoFull, 'btts') !== false || strpos($mercadoFull, 'over') !== false || strpos($mercadoFull, 'under') !== false) {
+            $categoriaSecao = 'gols';
+        }
+
+        // Construir contexto da seção temática do Card correspondente
+        $secaoCardInfo = "";
+        if ($categoriaSecao === 'cartoes') {
+            $secaoCardInfo = "📌 SEÇÃO DO CARD CORRESPONDENTE (MERCADO DE CARTÕES & ÁRBITRO):\n"
+                . "- Expectativa Calculada de Cartões (xC): " . ($aposta->prediction_text ?? 'N/A') . "\n"
+                . "- Probabilidade de Poisson Over/Under: " . ($aposta->over_cards_probability ?? 'N/A') . "%\n"
+                . "- Média de Cartões Recebidos (Mandante/Visitante): " . ($aposta->home_avg_cards ?? 'N/A') . " / " . ($aposta->away_avg_cards ?? 'N/A') . "\n"
+                . "- Árbitro Escalado: " . ($aposta->referee_name ?? 'Não Informado') . "\n"
+                . "- Média de Amarelos do Árbitro: " . ($aposta->average_yellow_cards ?? 'N/A') . " | Faltas: " . ($aposta->average_fouls ?? 'N/A') . "\n"
+                . "- Realidade da Partida (Placar de Cartões): " . ($aposta->yellow_cards_home ?? 0) . " amarelos (Casa), " . ($aposta->yellow_cards_away ?? 0) . " amarelos (Fora), " . ($aposta->red_cards_home ?? 0) . " vermelhos (Casa), " . ($aposta->red_cards_away ?? 0) . " vermelhos (Fora).\n";
+        } elseif ($categoriaSecao === 'handicap' || $categoriaSecao === 'gols') {
+            $secaoCardInfo = "📌 SEÇÃO DO CARD CORRESPONDENTE (MERCADO DE GOLS & HANDICAP ASIÁTICO):\n"
+                . "- Sugestão de Handicap do Card: " . ($aposta->ah_suggestion ?? 'N/A') . " (Confiança: " . ($aposta->ah_confidence ?? 'N/A') . "%)\n"
+                . "- Raciocínio / Memória AH: " . ($aposta->ah_reasoning ?? 'N/A') . "\n"
+                . "- Médias de Gols Marcados/Sofridos (Casa): " . ($aposta->home_avg_goals_scored ?? 'N/A') . " / " . ($aposta->home_avg_goals_conceded ?? 'N/A') . "\n"
+                . "- Médias de Gols Marcados/Sofridos (Fora): " . ($aposta->away_avg_goals_scored ?? 'N/A') . " / " . ($aposta->away_avg_goals_conceded ?? 'N/A') . "\n"
+                . "- Clean Sheets % (Casa / Fora): " . ($aposta->home_clean_sheets_pct ?? 'N/A') . "% / " . ($aposta->away_clean_sheets_pct ?? 'N/A') . "%\n"
+                . "- Realidade da Partida (Placar Final): " . ($aposta->time_casa ?? 'Casa') . " " . ($aposta->ft_goals_home ?? $aposta->goals_home ?? 0) . " x " . ($aposta->ft_goals_away ?? $aposta->goals_away ?? 0) . " " . ($aposta->time_fora ?? 'Visitante') . "\n"
+                . "- Métrica Expected Goals (xG): " . ($aposta->xg_home ?? 0.0) . " (Casa) x " . ($aposta->xg_away ?? 0.0) . " (Fora).\n";
+        } else {
+            $secaoCardInfo = "📌 SEÇÃO DO CARD CORRESPONDENTE (RESENHA EDITORIAL & ESTATÍSTICAS GERAIS):\n"
+                . "- Dica Futbol24: " . ($aposta->futbol24_tip ?? 'N/A') . "\n"
+                . "- Análise Editorial Futbol24: " . ($aposta->futbol24_analysis ?? 'N/A') . "\n"
+                . "- Escanteios na Partida: " . ($aposta->corners_home ?? 0) . " (Casa) - " . ($aposta->corners_away ?? 0) . " (Fora)\n"
+                . "- Chutes Totais na Partida: " . ($aposta->shots_home ?? 0) . " (Casa) - " . ($aposta->shots_away ?? 0) . " (Fora)\n"
+                . "- Placar Final Real: " . ($aposta->goals_home ?? 0) . " x " . ($aposta->goals_away ?? 0) . "\n";
+        }
+
+        $systemPrompt = "Você é o Grok AI, um analista sênior de inteligência esportiva e gestão de risco em apostas da plataforma FootballWeb. "
+            . "Sua missão é realizar um EXAME CRÍTICO focado no motivo da perda da aposta em confronto direto entre o PALPITE EFETUADO e os dados da SEÇÃO TEMÁTICA DO CARD do jogo.\n\n"
+            . "DADOS DA APOSTA REGISTRADA:\n"
+            . "- Partida: {$aposta->time_casa} vs {$aposta->time_fora}\n"
+            . "- Data do Jogo: {$aposta->data_hora_jogo}\n"
+            . "- Mercado: {$aposta->mercado}\n"
+            . "- Palpite Apostado: {$aposta->palpite}\n"
+            . "- Odd Apostada: {$aposta->odd}\n"
+            . "- Valor Apostado: R$ {$aposta->valor_aposta}\n"
+            . "- Status Final: {$aposta->status}\n"
+            . "- Resultado Detalhado Registrado: {$aposta->resultado_detalhado}\n\n"
+            . $secaoCardInfo . "\n"
+            . "INSTRUÇÕES OBRIGATÓRIAS PARA SUA RESPOSTA (FORMATO MARKDOWN ESTRUTURADO):\n"
+            . "1. **🔍 Diagnóstico Crítico (Palpite vs Seção do Card):** Compare diretamente o palpite apostado ('{$aposta->palpite}') com as projeções contidas na seção temática do Card informada acima. Aponte exatamente onde ocorreu a divergência entre a projeção pré-jogo e a realidade do jogo.\n"
+            . "2. **⚡ Motivo Provável do Red:** Explique a causa técnica principal da perda (ex: desvio estatístico de Poisson, arbitragem atípica, expulsão prematura, falta de eficiência de gols/xG, variação em clássico, etc.).\n"
+            . "3. **🎯 Ajustes Recomendados nos Critérios para Próximos Jogos:** Forneça de 2 a 3 recomendações práticas, quantitativas e objetivas de ajustes de parâmetros (ex: aumentar margem de segurança no Under cartões quando o árbitro tiver média X, evitar linha Y em handicap fora de casa, recalibrar tolerância em jogos decisivos).";
+
+        try {
+            $client = \Config\Services::curlrequest(['http_errors' => false]);
+            $apiUrl = env('VISION_API_URL') ?: 'https://api.groq.com/openai/v1/chat/completions';
+            $model  = env('TEXT_API_MODEL') ?: 'llama-3.3-70b-versatile';
+
+            $response = $client->post($apiUrl, [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $apiKey,
+                    'Content-Type'  => 'application/json',
+                ],
+                'json' => [
+                    'model'    => $model,
+                    'messages' => [
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user', 'content' => "Faça a análise crítica detalhada da perda da aposta #{$aposta->id} ({$aposta->time_casa} x {$aposta->time_fora} - Palpite: {$aposta->palpite})."]
+                    ],
+                ],
+                'timeout' => 35,
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            if ($statusCode !== 200) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => "Erro na API do Groq (HTTP {$statusCode})."
+                ]);
+            }
+
+            $body = json_decode($response->getBody(), true);
+            $aiResponse = $body['choices'][0]['message']['content'] ?? '';
+
+            if (empty($aiResponse)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Resposta da IA retornou vazia.'
+                ]);
+            }
+
+            // Debitar 1 crédito e salvar no banco
+            $newCredits = max(0, $credits - 1);
+            $db->table('usuario')->where('id', $userId)->update(['grok_credits' => $newCredits]);
+            $db->table('apostas')->where('id', $apostaId)->update([
+                'analise_ia_perda' => $aiResponse,
+                'analise_ia_data' => date('Y-m-d H:i:s')
+            ]);
+
+            return $this->response->setJSON([
+                'success' => true,
+                'analise' => $aiResponse,
+                'credits_left' => $newCredits
+            ]);
+
+        } catch (\Exception $e) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao processar chamada para o Groq: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Endpoint AJAX para Análise Consolidada das Apostas Perdidas do Período via Groq AI
+     */
+    public function analisarPerdasConsolidadoIa(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para utilizar a análise de IA.'
+            ]);
+        }
+
+        $userId = $access['user_id'];
+        $startDate = $this->request->getPost('start_date');
+        $endDate   = $this->request->getPost('end_date');
+
+        if (empty($startDate) || empty($endDate)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Datas de início e fim do período são obrigatórias.'
+            ]);
+        }
+
+        $db = \Config\Database::connect();
+        $userRow = $access['user'];
+
+        if (empty($userRow->google_id)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você deve estar autenticado via conta Google para utilizar os créditos do Groq AI.'
+            ]);
+        }
+
+        $credits = (int)($userRow->grok_credits ?? 0);
+        if ($credits <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você não possui saldo de créditos Groq suficientes.'
+            ]);
+        }
+
+        $apiKey = env('VISION_API_KEY');
+        if (empty($apiKey)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Chave da API Groq não configurada no servidor.'
+            ]);
+        }
+
+        // Buscar perdas do período com dados estatísticos completos
+        $sql = "
+            SELECT 
+                a.*,
+                f.prediction_text,
+                f.ah_suggestion,
+                f.referee_name,
+                f.goals_home,
+                f.goals_away,
+                f.yellow_cards_home,
+                f.yellow_cards_away,
+                f.red_cards_home,
+                f.red_cards_away,
+                rs.average_yellow_cards,
+                rs.average_red_cards,
+                rs.average_fouls,
+                th.avg_cards as home_avg_cards,
+                ta.avg_cards as away_avg_cards
+            FROM apostas a
+            LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)
+            LEFT JOIN referee_stats rs ON (f.referee_name IS NOT NULL AND f.referee_name = rs.name)
+            LEFT JOIN team_moving_averages th ON (f.home_team_id IS NOT NULL AND f.home_team_id = th.team_id AND th.venue_type = 'home')
+            LEFT JOIN team_moving_averages ta ON (f.away_team_id IS NOT NULL AND f.away_team_id = ta.team_id AND ta.venue_type = 'away')
+            WHERE a.usuario_id = ?
+              AND a.status IN ('Perdida', 'Meio Perdida')
+              AND DATE(a.data_hora_jogo) BETWEEN ? AND ?
+            ORDER BY a.data_hora_jogo ASC
+        ";
+        $perdas = $db->query($sql, [$userId, $startDate, $endDate])->getResultObject();
+
+        if (empty($perdas)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Nenhuma aposta perdida encontrada no período selecionado.'
+            ]);
+        }
+
+        $summaryText = "PANORAMA DE APOSTAS PERDIDAS NO PERÍODO ({$startDate} a {$endDate}):\n";
+        $count = 1;
+        foreach ($perdas as $p) {
+            $summaryText .= "{$count}. [{$p->time_casa} x {$p->time_fora}] - Mercado: {$p->mercado} | Palpite: {$p->palpite} | Odd: {$p->odd} | Stake: R$ {$p->valor_aposta} | Status: {$p->status}\n"
+                . "   - Card Projeção: " . ($p->prediction_text ?: $p->ah_suggestion ?: 'N/A') . "\n"
+                . "   - Placar Real: " . ($p->goals_home ?? 0) . "x" . ($p->goals_away ?? 0) . " | Cartões Reais: " . (($p->yellow_cards_home ?? 0) + ($p->yellow_cards_away ?? 0)) . " amarelos, " . (($p->red_cards_home ?? 0) + ($p->red_cards_away ?? 0)) . " vermelhos\n";
+            $count++;
+        }
+
+        $systemPrompt = "Você é o Grok AI, diretor de inteligência estatística e controle de risco da FootballWeb. "
+            . "Abaixo está a lista consolidada de apostas que resultaram em perda ('Perdida' e 'Meio Perdida') no período de {$startDate} a {$endDate}.\n\n"
+            . $summaryText . "\n\n"
+            . "DIRETRIZES DE RESPOSTA (FORMATO MARKDOWN EXECUTIVO):\n"
+            . "1. **📊 Diagnóstico Geral dos Padrões de Perda:** Avalie em quais mercados ou tipos de palpite concentraram-se os reds no período.\n"
+            . "2. **⚖️ Análise Crítica dos Modelos do Card:** Identifique se houve falha sistemática nos modelos (ex: superestimativa de cartões Under, falha em linhas de Handicap asiático em times visitantes, distorção por zebras).\n"
+            . "3. **🛠️ Plano de Ação & Recalibragem de Critérios:** Apresente 3 a 5 regras claras e reajustes de parâmetros para que os próximos palpites no sistema minimizem reds semelhantes.";
+
+        try {
+            $client = \Config\Services::curlrequest(['http_errors' => false]);
+            $apiUrl = env('VISION_API_URL') ?: 'https://api.groq.com/openai/v1/chat/completions';
+            $model  = env('TEXT_API_MODEL') ?: 'llama-3.3-70b-versatile';
+
+            $response = $client->post($apiUrl, [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $apiKey,
+                    'Content-Type'  => 'application/json',
+                ],
+                'json' => [
+                    'model'    => $model,
+                    'messages' => [
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user', 'content' => "Gere o relatório de diagnóstico consolidado para as " . count($perdas) . " apostas perdidas no período de {$startDate} a {$endDate}."]
+                    ],
+                ],
+                'timeout' => 45,
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            if ($statusCode !== 200) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => "Erro na API do Groq (HTTP {$statusCode})."
+                ]);
+            }
+
+            $body = json_decode($response->getBody(), true);
+            $aiResponse = $body['choices'][0]['message']['content'] ?? '';
+
+            if (empty($aiResponse)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Resposta da IA retornou vazia.'
+                ]);
+            }
+
+            $newCredits = max(0, $credits - 1);
+            $db->table('usuario')->where('id', $userId)->update(['grok_credits' => $newCredits]);
+
+            return $this->response->setJSON([
+                'success' => true,
+                'analise' => $aiResponse,
+                'credits_left' => $newCredits
+            ]);
+
+        } catch (\Exception $e) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao processar chamada de consolidação no Groq: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
      * Calcula o fatorial de um número inteiro (auxiliar para Distribuição de Poisson)
      */
     private function factorial(int $n): float
@@ -982,4 +1514,5 @@ class ApostaController extends BaseController
         return $res;
     }
 }
+
 

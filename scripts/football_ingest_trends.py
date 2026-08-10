@@ -9,6 +9,14 @@ import random
 import math
 from datetime import datetime, timedelta
 
+# Permitir importação de módulos de scrapers em src/dags/lib
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src/dags'))
+try:
+    from lib.scrapers import scrape_futbol24_team_last5
+except Exception:
+    scrape_futbol24_team_last5 = None
+
+
 def calculate_poisson_over_under(xc, line=4.5):
     """
     Calcula a probabilidade exata de Over e Under X.5 cartões usando Distribuição de Poisson.
@@ -51,12 +59,25 @@ def calculate_poisson_under_lines(xc):
 
 def fetch_team_last5_form(cursor, team_name, team_id=None):
     """
-    Busca os últimos 5 jogos finalizados (FT) do time na tabela fixtures_trends.
+    Busca a sequência recente (últimos jogos) do time.
+    Prioriza a raspagem web em tempo real do Futbol24 (Últimos Resultados).
+    Se indisponível, utiliza a consulta local no banco MySQL fixtures_trends.
     Garante sincronização total entre v, e, d, pts e a lista visual de partidas (matches).
     """
     matches = []
-    try:
-        if cursor is not None:
+
+    # 1. Prioridade Máxima: Raspagem ao vivo no Futbol24 (Últimos Resultados)
+    if scrape_futbol24_team_last5 is not None:
+        try:
+            f24_res = scrape_futbol24_team_last5(team_name, limit=6)
+            if f24_res and f24_res.get("matches"):
+                matches = f24_res["matches"]
+        except Exception as exc:
+            print(f"Aviso ao consultar Futbol24 para '{team_name}': {exc}")
+
+    # 2. Fallback: Consulta no banco MySQL local fixtures_trends
+    if not matches and cursor is not None:
+        try:
             sql = """
                 SELECT home_team, away_team, goals_home, goals_away
                 FROM fixtures_trends
@@ -68,7 +89,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None):
                       OR (LOWER(away_team) LIKE %s)
                   )
                 ORDER BY fixture_date DESC
-                LIMIT 5
+                LIMIT 6
             """
             clean_name = f"%{team_name.lower().replace('-pr', '').replace(' sp', '').strip()}%"
             cursor.execute(sql, (team_id, team_id, clean_name, clean_name))
@@ -85,9 +106,10 @@ def fetch_team_last5_form(cursor, team_name, team_id=None):
                     res = "V" if ga > gh else ("E" if gh == ga else "D")
                     sc = f"{ga}x{gh}"
                 matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home})
-    except Exception:
-        pass
+        except Exception:
+            pass
 
+    # 3. Fallback genérico caso não haja partidas raspadas ou locais suficientes
     if len(matches) < 5:
         if "operario" in team_name.lower() or "operário" in team_name.lower():
             default_matches = [
@@ -107,7 +129,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None):
             ]
         matches.extend(default_matches[len(matches):5])
 
-    # Recalcula v, e, d, pts estritamente a partir das 5 partidas em matches
+    # Recalcula v, e, d, pts estritamente a partir das partidas em matches
     v = sum(1 for m in matches if m["result"] == "V")
     e = sum(1 for m in matches if m["result"] == "E")
     d = sum(1 for m in matches if m["result"] == "D")

@@ -593,6 +593,148 @@ def scrape_futbol24_previews() -> List[Dict[str, Any]]:
     return results
 
 
+def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, limit: int = 6) -> Optional[Dict[str, Any]]:
+    """
+    Realiza a raspagem dos últimos jogos encerrados de uma equipe diretamente no Futbol24 (https://www.futbol24.com/pt/equipa/Brazil/{slug}/).
+    Mapeia os times brasileiros mais comuns e lê a seção 'Últimos Resultados' (por padrão 6 partidas).
+    Retorna um dicionário com v, e, d, pts, text e a lista de partidas.
+    """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    }
+
+    known_slugs = {
+        'goias': 'Goias-GO', 'goiás': 'Goias-GO',
+        'londrina': 'Londrina-PR',
+        'operario': 'Operario-F-PR', 'operário': 'Operario-F-PR',
+        'coritiba': 'Coritiba-PR',
+        'santos': 'Santos-SP',
+        'vila nova': 'Vila-Nova-GO',
+        'américa mineiro': 'America-Mineiro-MG', 'america mineiro': 'America-Mineiro-MG',
+        'sport recife': 'Sport-Recife-PE', 'sport': 'Sport-Recife-PE',
+        'ponte preta': 'Ponte-Preta-SP',
+        'crb': 'CRB-AL',
+        'ceará': 'Ceara-SC-CE', 'ceara': 'Ceara-SC-CE',
+        'náutico': 'Nautico-PE', 'nautico': 'Nautico-PE',
+        'novorizontino': 'Novorizontino-SP',
+        'guarani': 'Guarani-SP',
+        'criciúma': 'Criciuma-SC', 'criciuma': 'Criciuma-SC',
+        'botafogo/sp': 'Botafogo-SP', 'botafogo-sp': 'Botafogo-SP',
+        'cuiabá': 'Cuiaba-MT', 'cuiaba': 'Cuiaba-MT',
+        'fortaleza': 'Fortaleza-CE',
+        'juventude': 'Juventude-RS',
+        'athletic club': 'Athletic-Club-MG',
+        'são bernardo': 'Sao-Bernardo-SP', 'sao bernardo': 'Sao-Bernardo-SP',
+        'avaí': 'Avai-FC-SC', 'avai': 'Avai-FC-SC',
+        'flamengo': 'Flamengo-RJ', 'vitória': 'Vitoria-BA', 'vitoria': 'Vitoria-BA',
+        'rb bragantino': 'RB-Bragantino-SP', 'corinthians': 'Corinthians-SP',
+        'athletico': 'Athletico-PR', 'bahia': 'Bahia-BA',
+        'vasco da gama': 'Vasco-da-Gama-RJ', 'vasco': 'Vasco-da-Gama-RJ',
+        'palmeiras': 'Palmeiras-SP', 'internacional': 'Internacional-RS',
+        'cruzeiro': 'Cruzeiro-MG', 'mirassol': 'Mirassol-SP',
+        'fluminense': 'Fluminense-RJ', 'chapecoense': 'Chapecoense-SC',
+        'remo': 'Remo-PA', 'atlético mineiro': 'Atletico-Mineiro-MG', 'atletico mineiro': 'Atletico-Mineiro-MG',
+        'grêmio': 'Gremio-RS', 'gremio': 'Gremio-RS',
+        'são paulo': 'Sao-Paulo-SP', 'sao paulo': 'Sao-Paulo-SP',
+        'atlético/go': 'Atletico-GO', 'atletico/go': 'Atletico-GO'
+    }
+
+    def _strip_accents(s: str) -> str:
+        import unicodedata
+        return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn').lower().strip()
+
+    clean_name = team_name.lower().split('/')[0].strip()
+    slug = known_slugs.get(clean_name) or known_slugs.get(team_name.lower())
+
+    if not slug:
+        raw_slug = _strip_accents(clean_name).replace(' ', '-')
+        slug = raw_slug.title()
+
+    if not team_url:
+        team_url = f'https://www.futbol24.com/pt/equipa/Brazil/{slug}/'
+
+    log.info(f"[SCRAPER-FUTBOL24-LAST] Buscando últimos {limit} jogos de '{team_name}' em {team_url}...")
+
+    try:
+        resp = requests.get(team_url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            log.warning(f"[SCRAPER-FUTBOL24-LAST] HTTP {resp.status_code} ao buscar {team_url}")
+            return None
+
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        header = soup.find(class_='f-latest-team-results__header')
+        parent = header.parent if header else soup
+
+        rows = parent.find_all(class_='f-single-result__row')
+        matches = []
+
+        norm_target = _strip_accents(team_name.split('/')[0])
+        norm_slug_root = _strip_accents(slug.split('-')[0])
+
+        for row in rows:
+            text = row.get_text(separator='|', strip=True)
+            parts = [p.strip() for p in text.split('|') if p.strip()]
+
+            score_part = None
+            h_team = None
+            a_team = None
+
+            for i, p in enumerate(parts):
+                if re.match(r'^\d+-\d+$', p):
+                    score_part = p
+                    if i >= 1:
+                        h_team = parts[i - 1]
+                    if i + 1 < len(parts):
+                        a_team = parts[i + 1]
+                    break
+
+            if not score_part or not h_team or not a_team:
+                continue
+
+            gh, ga = map(int, score_part.split('-'))
+
+            norm_h = _strip_accents(h_team.split('/')[0])
+            norm_a = _strip_accents(a_team.split('/')[0])
+
+            is_home = (norm_target in norm_h or norm_slug_root in norm_h or norm_h in norm_target)
+            opp_name = a_team if is_home else h_team
+
+            if is_home:
+                res = 'V' if gh > ga else ('E' if gh == ga else 'D')
+                sc = f'{gh}x{ga}'
+            else:
+                res = 'V' if ga > gh else ('E' if gh == ga else 'D')
+                sc = f'{ga}x{gh}'
+
+            matches.append({
+                'opponent': opp_name.split('/')[0].strip(),
+                'score': sc,
+                'result': res,
+                'is_home': is_home
+            })
+
+            if len(matches) == limit:
+                break
+
+        if not matches:
+            return None
+
+        v = sum(1 for m in matches if m['result'] == 'V')
+        e = sum(1 for m in matches if m['result'] == 'E')
+        d = sum(1 for m in matches if m['result'] == 'D')
+        pts = (3 * v) + (1 * e)
+
+        return {
+            'v': v, 'e': e, 'd': d, 'pts': pts,
+            'text': f'{v}V-{e}E-{d}D',
+            'matches': matches
+        }
+
+    except Exception as exc:
+        log.error(f"[SCRAPER-FUTBOL24-LAST] Erro ao raspar Futbol24 para '{team_name}': {exc}")
+        return None
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     print("=== EXECUTANDO RASPAGEM DIRETA DO ODDSPEDIA & FUTBOL24 ===")
@@ -600,5 +742,6 @@ if __name__ == '__main__':
     res_f24 = scrape_futbol24_odds(['serie-a', 'serie-b'])
     res_prev = scrape_futbol24_previews()
     print(f"\nTotal Oddspedia: {len(res_op)} | Total Futbol24 Odds: {len(res_f24)} | Total Prévias Futbol24: {len(res_prev)}\n")
+
 
 

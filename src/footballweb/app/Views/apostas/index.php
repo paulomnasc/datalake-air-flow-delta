@@ -1451,6 +1451,18 @@
     }
   }
 
+  function formatHandicapPalpiteJs(palpiteRaw, teamDefault) {
+    if (!palpiteRaw) return teamDefault ? `${teamDefault} 0.0 (Empate Anula)` : '0.0 (Empate Anula)';
+    if (palpiteRaw.includes('0.0 (Empate Anula)') || palpiteRaw.includes('0,0 (Empate Anula)')) {
+      return palpiteRaw;
+    }
+    const match = palpiteRaw.match(/^(.*?)\s*([+-]?\d+[\.,]\d+|[+-]?\d+)/);
+    if (match && match[1] && match[1].trim().length > 0) {
+      return `${match[1].trim()} 0.0 (Empate Anula)`;
+    }
+    return teamDefault ? `${teamDefault} 0.0 (Empate Anula)` : `${palpiteRaw} 0.0 (Empate Anula)`;
+  }
+
   function onMercadoTypeChange(selectEl) {
     const val = selectEl.value;
     const inputMercado = document.getElementById('mercadoInput');
@@ -1460,12 +1472,15 @@
     if (fixSelect && fixSelect.selectedIndex > 0) {
       const opt = fixSelect.options[fixSelect.selectedIndex];
       if (val === 'Handicap Asiático') {
-        const palpiteAH = opt.getAttribute('data-palpite-ah');
+        const palpiteAH = formatHandicapPalpiteJs(opt.getAttribute('data-palpite-ah'), opt.getAttribute('data-home'));
         if (palpiteAH) document.getElementById('palpiteInput').value = palpiteAH;
       } else if (val === 'Total de Cartões') {
         const palpiteCards = opt.getAttribute('data-palpite-cards');
         if (palpiteCards) document.getElementById('palpiteInput').value = palpiteCards;
       }
+    } else if (val === 'Handicap Asiático') {
+      const homeTeam = document.getElementById('timeCasaInput')?.value || '';
+      document.getElementById('palpiteInput').value = formatHandicapPalpiteJs(document.getElementById('palpiteInput')?.value, homeTeam);
     }
     updatePalpiteExplanation();
   }
@@ -1473,12 +1488,13 @@
   function autofillFixture(selectEl) {
     const opt = selectEl.options[selectEl.selectedIndex];
     if (opt && opt.value) {
-      document.getElementById('timeCasaInput').value = opt.getAttribute('data-home') || '';
+      const homeTeam = opt.getAttribute('data-home') || '';
+      document.getElementById('timeCasaInput').value = homeTeam;
       document.getElementById('timeForaInput').value = opt.getAttribute('data-away') || '';
       
       const currentMercado = document.getElementById('mercadoTypeSelect')?.value || 'Total de Cartões';
       if (currentMercado === 'Handicap Asiático') {
-        const palpiteAH = opt.getAttribute('data-palpite-ah');
+        const palpiteAH = formatHandicapPalpiteJs(opt.getAttribute('data-palpite-ah'), homeTeam);
         if (palpiteAH) document.getElementById('palpiteInput').value = palpiteAH;
       } else {
         const palpiteCards = opt.getAttribute('data-palpite-cards') || opt.getAttribute('data-palpite');
@@ -1921,7 +1937,12 @@
         if (palpiteParam) {
           const palpiteInput = document.getElementById('palpiteInput');
           if (palpiteInput) {
-            palpiteInput.value = palpiteParam;
+            const currentMerc = (document.getElementById('mercadoTypeSelect')?.value || '').toLowerCase();
+            if (currentMerc.includes('handicap') || (mercadoParam && mercadoParam.toLowerCase().includes('handicap'))) {
+              palpiteInput.value = formatHandicapPalpiteJs(palpiteParam, document.getElementById('timeCasaInput')?.value);
+            } else {
+              palpiteInput.value = palpiteParam;
+            }
           }
         }
       }

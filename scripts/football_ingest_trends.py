@@ -561,6 +561,14 @@ def calculate_asian_handicap_suggestion(
             confidence = round(min(88.0, 68.0 + abs(delta_goals) * 10), 2)
             main_reason = f"Amplo favoritismo do visitante {away_team} com alta produção ofensiva ({away_goals_scored:.1f} g/j / U5J: {away_last5.get('text')}).{note_str}"
 
+    # Trava Operacional: Garante que o palpite de Handicap Asiático seja estritamente 0.0 (Empate Anula)
+    team_fav = home_team if delta_goals >= 0.0 else away_team
+    if "0.0 (Empate Anula)" not in suggestion:
+        m_team = re.match(r'^(.*?)\s*([+-]?\d+(?:\.\d+)?|0\.0)', suggestion)
+        if m_team and m_team.group(1).strip():
+            team_fav = m_team.group(1).strip()
+        suggestion = f"{team_fav} 0.0 (Empate Anula)"
+
     nl_explanation = build_natural_language_explanation(suggestion, home_team, away_team)
     nl_motivation = build_natural_language_motivation(
         suggestion, home_team, away_team, delta_goals,

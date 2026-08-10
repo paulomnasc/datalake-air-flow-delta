@@ -117,10 +117,14 @@ class ApostaController extends BaseController
             }
             $fix->suggested_palpite_cards = $suggestedCards;
             $ahSug = $fix->ah_suggestion ?? '';
-            if (empty($ahSug) || $ahSug === 'Handicap 0.0 (Empate Anula)') {
-                $ahSug = "{$fix->home_team} 0.0 (Empate Anula)";
+            $teamName = $fix->home_team;
+            if (!empty($ahSug)) {
+                if (preg_match('/^(.*?)\s*([+-]?\d+(?:\.\d+)?|0\.0)/i', $ahSug, $mAH)) {
+                    $t = trim($mAH[1]);
+                    if (!empty($t)) $teamName = $t;
+                }
             }
-            $fix->suggested_palpite_ah = $ahSug;
+            $fix->suggested_palpite_ah = "{$teamName} 0.0 (Empate Anula)";
             $fix->suggested_palpite = $suggestedCards;
         }
 
@@ -186,6 +190,10 @@ class ApostaController extends BaseController
         $status          = trim($this->request->getPost('status') ?? 'Pendente');
         $cashOut         = $this->request->getPost('cash_out') !== null && $this->request->getPost('cash_out') !== '' 
                            ? (float)$this->request->getPost('cash_out') : null;
+
+        if ($mercado === 'Handicap Asiático' || stripos($mercado, 'handicap') !== false) {
+            $palpite = $this->formatHandicapPalpite($palpite, $timeCasa, $timeFora);
+        }
 
         if (empty($timeCasa) || empty($timeFora) || empty($palpite) || $odd <= 0 || $valorAposta <= 0) {
             return $this->response->setJSON([
@@ -497,6 +505,10 @@ class ApostaController extends BaseController
         $tipo      = ($postTipo     !== null && trim($postTipo) !== '')     ? trim($postTipo)     : $aposta->tipo;
 
         $cashOut   = ($postCashOut !== null && trim((string)$postCashOut) !== '') ? (float)$postCashOut : $aposta->cash_out;
+
+        if ($mercado === 'Handicap Asiático' || stripos($mercado, 'handicap') !== false) {
+            $palpite = $this->formatHandicapPalpite($palpite, $timeCasa, $timeFora);
+        }
 
         if (empty($timeCasa) || empty($timeFora) || empty($palpite) || $odd <= 0 || $valorAposta <= 0) {
             return $this->response->setJSON([
@@ -1512,6 +1524,29 @@ class ApostaController extends BaseController
             $res *= $i;
         }
         return $res;
+    }
+
+    /**
+     * Formata e garante que palpites de Handicap Asiático sejam exclusivamente 0.0 (Empate Anula)
+     */
+    private function formatHandicapPalpite(string $palpite, string $timeCasa, string $timeFora): string
+    {
+        if (stripos($palpite, '0.0 (Empate Anula)') !== false || stripos($palpite, '0,0 (Empate Anula)') !== false) {
+            return $palpite;
+        }
+        if (!empty($timeFora) && stripos($palpite, $timeFora) !== false) {
+            return "{$timeFora} 0.0 (Empate Anula)";
+        }
+        if (!empty($timeCasa) && stripos($palpite, $timeCasa) !== false) {
+            return "{$timeCasa} 0.0 (Empate Anula)";
+        }
+        if (preg_match('/^(.*?)\s*([+-]?\d+(?:[\.,]\d+)?|0\.0)/i', $palpite, $m)) {
+            $t = trim($m[1]);
+            if (!empty($t)) {
+                return "{$t} 0.0 (Empate Anula)";
+            }
+        }
+        return (!empty($timeCasa) ? $timeCasa : 'Handicap') . " 0.0 (Empate Anula)";
     }
 }
 

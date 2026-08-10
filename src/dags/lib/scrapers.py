@@ -593,65 +593,107 @@ def scrape_futbol24_previews() -> List[Dict[str, Any]]:
     return results
 
 
-def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, limit: int = 6) -> Optional[Dict[str, Any]]:
+def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, limit: int = 6, country: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    Realiza a raspagem dos últimos jogos encerrados de uma equipe diretamente no Futbol24 (https://www.futbol24.com/pt/equipa/Brazil/{slug}/).
-    Mapeia os times brasileiros mais comuns e lê a seção 'Últimos Resultados' (por padrão 6 partidas).
-    Retorna um dicionário com v, e, d, pts, text e a lista de partidas.
+    Realiza a raspagem dos últimos jogos encerrados de uma equipe diretamente no Futbol24 (https://www.futbol24.com/pt/equipa/{pais}/{slug}/).
+    Suporta resolução dinâmica de país (Brasil, Argentina, Colômbia, etc.) e normalização de prefixos (CA, CD, Club).
     """
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     }
 
     known_slugs = {
-        'goias': 'Goias-GO', 'goiás': 'Goias-GO',
-        'londrina': 'Londrina-PR',
-        'operario': 'Operario-F-PR', 'operário': 'Operario-F-PR',
-        'coritiba': 'Coritiba-PR',
-        'santos': 'Santos-SP',
-        'vila nova': 'Vila-Nova-GO',
-        'américa mineiro': 'America-Mineiro-MG', 'america mineiro': 'America-Mineiro-MG',
-        'sport recife': 'Sport-Recife-PE', 'sport': 'Sport-Recife-PE',
-        'ponte preta': 'Ponte-Preta-SP',
-        'crb': 'CRB-AL',
-        'ceará': 'Ceara-SC-CE', 'ceara': 'Ceara-SC-CE',
-        'náutico': 'Nautico-PE', 'nautico': 'Nautico-PE',
-        'novorizontino': 'Novorizontino-SP',
-        'guarani': 'Guarani-SP',
-        'criciúma': 'Criciuma-SC', 'criciuma': 'Criciuma-SC',
-        'botafogo/sp': 'Botafogo-SP', 'botafogo-sp': 'Botafogo-SP',
-        'cuiabá': 'Cuiaba-MT', 'cuiaba': 'Cuiaba-MT',
-        'fortaleza': 'Fortaleza-CE',
-        'juventude': 'Juventude-RS',
-        'athletic club': 'Athletic-Club-MG',
-        'são bernardo': 'Sao-Bernardo-SP', 'sao bernardo': 'Sao-Bernardo-SP',
-        'avaí': 'Avai-FC-SC', 'avai': 'Avai-FC-SC',
-        'flamengo': 'Flamengo-RJ', 'vitória': 'Vitoria-BA', 'vitoria': 'Vitoria-BA',
-        'rb bragantino': 'RB-Bragantino-SP', 'corinthians': 'Corinthians-SP',
-        'athletico': 'Athletico-PR', 'bahia': 'Bahia-BA',
-        'vasco da gama': 'Vasco-da-Gama-RJ', 'vasco': 'Vasco-da-Gama-RJ',
-        'palmeiras': 'Palmeiras-SP', 'internacional': 'Internacional-RS',
-        'cruzeiro': 'Cruzeiro-MG', 'mirassol': 'Mirassol-SP',
-        'fluminense': 'Fluminense-RJ', 'chapecoense': 'Chapecoense-SC',
-        'remo': 'Remo-PA', 'atlético mineiro': 'Atletico-Mineiro-MG', 'atletico mineiro': 'Atletico-Mineiro-MG',
-        'grêmio': 'Gremio-RS', 'gremio': 'Gremio-RS',
-        'são paulo': 'Sao-Paulo-SP', 'sao paulo': 'Sao-Paulo-SP',
-        'atlético/go': 'Atletico-GO', 'atletico/go': 'Atletico-GO'
+        'goias': ('Brazil', 'Goias-GO'), 'goiás': ('Brazil', 'Goias-GO'),
+        'londrina': ('Brazil', 'Londrina-PR'),
+        'operario': ('Brazil', 'Operario-F-PR'), 'operário': ('Brazil', 'Operario-F-PR'),
+        'coritiba': ('Brazil', 'Coritiba-PR'),
+        'santos': ('Brazil', 'Santos-SP'),
+        'vila nova': ('Brazil', 'Vila-Nova-GO'),
+        'américa mineiro': ('Brazil', 'America-Mineiro-MG'), 'america mineiro': ('Brazil', 'America-Mineiro-MG'),
+        'sport recife': ('Brazil', 'Sport-Recife-PE'), 'sport': ('Brazil', 'Sport-Recife-PE'),
+        'ponte preta': ('Brazil', 'Ponte-Preta-SP'),
+        'crb': ('Brazil', 'CRB-AL'),
+        'ceará': ('Brazil', 'Ceara-SC-CE'), 'ceara': ('Brazil', 'Ceara-SC-CE'),
+        'náutico': ('Brazil', 'Nautico-PE'), 'nautico': ('Brazil', 'Nautico-PE'),
+        'novorizontino': ('Brazil', 'Novorizontino-SP'),
+        'guarani': ('Brazil', 'Guarani-SP'),
+        'criciúma': ('Brazil', 'Criciuma-SC'), 'criciuma': ('Brazil', 'Criciuma-SC'),
+        'botafogo/sp': ('Brazil', 'Botafogo-SP'), 'botafogo-sp': ('Brazil', 'Botafogo-SP'),
+        'cuiabá': ('Brazil', 'Cuiaba-MT'), 'cuiaba': ('Brazil', 'Cuiaba-MT'),
+        'fortaleza': ('Brazil', 'Fortaleza-CE'),
+        'juventude': ('Brazil', 'Juventude-RS'),
+        'athletic club': ('Brazil', 'Athletic-Club-MG'),
+        'são bernardo': ('Brazil', 'Sao-Bernardo-SP'), 'sao bernardo': ('Brazil', 'Sao-Bernardo-SP'),
+        'avaí': ('Brazil', 'Avai-FC-SC'), 'avai': ('Brazil', 'Avai-FC-SC'),
+        'flamengo': ('Brazil', 'Flamengo-RJ'), 'vitória': ('Brazil', 'Vitoria-BA'), 'vitoria': ('Brazil', 'Vitoria-BA'),
+        'rb bragantino': ('Brazil', 'RB-Bragantino-SP'), 'corinthians': ('Brazil', 'Corinthians-SP'),
+        'athletico': ('Brazil', 'Athletico-PR'), 'bahia': ('Brazil', 'Bahia-BA'),
+        'vasco da gama': ('Brazil', 'Vasco-da-Gama-RJ'), 'vasco': ('Brazil', 'Vasco-da-Gama-RJ'),
+        'palmeiras': ('Brazil', 'Palmeiras-SP'), 'internacional': ('Brazil', 'Internacional-RS'),
+        'cruzeiro': ('Brazil', 'Cruzeiro-MG'), 'mirassol': ('Brazil', 'Mirassol-SP'),
+        'fluminense': ('Brazil', 'Fluminense-RJ'), 'chapecoense': ('Brazil', 'Chapecoense-SC'),
+        'remo': ('Brazil', 'Remo-PA'), 'atlético mineiro': ('Brazil', 'Atletico-Mineiro-MG'), 'atletico mineiro': ('Brazil', 'Atletico-Mineiro-MG'),
+        'grêmio': ('Brazil', 'Gremio-RS'), 'gremio': ('Brazil', 'Gremio-RS'),
+        'são paulo': ('Brazil', 'Sao-Paulo-SP'), 'sao paulo': ('Brazil', 'Sao-Paulo-SP'),
+        'atlético/go': ('Brazil', 'Atletico-GO'), 'atletico/go': ('Brazil', 'Atletico-GO'),
+        'banfield': ('Argentina', 'CA-Banfield'), 'ca banfield': ('Argentina', 'CA-Banfield'),
+        'boca juniors': ('Argentina', 'Boca-Juniors'),
+        'river plate': ('Argentina', 'River-Plate'),
+        'racing club': ('Argentina', 'Racing-Club'),
+        'independiente': ('Argentina', 'Independiente'),
+        'san lorenzo': ('Argentina', 'San-Lorenzo'),
+        'huracán': ('Argentina', 'CA-Huracan'), 'huracan': ('Argentina', 'CA-Huracan'),
+        'talleres': ('Argentina', 'Talleres-Cordoba'),
+        'lanús': ('Argentina', 'Lanus'), 'lanus': ('Argentina', 'Lanus'),
+        'vélez': ('Argentina', 'Velez-Sarsfield'), 'velez': ('Argentina', 'Velez-Sarsfield'),
+        'estudiantes': ('Argentina', 'Estudiantes-La-Plata')
     }
 
     def _strip_accents(s: str) -> str:
         import unicodedata
         return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn').lower().strip()
 
-    clean_name = team_name.lower().split('/')[0].strip()
-    slug = known_slugs.get(clean_name) or known_slugs.get(team_name.lower())
-
-    if not slug:
-        raw_slug = _strip_accents(clean_name).replace(' ', '-')
-        slug = raw_slug.title()
+    clean_name = team_name.lower().replace('club atlético', '').replace('ca ', '').replace('cd ', '').split('/')[0].strip()
+    known_info = known_slugs.get(clean_name) or known_slugs.get(team_name.lower())
 
     if not team_url:
-        team_url = f'https://www.futbol24.com/pt/equipa/Brazil/{slug}/'
+        if known_info:
+            c_name, slug = known_info
+            team_url = f'https://www.futbol24.com/pt/equipa/{c_name}/{slug}/'
+        else:
+            countries = [country] if country else ['Argentina', 'Brazil', 'Colombia', 'Chile', 'Uruguay', 'Paraguay', 'Peru', 'Ecuador', 'Mexico', 'Spain', 'England', 'Italy']
+            countries = [c for c in countries if c]
+            if 'Brazil' not in countries:
+                countries.append('Brazil')
+            if 'Argentina' not in countries:
+                countries.append('Argentina')
+
+            raw_slug = _strip_accents(clean_name).replace(' ', '-')
+            raw_slug_full = _strip_accents(team_name).replace(' ', '-')
+
+            slug_candidates = [
+                raw_slug.title(),
+                f'CA-{raw_slug.title()}',
+                f'CD-{raw_slug.title()}',
+                raw_slug_full.title(),
+                f'CA-{raw_slug_full.title()}'
+            ]
+
+            found_url = None
+            for c in countries:
+                for s in slug_candidates:
+                    test_url = f'https://www.futbol24.com/pt/equipa/{c}/{s}/'
+                    try:
+                        r = requests.get(test_url, headers=headers, timeout=4, allow_redirects=True)
+                        if r.status_code == 200 and '/equipa/' in r.url:
+                            found_url = r.url
+                            break
+                    except Exception:
+                        pass
+                if found_url:
+                    break
+
+            team_url = found_url or f'https://www.futbol24.com/pt/equipa/Brazil/{_strip_accents(clean_name).title()}/'
 
     log.info(f"[SCRAPER-FUTBOL24-LAST] Buscando últimos {limit} jogos de '{team_name}' em {team_url}...")
 
@@ -668,8 +710,7 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
         rows = parent.find_all(class_='f-single-result__row')
         matches = []
 
-        norm_target = _strip_accents(team_name.split('/')[0])
-        norm_slug_root = _strip_accents(slug.split('-')[0])
+        norm_target = _strip_accents(clean_name)
 
         for row in rows:
             text = row.get_text(separator='|', strip=True)
@@ -693,10 +734,10 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
 
             gh, ga = map(int, score_part.split('-'))
 
-            norm_h = _strip_accents(h_team.split('/')[0])
-            norm_a = _strip_accents(a_team.split('/')[0])
+            norm_h = _strip_accents(h_team.split('/')[0]).replace('club atletico', '').replace('ca ', '').replace('cd ', '').strip()
+            norm_a = _strip_accents(a_team.split('/')[0]).replace('club atletico', '').replace('ca ', '').replace('cd ', '').strip()
 
-            is_home = (norm_target in norm_h or norm_slug_root in norm_h or norm_h in norm_target)
+            is_home = (norm_target in norm_h or norm_h in norm_target)
             opp_name = a_team if is_home else h_team
 
             if is_home:

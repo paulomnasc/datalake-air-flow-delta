@@ -55,12 +55,27 @@ class FootballTrendsController extends BaseController
         date_default_timezone_set($userTimezone);
         $sqlOffset = $this->getTimezoneSqlOffset($userTimezone);
 
-        // Recebe a data de filtro (default: hoje)
+        // Recebe as datas de filtro (suporta data única 'date' ou intervalo 'start_date' & 'end_date')
         $today = date('Y-m-d');
+        $startDate = $this->request->getVar('start_date');
+        $endDate = $this->request->getVar('end_date');
         $targetDate = $this->request->getVar('date');
-        if (empty($targetDate)) {
-            $targetDate = $today;
+
+        if (empty($startDate) && empty($endDate)) {
+            $startDate = !empty($targetDate) ? $targetDate : $today;
+            $endDate = $startDate;
+        } elseif (empty($startDate)) {
+            $startDate = $endDate;
+        } elseif (empty($endDate)) {
+            $endDate = $startDate;
         }
+
+        if ($startDate > $endDate) {
+            $temp = $startDate;
+            $startDate = $endDate;
+            $endDate = $temp;
+        }
+        $targetDate = $startDate;
 
         // Filtro de busca por time ou árbitro
         $search = $this->request->getVar('search');
@@ -68,8 +83,7 @@ class FootballTrendsController extends BaseController
         // Filtro para mostrar ou ocultar jogos encerrados
         $showFinishedParam = $this->request->getVar('show_finished');
         if ($showFinishedParam === null) {
-            // Se não especificado na URL e a data for no passado, exibe encerrados por padrão
-            $showFinished = ($targetDate < $today);
+            $showFinished = ($startDate < $today);
         } else {
             $showFinished = ($showFinishedParam === '1' || $showFinishedParam === 'true' || $showFinishedParam === 'sim');
         }
@@ -77,6 +91,14 @@ class FootballTrendsController extends BaseController
         // Filtro para mostrar ou ocultar jogos adiados (PST) - Padrão: Não (false)
         $showPostponedParam = $this->request->getVar('show_postponed');
         $showPostponed = ($showPostponedParam === '1' || $showPostponedParam === 'true' || $showPostponedParam === 'sim');
+
+        // Filtro para exibir apenas apostas seguras (Under com alta confiança)
+        $onlySafeParam = $this->request->getVar('only_safe');
+        $onlySafe = ($onlySafeParam === '1' || $onlySafeParam === 'true' || $onlySafeParam === 'sim');
+
+        // Filtro para exibir apenas Surebets (oportunidades de arbitragem)
+        $onlySurebetParam = $this->request->getVar('only_surebet');
+        $onlySurebet = ($onlySurebetParam === '1' || $onlySurebetParam === 'true' || $onlySurebetParam === 'sim');
 
         // Conecta ao banco para realizar a query com join
         $db = \Config\Database::connect();
@@ -87,7 +109,16 @@ class FootballTrendsController extends BaseController
         $builder->join('referee_stats rs', 'ft.referee_name = rs.name', 'left');
         $builder->join('team_moving_averages th', 'ft.home_team_id = th.team_id AND th.venue_type = "home"', 'left');
         $builder->join('team_moving_averages ta', 'ft.away_team_id = ta.team_id AND ta.venue_type = "away"', 'left');
-        $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}'))", $targetDate);
+        
+        if ($startDate === $endDate) {
+            $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}'))", $startDate);
+        } else {
+            $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}')) >=", $startDate);
+            $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}')) <=", $endDate);
+        }
+
+        // Nota: A filtragem de Surebets e Apostas Seguras e tratada dinamicamente via JS na View (dashboard.php)
+        // para que o usuario possa alternar os toggles instantaneamente sem perder as partidas carregadas.
 
         // Se showFinished for falso (default), exclui jogos encerrados
         if (!$showFinished) {
@@ -114,29 +145,81 @@ class FootballTrendsController extends BaseController
         $builder->orderBy('ft.fixture_date', 'ASC');
         $fixtures = $builder->get()->getResultObject();
 
+        // Se não houver partidas no banco para a data solicitada, dispara a ingestão (API ou Fallback) e recarrega
+        if (empty($fixtures)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/football_ingest_trends.py';
+            if (file_exists($scriptPath)) {
+                @exec("python3 {$scriptPath} " . escapeshellarg($targetDate));
+                $fixtures = $builder->get()->getResultObject();
+            }
+        }
+
         // Extrai ligas únicas para filtro em abas na View
         $leagues = [];
+        $needsGoalsUpdate = false;
         foreach ($fixtures as $fix) {
             if (!empty($fix->league_name) && !in_array($fix->league_name, $leagues)) {
                 $leagues[] = $fix->league_name;
+            }
+            $fixTimestamp = !empty($fix->fixture_date) ? strtotime($fix->fixture_date) : 0;
+            if (($fix->status !== 'NS' || ($fixTimestamp > 0 && $fixTimestamp <= time())) && $fix->goals_home === null) {
+                $needsGoalsUpdate = true;
+            }
+        }
+
+        // Se houver partidas iniciadas/encerradas sem placar no banco, dispara atualização em segundo plano
+        if ($needsGoalsUpdate) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/football_ingest_trends.py';
+            if (file_exists($scriptPath)) {
+                @exec("python3 {$scriptPath} " . escapeshellarg($targetDate) . " > /dev/null 2>&1 &");
             }
         }
 
         $seo = new \App\Libraries\SeoHelper();
         $seo->setFootballTrendsDefaults($targetDate, count($fixtures), $leagues);
 
+        // Consulta apostas cadastradas para identificar partidas com palpite/aposta
+        $userBetFixtureIds = [];
+        $allBetFixtureIds  = [];
+        if ($db->tableExists('apostas')) {
+            $userId = $_SESSION['id_usuario_logado'] ?? session()->get('id_usuario_logado') ?? null;
+            if (!empty($userId)) {
+                $userBets = $db->table('apostas')
+                    ->select('fixture_id')
+                    ->where('usuario_id', $userId)
+                    ->where('fixture_id IS NOT NULL')
+                    ->get()
+                    ->getResultArray();
+                $userBetFixtureIds = array_map('intval', array_column($userBets, 'fixture_id'));
+            }
+
+            $allBets = $db->table('apostas')
+                ->select('fixture_id')
+                ->where('fixture_id IS NOT NULL')
+                ->get()
+                ->getResultArray();
+            $allBetFixtureIds = array_map('intval', array_column($allBets, 'fixture_id'));
+        }
+
         // Prepara dados para a view
         $data = [
-            'targetDate'    => $targetDate,
-            'userTimezone'  => $userTimezone,
-            'search'        => $search,
-            'showFinished'  => $showFinished,
-            'showPostponed' => $showPostponed,
-            'fixtures'      => $fixtures,
-            'leagues'       => $leagues,
-            'title'         => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
-            'metaTags'      => $seo->generateMetaTags()
+            'targetDate'        => $targetDate,
+            'startDate'         => $startDate,
+            'endDate'           => $endDate,
+            'userTimezone'      => $userTimezone,
+            'search'            => $search,
+            'showFinished'      => $showFinished,
+            'showPostponed'     => $showPostponed,
+            'onlySafe'          => $onlySafe,
+            'onlySurebet'       => $onlySurebet,
+            'userBetFixtureIds' => $userBetFixtureIds,
+            'allBetFixtureIds'  => $allBetFixtureIds,
+            'fixtures'          => $fixtures,
+            'leagues'           => $leagues,
+            'title'             => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
+            'metaTags'          => $seo->generateMetaTags()
         ];
+
 
         return $this->loadView('football/dashboard', $data);
     }
@@ -194,6 +277,9 @@ class FootballTrendsController extends BaseController
         $refereeReds = $this->request->getPost('referee_reds');
         $refereeFouls = $this->request->getPost('referee_fouls');
         $refereeGames = $this->request->getPost('referee_games');
+
+        $futbol24Tip = $this->request->getPost('futbol24_tip');
+        $futbol24Analysis = $this->request->getPost('futbol24_analysis');
         
         // Verificar se o usuário está logado
         if (!isset($_SESSION['usuario_logado']) || $_SESSION['usuario_logado'] != 1) {
@@ -265,25 +351,31 @@ class FootballTrendsController extends BaseController
         // Monta o panorama de estatísticas de cada time e do árbitro
         $statsContent = "\n\nDados Estatísticos Detalhados dos Times:\n"
             . "- {$homeTeam} (Mandante):\n"
-            . "  * Média de Gols Marcados: " . ($homeAvgGoalsScored !== '' && $homeAvgGoalsScored !== null ? number_format($homeAvgGoalsScored, 1) : 'N/A') . "\n"
-            . "  * Média de Gols Sofridos: " . ($homeAvgGoalsConceded !== '' && $homeAvgGoalsConceded !== null ? number_format($homeAvgGoalsConceded, 1) : 'N/A') . "\n"
-            . "  * Clean Sheets (Jogos sem sofrer gols): " . ($homeCleanSheetsPct !== '' && $homeCleanSheetsPct !== null ? round($homeCleanSheetsPct) . '%' : 'N/A') . "\n"
-            . "  * Média de Escanteios a favor: " . ($homeAvgCorners !== '' && $homeAvgCorners !== null ? number_format($homeAvgCorners, 1) : 'N/A') . "\n"
-            . "  * Média de Cartões recebidos: " . ($homeAvgCards !== '' && $homeAvgCards !== null ? number_format($homeAvgCards, 1) : 'N/A') . "\n"
+            . "  * Média de Gols Marcados: " . (is_numeric($homeAvgGoalsScored) ? number_format((float)$homeAvgGoalsScored, 1) : 'N/A') . "\n"
+            . "  * Média de Gols Sofridos: " . (is_numeric($homeAvgGoalsConceded) ? number_format((float)$homeAvgGoalsConceded, 1) : 'N/A') . "\n"
+            . "  * Zero Gols em Casa (Sem sofrer gols): " . (is_numeric($homeCleanSheetsPct) ? round((float)$homeCleanSheetsPct) . '%' : 'N/A') . "\n"
+            . "  * Média de Escanteios a favor: " . (is_numeric($homeAvgCorners) ? number_format((float)$homeAvgCorners, 1) : 'N/A') . "\n"
+            . "  * Média de Cartões recebidos: " . (is_numeric($homeAvgCards) ? number_format((float)$homeAvgCards, 1) : 'N/A') . "\n"
             . "- {$awayTeam} (Visitante):\n"
-            . "  * Média de Gols Marcados: " . ($awayAvgGoalsScored !== '' && $awayAvgGoalsScored !== null ? number_format($awayAvgGoalsScored, 1) : 'N/A') . "\n"
-            . "  * Média de Gols Sofridos: " . ($awayAvgGoalsConceded !== '' && $awayAvgGoalsConceded !== null ? number_format($awayAvgGoalsConceded, 1) : 'N/A') . "\n"
-            . "  * Clean Sheets (Jogos sem sofrer gols): " . ($awayCleanSheetsPct !== '' && $awayCleanSheetsPct !== null ? round($awayCleanSheetsPct) . '%' : 'N/A') . "\n"
-            . "  * Média de Escanteios a favor: " . ($awayAvgCorners !== '' && $awayAvgCorners !== null ? number_format($awayAvgCorners, 1) : 'N/A') . "\n"
-            . "  * Média de Cartões recebidos: " . ($awayAvgCards !== '' && $awayAvgCards !== null ? number_format($awayAvgCards, 1) : 'N/A') . "\n";
+            . "  * Média de Gols Marcados: " . (is_numeric($awayAvgGoalsScored) ? number_format((float)$awayAvgGoalsScored, 1) : 'N/A') . "\n"
+            . "  * Média de Gols Sofridos: " . (is_numeric($awayAvgGoalsConceded) ? number_format((float)$awayAvgGoalsConceded, 1) : 'N/A') . "\n"
+            . "  * Zero Gols Fora (Sem sofrer gols): " . (is_numeric($awayCleanSheetsPct) ? round((float)$awayCleanSheetsPct) . '%' : 'N/A') . "\n"
+            . "  * Média de Escanteios a favor: " . (is_numeric($awayAvgCorners) ? number_format((float)$awayAvgCorners, 1) : 'N/A') . "\n"
+            . "  * Média de Cartões recebidos: " . (is_numeric($awayAvgCards) ? number_format((float)$awayAvgCards, 1) : 'N/A') . "\n";
 
         if (!empty($refereeName)) {
             $statsContent .= "\nDados Estatísticos Detalhados do Árbitro ({$refereeName}):\n"
                 . "- Rigor da Arbitragem: {$refereeRigor}\n"
-                . "- Média de Amarelos por partida: " . ($refereeYellows !== '' && $refereeYellows !== null ? number_format($refereeYellows, 2) : 'N/A') . "\n"
-                . "- Média de Vermelhos por partida: " . ($refereeReds !== '' && $refereeReds !== null ? number_format($refereeReds, 2) : 'N/A') . "\n"
-                . "- Média de Faltas por partida: " . ($refereeFouls !== '' && $refereeFouls !== null ? number_format($refereeFouls, 2) : 'N/A') . "\n"
-                . "- Total de jogos registrados: " . ($refereeGames !== '' && $refereeGames !== null ? $refereeGames : 'N/A') . "\n";
+                . "- Média de Amarelos por partida: " . (is_numeric($refereeYellows) ? number_format((float)$refereeYellows, 2) : 'N/A') . "\n"
+                . "- Média de Vermelhos por partida: " . (is_numeric($refereeReds) ? number_format((float)$refereeReds, 2) : 'N/A') . "\n"
+                . "- Média de Faltas por partida: " . (is_numeric($refereeFouls) ? number_format((float)$refereeFouls, 2) : 'N/A') . "\n"
+                . "- Total de jogos registrados: " . (is_numeric($refereeGames) ? $refereeGames : 'N/A') . "\n";
+        }
+
+        if (!empty($futbol24Tip) || !empty($futbol24Analysis)) {
+            $statsContent .= "\n📰 Análise Editorial e Dica Futbol24:\n"
+                . (!empty($futbol24Tip) ? "- Dica Futbol24: {$futbol24Tip}\n" : "")
+                . (!empty($futbol24Analysis) ? "- Análise Editorial Futbol24: {$futbol24Analysis}\n" : "");
         }
 
         // Prompt de Sistema detalhado com base nas orientações fornecidas
@@ -297,11 +389,12 @@ class FootballTrendsController extends BaseController
             . "DIRETRIZES DE RESPOSTA:\n"
             . "1. Seja conversador, direto, amigável e use gírias ou jargão saudável do meio de apostas em português.\n"
             . "2. Faça uma análise AMPLA, aproveitando todos os dados estatísticos fornecidos acima. Não se limite apenas a cartões. Se o usuário perguntar ou se fizer sentido, explore e cruze dados para indicar outros mercados de apostas inteligentes:\n"
-            . "   - Mercado de Gols (Over/Under gols, Ambas Marcam / BTTS): Avalie as médias de gols marcados/sofridos e os índices de Clean Sheets das duas equipes. Se ambos marcam muito e sofrem muito, recomende 'Ambas Marcam' ou 'Over 2.5 Gols'.\n"
+            . "   - Mercado de Gols (Over/Under gols, Ambas Marcam / BTTS): Avalie as médias de gols marcados/sofridos e os índices de Zero Gols em Casa / Fora das duas equipes. Se ambos marcam muito e sofrem muito, recomende 'Ambas Marcam' ou 'Over 2.5 Gols'.\n"
             . "   - Mercado de Escanteios (Cantos): Utilize as médias de escanteios de cada equipe para fundamentar projeções de Over/Under escanteios ou o mercado de 'Quem terá mais escanteios'.\n"
             . "   - Mercado de Cartões por Equipe / Individuais: Indique qual time costuma receber mais cartões com base na média individual de cartões e na postura do árbitro.\n"
             . "   - Mercados Híbridos/Alternativos para Cartões (ex: 'Ambas as equipes receberão 2 ou mais cartões') caso a linha direta esteja esticada ou indisponível em ligas Tier 2 na Betano/Superbet.\n"
-            . "3. Use a nossa análise pré-gerada e o rigor do árbitro para fundamentar a sua resposta técnica. Responda de forma concisa e evite textos excessivamente longos.";
+            . "   - Análise Humana/Editorial Futbol24: Se o usuário perguntar o que o Futbol24 sugeriu, cite a Dica e a Análise Editorial do Futbol24 inclusas acima.\n"
+            . "3. Use a nossa análise pré-gerada, a análise do Futbol24 e o rigor do árbitro para fundamentar a sua resposta técnica. Responda de forma concisa e evite textos excessivamente longos.";
 
         $messages[] = ['role' => 'system', 'content' => $systemContent];
 
@@ -324,7 +417,9 @@ class FootballTrendsController extends BaseController
         $messages[] = ['role' => 'user', 'content' => $userMessage];
 
         try {
-            $client = \Config\Services::curlrequest();
+            $client = \Config\Services::curlrequest([
+                'http_errors' => false,
+            ]);
             $apiUrl = env('VISION_API_URL') ?: 'https://api.groq.com/openai/v1/chat/completions';
             $model = env('TEXT_API_MODEL') ?: 'llama-3.3-70b-versatile';
 
@@ -342,6 +437,16 @@ class FootballTrendsController extends BaseController
 
             $statusCode = $response->getStatusCode();
             if ($statusCode !== 200) {
+                $bodyText = $response->getBody();
+
+                if ($statusCode === 429 || $statusCode === 402) {
+                    $this->notifyAdminQuotaExceeded($statusCode, $bodyText);
+                    return $this->response->setJSON([
+                        'success' => false,
+                        'message' => 'O assistente de IA atingiu temporariamente o limite de consultas por minuto/dia do servidor. O administrador foi notificado para expansão do plano.'
+                    ]);
+                }
+
                 return $this->response->setJSON([
                     'success' => false,
                     'message' => "Erro na chamada da API de IA (HTTP {$statusCode})."
@@ -369,12 +474,85 @@ class FootballTrendsController extends BaseController
                 'remaining_credits' => $credits - 1
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            $msg = $e->getMessage();
+
+            if (strpos($msg, '429') !== false || strpos($msg, '402') !== false || stripos($msg, 'rate limit') !== false) {
+                $this->notifyAdminQuotaExceeded(429, $msg);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'O assistente de IA atingiu temporariamente o limite de consultas por minuto/dia do servidor. O administrador foi notificado para expansão do plano.'
+                ]);
+            }
+
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Erro interno ao se comunicar com o Groq: ' . $e->getMessage()
+                'message' => 'Erro interno ao se comunicar com o Groq: ' . $msg
             ]);
         }
+    }
+
+    /**
+     * Notifica o administrador quando a cota/rate limit da Groq API for excedida (HTTP 429 / 402)
+     */
+    private function notifyAdminQuotaExceeded(int $statusCode, string $errorMessage = '')
+    {
+        $cacheKey = 'groq_api_quota_alert_sent';
+        $cache = \Config\Services::cache();
+
+        // Evita flood de notificações: envia no máximo 1 notificação a cada 15 minutos (900s)
+        if ($cache->get($cacheKey)) {
+            return;
+        }
+
+        // 1. Log Crítico no Servidor
+        log_message('critical', "[GROQ API ALERT] Limite de cota/rate limit atingido (HTTP {$statusCode}). Detalhes: {$errorMessage}");
+
+        $now = date('Y-m-d H:i:s');
+        $webhookUrl = env('GROQ_ALERT_WEBHOOK_URL');
+        $adminEmail = env('ADMIN_ALERT_EMAIL') ?: 'admin@estudotabela.com.br';
+
+        // 2. Notificação via Webhook (Discord / Telegram / n8n / Slack)
+        if (!empty($webhookUrl)) {
+            try {
+                $client = \Config\Services::curlrequest(['timeout' => 5]);
+                $client->post($webhookUrl, [
+                    'json' => [
+                        'event' => 'GROQ_API_QUOTA_EXCEEDED',
+                        'status_code' => $statusCode,
+                        'message' => "🚨 ALERTA GROQ API: Limite de cota/rate limit atingido (HTTP {$statusCode}). É necessário fazer upgrade para o plano pago na Groq Cloud (api.groq.com).",
+                        'timestamp' => $now,
+                        'details' => $errorMessage
+                    ]
+                ]);
+            } catch (\Exception $e) {
+                log_message('error', "[GROQ ALERT WEBHOOK FAIL] Erro ao enviar webhook: " . $e->getMessage());
+            }
+        }
+
+        // 3. Notificação via E-mail
+        if (!empty($adminEmail)) {
+            try {
+                $emailService = \Config\Services::email();
+                $emailService->setTo($adminEmail);
+                $emailService->setSubject("🚨 [ALERTA FOOTBALLWEB] Limite da Groq API Excedido (HTTP {$statusCode})");
+                $emailService->setMessage(
+                    "Atenção Administrador,\n\n" .
+                    "A chave da API Groq (utilizada pelo Grok AI) atingiu o limite do plano gratuito ou estourou a cota de requisições por minuto/dia.\n\n" .
+                    "Data/Hora: {$now}\n" .
+                    "Status Code: {$statusCode}\n" .
+                    "Detalhes: {$errorMessage}\n\n" .
+                    "Ação Necessária: Acesse https://console.groq.com/ e faça o upgrade da sua conta para o plano pago (Pay-as-you-go).\n\n" .
+                    "Atenciosamente,\nFootballWeb System"
+                );
+                $emailService->send(false);
+            } catch (\Exception $e) {
+                log_message('error', "[GROQ ALERT EMAIL FAIL] Erro ao enviar email: " . $e->getMessage());
+            }
+        }
+
+        // Define a trava de 15 minutos (900 segundos) para evitar spam de alertas
+        $cache->save($cacheKey, true, 900);
     }
 
     /**
@@ -456,8 +634,8 @@ class FootballTrendsController extends BaseController
         $today = date('Y-m-d');
         $targetDate = $this->request->getVar('date') ?: $today;
 
-        // Dispara uma sincronização ao vivo rápida do script Python caso seja a data de hoje
-        if ($targetDate === $today && rand(1, 4) === 1) {
+        // Dispara uma sincronização dos placares da data via script Python
+        if ($targetDate === $today) {
             $scriptPath = '/root/datalake-air-flow-delta/scripts/football_ingest_trends.py';
             if (file_exists($scriptPath)) {
                 @exec("python3 {$scriptPath} --live > /dev/null 2>&1 &");
@@ -466,7 +644,7 @@ class FootballTrendsController extends BaseController
 
         $db = \Config\Database::connect();
         $builder = $db->table('fixtures_trends');
-        $builder->select('fixture_id, status, elapsed, goals_home, goals_away, home_team, away_team, updated_at');
+        $builder->select('fixture_id, status, elapsed, goals_home, goals_away, yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away, corners_home, corners_away, shots_home, shots_away, xg_home, xg_away, goal_scorers, last_event, home_team, away_team, updated_at');
         $builder->where("DATE(CONVERT_TZ(fixture_date, '+00:00', '{$sqlOffset}'))", $targetDate);
         $fixtures = $builder->get()->getResultArray();
 
@@ -477,5 +655,44 @@ class FootballTrendsController extends BaseController
             'fixtures'  => $fixtures
         ]);
     }
+
+    /**
+     * Proxy seguro e com cache local para os escudos dos times (evita bloqueio por AdBlockers/CORS)
+     */
+    public function teamLogo($teamId = null)
+    {
+        $teamId = (int)$teamId;
+        if ($teamId <= 0) {
+            return $this->response->setStatusCode(404);
+        }
+
+        $cache = \Config\Services::cache();
+        $cacheKey = "team_logo_{$teamId}";
+        $imageData = $cache->get($cacheKey);
+
+        if (!$imageData) {
+            $url = "https://media.api-sports.io/football/teams/{$teamId}.png";
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+            $imageData = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode === 200 && !empty($imageData)) {
+                $cache->save($cacheKey, $imageData, 604800); // 7 dias
+            } else {
+                return $this->response->setStatusCode(404);
+            }
+        }
+
+        return $this->response
+            ->setHeader('Content-Type', 'image/png')
+            ->setHeader('Cache-Control', 'public, max-age=604800')
+            ->setBody($imageData);
+    }
 }
+
 

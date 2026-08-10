@@ -191,9 +191,11 @@ $routes->post('/fileUpload', 'UploadController::upload',['as'=>'Config.upload'])
 
 // Rotas do e-commerce ou marketing interface
 $routes->get('/contactUs', 'MarketPlaceController::contactUs', ['as'=>'contactUs']);//Exibe a entre em contato conosco
+$routes->get('/reportError', 'MarketPlaceController::reportError', ['as'=>'reportError']);//Exibe a tela reportar um erro
 $routes->get('/politica', 'MarketPlaceController::politica', ['as'=>'politica']);//Exibe a tela política de privacidade
 $routes->get('/tdu', 'MarketPlaceController::tdu', ['as'=>'tdu']);//Termos de uso
 $routes->post('/email', 'MarketPlaceController::sendMailNoSecurity', ['as'=>'email']);//Dipara o email preenchido na tela contactUs 
+$routes->post('/sendReportErrorEmail', 'MarketPlaceController::sendReportErrorEmail', ['as'=>'sendReportErrorEmail']);//Dispara o email da tela reportError
 $routes->post('/saibaMais', 'MarketPlaceController::saibaMais', ['as'=>'saibaMais']);//Dipara o form saiba mais 
 $routes->get('/saibaMais', 'MarketPlaceController::saibaMais', ['as'=>'saibaMais']);//Dipara o form saiba mais 
 

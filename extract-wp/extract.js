@@ -1,0 +1,87 @@
+(async () => {
+    console.log("🔍 Localizando a seção de participantes do grupo...");
+
+    const membros = new Set();
+
+    // 1. Tenta encontrar o contêiner específico que guarda a lista de membros
+    let listaContainer = null;
+
+    // Busca por cabeçalhos ou textos com "participante" ou "membro"
+    const elementosTexto = Array.from(document.querySelectorAll('span, div, h2, h3'));
+    const tituloSecao = elementosTexto.find(el => {
+        const txt = (el.innerText || "").toLowerCase().trim();
+        return (txt.includes('participante') || txt.includes('membro')) && txt.length < 35;
+    });
+
+    if (tituloSecao) {
+        // Sobe na árvore de elementos DOM para pegar a caixa pai da lista
+        let pai = tituloSecao.parentElement;
+        for (let i = 0; i < 6; i++) {
+            if (pai && pai.querySelectorAll('span[title], div[role="listitem"]').length > 2) {
+                listaContainer = pai;
+                break;
+            }
+            if (pai) pai = pai.parentElement;
+        }
+    }
+
+    // Se encontrou a seção específica usa ela, senão usa o documento como fallback
+    const escopo = listaContainer || document;
+    console.log(listaContainer ? "📍 Seção de participantes localizada!" : "💡 Varrendo painel de informações do grupo...");
+
+    // 2. Extrai os nomes/telefones dos membros
+    const elementos = escopo.querySelectorAll('span[title], div[role="listitem"] span[dir="auto"], span[dir="auto"]');
+
+    const termosIgnorados = [
+        "pesquisar", "mídia", "notificações", "silenciar", "mensagens", "visto", "online",
+        "adicionar", "sair do grupo", "denunciar", "ver todos", "ver mais", "grupo", "criado",
+        "descrição", "criptografia", "bloquear", "chamada", "vídeo", "link", "configurações",
+        "membros", "participantes", "admin", "administrador", "você", "dados do grupo", "conversas",
+        "editar", "favorito", "arquivar", "apagar", "fixar"
+    ];
+
+    elementos.forEach(el => {
+        const title = el.getAttribute('title');
+        const text = el.innerText ? el.innerText.trim() : "";
+        const val = (title && title.length > 1) ? title : text;
+
+        if (val) {
+            // Pega a primeira linha (evita recados do perfil)
+            const linha = val.split('\n')[0].trim();
+            const ehIgnorado = termosIgnorados.some(term => linha.toLowerCase() === term.toLowerCase());
+
+            if (linha && !ehIgnorado && linha.length >= 2) {
+                // Aceita números (+55...) OU nomes válidos
+                if (
+                    linha.startsWith('+') ||
+                    linha.match(/^\+?\d[\d\s-]{7,}/) ||
+                    /^[A-Za-zÀ-ÖØ-öø-ÿ0-9\s._-]+$/.test(linha)
+                ) {
+                    membros.add(linha);
+                }
+            }
+        }
+    });
+
+    const listaFinal = Array.from(membros);
+
+    if (listaFinal.length === 0) {
+        alert("⚠️ Nenhum membro foi encontrado!\n\nCertifique-se de que clicou no nome do grupo e a lista com a foto/nome dos participantes está visível na tela.");
+        return;
+    }
+
+    console.log(`✅ Sucesso! Encontrados ${listaFinal.length} membros:`);
+    console.table(listaFinal);
+
+    // Baixa o arquivo CSV
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFFMembro / Telefone\n" + listaFinal.map(m => `"${m.replace(/"/g, '""')}"`).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `membros_grupo_whatsapp.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    console.log("📁 Arquivo 'membros_grupo_whatsapp.csv' gerado e baixado!");
+})();

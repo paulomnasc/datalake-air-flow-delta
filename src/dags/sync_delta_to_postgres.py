@@ -87,7 +87,9 @@ def sync_delta_to_postgres(**context):
     
     # Construir paths dinamicamente
     search_globs = [
-    f's3://{bucket}/gold/*/*_delta/*.parquet',
+        f's3://{bucket}/gold/*/*_delta/*.parquet',
+        f's3://{bucket}/gold/*/*.parquet',
+        f's3://{bucket}/gold/*.parquet',
     ]
     
     duckdb_con = None
@@ -113,9 +115,9 @@ def sync_delta_to_postgres(**context):
         for search_path in search_globs:
             try:
                 print(f"  🔍 Procurando em: {search_path}")
-                # Captures the directory just before the parquet file (e.g. 'pipe-northwind/categories_delta' or just 'categories_delta' for old format)
+                # Captura os diretórios em 'gold/tabela' ou 'gold/tabela/delta'
                 rows = duckdb_con.execute(f"""
-                    SELECT DISTINCT regexp_extract(filename, '.*/(gold/[^/]+/[^/]+|delta/[^/]+)/[^/]+\\.parquet', 1) AS folder
+                    SELECT DISTINCT regexp_extract(filename, '.*/(gold/[^/]+/[^/]+|gold/[^/]+|delta/[^/]+)/[^/]+\\.parquet', 1) AS folder
                     FROM read_parquet('{search_path}', filename=true)
                     WHERE folder IS NOT NULL AND folder <> ''
                 """).fetchall()
@@ -123,6 +125,7 @@ def sync_delta_to_postgres(**context):
                     folders.add(folder)
             except Exception as e:
                 print(f"    ⚠️  Falha: {str(e)[:80]}")
+
                 # Continua mesmo se falhar em um glob
         if not folders:
             print("\n⚠️  Nenhuma pasta encontrada")
@@ -265,9 +268,9 @@ def sync_delta_to_postgres(**context):
                     # Default fallback
                     return 'TEXT'
                 col_defs = ", ".join([f'"{col}" {map_duck_to_pg(duck_types[col])}' for col in columns])
-                pg_cursor.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
+                pg_cursor.execute(f'DROP TABLE IF EXISTS "{table_name}" CASCADE;')
                 pg_cursor.execute(f"""
-                    CREATE TABLE {table_name} (
+                    CREATE TABLE "{table_name}" (
                         {col_defs}
                     )
                 """)
@@ -277,7 +280,7 @@ def sync_delta_to_postgres(**context):
                 if not df_delta.empty:
                     placeholders = ", ".join(["%s"] * len(columns))
                     insert_sql = f"""
-                        INSERT INTO {table_name} ({', '.join([f'"{col}"' for col in columns])})
+                        INSERT INTO "{table_name}" ({', '.join([f'"{col}"' for col in columns])})
                         VALUES ({placeholders})
                     """
                     batch_size = 100
@@ -383,6 +386,11 @@ def sync_delta_to_postgres(**context):
                 log.info(f"[AUDIT] {table_name}: {count_delta} registros originais no Delta | {count_inserted} inseridos no PostgreSQL")
                 results.append({'table': table_name, 'status': 'OK', 'count_delta': count_delta, 'count_postgres': count_inserted})
             except Exception as e:
+                if pg_conn:
+                    try:
+                        pg_conn.rollback()
+                    except Exception:
+                        pass
                 error_msg = str(e)[:150]
                 print(f"  ❌ {table_name}: {error_msg}")
                 print(f"[AUDIT] {table_name}: FALHA - {error_msg}")
@@ -402,10 +410,12 @@ def sync_delta_to_postgres(**context):
         log.info(f"[AUDIT] Tabelas sincronizadas com sucesso: {success}/{len(results)}")
         log.info(f"[AUDIT] Fim da sincronização Delta → PostgreSQL | Data: {datetime.now().isoformat()}")
         print("============================================================\n")
-        context['task_instance'].xcom_push(key='sync_results', value=results)
+        if 'task_instance' in context and context['task_instance']:
+            context['task_instance'].xcom_push(key='sync_results', value=results)
 
         # Chama limpeza dos nomes das tabelas após sincronização
         clean_postgres_table_names()
+
         
     except Exception as e:
         print(f"\n❌ ERRO: {str(e)}")

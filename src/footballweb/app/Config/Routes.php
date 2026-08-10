@@ -43,12 +43,32 @@ $routes->get('/lang/(:segment)', 'LanguageController::switchLanguage/$1', ['as'=
 
 // Rotas do App Football Trends
 $routes->match(['get', 'head'], '/football-trends', 'FootballTrendsController::index', ['as'=>'football.trends']);
+$routes->match(['get', 'head'], '/football', 'FootballTrendsController::index');
 $routes->post('/football-trends/ingest', 'FootballTrendsController::triggerIngest', ['as'=>'football.ingest']);
 $routes->post('/football-trends/ask-ai', 'FootballTrendsController::askAi', ['as'=>'football.ask-ai']);
 $routes->get('/football-trends/live-scores', 'FootballTrendsController::liveScores', ['as'=>'football.live-scores']);
 
+// Rotas da Gestão de Apostas (CRUD com controle de tokens)
+$routes->get('/apostas', 'ApostaController::index', ['as' => 'apostas.index']);
+$routes->post('/apostas/store', 'ApostaController::store', ['as' => 'apostas.store']);
+$routes->post('/apostas/update/(:num)', 'ApostaController::update/$1', ['as' => 'apostas.update']);
+$routes->post('/apostas/update', 'ApostaController::update', ['as' => 'apostas.update_post']);
+$routes->post('/apostas/delete/(:num)', 'ApostaController::delete/$1', ['as' => 'apostas.delete']);
+$routes->post('/apostas/delete', 'ApostaController::delete', ['as' => 'apostas.delete_post']);
+$routes->post('/apostas/cashout/(:num)', 'ApostaController::cashout/$1', ['as' => 'apostas.cashout']);
+$routes->post('/apostas/cashout', 'ApostaController::cashout', ['as' => 'apostas.cashout_post']);
+$routes->post('/apostas/reapostar/(:num)', 'ApostaController::reapostar/$1', ['as' => 'apostas.reapostar']);
+$routes->post('/apostas/reapostar', 'ApostaController::reapostar', ['as' => 'apostas.reapostar_post']);
+$routes->post('/apostas/processar', 'ApostaController::processar', ['as' => 'apostas.processar']);
+$routes->get('/apostas/relatorio-top5', 'ApostaController::relatorioTop5', ['as' => 'apostas.relatorio_top5']);
+$routes->get('/apostas/relatorioTop5', 'ApostaController::relatorioTop5');
+$routes->get('/apostas/relatorio-ia-perdas', 'ApostaController::relatorioIaPerdas', ['as' => 'apostas.relatorio_ia_perdas']);
+$routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
+$routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
+
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);
+$routes->match(['get', 'head'], '/team-logo/(:num)', 'FootballTrendsController::teamLogo/$1', ['as'=>'football.team-logo']);
 
 
 
@@ -200,9 +220,11 @@ $routes->post('/fileUpload', 'UploadController::upload',['as'=>'Config.upload'])
 
 // Rotas do e-commerce ou marketing interface
 $routes->get('/contactUs', 'MarketPlaceController::contactUs', ['as'=>'contactUs']);//Exibe a entre em contato conosco
+$routes->get('/reportError', 'MarketPlaceController::reportError', ['as'=>'reportError']);//Exibe a tela reportar um erro
 $routes->get('/politica', 'MarketPlaceController::politica', ['as'=>'politica']);//Exibe a tela política de privacidade
 $routes->get('/tdu', 'MarketPlaceController::tdu', ['as'=>'tdu']);//Termos de uso
 $routes->post('/email', 'MarketPlaceController::sendMailNoSecurity', ['as'=>'email']);//Dipara o email preenchido na tela contactUs 
+$routes->post('/sendReportErrorEmail', 'MarketPlaceController::sendReportErrorEmail', ['as'=>'sendReportErrorEmail']);//Dispara o email da tela reportError
 $routes->post('/saibaMais', 'MarketPlaceController::saibaMais', ['as'=>'saibaMais']);//Dipara o form saiba mais 
 $routes->get('/saibaMais', 'MarketPlaceController::saibaMais', ['as'=>'saibaMais']);//Dipara o form saiba mais 
 
@@ -320,6 +342,7 @@ $routes->post('insertOrdemServico', 'OrdemServicoController::insert');
 $routes->post('updateOrdemServico', 'OrdemServicoController::update');
 $routes->post('concluirOrdemServico/(:num)', 'OrdemServicoController::concluir/$1');
 $routes->delete('deleteOrdemServico/(:num)', 'OrdemServicoController::delete/$1');
+$routes->match(['get', 'post'], 'cloneOrdemServico/(:num)', 'OrdemServicoController::clone/$1');
 $routes->get('listItemOs', 'ItemOsController::index');
 $routes->post('addItemOs', 'ItemOsController::add');
 $routes->get('addItemOs', 'ItemOsController::add');

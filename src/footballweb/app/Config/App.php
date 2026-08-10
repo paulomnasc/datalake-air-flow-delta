@@ -34,9 +34,12 @@ class App extends BaseConfig
     {
         parent::__construct();
         
-        // Se a requisição for via HTTP, detecta a URL base dinamicamente com base no cabeçalho do host do cliente
+        // Se a requisição for via HTTP, detecta a URL base dinamicamente com base no cabeçalho do host do cliente e proxy
         if (isset($_SERVER['HTTP_HOST'])) {
-            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || ($_SERVER['SERVER_PORT'] ?? 80) == 443) ? "https" : "http";
+            $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') 
+                    || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+                    || (($_SERVER['SERVER_PORT'] ?? 80) == 443);
+            $protocol = $isHttps ? "https" : "http";
             $this->baseURL = "{$protocol}://{$_SERVER['HTTP_HOST']}/";
             return;
         }

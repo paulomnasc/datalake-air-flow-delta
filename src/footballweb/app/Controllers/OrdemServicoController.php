@@ -481,11 +481,133 @@ class OrdemServicoController extends BaseController
     public function delete($id)  
     {
         $model = new OrdemServicoModel();
-        $deleted = $model->delete($id);
+        $record = $model->find($id);
+        if (!$record) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Ordem de serviço não encontrada.'
+            ]);
+        }
 
-        return $this->response->setJSON([
-            'status' => $deleted ? 'success' : 'warning',
-            'mensagem' => $deleted ? 'Registro deletado com sucesso!' : 'Falha ao deletar o registro. Tente novamente.'
-        ]);
+        $status = strtolower(trim($record->status ?? $record->Status ?? 'Rascunho'));
+        $allowedDeleteStatus = ['rascunho', 'aguardando assinatura'];
+        if (!in_array($status, $allowedDeleteStatus, true)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Apenas Ordens de Serviço com status "Rascunho" ou "Aguardando assinatura" podem ser excluídas.'
+            ]);
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        try {
+            // 1. Excluir itens associados (os_item_os e item_os)
+            $oldRelations = $db->table('os_item_os')->where('id_os', $id)->get()->getResult();
+            $db->table('os_item_os')->where('id_os', $id)->delete();
+
+            $itemOsModel = new ItemOsModel();
+            foreach ($oldRelations as $rel) {
+                if (!empty($rel->id_item_os)) {
+                    $itemOsModel->delete($rel->id_item_os);
+                }
+            }
+
+            // 2. Excluir das demais tabelas dependentes caso existam registros
+            if ($db->tableExists('documento_recebimento')) {
+                $db->table('documento_recebimento')->where('id_os', $id)->delete();
+            }
+            if ($db->tableExists('os_status_recebimento')) {
+                $db->table('os_status_recebimento')->where('id_os', $id)->delete();
+            }
+            if ($db->tableExists('usuario_os')) {
+                $db->table('usuario_os')->where('id_os', $id)->delete();
+            }
+            if ($db->tableExists('os_item_contrato')) {
+                $db->table('os_item_contrato')->where('id_os', $id)->delete();
+            }
+            if ($db->tableExists('agile_demandas')) {
+                $db->table('agile_demandas')->where('id_ordem_servico', $id)->delete();
+            }
+
+            // 3. Excluir a ordem de serviço
+            $model->delete($id);
+
+            $db->transComplete();
+
+            if ($db->transStatus() === false) {
+                throw new \Exception('Erro na transação ao excluir a Ordem de Serviço.');
+            }
+
+            return $this->response->setJSON([
+                'status' => 'success',
+                'mensagem' => 'Registro deletado com sucesso!'
+            ]);
+        } catch (\Exception $e) {
+            $db->transRollback();
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'Falha ao deletar o registro: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    public function clone($id)
+    {
+        $model = new OrdemServicoModel();
+        $record = $model->find($id);
+
+        if (!$record) {
+            return redirect()->to(site_url('listOrdemServico'));
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        try {
+            $data = [
+                'horas_alocadas'         => $record->horas_alocadas ?? $record->Horas_Alocadas ?? null,
+                'nup_sei'                => $record->nup_sei ?? $record->Nup_Sei ?? null,
+                'data_emissao'           => $record->data_emissao ?? $record->Data_Emissao ?? date('Y-m-d H:i:s'),
+                'data_aceite'            => $record->data_aceite ?? $record->Data_Aceite ?? null,
+                'realizada_estimativa'   => $record->realizada_estimativa ?? $record->Realizada_Estimativa ?? null,
+                'metodologia_estimativa' => $record->metodologia_estimativa ?? $record->Metodologia_Estimativa ?? null,
+                'status'                 => 'Rascunho',
+                'nota_empenho'           => null,
+                'id_contrato'            => $record->id_contrato ?? $record->Id_Contrato ?? null
+            ];
+
+            $newOsId = $model->insert($data);
+
+            $builder = $db->table('os_item_os oio')
+                          ->join('item_os io', 'io.id = oio.id_item_os')
+                          ->where('oio.id_os', $id);
+            $itens = $builder->get()->getResult();
+
+            $itemOsModel = new ItemOsModel();
+            foreach ($itens as $item) {
+                $itemData = [
+                    'Quantidade_Horas'     => $item->Quantidade_Horas ?? $item->quantidade_horas ?? null,
+                    'Profissional_Alocado' => $item->Profissional_Alocado ?? $item->profissional_alocado ?? null,
+                    'id_servico'           => $item->id_servico ?? null
+                ];
+                $idItemOs = $itemOsModel->insert($itemData);
+                $db->table('os_item_os')->insert([
+                    'id_os'      => $newOsId,
+                    'id_item_os' => $idItemOs
+                ]);
+            }
+
+            $db->transComplete();
+
+            if ($db->transStatus() === false) {
+                throw new \Exception('Erro na transação ao clonar a ordem de serviço.');
+            }
+
+            return redirect()->to(site_url('updOrdemServico?id=' . $newOsId));
+        } catch (\Exception $e) {
+            $db->transRollback();
+            return redirect()->to(site_url('listOrdemServico'));
+        }
     }
 }

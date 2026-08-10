@@ -814,14 +814,44 @@ def raw_to_medallion(source_filename: str, target_table_name: str, **kwargs) -> 
         log.info("[RAW_TO_MEDALLION] Detecção: pipeline API REST (source_filename None, api_endpoint presente)")
     else:
         log.warning("[RAW_TO_MEDALLION] Não foi possível determinar o tipo de pipeline a partir dos parâmetros.")
-    """
-    Função wrapper inteligente: roteia automaticamente para a função de ingestão correta conforme o tipo de fonte.
-    Suporta: API REST, MySQL, arquivos (CSV/JSON/Parquet).
-    """
-    log.info("[RAW_TO_MEDALLION] Wrapper inteligente: roteando conforme tipo de fonte")
+    # 🛍️ Suporte para Ingestão Dinâmica da Shopee via Parâmetros de UI Console
+    target_table = str(target_table_name or '').lower()
+    dag_identifier = str(kwargs.get('dag_id', '')).lower()
+
+    if 'shopee' in target_table or 'shopee' in dag_identifier:
+        params_dict = kwargs.get('params') or {}
+        if not isinstance(params_dict, dict):
+            params_dict = {}
+
+        kw_val = kwargs.get('keyword') or params_dict.get('keyword')
+        lim_val = kwargs.get('limit') or params_dict.get('limit') or 50
+
+        if kw_val:
+            log.info(f"[RAW_TO_MEDALLION] Executando extrator Shopee para keyword='{kw_val}', limit={lim_val}...")
+            try:
+                import subprocess
+                import sys
+                script_paths = [
+                    '/usr/local/bin/scripts/shopee_ingest_offers.py',
+                    '/root/datalake-air-flow-delta/scripts/shopee_ingest_offers.py'
+                ]
+                selected_script = None
+                for sp in script_paths:
+                    if os.path.exists(sp):
+                        selected_script = sp
+                        break
+                if selected_script:
+                    cmd = [sys.executable, selected_script, str(kw_val), str(lim_val)]
+                    res = subprocess.run(cmd, capture_output=True, text=True)
+                    log.info(f"[RAW_TO_MEDALLION] Extrator Shopee concluído: STDOUT={res.stdout}")
+                    if res.stderr:
+                        log.warning(f"[RAW_TO_MEDALLION] Extrator Shopee STDERR={res.stderr}")
+            except Exception as e:
+                log.warning(f"[RAW_TO_MEDALLION] Erro ao executar extrator Shopee: {e}")
 
     # Detecta tipo de fonte
     source_type = kwargs.get('source_type') or kwargs.get('fonte') or kwargs.get('tipo_fonte')
+
     # Detecta tipo de fonte de forma robusta
     if not source_type:
         if kwargs.get('api_endpoint'):

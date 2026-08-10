@@ -15,6 +15,8 @@ import io
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 
 import pendulum
 
@@ -68,7 +70,7 @@ def extract_and_calculate_arbitrage(**context):
     
     # 1. Recupera valor padrão das variáveis de ambiente (do .env ou container)
     env_banca = file_env.get('ARBITRAGE_BANCA_TOTAL') or os.environ.get('ARBITRAGE_BANCA_TOTAL', '1000.0')
-    env_casas = file_env.get('ARBITRAGE_CASAS_USUARIO') or os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, 1xBet, Pinnacle, Betsson")
+    env_casas = file_env.get('ARBITRAGE_CASAS_USUARIO') or os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, Pinnacle, Betsson")
     env_apenas = file_env.get('ARBITRAGE_APENAS_CASAS_USUARIO') or os.environ.get('ARBITRAGE_APENAS_CASAS_USUARIO', 'true')
     
     try:
@@ -108,6 +110,9 @@ def extract_and_calculate_arbitrage(**context):
             casas_usuario = [c.strip() for c in env_casas.split(',') if c.strip()]
     else:
         casas_usuario = [c.strip() for c in env_casas.split(',') if c.strip()]
+
+    # Garante a remoção da 1xBet
+    casas_usuario = [c for c in casas_usuario if c.lower() != '1xbet']
 
     # Processa apenas_casas_usuario
     apenas_param = params.get('apenas_casas_usuario')
@@ -349,13 +354,30 @@ def send_arbitrage_email(**context):
 
     log.info(f"[EMAIL-ARBITRAGEM] Preparando envio de e-mail SMTP via {smtp_host}:{smtp_port} para {to_email} (CC: {cc_email})...")
 
-    msg = MIMEMultipart("alternative")
+    timestamp = ti.xcom_pull(task_ids='extract_and_calculate_arbitrage_task', key='timestamp') or datetime.now().strftime("%Y%m%d_%H%M%S")
+    attachment_filename = f"brasileirao_arbitrage_{timestamp}.csv"
+
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
     msg["From"] = f"{smtp_from_name} <{smtp_from}>"
     msg["To"] = to_email
     msg["Cc"] = cc_email
 
-    msg.attach(MIMEText(html_content, "html", "utf-8"))
+    # Corpo do e-mail em HTML
+    html_part = MIMEText(html_content, "html", "utf-8")
+    msg.attach(html_part)
+
+    # Anexo do arquivo CSV
+    csv_bytes = csv_content.encode("utf-8-sig")
+    part = MIMEBase("text", "csv")
+    part.set_payload(csv_bytes)
+    encoders.encode_base64(part)
+    part.add_header(
+        "Content-Disposition",
+        f'attachment; filename="{attachment_filename}"',
+    )
+    msg.attach(part)
+    log.info(f"[EMAIL-ARBITRAGEM] Anexo '{attachment_filename}' ({len(csv_bytes)} bytes) adicionado com sucesso ao e-mail.")
 
     try:
         smtp_client = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
@@ -365,24 +387,29 @@ def send_arbitrage_email(**context):
 
         smtp_client.sendmail(smtp_from, recipients, msg.as_string())
         smtp_client.quit()
-        log.info(f"[EMAIL-ARBITRAGEM] E-mail enviado com sucesso para {recipients}!")
+        log.info(f"[EMAIL-ARBITRAGEM] E-mail com anexo CSV enviado com sucesso para {recipients}!")
     except Exception as err:
         log.error(f"[EMAIL-ARBITRAGEM] Falha ao enviar e-mail via SMTP: {err}")
         raise
 
 # Definição da DAG
+_live_env = get_live_env_vars()
+_raw_casas = _live_env.get('ARBITRAGE_CASAS_USUARIO') or os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, Pinnacle, Betsson")
+_default_casas_filtered = ", ".join([c.strip() for c in _raw_casas.split(',') if c.strip() and c.strip().lower() != '1xbet'])
+_schedule_interval = _live_env.get('ARBITRAGE_SCHEDULE_INTERVAL') or os.environ.get('ARBITRAGE_SCHEDULE_INTERVAL', '0 15,18,21 * * *')
+
 with DAG(
     'sports_arbitrage_dag',
     default_args=default_args,
     description='Scraping e Cálculo de Arbitragem (Surebets) para o Brasileirão Série A/B com suporte a casas personalizadas (Betnacional, Bet365, Betano, etc.)',
-    schedule_interval='*/30 12-23 * * *',
+    schedule_interval=_schedule_interval,
     catchup=False,
     max_active_runs=1,
     params={
-        'banca_total': float(os.environ.get('ARBITRAGE_BANCA_TOTAL', 1000.0)),
-        'casas_usuario': os.environ.get('ARBITRAGE_CASAS_USUARIO', "Betnacional, Bet365, Betano, Sportingbet, Superbet, KTO, Novibet, EstrelaBet, Betfair, Betfair Sportsbook, Betfair Exchange, 1xBet, Pinnacle, Betsson"),
+        'banca_total': float(_live_env.get('ARBITRAGE_BANCA_TOTAL') or os.environ.get('ARBITRAGE_BANCA_TOTAL', 1000.0)),
+        'casas_usuario': _default_casas_filtered,
         'apenas_casas_usuario': True,
-        'min_pre_match_minutes': int(os.environ.get('ARBITRAGE_MIN_PRE_MATCH_MINUTES', 30)),
+        'min_pre_match_minutes': int(_live_env.get('ARBITRAGE_MIN_PRE_MATCH_MINUTES') or os.environ.get('ARBITRAGE_MIN_PRE_MATCH_MINUTES', 30)),
     },
     tags=['sports', 'arbitrage', 'surebet', 'brasileirao', 's3', 'paulomnasc-558']
 ) as dag:

@@ -93,7 +93,7 @@ def main():
     
     print(f"Encontrados {len(teams)} times únicos na agenda para processar nos próximos 7 dias.")
     
-    api_key = "ee52562367d4f6389ae8143b0a0650b7"
+    api_key = os.getenv("FOOTBALL_API_KEY", "0327019c6fab54df2ea46009b5f0844b")
     headers = {
         "x-apisports-key": api_key,
         "Content-Type": "application/json"
@@ -114,12 +114,12 @@ def main():
         
         print(f"\n--- Processando: {team_name} (ID: {team_id}) | Liga: {league_id} | Temporada: {season} ---")
         
-        # 1. Verificar se precisa de atualização (se atualizado há menos de 5 dias, ignoramos para poupar API)
+        # 1. Verificar se precisa de atualização (se atualizado há menos de 20 horas, ignoramos no dia para poupar cota de API)
         cursor.execute("SELECT updated_at FROM team_moving_averages WHERE team_id = %s LIMIT 1", (team_id,))
         row = cursor.fetchone()
         if row:
             updated_at = row["updated_at"]
-            if datetime.now() - updated_at < timedelta(days=5):
+            if datetime.now() - updated_at < timedelta(hours=20):
                 print(f"Skipping {team_name} - atualizado recentemente em {updated_at}.")
                 continue
         

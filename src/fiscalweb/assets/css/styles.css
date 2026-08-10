@@ -104,7 +104,7 @@ h1 {
     background-color: #ddd;
 }
 
-.edit-button, .delete-button {
+.edit-button, .delete-button, .clone-button {
     background-color: transparent;
     border: none; /* Adiciona uma borda para melhor visibilidade */
     cursor: pointer;
@@ -119,6 +119,10 @@ h1 {
 
 .delete-button:hover {
     color: #FF0000;
+}
+
+.clone-button:hover {
+    color: #007bff;
 }
 
 .form-group {

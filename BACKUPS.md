@@ -46,7 +46,7 @@ port=23306
 
 ## 📋 Visão Geral
 
-Sistema de backup automatizado que exporta dumps diários dos bancos de dados MySQL `lista_revisao2` e `fiscal` e os armazena no Google Drive usando `rclone`. Os backups são compactados em formato `.sql.gz` e mantidos localmente por 7 dias.
+Sistema de backup automatizado que exporta dumps diários dos bancos de dados MySQL `lista_revisao2`, `fiscal` e `footballweb` e os armazena no Google Drive usando `rclone`. Os backups são compactados em formato `.sql.gz` e mantidos localmente por 7 dias.
 
 ## 🏗️ Arquitetura
 

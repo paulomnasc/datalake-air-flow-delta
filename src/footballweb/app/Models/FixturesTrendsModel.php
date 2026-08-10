@@ -25,6 +25,9 @@ class FixturesTrendsModel extends Model
         'status',
         'goals_home',
         'goals_away',
-        'elapsed'
+        'elapsed',
+        'futbol24_tip',
+        'futbol24_analysis',
+        'futbol24_url'
     ];
 }

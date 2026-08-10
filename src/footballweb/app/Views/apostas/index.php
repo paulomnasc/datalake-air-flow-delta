@@ -798,6 +798,33 @@
         <button class="btn btn-sm btn-outline-info text-info border-secondary px-2 py-0.5 ms-1 fw-semibold" onclick="setTodayDateFilter()" title="Selecionar Data de Hoje" style="font-size: 0.78rem;"><i class="bi bi-calendar-check me-1"></i>Hoje</button>
         <button class="btn btn-sm btn-outline-secondary border-0 text-light-50 p-1" onclick="clearDateFilter()" title="Limpar Filtro de Período"><i class="bi bi-x-circle-fill"></i></button>
       </div>
+
+      <!-- Resumo Financeiro Calculado (Filtro por Período / Seleção) -->
+      <div id="calculatedSummaryWidget" class="d-flex align-items-center gap-3 bg-dark px-3 py-1.5 rounded-3 border border-secondary flex-wrap" style="font-size: 0.82rem; background: rgba(15, 23, 42, 0.9) !important; border-color: rgba(56, 189, 248, 0.35) !important;">
+        <div class="d-flex align-items-center gap-1" title="Soma do valor investido nas apostas do período/filtro">
+          <i class="bi bi-cash-coin text-warning"></i>
+          <span class="text-light-50">Total Apostado:</span>
+          <strong id="calcTotalApostado" class="text-white">R$ 0,00</strong>
+        </div>
+
+        <div class="d-flex align-items-center gap-1" title="Soma dos ganhos em apostas vencidas ou cashouts">
+          <i class="bi bi-graph-up-arrow text-success"></i>
+          <span class="text-light-50">Total Ganho:</span>
+          <strong id="calcTotalGanho" class="text-success">R$ 0,00</strong>
+        </div>
+
+        <div class="d-flex align-items-center gap-1" title="Soma dos valores perdidos nas apostas do período/filtro">
+          <i class="bi bi-graph-down-arrow text-danger"></i>
+          <span class="text-light-50">Total Perda:</span>
+          <strong id="calcTotalPerda" class="text-danger">R$ 0,00</strong>
+        </div>
+
+        <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: Saldo Líquido = Total Apostado + Total Ganho - Total Perda">
+          <i class="bi bi-calculator text-info"></i>
+          <span class="text-light-50">Saldo Líquido:</span>
+          <strong id="calcSaldoLiquido" class="text-info fw-bold">R$ 0,00</strong>
+        </div>
+      </div>
     </div>
 
     <div class="d-flex align-items-center gap-3 flex-wrap">
@@ -848,7 +875,7 @@
             $itemDate = date('Y-m-d', strtotime($aposta->criado_em));
           }
         ?>
-        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
+        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
           
           <div class="bet-card-header">
             <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
@@ -1596,6 +1623,62 @@
     } else if (emptyNotice) {
       emptyNotice.style.display = 'none';
     }
+
+    updateCalculatedSummary();
+  }
+
+  function updateCalculatedSummary() {
+    const cards = document.querySelectorAll('.bet-card-item');
+    let totalApostado = 0;
+    let totalGanho = 0;
+    let totalPerda = 0;
+
+    cards.forEach(card => {
+      if (card.style.display !== 'none') {
+        const status = card.getAttribute('data-status') || '';
+        const valor = parseFloat(card.getAttribute('data-valor') || '0') || 0;
+        const ganho = parseFloat(card.getAttribute('data-ganho') || '0') || 0;
+        const cashout = parseFloat(card.getAttribute('data-cashout') || '0') || 0;
+
+        totalApostado += valor;
+
+        if (status === 'Ganha' || status === 'Meio Ganha') {
+          totalGanho += ganho;
+        } else if (status === 'Cashout') {
+          totalGanho += (cashout > 0 ? cashout : ganho);
+        } else if (status === 'Perdida') {
+          totalPerda += valor;
+        } else if (status === 'Meio Perdida') {
+          totalPerda += (valor * 0.5);
+        } else if (status === 'ANULADA') {
+          totalGanho += valor;
+        }
+      }
+    });
+
+    // Saldo Líquido = (Total Apostado + Total Ganho - Total Perda)
+    const saldoLiquido = totalApostado + totalGanho - totalPerda;
+
+    const formatBrl = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const elApostado = document.getElementById('calcTotalApostado');
+    const elGanho = document.getElementById('calcTotalGanho');
+    const elPerda = document.getElementById('calcTotalPerda');
+    const elSaldo = document.getElementById('calcSaldoLiquido');
+
+    if (elApostado) elApostado.textContent = formatBrl(totalApostado);
+    if (elGanho) elGanho.textContent = formatBrl(totalGanho);
+    if (elPerda) elPerda.textContent = formatBrl(totalPerda);
+    if (elSaldo) {
+      elSaldo.textContent = formatBrl(saldoLiquido);
+      if (saldoLiquido > 0) {
+        elSaldo.className = 'text-success fw-bold';
+      } else if (saldoLiquido < 0) {
+        elSaldo.className = 'text-danger fw-bold';
+      } else {
+        elSaldo.className = 'text-info fw-bold';
+      }
+    }
   }
 
   function resetAllBetFilters() {
@@ -1947,5 +2030,7 @@
         }
       }
     }
+
+    applyBetFilters();
   });
 </script>

@@ -532,17 +532,27 @@ def fetch_futbol24_direct_match_odds(home_team: str, away_team: str, country: Op
     norm_h = _strip(home_team)
     norm_a = _strip(away_team)
 
-    # 1. Tenta acessar a página do jogo ou comparar times no Futbol24
     h_slug = norm_h.replace(' ', '-').title()
     a_slug = norm_a.replace(' ', '-').title()
-    if 'belgrano' in norm_a:
-        a_slug = 'Belgrano-Cba'
-    if 'banfield' in norm_h:
-        h_slug = 'Banfield'
+
+    # Mapeamento dinâmico de conhecidos
+    known_slugs_local = {
+        'banfield': 'Banfield', 'ca banfield': 'Banfield',
+        'belgrano cordoba': 'Belgrano-Cba', 'belgrano': 'Belgrano-Cba',
+        'union santa fe': 'Union-Santa-Fe',
+        'central cordoba de santiago': 'Central-Cordoba-SdE', 'central cordoba': 'Central-Cordoba-SdE',
+        'goias': 'Goias-GO', 'goiás': 'Goias-GO',
+        'londrina': 'Londrina-PR'
+    }
+
+    if norm_h in known_slugs_local:
+        h_slug = known_slugs_local[norm_h]
+    if norm_a in known_slugs_local:
+        a_slug = known_slugs_local[norm_a]
 
     match_urls = [
         f'https://www.futbol24.com/pt/jogo/2026/08/10/national/Argentina/Primera-Division/2026/Clausura/{h_slug}/vs/{a_slug}/',
-        f'https://www.futbol24.com/pt/comparar-equipas/Argentina/CA-{h_slug}/vs/Argentina/{a_slug}/'
+        f'https://www.futbol24.com/pt/comparar-equipas/Argentina/{h_slug}/vs/Argentina/{a_slug}/'
     ]
 
     league_urls = [
@@ -564,12 +574,19 @@ def fetch_futbol24_direct_match_odds(home_team: str, away_team: str, country: Op
             # Checa o widget 'Who will win?' (ex: BAN 3.30 X 2.85 BEL 2.40)
             for container in soup.find_all(['div', 'tr', 'p', 'section']):
                 text = container.get_text(separator=' ', strip=True)
-                w_match = re.search(r'\b[A-Za-z0-9]{2,5}\s+(\d+\.\d{2})\s+X\s+(\d+\.\d{2})\s+[A-Za-z0-9]{2,5}\s+(\d+\.\d{2})\b', text)
+                w_match = re.search(r'\b([A-Za-z0-9]{2,5})\s+(\d+\.\d{2})\s+X\s+(\d+\.\d{2})\s+([A-Za-z0-9]{2,5})\s+(\d+\.\d{2})\b', text)
                 if w_match:
-                    o_h = float(w_match.group(1))
-                    o_d = float(w_match.group(2))
-                    o_a = float(w_match.group(3))
-                    if 1.05 <= o_h <= 30.0 and 1.05 <= o_d <= 30.0 and 1.05 <= o_a <= 30.0:
+                    code1 = w_match.group(1)
+                    o_h = float(w_match.group(2))
+                    o_d = float(w_match.group(3))
+                    code2 = w_match.group(4)
+                    o_a = float(w_match.group(5))
+                    
+                    is_match_url = '/vs/' in url
+                    norm_t = _strip(text)
+                    team_matched = (norm_h in norm_t or norm_a in norm_t or any(w in norm_t for w in norm_h.split() if len(w) > 3))
+                    
+                    if (is_match_url or team_matched) and 1.05 <= o_h <= 30.0 and 1.05 <= o_d <= 30.0 and 1.05 <= o_a <= 30.0:
                         return {
                             'odd_home': o_h,
                             'odd_draw': o_d,
@@ -731,7 +748,42 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
         'talleres': ('Argentina', 'Talleres-Cordoba'),
         'lanús': ('Argentina', 'Lanus'), 'lanus': ('Argentina', 'Lanus'),
         'vélez': ('Argentina', 'Velez-Sarsfield'), 'velez': ('Argentina', 'Velez-Sarsfield'),
-        'estudiantes': ('Argentina', 'Estudiantes-La-Plata')
+        'estudiantes': ('Argentina', 'Estudiantes-La-Plata'),
+        'belgrano cordoba': ('Argentina', 'Belgrano-Cordoba'), 'belgrano': ('Argentina', 'Belgrano-Cordoba'),
+        'independ. rivadavia': ('Argentina', 'Independ.-Rivadavia'), 'independiente rivadavia': ('Argentina', 'Independ.-Rivadavia'),
+        'estudiantes de rio cuarto': ('Argentina', 'Estudiantes-Rio-Cuarto'), 'estudiantes rio cuarto': ('Argentina', 'Estudiantes-Rio-Cuarto'),
+        'sarmiento junin': ('Argentina', 'Sarmiento-Junin'), 'sarmiento': ('Argentina', 'Sarmiento-Junin'),
+        'atletico tucuman': ('Argentina', 'Atletico-Tucuman'), 'atlético tucumán': ('Argentina', 'Atletico-Tucuman'),
+        'barracas central': ('Argentina', 'Barracas-Central'),
+        'gimnasia la plata': ('Argentina', 'Gimnasia-La-Plata'), 'gimnasia lp': ('Argentina', 'Gimnasia-La-Plata'),
+        'rosario central': ('Argentina', 'Rosario-Central'),
+        'tigre': ('Argentina', 'CA-Tigre'),
+        'platense': ('Argentina', 'Platense'),
+        'union santa fe': ('Argentina', 'Union-Santa-Fe'),
+        'central cordoba de santiago': ('Argentina', 'Central-Cordoba-SdE'), 'central cordoba': ('Argentina', 'Central-Cordoba-SdE'),
+        'deportivo recoleta': ('Paraguay', 'Deportivo-Recoleta'),
+        'deportivo maldonado': ('Uruguay', 'Deportivo-Maldonado'),
+        'racing montevideo': ('Uruguay', 'Racing-Montevideo'),
+        'universidad de chile': ('Chile', 'Universidad-De-Chile'),
+        'palestino': ('Chile', 'Palestino'),
+        'a. italiano': ('Chile', 'A.-Italiano'), 'audax italiano': ('Chile', 'A.-Italiano'),
+        'nublense': ('Chile', 'Nublense'), 'ñublense': ('Chile', 'Nublense'),
+        'america de cali': ('Colombia', 'America-De-Cali'),
+        'atletico nacional': ('Colombia', 'Atletico-Nacional'),
+        'independiente medellin': ('Colombia', 'Independiente-Medellin'),
+        'millonarios': ('Colombia', 'Millonarios'),
+        'junior': ('Colombia', 'Junior'),
+        'deportivo pereira': ('Colombia', 'Deportivo-Pereira'),
+        'aguilas doradas': ('Colombia', 'Aguilas-Doradas'),
+        'llaneros': ('Colombia', 'Llaneros'),
+        'guayaquil city fc': ('Ecuador', 'Guayaquil-City-Fc'),
+        'emelec': ('Ecuador', 'Emelec'),
+        'tecnico universitario': ('Ecuador', 'Tecnico-Universitario'),
+        'mushuc runa sc': ('Ecuador', 'Mushuc-Runa-Sc'),
+        'libertad': ('Ecuador', 'Libertad'),
+        'universidad catolica': ('Ecuador', 'Universidad-Catolica'),
+        'deportivo cuenca': ('Ecuador', 'Deportivo-Cuenca'),
+        'manta fc': ('Ecuador', 'Manta-Fc')
     }
 
     def _strip_accents(s: str) -> str:

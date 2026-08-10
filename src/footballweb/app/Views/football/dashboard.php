@@ -2191,7 +2191,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                     </div>
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cleansheets') ?>">
                                                         <i class="bi bi-shield-fill-check"></i>
-                                                        <span class="label"><?= lang('App.clean_sheets') ?>:</span>
+                                                        <span class="label"><?= lang('App.clean_sheets_away') ?>:</span>
                                                         <span class="val"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : 'Não localizado' ?></span>
                                                     </div>
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_corners') ?>">
@@ -2217,11 +2217,12 @@ if (!function_exists('getBetDecisionTree')) {
                                          $urlHome = getBookmakerUrl($fix->casa_odd_home ?? '');
                                          $urlDraw = getBookmakerUrl($fix->casa_odd_draw ?? '');
                                          $urlAway = getBookmakerUrl($fix->casa_odd_away ?? '');
+                                         $oddSourceLabel = !empty($fix->casa_odd_home) ? htmlspecialchars($fix->casa_odd_home) : 'ODDSPEDIA';
                                          ?>
                                          <div class="oddspedia-widget-box" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
                                              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                                  <span style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
-                                                     <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> Cotações 1X2 (Oddspedia)
+                                                     <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> Cotações 1X2 (<?= $oddSourceLabel ?>)
                                                  </span>
                                                  <?php if (!empty($fix->is_surebet)): ?>
                                                      <span class="badge" style="background: rgba(0, 230, 118, 0.2); border: 1px solid #00e676; color: #00e676; font-weight: 800; font-size: 0.75rem; padding: 3px 8px; border-radius: 20px; box-shadow: 0 0 10px rgba(0, 230, 118, 0.4); animation: pulse-live 1.5s infinite;">

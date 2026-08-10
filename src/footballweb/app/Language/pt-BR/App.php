@@ -82,6 +82,7 @@ return [
     'corners'               => 'Escanteios',
     'cards'                 => 'Cartões',
     'clean_sheets'          => 'Zero Gols em Casa',
+    'clean_sheets_away'     => 'Zero Gols Fora',
     'referee'               => 'Árbitro',
     'no_referee'            => 'Sem Árbitro',
     'referee_rigor'         => 'Rigor de Arbitragem',

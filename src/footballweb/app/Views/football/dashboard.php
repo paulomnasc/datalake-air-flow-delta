@@ -63,10 +63,12 @@ $leagueMap = [
     71  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
     72  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
     73  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => false],
+    94  => ['country' => 'Portugal', 'flag' => '🇵🇹', 'popular' => true],
     39  => ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => true],
     140 => ['country' => 'Espanha', 'flag' => '🇪🇸', 'popular' => true],
     135 => ['country' => 'Itália', 'flag' => '🇮🇹', 'popular' => true],
     78  => ['country' => 'Alemanha', 'flag' => '🇩🇪', 'popular' => true],
+    88  => ['country' => 'Holanda', 'flag' => '🇳🇱', 'popular' => true],
     262 => ['country' => 'México', 'flag' => '🇲🇽', 'popular' => true],
     128 => ['country' => 'Argentina', 'flag' => '🇦🇷', 'popular' => true],
     253 => ['country' => 'EUA', 'flag' => '🇺🇸', 'popular' => true],
@@ -81,6 +83,8 @@ $leagueMap = [
     265 => ['country' => 'Chile', 'flag' => '🇨🇱', 'popular' => false],
     239 => ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false],
     169 => ['country' => 'China', 'flag' => '🇨🇳', 'popular' => false],
+    292 => ['country' => 'Coreia do Sul', 'flag' => '🇰🇷', 'popular' => false],
+    98  => ['country' => 'Japão', 'flag' => '🇯🇵', 'popular' => false],
     307 => ['country' => 'Arábia Saudita', 'flag' => '🇸🇦', 'popular' => false],
     203 => ['country' => 'Turquia', 'flag' => '🇹🇷', 'popular' => false],
     207 => ['country' => 'Suíça', 'flag' => '🇨🇭', 'popular' => false],
@@ -2009,6 +2013,26 @@ if (!function_exists('getBetDecisionTree')) {
                              $isFixtureInUserBets = in_array((int)$fix->fixture_id, $userBetFixtureIds ?? []);
                              $isFixtureInAnyBets  = in_array((int)$fix->fixture_id, $allBetFixtureIds ?? []);
                              $hasAposta = $isFixtureInUserBets || $isFixtureInAnyBets;
+
+                             $lId = (int)($fix->league_id ?? 0);
+                             $cMapData = $leagueMap[$lId] ?? null;
+                             $cName = $cMapData['country'] ?? '';
+                             $cFlag = $cMapData['flag'] ?? '';
+                             if (empty($cName) && !empty($fix->league_name)) {
+                                 $lNameLower = strtolower($fix->league_name);
+                                 if (strpos($lNameLower, 'brasil') !== false || strpos($lNameLower, 'copa do brasil') !== false) { $cName = 'Brasil'; $cFlag = '🇧🇷'; }
+                                 elseif (strpos($lNameLower, 'primeira') !== false || strpos($lNameLower, 'portugal') !== false) { $cName = 'Portugal'; $cFlag = '🇵🇹'; }
+                                 elseif (strpos($lNameLower, 'argentina') !== false) { $cName = 'Argentina'; $cFlag = '🇦🇷'; }
+                                 elseif (strpos($lNameLower, 'allsvenskan') !== false) { $cName = 'Suécia'; $cFlag = '🇸🇪'; }
+                                 elseif (strpos($lNameLower, 'eliteserien') !== false) { $cName = 'Noruega'; $cFlag = '🇳🇴'; }
+                                 elseif (strpos($lNameLower, 'veikkausliiga') !== false) { $cName = 'Finlândia'; $cFlag = '🇫🇮'; }
+                                 elseif (strpos($lNameLower, 'eredivisie') !== false) { $cName = 'Holanda'; $cFlag = '🇳🇱'; }
+                                 elseif (strpos($lNameLower, 'bundesliga') !== false) { $cName = 'Alemanha'; $cFlag = '🇩🇪'; }
+                                 elseif (strpos($lNameLower, 'mls') !== false || strpos($lNameLower, 'major league') !== false) { $cName = 'EUA'; $cFlag = '🇺🇸'; }
+                                 elseif (strpos($lNameLower, 'jupiler') !== false) { $cName = 'Bélgica'; $cFlag = '🇧🇪'; }
+                                 elseif (strpos($lNameLower, 'japan') !== false || strpos($lNameLower, 'j1') !== false) { $cName = 'Japão'; $cFlag = '🇯🇵'; }
+                                 elseif (strpos($lNameLower, 'k league') !== false) { $cName = 'Coreia do Sul'; $cFlag = '🇰🇷'; }
+                             }
                              ?>
                              <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
@@ -2016,8 +2040,8 @@ if (!function_exists('getBetDecisionTree')) {
                                     <!-- Header -->
                                     <div class="bet-card-header">
                                         <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; max-width: 68%;">
-                                            <span class="bet-league-badge" title="<?= htmlspecialchars($fix->league_name) ?>">
-                                                <?= htmlspecialchars($fix->league_name) ?>
+                                            <span class="bet-league-badge" title="<?= htmlspecialchars((!empty($cName) ? $cName . ' - ' : '') . $fix->league_name) ?>">
+                                                <?= !empty($cFlag) ? $cFlag . ' ' : '' ?><?= !empty($cName) ? htmlspecialchars($cName) . ' • ' : '' ?><?= htmlspecialchars($fix->league_name) ?>
                                             </span>
                                             <?php if ($hasAposta): ?>
                                                 <a href="<?= base_url('apostas?action=edit&fixture_id=' . $fix->fixture_id) ?>" 

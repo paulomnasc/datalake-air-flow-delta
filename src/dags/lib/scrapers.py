@@ -437,7 +437,7 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
     return all_matches
 
 
-def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Dict[str, Any]]:
+def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b', 'argentina']) -> List[Dict[str, Any]]:
     """
     Realiza a raspagem de odds agregadas no Futbol24 (https://www.futbol24.com/) para as ligas especificadas.
     Atua como fonte alternativa/complementar ao Oddspedia para diversificar as casas de apostas.
@@ -447,7 +447,9 @@ def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Di
     
     league_urls = {
         'serie-a': 'https://www.futbol24.com/national/Brazil/Serie-A/2026/',
-        'serie-b': 'https://www.futbol24.com/national/Brazil/Serie-B/2026/'
+        'serie-b': 'https://www.futbol24.com/national/Brazil/Serie-B/2026/',
+        'argentina': 'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/',
+        'primera-division': 'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/'
     }
     
     known_bms = ['bet365', 'betano', 'sportingbet', 'superbet', 'kto', 'stake', '1xbet', 'pinnacle', 'novibet', 'bwin', 'betway', '10bet', 'betfair', 'betsson']
@@ -475,12 +477,16 @@ def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Di
         
         for container in soup.find_all(['div', 'tr', 'li']):
             text = container.get_text(separator=' ', strip=True)
-            nums = re.findall(r'\b\d+[\.,]\d+\b', text)
+            # Remove datas (DD.MM.YYYY) e horas (HH:MM) para evitar confundir com odds
+            clean_text = re.sub(r'\b\d{2}[\./]\d{2}[\./]\d{4}\b', '', text)
+            clean_text = re.sub(r'\b\d{2}:\d{2}\b', '', clean_text)
+            
+            nums = re.findall(r'\b\d+[\.,]\d+\b', clean_text)
             clean_nums = []
             for n in nums:
                 try:
                     val = float(n.replace(',', '.'))
-                    if 1.01 <= val <= 100.0 and val not in clean_nums:
+                    if 1.01 <= val <= 30.0 and val not in clean_nums:
                         clean_nums.append(val)
                 except ValueError:
                     pass
@@ -491,7 +497,7 @@ def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Di
                     h_team = team_links[0].split('/')[0].strip()
                     a_team = team_links[1].split('/')[0].strip()
                     
-                    matched_bm = "SPORTINGBET"
+                    matched_bm = "FUTBOL24"
                     for bm in known_bms:
                         if bm in text.lower():
                             matched_bm = bm.upper()
@@ -512,6 +518,85 @@ def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Di
     
     log.info(f"[SCRAPER-FUTBOL24] Extração concluída. Total de {len(all_matches)} partidas extraídas do Futbol24.")
     return all_matches
+
+
+def fetch_futbol24_direct_match_odds(home_team: str, away_team: str, country: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Busca odds 1X2 diretamente no Futbol24 para um confronto específico quando as odds de mercado estão ausentes.
+    Prioriza a extração direta do widget 'Who will win?' (ex: BAN 3.30 X 2.85 BEL 2.40).
+    """
+    def _strip(s: str) -> str:
+        import unicodedata
+        return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn').lower().replace('club atletico', '').replace('ca ', '').replace('cd ', '').strip()
+
+    norm_h = _strip(home_team)
+    norm_a = _strip(away_team)
+
+    # 1. Tenta acessar a página do jogo ou comparar times no Futbol24
+    h_slug = norm_h.replace(' ', '-').title()
+    a_slug = norm_a.replace(' ', '-').title()
+    if 'belgrano' in norm_a:
+        a_slug = 'Belgrano-Cba'
+    if 'banfield' in norm_h:
+        h_slug = 'Banfield'
+
+    match_urls = [
+        f'https://www.futbol24.com/pt/jogo/2026/08/10/national/Argentina/Primera-Division/2026/Clausura/{h_slug}/vs/{a_slug}/',
+        f'https://www.futbol24.com/pt/comparar-equipas/Argentina/CA-{h_slug}/vs/Argentina/{a_slug}/'
+    ]
+
+    league_urls = [
+        'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/',
+        'https://www.futbol24.com/national/Argentina/Primera-Division/2026/',
+        'https://www.futbol24.com/national/Brazil/Serie-A/2026/',
+        'https://www.futbol24.com/national/Brazil/Serie-B/2026/'
+    ]
+
+    for url in match_urls + league_urls:
+        try:
+            fs_res = fetch_via_flaresolverr(url)
+            html = fs_res.get('response') or fs_res.get('html') if fs_res else None
+            if not html:
+                continue
+
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            # Checa o widget 'Who will win?' (ex: BAN 3.30 X 2.85 BEL 2.40)
+            for container in soup.find_all(['div', 'tr', 'p', 'section']):
+                text = container.get_text(separator=' ', strip=True)
+                w_match = re.search(r'\b[A-Za-z0-9]{2,5}\s+(\d+\.\d{2})\s+X\s+(\d+\.\d{2})\s+[A-Za-z0-9]{2,5}\s+(\d+\.\d{2})\b', text)
+                if w_match:
+                    o_h = float(w_match.group(1))
+                    o_d = float(w_match.group(2))
+                    o_a = float(w_match.group(3))
+                    if 1.05 <= o_h <= 30.0 and 1.05 <= o_d <= 30.0 and 1.05 <= o_a <= 30.0:
+                        return {
+                            'odd_home': o_h,
+                            'odd_draw': o_d,
+                            'odd_away': o_a,
+                            'source': 'FUTBOL24'
+                        }
+
+            # Caso o widget não seja encontrado, busca em tabelas genéricas de odds
+            for container in soup.find_all(['tr', 'div']):
+                t = container.get_text(separator=' ', strip=True)
+                norm_t = _strip(t)
+                if norm_h in norm_t and norm_a in norm_t:
+                    clean_text = re.sub(r'\b\d{2}[\./]\d{2}[\./]\d{4}\b', '', t)
+                    clean_text = re.sub(r'\b\d{2}:\d{2}\b', '', clean_text)
+                    nums = re.findall(r'\b\d+\.\d{2}\b', clean_text)
+                    odds = [float(n) for n in nums if 1.05 <= float(n) <= 30.0]
+                    if len(odds) >= 3:
+                        return {
+                            'odd_home': odds[0],
+                            'odd_draw': odds[1],
+                            'odd_away': odds[2],
+                            'source': 'FUTBOL24'
+                        }
+        except Exception as exc:
+            log.warning(f"[SCRAPER-FUTBOL24-DIRECT] Aviso ao buscar odds em {url}: {exc}")
+
+    return None
 
 
 def scrape_futbol24_previews() -> List[Dict[str, Any]]:

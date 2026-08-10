@@ -348,15 +348,25 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
         log.info(f"[SCRAPER-ODDSPEDIA] Liga '{l_key}': encontrados {len(events)} eventos JSON-LD.")
         
         for ev in events:
-            h_norm = ev['home_team'].lower()
-            a_norm = ev['away_team'].lower()
+            h_norm = _strip(ev['home_team'])
+            a_norm = _strip(ev['away_team'])
             
-            target_html = html
-            m_soup = BeautifulSoup(target_html, 'html.parser')
+            # Localiza o container CSS específico da partida no HTML para evitar ruídos de outros jogos
+            m_soup = BeautifulSoup(html, 'html.parser')
+            match_container = None
+            for card in m_soup.find_all(['div', 'tr', 'article', 'li']):
+                c_text = _strip(card.get_text(separator=' ', strip=True))
+                if h_norm in c_text and a_norm in c_text and len(c_text) < 3000:
+                    match_container = card
+                    break
+            
+            if not match_container:
+                match_container = m_soup
+
             bookmakers_odds = {}
             known_bms = ['betano', 'bet365', 'stake', 'sportingbet', 'kto', 'superbet', '1xbet', 'pinnacle', 'novibet', 'parimatch', '10bet', 'betfair', 'betsson', 'blaze']
 
-            for img in m_soup.find_all('img'):
+            for img in match_container.find_all('img'):
                 alt = (img.get('alt') or '').strip()
                 src = (img.get('src') or '').strip()
                 
@@ -550,22 +560,42 @@ def fetch_futbol24_direct_match_odds(home_team: str, away_team: str, country: Op
     if norm_a in known_slugs_local:
         a_slug = known_slugs_local[norm_a]
 
-    match_urls = [
-        f'https://www.futbol24.com/pt/jogo/2026/08/10/national/Argentina/Primera-Division/2026/Clausura/{h_slug}/vs/{a_slug}/',
-        f'https://www.futbol24.com/pt/comparar-equipas/Argentina/{h_slug}/vs/Argentina/{a_slug}/'
-    ]
+    possible_countries = ['Brazil', 'Argentina', 'Chile', 'Colombia', 'Ecuador', 'Uruguay', 'Peru']
+    if country:
+        c_clean = country.capitalize()
+        if c_clean in possible_countries:
+            possible_countries.remove(c_clean)
+            possible_countries.insert(0, c_clean)
+        else:
+            possible_countries.insert(0, c_clean)
+
+    match_urls = []
+    for c in possible_countries:
+        match_urls.append(f'https://www.futbol24.com/team-compare/{c}/{h_slug}/vs/{c}/{a_slug}/')
+        match_urls.append(f'https://www.futbol24.com/pt/comparar-equipas/{c}/{h_slug}/vs/{c}/{a_slug}/')
 
     league_urls = [
-        'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/',
-        'https://www.futbol24.com/national/Argentina/Primera-Division/2026/',
+        'https://www.futbol24.com/national/Brazil/Serie-B/2026/',
         'https://www.futbol24.com/national/Brazil/Serie-A/2026/',
-        'https://www.futbol24.com/national/Brazil/Serie-B/2026/'
+        'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/',
+        'https://www.futbol24.com/national/Argentina/Primera-Division/2026/'
     ]
 
     for url in match_urls + league_urls:
         try:
-            fs_res = fetch_via_flaresolverr(url)
-            html = fs_res.get('response') or fs_res.get('html') if fs_res else None
+            html = None
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
+            try:
+                r = requests.get(url, headers=headers, timeout=5)
+                if r.status_code == 200 and len(r.text) > 1000:
+                    html = r.text
+            except Exception:
+                pass
+
+            if not html:
+                fs_res = fetch_via_flaresolverr(url)
+                html = fs_res.get('response') or fs_res.get('html') if fs_res else None
+
             if not html:
                 continue
 

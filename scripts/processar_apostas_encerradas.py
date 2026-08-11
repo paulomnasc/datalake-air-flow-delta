@@ -371,6 +371,82 @@ def process_pending_bets():
 
     conn.close()
 
+def evaluate_palpite_status(home_team, away_team, goals_home, goals_away, yellow_home, yellow_away, red_home, red_away, corners_home, corners_away, mercado, linha, odd):
+    """
+    Avalia a acurácia de um palpite (GREEN, RED, VOID, NO_BET) comparando o mercado e a linha sugerida
+    com as estatísticas reais do jogo encerrado (FT).
+    """
+    linha_norm = (linha or '').strip().lower()
+    mercado_norm = (mercado or '').strip().lower()
+    
+    g_home = int(goals_home or 0)
+    g_away = int(goals_away or 0)
+    tot_goals = g_home + g_away
+    tot_cards = int(yellow_home or 0) + int(yellow_away or 0) + int(red_home or 0) + int(red_away or 0)
+    tot_corners = int(corners_home or 0) + int(corners_away or 0)
+
+    # 1. ABSTENÇÃO / NO_BET
+    if 'sem entrada' in linha_norm or 'abstenção' in linha_norm or 'no_bet' in linha_norm:
+        return 'NO_BET', f"Abstenção da IA - Falta de valor (FT {g_home}x{g_away})"
+
+    # 2. HANDICAP ASIÁTICO / DNB / EMPATE ANULA / VENCEDOR
+    is_handicap_or_winner = (
+        'handicap' in mercado_norm or 'handicap' in linha_norm or
+        'empate anula' in linha_norm or 'empate anula' in mercado_norm or
+        'dnb' in linha_norm or 'dnb' in mercado_norm or
+        'ah' in linha_norm or 'ah' in mercado_norm or
+        '0.0' in linha_norm or '0,0' in linha_norm or
+        'vencedor' in mercado_norm or 'resultado' in mercado_norm
+    )
+
+    if is_handicap_or_winner:
+        is_away_bet = False
+        if away_team and away_team.lower() in linha_norm:
+            is_away_bet = True
+        elif 'fora' in linha_norm or 'visitante' in linha_norm or ' 2 ' in linha_norm:
+            is_away_bet = True
+
+        match_line = re.search(r'([+-]?\d+(?:[\.,]\d+)?)', linha)
+        handicap_line = float(match_line.group(1).replace(',', '.')) if match_line else 0.0
+
+        diff_gols = (g_away - g_home) if is_away_bet else (g_home - g_away)
+        adj = diff_gols + handicap_line
+
+        if adj > 0.25:
+            return 'GREEN', f"FT {g_home}x{g_away} -> Palpite GANHO ({linha})"
+        elif abs(adj) < 0.01:
+            return 'VOID', f"FT {g_home}x{g_away} -> Empate Anulou ({linha})"
+        elif abs(adj - (-0.25)) < 0.01:
+            return 'RED', f"FT {g_home}x{g_away} -> Meio Perdida ({linha})"
+        else:
+            return 'RED', f"FT {g_home}x{g_away} -> Palpite PERDIDO ({linha})"
+
+    # 3. TOTAL DE CARTÕES
+    if 'cart' in mercado_norm or 'cart' in linha_norm:
+        match_thresh = re.search(r'(\d+(?:\.\d+)?)', linha)
+        thresh = float(match_thresh.group(1)) if match_thresh else 4.5
+        is_under = ('menos' in linha_norm or 'under' in linha_norm)
+        won = (tot_cards < thresh) if is_under else (tot_cards > thresh)
+        st = 'GREEN' if won else 'RED'
+        return st, f"FT {tot_cards} Cartões vs Limite {thresh} -> {st}"
+
+    # 4. TOTAL DE GOLS
+    if 'gol' in mercado_norm or 'gol' in linha_norm:
+        match_thresh = re.search(r'(\d+(?:\.\d+)?)', linha)
+        thresh = float(match_thresh.group(1)) if match_thresh else 2.5
+        is_under = ('menos' in linha_norm or 'under' in linha_norm)
+        won = (tot_goals < thresh) if is_under else (tot_goals > thresh)
+        st = 'GREEN' if won else 'RED'
+        return st, f"FT {tot_goals} Gols vs Limite {thresh} -> {st}"
+
+    # FALLBACK GENÉRICO
+    if g_home > g_away:
+        return 'GREEN', f"FT {g_home}x{g_away} -> Mandante Venceu"
+    elif g_home == g_away:
+        return 'VOID', f"FT {g_home}x{g_away} -> Empate"
+    else:
+        return 'RED', f"FT {g_home}x{g_away} -> Visitante Venceu"
+
 def process_palpites_gerados(cursor):
     """
     Processa e liquida os palpites gerados pela IA/plataforma na tabela palpites_gerados
@@ -378,7 +454,7 @@ def process_palpites_gerados(cursor):
     """
     print("\n⚽ [Worker Settlement] Iniciando liquidação da tabela palpites_gerados para jogos encerrados (FT)...")
     
-    # 1. Buscar palpites pendentes associados a jogos que já encerraram (FT)
+    # 1. Buscar todos os palpites associados a jogos que já encerraram (FT) e re-avaliar
     cursor.execute("""
         SELECT p.id_palpite, p.fixture_id, p.mercado, p.linha_sugerida, p.odd_momento,
                f.home_team, f.away_team, f.goals_home, f.goals_away,
@@ -386,68 +462,37 @@ def process_palpites_gerados(cursor):
                f.corners_home, f.corners_away
         FROM palpites_gerados p
         JOIN fixtures_trends f ON p.fixture_id = f.fixture_id
-        WHERE f.status = 'FT' AND p.resultado_status = 'PENDING'
+        WHERE f.status = 'FT'
     """)
-    pendentes_palpites = cursor.fetchall()
+    palpites = cursor.fetchall()
     
-    if pendentes_palpites:
-        print(f"📋 Encontrados {len(pendentes_palpites)} palpites pendentes de liquidação.")
-        for p in pendentes_palpites:
+    if palpites:
+        print(f"📋 Re-avaliando {len(palpites)} palpites de jogos encerrados...")
+        for p in palpites:
             pid = p['id_palpite']
-            mercado = (p.get('mercado') or '').lower()
-            linha = (p.get('linha_sugerida') or '').strip()
-            
-            tot_goals = (p.get('goals_home') or 0) + (p.get('goals_away') or 0)
-            tot_cards = (p.get('yellow_cards_home') or 0) + (p.get('yellow_cards_away') or 0) + (p.get('red_cards_home') or 0) + (p.get('red_cards_away') or 0)
-            tot_corners = (p.get('corners_home') or 0) + (p.get('corners_away') or 0)
-            
-            status = 'GREEN'
-            detalhe = f"FT Placar: {p['goals_home']}x{p['goals_away']}"
-            
-            if 'sem entrada' in linha.lower() or 'abstenção' in linha.lower() or 'no_bet' in linha.lower():
-                status = 'NO_BET'
-                detalhe = f"Abstenção da IA - Falta de valor (FT {p['goals_home']}x{p['goals_away']})"
-            elif 'cart' in mercado or 'cart' in linha.lower():
-                match = re.search(r'(\d+(?:\.\d+)?)', linha)
-                thresh = float(match.group(1)) if match else 4.5
-                if tot_cards > thresh:
-                    status = 'GREEN'
-                    detalhe = f"FT {tot_cards} Cartões > {thresh} -> GREEN"
-                else:
-                    status = 'RED'
-                    detalhe = f"FT {tot_cards} Cartões <= {thresh} -> RED"
-            elif 'gol' in mercado or 'gol' in linha.lower():
-                match = re.search(r'(\d+(?:\.\d+)?)', linha)
-                thresh = float(match.group(1)) if match else 2.5
-                if tot_goals > thresh:
-                    status = 'GREEN'
-                    detalhe = f"FT {tot_goals} Gols > {thresh} -> GREEN"
-                else:
-                    status = 'RED'
-                    detalhe = f"FT {tot_goals} Gols <= {thresh} -> RED"
-            else:
-                if (p.get('goals_home') or 0) > (p.get('goals_away') or 0):
-                    status = 'GREEN'
-                    detalhe = f"FT {p['goals_home']}x{p['goals_away']} -> Vitória Mandante"
-                elif (p.get('goals_home') or 0) == (p.get('goals_away') or 0):
-                    status = 'VOID'
-                    detalhe = f"FT {p['goals_home']}x{p['goals_away']} -> Empate (VOID)"
-                else:
-                    status = 'RED'
-                    detalhe = f"FT {p['goals_home']}x{p['goals_away']} -> Vitória Visitante"
+            home = p['home_team']
+            away = p['away_team']
+            status, detalhe = evaluate_palpite_status(
+                home, away, p['goals_home'], p['goals_away'],
+                p['yellow_cards_home'], p['yellow_cards_away'],
+                p['red_cards_home'], p['red_cards_away'],
+                p['corners_home'], p['corners_away'],
+                p['mercado'], p['linha_sugerida'], p['odd_momento']
+            )
             
             cursor.execute("""
                 UPDATE palpites_gerados
-                SET resultado_status = %s,
+                SET home_team = %s,
+                    away_team = %s,
+                    resultado_status = %s,
                     detalhe_resultado = %s,
                     updated_at = NOW()
                 WHERE id_palpite = %s
-            """, (status, detalhe, pid))
-            print(f"  ⚡ Palpite ID #{pid} [{p['home_team']} x {p['away_team']}] -> Status: {status}")
+            """, (home, away, status, detalhe, pid))
 
     # 2. Se houver partidas encerradas (FT) sem registro em palpites_gerados, gerar entradas automáticas
     cursor.execute("""
-        SELECT f.fixture_id, f.prediction_text, f.ah_suggestion, f.over_cards_probability,
+        SELECT f.fixture_id, f.home_team, f.away_team, f.prediction_text, f.ah_suggestion, f.over_cards_probability,
                f.odd_home, f.odd_draw, f.odd_away, f.goals_home, f.goals_away,
                f.yellow_cards_home, f.yellow_cards_away, f.red_cards_home, f.red_cards_away,
                f.corners_home, f.corners_away
@@ -463,52 +508,45 @@ def process_palpites_gerados(cursor):
         print(f"🌱 Gerando palpites e abstenções para {len(fixtures_sem_palpite)} partidas FT sem registro prévio...")
         for fix in fixtures_sem_palpite:
             fid = fix['fixture_id']
+            home = fix['home_team']
+            away = fix['away_team']
             pred = (fix.get('prediction_text') or '').strip()
             ah = (fix.get('ah_suggestion') or '').strip()
             probCards = float(fix.get('over_cards_probability') or 50.0)
-            
-            tot_cards = (fix.get('yellow_cards_home') or 0) + (fix.get('yellow_cards_away') or 0) + (fix.get('red_cards_home') or 0) + (fix.get('red_cards_away') or 0)
-            tot_goals = (fix.get('goals_home') or 0) + (fix.get('goals_away') or 0)
             
             if not pred and not ah and 45.0 <= probCards <= 55.0:
                 mercado = 'Sem Entrada'
                 linha = 'Sem Entrada (Abstenção)'
                 odd = None
-                status = 'NO_BET'
-                detalhe = f"Abstenção da IA - Falta de valor/confiança (Partida {fix['goals_home']}x{fix['goals_away']})"
             elif ah:
                 mercado = 'Handicap Asiático'
                 linha = ah
                 odd = float(fix.get('odd_home') or 1.90)
-                if (fix['goals_home'] - fix['goals_away']) > 0:
-                    status = 'GREEN'
-                    detalhe = f"FT {fix['goals_home']}x{fix['goals_away']} -> Mandante Venceu"
-                elif fix['goals_home'] == fix['goals_away']:
-                    status = 'VOID'
-                    detalhe = f"FT {fix['goals_home']}x{fix['goals_away']} -> Empate Anulou"
-                else:
-                    status = 'RED'
-                    detalhe = f"FT {fix['goals_home']}x{fix['goals_away']} -> Visitante Venceu"
             elif probCards > 55.0:
                 mercado = 'Total de Cartões'
                 linha = 'Over 4.5 Cartões'
                 odd = 1.85
-                status = 'GREEN' if tot_cards > 4.5 else 'RED'
-                detalhe = f"FT {tot_cards} Cartões (Limite 4.5) -> {status}"
             else:
                 mercado = 'Total de Gols'
                 linha = 'Over 2.5 Gols'
                 odd = 1.80
-                status = 'GREEN' if tot_goals > 2.5 else 'RED'
-                detalhe = f"FT {tot_goals} Gols (Limite 2.5) -> {status}"
+
+            status, detalhe = evaluate_palpite_status(
+                home, away, fix['goals_home'], fix['goals_away'],
+                fix['yellow_cards_home'], fix['yellow_cards_away'],
+                fix['red_cards_home'], fix['red_cards_away'],
+                fix['corners_home'], fix['corners_away'],
+                mercado, linha, odd
+            )
 
             cursor.execute("""
-                INSERT INTO palpites_gerados (fixture_id, mercado, linha_sugerida, odd_momento, resultado_status, detalhe_resultado)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (fid, mercado, linha, odd, status, detalhe))
+                INSERT INTO palpites_gerados (fixture_id, home_team, away_team, mercado, linha_sugerida, odd_momento, resultado_status, detalhe_resultado)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (fid, home, away, mercado, linha, odd, status, detalhe))
 
         print("✅ Liquidação de palpites concluída com sucesso!")
 
 if __name__ == '__main__':
     process_pending_bets()
+
 

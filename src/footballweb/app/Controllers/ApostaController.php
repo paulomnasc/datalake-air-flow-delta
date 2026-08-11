@@ -1771,16 +1771,33 @@ class ApostaController extends BaseController
                     $mercado = 'Handicap Asiático';
                     $linha = $ah;
                     $odd = (float)($fix->odd_home ?? 1.90);
-                    // Avaliação simples do resultado do jogo real
-                    if (($fix->goals_home - $fix->goals_away) > 0) {
+
+                    // Verificar se a aposta foi no time Visitante (Away) ou Mandante (Home)
+                    $isAwayBet = false;
+                    if (!empty($awayTeam) && stripos($linha, $awayTeam) !== false) {
+                        $isAwayBet = true;
+                    } elseif (stripos($linha, 'fora') !== false || stripos($linha, 'visitante') !== false) {
+                        $isAwayBet = true;
+                    }
+
+                    // Extrair linha numérica de handicap (ex: 0.0, -0.5, +0.25)
+                    $handicapLine = 0.0;
+                    if (preg_match('/([+-]?\d+(?:[\.,]\d+)?)/', $linha, $matches)) {
+                        $handicapLine = (float)str_replace(',', '.', $matches[1]);
+                    }
+
+                    $diffGols = $isAwayBet ? ((int)$fix->goals_away - (int)$fix->goals_home) : ((int)$fix->goals_home - (int)$fix->goals_away);
+                    $adj = $diffGols + $handicapLine;
+
+                    if ($adj > 0.25) {
                         $status = 'GREEN';
-                        $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Mandante Venceu (Palpite {$linha})";
-                    } elseif ($fix->goals_home == $fix->goals_away) {
+                        $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Palpite GANHO ({$linha})";
+                    } elseif (abs($adj) < 0.01) {
                         $status = 'VOID';
                         $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Empate Anulou (Palpite {$linha})";
                     } else {
                         $status = 'RED';
-                        $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Visitante Venceu (Palpite {$linha})";
+                        $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Palpite PERDIDO ({$linha})";
                     }
                 } elseif ($probCards > 55) {
                     $mercado = 'Total de Cartões';

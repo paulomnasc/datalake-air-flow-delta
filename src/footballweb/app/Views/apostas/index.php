@@ -759,13 +759,16 @@
     </div>
 
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-trophy"></i> Ganhos Potenciais</div>
+      <div class="stat-label"><i class="bi bi-trophy"></i> Retorno Bruto</div>
       <div class="stat-value primary">R$ <?= number_format($resumo['ganhos_totais'] ?? 0, 2, ',', '.') ?></div>
     </div>
 
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-box-arrow-in-down-left"></i> Retorno Cash Out</div>
-      <div class="stat-value accent">R$ <?= number_format($resumo['total_cashout'] ?? 0, 2, ',', '.') ?></div>
+      <div class="stat-label"><i class="bi bi-calculator"></i> Saldo Líquido</div>
+      <?php $saldoTop = (float)($resumo['saldo_liquido'] ?? 0); ?>
+      <div class="stat-value <?= ($saldoTop > 0) ? 'primary' : (($saldoTop < 0) ? 'text-danger' : 'gold') ?>">
+        <?= ($saldoTop > 0 ? '+' : '') ?>R$ <?= number_format($saldoTop, 2, ',', '.') ?>
+      </div>
     </div>
 
     <div class="stat-card">
@@ -819,7 +822,7 @@
           <strong id="calcTotalPerda" class="text-danger">R$ 0,00</strong>
         </div>
 
-        <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: Saldo Líquido = Total Apostado + Total Ganho - Total Perda">
+        <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: Saldo Líquido = Total Retorno Bruto - Total Apostado (Apostas Liquidadas)">
           <i class="bi bi-calculator text-info"></i>
           <span class="text-light-50">Saldo Líquido:</span>
           <strong id="calcSaldoLiquido" class="text-info fw-bold">R$ 0,00</strong>
@@ -1630,7 +1633,8 @@
   function updateCalculatedSummary() {
     const cards = document.querySelectorAll('.bet-card-item');
     let totalApostado = 0;
-    let totalGanho = 0;
+    let totalApostadoLiquidado = 0;
+    let totalRetorno = 0;
     let totalPerda = 0;
 
     cards.forEach(card => {
@@ -1642,22 +1646,29 @@
 
         totalApostado += valor;
 
-        if (status === 'Ganha' || status === 'Meio Ganha') {
-          totalGanho += ganho;
+        if (status !== 'Pendente') {
+          totalApostadoLiquidado += valor;
+        }
+
+        if (status === 'Ganha') {
+          totalRetorno += ganho;
+        } else if (status === 'Meio Ganha') {
+          totalRetorno += (ganho > 0 ? ganho : (valor + ((ganho - valor) / 2)));
         } else if (status === 'Cashout') {
-          totalGanho += (cashout > 0 ? cashout : ganho);
+          totalRetorno += (cashout > 0 ? cashout : ganho);
         } else if (status === 'Perdida') {
           totalPerda += valor;
         } else if (status === 'Meio Perdida') {
+          totalRetorno += (valor * 0.5);
           totalPerda += (valor * 0.5);
         } else if (status === 'ANULADA') {
-          totalGanho += valor;
+          totalRetorno += valor;
         }
       }
     });
 
-    // Saldo Líquido = (Total Apostado + Total Ganho - Total Perda)
-    const saldoLiquido = totalApostado + totalGanho - totalPerda;
+    // Saldo Líquido Real = Retorno Total Bruto - Total Apostado (Apostas Liquidadas)
+    const saldoLiquido = totalRetorno - totalApostadoLiquidado;
 
     const formatBrl = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -1667,10 +1678,11 @@
     const elSaldo = document.getElementById('calcSaldoLiquido');
 
     if (elApostado) elApostado.textContent = formatBrl(totalApostado);
-    if (elGanho) elGanho.textContent = formatBrl(totalGanho);
+    if (elGanho) elGanho.textContent = formatBrl(totalRetorno);
     if (elPerda) elPerda.textContent = formatBrl(totalPerda);
     if (elSaldo) {
-      elSaldo.textContent = formatBrl(saldoLiquido);
+      const prefix = saldoLiquido > 0 ? '+' : '';
+      elSaldo.textContent = prefix + formatBrl(saldoLiquido);
       if (saldoLiquido > 0) {
         elSaldo.className = 'text-success fw-bold';
       } else if (saldoLiquido < 0) {

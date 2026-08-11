@@ -134,6 +134,7 @@ class ApostaController extends BaseController
             'total_apostado' => 0,
             'ganhos_totais'  => 0,
             'total_cashout'  => 0,
+            'saldo_liquido'  => 0,
             'ganhas'         => 0,
             'perdidas'       => 0,
             'anuladas'       => 0,

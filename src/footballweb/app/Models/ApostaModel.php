@@ -55,9 +55,13 @@ class ApostaModel extends Model
         $builderSelect = $db->table($this->table)
             ->select("
                 COALESCE(SUM(valor_aposta), 0) as total_apostado,
+                COALESCE(SUM(CASE WHEN status != 'Pendente' THEN valor_aposta ELSE 0 END), 0) as total_apostado_liquidado,
                 COALESCE(SUM(CASE 
-                    WHEN status IN ('Ganha', 'Meio Ganha', 'Meio Perdida', 'ANULADA') THEN ganhos_potenciais 
-                    WHEN status = 'Cashout' THEN cash_out 
+                    WHEN status = 'Ganha' THEN COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd))
+                    WHEN status = 'Meio Ganha' THEN (valor_aposta + ((COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd)) - valor_aposta) / 2))
+                    WHEN status = 'ANULADA' THEN valor_aposta
+                    WHEN status = 'Meio Perdida' THEN (valor_aposta * 0.5)
+                    WHEN status = 'Cashout' THEN COALESCE(NULLIF(cash_out, 0), COALESCE(NULLIF(ganhos_potenciais, 0), valor_aposta))
                     ELSE 0 
                 END), 0) as ganhos_totais,
                 COALESCE(SUM(cash_out), 0) as total_cashout,
@@ -75,12 +79,15 @@ class ApostaModel extends Model
         $row = $query->getRowArray();
 
         $row['total_apostas'] = $totalApostas;
+        $row['saldo_liquido'] = (float)($row['ganhos_totais'] ?? 0) - (float)($row['total_apostado_liquidado'] ?? 0);
 
         return $row ?? [
             'total_apostas' => 0,
             'total_apostado' => 0,
+            'total_apostado_liquidado' => 0,
             'ganhos_totais' => 0,
             'total_cashout' => 0,
+            'saldo_liquido' => 0,
             'ganhas' => 0,
             'meio_ganhas' => 0,
             'perdidas' => 0,

@@ -1050,7 +1050,9 @@
                         data-date="<?= $fix->fixture_date ?>" 
                         data-palpite-cards="<?= htmlspecialchars($fix->suggested_palpite_cards ?? 'Menos de 5.5') ?>"
                         data-palpite-ah="<?= htmlspecialchars($fix->suggested_palpite_ah ?? 'Handicap 0.0 (Empate Anula)') ?>"
-                        data-palpite="<?= htmlspecialchars($fix->suggested_palpite_cards ?? 'Menos de 5.5') ?>">
+                        data-palpite="<?= htmlspecialchars($fix->suggested_palpite_cards ?? 'Menos de 5.5') ?>"
+                        data-ah-confidence="<?= number_format($fix->ah_confidence_val ?? 0, 1) ?>"
+                        data-ah-max-score="<?= ($fix->is_max_ah_score ?? false) ? '1' : '0' ?>">
                   <?= date('d/m H:i', strtotime($fix->fixture_date)) ?> | <?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?> (<?= htmlspecialchars($fix->league_name) ?>)
                 </option>
               <?php endforeach; ?>
@@ -1082,7 +1084,12 @@
               <input type="hidden" id="mercadoInput" name="mercado" value="Total de Cartões">
             </div>
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Palpite *</label>
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <label class="form-label text-white mb-0">Palpite *</label>
+                <span id="maxScoreBadge" class="badge text-white fw-bold" style="display: none; font-size: 0.72rem; background: linear-gradient(135deg, #f59e0b, #ef4444) !important; padding: 3px 8px; border-radius: 6px; box-shadow: 0 0 10px rgba(245, 158, 11, 0.5); border: 1px solid #fbbf24;">
+                  <i class="bi bi-lightning-charge-fill me-1"></i>Max score reached
+                </span>
+              </div>
               <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="palpiteInput" readonly required placeholder="Ex: Menos de 6.5 ou Operário-PR 0.0 (Empate Anula)" oninput="updatePalpiteExplanation()" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
               <div id="palpiteExplanationBox" style="display:none; font-size: 0.75rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 6px 10px; margin-top: 6px; color: #e2e8f0;"></div>
             </div>
@@ -1243,7 +1250,11 @@
         home: opt.getAttribute('data-home') || '',
         away: opt.getAttribute('data-away') || '',
         date: opt.getAttribute('data-date') || '',
-        palpite: opt.getAttribute('data-palpite') || ''
+        palpiteCards: opt.getAttribute('data-palpite-cards') || opt.getAttribute('data-palpite') || '',
+        palpiteAH: opt.getAttribute('data-palpite-ah') || '',
+        palpite: opt.getAttribute('data-palpite') || '',
+        ahConfidence: parseFloat(opt.getAttribute('data-ah-confidence') || '0'),
+        isMaxScore: opt.getAttribute('data-ah-max-score') === '1'
       });
     }
   }
@@ -1382,11 +1393,17 @@
 
     document.getElementById('timeCasaInput').value = optData.home;
     document.getElementById('timeForaInput').value = optData.away;
-    if (optData.palpite) {
-      document.getElementById('palpiteInput').value = optData.palpite;
+    
+    const currentMercado = document.getElementById('mercadoTypeSelect')?.value || 'Total de Cartões';
+    if (currentMercado === 'Handicap Asiático' && optData.palpiteAH) {
+      document.getElementById('palpiteInput').value = formatHandicapPalpiteJs(optData.palpiteAH, optData.home);
+    } else if (optData.palpiteCards || optData.palpite) {
+      document.getElementById('palpiteInput').value = optData.palpiteCards || optData.palpite;
     }
 
     closeFixtureDropdown();
+    checkPalpiteEditableRule();
+    updatePalpiteExplanation();
   }
 
   function clearFixtureSelection() {
@@ -1398,6 +1415,7 @@
     if (searchInput) searchInput.value = '';
     if (badge) badge.textContent = '';
     closeFixtureDropdown();
+    checkPalpiteEditableRule();
   }
 
   function escapeHtml(text) {
@@ -1493,6 +1511,53 @@
     return teamDefault ? `${teamDefault} 0.0 (Empate Anula)` : `${palpiteRaw} 0.0 (Empate Anula)`;
   }
 
+  function checkPalpiteEditableRule() {
+    const mercadoSelect = document.getElementById('mercadoTypeSelect');
+    const mercadoVal = mercadoSelect ? mercadoSelect.value : (document.getElementById('mercadoInput')?.value || '');
+    const isHandicap = (mercadoVal === 'Handicap Asiático' || mercadoVal.toLowerCase().includes('handicap'));
+
+    const fixSelect = document.getElementById('fixtureSelect');
+    let isMaxScore = false;
+
+    if (fixSelect && fixSelect.selectedIndex > 0) {
+      const opt = fixSelect.options[fixSelect.selectedIndex];
+      const maxAttr = opt.getAttribute('data-ah-max-score');
+      const confAttr = parseFloat(opt.getAttribute('data-ah-confidence') || '0');
+      isMaxScore = (maxAttr === '1' || confAttr >= 78.0);
+    } else if (isHandicap) {
+      const palpiteVal = document.getElementById('palpiteInput')?.value || '';
+      if (palpiteVal) isMaxScore = true;
+    }
+
+    const palpiteInput = document.getElementById('palpiteInput');
+    const badge = document.getElementById('maxScoreBadge');
+
+    if (isHandicap && isMaxScore) {
+      if (palpiteInput) {
+        palpiteInput.readOnly = false;
+        palpiteInput.style.setProperty('background-color', 'rgba(15, 23, 42, 0.95)', 'important');
+        palpiteInput.style.setProperty('color', '#ffffff', 'important');
+        palpiteInput.style.setProperty('border', '1px solid #38bdf8', 'important');
+        palpiteInput.style.setProperty('cursor', 'text', 'important');
+        palpiteInput.placeholder = 'Digite o palpite de Handicap (Ex: Mirassol -0.5 ou Operário-PR 0.0)';
+      }
+      if (badge) {
+        badge.style.display = 'inline-flex';
+      }
+    } else {
+      if (palpiteInput) {
+        palpiteInput.readOnly = true;
+        palpiteInput.style.setProperty('background-color', 'rgba(30, 41, 59, 0.85)', 'important');
+        palpiteInput.style.setProperty('color', '#ffffff', 'important');
+        palpiteInput.style.setProperty('border', '1px solid rgba(255, 255, 255, 0.2)', 'important');
+        palpiteInput.style.setProperty('cursor', 'not-allowed', 'important');
+      }
+      if (badge) {
+        badge.style.display = 'none';
+      }
+    }
+  }
+
   function onMercadoTypeChange(selectEl) {
     const val = selectEl.value;
     const inputMercado = document.getElementById('mercadoInput');
@@ -1512,6 +1577,7 @@
       const homeTeam = document.getElementById('timeCasaInput')?.value || '';
       document.getElementById('palpiteInput').value = formatHandicapPalpiteJs(document.getElementById('palpiteInput')?.value, homeTeam);
     }
+    checkPalpiteEditableRule();
     updatePalpiteExplanation();
   }
 
@@ -1531,6 +1597,7 @@
         if (palpiteCards) document.getElementById('palpiteInput').value = palpiteCards;
       }
     }
+    checkPalpiteEditableRule();
     updatePalpiteExplanation();
   }
 
@@ -2040,6 +2107,7 @@
             }
           }
         }
+        checkPalpiteEditableRule();
       }
     }
 

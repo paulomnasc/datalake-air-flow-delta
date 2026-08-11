@@ -82,7 +82,7 @@ class ApostaController extends BaseController
         $targetFixId = $this->request->getVar('fixture_id');
 
         $builderFix = $db->table('fixtures_trends')
-            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion');
+            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion, ah_confidence');
         
         $fixtures = $builderFix->orderBy('fixture_date', 'DESC')
             ->limit(100)
@@ -100,7 +100,7 @@ class ApostaController extends BaseController
             }
             if (!$exists) {
                 $targetFix = $db->table('fixtures_trends')
-                    ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion')
+                    ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion, ah_confidence')
                     ->where('fixture_id', $targetFixId)
                     ->get()
                     ->getRow();
@@ -126,6 +126,10 @@ class ApostaController extends BaseController
             }
             $fix->suggested_palpite_ah = "{$teamName} 0.0 (Empate Anula)";
             $fix->suggested_palpite = $suggestedCards;
+
+            $ahConf = floatval($fix->ah_confidence ?? 0);
+            $fix->ah_confidence_val = $ahConf;
+            $fix->is_max_ah_score = ($ahConf >= 78.0 || !empty($fix->ah_suggestion));
         }
 
         $apostas = [];
@@ -1528,10 +1532,17 @@ class ApostaController extends BaseController
     }
 
     /**
-     * Formata e garante que palpites de Handicap Asiático sejam exclusivamente 0.0 (Empate Anula)
+     * Formata e garante que palpites de Handicap Asiático válidos sejam mantidos ou formatados
      */
     private function formatHandicapPalpite(string $palpite, string $timeCasa, string $timeFora): string
     {
+        if (empty($palpite)) {
+            return (!empty($timeCasa) ? $timeCasa : 'Handicap') . " 0.0 (Empate Anula)";
+        }
+        // Preserva palpites customizados de handicap validos (ex: -0.5, +0.25, -0.25, +0.5, 0.0, etc.)
+        if (preg_match('/[+-]?\d+(?:[\.,]\d+)?/i', $palpite)) {
+            return $palpite;
+        }
         if (stripos($palpite, '0.0 (Empate Anula)') !== false || stripos($palpite, '0,0 (Empate Anula)') !== false) {
             return $palpite;
         }
@@ -1541,13 +1552,7 @@ class ApostaController extends BaseController
         if (!empty($timeCasa) && stripos($palpite, $timeCasa) !== false) {
             return "{$timeCasa} 0.0 (Empate Anula)";
         }
-        if (preg_match('/^(.*?)\s*([+-]?\d+(?:[\.,]\d+)?|0\.0)/i', $palpite, $m)) {
-            $t = trim($m[1]);
-            if (!empty($t)) {
-                return "{$t} 0.0 (Empate Anula)";
-            }
-        }
-        return (!empty($timeCasa) ? $timeCasa : 'Handicap') . " 0.0 (Empate Anula)";
+        return $palpite;
     }
 }
 

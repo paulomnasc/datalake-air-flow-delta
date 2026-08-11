@@ -137,24 +137,28 @@ $$\lambda_{\text{fora, base}} = \frac{\text{Gols Pró Fora} + \text{Gols Sofrido
 
 #### Multiplicadores & Ponderações:
 - **Fator Mando de Campo ($F_{\text{mando}}$):** 
-  - Mandante em Casa: $F_{\text{mando, casa}} = 1.10$ (+10% bônus de mando de campo)
-  - Visitante Fora: $F_{\text{mando, fora}} = 0.95$ (-5% ajuste de visitante)
+  - Mandante em Casa: $F_{\text{mando, casa}} = 1.10$ (+10% bônus realista de mando)
+  - Visitante Fora: $F_{\text{mando, fora}} = 0.93$ (-7% ajuste de visitante)
+- **Fator Odds de Mercado ($F_{\text{market}}$):**
+  - Incorporação dinâmica das probabilidades implícitas ($P = 1 / \text{Odd}$) com amplitude expandida de **0.70 a 1.30** (-30% a +30%).
+- **Trava de Alinhamento com o Mercado (Market Preference Guard):**
+  - Se as odds do visitante indicarem favoritismo do mercado ($P_{\text{visitante}} > P_{\text{mandante}} + 5\%$), a indicação respeita o consenso de mercado e previne falsos palpites no mandante.
 - **Fator Forma dos Últimos 5 Jogos ($F_{\text{last5}}$):**
   - Pontuação $P = 3V + 1E$ nos últimos 5 jogos.
-  - $P \ge 12$ pts (4V+): $F_{\text{last5}} = 1.12$ (+12% excelente forma)
-  - $P \ge 9$ pts (3V): $F_{\text{last5}} = 1.06$ (+6% boa forma)
-  - $P \le 3$ pts (0V/1V): $F_{\text{last5}} = 0.85$ (-15% má fase)
-  - $P \le 5$ pts: $F_{\text{last5}} = 0.92$ (-8% oscilação)
+  - $P \ge 12$ pts (4V+): $F_{\text{last5}} = 1.25$ (+25% excelente forma)
+  - $P \ge 9$ pts (3V): $F_{\text{last5}} = 1.15$ (+15% boa forma)
+  - $P \le 2$ pts (0V/1V): $F_{\text{last5}} = 0.65$ (-35% má fase)
+  - $P \le 4$ pts: $F_{\text{last5}} = 0.78$ (-22% oscilação)
 - **Fator Clean Sheet ($CS_{\text{fator}}$):** Pondera a consistência em manter a meta limpa:
   $$CS_{\text{fator}} = 1.0 + (\text{CleanSheet}_{\%} - 30\%) \times 0.005$$
 - **Fator de Forma Recente / Streak ($F_{\text{streak}}$):**
-  - Sequência $\ge 5$ derrotas consecutivas: Penalidade de **-35%** no $xG$ ($F_{\text{streak}} = 0.65$).
-  - Sequência de 3 ou 4 derrotas consecutivas: Penalidade de **-20%** no $xG$ ($F_{\text{streak}} = 0.80$).
-  - Sequência invicta / vitoriosa (3+ vitórias): Bônus de **+15%** no $xG$ ($F_{\text{streak}} = 1.15$).
+  - Sequência $\ge 4$ derrotas consecutivas: Penalidade de **-30%** no $xG$ ($F_{\text{streak}} = 0.70$).
+  - Sequência de 3 derrotas consecutivas: Penalidade de **-20%** no $xG$ ($F_{\text{streak}} = 0.80$).
+  - Sequência invicta / vitoriosa (3+ vitórias): Bônus de **+20%** no $xG$ ($F_{\text{streak}} = 1.20$).
 
-$$\lambda_{\text{casa, adj}} = \lambda_{\text{casa, base}} \times F_{\text{mando, casa}} \times F_{\text{last5, casa}} \times CS_{\text{fator, casa}} \times F_{\text{streak, casa}}$$
+$$\lambda_{\text{casa, adj}} = \lambda_{\text{casa, base}} \times F_{\text{mando, casa}} \times F_{\text{last5, casa}} \times CS_{\text{fator, casa}} \times F_{\text{streak, casa}} \times F_{\text{market, casa}}$$
 
-$$\lambda_{\text{fora, adj}} = \lambda_{\text{fora, base}} \times F_{\text{mando, fora}} \times F_{\text{last5, fora}} \times CS_{\text{fator, fora}} \times F_{\text{streak, fora}}$$
+$$\lambda_{\text{fora, adj}} = \lambda_{\text{fora, base}} \times F_{\text{mando, fora}} \times F_{\text{last5, fora}} \times CS_{\text{fator, fora}} \times F_{\text{streak, fora}} \times F_{\text{market, fora}}$$
 
 $$\Delta G = \lambda_{\text{casa, adj}} - \lambda_{\text{fora, adj}}$$
 

@@ -382,8 +382,19 @@ def calculate_asian_handicap_suggestion(
     if away_last5 is None:
         away_last5 = {"v": 2, "e": 1, "d": 2, "pts": 7, "text": "2V-1E-2D", "matches": []}
 
-    # 1. Fator Mando de Campo Recalibrado (Mando +10% em casa / -7% fora)
-    home_mando_factor = 1.10  # Bônus realista de jogar em casa (+10%)
+    # 0. Trava de Bloqueio Estrito para xG Zerado (xG == 0.00) - EXCLUSIVA PARA HANDICAP ASIÁTICO
+    if (home_goals_scored <= 0.01 and away_goals_scored <= 0.01 and home_goals_conceded <= 0.01 and away_goals_conceded <= 0.01):
+        suggestion = "Sem Entrada (Abstenção)"
+        confidence = 50.00
+        reasoning_text = f"🚫 APOSTA BLOQUEADA: Dados de Expectativa de Gols (xG) indisponíveis para esta partida (xG = 0.00). Entrada de Handicap bloqueada para proteger a banca."
+        u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
+        return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por xG Indisponível || MOTIVACAO: Risco excessivo sem estatísticas de xG || MEMÓRIA DE CÁLCULO || xG Base 0.00 || U5J_DATA: {u5j_json}"
+
+    # 1. Fator Mando de Campo Recalibrado Dinâmico
+    if odd_home and odd_away and float(odd_away) < float(odd_home):
+        home_mando_factor = 1.05  # Mando suavizado para +5% quando o visitante é favorito pelas odds
+    else:
+        home_mando_factor = 1.10  # Bônus padrão realista de jogar em casa (+10%)
     away_mando_factor = 0.93  # Ajuste de visitante fora de casa (-7%)
 
     # 2. Fator Últimos 5 Jogos (Forma Recente: V-E-D)

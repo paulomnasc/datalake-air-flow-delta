@@ -82,7 +82,7 @@ class ApostaController extends BaseController
         $targetFixId = $this->request->getVar('fixture_id');
 
         $builderFix = $db->table('fixtures_trends')
-            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion, ah_confidence');
+            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion, ah_confidence, xg_home, xg_away');
         
         $fixtures = $builderFix->orderBy('fixture_date', 'DESC')
             ->limit(100)
@@ -1768,36 +1768,44 @@ class ApostaController extends BaseController
                     $status = 'NO_BET';
                     $detalhe = "Abstenção da IA - Falta de valor/confiança (Partida {$fix->goals_home}x{$fix->goals_away})";
                 } elseif (!empty($ah)) {
-                    $mercado = 'Handicap Asiático';
-                    $linha = $ah;
-                    $odd = (float)($fix->odd_home ?? 1.90);
-
-                    // Verificar se a aposta foi no time Visitante (Away) ou Mandante (Home)
-                    $isAwayBet = false;
-                    if (!empty($awayTeam) && stripos($linha, $awayTeam) !== false) {
-                        $isAwayBet = true;
-                    } elseif (stripos($linha, 'fora') !== false || stripos($linha, 'visitante') !== false) {
-                        $isAwayBet = true;
-                    }
-
-                    // Extrair linha numérica de handicap (ex: 0.0, -0.5, +0.25)
-                    $handicapLine = 0.0;
-                    if (preg_match('/([+-]?\d+(?:[\.,]\d+)?)/', $linha, $matches)) {
-                        $handicapLine = (float)str_replace(',', '.', $matches[1]);
-                    }
-
-                    $diffGols = $isAwayBet ? ((int)$fix->goals_away - (int)$fix->goals_home) : ((int)$fix->goals_home - (int)$fix->goals_away);
-                    $adj = $diffGols + $handicapLine;
-
-                    if ($adj > 0.25) {
-                        $status = 'GREEN';
-                        $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Palpite GANHO ({$linha})";
-                    } elseif (abs($adj) < 0.01) {
-                        $status = 'VOID';
-                        $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Empate Anulou (Palpite {$linha})";
+                    if (stripos($ah, 'sem entrada') !== false || stripos($ah, 'bloqueada') !== false || stripos($ah, 'abstenção') !== false) {
+                        $mercado = 'Sem Entrada';
+                        $linha = 'Sem Entrada (Abstenção)';
+                        $odd = null;
+                        $status = 'NO_BET';
+                        $detalhe = "🚫 APOSTA BLOQUEADA: Dados de Expectativa de Gols (xG) indisponíveis para esta partida (xG = 0.00). Entrada de Handicap bloqueada para proteger a banca.";
                     } else {
-                        $status = 'RED';
-                        $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Palpite PERDIDO ({$linha})";
+                        $mercado = 'Handicap Asiático';
+                        $linha = $ah;
+                        $odd = (float)($fix->odd_home ?? 1.90);
+
+                        // Verificar se a aposta foi no time Visitante (Away) ou Mandante (Home)
+                        $isAwayBet = false;
+                        if (!empty($awayTeam) && stripos($linha, $awayTeam) !== false) {
+                            $isAwayBet = true;
+                        } elseif (stripos($linha, 'fora') !== false || stripos($linha, 'visitante') !== false) {
+                            $isAwayBet = true;
+                        }
+
+                        // Extrair linha numérica de handicap (ex: 0.0, -0.5, +0.25)
+                        $handicapLine = 0.0;
+                        if (preg_match('/([+-]?\d+(?:[\.,]\d+)?)/', $linha, $matches)) {
+                            $handicapLine = (float)str_replace(',', '.', $matches[1]);
+                        }
+
+                        $diffGols = $isAwayBet ? ((int)$fix->goals_away - (int)$fix->goals_home) : ((int)$fix->goals_home - (int)$fix->goals_away);
+                        $adj = $diffGols + $handicapLine;
+
+                        if ($adj > 0.25) {
+                            $status = 'GREEN';
+                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Palpite GANHO ({$linha})";
+                        } elseif (abs($adj) < 0.01) {
+                            $status = 'VOID';
+                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Empate Anulou (Palpite {$linha})";
+                        } else {
+                            $status = 'RED';
+                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Palpite PERDIDO ({$linha})";
+                        }
                     }
                 } elseif ($probCards > 55) {
                     $mercado = 'Total de Cartões';

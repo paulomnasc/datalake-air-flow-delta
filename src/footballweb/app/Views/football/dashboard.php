@@ -2384,8 +2384,19 @@ if (!function_exists('getBetDecisionTree')) {
                                                 onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'cards')">
                                             <i class="bi bi-card-amber"></i> Cartões (<?= $prob ?>%) <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                         </button>
-                                        
-                                        <?php if (!empty($fix->ah_suggestion)): ?>
+                                        <?php 
+                                            $isXgZero = ((float)($fix->xg_home ?? 0) == 0.0 && (float)($fix->xg_away ?? 0) == 0.0);
+                                            $isAhBlocked = $isXgZero || (stripos($fix->ah_suggestion ?? '', 'sem entrada') !== false || stripos($fix->ah_suggestion ?? '', 'bloquead') !== false);
+                                        ?>
+                                        <?php if ($isAhBlocked): ?>
+                                            <button type="button" 
+                                                    id="btn-ah-<?= $fix->fixture_id ?>" 
+                                                    class="bet-toggle-badge red" 
+                                                    style="background: rgba(239, 68, 68, 0.18) !important; border: 1px solid #ef4444 !important; color: #f87171 !important;"
+                                                    onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'ah')">
+                                                <i class="bi bi-slash-circle-fill me-1"></i> 🚫 AH Bloqueado: xG Indisponível (0.00) <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                            </button>
+                                        <?php elseif (!empty($fix->ah_suggestion)): ?>
                                             <button type="button" 
                                                     id="btn-ah-<?= $fix->fixture_id ?>" 
                                                     class="bet-toggle-badge blue" 
@@ -2710,6 +2721,10 @@ if (!function_exists('getBetDecisionTree')) {
                                             if (!empty($fix->prediction_text) && preg_match('/Under\s*(\d+\.\d+|\d+)/i', $fix->prediction_text, $mPalpite)) {
                                                 $cardPalpite = 'Menos de ' . $mPalpite[1];
                                             }
+                                            $ahPalpiteClean = $fix->home_team . ' 0.0 (Empate Anula)';
+                                            if (!empty($fix->ah_suggestion) && preg_match('/^(.*?)\s*([+-]?\d+(?:\.\d+)?|0\.0)/i', $fix->ah_suggestion, $mAHClean) && !empty($mAHClean[1])) {
+                                                $ahPalpiteClean = trim($mAHClean[1]) . ' 0.0 (Empate Anula)';
+                                            }
                                         ?>
                                         <!-- Botões Tipificados de Registrar Aposta vinculados ao card -->
                                         <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id . '&mercado=cartoes&palpite=' . urlencode($cardPalpite)) ?>" 
@@ -2718,16 +2733,11 @@ if (!function_exists('getBetDecisionTree')) {
                                            title="Registrar Aposta no Mercado de Cartões">
                                             <i class="bi bi-card-amber"></i> Cartões
                                         </a>
-                                        <?php
-                                            $ahPalpiteClean = $fix->home_team . ' 0.0 (Empate Anula)';
-                                            if (!empty($fix->ah_suggestion) && preg_match('/^(.*?)\s*([+-]?\d+(?:\.\d+)?|0\.0)/i', $fix->ah_suggestion, $mAHClean) && !empty($mAHClean[1])) {
-                                                $ahPalpiteClean = trim($mAHClean[1]) . ' 0.0 (Empate Anula)';
-                                            }
-                                        ?>
+
                                         <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id . '&mercado=handicap&palpite=' . urlencode($ahPalpiteClean)) ?>" 
                                            class="bet-stats-btn" 
                                            style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; text-decoration: none; padding: 4px 8px; font-size: 0.75rem;" 
-                                           title="Registrar Aposta no Mercado de Handicap Asiático (Empate Anula)">
+                                           title="Registrar Aposta no Mercado de Handicap Asiático">
                                             <i class="bi bi-shield-shaded"></i> Handicap AH
                                         </a>
 

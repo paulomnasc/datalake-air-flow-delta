@@ -331,11 +331,30 @@
                                 </td>
 
                                 <td>
-                                    <?php if (strtoupper($p->resultado_status) === 'NO_BET'): ?>
-                                        <span class="text-white-50 fst-italic">
-                                            <i class="bi bi-dash-circle me-1"></i> Sem Entrada (Abstenção)
-                                        </span>
+                                    <?php
+                                        $det = (string)($p->detalhe_resultado ?? '');
+                                        $isBlockedXg = (stripos($det, 'bloqueada') !== false || stripos($det, 'xg = 0') !== false || stripos($det, 'xg indispon') !== false);
+                                    ?>
+                                    <?php if ($isBlockedXg || strtoupper($p->resultado_status) === 'NO_BET'): ?>
+                                        <?php if ($isBlockedXg): ?>
+                                            <span class="badge bg-warning text-dark border border-warning px-2 py-1 mb-1 d-inline-block shadow-sm">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i> ⚠️ AH Alerta: xG 0.00
+                                            </span>
+                                            <div class="fw-bold text-warning"><?= esc($p->linha_sugerida) ?></div>
+                                            <div class="small text-white-50" title="<?= esc($det) ?>">
+                                                ⚠️ Estatística xG indisponível na API
+                                            </div>
+                                        <?php else: ?>
+                                            <span class="text-white-50 fst-italic">
+                                                <i class="bi bi-dash-circle me-1"></i> Sem Entrada (Abstenção)
+                                            </span>
+                                        <?php endif; ?>
                                     <?php else: ?>
+                                        <?php if (stripos($p->linha_sugerida, '0.0') !== false || stripos($p->linha_sugerida, 'empate anula') !== false): ?>
+                                            <span class="badge bg-info text-dark border border-info px-2 py-1 mb-1 d-inline-flex align-items-center gap-1">
+                                                <i class="bi bi-shield-check"></i> 🛡️ Proteção de Empate
+                                            </span>
+                                        <?php endif; ?>
                                         <div class="fw-bold text-warning"><?= esc($p->linha_sugerida) ?></div>
                                         <div class="small text-white-50"><?= esc($p->mercado) ?></div>
                                     <?php endif; ?>

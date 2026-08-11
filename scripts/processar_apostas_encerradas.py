@@ -385,9 +385,11 @@ def evaluate_palpite_status(home_team, away_team, goals_home, goals_away, yellow
     tot_cards = int(yellow_home or 0) + int(yellow_away or 0) + int(red_home or 0) + int(red_away or 0)
     tot_corners = int(corners_home or 0) + int(corners_away or 0)
 
-    # 1. ABSTENÇÃO / NO_BET
-    if 'sem entrada' in linha_norm or 'abstenção' in linha_norm or 'no_bet' in linha_norm:
-        return 'NO_BET', f"Abstenção da IA - Falta de valor (FT {g_home}x{g_away})"
+    # 1. ABSTENÇÃO / NO_BET / BLOQUEADA
+    if 'sem entrada' in linha_norm or 'abstenção' in linha_norm or 'bloqueada' in linha_norm or 'no_bet' in linha_norm:
+        if 'bloqueada' in linha_norm or 'xg' in linha_norm:
+            return 'NO_BET', f"🚫 APOSTA BLOQUEADA: Dados de Expectativa de Gols (xG) indisponíveis para esta partida (xG = 0.00). Entrada de Handicap bloqueada para proteger a banca."
+        return 'NO_BET', f"Abstenção da IA - Falta de valor/confiança (FT {g_home}x{g_away})"
 
     # 2. HANDICAP ASIÁTICO / DNB / EMPATE ANULA / VENCEDOR
     is_handicap_or_winner = (

@@ -1035,9 +1035,12 @@
           <div id="xgWarningBanner" class="alert alert-warning d-flex align-items-center gap-3 mb-3" style="display: none; background: rgba(234, 179, 8, 0.18); border: 2px solid #eab308; color: #fef08a; border-radius: 12px; padding: 14px 16px; box-shadow: 0 4px 15px rgba(234, 179, 8, 0.25);">
             <i class="bi bi-exclamation-triangle-fill fs-2 text-warning flex-shrink-0"></i>
             <div>
-              <strong style="color: #fde047; font-size: 0.95rem; display: block; margin-bottom: 2px;">⚠️ ALERTA DE RISCO: EXPECTATIVA DE GOLS (xG = 0.00) INDISPONÍVEL</strong>
-              <div style="font-size: 0.82rem; color: #fef08a; line-height: 1.4;">
-                Esta partida não possui estatísticas de xG em tempo real na API. A sugestão de Handicap foi gerada com base em estimativas genéricas. <strong>Prossiga com atenção e por sua própria conta e risco!</strong>
+              <strong style="color: #fde047; font-size: 0.95rem; display: block; margin-bottom: 4px;">⚠️ ALERTA DE RISCO: EXPECTATIVA DE GOLS (xG = 0.00) INDISPONÍVEL</strong>
+              <div style="font-size: 0.82rem; color: #fef08a; line-height: 1.45;">
+                Esta partida ainda não possui estatísticas de xG capturadas da API (jogo pré-partida). A sugestão de Handicap foi gerada com base em estimativas genéricas.<br>
+                <span style="color: #ef4444; font-weight: 800; text-transform: uppercase; display: block; margin-top: 6px; font-size: 0.85rem; letter-spacing: 0.3px; text-shadow: 0 0 8px rgba(239, 68, 68, 0.3);">
+                  💡 DICA DE SEGURANÇA: APOSTAR COM O JOGO INICIADO OU EM ANDAMENTO É MUITO MAIS SEGURO, POIS OS DADOS DE xG REAL DA PARTIDA JÁ ESTARÃO DISPONÍVEIS NA API!
+                </span>
               </div>
             </div>
           </div>

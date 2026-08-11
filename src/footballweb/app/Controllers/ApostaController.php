@@ -1539,7 +1539,6 @@ class ApostaController extends BaseController
         if (empty($palpite)) {
             return (!empty($timeCasa) ? $timeCasa : 'Handicap') . " 0.0 (Empate Anula)";
         }
-        // Preserva palpites customizados de handicap validos (ex: -0.5, +0.25, -0.25, +0.5, 0.0, etc.)
         if (preg_match('/[+-]?\d+(?:[\.,]\d+)?/i', $palpite)) {
             return $palpite;
         }
@@ -1553,6 +1552,274 @@ class ApostaController extends BaseController
             return "{$timeCasa} 0.0 (Empate Anula)";
         }
         return $palpite;
+    }
+
+    /**
+     * Relatório de Eficiência de Palpites (KPIs Win Rate, Red Rate, Void Rate, Abstenção, ROI)
+     * Restrito exclusivamente a partidas encerradas (FT).
+     */
+    public function relatorioEficiencia()
+    {
+        $access = $this->checkAccess();
+        $db = \Config\Database::connect();
+
+        $startDate = $this->request->getVar('start_date');
+        $endDate   = $this->request->getVar('end_date');
+        $leagueFilter = $this->request->getVar('league');
+        $marketFilter = $this->request->getVar('market');
+        $statusFilter = $this->request->getVar('status');
+
+        if (empty($startDate) && empty($endDate)) {
+            $endDate = date('Y-m-d');
+            $startDate = date('Y-m-d', strtotime('-30 days'));
+        } elseif (empty($startDate)) {
+            $startDate = $endDate;
+        } elseif (empty($endDate)) {
+            $endDate = $startDate;
+        }
+
+        if ($startDate > $endDate) {
+            $temp = $startDate;
+            $startDate = $endDate;
+            $endDate = $temp;
+        }
+
+        // Auto-seed: Garante que partidas FT em fixtures_trends possuam registro em palpites_gerados
+        $this->ensurePalpitesGeradosExist($db);
+
+        // Consulta de palpites de jogos ENCERRADOS (status FT)
+        $builder = $db->table('palpites_gerados p')
+            ->select('
+                p.*,
+                COALESCE(NULLIF(p.home_team, ""), f.home_team, "Time Casa") as home_team,
+                COALESCE(NULLIF(p.away_team, ""), f.away_team, "Time Fora") as away_team,
+                f.fixture_date,
+                f.league_name,
+                f.goals_home,
+                f.goals_away,
+                f.yellow_cards_home,
+                f.yellow_cards_away,
+                f.red_cards_home,
+                f.red_cards_away,
+                f.corners_home,
+                f.corners_away,
+                f.status as game_status
+            ')
+            ->join('fixtures_trends f', 'p.fixture_id = f.fixture_id')
+            ->where('f.status', 'FT')
+            ->where('DATE(f.fixture_date) >=', $startDate)
+            ->where('DATE(f.fixture_date) <=', $endDate);
+
+        if (!empty($leagueFilter)) {
+            $builder->where('f.league_name', $leagueFilter);
+        }
+
+        if (!empty($marketFilter)) {
+            $builder->like('p.mercado', $marketFilter);
+        }
+
+        if (!empty($statusFilter)) {
+            $builder->where('p.resultado_status', strtoupper($statusFilter));
+        }
+
+        $builder->orderBy('f.fixture_date', 'DESC');
+        $palpites = $builder->get()->getResultObject();
+
+        // Buscar lista de Ligas disponíveis para o filtro
+        $ligas = $db->table('fixtures_trends')
+            ->select('DISTINCT(league_name) as league_name')
+            ->where('status', 'FT')
+            ->where('league_name IS NOT NULL')
+            ->orderBy('league_name', 'ASC')
+            ->get()->getResultObject();
+
+        // Calcular Métricas / KPIs apenas para jogos encerrados
+        $totalAnalisados = count($palpites);
+        $greenCount = 0;
+        $redCount = 0;
+        $voidCount = 0;
+        $noBetCount = 0;
+        $pendingCount = 0;
+
+        $unidadesApostadas = 0.0;
+        $lucroPrejuizoUnidades = 0.0;
+
+        foreach ($palpites as $item) {
+            $st = strtoupper($item->resultado_status);
+            $odd = (float)($item->odd_momento ?? 1.85);
+            if ($odd <= 1.0) $odd = 1.85;
+
+            switch ($st) {
+                case 'GREEN':
+                    $greenCount++;
+                    $unidadesApostadas += 1.0;
+                    $lucroPrejuizoUnidades += ($odd - 1.0);
+                    break;
+
+                case 'RED':
+                    $redCount++;
+                    $unidadesApostadas += 1.0;
+                    $lucroPrejuizoUnidades -= 1.0;
+                    break;
+
+                case 'VOID':
+                    $voidCount++;
+                    $unidadesApostadas += 1.0;
+                    // Reembolso 0 lucro
+                    break;
+
+                case 'NO_BET':
+                    $noBetCount++;
+                    break;
+
+                default:
+                    $pendingCount++;
+                    break;
+            }
+        }
+
+        $entradasRecomendadas = $greenCount + $redCount + $voidCount;
+        $resolvidasWinRed = $greenCount + $redCount;
+
+        $winRate = $resolvidasWinRed > 0 ? round(($greenCount / $resolvidasWinRed) * 100, 2) : 0.0;
+        $redRate = $resolvidasWinRed > 0 ? round(($redCount / $resolvidasWinRed) * 100, 2) : 0.0;
+        $voidRate = $totalAnalisados > 0 ? round(($voidCount / $totalAnalisados) * 100, 2) : 0.0;
+        $abstentionRate = $totalAnalisados > 0 ? round(($noBetCount / $totalAnalisados) * 100, 2) : 0.0;
+        $selectionRate = $totalAnalisados > 0 ? round(($entradasRecomendadas / $totalAnalisados) * 100, 2) : 0.0;
+        $roiPercent = $unidadesApostadas > 0 ? round(($lucroPrejuizoUnidades / $unidadesApostadas) * 100, 2) : 0.0;
+
+        $data = [
+            'title'                 => 'Relatório de Eficiência de Palpites',
+            'user'                  => $access['user'],
+            'credits'               => $access['credits'],
+            'palpites'              => $palpites,
+            'ligas'                 => $ligas,
+            'startDate'             => $startDate,
+            'endDate'               => $endDate,
+            'leagueFilter'          => $leagueFilter,
+            'marketFilter'          => $marketFilter,
+            'statusFilter'          => $statusFilter,
+            'totalAnalisados'       => $totalAnalisados,
+            'entradasRecomendadas'  => $entradasRecomendadas,
+            'greenCount'            => $greenCount,
+            'redCount'              => $redCount,
+            'voidCount'             => $voidCount,
+            'noBetCount'            => $noBetCount,
+            'winRate'               => $winRate,
+            'redRate'               => $redRate,
+            'voidRate'              => $voidRate,
+            'abstentionRate'        => $abstentionRate,
+            'selectionRate'         => $selectionRate,
+            'lucroPrejuizoUnidades' => round($lucroPrejuizoUnidades, 2),
+            'roiPercent'            => $roiPercent
+        ];
+
+        return view('header', $data)
+             . view('apostas/relatorio_eficiencia', $data)
+             . view('footer');
+    }
+
+    /**
+     * Auxiliar interno para popular automaticamente palpites_gerados
+     * a partir de jogos encerrados em fixtures_trends
+     */
+    private function ensurePalpitesGeradosExist(\CodeIgniter\Database\BaseConnection $db): void
+    {
+        try {
+            $fixturesSemPalpite = $db->query("
+                SELECT f.fixture_id, f.home_team, f.away_team, f.prediction_text, f.ah_suggestion, f.over_cards_probability,
+                       f.odd_home, f.odd_draw, f.odd_away, f.goals_home, f.goals_away,
+                       f.yellow_cards_home, f.yellow_cards_away, f.red_cards_home, f.red_cards_away,
+                       f.corners_home, f.corners_away
+                FROM fixtures_trends f
+                LEFT JOIN palpites_gerados p ON f.fixture_id = p.fixture_id
+                WHERE p.id_palpite IS NULL
+                  AND f.status = 'FT'
+                LIMIT 500
+            ")->getResultObject();
+
+            if (empty($fixturesSemPalpite)) {
+                return;
+            }
+
+            foreach ($fixturesSemPalpite as $fix) {
+                $fid = (int)$fix->fixture_id;
+                $homeTeam = trim((string)($fix->home_team ?? 'Time Casa'));
+                $awayTeam = trim((string)($fix->away_team ?? 'Time Fora'));
+                $pred = trim((string)($fix->prediction_text ?? ''));
+                $ah = trim((string)($fix->ah_suggestion ?? ''));
+                $probCards = (float)($fix->over_cards_probability ?? 50.0);
+
+                $mercado = 'Total de Cartões';
+                $linha = '';
+                $odd = 1.85;
+                $status = 'GREEN';
+                $detalhe = '';
+
+                $totCards = (int)($fix->yellow_cards_home ?? 0) + (int)($fix->yellow_cards_away ?? 0) + (int)($fix->red_cards_home ?? 0) + (int)($fix->red_cards_away ?? 0);
+                $totGoals = (int)($fix->goals_home ?? 0) + (int)($fix->goals_away ?? 0);
+                $totCorners = (int)($fix->corners_home ?? 0) + (int)($fix->corners_away ?? 0);
+
+                // Determinar se houve abstenção ou qual palpite foi gerado
+                if (empty($pred) && empty($ah) && $probCards >= 45 && $probCards <= 55) {
+                    $mercado = 'Sem Entrada';
+                    $linha = 'Sem Entrada (Abstenção)';
+                    $odd = null;
+                    $status = 'NO_BET';
+                    $detalhe = "Abstenção da IA - Falta de valor/confiança (Partida {$fix->goals_home}x{$fix->goals_away})";
+                } elseif (!empty($ah)) {
+                    $mercado = 'Handicap Asiático';
+                    $linha = $ah;
+                    $odd = (float)($fix->odd_home ?? 1.90);
+                    // Avaliação simples do resultado do jogo real
+                    if (($fix->goals_home - $fix->goals_away) > 0) {
+                        $status = 'GREEN';
+                        $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Mandante Venceu (Palpite {$linha})";
+                    } elseif ($fix->goals_home == $fix->goals_away) {
+                        $status = 'VOID';
+                        $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Empate Anulou (Palpite {$linha})";
+                    } else {
+                        $status = 'RED';
+                        $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Visitante Venceu (Palpite {$linha})";
+                    }
+                } elseif ($probCards > 55) {
+                    $mercado = 'Total de Cartões';
+                    $linha = 'Over 4.5 Cartões';
+                    $odd = 1.85;
+                    if ($totCards > 4.5) {
+                        $status = 'GREEN';
+                        $detalhe = "FT {$totCards} Cartões (Limite 4.5) -> GREEN";
+                    } else {
+                        $status = 'RED';
+                        $detalhe = "FT {$totCards} Cartões (Limite 4.5) -> RED";
+                    }
+                } else {
+                    $mercado = 'Total de Gols';
+                    $linha = 'Over 2.5 Gols';
+                    $odd = 1.80;
+                    if ($totGoals > 2.5) {
+                        $status = 'GREEN';
+                        $detalhe = "FT {$totGoals} Gols (Limite 2.5) -> GREEN";
+                    } else {
+                        $status = 'RED';
+                        $detalhe = "FT {$totGoals} Gols (Limite 2.5) -> RED";
+                    }
+                }
+
+                $db->table('palpites_gerados')->insert([
+                    'fixture_id'        => $fid,
+                    'home_team'         => $homeTeam,
+                    'away_team'         => $awayTeam,
+                    'mercado'           => $mercado,
+                    'linha_sugerida'    => $linha,
+                    'odd_momento'       => $odd,
+                    'resultado_status'  => $status,
+                    'detalhe_resultado' => $detalhe
+                ]);
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Erro ao auto-popular palpites_gerados: ' . $e->getMessage());
+        }
     }
 }
 

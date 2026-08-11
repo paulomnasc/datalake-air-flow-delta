@@ -683,6 +683,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <span>Minhas Apostas</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('apostas/relatorio-eficiencia') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-info d-flex align-items-center gap-1" title="Eficiência de Palpites">
+                        <i class="bi bi-graph-up-arrow" style="font-size: 18px;"></i>
+                        <span>Eficiência de Palpites</span>
+                    </a>
+                </li>
             </ul>
 
             <div id="itens-menu-outros" class="navbar-nav ms-auto p-4 p-lg-0 align-items-center">

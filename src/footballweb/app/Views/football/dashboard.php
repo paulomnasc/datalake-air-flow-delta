@@ -2597,28 +2597,10 @@ if (!function_exists('getBetDecisionTree')) {
                                                 }
                                             }
 
-                                            if (empty($u5j_data) || empty($u5j_data['home']['matches'])) {
+                                            if (empty($u5j_data)) {
                                                 $u5j_data = [
-                                                    'home' => [
-                                                        'text' => '1V-1E-3D',
-                                                        'matches' => [
-                                                            ['opponent' => 'Coritiba', 'score' => '0x1', 'result' => 'D', 'is_home' => true],
-                                                            ['opponent' => 'Santos', 'score' => '1x2', 'result' => 'D', 'is_home' => false],
-                                                            ['opponent' => 'Novorizontino', 'score' => '0x0', 'result' => 'E', 'is_home' => true],
-                                                            ['opponent' => 'Guarani', 'score' => '0x1', 'result' => 'D', 'is_home' => false],
-                                                            ['opponent' => 'Vila Nova', 'score' => '0x2', 'result' => 'D', 'is_home' => true]
-                                                        ]
-                                                    ],
-                                                    'away' => [
-                                                        'text' => '3V-1E-1D',
-                                                        'matches' => [
-                                                            ['opponent' => 'Botafogo-SP', 'score' => '2x0', 'result' => 'V', 'is_home' => true],
-                                                            ['opponent' => 'Vila Nova', 'score' => '1x0', 'result' => 'V', 'is_home' => false],
-                                                            ['opponent' => 'Ituano', 'score' => '1x1', 'result' => 'E', 'is_home' => true],
-                                                            ['opponent' => 'Mirassol', 'score' => '2x1', 'result' => 'V', 'is_home' => false],
-                                                            ['opponent' => 'Ponte Preta', 'score' => '0x1', 'result' => 'D', 'is_home' => true]
-                                                        ]
-                                                    ]
+                                                    'home' => ['text' => 'N/D', 'matches' => []],
+                                                    'away' => ['text' => 'N/D', 'matches' => []]
                                                 ];
                                             }
                                         }
@@ -2761,15 +2743,19 @@ if (!function_exists('getBetDecisionTree')) {
                                                                         <?= htmlspecialchars($u5j_data['home']['text'] ?? '0V-0E-0D') ?>
                                                                     </td>
                                                                     <td style="padding: 3px 4px;">
-                                                                        <div style="display: flex; gap: 3px; flex-wrap: wrap;">
-                                                                            <?php foreach (($u5j_data['home']['matches'] ?? []) as $m): ?>
-                                                                                <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
-                                                                                <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
-                                                                                    <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
-                                                                                </span>
-                                                                            <?php endforeach; ?>
-                                                                        </div>
-                                                                    </td>
+                                                                         <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+                                                                             <?php if (empty($u5j_data['home']['matches'])): ?>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                             <?php else: ?>
+                                                                                 <?php foreach ($u5j_data['home']['matches'] as $m): ?>
+                                                                                     <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
+                                                                                     <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
+                                                                                         <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
+                                                                                     </span>
+                                                                                 <?php endforeach; ?>
+                                                                             <?php endif; ?>
+                                                                         </div>
+                                                                     </td>
                                                                 </tr>
                                                                 <tr>
                                                                     <td style="padding: 3px 4px; font-weight: 600; color: #a78bfa; white-space: nowrap;">
@@ -2779,15 +2765,19 @@ if (!function_exists('getBetDecisionTree')) {
                                                                         <?= htmlspecialchars($u5j_data['away']['text'] ?? '0V-0E-0D') ?>
                                                                     </td>
                                                                     <td style="padding: 3px 4px;">
-                                                                        <div style="display: flex; gap: 3px; flex-wrap: wrap;">
-                                                                            <?php foreach (($u5j_data['away']['matches'] ?? []) as $m): ?>
-                                                                                <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
-                                                                                <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
-                                                                                    <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
-                                                                                </span>
-                                                                            <?php endforeach; ?>
-                                                                        </div>
-                                                                    </td>
+                                                                         <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+                                                                             <?php if (empty($u5j_data['away']['matches'])): ?>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                             <?php else: ?>
+                                                                                 <?php foreach ($u5j_data['away']['matches'] as $m): ?>
+                                                                                     <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
+                                                                                     <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
+                                                                                         <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
+                                                                                     </span>
+                                                                                 <?php endforeach; ?>
+                                                                             <?php endif; ?>
+                                                                         </div>
+                                                                     </td>
                                                                 </tr>
                                                             </tbody>
                                                         </table>

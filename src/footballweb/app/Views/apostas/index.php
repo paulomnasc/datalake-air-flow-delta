@@ -1111,7 +1111,15 @@ if (!function_exists('formatBrtDate')) {
             </div>
             <div class="col-6 mb-3">
               <div class="d-flex align-items-center justify-content-between mb-1">
-                <label class="form-label text-white mb-0">Palpite *</label>
+                <div class="d-flex align-items-center gap-2">
+                  <label class="form-label text-white mb-0">Palpite *</label>
+                  <div class="form-check form-switch m-0 d-flex align-items-center gap-1" style="font-size: 0.72rem;">
+                    <input class="form-check-input" type="checkbox" role="switch" id="toggleUnlockPalpite" onchange="togglePalpiteLock(this.checked)" style="cursor: pointer; width: 28px; height: 16px;">
+                    <label class="form-check-label text-info fw-bold" for="toggleUnlockPalpite" style="cursor: pointer; user-select: none;">
+                      <i class="bi bi-unlock-fill me-1"></i>Editar
+                    </label>
+                  </div>
+                </div>
                 <span id="maxScoreBadge" class="badge text-white fw-bold" style="display: none; font-size: 0.72rem; background: linear-gradient(135deg, #f59e0b, #ef4444) !important; padding: 3px 8px; border-radius: 6px; box-shadow: 0 0 10px rgba(245, 158, 11, 0.5); border: 1px solid #fbbf24;">
                   <i class="bi bi-lightning-charge-fill me-1"></i>Max score reached
                 </span>
@@ -1202,7 +1210,15 @@ if (!function_exists('formatBrtDate')) {
               <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editMercadoInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Palpite *</label>
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <label class="form-label text-white mb-0">Palpite *</label>
+                <div class="form-check form-switch m-0 d-flex align-items-center gap-1" style="font-size: 0.72rem;">
+                  <input class="form-check-input" type="checkbox" role="switch" id="toggleUnlockEditPalpite" onchange="toggleEditPalpiteLock(this.checked)" style="cursor: pointer; width: 28px; height: 16px;">
+                  <label class="form-check-label text-info fw-bold" for="toggleUnlockEditPalpite" style="cursor: pointer; user-select: none;">
+                    <i class="bi bi-unlock-fill me-1"></i>Editar
+                  </label>
+                </div>
+              </div>
               <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editPalpiteInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
           </div>
@@ -1537,16 +1553,64 @@ if (!function_exists('formatBrtDate')) {
     return teamDefault ? `${teamDefault} 0.0 (Empate Anula)` : `${palpiteRaw} 0.0 (Empate Anula)`;
   }
 
-  function checkPalpiteEditableRule() {
-    const mercadoSelect = document.getElementById('mercadoTypeSelect');
-    const mercadoVal = mercadoSelect ? mercadoSelect.value : (document.getElementById('mercadoInput')?.value || '');
-    const isHandicap = (mercadoVal === 'Handicap Asiático' || mercadoVal.toLowerCase().includes('handicap'));
+  function togglePalpiteLock(unlocked) {
+    const palpiteInput = document.getElementById('palpiteInput');
+    const toggleCheckbox = document.getElementById('toggleUnlockPalpite');
+    if (toggleCheckbox) toggleCheckbox.checked = unlocked;
+    if (!palpiteInput) return;
+    if (unlocked) {
+      palpiteInput.readOnly = false;
+      palpiteInput.style.setProperty('background-color', 'rgba(15, 23, 42, 0.95)', 'important');
+      palpiteInput.style.setProperty('color', '#ffffff', 'important');
+      palpiteInput.style.setProperty('border', '1px solid #38bdf8', 'important');
+      palpiteInput.style.setProperty('cursor', 'text', 'important');
+    } else {
+      palpiteInput.readOnly = true;
+      palpiteInput.style.setProperty('background-color', 'rgba(30, 41, 59, 0.85)', 'important');
+      palpiteInput.style.setProperty('color', '#ffffff', 'important');
+      palpiteInput.style.setProperty('border', '1px solid rgba(255, 255, 255, 0.2)', 'important');
+      palpiteInput.style.setProperty('cursor', 'not-allowed', 'important');
+    }
+  }
 
-    const fixSelect = document.getElementById('fixtureSelect');
+  function toggleEditPalpiteLock(unlocked) {
+    const editPalpiteInput = document.getElementById('editPalpiteInput');
+    const toggleCheckbox = document.getElementById('toggleUnlockEditPalpite');
+    if (toggleCheckbox) toggleCheckbox.checked = unlocked;
+    if (!editPalpiteInput) return;
+    if (unlocked) {
+      editPalpiteInput.readOnly = false;
+      editPalpiteInput.style.setProperty('background-color', 'rgba(15, 23, 42, 0.95)', 'important');
+      editPalpiteInput.style.setProperty('color', '#ffffff', 'important');
+      editPalpiteInput.style.setProperty('border', '1px solid #38bdf8', 'important');
+      editPalpiteInput.style.setProperty('cursor', 'text', 'important');
+    } else {
+      editPalpiteInput.readOnly = true;
+      editPalpiteInput.style.setProperty('background-color', 'rgba(30, 41, 59, 0.85)', 'important');
+      editPalpiteInput.style.setProperty('color', '#ffffff', 'important');
+      editPalpiteInput.style.setProperty('border', '1px solid rgba(255, 255, 255, 0.2)', 'important');
+      editPalpiteInput.style.setProperty('cursor', 'not-allowed', 'important');
+    }
+  }
+
+  function checkPalpiteEditableRule() {
+    checkMaxScoreBadge();
+  }
+
+  function checkMaxScoreBadge() {
+    const selectEl = document.getElementById('fixtureSelect');
+    if (!selectEl) return;
+    const selectedIdx = selectEl.selectedIndex;
+    if (selectedIdx < 0) return;
+    const opt = selectEl.options[selectedIdx];
+    if (!opt) return;
+
+    const currentMercado = document.getElementById('mercadoInput')?.value || '';
+    const isHandicap = (currentMercado === 'Handicap Asiático');
+
     let isMaxScore = false;
 
-    if (fixSelect && fixSelect.selectedIndex > 0) {
-      const opt = fixSelect.options[fixSelect.selectedIndex];
+    if (opt.hasAttribute('data-ah-max-score')) {
       const maxAttr = opt.getAttribute('data-ah-max-score');
       const confAttr = parseFloat(opt.getAttribute('data-ah-confidence') || '0');
       isMaxScore = (maxAttr === '1' || confAttr >= 78.0);
@@ -1555,29 +1619,16 @@ if (!function_exists('formatBrtDate')) {
       if (palpiteVal) isMaxScore = true;
     }
 
-    const palpiteInput = document.getElementById('palpiteInput');
     const badge = document.getElementById('maxScoreBadge');
+    const isUserUnlocked = document.getElementById('toggleUnlockPalpite')?.checked;
 
-    if (isHandicap && isMaxScore) {
-      if (palpiteInput) {
-        palpiteInput.readOnly = false;
-        palpiteInput.style.setProperty('background-color', 'rgba(15, 23, 42, 0.95)', 'important');
-        palpiteInput.style.setProperty('color', '#ffffff', 'important');
-        palpiteInput.style.setProperty('border', '1px solid #38bdf8', 'important');
-        palpiteInput.style.setProperty('cursor', 'text', 'important');
-        palpiteInput.placeholder = 'Digite o palpite de Handicap (Ex: Mirassol -0.5 ou Operário-PR 0.0)';
-      }
+    if (isUserUnlocked || (isHandicap && isMaxScore)) {
+      togglePalpiteLock(true);
       if (badge) {
-        badge.style.display = 'inline-flex';
+        badge.style.display = (isHandicap && isMaxScore) ? 'inline-flex' : 'none';
       }
     } else {
-      if (palpiteInput) {
-        palpiteInput.readOnly = true;
-        palpiteInput.style.setProperty('background-color', 'rgba(30, 41, 59, 0.85)', 'important');
-        palpiteInput.style.setProperty('color', '#ffffff', 'important');
-        palpiteInput.style.setProperty('border', '1px solid rgba(255, 255, 255, 0.2)', 'important');
-        palpiteInput.style.setProperty('cursor', 'not-allowed', 'important');
-      }
+      togglePalpiteLock(false);
       if (badge) {
         badge.style.display = 'none';
       }
@@ -1980,6 +2031,7 @@ if (!function_exists('formatBrtDate')) {
     document.getElementById('editCashoutInput').value = val;
     document.getElementById('editTipoSelect').value = aposta.tipo || 'Simples';
     document.getElementById('editStatusSelect').value = aposta.status || 'Pendente';
+    toggleEditPalpiteLock(false);
     calcEditGanhos();
 
     showModalSafely(document.getElementById('editBetModal'));
@@ -2127,23 +2179,9 @@ if (!function_exists('formatBrtDate')) {
     const mercadoParam = urlParams.get('mercado');
     const palpiteParam = urlParams.get('palpite');
 
-    // Chave única para verificar se a auto-abertura vinda da URL já foi processada nesta sessão
-    const autoOpenSessionKey = 'auto_opened_fix_' + (fixId || '') + '_' + (isNewBet ? 'new' : 'edit');
-    const isAlreadyOpened = fixId && sessionStorage.getItem(autoOpenSessionKey) === '1';
-
-    // Limpa imediatamente a URL no histórico do navegador para evitar reaberturas acidentais após reloads
+    // Limpa a URL no histórico do navegador após ler os parâmetros para evitar reaberturas acidentais após reloads manuais
     if (window.history && window.history.replaceState && (fixId || isNewBet)) {
       window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    // Se já foi processado anteriormente nesta sessão, impede auto-abertura do modal
-    if (isAlreadyOpened) {
-      return;
-    }
-
-    // Marca como processado para evitar qualquer reabertura futura
-    if (fixId) {
-      sessionStorage.setItem(autoOpenSessionKey, '1');
     }
 
     const userApostas = <?= json_encode($apostas ?? []) ?>;

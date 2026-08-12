@@ -545,22 +545,32 @@ def fetch_futbol24_direct_match_odds(home_team: str, away_team: str, country: Op
     h_slug = norm_h.replace(' ', '-').title()
     a_slug = norm_a.replace(' ', '-').title()
 
-    # Mapeamento dinâmico de conhecidos
+    # Mapeamento dinâmico de conhecidos (país, slug)
     known_slugs_local = {
-        'banfield': 'Banfield', 'ca banfield': 'Banfield',
-        'belgrano cordoba': 'Belgrano-Cba', 'belgrano': 'Belgrano-Cba',
-        'union santa fe': 'Union-Santa-Fe',
-        'central cordoba de santiago': 'Central-Cordoba-SdE', 'central cordoba': 'Central-Cordoba-SdE',
-        'goias': 'Goias-GO', 'goiás': 'Goias-GO',
-        'londrina': 'Londrina-PR'
+        'paris saint germain': ('France', 'Paris-St-Germain'),
+        'paris st. germain': ('France', 'Paris-St-Germain'),
+        'paris sg': ('France', 'Paris-St-Germain'),
+        'psg': ('France', 'Paris-St-Germain'),
+        'aston villa': ('England', 'Aston-Villa'),
+        'real madrid': ('Spain', 'Real-Madrid'),
+        'barcelona': ('Spain', 'FC-Barcelona'),
+        'bayern munich': ('Germany', 'Bayern-Munchen'),
+        'bayern munchen': ('Germany', 'Bayern-Munchen'),
+        'banfield': ('Argentina', 'Banfield'), 'ca banfield': ('Argentina', 'Banfield'),
+        'belgrano cordoba': ('Argentina', 'Belgrano-Cba'), 'belgrano': ('Argentina', 'Belgrano-Cba'),
+        'union santa fe': ('Argentina', 'Union-Santa-Fe'),
+        'central cordoba de santiago': ('Argentina', 'Central-Cordoba-SdE'), 'central cordoba': ('Argentina', 'Central-Cordoba-SdE'),
+        'goias': ('Brazil', 'Goias-GO'), 'goiás': ('Brazil', 'Goias-GO'),
+        'londrina': ('Brazil', 'Londrina-PR')
     }
 
+    c_h, c_a = 'Brazil', 'Brazil'
     if norm_h in known_slugs_local:
-        h_slug = known_slugs_local[norm_h]
+        c_h, h_slug = known_slugs_local[norm_h]
     if norm_a in known_slugs_local:
-        a_slug = known_slugs_local[norm_a]
+        c_a, a_slug = known_slugs_local[norm_a]
 
-    possible_countries = ['Brazil', 'Argentina', 'Chile', 'Colombia', 'Ecuador', 'Uruguay', 'Peru']
+    possible_countries = ['France', 'England', 'Spain', 'Germany', 'Italy', 'Brazil', 'Argentina', 'Chile', 'Colombia', 'Ecuador', 'Uruguay', 'Peru']
     if country:
         c_clean = country.capitalize()
         if c_clean in possible_countries:
@@ -569,15 +579,17 @@ def fetch_futbol24_direct_match_odds(home_team: str, away_team: str, country: Op
         else:
             possible_countries.insert(0, c_clean)
 
-    match_urls = []
+    match_urls = [
+        f'https://www.futbol24.com/pt/comparar-equipas/{c_h}/{h_slug}/vs/{c_a}/{a_slug}/',
+        f'https://www.futbol24.com/team-compare/{c_h}/{h_slug}/vs/{c_a}/{a_slug}/'
+    ]
     for c in possible_countries:
-        match_urls.append(f'https://www.futbol24.com/team-compare/{c}/{h_slug}/vs/{c}/{a_slug}/')
-        match_urls.append(f'https://www.futbol24.com/pt/comparar-equipas/{c}/{h_slug}/vs/{c}/{a_slug}/')
+        if c != c_h or c != c_a:
+            match_urls.append(f'https://www.futbol24.com/pt/comparar-equipas/{c}/{h_slug}/vs/{c}/{a_slug}/')
 
     league_urls = [
         'https://www.futbol24.com/national/Brazil/Serie-B/2026/',
         'https://www.futbol24.com/national/Brazil/Serie-A/2026/',
-        'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/',
         'https://www.futbol24.com/national/Argentina/Primera-Division/2026/'
     ]
 
@@ -813,32 +825,72 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
         'libertad': ('Ecuador', 'Libertad'),
         'universidad catolica': ('Ecuador', 'Universidad-Catolica'),
         'deportivo cuenca': ('Ecuador', 'Deportivo-Cuenca'),
-        'manta fc': ('Ecuador', 'Manta-Fc')
+        'manta fc': ('Ecuador', 'Manta-Fc'),
+        # França
+        'paris saint germain': ('France', 'Paris-St-Germain'), 'paris sg': ('France', 'Paris-St-Germain'), 'psg': ('France', 'Paris-St-Germain'), 'paris saint-germain': ('France', 'Paris-St-Germain'),
+        'monaco': ('France', 'AS-Monaco'), 'as monaco': ('France', 'AS-Monaco'),
+        'lyon': ('France', 'Olympique-Lyonnais'), 'olympique lyonnais': ('France', 'Olympique-Lyonnais'),
+        'marseille': ('France', 'Olympique-Marseille'), 'olympique marseille': ('France', 'Olympique-Marseille'),
+        'lille': ('France', 'LOSC-Lille'),
+        # Inglaterra
+        'aston villa': ('England', 'Aston-Villa'),
+        'arsenal': ('England', 'Arsenal'),
+        'chelsea': ('England', 'Chelsea'),
+        'liverpool': ('England', 'Liverpool'),
+        'manchester city': ('England', 'Manchester-City'), 'man city': ('England', 'Manchester-City'),
+        'manchester united': ('England', 'Manchester-United'), 'man united': ('England', 'Manchester-United'),
+        'tottenham': ('England', 'Tottenham-Hotspur'), 'tottenham hotspur': ('England', 'Tottenham-Hotspur'),
+        'newcastle': ('England', 'Newcastle-United'), 'newcastle united': ('England', 'Newcastle-United'),
+        # Espanha
+        'real madrid': ('Spain', 'Real-Madrid'),
+        'barcelona': ('Spain', 'FC-Barcelona'),
+        'atletico madrid': ('Spain', 'Atletico-Madrid'), 'atlético madrid': ('Spain', 'Atletico-Madrid'),
+        # Itália
+        'inter': ('Italy', 'Inter-Milano'), 'inter milan': ('Italy', 'Inter-Milano'), 'internazionale': ('Italy', 'Inter-Milano'),
+        'juventus': ('Italy', 'Juventus'),
+        'milan': ('Italy', 'AC-Milan'), 'ac milan': ('Italy', 'AC-Milan'),
+        # Alemanha
+        'bayern munich': ('Germany', 'Bayern-Munchen'), 'bayern munchen': ('Germany', 'Bayern-Munchen'), 'bayern de munique': ('Germany', 'Bayern-Munchen'),
+        'borussia dortmund': ('Germany', 'Borussia-Dortmund'), 'dortmund': ('Germany', 'Borussia-Dortmund')
     }
 
     def _strip_accents(s: str) -> str:
         import unicodedata
         return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn').lower().strip()
 
+    def _norm(name_str: str) -> str:
+        n = _strip_accents(name_str).lower()
+        n = n.replace('club atletico', '').replace('ca ', '').replace('cd ', '').replace('fc ', '').replace(' fc', '')
+        n = n.replace('saint', 'st').replace('st.', 'st')
+        n = n.replace('united', 'utd').replace('utd.', 'utd')
+        return n.split('/')[0].strip()
+
     clean_name = team_name.lower().replace('club atlético', '').replace('ca ', '').replace('cd ', '').split('/')[0].strip()
-    known_info = known_slugs.get(clean_name) or known_slugs.get(team_name.lower())
+    known_info = known_slugs.get(clean_name) or known_slugs.get(team_name.lower()) or known_slugs.get(_strip_accents(clean_name))
 
     if not team_url:
         if known_info:
             c_name, slug = known_info
             team_url = f'https://www.futbol24.com/pt/equipa/{c_name}/{slug}/'
         else:
-            countries = [country] if country else ['Argentina', 'Brazil', 'Colombia', 'Chile', 'Uruguay', 'Paraguay', 'Peru', 'Ecuador', 'Mexico', 'Spain', 'England', 'Italy']
-            countries = [c for c in countries if c]
-            if 'Brazil' not in countries:
-                countries.append('Brazil')
-            if 'Argentina' not in countries:
-                countries.append('Argentina')
+            candidate_countries = [country] if country else ['France', 'England', 'Spain', 'Italy', 'Germany', 'Brazil', 'Argentina', 'Colombia', 'Chile', 'Uruguay', 'Paraguay', 'Peru', 'Ecuador', 'Mexico']
+            candidate_countries = [c for c in candidate_countries if c]
+            if 'Brazil' not in candidate_countries:
+                candidate_countries.append('Brazil')
 
-            raw_slug = _strip_accents(clean_name).replace(' ', '-')
-            raw_slug_full = _strip_accents(team_name).replace(' ', '-')
+            clean_title = _strip_accents(clean_name).title().replace(' ', '-')
+            found_url = None
+            for c in candidate_countries:
+                test_url = f'https://www.futbol24.com/pt/equipa/{c}/{clean_title}/'
+                try:
+                    r = requests.get(test_url, headers=headers, timeout=3, allow_redirects=True)
+                    if r.status_code == 200 and '/equipa/' in r.url:
+                        found_url = r.url
+                        break
+                except Exception:
+                    continue
 
-            team_url = f'https://www.futbol24.com/pt/equipa/Brazil/{_strip_accents(clean_name).title()}/'
+            team_url = found_url or f'https://www.futbol24.com/pt/equipa/Brazil/{clean_title}/'
 
     log.info(f"[SCRAPER-FUTBOL24-LAST] Buscando últimos {limit} jogos de '{team_name}' em {team_url}...")
 
@@ -855,7 +907,7 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
         rows = parent.find_all(class_='f-single-result__row')
         matches = []
 
-        norm_target = _strip_accents(clean_name)
+        norm_target = _norm(clean_name)
 
         for row in rows:
             text = row.get_text(separator='|', strip=True)
@@ -879,8 +931,8 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
 
             gh, ga = map(int, score_part.split('-'))
 
-            norm_h = _strip_accents(h_team.split('/')[0]).replace('club atletico', '').replace('ca ', '').replace('cd ', '').strip()
-            norm_a = _strip_accents(a_team.split('/')[0]).replace('club atletico', '').replace('ca ', '').replace('cd ', '').strip()
+            norm_h = _norm(h_team)
+            norm_a = _norm(a_team)
 
             is_home = (norm_target in norm_h or norm_h in norm_target)
             opp_name = a_team if is_home else h_team

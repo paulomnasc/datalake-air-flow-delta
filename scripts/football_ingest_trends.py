@@ -280,12 +280,17 @@ def build_natural_language_motivation(
 
     # Prioridade Máxima: Contraste Severo de Forma Recente (Streak/Momentum Differential)
     if (away_pts >= 9 or away_last5.get("v", 0) >= 3) and (home_pts <= 7 or home_last5.get("d", 0) >= 2):
+        if odd_home and odd_away and float(odd_home) < float(odd_away):
+            market_note = f"• 📈 Contraponto às Odds de Mercado: Embora as odds do mercado atribuam favoritismo ao mandante {home_team} ({odd_home:.2f} vs {odd_away:.2f}), o momento recente superior do {away_team} ({away_text} vs {home_text}) justifica a indicação de proteção (Empate Anula) a favor do visitante."
+        else:
+            market_note = f"• 📈 Precificação Ponderada do Mercado: O mercado estatístico ajustado alinha-se ao momento superior do visitante {away_team}{odd_str}."
+
         return (
             f"🎯 Fator Crucial: Contraste de Forma Recente e Sequência Vitoriosa do Visitante ({away_team} {away_text} vs {home_team} {home_text}).\n"
             f"A indicação a favor do visitante {away_team} fundamenta-se na priorização de 3 critérios de alta precisão:\n"
             f"• 🔥 Contraste de Forma Recente (Streak Superior): O momento excelente do {away_team} ({away_text} / {away_pts} pts em U5J) sobressai-se à sequência de derrotas/oscilação do mandante {home_team} ({home_text}).\n"
             f"• ⚡ Neutralização do Fator Casa: A disparidade de momentum recente anula o bônus de mando de campo do {home_team}.\n"
-            f"• 📈 Precificação Ponderada do Mercado: O mercado estatístico ajustado direciona a proteção/vantagem para o visitante {away_team}{odd_str}."
+            f"{market_note}"
         )
 
     if home_in_crisis and not away_in_crisis:

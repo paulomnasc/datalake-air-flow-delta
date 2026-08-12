@@ -62,6 +62,60 @@ if (!function_exists('getBookmakerUrl')) {
     }
 }
 
+if (!function_exists('renderStructuredMotivation')) {
+    function renderStructuredMotivation($rawMotivation) {
+        if (empty($rawMotivation)) return '';
+
+        // Limpa prefixos redundantes
+        $cleanText = preg_replace('/^(🎯\s*Fator Crucial:\s*|💡\s*Motivação:\s*|MOTIVACAO:\s*)/u', '', trim($rawMotivation));
+
+        // Tenta extrair tópicos numéricos explícitos (ex: "1. ... 2. ... 3. ...")
+        $topics = [];
+        if (preg_match_all('/(?:^|\s*)(?:\d+[\.\)]|•|-)\s*([^0-9•\n\r]+?)(?=(?:\s*\d+[\.\)]|\s*•|\s*-|$))/u', $cleanText, $matches) && count($matches[1]) >= 2) {
+            foreach ($matches[1] as $item) {
+                $t = trim($item, " \t\n\r\0\x0B;.-");
+                if (mb_strlen($t) > 3) {
+                    $topics[] = $t;
+                }
+            }
+        }
+
+        // Se não houver numeração explícita, quebra o texto por frases (ponto final)
+        if (empty($topics)) {
+            $parts = preg_split('/(?<=[.!?])\s+/u', $cleanText);
+            foreach ($parts as $p) {
+                $p = trim($p, " \t\n\r\0\x0B;.-");
+                if (mb_strlen($p) > 4) {
+                    $topics[] = $p;
+                }
+            }
+        }
+
+        if (empty($topics)) {
+            $topics[] = $cleanText;
+        }
+
+        $html = '<div class="motivation-structured-box" style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.25); border-left: 4px solid #38bdf8; border-radius: 8px;">';
+        $html .= '<div style="font-size: 0.76rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">';
+        $html .= '<i class="bi bi-list-check" style="font-size: 0.88rem; color: #38bdf8;"></i> 💡 Motivação Detalhada do Palpite:';
+        $html .= '</div>';
+        $html .= '<ol style="margin: 0; padding-left: 0; list-style: none;">';
+
+        foreach ($topics as $index => $topic) {
+            $num = $index + 1;
+            $html .= '<li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 0.74rem; color: #e2e8f0; line-height: 1.45;">';
+            $html .= '<span style="background: rgba(56, 189, 248, 0.18); border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; font-weight: 800; font-size: 0.68rem; min-width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;">' . $num . '</span>';
+            $html .= '<span>' . htmlspecialchars($topic) . '</span>';
+            $html .= '</li>';
+        }
+
+        $html .= '</ol>';
+        $html .= '</div>';
+
+        return $html;
+    }
+}
+
 // Controle de Créditos do Grok AI e Ligas Premium
 $userLoggedIn = false;
 $userGrokCredits = 0;
@@ -2597,9 +2651,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 </div>
 
                                                 <?php if (!empty($motivation)): ?>
-                                                    <div style="margin-top: 6px; padding: 6px 8px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 0.72rem; color: #cbd5e1; line-height: 1.35;">
-                                                        💡 <strong>Motivação:</strong> <?= htmlspecialchars($motivation) ?>
-                                                    </div>
+                                                    <?= renderStructuredMotivation($motivation) ?>
                                                 <?php endif; ?>
 
                                                 <?php if (!empty($calc_details)): ?>

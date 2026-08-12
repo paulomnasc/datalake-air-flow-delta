@@ -74,11 +74,18 @@ if (!function_exists('renderStructuredMotivation')) {
         // 1. Tenta quebrar por marcadores de tópicos explícitos (ex: "• ")
         if (strpos($cleanText, '•') !== false) {
             $rawParts = explode('•', $cleanText);
-            foreach ($rawParts as $part) {
+            foreach ($rawParts as $index => $part) {
                 $t = trim($part);
-                // Ignora frases introdutórias que não são tópicos reais
-                if (empty($t) || strpos($t, 'A indicação a favor') === 0 || strpos($t, 'fundamenta-se na priorização') !== false) {
+                if (empty($t)) {
                     continue;
+                }
+                // Se for o texto antes da primeira vieta (cabeçalho), limpa a frase introdutória "A indicação a favor..."
+                if ($index === 0) {
+                    $t = preg_replace('/\n?A indicação a favor.*$/us', '', $t);
+                    $t = trim($t);
+                    if (empty($t)) {
+                        continue;
+                    }
                 }
                 // Garante que o tópico termina de forma limpa sem ponto extra duplo
                 $t = preg_replace('/\.\s*\.$/', '.', $t);

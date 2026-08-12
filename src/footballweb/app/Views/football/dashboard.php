@@ -1736,9 +1736,6 @@ if (!function_exists('getBetDecisionTree')) {
                         <a href="/auth/google-login" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> <?= lang('App.enter') ?></a>
                     </div>
                 <?php endif; ?>
-                <button type="button" class="btn-update-betano" onclick="triggerIngestion('<?= $targetDate ?>')">
-                    <i class="bi bi-arrow-repeat"></i> <?= lang('App.update_data_api') ?>
-                </button>
             </div>
         </div>
 
@@ -1858,6 +1855,13 @@ if (!function_exists('getBetDecisionTree')) {
                         <!-- Linha 1: Navegação por datas e Opções de Exibição -->
                         <div class="row align-items-center g-3 mb-3">
                             <div class="col-xl-6 col-lg-7 col-md-12">
+                                <!-- Botão de Atualização Manual de Jogos e Odds posicionado acima de '< Ontem' -->
+                                <div class="mb-2">
+                                    <button type="button" class="btn-update-betano d-inline-flex align-items-center gap-2" onclick="triggerIngestion('<?= $targetDate ?>')" style="padding: 7px 16px; font-size: 0.85rem; font-weight: 700; border-radius: 8px; box-shadow: 0 4px 12px rgba(244, 124, 32, 0.25);">
+                                        <i class="bi bi-arrow-repeat" style="font-size: 1rem;"></i> Atualizar Jogos e Odds
+                                    </button>
+                                </div>
+
                                 <div class="d-flex gap-2 align-items-center flex-wrap">
                                     <?php
                                     $yesterday = date('Y-m-d', strtotime('-1 day'));

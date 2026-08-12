@@ -1842,7 +1842,7 @@ if (!function_exists('formatBrtDate')) {
     .then(data => {
       if (data.success) {
         alert('✓ ' + data.message);
-        location.reload();
+        window.location.href = window.location.pathname;
       } else {
         alert('❌ ' + data.message);
       }
@@ -1982,7 +1982,7 @@ if (!function_exists('formatBrtDate')) {
     .then(data => {
       if (data.success) {
         alert('✓ ' + data.message);
-        location.reload();
+        window.location.href = window.location.pathname;
       } else {
         alert('❌ ' + data.message);
       }
@@ -2008,7 +2008,7 @@ if (!function_exists('formatBrtDate')) {
     .then(data => {
       if (data.success) {
         alert('✓ ' + data.message);
-        location.reload();
+        window.location.href = window.location.pathname;
       } else {
         alert('❌ ' + data.message);
       }
@@ -2029,7 +2029,7 @@ if (!function_exists('formatBrtDate')) {
     .then(data => {
       if (data.success) {
         alert('✓ ' + data.message);
-        location.reload();
+        window.location.href = window.location.pathname;
       } else {
         alert('❌ ' + data.message);
       }
@@ -2050,7 +2050,7 @@ if (!function_exists('formatBrtDate')) {
     .then(data => {
       if (data.success) {
         alert('✓ ' + data.message);
-        location.reload();
+        window.location.href = window.location.pathname;
       } else {
         alert('❌ ' + data.message);
       }
@@ -2078,7 +2078,7 @@ if (!function_exists('formatBrtDate')) {
     .then(data => {
       if (data.success) {
         alert('✓ ' + data.message + '\n\n' + (data.output || ''));
-        location.reload();
+        window.location.href = window.location.pathname;
       } else {
         alert('❌ ' + data.message);
       }
@@ -2097,6 +2097,11 @@ if (!function_exists('formatBrtDate')) {
     const fixId = urlParams.get('fixture_id');
     const mercadoParam = urlParams.get('mercado');
     const palpiteParam = urlParams.get('palpite');
+
+    // Limpa imediatamente a URL no histórico do navegador para evitar reaberturas acidentais após reloads
+    if (window.history && window.history.replaceState && (fixId || isNewBet)) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
     const userApostas = <?= json_encode($apostas ?? []) ?>;
 

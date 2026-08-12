@@ -333,12 +333,12 @@ def build_natural_language_motivation(
             if float(odd_home) <= float(odd_away):
                 odds_market_text = f"As odds do mercado confirmam o favoritismo do {home_team}{odd_str}, convergindo a probabilidade estatística ao consenso das apostas."
             else:
-                odds_market_text = f"As odds do mercado dão ligeira preferência ao visitante{odd_str}, mas o modelo detectou vantagem de xG no {home_team} com proteção no mando."
+                odds_market_text = f"As odds do mercado dão ligeira preferência ao visitante{odd_str}, mas a projeção estatística pré-jogo (xG projetado +{delta_goals:.2f}) indica vantagem do {home_team} com proteção no mando."
         else:
             odds_market_text = f"Análise estatística interna aplicada para o {home_team} (odds de mercado não disponíveis no momento)."
 
         return (
-            f"🎯 Fator Crucial: Peso Ponderado do Mercado e Mando de Campo (+10%) ({home_team} +{delta_goals:.2f} xG Esperados).\n"
+            f"🎯 Fator Crucial: Peso Ponderado do Mercado e Mando de Campo (+10%) ({home_team} +{delta_goals:.2f} xG Projetados Pré-Jogo).\n"
             f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
             f"• 🏟️ Reajuste Realista do Fator Mando (+10% em casa / -7% fora): A força de jogar em seus domínios impulsiona a produção ofensiva do {home_team} ({home_goals_scored:.1f} g/j).\n"
             f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"

@@ -306,14 +306,18 @@ def build_natural_language_motivation(
     if home_in_crisis and not away_in_crisis:
         return (
             f"🎯 Fator Crucial: Alerta de Crise e Sequência Negativa do Mandante ({home_text} em U5J).\n"
-            f"Este palpite foi gerado devido à severa má fase do {home_team} em casa (0V em U5J e Zero Gols em Casa de {home_cs_pct:.1f}%). "
-            f"Em contrapartida, o visitante {away_team} atravessa momento superior ({away_text}), invertendo a recomendação para {away_team} com cobertura no empate."
+            f"A indicação a favor do visitante {away_team} fundamenta-se na priorização de 3 critérios de alta precisão:\n"
+            f"• ⚠️ Sequência Negativa do Mandante: Severa má fase do {home_team} em casa (0V em U5J e Zero Gols em Casa de {home_cs_pct:.1f}%).\n"
+            f"• 🔥 Momentum Superior do Visitante: Em contrapartida, o visitante {away_team} atravessa momento superior ({away_text}).\n"
+            f"• 🛡️ Inversão com Proteção: Recomendação ajustada para {away_team} com cobertura total de reembolso no empate."
         )
     elif away_in_crisis and not home_in_crisis:
         return (
             f"🎯 Fator Crucial: Instabilidade do Visitante e Sequência de Derrotas ({away_text} em U5J).\n"
-            f"Este palpite foi gerado pelo momento delicado do visitante {away_team} fora de casa ({away_text} em U5J). "
-            f"Combinado ao Reajuste Realista do Fator Mando (+10%) e à consistência do {home_team} em casa ({home_text}), a vantagem foi confirmada a favor do {home_team}."
+            f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
+            f"• ⚠️ Instabilidade do Visitante: Momento delicado do visitante {away_team} fora de casa ({away_text} em U5J).\n"
+            f"• 🏟️ Mando de Campo Recalibrado: Reajuste Realista do Fator Mando (+10%) e consistência do {home_team} em casa ({home_text}).\n"
+            f"• 🛡️ Confirmação de Vantagem: Vantagem confirmada a favor do mandante {home_team} com proteção de banca."
         )
     elif away_team.lower() in suggestion.lower():
         if odd_home and odd_away and float(odd_home) > float(odd_away):
@@ -361,22 +365,26 @@ def build_natural_language_motivation(
         if home_team.lower() in suggestion.lower():
             return (
                 f"🎯 Fator Crucial: Mando de Campo Ponderado pelas Odds de Mercado.\n"
-                f"Confronto equilibrado ({home_team} xG: {home_goals_scored:.1f} / U5J: {home_text} vs {away_team} xG: {away_goals_scored:.1f} / U5J: {away_text}).\n"
+                f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
+                f"• 🏟️ Equilíbrio e Fator Casa: Confronto estatisticamente emparelhado ({home_team} xG: {home_goals_scored:.1f} / U5J: {home_text} vs {away_team} xG: {away_goals_scored:.1f} / U5J: {away_text}), onde o fator casa do {home_team} concede vantagem.\n"
                 f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
-                f"A indicação garante a proteção total de reembolso (Empate Anula)."
+                f"• 🛡️ Proteção de Patrimônio: Indicação conservadora com cobertura total de reembolso no empate (0.0 DNB)."
             )
         else:
             return (
                 f"🎯 Fator Crucial: Superioridade do Visitante Ponderada pelas Odds de Mercado.\n"
-                f"Apesar do mando de campo do {home_team}, o visitante {away_team} sobressaiu-se pela combinação do consenso das odds com desempenho superior ajustado.\n"
+                f"A indicação a favor do {away_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
+                f"• ⚡ Desempenho e Momentum: Apesar do mando de campo do {home_team}, o visitante {away_team} sobressaiu-se pelo desempenho superior ajustado em campo.\n"
                 f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
-                f"Indicação de valor a favor do visitante com proteção de reembolso (Empate Anula)."
+                f"• 🛡️ Proteção de Patrimônio: Indicação de valor a favor do visitante com cobertura total de reembolso no empate (0.0 DNB)."
             )
     else:
         return (
             f"🎯 Fator Crucial: Amplo Favoritismo do Visitante ({away_team} +{abs(delta_goals):.2f} xG).\n"
-            f"Este palpite foi gerado pelo momento superior e cotação de mercado do visitante {away_team} ({away_text} em U5J / {away_goals_scored:.1f} g/j){odd_str}, "
-            f"superando o fator casa do mandante {home_team}."
+            f"A indicação a favor do visitante {away_team} fundamenta-se na priorização de 3 critérios de alta precisão:\n"
+            f"• 🔥 Momentum e Produção Ofensiva: Momento superior e alta produção de gols do visitante {away_team} ({away_text} em U5J / {away_goals_scored:.1f} g/j).\n"
+            f"• 📈 Precificação de Mercado: Cotação de mercado e favoritismo do {away_team}{odd_str} superando o fator casa do {home_team}.\n"
+            f"• 🛡️ Proteção de Banca: Recomendação a favor do visitante com cobertura total de reembolso no empate (0.0 DNB)."
         )
 
 def calculate_asian_handicap_suggestion(

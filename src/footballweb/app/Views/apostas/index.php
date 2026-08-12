@@ -1897,6 +1897,32 @@ if (!function_exists('formatBrtDate')) {
     document.body.appendChild(backdrop);
   }
 
+  function hideModalSafely(modalEl) {
+    if (!modalEl) return;
+    try {
+      if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modalObj = bootstrap.Modal.getInstance(modalEl);
+        if (modalObj) {
+          modalObj.hide();
+        }
+      }
+    } catch (e) {}
+
+    try {
+      if (typeof $ !== 'undefined' && typeof $(modalEl).modal === 'function') {
+        $(modalEl).modal('hide');
+      }
+    } catch (e) {}
+
+    modalEl.style.display = 'none';
+    modalEl.classList.remove('show');
+    modalEl.setAttribute('aria-hidden', 'true');
+    modalEl.removeAttribute('aria-modal');
+    document.body.classList.remove('modal-open');
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(b => b.remove());
+  }
+
   function handleOpenEditModal(btn) {
     if (!btn) return;
     try {
@@ -1981,8 +2007,9 @@ if (!function_exists('formatBrtDate')) {
     .then(r => r.json())
     .then(data => {
       if (data.success) {
+        hideModalSafely(document.getElementById('editBetModal'));
         alert('✓ ' + data.message);
-        window.location.href = window.location.pathname;
+        window.location.replace('/apostas');
       } else {
         alert('❌ ' + data.message);
       }
@@ -2007,8 +2034,9 @@ if (!function_exists('formatBrtDate')) {
     .then(r => r.json())
     .then(data => {
       if (data.success) {
+        hideModalSafely(document.getElementById('editBetModal'));
         alert('✓ ' + data.message);
-        window.location.href = window.location.pathname;
+        window.location.replace('/apostas');
       } else {
         alert('❌ ' + data.message);
       }
@@ -2029,7 +2057,7 @@ if (!function_exists('formatBrtDate')) {
     .then(data => {
       if (data.success) {
         alert('✓ ' + data.message);
-        window.location.href = window.location.pathname;
+        window.location.replace('/apostas');
       } else {
         alert('❌ ' + data.message);
       }
@@ -2049,8 +2077,9 @@ if (!function_exists('formatBrtDate')) {
     .then(r => r.json())
     .then(data => {
       if (data.success) {
+        hideModalSafely(document.getElementById('editBetModal'));
         alert('✓ ' + data.message);
-        window.location.href = window.location.pathname;
+        window.location.replace('/apostas');
       } else {
         alert('❌ ' + data.message);
       }
@@ -2078,7 +2107,7 @@ if (!function_exists('formatBrtDate')) {
     .then(data => {
       if (data.success) {
         alert('✓ ' + data.message + '\n\n' + (data.output || ''));
-        window.location.href = window.location.pathname;
+        window.location.replace('/apostas');
       } else {
         alert('❌ ' + data.message);
       }
@@ -2098,9 +2127,23 @@ if (!function_exists('formatBrtDate')) {
     const mercadoParam = urlParams.get('mercado');
     const palpiteParam = urlParams.get('palpite');
 
+    // Chave única para verificar se a auto-abertura vinda da URL já foi processada nesta sessão
+    const autoOpenSessionKey = 'auto_opened_fix_' + (fixId || '') + '_' + (isNewBet ? 'new' : 'edit');
+    const isAlreadyOpened = fixId && sessionStorage.getItem(autoOpenSessionKey) === '1';
+
     // Limpa imediatamente a URL no histórico do navegador para evitar reaberturas acidentais após reloads
     if (window.history && window.history.replaceState && (fixId || isNewBet)) {
       window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // Se já foi processado anteriormente nesta sessão, impede auto-abertura do modal
+    if (isAlreadyOpened) {
+      return;
+    }
+
+    // Marca como processado para evitar qualquer reabertura futura
+    if (fixId) {
+      sessionStorage.setItem(autoOpenSessionKey, '1');
     }
 
     const userApostas = <?= json_encode($apostas ?? []) ?>;

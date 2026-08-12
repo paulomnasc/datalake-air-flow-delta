@@ -69,24 +69,41 @@ if (!function_exists('renderStructuredMotivation')) {
         // Limpa prefixos redundantes
         $cleanText = preg_replace('/^(🎯\s*Fator Crucial:\s*|💡\s*Motivação:\s*|MOTIVACAO:\s*)/u', '', trim($rawMotivation));
 
-        // Tenta extrair tópicos numéricos explícitos (ex: "1. ... 2. ... 3. ...")
         $topics = [];
-        if (preg_match_all('/(?:^|\s*)(?:\d+[\.\)]|•|-)\s*([^0-9•\n\r]+?)(?=(?:\s*\d+[\.\)]|\s*•|\s*-|$))/u', $cleanText, $matches) && count($matches[1]) >= 2) {
-            foreach ($matches[1] as $item) {
-                $t = trim($item, " \t\n\r\0\x0B;.-");
-                if (mb_strlen($t) > 3) {
+
+        // 1. Tenta quebrar por marcadores de tópicos explícitos (ex: "• ")
+        if (strpos($cleanText, '•') !== false) {
+            $rawParts = explode('•', $cleanText);
+            foreach ($rawParts as $part) {
+                $t = trim($part);
+                // Ignora frases introdutórias que não são tópicos reais
+                if (empty($t) || strpos($t, 'A indicação a favor') === 0 || strpos($t, 'fundamenta-se na priorização') !== false) {
+                    continue;
+                }
+                // Garante que o tópico termina de forma limpa sem ponto extra duplo
+                $t = preg_replace('/\.\s*\.$/', '.', $t);
+                $topics[] = $t;
+            }
+        }
+
+        // 2. Se não houver '•', tenta quebrar por linhas de texto "\n"
+        if (empty($topics)) {
+            $lines = explode("\n", $cleanText);
+            foreach ($lines as $line) {
+                $t = trim(preg_replace('/^(?:\d+[\.\)]|•|-)\s*/u', '', trim($line)));
+                if (mb_strlen($t) > 4 && strpos($t, 'A indicação a favor') !== 0 && strpos($t, 'fundamenta-se') === false) {
                     $topics[] = $t;
                 }
             }
         }
 
-        // Se não houver numeração explícita, quebra o texto por frases (ponto final)
+        // 3. Fallback por frases completas se ainda estiver vazio
         if (empty($topics)) {
-            $parts = preg_split('/(?<=[.!?])\s+/u', $cleanText);
-            foreach ($parts as $p) {
-                $p = trim($p, " \t\n\r\0\x0B;.-");
-                if (mb_strlen($p) > 4) {
-                    $topics[] = $p;
+            $sentences = preg_split('/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÀÃÕÇ])/u', $cleanText);
+            foreach ($sentences as $s) {
+                $s = trim($s);
+                if (mb_strlen($s) > 5 && strpos($s, 'A indicação a favor') !== 0) {
+                    $topics[] = $s;
                 }
             }
         }

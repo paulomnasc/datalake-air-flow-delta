@@ -278,8 +278,18 @@ def build_natural_language_motivation(
     home_pts = home_last5.get("pts", 0)
     away_pts = away_last5.get("pts", 0)
 
+    # Prioridade 0: Super Favoritos em Casa (Odd Home <= 1.50)
+    if odd_home and float(odd_home) <= 1.50:
+        return (
+            f"🎯 Fator Crucial: Domínio Estatístico e Alto Favoritismo do Mandante ({home_team} {home_text}).\n"
+            f"A indicação a favor do mandante {home_team} fundamenta-se no alinhamento das odds de mercado e na produção ofensiva em casa:\n"
+            f"• 📈 Consenso das Odds de Mercado: Cotação de alto favoritismo para o mandante {home_team} (Odd {odd_home:.2f} vs {odd_away:.2f}), confirmando ampla probabilidade de vitória.\n"
+            f"• 🏠 Fator Mando e Produção Ofensiva: O {home_team} mantém forte saldo projetado em casa ({home_text}).\n"
+            f"• 🛡️ Proteção de Banca: Indicação a favor do mandante com cobertura de reembolso no empate."
+        )
+
     # Prioridade Máxima: Contraste Severo de Forma Recente (Streak/Momentum Differential)
-    if (away_pts >= 9 or away_last5.get("v", 0) >= 3) and (home_pts <= 7 or home_last5.get("d", 0) >= 2):
+    if (away_pts >= 9 or away_last5.get("v", 0) >= 3) and (home_pts <= 5 or home_last5.get("d", 0) >= 3):
         if odd_home and odd_away and float(odd_home) < float(odd_away):
             market_note = f"• 📈 Contraponto às Odds de Mercado: Embora as odds do mercado atribuam favoritismo ao mandante {home_team} ({odd_home:.2f} vs {odd_away:.2f}), o momento recente superior do {away_team} ({away_text} vs {home_text}) justifica a indicação de proteção (Empate Anula) a favor do visitante."
         else:
@@ -436,7 +446,9 @@ def calculate_asian_handicap_suggestion(
         away_last5_factor = 1.00
 
     # CONTRASTE DE FORMA RECENTE (Momentum Differential)
-    form_contrast = (away_pts >= 9 or away_v >= 3) and (home_pts <= 7 or home_d >= 2 or home_recent_losses >= 2)
+    # Dispara APENAS se o mandante estiver em má fase real (<= 5 pts em U5J) E o visitante estiver muito forte (>= 9 pts), e NÃO para super favoritos (odd_home <= 1.50)
+    is_heavy_home_fav = (odd_home and float(odd_home) <= 1.50)
+    form_contrast = (not is_heavy_home_fav) and (away_pts >= 9 or away_v >= 3) and (home_pts <= 5 or home_d >= 3 or home_recent_losses >= 3)
     if form_contrast:
         home_mando_factor = 0.95  # Neutraliza o bônus de casa devido à crise/sequência ruim
         away_streak_factor = max(1.25, away_recent_wins * 0.10 + 1.15)
@@ -1017,9 +1029,41 @@ def main():
             prediction_text = "Sem análise disponível para este confronto."
             over_cards_prob = 50.00
             
-            # Média determinística de cartões dos times
-            home_c_stats = generate_deterministic_team_stats(home_team, 'home')
-            away_c_stats = generate_deterministic_team_stats(away_team, 'away')
+            # Busca estatísticas reais consolidadas na tabela team_moving_averages
+            def get_real_team_stats_from_db(cur_db, t_name, t_id, v_type):
+                if t_id:
+                    cur_db.execute("""
+                        SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards
+                        FROM team_moving_averages
+                        WHERE team_id = %s AND venue_type = %s
+                    """, (t_id, v_type))
+                    r_db = cur_db.fetchone()
+                    if r_db:
+                        return {
+                            "avg_goals_scored": float(r_db["avg_goals_scored"]),
+                            "avg_goals_conceded": float(r_db["avg_goals_conceded"]),
+                            "clean_sheets_pct": float(r_db["clean_sheets_pct"]),
+                            "avg_corners": float(r_db["avg_corners"]),
+                            "avg_cards": float(r_db["avg_cards"])
+                        }
+                cur_db.execute("""
+                    SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards
+                    FROM team_moving_averages
+                    WHERE LOWER(team_name) = LOWER(%s) AND venue_type = %s
+                """, (t_name, v_type))
+                r_db = cur_db.fetchone()
+                if r_db:
+                    return {
+                        "avg_goals_scored": float(r_db["avg_goals_scored"]),
+                        "avg_goals_conceded": float(r_db["avg_goals_conceded"]),
+                        "clean_sheets_pct": float(r_db["clean_sheets_pct"]),
+                        "avg_corners": float(r_db["avg_corners"]),
+                        "avg_cards": float(r_db["avg_cards"])
+                    }
+                return generate_deterministic_team_stats(t_name, v_type)
+
+            home_c_stats = get_real_team_stats_from_db(cursor, home_team, home_team_id, 'home')
+            away_c_stats = get_real_team_stats_from_db(cursor, away_team, away_team_id, 'away')
             team_cards_combined = home_c_stats["avg_cards"] + away_c_stats["avg_cards"]
 
             # Detecção de forma nos últimos 5 jogos e sequência recente

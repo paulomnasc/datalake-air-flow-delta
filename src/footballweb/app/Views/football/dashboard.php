@@ -63,8 +63,8 @@ if (!function_exists('getBookmakerUrl')) {
 }
 
 if (!function_exists('renderStructuredMotivation')) {
-    function renderStructuredMotivation($rawMotivation) {
-        if (empty($rawMotivation)) return '';
+    function renderStructuredMotivation($rawMotivation, $rawReasoning = '', $fix = null) {
+        if (empty($rawMotivation) && empty($rawReasoning) && !$fix) return '';
 
         // Limpa prefixos redundantes
         $cleanText = preg_replace('/^(🎯\s*Fator Crucial:\s*|💡\s*Motivação:\s*|MOTIVACAO:\s*)/u', '', trim($rawMotivation));
@@ -112,6 +112,94 @@ if (!function_exists('renderStructuredMotivation')) {
             $topics[] = $cleanText;
         }
 
+        // Extração/Cálculo dos dados de Probabilidade 1X2 (%) para a tabela de fecho
+        $fullSource = $rawMotivation . ' ' . $rawReasoning;
+        $probData = null;
+        if (preg_match('/\|\|\s*PROBABILIDADES_1X2:\s*(\{.*?\})/u', $fullSource, $mProb)) {
+            $probData = json_decode($mProb[1], true);
+        }
+
+        if (!$probData && $fix) {
+            $oh = (float)($fix->odd_home ?? 0);
+            $od = (float)($fix->odd_draw ?? 3.20);
+            $oa = (float)($fix->odd_away ?? 0);
+            $lh = max(0.4, (float)($fix->home_avg_goals_scored ?? 1.3));
+            $la = max(0.4, (float)($fix->away_avg_goals_scored ?? 1.1));
+
+            $fact = function($n) {
+                $f = 1;
+                for ($i = 2; $i <= $n; $i++) $f *= $i;
+                return $f;
+            };
+
+            $ph = $pd = $pa = 0.0;
+            for ($hg = 0; $hg < 10; $hg++) {
+                for ($ag = 0; $ag < 10; $ag++) {
+                    $p_h = (pow($lh, $hg) * exp(-$lh)) / $fact($hg);
+                    $p_a = (pow($la, $ag) * exp(-$la)) / $fact($ag);
+                    $pj = $p_h * $p_a;
+                    if ($hg > $ag) $ph += $pj;
+                    elseif ($hg == $ag) $pd += $pj;
+                    else $pa += $pj;
+                }
+            }
+            $tot = max(0.0001, $ph + $pd + $pa);
+            $platH = round(($ph / $tot) * 100, 1);
+            $platD = round(($pd / $tot) * 100, 1);
+            $platA = round(($pa / $tot) * 100, 1);
+
+            $bancaH = 45.0; $bancaD = 30.0; $bancaA = 25.0;
+            if ($oh > 1.0 && $oa > 1.0) {
+                $ih = 1.0 / $oh; $id = 1.0 / $od; $ia = 1.0 / $oa;
+                $sinv = max(0.0001, $ih + $id + $ia);
+                $bancaH = round(($ih / $sinv) * 100, 1);
+                $bancaD = round(($id / $sinv) * 100, 1);
+                $bancaA = round(($ia / $sinv) * 100, 1);
+            }
+            $probData = ['plat_h' => $platH, 'plat_d' => $platD, 'plat_a' => $platA, 'banca_h' => $bancaH, 'banca_d' => $bancaD, 'banca_a' => $bancaA];
+        }
+
+        $probTableHtml = '';
+        if ($probData) {
+            $platH = number_format($probData['plat_h'] ?? 0, 1) . '%';
+            $platD = number_format($probData['plat_d'] ?? 0, 1) . '%';
+            $platA = number_format($probData['plat_a'] ?? 0, 1) . '%';
+            
+            $bancaH = number_format($probData['banca_h'] ?? 0, 1) . '%';
+            $bancaD = number_format($probData['banca_d'] ?? 0, 1) . '%';
+            $bancaA = number_format($probData['banca_a'] ?? 0, 1) . '%';
+
+            $probTableHtml .= '<div style="margin-top: 10px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 10px 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">';
+            $probTableHtml .= '<div style="font-size: 0.76rem; font-weight: 700; color: #38bdf8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">';
+            $probTableHtml .= '<i class="bi bi-bar-chart-line-fill" style="color: #38bdf8; font-size: 0.85rem;"></i> 📊 Probabilidade 1 X 2 (%) — Modelo Plataforma vs Casa de Apostas:';
+            $probTableHtml .= '</div>';
+            $probTableHtml .= '<table style="width: 100%; font-size: 0.74rem; text-align: center; border-collapse: collapse; color: #e2e8f0;">';
+            $probTableHtml .= '<thead>';
+            $probTableHtml .= '<tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-size: 0.70rem; text-transform: uppercase;">';
+            $probTableHtml .= '<th style="padding: 4px 6px; text-align: left;">Fonte / Probabilidade</th>';
+            $probTableHtml .= '<th style="padding: 4px 6px; color: #38bdf8;">1 (Mandante)</th>';
+            $probTableHtml .= '<th style="padding: 4px 6px; color: #f59e0b;">X (Empate)</th>';
+            $probTableHtml .= '<th style="padding: 4px 6px; color: #ef4444;">2 (Visitante)</th>';
+            $probTableHtml .= '</tr>';
+            $probTableHtml .= '</thead>';
+            $probTableHtml .= '<tbody>';
+            $probTableHtml .= '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05); font-weight: 800; color: #38bdf8; background: rgba(56, 189, 248, 0.08);">';
+            $probTableHtml .= '<td style="padding: 5px 6px; text-align: left; color: #38bdf8;"><i class="bi bi-cpu me-1"></i> Plataforma (Modelo IA)</td>';
+            $probTableHtml .= '<td style="padding: 5px 6px;">' . $platH . '</td>';
+            $probTableHtml .= '<td style="padding: 5px 6px;">' . $platD . '</td>';
+            $probTableHtml .= '<td style="padding: 5px 6px;">' . $platA . '</td>';
+            $probTableHtml .= '</tr>';
+            $probTableHtml .= '<tr style="color: #cbd5e1;">';
+            $probTableHtml .= '<td style="padding: 5px 6px; text-align: left; color: #94a3b8;"><i class="bi bi-bank me-1"></i> Casa de Apostas (Odds)</td>';
+            $probTableHtml .= '<td style="padding: 5px 6px;">' . $bancaH . '</td>';
+            $probTableHtml .= '<td style="padding: 5px 6px;">' . $bancaD . '</td>';
+            $probTableHtml .= '<td style="padding: 5px 6px;">' . $bancaA . '</td>';
+            $probTableHtml .= '</tr>';
+            $probTableHtml .= '</tbody>';
+            $probTableHtml .= '</table>';
+            $probTableHtml .= '</div>';
+        }
+
         $html = '<div class="motivation-structured-box" style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.25); border-left: 4px solid #38bdf8; border-radius: 8px;">';
         $html .= '<div style="font-size: 0.76rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">';
         $html .= '<i class="bi bi-list-check" style="font-size: 0.88rem; color: #38bdf8;"></i> 💡 Motivação Detalhada do Palpite:';
@@ -127,6 +215,7 @@ if (!function_exists('renderStructuredMotivation')) {
         }
 
         $html .= '</ol>';
+        $html .= $probTableHtml;
         $html .= '</div>';
 
         return $html;
@@ -2672,7 +2761,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 </div>
 
                                                 <?php if (!empty($motivation)): ?>
-                                                    <?= renderStructuredMotivation($motivation) ?>
+                                                    <?= renderStructuredMotivation($motivation, $raw_reasoning, $fix) ?>
                                                 <?php endif; ?>
 
                                                 <?php if (!empty($calc_details)): ?>

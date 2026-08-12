@@ -337,12 +337,17 @@ def build_natural_language_motivation(
         else:
             odds_market_text = f"Análise estatística interna aplicada para o {home_team} (odds de mercado não disponíveis no momento)."
 
+        if home_cs_pct >= 40.0:
+            cs_note = f"• 🛡️ Solidez Defensiva em Casa: O {home_team} manteve a defesa intacta em {home_cs_pct:.1f}% das partidas em seus domínios."
+        else:
+            cs_note = f"• ⚠️ Vulnerabilidade Defensiva em Casa: O {home_team} apresentou fragilidade defensiva em casa (defesa vazada na maioria dos jogos / apenas {home_cs_pct:.1f}% sem sofrer gols em casa)."
+
         return (
             f"🎯 Fator Crucial: Peso Ponderado do Mercado e Mando de Campo (+10%) ({home_team} +{delta_goals:.2f} xG Projetados Pré-Jogo).\n"
             f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
             f"• 🏟️ Reajuste Realista do Fator Mando (+10% em casa / -7% fora): A força de jogar em seus domínios impulsiona a produção ofensiva do {home_team} ({home_goals_scored:.1f} g/j).\n"
             f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
-            f"• 🛡️ Preservação de Histórico em Casa: O desempenho do {home_team} em casa é preservado ({home_cs_pct:.1f}% Zero Gols em Casa)."
+            f"{cs_note}"
         )
     elif delta_goals >= -0.60:
         if odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0:
@@ -611,6 +616,46 @@ def calculate_asian_handicap_suggestion(
             team_fav = m_team.group(1).strip()
         suggestion = f"{team_fav} 0.0 (Empate Anula)"
 
+    # Cálculo das Probabilidades 1X2 (%) Plataforma (Modelo Poisson) vs Casa de Apostas (Odds)
+    import math
+    p_h = p_d = p_a = 0.0
+    for hg in range(10):
+        for ag in range(10):
+            ph = (math.pow(lambda_home, hg) * math.exp(-lambda_home)) / math.factorial(hg)
+            pa = (math.pow(lambda_away, ag) * math.exp(-lambda_away)) / math.factorial(ag)
+            pj = ph * pa
+            if hg > ag:
+                p_h += pj
+            elif hg == ag:
+                p_d += pj
+            else:
+                p_a += pj
+    tot = p_h + p_d + p_a
+    plat_h = round((p_h / tot) * 100, 1)
+    plat_d = round((p_d / tot) * 100, 1)
+    plat_a = round((p_a / tot) * 100, 1)
+
+    banca_h = 45.0
+    banca_d = 30.0
+    banca_a = 25.0
+    if odd_home and odd_away:
+        try:
+            oh = float(odd_home)
+            oa = float(odd_away)
+            od = float(odd_draw) if (odd_draw and float(odd_draw) > 1.0) else 3.20
+            if oh > 1.0 and oa > 1.0:
+                ih = 1.0 / oh
+                id_ = 1.0 / od
+                ia = 1.0 / oa
+                s_inv = ih + id_ + ia
+                banca_h = round((ih / s_inv) * 100, 1)
+                banca_d = round((id_ / s_inv) * 100, 1)
+                banca_a = round((ia / s_inv) * 100, 1)
+        except Exception:
+            pass
+    prob_1x2_data = {"plat_h": plat_h, "plat_d": plat_d, "plat_a": plat_a, "banca_h": banca_h, "banca_d": banca_d, "banca_a": banca_a}
+    prob_1x2_json = json.dumps(prob_1x2_data, ensure_ascii=False)
+
     nl_explanation = build_natural_language_explanation(suggestion, home_team, away_team)
     nl_motivation = build_natural_language_motivation(
         suggestion, home_team, away_team, delta_goals,
@@ -621,7 +666,7 @@ def calculate_asian_handicap_suggestion(
     )
     u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
 
-    full_reasoning = f"{main_reason} || EXPLICACAO: {nl_explanation} || MOTIVACAO: {nl_motivation} || MEMÓRIA DE CÁLCULO || {calc_memory} || U5J_DATA: {u5j_json}"
+    full_reasoning = f"{main_reason} || EXPLICACAO: {nl_explanation} || MOTIVACAO: {nl_motivation} || MEMÓRIA DE CÁLCULO || {calc_memory} || PROBABILIDADES_1X2: {prob_1x2_json} || U5J_DATA: {u5j_json}"
     return suggestion, confidence, full_reasoning
 
 

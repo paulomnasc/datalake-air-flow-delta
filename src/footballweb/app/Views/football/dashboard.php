@@ -2093,6 +2093,7 @@ if (!function_exists('getBetDecisionTree')) {
                             </p>
                         </div>
                     <?php else: ?>
+                        <?php $cardIndex = 0; ?>
                         <?php foreach ($fixtures as $fix): ?>
                             <?php
                             $jsAttr = function($val) {
@@ -2201,6 +2202,12 @@ if (!function_exists('getBetDecisionTree')) {
                             <?php
                             $requiresCredits = \App\Helpers\SubscriptionHelper::leagueRequiresCredits($fix->league_name);
                             $isCardLocked = $requiresCredits && (!$userLoggedIn || !$isGoogleUser || $userGrokCredits <= 0);
+                            
+                            // Sempre mantém o primeiro card desbloqueado para degustação (visitantes / sem tokens)
+                            if ($cardIndex === 0) {
+                                $isCardLocked = false;
+                            }
+                            $cardIndex++;
                             
                              $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']);
                              if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {

@@ -1384,13 +1384,13 @@ def update_oddspedia_odds(conn):
 
         scraped_matches_op = []
         try:
-            scraped_matches_op = scrape_oddspedia_odds(leagues=['serie-a', 'serie-b']) or []
+            scraped_matches_op = scrape_oddspedia_odds(leagues=['serie-a', 'serie-b', 'copa-libertadores', 'copa-sudamericana', 'argentina']) or []
         except Exception as e_op:
             print(f"Aviso ao consultar Oddspedia: {e_op}")
 
         scraped_matches_f24 = []
         try:
-            scraped_matches_f24 = scrape_futbol24_odds(leagues=['serie-a', 'serie-b', 'argentina']) or []
+            scraped_matches_f24 = scrape_futbol24_odds(leagues=['serie-a', 'serie-b', 'copa-libertadores', 'copa-sudamericana', 'argentina']) or []
         except Exception as e_f24:
             print(f"Aviso ao consultar Futbol24: {e_f24}")
         
@@ -1459,29 +1459,25 @@ def update_oddspedia_odds(conn):
             if not valid_c1 or not valid_cX or not valid_c2:
                 return 0.0, "", 0.0, "", 0.0, ""
 
+            # Casas completas (possuem odd para Casa, Empate e Fora na mesma partida)
             all_bms = set(valid_c1.keys()) & set(valid_cX.keys()) & set(valid_c2.keys())
-            best_combo = None
-            max_p = -1.0
 
-            for b1, c1 in valid_c1.items():
-                for bX, cX in valid_cX.items():
-                    for b2, c2 in valid_c2.items():
-                        inv = (1.0/c1) + (1.0/cX) + (1.0/c2)
-                        p = ((1.0 - inv) * 100.0) if inv < 1.0 else -((inv - 1.0) * 100.0)
-                        num_diff_bms = len({b1, bX, b2})
-                        if num_diff_bms > 1 and 0.0 <= p <= 15.0:
-                            if p > max_p:
-                                max_p = p
-                                best_combo = (c1, b1, cX, bX, c2, b2)
+            # Hierarquia oficial de preferência de casas de apostas de referência
+            preferred_hierarchy = ['BET365', 'BETANO', 'PINNACLE', 'BETFAIR', '1XBET', 'BETWAY', 'UNIBET', 'COOLBET', '888SPORT', 'WILLIAM HILL']
+            
+            # 1. Busca pela casa preferida de referência que tenha a linha completa
+            for pref in preferred_hierarchy:
+                matching = [b for b in all_bms if pref in b.upper()]
+                if matching:
+                    target_bm = matching[0]
+                    return valid_c1[target_bm], target_bm, valid_cX[target_bm], target_bm, valid_c2[target_bm], target_bm
 
-            if best_combo:
-                return best_combo
-
-            pinnacle_bms = [b for b in all_bms if 'PINNACLE' in b]
-            target_bm = pinnacle_bms[0] if pinnacle_bms else (list(all_bms)[0] if all_bms else None)
-            if target_bm:
+            # 2. Caso nenhuma da hierarquia esteja disponível, usa a primeira casa com linha 1X2 completa
+            if all_bms:
+                target_bm = list(all_bms)[0]
                 return valid_c1[target_bm], target_bm, valid_cX[target_bm], target_bm, valid_c2[target_bm], target_bm
 
+            # 3. Fallback: pega maior odd individual indicando a casa de cada opção
             b1, m1 = max(valid_c1.items(), key=lambda x: x[1])
             bX, mX = max(valid_cX.items(), key=lambda x: x[1])
             b2, m2 = max(valid_c2.items(), key=lambda x: x[1])
@@ -1605,7 +1601,8 @@ def update_oddspedia_odds(conn):
                         odd_draw = %s, casa_odd_draw = %s,
                         odd_away = %s, casa_odd_away = %s,
                         is_surebet = %s, surebet_profit_pct = %s,
-                        ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s
+                        ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s,
+                        updated_at = NOW()
                     WHERE fixture_id = %s
                 """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, is_surebet, profit_pct, sug, conf, reason, fix_id))
                 updated_count += 1

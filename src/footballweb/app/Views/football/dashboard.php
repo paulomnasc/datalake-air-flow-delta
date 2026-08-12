@@ -7,10 +7,14 @@ require VIEWPATH.'/header.php';
 if (!function_exists('getBookmakerUrl')) {
     function getBookmakerUrl($bmName) {
         $bm = strtoupper(trim($bmName ?? ''));
+        if (empty($bm)) {
+            return 'https://www.bet365.com/';
+        }
+
         $urls = [
+            'BET365'       => 'https://www.bet365.com/',
             'BETANO'       => 'https://br.betano.com/',
             'SPORTINGBET'  => 'https://www.sportingbet.com/pt-br',
-            'BET365'       => 'https://www.bet365.com/',
             'SUPERBET'     => 'https://superbet.com/pt-br/',
             'KTO'          => 'https://www.kto.com/pt/',
             'BETFAIR'      => 'https://www.betfair.com/br',
@@ -21,9 +25,30 @@ if (!function_exists('getBookmakerUrl')) {
             'PINNACLE'     => 'https://www.pinnacle.com/',
             'ESTRELA'      => 'https://estrelabet.com/',
             'RIVALO'       => 'https://www.rivalo.com/pt',
-            '1XBET'        => 'https://br.1xbet.com/',
+            '1XBET'        => 'https://1xbet.com/',
             'GALERA'       => 'https://www.galera.bet/',
-            'BLAZE'        => 'https://blaze.com/'
+            'BLAZE'        => 'https://blaze.com/',
+            'UNIBET'       => 'https://www.unibet.com/',
+            'CASUMO'       => 'https://www.casumo.com/',
+            'GROSVENOR'    => 'https://www.grosvenorcasinos.com/sport',
+            'LADBROKES'    => 'https://sports.ladbrokes.com/',
+            'BETSSON'      => 'https://www.betsson.com/',
+            'COOLBET'      => 'https://www.coolbet.com/',
+            '888SPORT'     => 'https://www.888sport.com/',
+            'WILLIAM HILL' => 'https://sports.williamhill.com/',
+            'BETWAY'       => 'https://www.betway.com/',
+            'LEOVEGAS'     => 'https://www.leovegas.com/',
+            'PADDY POWER'  => 'https://sports.paddypower.com/',
+            'CORAL'        => 'https://sports.coral.co.uk/',
+            'VIRGIN'       => 'https://www.virginbet.com/',
+            'LIVESCORE'    => 'https://www.livescorebet.com/',
+            'WINAMAX'      => 'https://www.winamax.fr/',
+            'MARATHON'     => 'https://www.marathonbet.com/',
+            'CODERE'       => 'https://www.codere.es/',
+            'BETCLIC'      => 'https://www.betclic.fr/',
+            'MATCHBOOK'    => 'https://www.matchbook.com/',
+            'BETONLINE'    => 'https://www.betonline.ag/',
+            'SMARKETS'     => 'https://smarkets.com/'
         ];
         
         foreach ($urls as $key => $url) {
@@ -31,7 +56,9 @@ if (!function_exists('getBookmakerUrl')) {
                 return $url;
             }
         }
-        return 'https://www.google.com/search?q=' . urlencode('casa de aposta ' . $bmName);
+        
+        $cleanDomain = preg_replace('/[^a-z0-9]/', '', strtolower($bmName));
+        return 'https://www.' . $cleanDomain . '.com/';
     }
 }
 
@@ -2242,17 +2269,33 @@ if (!function_exists('getBetDecisionTree')) {
                                          $urlDraw = getBookmakerUrl($fix->casa_odd_draw ?? '');
                                          $urlAway = getBookmakerUrl($fix->casa_odd_away ?? '');
                                          $oddSourceLabel = !empty($fix->casa_odd_home) ? htmlspecialchars($fix->casa_odd_home) : 'ODDSPEDIA';
+                                         
+                                         $oddsUpdatedAtFormatted = 'Atualizado recentemente';
+                                         if (!empty($fix->updated_at)) {
+                                             try {
+                                                 $dtOdds = new DateTime($fix->updated_at, new DateTimeZone('UTC'));
+                                                 $dtOdds->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+                                                 $oddsUpdatedAtFormatted = $dtOdds->format('d/m/Y \à\s H:i');
+                                             } catch (\Exception $eFormat) {
+                                                 $oddsUpdatedAtFormatted = date('d/m/Y \à\s H:i', strtotime($fix->updated_at));
+                                             }
+                                         }
                                          ?>
                                          <div class="oddspedia-widget-box" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
-                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
                                                  <span style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
                                                      <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> Cotações 1X2 (<?= $oddSourceLabel ?>)
                                                  </span>
-                                                 <?php if (!empty($fix->is_surebet)): ?>
-                                                     <span class="badge" style="background: rgba(0, 230, 118, 0.2); border: 1px solid #00e676; color: #00e676; font-weight: 800; font-size: 0.75rem; padding: 3px 8px; border-radius: 20px; box-shadow: 0 0 10px rgba(0, 230, 118, 0.4); animation: pulse-live 1.5s infinite;">
-                                                         ⚡ SUREBET +<?= number_format($fix->surebet_profit_pct ?? 0, 2) ?>%
+                                                 <div style="display: flex; align-items: center; gap: 8px;">
+                                                     <span style="font-size: 0.70rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 2px 7px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora da última raspagem e atualização da odd">
+                                                         <i class="bi bi-clock-history" style="font-size: 0.72rem;"></i> <?= $oddsUpdatedAtFormatted ?>
                                                      </span>
-                                                 <?php endif; ?>
+                                                     <?php if (!empty($fix->is_surebet)): ?>
+                                                         <span class="badge" style="background: rgba(0, 230, 118, 0.2); border: 1px solid #00e676; color: #00e676; font-weight: 800; font-size: 0.75rem; padding: 3px 8px; border-radius: 20px; box-shadow: 0 0 10px rgba(0, 230, 118, 0.4); animation: pulse-live 1.5s infinite;">
+                                                             ⚡ SUREBET +<?= number_format($fix->surebet_profit_pct ?? 0, 2) ?>%
+                                                         </span>
+                                                     <?php endif; ?>
+                                                 </div>
                                              </div>
                                              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center;">
                                                  <!-- Casa 1 -->

@@ -1343,17 +1343,18 @@ def main():
                             t_id = team_st.get("team", {}).get("id")
                             is_home = (t_id == home_team_id)
                             stats_list = team_st.get("statistics", [])
-                            ck, sg, xg_val = 0, 0, 0.0
+                            ck, sg, s_total, xg_val = 0, 0, 0, 0.0
                             yc, rc = 0, 0
                             for s in stats_list:
                                 s_type = (s.get("type") or "").strip()
                                 s_val = s.get("value")
                                 if s_type == "Corner Kicks" and s_val is not None:
                                     ck = int(s_val)
-                                elif s_type in ["Total Shots", "Shots on Goal"] and s_val is not None:
-                                    if s_type == "Total Shots" or sg == 0:
-                                        sg = int(s_val)
-                                elif s_type.lower() in ["expected_goals", "expected goals", "xg"] and s_val is not None:
+                                elif s_type in ["Shots on Goal", "Shots on Target"] and s_val is not None:
+                                    sg = int(s_val)
+                                elif s_type in ["Total Shots", "Shots"] and s_val is not None:
+                                    s_total = int(s_val)
+                                elif s_type.lower().replace("_", " ").strip() in ["expected goals", "xg", "expectedgoals"] and s_val is not None:
                                     try:
                                         xg_val = float(s_val)
                                     except (ValueError, TypeError):
@@ -1363,15 +1364,28 @@ def main():
                                 elif s_type == "Red Cards" and s_val is not None:
                                     rc = int(s_val)
 
+                            if sg == 0 and s_total > 0:
+                                sg = s_total
+
+                            # Fallback para cálculo de xG em tempo real quando o xG oficial (Opta) não é fornecido pela API-Sports nesta liga
+                            if xg_val == 0.0:
+                                team_goals = int(goals_home if is_home else goals_away) if (goals_home is not None and goals_away is not None) else 0
+                                shots_off = max(0, s_total - sg)
+                                if sg > 0 or s_total > 0 or team_goals > 0:
+                                    calc_xg = round((sg * 0.32) + (shots_off * 0.08) + (team_goals * 0.15), 2)
+                                    if calc_xg == 0.0 and team_goals > 0:
+                                        calc_xg = round(team_goals * 0.75, 2)
+                                    xg_val = max(0.0, calc_xg)
+
                             if is_home:
                                 corners_home = ck
-                                shots_home = sg
+                                shots_home = sg if sg > 0 else s_total
                                 xg_home = xg_val
                                 yellow_cards_home = yc
                                 red_cards_home = rc
                             else:
                                 corners_away = ck
-                                shots_away = sg
+                                shots_away = sg if sg > 0 else s_total
                                 xg_away = xg_val
                                 yellow_cards_away = yc
                                 red_cards_away = rc

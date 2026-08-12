@@ -64,6 +64,7 @@ return [
     'today'                 => 'Hoje',
     'tomorrow'              => 'Amanhã',
     'show_finished_games'   => 'Ver jogos encerrados ?',
+    'only_live_games'       => 'Somente jogos em andamento',
     'yes'                   => 'Sim',
     'no'                    => 'Não',
     'search_placeholder'    => 'Buscar times, liga ou árbitro...',

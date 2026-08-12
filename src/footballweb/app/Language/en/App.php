@@ -64,6 +64,7 @@ return [
     'today'                 => 'Today',
     'tomorrow'              => 'Tomorrow',
     'show_finished_games'   => 'Show finished matches?',
+    'only_live_games'       => 'Only live matches',
     'yes'                   => 'Yes',
     'no'                    => 'No',
     'search_placeholder'    => 'Search teams, league or referee...',

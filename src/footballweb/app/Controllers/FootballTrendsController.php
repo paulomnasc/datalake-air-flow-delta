@@ -100,6 +100,10 @@ class FootballTrendsController extends BaseController
         $onlySurebetParam = $this->request->getVar('only_surebet');
         $onlySurebet = ($onlySurebetParam === '1' || $onlySurebetParam === 'true' || $onlySurebetParam === 'sim');
 
+        // Filtro para exibir apenas jogos em andamento (Ao Vivo)
+        $onlyLiveParam = $this->request->getVar('only_live');
+        $onlyLive = ($onlyLiveParam === '1' || $onlyLiveParam === 'true' || $onlyLiveParam === 'sim');
+
         // Conecta ao banco para realizar a query com join
         $db = \Config\Database::connect();
         $builder = $db->table('fixtures_trends ft');
@@ -117,18 +121,8 @@ class FootballTrendsController extends BaseController
             $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}')) <=", $endDate);
         }
 
-        // Nota: A filtragem de Surebets e Apostas Seguras e tratada dinamicamente via JS na View (dashboard.php)
-        // para que o usuario possa alternar os toggles instantaneamente sem perder as partidas carregadas.
-
-        // Se showFinished for falso, exclui jogos encerrados
-        if (!$showFinished) {
-            $builder->whereNotIn('ft.status', ['FT', 'AET', 'PEN', '120', '90']);
-        }
-
-        // Se showPostponed for falso (default: Não), exclui jogos com status PST / CANCELLED / POSTPONED
-        if (!$showPostponed) {
-            $builder->whereNotIn('ft.status', ['PST', 'CANCELLED', 'POSTPONED']);
-        }
+        // Nota: A filtragem de Surebets, Apostas Seguras, Jogos Encerrados, Adiados e Ao Vivo é tratada dinamicamente via JS na View (dashboard.php)
+        // para que o usuario possa alternar os toggles instantaneamente (Sim/Não) sem perder as partidas carregadas na página.
 
         if (!empty($search)) {
             $builder->groupStart()
@@ -209,6 +203,7 @@ class FootballTrendsController extends BaseController
             'showPostponed'     => $showPostponed,
             'onlySafe'          => $onlySafe,
             'onlySurebet'       => $onlySurebet,
+            'onlyLive'          => $onlyLive,
             'userBetFixtureIds' => $userBetFixtureIds,
             'allBetFixtureIds'  => $allBetFixtureIds,
             'fixtures'          => $fixtures,

@@ -1966,10 +1966,11 @@ if (!function_exists('getBetDecisionTree')) {
                                     $next3days = date('Y-m-d', strtotime('+3 days'));
                                     $next7days = date('Y-m-d', strtotime('+7 days'));
                                     
-                                    $showFinishedQuery = $showFinished ? '&show_finished=1' : '';
-                                    $showPostponedQuery = !empty($showPostponed) ? '&show_postponed=1' : '';
+                                    $showFinishedQuery = '&show_finished=' . ($showFinished ? '1' : '0');
+                                    $showPostponedQuery = '&show_postponed=' . (!empty($showPostponed) ? '1' : '0');
+                                    $onlyLiveQuery = !empty($onlyLive) ? '&only_live=1' : '';
                                     $searchQuery = !empty($search) ? '&search=' . urlencode($search) : '';
-                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $searchQuery;
+                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $onlyLiveQuery . $searchQuery;
                                     ?>
                                     <a href="?start_date=<?= $yesterday ?>&end_date=<?= $yesterday ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $yesterday && $endDate === $yesterday) ? 'active' : '' ?>">
                                         <i class="bi bi-chevron-left"></i> <?= lang('App.yesterday') ?>
@@ -2000,20 +2001,22 @@ if (!function_exists('getBetDecisionTree')) {
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #aeb9c4; font-weight: 600;"><?= lang('App.show_finished_games') ?></span>
                                     <label class="bet-switch">
-                                        <input type="checkbox" name="show_finished" value="1" <?= $showFinished ? 'checked' : '' ?> onchange="document.getElementById('filterForm').submit()">
+                                        <input type="hidden" name="show_finished" value="0">
+                                        <input type="checkbox" id="showFinishedToggle" name="show_finished" value="1" <?= $showFinished ? 'checked' : '' ?> onchange="toggleShowFinishedFilter(this)">
                                         <span class="bet-slider round"></span>
                                     </label>
-                                    <span class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= $showFinished ? '#f47c20' : '#8a99a8' ?>;">
+                                    <span id="showFinishedToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= $showFinished ? '#f47c20' : '#8a99a8' ?>;">
                                         <?= $showFinished ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #aeb9c4; font-weight: 600;">Exibir Adiados (PST)</span>
                                     <label class="bet-switch">
-                                        <input type="checkbox" name="show_postponed" value="1" <?= !empty($showPostponed) ? 'checked' : '' ?> onchange="document.getElementById('filterForm').submit()">
+                                        <input type="hidden" name="show_postponed" value="0">
+                                        <input type="checkbox" id="showPostponedToggle" name="show_postponed" value="1" <?= !empty($showPostponed) ? 'checked' : '' ?> onchange="toggleShowPostponedFilter(this)">
                                         <span class="bet-slider round"></span>
                                     </label>
-                                    <span class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($showPostponed) ? '#f59e0b' : '#8a99a8' ?>;">
+                                    <span id="showPostponedToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($showPostponed) ? '#f59e0b' : '#8a99a8' ?>;">
                                         <?= !empty($showPostponed) ? 'Sim' : 'Não' ?>
                                     </span>
                                 </div>
@@ -2041,7 +2044,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         <?= !empty($onlySurebet) ? 'Sim' : 'Não' ?>
                                     </span>
                                 </div>
-                                <div class="d-flex align-items-center gap-2" style="background: rgba(192, 132, 252, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(192, 132, 252, 0.3);" title="Exibir apenas partidas que possuem apostas cadastradas">
+                                 <div class="d-flex align-items-center gap-2" style="background: rgba(192, 132, 252, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(192, 132, 252, 0.3);" title="Exibir apenas partidas que possuem apostas cadastradas">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #c084fc; font-weight: 600;">
                                         🃏 Com Aposta
                                     </span>
@@ -2051,6 +2054,18 @@ if (!function_exists('getBetDecisionTree')) {
                                     </label>
                                     <span id="onlyHasBetToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: #8a99a8;">
                                         Não
+                                    </span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2" style="background: rgba(239, 68, 68, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(239, 68, 68, 0.3);" title="Exibir apenas partidas em andamento (Ao Vivo)">
+                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #f87171; font-weight: 600;">
+                                        🔴 Em Andamento
+                                    </span>
+                                    <label class="bet-switch">
+                                        <input type="checkbox" id="onlyLiveToggle" name="only_live" value="1" <?= !empty($onlyLive) ? 'checked' : '' ?> onchange="toggleLiveBetsFilter(this)">
+                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
+                                    </label>
+                                    <span id="onlyLiveToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlyLive) ? '#ef4444' : '#8a99a8' ?>;">
+                                        <?= !empty($onlyLive) ? 'Sim' : 'Não' ?>
                                     </span>
                                 </div>
                             </div>
@@ -2246,7 +2261,12 @@ if (!function_exists('getBetDecisionTree')) {
                                  elseif (strpos($lNameLower, 'k league') !== false) { $cName = 'Coreia do Sul'; $cFlag = '🇰🇷'; }
                              }
                              ?>
-                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
+                             <?php
+                             $finishedStatusesList = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
+                             $isPostponedCard = in_array($statusClean, ['PST', 'CANCELLED', 'POSTPONED', 'CANC']);
+                             $isFinishedCard = in_array($statusClean, $finishedStatusesList) || ($fix->goals_home !== null && !$isLiveMatch && !$isPostponedCard) || (isset($diffMins) && $diffMins > 120 && !$isLiveMatch && !$isPostponedCard);
+                             ?>
+                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
@@ -3444,9 +3464,32 @@ if (!function_exists('getBetDecisionTree')) {
         applyFilters();
     });
 
+    let currentShowFinishedFilter = <?= $showFinished ? 'true' : 'false' ?>;
+    let currentShowPostponedFilter = <?= !empty($showPostponed) ? 'true' : 'false' ?>;
     let currentOnlySafeFilter = <?= !empty($onlySafe) ? 'true' : 'false' ?>;
     let currentOnlySurebetFilter = <?= !empty($onlySurebet) ? 'true' : 'false' ?>;
     let currentOnlyHasBetFilter = false;
+    let currentOnlyLiveFilter = <?= !empty($onlyLive) ? 'true' : 'false' ?>;
+
+    function toggleShowFinishedFilter(checkbox) {
+        currentShowFinishedFilter = checkbox.checked;
+        const statusSpan = document.getElementById('showFinishedToggleStatus');
+        if (statusSpan) {
+            statusSpan.innerText = currentShowFinishedFilter ? 'Sim' : 'Não';
+            statusSpan.style.color = currentShowFinishedFilter ? '#f47c20' : '#8a99a8';
+        }
+        applyFilters();
+    }
+
+    function toggleShowPostponedFilter(checkbox) {
+        currentShowPostponedFilter = checkbox.checked;
+        const statusSpan = document.getElementById('showPostponedToggleStatus');
+        if (statusSpan) {
+            statusSpan.innerText = currentShowPostponedFilter ? 'Sim' : 'Não';
+            statusSpan.style.color = currentShowPostponedFilter ? '#f59e0b' : '#8a99a8';
+        }
+        applyFilters();
+    }
 
     function toggleSafeBetsFilter(checkbox) {
         currentOnlySafeFilter = checkbox.checked;
@@ -3478,7 +3521,17 @@ if (!function_exists('getBetDecisionTree')) {
         applyFilters();
     }
 
-    // Aplica os filtros combinados (Liga + Aba de Destaques + Busca por Texto + Apenas Apostas Seguras + Surebets + Com Aposta)
+    function toggleLiveBetsFilter(checkbox) {
+        currentOnlyLiveFilter = checkbox.checked;
+        const statusSpan = document.getElementById('onlyLiveToggleStatus');
+        if (statusSpan) {
+            statusSpan.innerText = currentOnlyLiveFilter ? 'Sim' : 'Não';
+            statusSpan.style.color = currentOnlyLiveFilter ? '#ef4444' : '#8a99a8';
+        }
+        applyFilters();
+    }
+
+    // Aplica os filtros combinados (Liga + Aba de Destaques + Busca por Texto + Jogos Encerrados + Adiados + Apenas Apostas Seguras + Surebets + Com Aposta + Em Andamento)
     function applyFilters() {
         const cards = document.querySelectorAll('.bet-card');
         let visibleCount = 0;
@@ -3491,6 +3544,9 @@ if (!function_exists('getBetDecisionTree')) {
             const isSafe = card.getAttribute('data-is-safe') === '1';
             const isSurebet = card.getAttribute('data-is-surebet') === '1';
             const hasAposta = card.getAttribute('data-has-aposta') === '1';
+            const isLive = card.getAttribute('data-is-live') === '1';
+            const isFinished = card.getAttribute('data-is-finished') === '1';
+            const isPostponed = card.getAttribute('data-is-postponed') === '1';
             
             const matchLeague = (currentLeagueFilter === 'all' || cardLeague === currentLeagueFilter);
             const matchTab = (currentTabFilter === 'competicoes' || cardProb >= 70.0);
@@ -3498,8 +3554,11 @@ if (!function_exists('getBetDecisionTree')) {
             const matchSafe = (!currentOnlySafeFilter || isSafe);
             const matchSurebet = (!currentOnlySurebetFilter || isSurebet);
             const matchHasBet = (!currentOnlyHasBetFilter || hasAposta);
+            const matchLive = (!currentOnlyLiveFilter || isLive);
+            const matchFinished = (currentShowFinishedFilter || !isFinished);
+            const matchPostponed = (currentShowPostponedFilter || !isPostponed);
             
-            if (matchLeague && matchTab && matchText && matchSafe && matchSurebet && matchHasBet) {
+            if (matchLeague && matchTab && matchText && matchSafe && matchSurebet && matchHasBet && matchLive && matchFinished && matchPostponed) {
                 card.style.display = 'flex';
                 visibleCount++;
             } else {
@@ -3797,19 +3856,29 @@ if (!function_exists('getBetDecisionTree')) {
                                 }
                                 cardsAwayEl.innerHTML = html;
                             }
+                            const statusUpper = (fix.status || '').toUpperCase();
+                            const isMatchLiveNow = liveStatuses.includes(statusUpper);
+                            const isMatchFinishedNow = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'].includes(statusUpper);
+                            card.setAttribute('data-is-live', isMatchLiveNow ? '1' : '0');
+                            if (isMatchFinishedNow) {
+                                card.setAttribute('data-is-finished', '1');
+                            }
+
                             if (elapsedEl) {
-                                const statusUpper = (fix.status || '').toUpperCase();
-                                if (liveStatuses.includes(statusUpper)) {
+                                if (isMatchLiveNow) {
                                     elapsedEl.classList.add('live');
                                     const minText = fix.elapsed ? fix.elapsed + "'" : (statusUpper === 'HT' ? 'Int' : 'Ao Vivo');
                                     elapsedEl.innerHTML = `<span class="live-pulse-dot"></span> ${minText}`;
-                                } else if (['FT', 'AET', 'PEN', '120', '90'].includes(statusUpper)) {
+                                } else if (isMatchFinishedNow) {
                                     elapsedEl.classList.remove('live');
                                     elapsedEl.textContent = 'Fim';
                                 }
                             }
                         }
                     });
+                    if (currentOnlyLiveFilter || !currentShowFinishedFilter) {
+                        applyFilters();
+                    }
                 }
             })
             .catch(err => console.error('Erro ao atualizar placares ao vivo:', err));

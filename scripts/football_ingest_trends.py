@@ -66,17 +66,8 @@ def fetch_team_last5_form(cursor, team_name, team_id=None):
     """
     matches = []
 
-    # 1. Prioridade Máxima: Raspagem ao vivo no Futbol24 (Últimos Resultados)
-    if scrape_futbol24_team_last5 is not None:
-        try:
-            f24_res = scrape_futbol24_team_last5(team_name, limit=6)
-            if f24_res and f24_res.get("matches"):
-                matches = f24_res["matches"]
-        except Exception as exc:
-            print(f"Aviso ao consultar Futbol24 para '{team_name}': {exc}")
-
-    # 2. Fallback: Consulta no banco MySQL local fixtures_trends
-    if not matches and cursor is not None:
+    # 1. Consulta no banco MySQL local fixtures_trends
+    if cursor is not None:
         try:
             sql = """
                 SELECT home_team, away_team, goals_home, goals_away
@@ -108,6 +99,15 @@ def fetch_team_last5_form(cursor, team_name, team_id=None):
                 matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home})
         except Exception:
             pass
+
+    # 2. Fallback: Raspagem no Futbol24 se o banco não possuir histórico suficiente
+    if len(matches) < 3 and scrape_futbol24_team_last5 is not None:
+        try:
+            f24_res = scrape_futbol24_team_last5(team_name, limit=6)
+            if f24_res and f24_res.get("matches"):
+                matches = f24_res["matches"]
+        except Exception as exc:
+            print(f"Aviso ao consultar Futbol24 para '{team_name}': {exc}")
 
     # 3. Fallback genérico caso não haja partidas raspadas ou locais suficientes
     if len(matches) < 5:
@@ -958,27 +958,59 @@ def main():
     fixtures = list(fixtures_map.values())
     print(f"Total de {len(fixtures)} partidas únicas retornadas pela API.")
     
-    # Ligas permitidas para o MVP (inclui ligas europeias e ligas ativas no verão global)
+    # Ligas e Copas permitidas (inclui principais campeonatos, copas continentais/nacionais e amistosos de clubes)
     ALLOWED_LEAGUES = {
         71: "Serie A (Brasil)",
         72: "Serie B (Brasil)",
-        39: "Premier League (Inglaterra)",
-        140: "La Liga (Espanha)",
-        135: "Serie A (Italia)",
-        78: "Bundesliga (Alemanha)",
-        2: "Champions League (Europa)",
-        13: "Copa Libertadores (America do Sul)",
+        74: "Serie C (Brasil)",
         73: "Copa do Brasil (Brasil)",
-        3: "Europa League (Europa)",
-        11: "Copa Sudamericana (America do Sul)",
-        253: "Major League Soccer (EUA)",
-        262: "Liga MX (Mexico)",
-        113: "Allsvenskan (Suecia)",
-        103: "Eliteserien (Noruega)",
-        94: "Primeira Liga (Portugal)",
+        75: "Copa do Nordeste (Brasil)",
+        642: "Supercopa do Brasil (Brasil)",
+        39: "Premier League (Inglaterra)",
+        40: "Championship (Inglaterra)",
+        41: "League One (Inglaterra)",
+        42: "League Two (Inglaterra)",
+        45: "FA Cup (Inglaterra)",
+        48: "EFL Cup (Inglaterra)",
+        140: "La Liga (Espanha)",
+        141: "La Liga 2 (Espanha)",
+        143: "Copa del Rey (Espanha)",
+        135: "Serie A (Italia)",
+        136: "Serie B (Italia)",
+        137: "Coppa Italia (Italia)",
+        78: "Bundesliga (Alemanha)",
+        79: "2. Bundesliga (Alemanha)",
+        81: "DFB Pokal (Alemanha)",
         61: "Ligue 1 (Franca)",
+        62: "Ligue 2 (Franca)",
+        66: "Coupe de France (Franca)",
+        2: "Champions League (Europa)",
+        3: "Europa League (Europa)",
+        848: "Conference League (Europa)",
+        531: "UEFA Super Cup (Europa)",
+        5: "Nations League (Europa)",
+        4: "Euro (Europa)",
+        13: "Copa Libertadores (America do Sul)",
+        11: "Copa Sudamericana (America do Sul)",
+        541: "Recopa Sudamericana (America do Sul)",
+        9: "Copa America (America do Sul)",
+        253: "Major League Soccer (EUA)",
+        772: "Leagues Cup (America)",
+        262: "Liga MX (Mexico)",
+        263: "Liga de Expansao MX (Mexico)",
+        1028: "CONCACAF Central American Cup (CONCACAF)",
+        16: "CONCACAF Champions Cup (CONCACAF)",
+        113: "Allsvenskan (Suecia)",
+        114: "Superettan (Suecia)",
+        103: "Eliteserien (Noruega)",
+        104: "1. Division (Noruega)",
+        94: "Primeira Liga (Portugal)",
+        95: "Segunda Liga (Portugal)",
         88: "Eredivisie (Holanda)",
+        89: "Eerste Divisie (Holanda)",
         128: "Primera Division (Argentina)",
+        129: "Primera Nacional (Argentina)",
+        130: "Copa Argentina (Argentina)",
         98: "J1 League (Japao)",
         292: "K League 1 (Coreia do Sul)",
         283: "Liga I (Romenia)",
@@ -986,18 +1018,29 @@ def main():
         244: "Veikkausliiga (Finlandia)",
         281: "Primera Division (Peru)",
         242: "Liga Pro (Equador)",
+        917: "Copa Ecuador (Equador)",
         268: "Primera Division (Uruguai)",
         265: "Primera Division (Chile)",
         239: "Primera Division (Colombia)",
+        501: "Copa Paraguay (Paraguai)",
         169: "Super League (China)",
         307: "Saudi Pro League (Arabia Saudita)",
         203: "Super Lig (Turquia)",
         207: "Super League (Suica)",
         144: "Pro League (Belgica)",
         119: "Superliga (Dinamarca)",
+        121: "DBU Pokalen (Dinamarca)",
         218: "Bundesliga (Austria)",
         197: "Super League (Grecia)",
-        1: "Copa do Mundo (Mundo)"
+        179: "Scottish Premiership (Escocia)",
+        106: "Ekstraklasa (Polonia)",
+        345: "Czech First League (Tchequia)",
+        667: "Friendlies Clubs (Amistosos de Clubes)",
+        10: "Friendlies (Amistosos de Selecoes)",
+        1: "Copa do Mundo (Mundo)",
+        15: "FIFA Club World Cup (Mundo)",
+        17: "AFC Champions League (Asia)",
+        18: "AFC Champions League Two (Asia)"
     }
 
     # Filtra partidas pelas ligas permitidas

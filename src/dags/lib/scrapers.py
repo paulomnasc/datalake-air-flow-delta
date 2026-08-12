@@ -838,29 +838,7 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
             raw_slug = _strip_accents(clean_name).replace(' ', '-')
             raw_slug_full = _strip_accents(team_name).replace(' ', '-')
 
-            slug_candidates = [
-                raw_slug.title(),
-                f'CA-{raw_slug.title()}',
-                f'CD-{raw_slug.title()}',
-                raw_slug_full.title(),
-                f'CA-{raw_slug_full.title()}'
-            ]
-
-            found_url = None
-            for c in countries:
-                for s in slug_candidates:
-                    test_url = f'https://www.futbol24.com/pt/equipa/{c}/{s}/'
-                    try:
-                        r = requests.get(test_url, headers=headers, timeout=4, allow_redirects=True)
-                        if r.status_code == 200 and '/equipa/' in r.url:
-                            found_url = r.url
-                            break
-                    except Exception:
-                        pass
-                if found_url:
-                    break
-
-            team_url = found_url or f'https://www.futbol24.com/pt/equipa/Brazil/{_strip_accents(clean_name).title()}/'
+            team_url = f'https://www.futbol24.com/pt/equipa/Brazil/{_strip_accents(clean_name).title()}/'
 
     log.info(f"[SCRAPER-FUTBOL24-LAST] Buscando últimos {limit} jogos de '{team_name}' em {team_url}...")
 

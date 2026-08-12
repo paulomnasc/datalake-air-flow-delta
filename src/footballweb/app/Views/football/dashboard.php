@@ -1701,10 +1701,17 @@ if (!function_exists('getBetDecisionTree')) {
             </div>
         </section>
 
-        <!-- Bloco SEO Server-Side Rendered (SSR) -->
+        <!-- Bloco SEO Server-Side Rendered (SSR) com data e hora atual -->
         <section class="bet-seo-header mb-4 p-3 rounded" style="background: rgba(23, 34, 48, 0.6); border: 1px solid rgba(255, 255, 255, 0.05);">
-            <h1 style="font-size: 1.4rem; font-weight: 800; color: #ffffff; margin-bottom: 8px;">
-                ⚽ Tendências de Futebol Hoje & Estatísticas de Cartões e Escanteios
+            <h1 style="font-size: 1.4rem; font-weight: 800; color: #ffffff; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <span>⚽ Tendências de Futebol Hoje & Estatísticas de Cartões e Escanteios</span>
+                <?php 
+                  $dtNowBrt = new DateTime('now', new DateTimeZone('America/Sao_Paulo'));
+                  $nowFormatted = $dtNowBrt->format('d/m/Y \à\s H:i');
+                ?>
+                <span class="badge" style="background: rgba(0, 230, 118, 0.15); border: 1px solid rgba(0, 230, 118, 0.3); color: #00e676; font-size: 0.8rem; font-weight: 700; padding: 5px 12px; border-radius: 20px; display: inline-flex; align-items: center; gap: 6px;" title="Data e hora atual no fuso horário de Brasília (America/Sao_Paulo)">
+                    <i class="bi bi-clock-history" style="color: #00e676;"></i> <?= $nowFormatted ?>
+                </span>
             </h1>
             <p class="mb-0" style="font-size: 0.92rem; line-height: 1.6; color: #ffffff;">
                 Acompanhe as estatísticas completas dos jogos de hoje (<?= $formattedDateHeader ?>). Dados atualizados das principais ligas (Brasileirão, Champions League, Europa), histórico de faltas por árbitro, médias de cartões amarelos e vermelhos, e previsões matemáticas acionadas pelo assistente inteligente Grok AI.

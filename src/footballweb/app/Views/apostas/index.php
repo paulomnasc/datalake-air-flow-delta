@@ -1,8 +1,16 @@
 <?php
-/**
- * View: Gestão de Apostas (CRUD & UX)
- * Apenas acessível para usuários com tokens de consulta.
- */
+if (!function_exists('formatBrtDate')) {
+    function formatBrtDate($utcDateStr, $format = 'd/m H:i') {
+        if (empty($utcDateStr)) return 'Hoje';
+        try {
+            $dt = new DateTime($utcDateStr, new DateTimeZone('UTC'));
+            $dt->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+            return $dt->format($format);
+        } catch (\Exception $e) {
+            return date($format, strtotime($utcDateStr));
+        }
+    }
+}
 ?>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -873,11 +881,12 @@
         <?php 
           $itemDate = '';
           if (!empty($aposta->data_hora_jogo)) {
-            $itemDate = date('Y-m-d', strtotime($aposta->data_hora_jogo));
+            $itemDate = formatBrtDate($aposta->data_hora_jogo, 'Y-m-d');
           } elseif (!empty($aposta->criado_em)) {
-            $itemDate = date('Y-m-d', strtotime($aposta->criado_em));
+            $itemDate = formatBrtDate($aposta->criado_em, 'Y-m-d');
           }
-          $itemCreatedDate = !empty($aposta->criado_em) ? date('Y-m-d', strtotime($aposta->criado_em)) : $itemDate;
+          $itemCreatedDate = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'Y-m-d') : $itemDate;
+          $displayMatchTime = !empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'd/m \à\s H:i') : 'Hoje';
         ?>
         <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
           
@@ -898,7 +907,7 @@
             </div>
             <div class="match-time">
               <i class="bi bi-clock"></i>
-              <?= $aposta->data_hora_jogo ? date('d/m H:i', strtotime($aposta->data_hora_jogo)) : 'Hoje' ?>
+              <?= $displayMatchTime ?>
             </div>
           </div>
 

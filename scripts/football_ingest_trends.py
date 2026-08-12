@@ -1394,9 +1394,9 @@ def update_oddspedia_odds(conn):
         except Exception as e_f24:
             print(f"Aviso ao consultar Futbol24: {e_f24}")
         
-        # Consolidação de partidas e odds de todas as fontes disponíveis
+        # Consolidação de partidas e odds: ODDSPEDIA É A FONTE PRINCIPAL (API e Futbol24 são fallback)
         scraped_by_teams = {}
-        for m in api_odds_matches + scraped_matches_op + scraped_matches_f24:
+        for m in scraped_matches_op + api_odds_matches + scraped_matches_f24:
             s_home = normalize_team_name(m.get('time_casa', ''))
             s_away = normalize_team_name(m.get('time_visitante', ''))
             if not s_home or not s_away or s_home == 'DESCONHECIDO' or s_away == 'DESCONHECIDO':
@@ -1462,8 +1462,8 @@ def update_oddspedia_odds(conn):
             # Casas completas (possuem odd para Casa, Empate e Fora na mesma partida)
             all_bms = set(valid_c1.keys()) & set(valid_cX.keys()) & set(valid_c2.keys())
 
-            # Hierarquia oficial de preferência de casas de apostas de referência
-            preferred_hierarchy = ['BET365', 'BETANO', 'PINNACLE', 'BETFAIR', '1XBET', 'BETWAY', 'UNIBET', 'COOLBET', '888SPORT', 'WILLIAM HILL']
+            # Hierarquia oficial de preferência de referência: ODDSPEDIA É A PRIORIDADE NÚMERO 1
+            preferred_hierarchy = ['ODDSPEDIA', 'BET365', 'BETANO', 'PINNACLE', 'SPORTINGBET', 'SUPERBET', '1XBET', 'BETFAIR', 'BETSSON', 'KTO', 'NOVIBET', 'BETNACIONAL']
             
             # 1. Busca pela casa preferida de referência que tenha a linha completa
             for pref in preferred_hierarchy:

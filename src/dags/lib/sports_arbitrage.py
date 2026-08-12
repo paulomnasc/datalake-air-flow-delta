@@ -295,9 +295,20 @@ def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None, min_pr
                         bookmakers = ev.get('bookmakers', [])
                         odds_dict = {}
                         
+                        # Casas totalmente permitidas e acessíveis no mercado brasileiro
+                        allowed_br_bookmakers = {
+                            'BET365', 'BETANO', 'PINNACLE', 'SPORTINGBET', 'SUPERBET', 
+                            'KTO', 'NOVIBET', 'BETNACIONAL', '1XBET', 'BETFAIR SPORTSBOOK', 
+                            'BETFAIR', 'BETSSON', 'BETWAY', 'ESTRELABET', 'PARIMATCH', 'STAKE'
+                        }
+                        
                         for bm in bookmakers:
                             bm_raw_name = bm.get('title', bm.get('key'))
                             bm_norm_name = normalize_bookmaker_name(bm_raw_name)
+                            
+                            # Filtro estrito: ignora casas não reguladas/bloqueadas no Brasil (como Casumo, Grosvenor, etc.)
+                            if bm_norm_name.upper() not in allowed_br_bookmakers and not any(k in bm_norm_name.upper() for k in allowed_br_bookmakers):
+                                continue
                             
                             markets = bm.get('markets', [])
                             

@@ -877,8 +877,9 @@
           } elseif (!empty($aposta->criado_em)) {
             $itemDate = date('Y-m-d', strtotime($aposta->criado_em));
           }
+          $itemCreatedDate = !empty($aposta->criado_em) ? date('Y-m-d', strtotime($aposta->criado_em)) : $itemDate;
         ?>
-        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
+        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
           
           <div class="bet-card-header">
             <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
@@ -1688,16 +1689,17 @@
       const cardStatus = card.getAttribute('data-status') || '';
       const cardSearch = card.getAttribute('data-search') || '';
       const cardDate = card.getAttribute('data-date') || ''; // 'YYYY-MM-DD'
+      const cardCreated = card.getAttribute('data-created-date') || cardDate;
 
       const statusMatch = (status === 'all' || cardStatus === status);
       const searchMatch = (!term || cardSearch.includes(term));
       
       let dateMatch = true;
-      if (startDate && cardDate) {
-        if (cardDate < startDate) dateMatch = false;
+      if (startDate) {
+        if (cardDate < startDate && cardCreated < startDate) dateMatch = false;
       }
-      if (endDate && cardDate) {
-        if (cardDate > endDate) dateMatch = false;
+      if (endDate) {
+        if (cardDate > endDate && cardCreated > endDate) dateMatch = false;
       }
 
       if (statusMatch && searchMatch && dateMatch) {

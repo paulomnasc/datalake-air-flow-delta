@@ -2091,10 +2091,20 @@ if (!function_exists('getBetDecisionTree')) {
                     </form>
                 </div>
 
-                <!-- Abas estilo Betano: Destaques vs Todas as Partidas -->
-                <div class="bet-tabs">
-                    <div class="bet-tab active" id="tab-competicoes" onclick="switchMainTab('competicoes')"><?= lang('App.competitions') ?></div>
-                    <div class="bet-tab" id="tab-destaques" onclick="switchMainTab('destaques')"><?= lang('App.highlights') ?></div>
+                <!-- Abas estilo Betano: Destaques vs Todas as Partidas + Contador Recalculado de Jogos -->
+                <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                    <div class="bet-tabs m-0">
+                        <div class="bet-tab active" id="tab-competicoes" onclick="switchMainTab('competicoes')"><?= lang('App.competitions') ?></div>
+                        <div class="bet-tab" id="tab-destaques" onclick="switchMainTab('destaques')"><?= lang('App.highlights') ?></div>
+                    </div>
+
+                    <div class="bet-total-matches-badge d-flex align-items-center gap-2" style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; padding: 7px 16px; backdrop-filter: blur(8px); box-shadow: 0 4px 12px rgba(0,0,0,0.2);" title="Partidas visíveis / Total de jogos no período">
+                        <i class="bi bi-controller" style="color: #f47c20; font-size: 1.1rem;"></i>
+                        <span style="font-size: 0.85rem; color: #94a3b8; font-weight: 600;">Total de Jogos:</span>
+                        <strong id="totalMatchesCount" style="color: #00e676; font-weight: 800; font-size: 1rem; min-width: 30px; text-align: right;">
+                            <?= count($fixtures) ?>
+                        </strong>
+                    </div>
                 </div>
 
                 <!-- Grid de Partidas -->
@@ -3557,6 +3567,16 @@ if (!function_exists('getBetDecisionTree')) {
         });
 
         
+        // Atualiza o selo com o quantitativo de partidas visíveis vs total do período
+        const totalBadge = document.getElementById('totalMatchesCount');
+        if (totalBadge) {
+            if (visibleCount !== cards.length) {
+                totalBadge.innerHTML = `${visibleCount} <span style="font-size:0.75rem; color:#94a3b8; font-weight:600;">/ ${cards.length}</span>`;
+            } else {
+                totalBadge.textContent = cards.length;
+            }
+        }
+
         // Trata o empty state se não houver cards visíveis
         const emptyState = document.querySelector('.bet-empty');
         if (emptyState) {

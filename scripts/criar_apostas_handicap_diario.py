@@ -77,7 +77,7 @@ def criar_apostas_handicap_diario(target_date_str=None):
     cursor.execute("""
         SELECT * FROM fixtures_trends
         WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) = %s
-          AND status NOT IN ('FT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED')
+          AND status NOT IN ('PST', 'CANCELLED', 'POSTPONED')
         ORDER BY fixture_date ASC
     """, (target_date_str,))
     

@@ -763,25 +763,25 @@ if (!function_exists('formatBrtDate')) {
   <div class="stats-grid">
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-cash-stack"></i> Total Apostado</div>
-      <div class="stat-value">R$ <?= number_format($resumo['total_apostado'] ?? 0, 2, ',', '.') ?></div>
+      <div class="stat-value" id="topTotalApostado">R$ <?= number_format($resumo['total_apostado'] ?? 0, 2, ',', '.') ?></div>
     </div>
 
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-trophy"></i> Retorno Bruto</div>
-      <div class="stat-value primary">R$ <?= number_format($resumo['ganhos_totais'] ?? 0, 2, ',', '.') ?></div>
+      <div class="stat-value primary" id="topRetornoBruto">R$ <?= number_format($resumo['ganhos_totais'] ?? 0, 2, ',', '.') ?></div>
     </div>
 
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-calculator"></i> Saldo Líquido</div>
       <?php $saldoTop = (float)($resumo['saldo_liquido'] ?? 0); ?>
-      <div class="stat-value <?= ($saldoTop > 0) ? 'primary' : (($saldoTop < 0) ? 'text-danger' : 'gold') ?>">
+      <div class="stat-value <?= ($saldoTop > 0) ? 'primary' : (($saldoTop < 0) ? 'text-danger' : 'gold') ?>" id="topSaldoLiquido">
         <?= ($saldoTop > 0 ? '+' : '') ?>R$ <?= number_format($saldoTop, 2, ',', '.') ?>
       </div>
     </div>
 
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-list-check"></i> Total de Apostas</div>
-      <div class="stat-value gold"><?= $resumo['total_apostas'] ?? 0 ?></div>
+      <div class="stat-value gold" id="topTotalApostas"><?= $resumo['total_apostas'] ?? 0 ?></div>
     </div>
   </div>
 
@@ -790,14 +790,14 @@ if (!function_exists('formatBrtDate')) {
     <div class="d-flex align-items-center gap-3 flex-wrap">
       <!-- Status Filters -->
       <div class="bet-filters">
-        <button class="filter-btn active" onclick="filterBets('all', this)">Todas (<?= count($apostas) ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Pendente', this)">Pendentes (<?= $resumo['pendentes'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Ganha', this)">Ganhas (<?= $resumo['ganhas'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Meio Ganha', this)">Meio Ganhas (<?= $resumo['meio_ganhas'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('ANULADA', this)">Anuladas (<?= $resumo['anuladas'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Meio Perdida', this)">Meio Perdidas (<?= $resumo['meio_perdidas'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Perdida', this)">Perdidas (<?= $resumo['perdidas'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Cashout', this)">Cashout (<?= $resumo['cashouts'] ?? 0 ?>)</button>
+        <button class="filter-btn active" id="btnFilterAll" onclick="filterBets('all', this)">Todas (<?= count($apostas) ?>)</button>
+        <button class="filter-btn" id="btnFilterPendente" onclick="filterBets('Pendente', this)">Pendentes (<?= $resumo['pendentes'] ?? 0 ?>)</button>
+        <button class="filter-btn" id="btnFilterGanha" onclick="filterBets('Ganha', this)">Ganhas (<?= $resumo['ganhas'] ?? 0 ?>)</button>
+        <button class="filter-btn" id="btnFilterMeioGanha" onclick="filterBets('Meio Ganha', this)">Meio Ganhas (<?= $resumo['meio_ganhas'] ?? 0 ?>)</button>
+        <button class="filter-btn" id="btnFilterAnulada" onclick="filterBets('ANULADA', this)">Anuladas (<?= $resumo['anuladas'] ?? 0 ?>)</button>
+        <button class="filter-btn" id="btnFilterMeioPerdida" onclick="filterBets('Meio Perdida', this)">Meio Perdidas (<?= $resumo['meio_perdidas'] ?? 0 ?>)</button>
+        <button class="filter-btn" id="btnFilterPerdida" onclick="filterBets('Perdida', this)">Perdidas (<?= $resumo['perdidas'] ?? 0 ?>)</button>
+        <button class="filter-btn" id="btnFilterCashout" onclick="filterBets('Cashout', this)">Cashout (<?= $resumo['cashouts'] ?? 0 ?>)</button>
       </div>
 
       <!-- Filtro de Período (2 Datas) -->
@@ -1745,22 +1745,43 @@ if (!function_exists('formatBrtDate')) {
     const cards = document.querySelectorAll('.bet-card-item');
     let visibleCount = 0;
 
+    const counts = {
+      all: 0,
+      Pendente: 0,
+      Ganha: 0,
+      'Meio Ganha': 0,
+      ANULADA: 0,
+      'Meio Perdida': 0,
+      Perdida: 0,
+      Cashout: 0
+    };
+
     cards.forEach(card => {
       const cardStatus = card.getAttribute('data-status') || '';
       const cardSearch = card.getAttribute('data-search') || '';
       const cardDate = card.getAttribute('data-date') || ''; // 'YYYY-MM-DD'
       const cardCreated = card.getAttribute('data-created-date') || cardDate;
 
-      const statusMatch = (status === 'all' || cardStatus === status);
+      const itemDate = cardDate || cardCreated;
+
       const searchMatch = (!term || cardSearch.includes(term));
       
       let dateMatch = true;
-      if (startDate) {
-        if (cardDate < startDate && cardCreated < startDate) dateMatch = false;
+      if (startDate && itemDate < startDate) {
+        dateMatch = false;
       }
-      if (endDate) {
-        if (cardDate > endDate && cardCreated > endDate) dateMatch = false;
+      if (endDate && itemDate > endDate) {
+        dateMatch = false;
       }
+
+      if (searchMatch && dateMatch) {
+        counts.all++;
+        if (counts.hasOwnProperty(cardStatus)) {
+          counts[cardStatus]++;
+        }
+      }
+
+      const statusMatch = (status === 'all' || cardStatus === status);
 
       if (statusMatch && searchMatch && dateMatch) {
         card.style.display = 'flex';
@@ -1769,6 +1790,8 @@ if (!function_exists('formatBrtDate')) {
         card.style.display = 'none';
       }
     });
+
+    updateTabBadges(counts);
 
     let emptyNotice = document.getElementById('noFilteredBetsNotice');
     if (visibleCount === 0 && cards.length > 0) {
@@ -1796,15 +1819,37 @@ if (!function_exists('formatBrtDate')) {
     updateCalculatedSummary();
   }
 
+  function updateTabBadges(counts) {
+    const btnAll = document.getElementById('btnFilterAll');
+    const btnPendente = document.getElementById('btnFilterPendente');
+    const btnGanha = document.getElementById('btnFilterGanha');
+    const btnMeioGanha = document.getElementById('btnFilterMeioGanha');
+    const btnAnulada = document.getElementById('btnFilterAnulada');
+    const btnMeioPerdida = document.getElementById('btnFilterMeioPerdida');
+    const btnPerdida = document.getElementById('btnFilterPerdida');
+    const btnCashout = document.getElementById('btnFilterCashout');
+
+    if (btnAll) btnAll.textContent = `Todas (${counts.all || 0})`;
+    if (btnPendente) btnPendente.textContent = `Pendentes (${counts['Pendente'] || 0})`;
+    if (btnGanha) btnGanha.textContent = `Ganhas (${counts['Ganha'] || 0})`;
+    if (btnMeioGanha) btnMeioGanha.textContent = `Meio Ganhas (${counts['Meio Ganha'] || 0})`;
+    if (btnAnulada) btnAnulada.textContent = `Anuladas (${counts['ANULADA'] || 0})`;
+    if (btnMeioPerdida) btnMeioPerdida.textContent = `Meio Perdidas (${counts['Meio Perdida'] || 0})`;
+    if (btnPerdida) btnPerdida.textContent = `Perdidas (${counts['Perdida'] || 0})`;
+    if (btnCashout) btnCashout.textContent = `Cashout (${counts['Cashout'] || 0})`;
+  }
+
   function updateCalculatedSummary() {
     const cards = document.querySelectorAll('.bet-card-item');
     let totalApostado = 0;
     let totalApostadoLiquidado = 0;
     let totalRetorno = 0;
     let totalPerda = 0;
+    let visibleCount = 0;
 
     cards.forEach(card => {
       if (card.style.display !== 'none') {
+        visibleCount++;
         const status = card.getAttribute('data-status') || '';
         const valor = parseFloat(card.getAttribute('data-valor') || '0') || 0;
         const ganho = parseFloat(card.getAttribute('data-ganho') || '0') || 0;
@@ -1855,6 +1900,27 @@ if (!function_exists('formatBrtDate')) {
         elSaldo.className = 'text-danger fw-bold';
       } else {
         elSaldo.className = 'text-info fw-bold';
+      }
+    }
+
+    // Atualiza Top Cards (Resumo Superior)
+    const topApostado = document.getElementById('topTotalApostado');
+    const topGanho = document.getElementById('topRetornoBruto');
+    const topSaldo = document.getElementById('topSaldoLiquido');
+    const topApostas = document.getElementById('topTotalApostas');
+
+    if (topApostado) topApostado.textContent = formatBrl(totalApostado);
+    if (topGanho) topGanho.textContent = formatBrl(totalRetorno);
+    if (topApostas) topApostas.textContent = visibleCount;
+    if (topSaldo) {
+      const prefix = saldoLiquido > 0 ? '+' : '';
+      topSaldo.textContent = prefix + formatBrl(saldoLiquido);
+      if (saldoLiquido > 0) {
+        topSaldo.className = 'stat-value primary';
+      } else if (saldoLiquido < 0) {
+        topSaldo.className = 'stat-value text-danger';
+      } else {
+        topSaldo.className = 'stat-value gold';
       }
     }
   }

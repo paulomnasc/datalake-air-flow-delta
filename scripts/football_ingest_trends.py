@@ -71,7 +71,14 @@ def _is_team_match(search_name, target_team, search_id=None, target_id=None):
             return True
     s_norm = _normalize_team_name_for_match(search_name)
     t_norm = _normalize_team_name_for_match(target_team)
-    return s_norm == t_norm if (s_norm and t_norm) else False
+    if s_norm and t_norm:
+        s_raw = search_name.lower().strip()
+        t_raw = target_team.lower().strip()
+        if 'botafogo' in s_norm and 'botafogo' in t_norm:
+            if ('sp' in s_raw or 'botafogo-sp' in s_raw or 'botafogo/sp' in s_raw) != ('sp' in t_raw or 'botafogo-sp' in t_raw or 'botafogo/sp' in t_raw):
+                return False
+        return s_norm == t_norm
+    return False
 
 def fetch_team_last5_form(cursor, team_name, team_id=None):
     """
@@ -81,19 +88,25 @@ def fetch_team_last5_form(cursor, team_name, team_id=None):
     """
     matches = []
 
-    # 1. Consulta no banco MySQL local fixtures_trends com validação estrita
+    # 1. Consulta no banco MySQL local fixtures_trends com filtragem SQL por time
     if cursor is not None:
         try:
+            clean_search = f"%{_normalize_team_name_for_match(team_name)}%"
             sql = """
-                SELECT home_team, away_team, goals_home, goals_away, home_team_id, away_team_id
+                SELECT home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, fixture_date
                 FROM fixtures_trends
                 WHERE status = 'FT'
                   AND goals_home IS NOT NULL
                   AND goals_away IS NOT NULL
+                  AND (
+                      (%s IS NOT NULL AND (home_team_id = %s OR away_team_id = %s))
+                      OR LOWER(home_team) LIKE %s
+                      OR LOWER(away_team) LIKE %s
+                  )
                 ORDER BY fixture_date DESC
-                LIMIT 150
+                LIMIT 30
             """
-            cursor.execute(sql)
+            cursor.execute(sql, (team_id, team_id, team_id, clean_search, clean_search))
             rows = cursor.fetchall()
             for r in rows:
                 h_match = _is_team_match(team_name, r['home_team'], team_id, r.get('home_team_id'))
@@ -115,11 +128,11 @@ def fetch_team_last5_form(cursor, team_name, team_id=None):
         except Exception as e_sql:
             print(f"Aviso na busca SQL de forma para '{team_name}': {e_sql}")
 
-    # 2. Fallback: Raspagem no Futbol24 se o banco não possuir histórico suficiente
-    if len(matches) < 3 and scrape_futbol24_team_last5 is not None:
+    # 2. Fallback: Raspagem no Futbol24 se o banco local não possuir 5 partidas recentes
+    if len(matches) < 5 and scrape_futbol24_team_last5 is not None:
         try:
             f24_res = scrape_futbol24_team_last5(team_name, limit=6)
-            if f24_res and f24_res.get("matches"):
+            if f24_res and f24_res.get("matches") and len(f24_res["matches"]) > len(matches):
                 matches = f24_res["matches"]
         except Exception as exc:
             print(f"Aviso ao consultar Futbol24 para '{team_name}': {exc}")
@@ -1708,7 +1721,7 @@ def update_oddspedia_odds(conn):
             if not best_c1 or best_c1 == 0.0:
                 try:
                     import math
-                    h_gs, h_gc, a_gs, a_gc = 1.4, 1.1, 1.1, 1.3
+                    h_gs, h_gc, a_gs, a_gc = None, None, None, None
                     try:
                         cursor.execute("""
                             SELECT th.avg_goals_scored as h_gs, th.avg_goals_conceded as h_gc,
@@ -1720,12 +1733,19 @@ def update_oddspedia_odds(conn):
                         """, (fix_id,))
                         st = cursor.fetchone()
                         if st:
-                            h_gs = float(st.get('h_gs') or 1.4)
-                            h_gc = float(st.get('h_gc') or 1.1)
-                            a_gs = float(st.get('a_gs') or 1.1)
-                            a_gc = float(st.get('a_gc') or 1.3)
+                            h_gs = float(st['h_gs']) if st.get('h_gs') is not None else None
+                            h_gc = float(st['h_gc']) if st.get('h_gc') is not None else None
+                            a_gs = float(st['a_gs']) if st.get('a_gs') is not None else None
+                            a_gc = float(st['a_gc']) if st.get('a_gc') is not None else None
                     except Exception:
                         pass
+                    
+                    if h_gs is None or h_gc is None:
+                        mock_h = generate_deterministic_team_stats(fix['home_team'], 'home')
+                        h_gs, h_gc = mock_h['avg_goals_scored'], mock_h['avg_goals_conceded']
+                    if a_gs is None or a_gc is None:
+                        mock_a = generate_deterministic_team_stats(fix['away_team'], 'away')
+                        a_gs, a_gc = mock_a['avg_goals_scored'], mock_a['avg_goals_conceded']
                     
                     hg = max(0.5, (h_gs * 1.12 + a_gc) / 2.0)
                     ag = max(0.4, (a_gs * 0.88 + h_gc) / 2.0)
@@ -1745,16 +1765,16 @@ def update_oddspedia_odds(conn):
                         p_h /= tot_p; p_d /= tot_p; p_a /= tot_p
                     margin = 1.06
                     best_c1 = round(min(12.0, max(1.40, margin / p_h)), 2)
-                    best_bm1 = 'BET365'
+                    best_bm1 = 'POISSON'
                     best_cX = round(min(8.0, max(2.60, margin / p_d)), 2)
-                    best_bmX = 'BET365'
+                    best_bmX = 'POISSON'
                     best_c2 = round(min(12.0, max(1.40, margin / p_a)), 2)
-                    best_bm2 = 'BET365'
+                    best_bm2 = 'POISSON'
                 except Exception as e_est:
                     print(f"Aviso na estimativa de odds para '{fix['home_team']} vs {fix['away_team']}': {e_est}")
-                    best_c1, best_bm1 = 1.40, 'BET365'
-                    best_cX, best_bmX = 4.20, 'BET365'
-                    best_c2, best_bm2 = 5.50, 'BET365'
+                    best_c1, best_bm1 = 1.40, 'POISSON'
+                    best_cX, best_bmX = 4.20, 'POISSON'
+                    best_c2, best_bm2 = 5.50, 'POISSON'
 
             if best_c1 > 0 and best_cX > 0 and best_c2 > 0:
                 calc = calculate_surebet(best_c1, best_cX, best_c2)

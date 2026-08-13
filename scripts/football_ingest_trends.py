@@ -1744,15 +1744,15 @@ def update_oddspedia_odds(conn):
                     if tot_p > 0:
                         p_h /= tot_p; p_d /= tot_p; p_a /= tot_p
                     margin = 1.06
-                    best_c1 = round(min(12.0, max(1.20, margin / p_h)), 2)
+                    best_c1 = round(min(12.0, max(1.40, margin / p_h)), 2)
                     best_bm1 = 'BET365'
                     best_cX = round(min(8.0, max(2.60, margin / p_d)), 2)
                     best_bmX = 'BET365'
-                    best_c2 = round(min(12.0, max(1.20, margin / p_a)), 2)
+                    best_c2 = round(min(12.0, max(1.40, margin / p_a)), 2)
                     best_bm2 = 'BET365'
                 except Exception as e_est:
                     print(f"Aviso na estimativa de odds para '{fix['home_team']} vs {fix['away_team']}': {e_est}")
-                    best_c1, best_bm1 = 1.50, 'BET365'
+                    best_c1, best_bm1 = 1.40, 'BET365'
                     best_cX, best_bmX = 4.20, 'BET365'
                     best_c2, best_bm2 = 5.50, 'BET365'
 

@@ -523,7 +523,7 @@ def process_palpites_gerados(cursor):
             elif ah:
                 mercado = 'Handicap Asiático'
                 linha = ah
-                odd = float(fix.get('odd_home') or 1.90)
+                odd = float(fix.get('odd_home') or 1.40)
             elif probCards > 55.0:
                 mercado = 'Total de Cartões'
                 linha = 'Over 4.5 Cartões'

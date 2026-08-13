@@ -40,6 +40,39 @@ Além de simplificar a decisão entre duas opções (Mandante ou Visitante), o H
 
 ---
 
+## ⚡ Handicap Asiático Ao Vivo (In-Play) vs Pré-Jogo: A Regra do Placar Zerado (0-0)
+
+Uma dúvida comum no Handicap Asiático diz respeito ao funcionamento de apostas feitas em jogos em andamento (**apostas ao vivo**).
+
+### 🔴 Regra Geral do Handicap Asiático Ao Vivo: O "Placar Zerado"
+Na maioria das casas de apostas (ex: Bet365, Pinnacle, Betano), ao realizar uma aposta em **Handicap Asiático Ao Vivo**:
+* **O placar da partida é ficticiosamente "resetado" para 0 x 0** no momento exato em que a aposta é realizada.
+* A aposta considera **apenas os gols marcados no restante da partida** (após o momento da entrada).
+
+#### 📌 Estudo de Caso Prático:
+* **Placar no momento da aposta:** Time A 1 x 0 Time B.
+* **Sua Aposta Ao Vivo:** `Time A 0.0`.
+* **O que aconteceu depois:** O Time B marca um gol e empata a partida $\rightarrow$ Placar final real: **1 x 1**.
+* **Contagem pós-aposta:**
+  * Gols do Time A após a aposta: **0**
+  * Gols do Time B após a aposta: **1**
+  * Placar do período apostado: **0 x 1** (Vitória do Time B no restante do jogo).
+* **Resultado da Aposta:** 🔴 **RED (Aposta Perdida)**. Para a aposta `Time A 0.0` ser reembolsada ou ganha, o Time A precisaria ter empatado ou vencido o trecho restante da partida (marcando a mesma quantidade ou mais gols que o Time B a partir do momento da entrada).
+
+---
+
+### 🟡 Comparativo: Handicap Asiático Ao Vivo vs Empate Anula (DNB / Placar Cheio)
+
+| Mercado Selecionado Ao Vivo | Placar Considerado | Placar Pós-Aposta (Entrada no 1x0 $\rightarrow$ Final 1x1) | Resultado da Aposta `Time A 0.0` |
+| :--- | :--- | :--- | :--- |
+| **Handicap Asiático Ao Vivo** *(Padrão 0-0)* | Reseta para 0 x 0 na entrada | 0 x 1 (Time B venceu a parcial) | 🔴 **RED** (Perdeu 100%) |
+| **Empate Anula (DNB) / Placar Integral** | Placar Real da Partida (1 x 1) | 1 x 1 (Empate geral do jogo) | 🟡 **REEMBOLSO** (Devolvido 100%) |
+
+> 💡 **Dica Importante ao Apostar Ao Vivo:**
+> Sempre verifique a nomenclatura do mercado na casa de apostas. Se o mercado indicar **`Handicap Asiático (0-0)`** ou exibir o placar atual entre parênteses como **`Handicap Asiático (1-0)`**, a contagem de gols inicia em 0x0 a partir daquele instante.
+
+---
+
 ## ⚽ Exemplos Práticos de Apostas
 
 ### Exemplo 1: *Ceará vs Ponte Preta* — Aposta: **Ceará -0.25 AH**

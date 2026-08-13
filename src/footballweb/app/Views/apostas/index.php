@@ -1041,15 +1041,15 @@ if (!function_exists('formatBrtDate')) {
       <form id="newBetForm" onsubmit="submitNewBet(event)">
         <div class="modal-body">
           
-          <!-- Tarja Amarela Chamativa de Alerta de Risco por xG Zerado -->
-          <div id="xgWarningBanner" class="alert alert-warning d-flex align-items-center gap-3 mb-3" style="display: none; background: rgba(234, 179, 8, 0.18); border: 2px solid #eab308; color: #fef08a; border-radius: 12px; padding: 14px 16px; box-shadow: 0 4px 15px rgba(234, 179, 8, 0.25);">
-            <i class="bi bi-exclamation-triangle-fill fs-2 text-warning flex-shrink-0"></i>
+          <!-- Tarja Vermelha Chamativa de Alerta de Risco por Abstenção/Bloqueio da IA -->
+          <div id="xgWarningBanner" class="alert alert-danger d-flex align-items-center gap-3 mb-3" style="display: none; background: rgba(239, 68, 68, 0.18); border: 2px solid #ef4444; color: #fca5a5; border-radius: 12px; padding: 14px 16px; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.25);">
+            <i class="bi bi-slash-circle-fill fs-2 text-danger flex-shrink-0"></i>
             <div>
-              <strong style="color: #fde047; font-size: 0.95rem; display: block; margin-bottom: 4px;">⚠️ ALERTA DE RISCO: EXPECTATIVA DE GOLS (xG = 0.00) INDISPONÍVEL</strong>
-              <div style="font-size: 0.82rem; color: #fef08a; line-height: 1.45;">
-                Esta partida ainda não possui estatísticas de xG capturadas da API (jogo pré-partida). A sugestão de Handicap foi gerada com base em estimativas genéricas.<br>
-                <span style="color: #ef4444; font-weight: 800; text-transform: uppercase; display: block; margin-top: 6px; font-size: 0.85rem; letter-spacing: 0.3px; text-shadow: 0 0 8px rgba(239, 68, 68, 0.3);">
-                  💡 DICA DE SEGURANÇA: APOSTAR COM O JOGO INICIADO OU EM ANDAMENTO É MUITO MAIS SEGURO, POIS OS DADOS DE xG REAL DA PARTIDA JÁ ESTARÃO DISPONÍVEIS NA API!
+              <strong style="color: #f87171; font-size: 0.95rem; display: block; margin-bottom: 4px;">🚫 ENTRADA BLOQUEADA: ABSTENÇÃO DA IA POR GESTÃO DE RISCO</strong>
+              <div style="font-size: 0.82rem; color: #fca5a5; line-height: 1.45;">
+                Esta partida foi classificada como <strong style="color: #ffffff;">Sem Entrada (Abstenção)</strong> pela inteligência estatística por ausência de dados seguros de gols/xG.<br>
+                <span style="color: #ef4444; font-weight: 800; text-transform: uppercase; display: block; margin-top: 6px; font-size: 0.82rem; letter-spacing: 0.3px;">
+                  💡 GESTÃO DE RISCO: Para proteger sua banca, a criação de apostas no mercado de Handicap Asiático para este jogo está desabilitada pela automação.
                 </span>
               </div>
             </div>
@@ -1075,6 +1075,7 @@ if (!function_exists('formatBrtDate')) {
                         data-palpite-cards="<?= htmlspecialchars($fix->suggested_palpite_cards ?? 'Menos de 5.5') ?>"
                         data-palpite-ah="<?= htmlspecialchars($fix->suggested_palpite_ah ?? 'Handicap 0.0 (Empate Anula)') ?>"
                         data-palpite="<?= htmlspecialchars($fix->suggested_palpite_cards ?? 'Menos de 5.5') ?>"
+                        data-ah-suggestion="<?= htmlspecialchars($fix->ah_suggestion ?? '') ?>"
                         data-ah-confidence="<?= number_format($fix->ah_confidence_val ?? 0, 1) ?>"
                         data-ah-max-score="<?= ($fix->is_max_ah_score ?? false) ? '1' : '0' ?>"
                         data-xg-home="<?= number_format($fix->xg_home ?? 0, 2) ?>"
@@ -1689,9 +1690,9 @@ if (!function_exists('formatBrtDate')) {
     const mercado = mercadoSelect ? mercadoSelect.value : '';
 
     if (selectedOpt && selectedOpt.value && (mercado === 'Handicap Asiático' || mercado.toLowerCase().includes('handicap'))) {
-      const xgH = parseFloat(selectedOpt.getAttribute('data-xg-home') || '0');
-      const xgA = parseFloat(selectedOpt.getAttribute('data-xg-away') || '0');
-      if (xgH === 0 && xgA === 0) {
+      const ahSug = (selectedOpt.getAttribute('data-ah-suggestion') || '').toLowerCase();
+      const isBlocked = ahSug.includes('sem entrada') || ahSug.includes('abstenção') || ahSug.includes('abstencao') || ahSug.includes('bloquead') || ahSug.includes('indisponível') || ahSug.includes('indisponivel');
+      if (isBlocked) {
         banner.style.display = 'flex';
         return;
       }

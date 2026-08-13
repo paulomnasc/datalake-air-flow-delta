@@ -2625,8 +2625,14 @@ if (!function_exists('getBetDecisionTree')) {
                                             <i class="bi bi-card-amber"></i> Cartões (<?= $prob ?>%) <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                         </button>
                                         <?php 
-                                            $isXgZero = ((float)($fix->xg_home ?? 0) == 0.0 && (float)($fix->xg_away ?? 0) == 0.0);
-                                            $isAhBlocked = $isXgZero || (stripos($fix->ah_suggestion ?? '', 'sem entrada') !== false || stripos($fix->ah_suggestion ?? '', 'bloquead') !== false);
+                                            $ahSugClean = strtolower(trim($fix->ah_suggestion ?? ''));
+                                            $isAhBlocked = empty($ahSugClean) 
+                                                || stripos($ahSugClean, 'sem entrada') !== false 
+                                                || stripos($ahSugClean, 'abstenção') !== false 
+                                                || stripos($ahSugClean, 'abstencao') !== false 
+                                                || stripos($ahSugClean, 'bloquead') !== false 
+                                                || stripos($ahSugClean, 'indisponível') !== false 
+                                                || stripos($ahSugClean, 'indisponivel') !== false;
                                         ?>
                                         <?php if ($isAhBlocked): ?>
                                             <button type="button" 
@@ -2634,7 +2640,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                     class="bet-toggle-badge red" 
                                                     style="background: rgba(239, 68, 68, 0.18) !important; border: 1px solid #ef4444 !important; color: #f87171 !important;"
                                                     onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'ah')">
-                                                <i class="bi bi-slash-circle-fill me-1"></i> 🚫 AH Bloqueado: xG Indisponível (0.00) <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                                <i class="bi bi-slash-circle-fill me-1"></i> 🚫 AH Bloqueado: Abstenção da IA <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                             </button>
                                         <?php elseif (!empty($fix->ah_suggestion)): ?>
                                             <button type="button" 
@@ -2709,7 +2715,38 @@ if (!function_exists('getBetDecisionTree')) {
                                     </div>
 
                                     <!-- Seção Retrátil 2: Handicap Asiático -->
-                                    <?php if (!empty($fix->ah_suggestion)): ?>
+                                    <?php if ($isAhBlocked): ?>
+                                        <div id="sec-ah-<?= $fix->fixture_id ?>" class="bet-card-section">
+                                            <div class="asian-handicap-widget-box" style="padding: 12px 14px; background: rgba(239, 68, 68, 0.08); border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.4); border-left: 5px solid #ef4444; font-size: 0.78rem; color: #fca5a5;">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                                                    <span style="font-weight: 800; color: #f87171; display: flex; align-items: center; gap: 6px; font-size: 0.86rem; text-transform: uppercase; letter-spacing: 0.3px;">
+                                                        <i class="bi bi-shield-x me-1"></i> 🚫 APOSTA BLOQUEADA: ENTRADA IMPEDIDA POR GESTÃO DE RISCO
+                                                    </span>
+                                                    <span class="badge" style="background: rgba(239, 68, 68, 0.25); border: 1px solid #ef4444; color: #fca5a5; font-weight: 700; font-size: 0.76rem; padding: 4px 8px; border-radius: 6px;">
+                                                        ⚪ Sem Entrada (Abstenção)
+                                                    </span>
+                                                </div>
+
+                                                <div style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; font-size: 0.76rem; color: #e2e8f0; line-height: 1.45;">
+                                                    <div style="font-weight: 700; color: #f87171; margin-bottom: 4px; display: flex; align-items: center; gap: 5px;">
+                                                        <i class="bi bi-exclamation-triangle-fill"></i> Motivo da Abstenção da IA:
+                                                    </div>
+                                                    <div style="white-space: pre-line; font-size: 0.74rem; color: #cbd5e1;">
+                                                        <?= htmlspecialchars($nl_explanation) ?>
+                                                    </div>
+                                                </div>
+
+                                                <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-top: 6px; border-top: 1px solid rgba(239, 68, 68, 0.2);">
+                                                    <span style="font-size: 0.72rem; color: #fda4af; display: flex; align-items: center; gap: 4px;">
+                                                        <i class="bi bi-info-circle-fill"></i> Para proteger sua banca, a automação do Airflow não cria apostas para partidas com abstenção de risco.
+                                                    </span>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger disabled" style="font-size: 0.72rem; font-weight: 700; opacity: 0.65; cursor: not-allowed;" disabled>
+                                                        🚫 Aposta Impedida por Gestão de Risco
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php elseif (!empty($fix->ah_suggestion)): ?>
                                         <div id="sec-ah-<?= $fix->fixture_id ?>" class="bet-card-section">
                                             <div class="asian-handicap-widget-box" style="padding: 8px 10px; background: rgba(15, 23, 42, 0.9); border-radius: 8px; border-left: 4px solid #38bdf8; font-size: 0.78rem; color: #cbd5e1;">
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">

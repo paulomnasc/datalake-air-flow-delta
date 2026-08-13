@@ -57,48 +57,63 @@ def calculate_poisson_under_lines(xc):
         
     return results
 
+def _normalize_team_name_for_match(n):
+    if not n:
+        return ""
+    import re, unicodedata
+    nfkd = unicodedata.normalize('NFKD', str(n))
+    clean = ''.join(c for c in nfkd if not unicodedata.combining(c)).lower()
+    return re.sub(r'\b(sp|pr|rs|rj|mg|ba|ce|pa|sc|go|pe|al|mt|df|es|ma|pb|pi|rn|ro|rr|se|to|fc|club|ca|cd)\b', '', clean).strip()
+
+def _is_team_match(search_name, target_team, search_id=None, target_id=None):
+    if search_id and target_id and str(search_id).strip() and str(target_id).strip():
+        if int(search_id) == int(target_id):
+            return True
+    s_norm = _normalize_team_name_for_match(search_name)
+    t_norm = _normalize_team_name_for_match(target_team)
+    return s_norm == t_norm if (s_norm and t_norm) else False
+
 def fetch_team_last5_form(cursor, team_name, team_id=None):
     """
     Busca a sequência recente (últimos jogos) do time.
-    Prioriza a raspagem web em tempo real do Futbol24 (Últimos Resultados).
-    Se indisponível, utiliza a consulta local no banco MySQL fixtures_trends.
+    Prioriza a consulta local no banco MySQL com correspondência estrita de nomes/IDs.
     Garante sincronização total entre v, e, d, pts e a lista visual de partidas (matches).
     """
     matches = []
 
-    # 1. Consulta no banco MySQL local fixtures_trends
+    # 1. Consulta no banco MySQL local fixtures_trends com validação estrita
     if cursor is not None:
         try:
             sql = """
-                SELECT home_team, away_team, goals_home, goals_away
+                SELECT home_team, away_team, goals_home, goals_away, home_team_id, away_team_id
                 FROM fixtures_trends
                 WHERE status = 'FT'
-                  AND (
-                      (home_team_id IS NOT NULL AND home_team_id = %s)
-                      OR (away_team_id IS NOT NULL AND away_team_id = %s)
-                      OR (LOWER(home_team) LIKE %s)
-                      OR (LOWER(away_team) LIKE %s)
-                  )
+                  AND goals_home IS NOT NULL
+                  AND goals_away IS NOT NULL
                 ORDER BY fixture_date DESC
-                LIMIT 6
+                LIMIT 150
             """
-            clean_name = f"%{team_name.lower().replace('-pr', '').replace(' sp', '').strip()}%"
-            cursor.execute(sql, (team_id, team_id, clean_name, clean_name))
+            cursor.execute(sql)
             rows = cursor.fetchall()
             for r in rows:
-                gh = r['goals_home'] if r['goals_home'] is not None else 0
-                ga = r['goals_away'] if r['goals_away'] is not None else 0
-                is_home = (team_name.lower() in r['home_team'].lower())
-                opp_name = r['away_team'] if is_home else r['home_team']
-                if is_home:
-                    res = "V" if gh > ga else ("E" if gh == ga else "D")
-                    sc = f"{gh}x{ga}"
-                else:
-                    res = "V" if ga > gh else ("E" if gh == ga else "D")
-                    sc = f"{ga}x{gh}"
-                matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home})
-        except Exception:
-            pass
+                h_match = _is_team_match(team_name, r['home_team'], team_id, r.get('home_team_id'))
+                a_match = _is_team_match(team_name, r['away_team'], team_id, r.get('away_team_id'))
+                if h_match or a_match:
+                    gh = r['goals_home'] if r['goals_home'] is not None else 0
+                    ga = r['goals_away'] if r['goals_away'] is not None else 0
+                    is_home = h_match
+                    opp_name = r['away_team'] if is_home else r['home_team']
+                    if is_home:
+                        res = "V" if gh > ga else ("E" if gh == ga else "D")
+                        sc = f"{gh}x{ga}"
+                    else:
+                        res = "V" if ga > gh else ("E" if gh == ga else "D")
+                        sc = f"{ga}x{gh}"
+                    matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home})
+                    if len(matches) >= 5:
+                        break
+        except Exception as e_sql:
+            print(f"Aviso na busca SQL de forma para '{team_name}': {e_sql}")
 
     # 2. Fallback: Raspagem no Futbol24 se o banco não possuir histórico suficiente
     if len(matches) < 3 and scrape_futbol24_team_last5 is not None:

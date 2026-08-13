@@ -63,6 +63,12 @@ TEAM_ALIASES = {
     "ITUANO": ["ITUANO", "ITUANO FC", "ITU"],
     "AMAZONAS": ["AMAZONAS", "AMAZONAS FC", "AMA"],
     "REMO": ["REMO", "CLUBE DO REMO", "REM"],
+    # Sul-Americana, Libertadores e Internacionais
+    "LDU DE QUITO": ["LDU DE QUITO", "LDU QUITO", "LDU", "LDU Q"],
+    "ROSARIO CENTRAL": ["ROSARIO CENTRAL", "ROSARIO", "C A ROSARIO CENTRAL"],
+    "QARABAG": ["QARABAG", "QARABAG FK", "QARABAG CSKA"],
+    "DYNAMO KYIV": ["DYNAMO KYIV", "DINAMO KIEV", "DINAMO KYIV", "DYNAMO KIEV"],
+    "INDEPENDIENTE DEL VALLE": ["INDEPENDIENTE DEL VALLE", "IDV", "INDEPENDIENTE D V"],
 }
 
 # Mapeamento e Normalização de Casas de Apostas (Bookmakers)
@@ -250,8 +256,8 @@ def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None, min_pr
             ("soccer_conmebol_copa_sudamericana", "Copa Sudamericana")
         ]
         
-    # Limita o número de ligas consultadas por execução para economizar cota da API (padrão: 3 ligas por rodada)
-    max_leagues = int(os.environ.get('ARBITRAGE_MAX_LEAGUES', '3'))
+    # Limita o número de ligas consultadas por execução (padrão: 10 ligas prioritárias)
+    max_leagues = int(os.environ.get('ARBITRAGE_MAX_LEAGUES', '10'))
     sports_to_fetch = sports_to_fetch[:max_leagues]
     
     parsed_matches = []

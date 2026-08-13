@@ -17,6 +17,12 @@ from typing import Dict, List, Any, Optional
 
 log = logging.getLogger(__name__)
 
+def _strip(s: str) -> str:
+    if not s:
+        return ""
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', str(s)) if unicodedata.category(c) != 'Mn').lower().replace('club atletico', '').replace('ca ', '').replace('cd ', '').strip()
+
 def get_bookmaker_credentials(conn_id: str) -> Dict[str, str]:
     """
     Recupera login e senha cadastrados no Airflow Connections para uma casa de apostas.
@@ -289,7 +295,10 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
     
     league_urls = {
         'serie-a': 'https://oddspedia.com/br/futebol/brasil/brasileirao-serie-a',
-        'serie-b': 'https://oddspedia.com/br/futebol/brasil/brasileirao-serie-b'
+        'serie-b': 'https://oddspedia.com/br/futebol/brasil/brasileirao-serie-b',
+        'copa-libertadores': 'https://oddspedia.com/br/futebol/america-do-sul/copa-libertadores',
+        'copa-sudamericana': 'https://oddspedia.com/br/futebol/america-do-sul/copa-sul-americana',
+        'argentina': 'https://oddspedia.com/br/futebol/argentina/liga-profissional'
     }
     
     for l_key in leagues:
@@ -352,9 +361,8 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
             a_norm = _strip(ev['away_team'])
             
             # Localiza o container CSS específico da partida no HTML para evitar ruídos de outros jogos
-            m_soup = BeautifulSoup(html, 'html.parser')
             match_container = None
-            for card in m_soup.find_all(['div', 'tr', 'article', 'li']):
+            for card in soup.find_all(['div', 'tr', 'article', 'li']):
                 c_text = _strip(card.get_text(separator=' ', strip=True))
                 if h_norm in c_text and a_norm in c_text and len(c_text) < 3000:
                     match_container = card
@@ -458,6 +466,8 @@ def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b', 'argentina'
     league_urls = {
         'serie-a': 'https://www.futbol24.com/national/Brazil/Serie-A/2026/',
         'serie-b': 'https://www.futbol24.com/national/Brazil/Serie-B/2026/',
+        'copa-libertadores': 'https://www.futbol24.com/international/South-America/Copa-Libertadores/2026/',
+        'copa-sudamericana': 'https://www.futbol24.com/international/South-America/Copa-Sudamericana/2026/',
         'argentina': 'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/',
         'primera-division': 'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/'
     }

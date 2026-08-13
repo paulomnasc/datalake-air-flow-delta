@@ -1510,9 +1510,17 @@ def main():
         conn.close()
 
 def update_oddspedia_odds(conn):
-
     try:
-        sys.path.insert(0, '/root/datalake-air-flow-delta/src/dags')
+        dags_candidate_paths = [
+            '/opt/airflow/dags',
+            '/usr/local/bin/dags',
+            '/root/datalake-air-flow-delta/src/dags',
+            os.path.abspath(os.path.join(os.path.dirname(__file__), '../src/dags'))
+        ]
+        for p in dags_candidate_paths:
+            if os.path.exists(p) and p not in sys.path:
+                sys.path.insert(0, p)
+
         from lib.scrapers import scrape_oddspedia_odds, scrape_futbol24_odds, scrape_futbol24_previews, fetch_futbol24_direct_match_odds
         from lib.sports_arbitrage import normalize_team_name, calculate_surebet, fetch_live_odds_from_api
         
@@ -1568,7 +1576,7 @@ def update_oddspedia_odds(conn):
                     }
 
         cursor = conn.cursor()
-        cursor.execute("SELECT fixture_id, home_team, away_team FROM fixtures_trends")
+        cursor.execute("SELECT fixture_id, home_team, away_team FROM fixtures_trends WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) >= CURDATE() - INTERVAL 2 DAY")
         db_fixtures = cursor.fetchall()
 
         # 1. Ingestão de prévias e palpites editoriais do Futbol24
@@ -1750,20 +1758,29 @@ def update_oddspedia_odds(conn):
                     home_last5, away_last5, best_c1, best_cX, best_c2
                 )
 
-                cursor.execute("""
-                    UPDATE fixtures_trends SET
-                        odd_home = %s, casa_odd_home = %s,
-                        odd_draw = %s, casa_odd_draw = %s,
-                        odd_away = %s, casa_odd_away = %s,
-                        is_surebet = %s, surebet_profit_pct = %s,
-                        ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s,
-                        updated_at = NOW()
-                    WHERE fixture_id = %s
-                """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, is_surebet, profit_pct, sug, conf, reason, fix_id))
-                updated_count += 1
-                print(f"Odds e motivação atualizadas para {fix['home_team']} vs {fix['away_team']}: 1({best_bm1}={best_c1}), X({best_bmX}={best_cX}), 2({best_bm2}={best_c2}) | Surebet: {is_surebet}")
+                for attempt in range(3):
+                    try:
+                        cursor.execute("""
+                            UPDATE fixtures_trends SET
+                                odd_home = %s, casa_odd_home = %s,
+                                odd_draw = %s, casa_odd_draw = %s,
+                                odd_away = %s, casa_odd_away = %s,
+                                is_surebet = %s, surebet_profit_pct = %s,
+                                ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s,
+                                updated_at = NOW()
+                            WHERE fixture_id = %s
+                        """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, is_surebet, profit_pct, sug, conf, reason, fix_id))
+                        conn.commit()
+                        updated_count += 1
+                        print(f"Odds e motivação atualizadas para {fix['home_team']} vs {fix['away_team']}: 1({best_bm1}={best_c1}), X({best_bmX}={best_cX}), 2({best_bm2}={best_c2}) | Surebet: {is_surebet}")
+                        break
+                    except pymysql.err.OperationalError as e_dl:
+                        if e_dl.args[0] in (1213, 1205) and attempt < 2:
+                            print(f"⚠️ Deadlock no MySQL para fixture #{fix_id} ({attempt+1}/3). Tentando novamente em 0.5s...")
+                            time.sleep(0.5)
+                        else:
+                            raise e_dl
 
-        conn.commit()
         print(f"Total de {updated_count} partidas enriquecidas com odds!")
     except Exception as e:
         print(f"Aviso no enriquecimento de odds: {e}")

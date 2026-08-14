@@ -790,14 +790,26 @@ if (!function_exists('formatBrtDate')) {
     <div class="d-flex align-items-center gap-3 flex-wrap">
       <!-- Status Filters -->
       <div class="bet-filters">
-        <button class="filter-btn active" id="btnFilterAll" onclick="filterBets('all', this)">Todas (<?= count($apostas) ?>)</button>
-        <button class="filter-btn" id="btnFilterPendente" onclick="filterBets('Pendente', this)">Pendentes (<?= $resumo['pendentes'] ?? 0 ?>)</button>
-        <button class="filter-btn" id="btnFilterGanha" onclick="filterBets('Ganha', this)">Ganhas (<?= $resumo['ganhas'] ?? 0 ?>)</button>
-        <button class="filter-btn" id="btnFilterMeioGanha" onclick="filterBets('Meio Ganha', this)">Meio Ganhas (<?= $resumo['meio_ganhas'] ?? 0 ?>)</button>
-        <button class="filter-btn" id="btnFilterAnulada" onclick="filterBets('ANULADA', this)">Anuladas (<?= $resumo['anuladas'] ?? 0 ?>)</button>
-        <button class="filter-btn" id="btnFilterMeioPerdida" onclick="filterBets('Meio Perdida', this)">Meio Perdidas (<?= $resumo['meio_perdidas'] ?? 0 ?>)</button>
-        <button class="filter-btn" id="btnFilterPerdida" onclick="filterBets('Perdida', this)">Perdidas (<?= $resumo['perdidas'] ?? 0 ?>)</button>
-        <button class="filter-btn" id="btnFilterCashout" onclick="filterBets('Cashout', this)">Cashout (<?= $resumo['cashouts'] ?? 0 ?>)</button>
+        <?php
+          $totalApostasCount = count($apostas);
+          $calcPctBadge = function($label, $count) use ($totalApostasCount) {
+            if ($totalApostasCount <= 0) {
+              $pctStr = '0%';
+            } else {
+              $pct = ($count / $totalApostasCount) * 100;
+              $pctStr = ($pct == (int)$pct) ? number_format($pct, 0) . '%' : number_format($pct, 1, ',', '.') . '%';
+            }
+            return "{$label} ({$count} - {$pctStr})";
+          };
+        ?>
+        <button class="filter-btn active" id="btnFilterAll" onclick="filterBets('all', this)"><?= $calcPctBadge('Todas', $totalApostasCount) ?></button>
+        <button class="filter-btn" id="btnFilterPendente" onclick="filterBets('Pendente', this)"><?= $calcPctBadge('Pendentes', $resumo['pendentes'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterGanha" onclick="filterBets('Ganha', this)"><?= $calcPctBadge('Ganhas', $resumo['ganhas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterMeioGanha" onclick="filterBets('Meio Ganha', this)"><?= $calcPctBadge('Meio Ganhas', $resumo['meio_ganhas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterAnulada" onclick="filterBets('ANULADA', this)"><?= $calcPctBadge('Anuladas', $resumo['anuladas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterMeioPerdida" onclick="filterBets('Meio Perdida', this)"><?= $calcPctBadge('Meio Perdidas', $resumo['meio_perdidas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterPerdida" onclick="filterBets('Perdida', this)"><?= $calcPctBadge('Perdida', $resumo['perdidas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterCashout" onclick="filterBets('Cashout', this)"><?= $calcPctBadge('Cashout', $resumo['cashouts'] ?? 0) ?></button>
       </div>
 
       <!-- Filtro de Período (2 Datas) -->
@@ -1829,6 +1841,17 @@ if (!function_exists('formatBrtDate')) {
   }
 
   function updateTabBadges(counts) {
+    const total = counts.all || 0;
+
+    function formatBadge(label, count) {
+      if (total <= 0) {
+        return `${label} (${count} - 0%)`;
+      }
+      const pct = (count / total) * 100;
+      const pctStr = (pct % 1 === 0) ? pct.toFixed(0) + '%' : pct.toFixed(1).replace('.', ',') + '%';
+      return `${label} (${count} - ${pctStr})`;
+    }
+
     const btnAll = document.getElementById('btnFilterAll');
     const btnPendente = document.getElementById('btnFilterPendente');
     const btnGanha = document.getElementById('btnFilterGanha');
@@ -1838,14 +1861,14 @@ if (!function_exists('formatBrtDate')) {
     const btnPerdida = document.getElementById('btnFilterPerdida');
     const btnCashout = document.getElementById('btnFilterCashout');
 
-    if (btnAll) btnAll.textContent = `Todas (${counts.all || 0})`;
-    if (btnPendente) btnPendente.textContent = `Pendentes (${counts['Pendente'] || 0})`;
-    if (btnGanha) btnGanha.textContent = `Ganhas (${counts['Ganha'] || 0})`;
-    if (btnMeioGanha) btnMeioGanha.textContent = `Meio Ganhas (${counts['Meio Ganha'] || 0})`;
-    if (btnAnulada) btnAnulada.textContent = `Anuladas (${counts['ANULADA'] || 0})`;
-    if (btnMeioPerdida) btnMeioPerdida.textContent = `Meio Perdidas (${counts['Meio Perdida'] || 0})`;
-    if (btnPerdida) btnPerdida.textContent = `Perdidas (${counts['Perdida'] || 0})`;
-    if (btnCashout) btnCashout.textContent = `Cashout (${counts['Cashout'] || 0})`;
+    if (btnAll) btnAll.textContent = formatBadge('Todas', total);
+    if (btnPendente) btnPendente.textContent = formatBadge('Pendentes', counts['Pendente'] || 0);
+    if (btnGanha) btnGanha.textContent = formatBadge('Ganhas', counts['Ganha'] || 0);
+    if (btnMeioGanha) btnMeioGanha.textContent = formatBadge('Meio Ganhas', counts['Meio Ganha'] || 0);
+    if (btnAnulada) btnAnulada.textContent = formatBadge('Anuladas', counts['ANULADA'] || 0);
+    if (btnMeioPerdida) btnMeioPerdida.textContent = formatBadge('Meio Perdidas', counts['Meio Perdida'] || 0);
+    if (btnPerdida) btnPerdida.textContent = formatBadge('Perdidas', counts['Perdida'] || 0);
+    if (btnCashout) btnCashout.textContent = formatBadge('Cashout', counts['Cashout'] || 0);
   }
 
   function updateCalculatedSummary() {

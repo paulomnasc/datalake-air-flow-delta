@@ -1969,8 +1969,9 @@ if (!function_exists('getBetDecisionTree')) {
                                     $showFinishedQuery = '&show_finished=' . ($showFinished ? '1' : '0');
                                     $showPostponedQuery = '&show_postponed=' . (!empty($showPostponed) ? '1' : '0');
                                     $onlyLiveQuery = !empty($onlyLive) ? '&only_live=1' : '';
+                                    $onlyResenhaQuery = !empty($onlyResenha) ? '&only_resenha=1' : '';
                                     $searchQuery = !empty($search) ? '&search=' . urlencode($search) : '';
-                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $onlyLiveQuery . $searchQuery;
+                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $onlyLiveQuery . $onlyResenhaQuery . $searchQuery;
                                     ?>
                                     <a href="?start_date=<?= $yesterday ?>&end_date=<?= $yesterday ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $yesterday && $endDate === $yesterday) ? 'active' : '' ?>">
                                         <i class="bi bi-chevron-left"></i> <?= lang('App.yesterday') ?>
@@ -2054,6 +2055,18 @@ if (!function_exists('getBetDecisionTree')) {
                                     </label>
                                     <span id="onlyHasBetToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: #8a99a8;">
                                         Não
+                                    </span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2" style="background: rgba(0, 230, 118, 0.08); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0, 230, 118, 0.25);" title="Exibir apenas partidas que possuem resenha e análise editorial">
+                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #00e676; font-weight: 600;">
+                                        <i class="bi bi-chat-quote-fill"></i> Com Resenha
+                                    </span>
+                                    <label class="bet-switch">
+                                        <input type="checkbox" id="onlyResenhaToggle" name="only_resenha" value="1" <?= !empty($onlyResenha) ? 'checked' : '' ?> onchange="toggleResenhaFilter(this)">
+                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
+                                    </label>
+                                    <span id="onlyResenhaToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlyResenha) ? '#00e676' : '#8a99a8' ?>;">
+                                        <?= !empty($onlyResenha) ? 'Sim' : 'Não' ?>
                                     </span>
                                 </div>
                                 <div class="d-flex align-items-center gap-2" style="background: rgba(239, 68, 68, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(239, 68, 68, 0.3);" title="Exibir apenas partidas em andamento (Ao Vivo)">
@@ -2276,7 +2289,7 @@ if (!function_exists('getBetDecisionTree')) {
                              $isPostponedCard = in_array($statusClean, ['PST', 'CANCELLED', 'POSTPONED', 'CANC']);
                              $isFinishedCard = in_array($statusClean, $finishedStatusesList) || ($fix->goals_home !== null && !$isLiveMatch && !$isPostponedCard) || (isset($diffMins) && $diffMins > 120 && !$isLiveMatch && !$isPostponedCard);
                              ?>
-                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
+                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
@@ -3571,6 +3584,7 @@ if (!function_exists('getBetDecisionTree')) {
     let currentOnlySurebetFilter = <?= !empty($onlySurebet) ? 'true' : 'false' ?>;
     let currentOnlyHasBetFilter = false;
     let currentOnlyLiveFilter = <?= !empty($onlyLive) ? 'true' : 'false' ?>;
+    let currentOnlyResenhaFilter = <?= !empty($onlyResenha) ? 'true' : 'false' ?>;
 
     function toggleShowFinishedFilter(checkbox) {
         currentShowFinishedFilter = checkbox.checked;
@@ -3632,7 +3646,17 @@ if (!function_exists('getBetDecisionTree')) {
         applyFilters();
     }
 
-    // Aplica os filtros combinados (Liga + Aba de Destaques + Busca por Texto + Jogos Encerrados + Adiados + Apenas Apostas Seguras + Surebets + Com Aposta + Em Andamento)
+    function toggleResenhaFilter(checkbox) {
+        currentOnlyResenhaFilter = checkbox.checked;
+        const statusSpan = document.getElementById('onlyResenhaToggleStatus');
+        if (statusSpan) {
+            statusSpan.innerText = currentOnlyResenhaFilter ? 'Sim' : 'Não';
+            statusSpan.style.color = currentOnlyResenhaFilter ? '#00e676' : '#8a99a8';
+        }
+        applyFilters();
+    }
+
+    // Aplica os filtros combinados (Liga + Aba de Destaques + Busca por Texto + Jogos Encerrados + Adiados + Apenas Apostas Seguras + Surebets + Com Aposta + Em Andamento + Com Resenha)
     function applyFilters() {
         const cards = document.querySelectorAll('.bet-card');
         let visibleCount = 0;
@@ -3648,6 +3672,7 @@ if (!function_exists('getBetDecisionTree')) {
             const isLive = card.getAttribute('data-is-live') === '1';
             const isFinished = card.getAttribute('data-is-finished') === '1';
             const isPostponed = card.getAttribute('data-is-postponed') === '1';
+            const hasResenha = card.getAttribute('data-has-resenha') === '1';
             
             const matchLeague = (currentLeagueFilter === 'all' || cardLeague === currentLeagueFilter);
             const matchTab = (currentTabFilter === 'competicoes' || cardProb >= 70.0);
@@ -3658,8 +3683,9 @@ if (!function_exists('getBetDecisionTree')) {
             const matchLive = (!currentOnlyLiveFilter || isLive);
             const matchFinished = (currentShowFinishedFilter || !isFinished);
             const matchPostponed = (currentShowPostponedFilter || !isPostponed);
+            const matchResenha = (!currentOnlyResenhaFilter || hasResenha);
             
-            if (matchLeague && matchTab && matchText && matchSafe && matchSurebet && matchHasBet && matchLive && matchFinished && matchPostponed) {
+            if (matchLeague && matchTab && matchText && matchSafe && matchSurebet && matchHasBet && matchLive && matchFinished && matchPostponed && matchResenha) {
                 card.style.display = 'flex';
                 visibleCount++;
             } else {

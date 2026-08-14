@@ -104,6 +104,10 @@ class FootballTrendsController extends BaseController
         $onlyLiveParam = $this->request->getVar('only_live');
         $onlyLive = ($onlyLiveParam === '1' || $onlyLiveParam === 'true' || $onlyLiveParam === 'sim');
 
+        // Filtro para exibir apenas partidas com resenha/análise editorial (Futbol24)
+        $onlyResenhaParam = $this->request->getVar('only_resenha');
+        $onlyResenha = ($onlyResenhaParam === '1' || $onlyResenhaParam === 'true' || $onlyResenhaParam === 'sim');
+
         // Conecta ao banco para realizar a query com join
         $db = \Config\Database::connect();
         $builder = $db->table('fixtures_trends ft');
@@ -204,6 +208,7 @@ class FootballTrendsController extends BaseController
             'onlySafe'          => $onlySafe,
             'onlySurebet'       => $onlySurebet,
             'onlyLive'          => $onlyLive,
+            'onlyResenha'       => $onlyResenha,
             'userBetFixtureIds' => $userBetFixtureIds,
             'allBetFixtureIds'  => $allBetFixtureIds,
             'fixtures'          => $fixtures,

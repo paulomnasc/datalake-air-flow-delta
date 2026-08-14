@@ -2736,6 +2736,70 @@ if (!function_exists('getBetDecisionTree')) {
                                                     </div>
                                                 </div>
 
+                                                <div style="margin-top: 8px; padding: 6px 8px; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px;">
+                                                    <div style="font-size: 0.72rem; font-weight: 700; color: #fbbf24; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
+                                                        <span><i class="bi bi-clock-history me-1"></i> Retrospecto dos Últimos 5 Jogos (U5J)</span>
+                                                        <span style="font-size: 0.65rem; color: #94a3b8; font-weight: normal;"><?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?></span>
+                                                    </div>
+                                                    <div class="table-responsive" style="margin: 0; padding: 0;">
+                                                        <table class="table table-sm table-borderless text-white mb-0" style="font-size: 0.68rem;">
+                                                            <thead>
+                                                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94a3b8;">
+                                                                    <th style="padding: 2px 4px;">Time</th>
+                                                                    <th style="padding: 2px 4px; text-align: center;">Forma</th>
+                                                                    <th style="padding: 2px 4px;">Últimas Partidas</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                <tr>
+                                                                    <td style="padding: 3px 4px; font-weight: 600; color: #38bdf8; white-space: nowrap;">
+                                                                        🏠 <?= htmlspecialchars($fix->home_team) ?>
+                                                                    </td>
+                                                                    <td style="padding: 3px 4px; text-align: center; font-weight: 700; color: #fbbf24;">
+                                                                        <?= htmlspecialchars($u5j_data['home']['text'] ?? '0V-0E-0D') ?>
+                                                                    </td>
+                                                                    <td style="padding: 3px 4px;">
+                                                                         <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+                                                                             <?php if (empty($u5j_data['home']['matches'])): ?>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                             <?php else: ?>
+                                                                                 <?php foreach ($u5j_data['home']['matches'] as $m): ?>
+                                                                                     <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
+                                                                                     <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
+                                                                                         <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
+                                                                                     </span>
+                                                                                 <?php endforeach; ?>
+                                                                             <?php endif; ?>
+                                                                         </div>
+                                                                     </td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td style="padding: 3px 4px; font-weight: 600; color: #a78bfa; white-space: nowrap;">
+                                                                        ✈️ <?= htmlspecialchars($fix->away_team) ?>
+                                                                    </td>
+                                                                    <td style="padding: 3px 4px; text-align: center; font-weight: 700; color: #fbbf24;">
+                                                                        <?= htmlspecialchars($u5j_data['away']['text'] ?? '0V-0E-0D') ?>
+                                                                    </td>
+                                                                    <td style="padding: 3px 4px;">
+                                                                         <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+                                                                             <?php if (empty($u5j_data['away']['matches'])): ?>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                             <?php else: ?>
+                                                                                 <?php foreach ($u5j_data['away']['matches'] as $m): ?>
+                                                                                     <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
+                                                                                     <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
+                                                                                         <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
+                                                                                     </span>
+                                                                                 <?php endforeach; ?>
+                                                                             <?php endif; ?>
+                                                                         </div>
+                                                                     </td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+
                                                 <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-top: 6px; border-top: 1px solid rgba(239, 68, 68, 0.2);">
                                                     <span style="font-size: 0.72rem; color: #fda4af; display: flex; align-items: center; gap: 4px;">
                                                         <i class="bi bi-info-circle-fill"></i> Para proteger sua banca, a automação do Airflow não cria apostas para partidas com abstenção de risco.

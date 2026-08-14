@@ -14,8 +14,8 @@ from datetime import datetime, timezone, timedelta
 
 log = logging.getLogger(__name__)
 
-# Chave Padrão The Odds API fornecida pelo usuário
-DEFAULT_ODDS_API_KEY = "19034934454fd9bd0a06735a67cd8f1b"
+# Chaves Padrão da The Odds API com rotação automática
+DEFAULT_ODDS_API_KEY = "a8ecbfad087c4db80a9517e4e4a9965f,19034934454fd9bd0a06735a67cd8f1b"
 
 
 # Mapeamento e Normalização de Nomes de Times do Brasileirão

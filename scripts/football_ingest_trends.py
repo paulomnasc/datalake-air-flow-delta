@@ -63,12 +63,18 @@ def _normalize_team_name_for_match(n):
     import re, unicodedata
     nfkd = unicodedata.normalize('NFKD', str(n))
     clean = ''.join(c for c in nfkd if not unicodedata.combining(c)).lower()
-    return re.sub(r'\b(sp|pr|rs|rj|mg|ba|ce|pa|sc|go|pe|al|mt|df|es|ma|pb|pi|rn|ro|rr|se|to|fc|club|ca|cd)\b', '', clean).strip()
+    clean = re.sub(r'\b(fc|club|ca|cd)\b', '', clean).strip()
+    return clean.strip()
 
 def _is_team_match(search_name, target_team, search_id=None, target_id=None):
     if search_id and target_id and str(search_id).strip() and str(target_id).strip():
-        if int(search_id) == int(target_id):
-            return True
+        try:
+            if int(search_id) == int(target_id):
+                return True
+            else:
+                return False
+        except (ValueError, TypeError):
+            pass
     s_norm = _normalize_team_name_for_match(search_name)
     t_norm = _normalize_team_name_for_match(target_team)
     if s_norm and t_norm:
@@ -80,38 +86,137 @@ def _is_team_match(search_name, target_team, search_id=None, target_id=None):
         return s_norm == t_norm
     return False
 
-def fetch_team_last5_form(cursor, team_name, team_id=None):
+def fetch_api_sports_team_last5(team_id, limit=5):
     """
-    Busca a sequência recente (últimos jogos) do time.
-    Prioriza a consulta local no banco MySQL com correspondência estrita de nomes/IDs.
+    Busca os últimos N jogos de um time via API-Sports (https://v3.football.api-sports.io/fixtures?team={team_id}&last=5).
+    """
+    if not team_id:
+        return None
+    api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
+    url = f"https://v3.football.api-sports.io/fixtures?team={team_id}&last={limit}&status=FT"
+    headers = {
+        'x-apisports-key': api_key,
+        'User-Agent': 'Mozilla/5.0'
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=10).json()
+        fixtures_api = resp.get('response', [])
+        if not fixtures_api:
+            return None
+
+        matches = []
+        for item in fixtures_api:
+            teams = item.get('teams', {})
+            goals = item.get('goals', {})
+            home_id = teams.get('home', {}).get('id')
+            is_home = (int(home_id) == int(team_id)) if home_id else True
+            opp_name = teams.get('away', {}).get('name') if is_home else teams.get('home', {}).get('name')
+            gh = goals.get('home') if goals.get('home') is not None else 0
+            ga = goals.get('away') if goals.get('away') is not None else 0
+            
+            if is_home:
+                res = "V" if gh > ga else ("E" if gh == ga else "D")
+                sc = f"{gh}x{ga}"
+            else:
+                res = "V" if ga > gh else ("E" if gh == ga else "D")
+                sc = f"{ga}x{gh}"
+
+            matches.append({
+                "opponent": opp_name,
+                "score": sc,
+                "result": res,
+                "is_home": is_home
+            })
+            if len(matches) >= limit:
+                break
+        return matches
+    except Exception as e:
+        print(f"Aviso ao consultar API-Sports para últimos 5 jogos do team_id #{team_id}: {e}")
+        return None
+
+def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
+    """
+    Busca a sequência recente (últimos 5 jogos) do time.
+    Prioriza a consulta local no banco MySQL por ID estrito, depois por Nome + Liga,
+    seguida de fallback na API-Sports e Futbol24.
     Garante sincronização total entre v, e, d, pts e a lista visual de partidas (matches).
     """
     matches = []
+    seen_fixtures = set()
 
-    # 1. Consulta no banco MySQL local fixtures_trends com filtragem SQL por time
-    if cursor is not None:
+    # 1. Consulta no banco MySQL local por ID estrito
+    if cursor is not None and team_id and str(team_id).strip():
         try:
-            clean_search = f"%{_normalize_team_name_for_match(team_name)}%"
-            sql = """
-                SELECT home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, fixture_date
+            sql_id = """
+                SELECT fixture_id, home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, fixture_date
                 FROM fixtures_trends
                 WHERE status = 'FT'
                   AND goals_home IS NOT NULL
                   AND goals_away IS NOT NULL
-                  AND (
-                      (%s IS NOT NULL AND (home_team_id = %s OR away_team_id = %s))
-                      OR LOWER(home_team) LIKE %s
-                      OR LOWER(away_team) LIKE %s
-                  )
+                  AND (home_team_id = %s OR away_team_id = %s)
                 ORDER BY fixture_date DESC
-                LIMIT 30
+                LIMIT 5
             """
-            cursor.execute(sql, (team_id, team_id, team_id, clean_search, clean_search))
+            cursor.execute(sql_id, (team_id, team_id))
+            rows_id = cursor.fetchall()
+            for r in rows_id:
+                fid = r.get('fixture_id')
+                if fid in seen_fixtures:
+                    continue
+                seen_fixtures.add(fid)
+                is_home = (int(r['home_team_id']) == int(team_id)) if r.get('home_team_id') else (r['home_team'].lower() == team_name.lower())
+                gh = r['goals_home'] if r['goals_home'] is not None else 0
+                ga = r['goals_away'] if r['goals_away'] is not None else 0
+                opp_name = r['away_team'] if is_home else r['home_team']
+                if is_home:
+                    res = "V" if gh > ga else ("E" if gh == ga else "D")
+                    sc = f"{gh}x{ga}"
+                else:
+                    res = "V" if ga > gh else ("E" if gh == ga else "D")
+                    sc = f"{ga}x{gh}"
+                matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "fixture_id": fid})
+        except Exception as e_sql_id:
+            print(f"Aviso na busca SQL por ID de forma para '{team_name}' (#{team_id}): {e_sql_id}")
+
+    # 2. Se retornado < 5 partidas, consulta no banco MySQL local por Nome (+ Filtro de Liga/País)
+    if cursor is not None and len(matches) < 5:
+        try:
+            clean_search = f"%{_normalize_team_name_for_match(team_name)}%"
+            if league_id and str(league_id).strip():
+                sql_name = """
+                    SELECT fixture_id, home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, fixture_date
+                    FROM fixtures_trends
+                    WHERE status = 'FT'
+                      AND goals_home IS NOT NULL
+                      AND goals_away IS NOT NULL
+                      AND league_id = %s
+                      AND (LOWER(home_team) LIKE %s OR LOWER(away_team) LIKE %s)
+                    ORDER BY fixture_date DESC
+                    LIMIT 30
+                """
+                cursor.execute(sql_name, (league_id, clean_search, clean_search))
+            else:
+                sql_name = """
+                    SELECT fixture_id, home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, fixture_date
+                    FROM fixtures_trends
+                    WHERE status = 'FT'
+                      AND goals_home IS NOT NULL
+                      AND goals_away IS NOT NULL
+                      AND (LOWER(home_team) LIKE %s OR LOWER(away_team) LIKE %s)
+                    ORDER BY fixture_date DESC
+                    LIMIT 30
+                """
+                cursor.execute(sql_name, (clean_search, clean_search))
+
             rows = cursor.fetchall()
             for r in rows:
+                fid = r.get('fixture_id')
+                if fid in seen_fixtures:
+                    continue
                 h_match = _is_team_match(team_name, r['home_team'], team_id, r.get('home_team_id'))
                 a_match = _is_team_match(team_name, r['away_team'], team_id, r.get('away_team_id'))
                 if h_match or a_match:
+                    seen_fixtures.add(fid)
                     gh = r['goals_home'] if r['goals_home'] is not None else 0
                     ga = r['goals_away'] if r['goals_away'] is not None else 0
                     is_home = h_match
@@ -122,13 +227,19 @@ def fetch_team_last5_form(cursor, team_name, team_id=None):
                     else:
                         res = "V" if ga > gh else ("E" if gh == ga else "D")
                         sc = f"{ga}x{gh}"
-                    matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home})
+                    matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "fixture_id": fid})
                     if len(matches) >= 5:
                         break
         except Exception as e_sql:
-            print(f"Aviso na busca SQL de forma para '{team_name}': {e_sql}")
+            print(f"Aviso na busca SQL por Nome de forma para '{team_name}': {e_sql}")
 
-    # 2. Fallback: Raspagem no Futbol24 se o banco local não possuir 5 partidas recentes
+    # 3. Segunda opção: Consulta oficial via API-Sports se o banco local possuir menos de 5 partidas
+    if len(matches) < 5 and team_id:
+        api_matches = fetch_api_sports_team_last5(team_id, limit=5)
+        if api_matches and len(api_matches) > len(matches):
+            matches = api_matches
+
+    # 4. Terceira opção: Raspagem no Futbol24 como fallback final
     if len(matches) < 5 and scrape_futbol24_team_last5 is not None:
         try:
             f24_res = scrape_futbol24_team_last5(team_name, limit=6)
@@ -137,7 +248,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None):
         except Exception as exc:
             print(f"Aviso ao consultar Futbol24 para '{team_name}': {exc}")
 
-    # 3. Se não houver partidas encontradas no banco nem via scraper
+    # 5. Se não houver partidas encontradas no banco nem via API/scraper
     if not matches:
         return {
             "v": 0, "e": 0, "d": 0, "pts": 0,
@@ -145,16 +256,22 @@ def fetch_team_last5_form(cursor, team_name, team_id=None):
             "matches": []
         }
 
+    # Limpa fixture_id temporário do objeto de retorno das partidas
+    clean_matches = []
+    for m in matches[:5]:
+        m_copy = {k: v for k, v in m.items() if k != "fixture_id"}
+        clean_matches.append(m_copy)
+
     # Recalcula v, e, d, pts estritamente a partir das partidas em matches
-    v = sum(1 for m in matches if m["result"] == "V")
-    e = sum(1 for m in matches if m["result"] == "E")
-    d = sum(1 for m in matches if m["result"] == "D")
+    v = sum(1 for m in clean_matches if m["result"] == "V")
+    e = sum(1 for m in clean_matches if m["result"] == "E")
+    d = sum(1 for m in clean_matches if m["result"] == "D")
     pts = (3 * v) + (1 * e)
 
     return {
         "v": v, "e": e, "d": d, "pts": pts,
         "text": f"{v}V-{e}E-{d}D",
-        "matches": matches
+        "matches": clean_matches
     }
 
 def build_natural_language_explanation(suggestion, home_team, away_team):
@@ -1179,8 +1296,41 @@ def main():
             team_cards_combined = home_c_stats["avg_cards"] + away_c_stats["avg_cards"]
 
             # Detecção de forma nos últimos 5 jogos e sequência recente
-            home_last5 = fetch_team_last5_form(cursor, home_team, home_team_id)
-            away_last5 = fetch_team_last5_form(cursor, away_team, away_team_id)
+            home_last5 = fetch_team_last5_form(cursor, home_team, home_team_id, league_id)
+            away_last5 = fetch_team_last5_form(cursor, away_team, away_team_id, league_id)
+
+            # Se as estatísticas de gols em team_moving_averages estiverem zeradas (<= 0.01), calcula a partir do histórico U5J
+            def _adjust_stats_from_u5j(c_stats, last5_data, t_name, v_type):
+                if c_stats["avg_goals_scored"] <= 0.01 and c_stats["avg_goals_conceded"] <= 0.01:
+                    matches = last5_data.get("matches", [])
+                    if matches:
+                        scored = 0
+                        conceded = 0
+                        valid_count = 0
+                        for m in matches:
+                            parts = m.get("score", "").split("x")
+                            if len(parts) == 2:
+                                try:
+                                    scored += int(parts[0])
+                                    conceded += int(parts[1])
+                                    valid_count += 1
+                                except (ValueError, TypeError):
+                                    pass
+                        if valid_count > 0:
+                            c_stats["avg_goals_scored"] = round(scored / valid_count, 2)
+                            c_stats["avg_goals_conceded"] = round(conceded / valid_count, 2)
+                        else:
+                            det = generate_deterministic_team_stats(t_name, v_type)
+                            c_stats["avg_goals_scored"] = det["avg_goals_scored"]
+                            c_stats["avg_goals_conceded"] = det["avg_goals_conceded"]
+                    else:
+                        det = generate_deterministic_team_stats(t_name, v_type)
+                        c_stats["avg_goals_scored"] = det["avg_goals_scored"]
+                        c_stats["avg_goals_conceded"] = det["avg_goals_conceded"]
+                return c_stats
+
+            home_c_stats = _adjust_stats_from_u5j(home_c_stats, home_last5, home_team, 'home')
+            away_c_stats = _adjust_stats_from_u5j(away_c_stats, away_last5, away_team, 'away')
 
             home_losses = home_last5.get("d", 0) if home_last5.get("v", 0) == 0 else 0
             if "operario" in home_team.lower() or "operário" in home_team.lower():
@@ -1561,7 +1711,8 @@ def update_oddspedia_odds(conn):
 
         api_odds_matches = []
         try:
-            api_odds_matches = fetch_live_odds_from_api("19034934454fd9bd0a06735a67cd8f1b") or []
+            api_odds_key = os.environ.get('ODDS_API_KEY') or "a8ecbfad087c4db80a9517e4e4a9965f,19034934454fd9bd0a06735a67cd8f1b"
+            api_odds_matches = fetch_live_odds_from_api(api_odds_key) or []
         except Exception as e_api:
             print(f"Aviso ao consultar The Odds API: {e_api}")
 
@@ -1783,8 +1934,8 @@ def update_oddspedia_odds(conn):
                 profit_pct = calc['lucro_percentual'] if (calc and is_surebet) else 0.0
                 
                 # Recalcula palpite AH
-                home_last5 = fetch_team_last5_form(cursor, fix['home_team'], fix.get('home_team_id'))
-                away_last5 = fetch_team_last5_form(cursor, fix['away_team'], fix.get('away_team_id'))
+                home_last5 = fetch_team_last5_form(cursor, fix['home_team'], fix.get('home_team_id'), fix.get('league_id'))
+                away_last5 = fetch_team_last5_form(cursor, fix['away_team'], fix.get('away_team_id'), fix.get('league_id'))
                 home_losses = home_last5.get('d', 0) if home_last5.get('v', 0) == 0 else 0
                 away_losses = away_last5.get('d', 0) if away_last5.get('v', 0) == 0 else 0
                 sug, conf, reason = calculate_asian_handicap_suggestion(

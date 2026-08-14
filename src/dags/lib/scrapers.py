@@ -885,7 +885,7 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
             c_name, slug = known_info
             team_url = f'https://www.futbol24.com/pt/equipa/{c_name}/{slug}/'
         else:
-            candidate_countries = [country] if country else ['France', 'England', 'Spain', 'Italy', 'Germany', 'Brazil', 'Argentina', 'Colombia', 'Chile', 'Uruguay', 'Paraguay', 'Peru', 'Ecuador', 'Mexico']
+            candidate_countries = [country] if country else ['France', 'England', 'Spain', 'Italy', 'Germany', 'Brazil', 'Argentina', 'Colombia', 'Chile', 'Uruguay', 'Paraguay', 'Peru', 'Ecuador', 'Mexico', 'Sweden', 'Norway', 'Denmark', 'Japan', 'Korea-Republic', 'Poland', 'Czech-Republic', 'Romania', 'Portugal', 'Netherlands', 'Belgium', 'Austria', 'Turkey', 'Scotland']
             candidate_countries = [c for c in candidate_countries if c]
             if 'Brazil' not in candidate_countries:
                 candidate_countries.append('Brazil')

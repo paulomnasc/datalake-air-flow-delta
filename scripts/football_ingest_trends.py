@@ -86,53 +86,80 @@ def _is_team_match(search_name, target_team, search_id=None, target_id=None):
         return s_norm == t_norm
     return False
 
+_api_sports_last5_cache = {}
+
 def fetch_api_sports_team_last5(team_id, limit=5):
     """
     Busca os últimos N jogos de um time via API-Sports (https://v3.football.api-sports.io/fixtures?team={team_id}&last=5).
+    Possui cache em memória e mecanismo de retry/backoff contra rate limiting.
     """
     if not team_id:
         return None
+    
+    try:
+        tid = int(team_id)
+    except (ValueError, TypeError):
+        return None
+
+    if tid in _api_sports_last5_cache:
+        return _api_sports_last5_cache[tid]
+
     api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
-    url = f"https://v3.football.api-sports.io/fixtures?team={team_id}&last={limit}&status=FT"
+    url = f"https://v3.football.api-sports.io/fixtures?team={tid}&last={limit}&status=FT"
     headers = {
         'x-apisports-key': api_key,
         'User-Agent': 'Mozilla/5.0'
     }
-    try:
-        resp = requests.get(url, headers=headers, timeout=10).json()
-        fixtures_api = resp.get('response', [])
-        if not fixtures_api:
-            return None
 
-        matches = []
-        for item in fixtures_api:
-            teams = item.get('teams', {})
-            goals = item.get('goals', {})
-            home_id = teams.get('home', {}).get('id')
-            is_home = (int(home_id) == int(team_id)) if home_id else True
-            opp_name = teams.get('away', {}).get('name') if is_home else teams.get('home', {}).get('name')
-            gh = goals.get('home') if goals.get('home') is not None else 0
-            ga = goals.get('away') if goals.get('away') is not None else 0
-            
-            if is_home:
-                res = "V" if gh > ga else ("E" if gh == ga else "D")
-                sc = f"{gh}x{ga}"
-            else:
-                res = "V" if ga > gh else ("E" if gh == ga else "D")
-                sc = f"{ga}x{gh}"
+    for attempt in range(2):
+        try:
+            resp = requests.get(url, headers=headers, timeout=10).json()
+            errs = resp.get('errors')
+            if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+                time.sleep(0.6)
+                continue
 
-            matches.append({
-                "opponent": opp_name,
-                "score": sc,
-                "result": res,
-                "is_home": is_home
-            })
-            if len(matches) >= limit:
-                break
-        return matches
-    except Exception as e:
-        print(f"Aviso ao consultar API-Sports para últimos 5 jogos do team_id #{team_id}: {e}")
-        return None
+            fixtures_api = resp.get('response', [])
+            if not fixtures_api:
+                if attempt == 0:
+                    time.sleep(0.5)
+                    continue
+                return None
+
+            matches = []
+            for item in fixtures_api:
+                teams = item.get('teams', {})
+                goals = item.get('goals', {})
+                home_id = teams.get('home', {}).get('id')
+                is_home = (int(home_id) == tid) if home_id else True
+                opp_name = teams.get('away', {}).get('name') if is_home else teams.get('home', {}).get('name')
+                gh = goals.get('home') if goals.get('home') is not None else 0
+                ga = goals.get('away') if goals.get('away') is not None else 0
+                
+                if is_home:
+                    res = "V" if gh > ga else ("E" if gh == ga else "D")
+                    sc = f"{gh}x{ga}"
+                else:
+                    res = "V" if ga > gh else ("E" if gh == ga else "D")
+                    sc = f"{ga}x{gh}"
+
+                matches.append({
+                    "opponent": opp_name,
+                    "score": sc,
+                    "result": res,
+                    "is_home": is_home
+                })
+                if len(matches) >= limit:
+                    break
+
+            if matches:
+                _api_sports_last5_cache[tid] = matches
+                return matches
+        except Exception as e:
+            print(f"Aviso ao consultar API-Sports para últimos 5 jogos do team_id #{team_id} (tentativa {attempt+1}): {e}")
+            time.sleep(0.5)
+
+    return None
 
 def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
     """
@@ -236,8 +263,18 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
     # 3. Segunda opção: Consulta oficial via API-Sports se o banco local possuir menos de 5 partidas
     if len(matches) < 5 and team_id:
         api_matches = fetch_api_sports_team_last5(team_id, limit=5)
-        if api_matches and len(api_matches) > len(matches):
-            matches = api_matches
+        if api_matches:
+            if len(api_matches) >= len(matches):
+                matches = api_matches
+            else:
+                existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
+                for am in api_matches:
+                    key = (am.get('opponent'), am.get('score'))
+                    if key not in existing_keys:
+                        matches.append(am)
+                        existing_keys.add(key)
+                    if len(matches) >= 5:
+                        break
 
     # 4. Terceira opção: Raspagem no Futbol24 como fallback final
     if len(matches) < 5 and scrape_futbol24_team_last5 is not None:

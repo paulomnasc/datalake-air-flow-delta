@@ -1151,8 +1151,8 @@ if (!function_exists('formatBrtDate')) {
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white">Odd *</label>
-              <input type="number" step="0.01" min="1.40" class="form-control" id="oddInput" required placeholder="1.47" oninput="calcGanhos()">
-              <div class="form-text" style="font-size: 0.7rem; color: #94a3b8;">Mínimo: 1,40</div>
+              <input type="number" step="0.01" min="1.60" class="form-control" id="oddInput" required placeholder="1.60" oninput="calcGanhos()">
+              <div class="form-text" style="font-size: 0.7rem; color: #94a3b8;">Mínimo: 1,60</div>
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white">Valor Aposta (R$) *</label>
@@ -1246,8 +1246,8 @@ if (!function_exists('formatBrtDate')) {
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white">Odd *</label>
-              <input type="number" step="0.01" min="1.40" class="form-control" id="editOddInput" required oninput="calcEditGanhos()">
-              <div class="form-text" style="font-size: 0.7rem; color: #94a3b8;">Mínimo: 1,40</div>
+              <input type="number" step="0.01" min="1.60" class="form-control" id="editOddInput" required oninput="calcEditGanhos()">
+              <div class="form-text" style="font-size: 0.7rem; color: #94a3b8;">Mínimo: 1,60</div>
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white">Valor Aposta (R$) *</label>
@@ -1987,8 +1987,8 @@ if (!function_exists('formatBrtDate')) {
   function submitNewBet(e) {
     e.preventDefault();
     const oddVal = parseFloat(document.getElementById('oddInput').value) || 0;
-    if (oddVal < 1.40) {
-      alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,40. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,40.');
+    if (oddVal < 1.60) {
+      alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,60. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,60.');
       return;
     }
     const formData = new FormData();
@@ -2158,8 +2158,8 @@ if (!function_exists('formatBrtDate')) {
   function submitEditBet(e) {
     e.preventDefault();
     const oddVal = parseFloat(document.getElementById('editOddInput').value) || 0;
-    if (oddVal < 1.40) {
-      alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,40. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,40.');
+    if (oddVal < 1.60) {
+      alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,60. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,60.');
       return;
     }
     const id = document.getElementById('editIdInput').value;

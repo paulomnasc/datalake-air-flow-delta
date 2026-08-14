@@ -207,10 +207,10 @@ class ApostaController extends BaseController
             ]);
         }
 
-        if ($odd < 1.40) {
+        if ($odd < 1.60) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'A Odd informada ('.number_format($odd, 2, ',', '.').') é inferior ao mínimo permitido de 1,40. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,40.'
+                'message' => 'A Odd informada ('.number_format($odd, 2, ',', '.').') é inferior ao mínimo permitido de 1,60. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,60.'
             ]);
         }
 

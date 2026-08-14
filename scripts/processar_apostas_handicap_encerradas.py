@@ -82,7 +82,7 @@ def evaluate_asian_handicap_bet(aposta, goals_home, goals_away):
     time_casa = aposta.get('time_casa', '').strip()
     time_fora = aposta.get('time_fora', '').strip()
     valor_aposta = float(aposta.get('valor_aposta', 10.0) or 10.0)
-    odd = float(aposta.get('odd', 1.40) or 1.40)
+    odd = float(aposta.get('odd', 1.60) or 1.60)
 
     palpite_norm = palpite.lower()
 

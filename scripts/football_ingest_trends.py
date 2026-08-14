@@ -116,8 +116,8 @@ def fetch_api_sports_team_last5(team_id, limit=5):
             resp = requests.get(url, headers=headers, timeout=10).json()
             errs = resp.get('errors')
             if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
-                time.sleep(0.6)
-                continue
+                print(f"[API-Sports] Quota diária ou rate limit excedido para team_id #{team_id}: {errs}")
+                return None
 
             fixtures_api = resp.get('response', [])
             if not fixtures_api:
@@ -260,28 +260,23 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
         except Exception as e_sql:
             print(f"Aviso na busca SQL por Nome de forma para '{team_name}': {e_sql}")
 
-    # 3. Segunda opção: Consulta oficial via API-Sports se o banco local possuir menos de 5 partidas
-    if len(matches) < 5 and team_id:
-        api_matches = fetch_api_sports_team_last5(team_id, limit=5)
-        if api_matches:
-            if len(api_matches) >= len(matches):
-                matches = api_matches
-            else:
-                existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
-                for am in api_matches:
-                    key = (am.get('opponent'), am.get('score'))
-                    if key not in existing_keys:
-                        matches.append(am)
-                        existing_keys.add(key)
-                    if len(matches) >= 5:
-                        break
-
-    # 4. Terceira opção: Raspagem no Futbol24 como fallback final
+    # 3. Opção de fallback: Raspagem no Futbol24 se o banco local possuir menos de 5 partidas
     if len(matches) < 5 and scrape_futbol24_team_last5 is not None:
         try:
             f24_res = scrape_futbol24_team_last5(team_name, limit=6)
-            if f24_res and f24_res.get("matches") and len(f24_res["matches"]) > len(matches):
-                matches = f24_res["matches"]
+            if f24_res and f24_res.get("matches"):
+                f24_matches = f24_res["matches"]
+                if len(f24_matches) >= 5 or len(f24_matches) > len(matches):
+                    matches = f24_matches
+                else:
+                    existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
+                    for fm in f24_matches:
+                        key = (fm.get('opponent'), fm.get('score'))
+                        if key not in existing_keys:
+                            matches.append(fm)
+                            existing_keys.add(key)
+                        if len(matches) >= 5:
+                            break
         except Exception as exc:
             print(f"Aviso ao consultar Futbol24 para '{team_name}': {exc}")
 

@@ -838,6 +838,27 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
         'universidad catolica': ('Ecuador', 'Universidad-Catolica'),
         'deportivo cuenca': ('Ecuador', 'Deportivo-Cuenca'),
         'manta fc': ('Ecuador', 'Manta-Fc'),
+        # Portugal
+        'sporting cp': ('Portugal', 'Sporting-Lisboa'), 'sporting': ('Portugal', 'Sporting-Lisboa'), 'sporting lisbon': ('Portugal', 'Sporting-Lisboa'), 'sporting lisboa': ('Portugal', 'Sporting-Lisboa'),
+        'vitória sc': ('Portugal', 'Vitoria-Guimaraes'), 'vitoria sc': ('Portugal', 'Vitoria-Guimaraes'), 'vitoria guimaraes': ('Portugal', 'Vitoria-Guimaraes'), 'vitória guimarães': ('Portugal', 'Vitoria-Guimaraes'), 'guimaraes': ('Portugal', 'Vitoria-Guimaraes'), 'guimarães': ('Portugal', 'Vitoria-Guimaraes'),
+        'benfica': ('Portugal', 'SL-Benfica'), 'sl benfica': ('Portugal', 'SL-Benfica'),
+        'fc porto': ('Portugal', 'FC-Porto'), 'porto': ('Portugal', 'FC-Porto'),
+        'sc braga': ('Portugal', 'SC-Braga'), 'braga': ('Portugal', 'SC-Braga'), 'sp. braga': ('Portugal', 'SC-Braga'), 'sp braga': ('Portugal', 'SC-Braga'),
+        'boavista': ('Portugal', 'Boavista-FC'), 'boavista fc': ('Portugal', 'Boavista-FC'),
+        'famalicao': ('Portugal', 'FC-Famalicao'), 'famalicão': ('Portugal', 'FC-Famalicao'), 'fc famalicao': ('Portugal', 'FC-Famalicao'),
+        'gil vicente': ('Portugal', 'Gil-Vicente-FC'), 'gil vicente fc': ('Portugal', 'Gil-Vicente-FC'),
+        'moreirense': ('Portugal', 'Moreirense-FC'), 'moreirense fc': ('Portugal', 'Moreirense-FC'),
+        'rio ave': ('Portugal', 'Rio-Ave-FC'), 'rio ave fc': ('Portugal', 'Rio-Ave-FC'),
+        'santa clara': ('Portugal', 'CD-Santa-Clara'), 'cd santa clara': ('Portugal', 'CD-Santa-Clara'),
+        'arouca': ('Portugal', 'FC-Arouca'), 'fc arouca': ('Portugal', 'FC-Arouca'),
+        'estoril': ('Portugal', 'Estoril-Praia'), 'estoril praia': ('Portugal', 'Estoril-Praia'),
+        'estrela': ('Portugal', 'Estrela-Amadora'), 'estrela amadora': ('Portugal', 'Estrela-Amadora'), 'estrela da amadora': ('Portugal', 'Estrela-Amadora'),
+        'nacional': ('Portugal', 'CD-Nacional'), 'cd nacional': ('Portugal', 'CD-Nacional'),
+        'casa pia': ('Portugal', 'Casa-Pia-AC'), 'casa pia ac': ('Portugal', 'Casa-Pia-AC'),
+        'alverca': ('Portugal', 'FC-Alverca'), 'fc alverca': ('Portugal', 'FC-Alverca'),
+        'academico viseu': ('Portugal', 'Academico-Viseu'), 'académico de viseu': ('Portugal', 'Academico-Viseu'),
+        'maritimo': ('Portugal', 'Maritimo-Funchal'), 'marítimo': ('Portugal', 'Maritimo-Funchal'),
+        'farense': ('Portugal', 'Farense'), 'sc farense': ('Portugal', 'Farense'),
         # França
         'paris saint germain': ('France', 'Paris-St-Germain'), 'paris sg': ('France', 'Paris-St-Germain'), 'psg': ('France', 'Paris-St-Germain'), 'paris saint-germain': ('France', 'Paris-St-Germain'),
         'monaco': ('France', 'AS-Monaco'), 'as monaco': ('France', 'AS-Monaco'),
@@ -866,6 +887,16 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
         'borussia dortmund': ('Germany', 'Borussia-Dortmund'), 'dortmund': ('Germany', 'Borussia-Dortmund')
     }
 
+    team_aliases_map = {
+        'sporting cp': {'sporting', 'sporting cp', 'sporting lisboa', 'sporting lisbon'},
+        'vitória sc': {'vitoria sc', 'vitória sc', 'vitoria guimaraes', 'vitória guimarães', 'guimaraes', 'guimarães'},
+        'vitoria sc': {'vitoria sc', 'vitória sc', 'vitoria guimaraes', 'vitória guimarães', 'guimaraes', 'guimarães'},
+        'benfica': {'benfica', 'sl benfica'},
+        'fc porto': {'fc porto', 'porto'},
+        'sc braga': {'sc braga', 'braga', 'sp. braga', 'sp braga', 'sporting braga'},
+        'estrela': {'estrela', 'estrela amadora', 'estrela da amadora'}
+    }
+
     def _strip_accents(s: str) -> str:
         import unicodedata
         return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn').lower().strip()
@@ -876,6 +907,18 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
         n = n.replace('saint', 'st').replace('st.', 'st')
         n = n.replace('united', 'utd').replace('utd.', 'utd')
         return n.split('/')[0].strip()
+
+    def _is_team_alias_match(target_name: str, candidate_name: str) -> bool:
+        norm_t = _norm(target_name)
+        norm_c = _norm(candidate_name)
+        if norm_t == norm_c or norm_t in norm_c or norm_c in norm_t:
+            return True
+        aliases = team_aliases_map.get(norm_t, set())
+        for a in aliases:
+            norm_a = _norm(a)
+            if norm_a == norm_c or norm_a in norm_c or norm_c in norm_a:
+                return True
+        return False
 
     clean_name = team_name.lower().replace('club atlético', '').replace('ca ', '').replace('cd ', '').split('/')[0].strip()
     known_info = known_slugs.get(clean_name) or known_slugs.get(team_name.lower()) or known_slugs.get(_strip_accents(clean_name))
@@ -919,8 +962,6 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
         rows = parent.find_all(class_='f-single-result__row')
         matches = []
 
-        norm_target = _norm(clean_name)
-
         for row in rows:
             text = row.get_text(separator='|', strip=True)
             parts = [p.strip() for p in text.split('|') if p.strip()]
@@ -943,10 +984,7 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
 
             gh, ga = map(int, score_part.split('-'))
 
-            norm_h = _norm(h_team)
-            norm_a = _norm(a_team)
-
-            is_home = (norm_target in norm_h or norm_h in norm_target)
+            is_home = _is_team_alias_match(clean_name, h_team)
             opp_name = a_team if is_home else h_team
 
             if is_home:

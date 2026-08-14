@@ -818,10 +818,16 @@ if (!function_exists('formatBrtDate')) {
           <strong id="calcTotalApostado" class="text-white">R$ 0,00</strong>
         </div>
 
-        <div class="d-flex align-items-center gap-1" title="Soma dos ganhos em apostas vencidas ou cashouts">
+        <div class="d-flex align-items-center gap-1" title="Soma dos ganhos em apostas vencidas ou cashouts (Retorno Bruto)">
           <i class="bi bi-graph-up-arrow text-success"></i>
           <span class="text-light-50">Total Ganho:</span>
           <strong id="calcTotalGanho" class="text-success">R$ 0,00</strong>
+        </div>
+
+        <div class="d-flex align-items-center gap-1" title="Soma do ganho obtido sobre as odds ((Aposta × Odd) - Aposta)">
+          <i class="bi bi-piggy-bank-fill" style="color: #00e676;"></i>
+          <span class="text-light-50">Ganho Odds:</span>
+          <strong id="calcTotalLucro" style="color: #00e676; font-weight: 700;">R$ 0,00</strong>
         </div>
 
         <div class="d-flex align-items-center gap-1" title="Soma dos valores perdidos nas apostas do período/filtro">
@@ -888,7 +894,7 @@ if (!function_exists('formatBrtDate')) {
           $itemCreatedDate = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'Y-m-d') : $itemDate;
           $displayMatchTime = !empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'd/m \à\s H:i') : 'Hoje';
         ?>
-        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
+        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
           
           <div class="bet-card-header">
             <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
@@ -1847,6 +1853,7 @@ if (!function_exists('formatBrtDate')) {
     let totalApostado = 0;
     let totalApostadoLiquidado = 0;
     let totalRetorno = 0;
+    let totalLucro = 0;
     let totalPerda = 0;
     let visibleCount = 0;
 
@@ -1855,6 +1862,7 @@ if (!function_exists('formatBrtDate')) {
         visibleCount++;
         const status = card.getAttribute('data-status') || '';
         const valor = parseFloat(card.getAttribute('data-valor') || '0') || 0;
+        const odd = parseFloat(card.getAttribute('data-odd') || '0') || 0;
         const ganho = parseFloat(card.getAttribute('data-ganho') || '0') || 0;
         const cashout = parseFloat(card.getAttribute('data-cashout') || '0') || 0;
 
@@ -1865,11 +1873,22 @@ if (!function_exists('formatBrtDate')) {
         }
 
         if (status === 'Ganha') {
-          totalRetorno += ganho;
+          const ret = ganho > 0 ? ganho : (valor * odd);
+          totalRetorno += ret;
+          const lucroItem = (ret - valor);
+          if (lucroItem > 0) totalLucro += lucroItem;
         } else if (status === 'Meio Ganha') {
-          totalRetorno += (ganho > 0 ? ganho : (valor + ((ganho - valor) / 2)));
+          const fullRet = ganho > 0 ? ganho : (valor * odd);
+          const ret = valor + ((fullRet - valor) / 2);
+          totalRetorno += ret;
+          const lucroItem = ((fullRet - valor) / 2);
+          if (lucroItem > 0) totalLucro += lucroItem;
         } else if (status === 'Cashout') {
-          totalRetorno += (cashout > 0 ? cashout : ganho);
+          const cashVal = cashout > 0 ? cashout : (ganho > 0 ? ganho : (valor * odd));
+          totalRetorno += cashVal;
+          if (cashVal > valor) {
+            totalLucro += (cashVal - valor);
+          }
         } else if (status === 'Perdida') {
           totalPerda += valor;
         } else if (status === 'Meio Perdida') {
@@ -1888,11 +1907,13 @@ if (!function_exists('formatBrtDate')) {
 
     const elApostado = document.getElementById('calcTotalApostado');
     const elGanho = document.getElementById('calcTotalGanho');
+    const elLucro = document.getElementById('calcTotalLucro');
     const elPerda = document.getElementById('calcTotalPerda');
     const elSaldo = document.getElementById('calcSaldoLiquido');
 
     if (elApostado) elApostado.textContent = formatBrl(totalApostado);
     if (elGanho) elGanho.textContent = formatBrl(totalRetorno);
+    if (elLucro) elLucro.textContent = formatBrl(totalLucro);
     if (elPerda) elPerda.textContent = formatBrl(totalPerda);
     if (elSaldo) {
       const prefix = saldoLiquido > 0 ? '+' : '';

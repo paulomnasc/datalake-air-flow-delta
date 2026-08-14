@@ -285,21 +285,35 @@ def _fetch_oddspedia_via_playwright(target_url: str, cookies: list = None, user_
         log.error(f"[SCRAPER-ODDSPEDIA-PLAYWRIGHT] Erro durante o fallback com Playwright para {target_url}: {e_pw}")
         return None
 
-def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Dict[str, Any]]:
+def scrape_oddspedia_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
     """
     Realiza a raspagem de odds agregadas no Oddspedia para as ligas especificadas.
     Utiliza o FlareSolverr como fluxo principal e o Playwright como fallback de renderização de tela.
     """
-    log.info(f"[SCRAPER-ODDSPEDIA] Iniciando extração para ligas: {leagues}")
-    all_matches = []
-    
     league_urls = {
         'serie-a': 'https://oddspedia.com/br/futebol/brasil/brasileirao-serie-a',
         'serie-b': 'https://oddspedia.com/br/futebol/brasil/brasileirao-serie-b',
+        'copa-do-brasil': 'https://oddspedia.com/br/futebol/brasil/copa-do-brasil',
         'copa-libertadores': 'https://oddspedia.com/br/futebol/america-do-sul/copa-libertadores',
         'copa-sudamericana': 'https://oddspedia.com/br/futebol/america-do-sul/copa-sul-americana',
-        'argentina': 'https://oddspedia.com/br/futebol/argentina/liga-profissional'
+        'argentina': 'https://oddspedia.com/br/futebol/argentina/liga-profissional',
+        'premier-league': 'https://oddspedia.com/br/futebol/inglaterra/premier-league',
+        'la-liga': 'https://oddspedia.com/br/futebol/espanha/laliga',
+        'serie-a-italy': 'https://oddspedia.com/br/futebol/italia/serie-a',
+        'bundesliga': 'https://oddspedia.com/br/futebol/alemanha/bundesliga',
+        'ligue-1': 'https://oddspedia.com/br/futebol/franca/ligue-1',
+        'champions-league': 'https://oddspedia.com/br/futebol/europa/liga-dos-campeoes',
+        'mls': 'https://oddspedia.com/br/futebol/eua/mls',
+        'liga-mx': 'https://oddspedia.com/br/futebol/mexico/liga-mx',
+        'primeira-liga': 'https://oddspedia.com/br/futebol/portugal/primeira-liga',
+        'uruguay': 'https://oddspedia.com/br/futebol/uruguai/primeira-divisao'
     }
+
+    if leagues is None:
+        leagues = list(league_urls.keys())
+
+    log.info(f"[SCRAPER-ODDSPEDIA] Iniciando extração para ligas: {leagues}")
+    all_matches = []
     
     for l_key in leagues:
         url = league_urls.get(l_key.lower())
@@ -455,22 +469,36 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
     return all_matches
 
 
-def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b', 'argentina']) -> List[Dict[str, Any]]:
+def scrape_futbol24_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
     """
     Realiza a raspagem de odds agregadas no Futbol24 (https://www.futbol24.com/) para as ligas especificadas.
     Atua como fonte alternativa/complementar ao Oddspedia para diversificar as casas de apostas.
     """
-    log.info(f"[SCRAPER-FUTBOL24] Iniciando extração alternativa para ligas: {leagues}")
-    all_matches = []
-    
     league_urls = {
         'serie-a': 'https://www.futbol24.com/national/Brazil/Serie-A/2026/',
         'serie-b': 'https://www.futbol24.com/national/Brazil/Serie-B/2026/',
+        'copa-do-brasil': 'https://www.futbol24.com/national/Brazil/Copa-do-Brasil/2026/',
         'copa-libertadores': 'https://www.futbol24.com/international/South-America/Copa-Libertadores/2026/',
         'copa-sudamericana': 'https://www.futbol24.com/international/South-America/Copa-Sudamericana/2026/',
         'argentina': 'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/',
-        'primera-division': 'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/'
+        'primera-division': 'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/',
+        'premier-league': 'https://www.futbol24.com/national/England/Premier-League/2025-2026/',
+        'la-liga': 'https://www.futbol24.com/national/Spain/Primera-Division/2025-2026/',
+        'serie-a-italy': 'https://www.futbol24.com/national/Italy/Serie-A/2025-2026/',
+        'bundesliga': 'https://www.futbol24.com/national/Germany/Bundesliga/2025-2026/',
+        'ligue-1': 'https://www.futbol24.com/national/France/Ligue-1/2025-2026/',
+        'champions-league': 'https://www.futbol24.com/international/Europe/Champions-League/2025-2026/',
+        'mls': 'https://www.futbol24.com/national/USA/Major-League-Soccer/2026/',
+        'liga-mx': 'https://www.futbol24.com/national/Mexico/Liga-MX/2025-2026/',
+        'primeira-liga': 'https://www.futbol24.com/national/Portugal/Primeira-Liga/2025-2026/',
+        'uruguay': 'https://www.futbol24.com/national/Uruguay/Primera-Division/2026/'
     }
+
+    if leagues is None:
+        leagues = list(league_urls.keys())
+
+    log.info(f"[SCRAPER-FUTBOL24] Iniciando extração alternativa para ligas: {leagues}")
+    all_matches = []
     
     known_bms = ['bet365', 'betano', 'sportingbet', 'superbet', 'kto', 'stake', '1xbet', 'pinnacle', 'novibet', 'bwin', 'betway', '10bet', 'betfair', 'betsson']
     

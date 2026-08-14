@@ -56,36 +56,128 @@ def get_all_user_ids(cursor):
     """)
     return [cursor.lastrowid]
 
+def determine_bet_side(home_team: str, away_team: str, ah_suggestion: str) -> bool:
+    """
+    Retorna True se a aposta for no time visitante (away), False se for no mandante (home).
+    Trata casos de times com números no nome (ex: 1. FC Köln, Mainz 05, Schalke 04).
+    """
+    home_low = home_team.lower().strip()
+    away_low = away_team.lower().strip()
+    ah_low = ah_suggestion.lower().strip()
+
+    # 1. Checagem direta por prefixo
+    if ah_low.startswith(away_low):
+        return True
+    if ah_low.startswith(home_low):
+        return False
+
+    # 2. Checagem de substrings exclusivas
+    in_away = away_low in ah_low
+    in_home = home_low in ah_low
+    if in_away and not in_home:
+        return True
+    if in_home and not in_away:
+        return False
+
+    # 3. Termos genéricos 'fora' / 'visitante' vs 'casa' / 'mandante'
+    if 'fora' in ah_low or 'visitante' in ah_low:
+        return True
+    if 'casa' in ah_low or 'mandante' in ah_low:
+        return False
+
+    # 4. Checagem por palavras significativas (>3 chars)
+    away_words = [w for w in re.findall(r'[a-zA-Z0-9]+', away_low) if len(w) >= 4]
+    home_words = [w for w in re.findall(r'[a-zA-Z0-9]+', home_low) if len(w) >= 4]
+    away_matches = sum(1 for w in away_words if w in ah_low)
+    home_matches = sum(1 for w in home_words if w in ah_low)
+
+    if away_matches > home_matches:
+        return True
+    if home_matches > away_matches:
+        return False
+
+    return False
+
+def is_allowed_league(league_id, league_name: str) -> bool:
+    """
+    Filtra o escopo de atuação do script de criação de apostas:
+    - Campeonatos do Brasil (Série A, Série B, Série C, Série D, Copa do Brasil, Paulistão, etc.)
+    - Internacional: Apenas CONMEBOL Libertadores e CONMEBOL Sudamericana.
+    """
+    l_id = None
+    if league_id is not None:
+        try:
+            l_id = int(league_id)
+        except (ValueError, TypeError):
+            pass
+
+    # IDs Conhecidos da API-Football
+    # 71: Serie A (Brasil), 72: Serie B (Brasil), 73: Copa do Brasil, 74: Brasileiro Women, 75: Serie C, 76: Serie D
+    # 13: CONMEBOL Libertadores, 11: CONMEBOL Sudamericana
+    ALLOWED_LEAGUE_IDS = {71, 72, 73, 74, 75, 76, 13, 11}
+    if l_id in ALLOWED_LEAGUE_IDS:
+        return True
+
+    l_name_low = (league_name or '').lower().strip()
+
+    # Checagem por Nome de Liga Internacional Permitida
+    if any(k in l_name_low for k in ['libertadores', 'sudamericana', 'sul-americana', 'sul americana']):
+        return True
+
+    # Checagem por Nome de Liga Brasileira
+    brazil_keywords = ['brasil', 'brasileiro', 'brasileira', 'copa do brasil', 'serie a', 'serie b', 'serie c', 'serie d', 'paulista', 'carioca', 'gaúcho', 'gaucho', 'mineiro', 'baiano', 'pernambucano', 'cearense', 'paranaense', 'catarinense']
+    if any(kw in l_name_low for kw in brazil_keywords):
+        if l_name_low in ['serie a', 'serie b', 'serie c', 'serie d'] and l_id not in {71, 72, 75, 76}:
+            return False
+        return True
+
+    return False
+
 def criar_apostas_handicap_diario(target_date_str=None):
     """
-    Busca os jogos em aberto do dia corrente (fuso horário local -03:00)
+    Busca os jogos em aberto na janela pré-jogo iminente (30 a 45 min antes da partida)
     e cria apostas no mercado de Handicap Asiático para todos os usuários.
+    Se target_date_str for especificado (ex: '2026-08-14' ou 'all'), filtra por data específica.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    if not target_date_str:
+    is_prematch_window = False
+
+    if not target_date_str or target_date_str.lower() in ('prematch', 'pre-match'):
+        is_prematch_window = True
+        date_desc = "janela pré-jogo (30 a 45 minutos antes do início)"
+    elif target_date_str.lower() == 'all':
         today_dt = datetime.now()
         tomorrow_dt = today_dt + timedelta(days=1)
         target_dates = [today_dt.strftime('%Y-%m-%d'), tomorrow_dt.strftime('%Y-%m-%d')]
-        date_desc = f"datas {target_dates[0]} e {target_dates[1]}"
+        date_desc = f"todas as partidas em aberto das datas {target_dates[0]} e {target_dates[1]}"
     else:
         target_dates = [target_date_str]
         date_desc = f"data {target_date_str}"
 
-    print(f"🚀 [DAG Criar Apostas AH] Iniciando verificação de jogos em aberto para {date_desc} (Fuso -03:00)...")
+    print(f"🚀 [DAG Criar Apostas AH] Iniciando verificação de jogos para {date_desc}...")
 
     user_ids = get_all_user_ids(cursor)
     print(f"👥 Usuários identificados: {user_ids}")
 
-    # 1. Buscar partidas em aberto das datas no fuso horário do Brasil (-03:00)
-    placeholders = ', '.join(['%s'] * len(target_dates))
-    cursor.execute(f"""
-        SELECT * FROM fixtures_trends
-        WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN ({placeholders})
-          AND status NOT IN ('PST', 'CANCELLED', 'POSTPONED')
-        ORDER BY fixture_date ASC
-    """, tuple(target_dates))
+    # 1. Buscar partidas em aberto
+    if is_prematch_window:
+        cursor.execute("""
+            SELECT * FROM fixtures_trends
+            WHERE fixture_date >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+              AND fixture_date <= DATE_ADD(NOW(), INTERVAL 45 MINUTE)
+              AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
+            ORDER BY fixture_date ASC
+        """)
+    else:
+        placeholders = ', '.join(['%s'] * len(target_dates))
+        cursor.execute(f"""
+            SELECT * FROM fixtures_trends
+            WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN ({placeholders})
+              AND status NOT IN ('PST', 'CANCELLED', 'POSTPONED')
+            ORDER BY fixture_date ASC
+        """, tuple(target_dates))
     
     fixtures = cursor.fetchall()
 
@@ -94,7 +186,7 @@ def criar_apostas_handicap_diario(target_date_str=None):
         conn.close()
         return
 
-    print(f"📋 Encontradas {len(fixtures)} partidas em aberto para o dia {target_date_str}.")
+    print(f"📋 Encontradas {len(fixtures)} partidas selecionadas.")
 
     apostas_criadas = 0
     apostas_duplicadas = 0
@@ -105,6 +197,13 @@ def criar_apostas_handicap_diario(target_date_str=None):
         home_team = fix['home_team'].strip()
         away_team = fix['away_team'].strip()
         fixture_date = fix['fixture_date']
+        league_id = fix.get('league_id')
+        league_name = fix.get('league_name') or ''
+
+        # Filtro Estrito de Escopo: Apenas campeonatos do Brasil e Internacional (Libertadores e Sul-Americana)
+        if not is_allowed_league(league_id, league_name):
+            print(f"🌍 [Fora do Escopo] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada. Escopo restrito a Brasil, Libertadores e Sul-Americana.")
+            continue
 
         ah_suggestion = (fix.get('ah_suggestion') or '').strip()
 
@@ -120,10 +219,8 @@ def criar_apostas_handicap_diario(target_date_str=None):
             apostas_abstenção += 1
             continue
 
-        # Determinar se o palpite é no time Visitante ou Mandante para escolher a Odd correta
-        is_away = False
-        if away_team.lower() in ah_norm or 'fora' in ah_norm or 'visitante' in ah_norm:
-            is_away = True
+        # Determinar com exatidão se o palpite é no time Visitante ou Mandante para escolher a Odd correta
+        is_away = determine_bet_side(home_team, away_team, ah_suggestion)
 
         if is_away:
             odd_val = float(fix.get('odd_away') or 1.60)

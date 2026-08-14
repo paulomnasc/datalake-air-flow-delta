@@ -782,11 +782,16 @@ def calculate_asian_handicap_suggestion(
             main_reason = f"Amplo favoritismo do visitante {away_team} com alta produção ofensiva ({away_goals_scored:.1f} g/j / U5J: {away_last5.get('text')}).{note_str}"
 
     # Trava Operacional: Garante que o palpite de Handicap Asiático seja estritamente 0.0 (Empate Anula)
-    team_fav = home_team if delta_goals >= 0.0 else away_team
     if "0.0 (Empate Anula)" not in suggestion:
-        m_team = re.match(r'^(.*?)\s*([+-]?\d+(?:\.\d+)?|0\.0)', suggestion)
-        if m_team and m_team.group(1).strip():
-            team_fav = m_team.group(1).strip()
+        s_low = suggestion.lower()
+        a_low = away_team.lower().strip()
+        h_low = home_team.lower().strip()
+        if s_low.startswith(a_low) or (a_low in s_low and h_low not in s_low):
+            team_fav = away_team
+        elif s_low.startswith(h_low) or (h_low in s_low and a_low not in s_low):
+            team_fav = home_team
+        else:
+            team_fav = home_team if delta_goals >= 0.0 else away_team
         suggestion = f"{team_fav} 0.0 (Empate Anula)"
 
     # Cálculo das Probabilidades 1X2 (%) Plataforma (Modelo Poisson) vs Casa de Apostas (Odds)
@@ -1750,13 +1755,13 @@ def update_oddspedia_odds(conn):
 
         scraped_matches_op = []
         try:
-            scraped_matches_op = scrape_oddspedia_odds(leagues=['serie-a', 'serie-b', 'copa-libertadores', 'copa-sudamericana', 'argentina']) or []
+            scraped_matches_op = scrape_oddspedia_odds(leagues=None) or []
         except Exception as e_op:
             print(f"Aviso ao consultar Oddspedia: {e_op}")
 
         scraped_matches_f24 = []
         try:
-            scraped_matches_f24 = scrape_futbol24_odds(leagues=['serie-a', 'serie-b', 'copa-libertadores', 'copa-sudamericana', 'argentina']) or []
+            scraped_matches_f24 = scrape_futbol24_odds(leagues=None) or []
         except Exception as e_f24:
             print(f"Aviso ao consultar Futbol24: {e_f24}")
         
@@ -1862,6 +1867,12 @@ def update_oddspedia_odds(conn):
                 if db_home == s_home and db_away == s_away:
                     matched_m = m
                     break
+
+            if not matched_m:
+                for m in scraped_matches:
+                    if _is_team_match(fix['home_team'], m['time_casa']) and _is_team_match(fix['away_team'], m['time_visitante']):
+                        matched_m = m
+                        break
             
             best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = 0.0, "", 0.0, "", 0.0, ""
             

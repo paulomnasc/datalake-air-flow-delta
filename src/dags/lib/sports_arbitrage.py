@@ -69,6 +69,43 @@ TEAM_ALIASES = {
     "QARABAG": ["QARABAG", "QARABAG FK", "QARABAG CSKA"],
     "DYNAMO KYIV": ["DYNAMO KYIV", "DINAMO KIEV", "DINAMO KYIV", "DYNAMO KIEV"],
     "INDEPENDIENTE DEL VALLE": ["INDEPENDIENTE DEL VALLE", "IDV", "INDEPENDIENTE D V"],
+    "REAL MADRID": ["REAL MADRID", "REAL MADRID CF", "RMA"],
+    "BARCELONA": ["BARCELONA", "FC BARCELONA", "BAR"],
+    "ATLETICO MADRID": ["ATLETICO MADRID", "ATLÉTICO MADRID", "ATM", "ATLÉTICO DE MADRID", "ATLETICO DE MADRID"],
+    "ATHLETIC BILBAO": ["ATHLETIC BILBAO", "ATHLETIC CLUB", "ATHLETIC CLUB BILBAO"],
+    "REAL BETIS": ["REAL BETIS", "BETIS", "REAL BETIS BALOMPIE"],
+    "REAL SOCIEDAD": ["REAL SOCIEDAD", "SOCIEDAD"],
+    "SEVILLA": ["SEVILLA", "SEVILLA FC"],
+    "MANCHESTER CITY": ["MANCHESTER CITY", "MAN CITY", "MCI"],
+    "MANCHESTER UNITED": ["MANCHESTER UNITED", "MAN UTD", "MUN"],
+    "ARSENAL": ["ARSENAL", "ARSENAL FC", "ARS"],
+    "CHELSEA": ["CHELSEA", "CHELSEA FC", "CHE"],
+    "LIVERPOOL": ["LIVERPOOL", "LIVERPOOL FC", "LIV"],
+    "TOTTENHAM": ["TOTTENHAM", "TOTTENHAM HOTSPUR", "TOT"],
+    "BAYERN MUNICH": ["BAYERN MUNICH", "BAYERN MUNCHEN", "BAYERN MÜNCHEN", "BAY"],
+    "BORUSSIA DORTMUND": ["BORUSSIA DORTMUND", "DORTMUND", "BVB"],
+    "RB LEIPZIG": ["RB LEIPZIG", "RASENBALLSPORT LEIPZIG", "LEIPZIG"],
+    "BAYER 04 LEVERKUSEN": ["BAYER 04 LEVERKUSEN", "BAYER LEVERKUSEN", "LEVERKUSEN", "BAYER 04"],
+    "EINTRACHT FRANKFURT": ["EINTRACHT FRANKFURT", "FRANKFURT", "EINTRACHT"],
+    "MAINZ 05": ["MAINZ 05", "FSV MAINZ 05", "MAINZ", "1 FSV MAINZ 05", "1. FSV MAINZ 05"],
+    "1. FC KÖLN": ["1. FC KÖLN", "1. FC KOLN", "FC KÖLN", "FC KOLN", "KÖLN", "KOLN", "1 FC KOLN"],
+    "SCHALKE 04": ["SCHALKE 04", "FC SCHALKE 04", "SCHALKE", "04 SCHALKE"],
+    "PARIS SAINT-GERMAIN": ["PARIS SAINT-GERMAIN", "PSG", "PARIS SG", "PARIS SAINT GERMAIN"],
+    "OLYMPIQUE MARSEILLE": ["MARSEILLE", "OLYMPIQUE MARSEILLE", "OM"],
+    "OLYMPIQUE LYON": ["LYON", "OLYMPIQUE LYON", "OL"],
+    "MONACO": ["MONACO", "AS MONACO"],
+    "JUVENTUS": ["JUVENTUS", "JUVENTUS FC", "JUV"],
+    "INTER MILAN": ["INTER MILAN", "INTER", "INTERNAZIONALE"],
+    "AC MILAN": ["AC MILAN", "MILAN"],
+    "PORTO": ["PORTO", "FC PORTO", "FUTEBOL CLUBE DO PORTO"],
+    "BENFICA": ["BENFICA", "SL BENFICA", "SPORT LISBOA E BENFICA"],
+    "SPORTING CP": ["SPORTING CP", "SPORTING LISBON", "SPORTING LISBOA", "SPORTING", "SCP"],
+    "BRAGA": ["BRAGA", "SC BRAGA", "SPORTING CLUBE DE BRAGA"],
+    "AJAX": ["AJAX", "AFC AJAX"],
+    "BOCA JUNIORS": ["BOCA JUNIORS", "BOCA", "CA BOCA JUNIORS"],
+    "RIVER PLATE": ["RIVER PLATE", "RIVER", "CA RIVER PLATE"],
+    "RACING CLUB": ["RACING CLUB", "RACING"],
+    "INDEPENDIENTE": ["INDEPENDIENTE", "CA INDEPENDIENTE"],
 }
 
 # Mapeamento e Normalização de Casas de Apostas (Bookmakers)
@@ -120,7 +157,7 @@ for _std, _aliases in TEAM_ALIASES.items():
         FAST_TEAM_ALIASES[_clean_a] = _std
 
 def normalize_team_name(name: str) -> str:
-    """Normaliza o nome do time para uma chave padronizada com busca O(1) sem acentos."""
+    """Normaliza o nome do time para uma chave padronizada com busca O(1) e fuzzy matching."""
     if not name:
         return "DESCONHECIDO"
     clean_name = re.sub(r'[^A-Z0-9\s-]', '', _remove_accents(name.upper())).strip()
@@ -132,6 +169,14 @@ def normalize_team_name(name: str) -> str:
             _clean_alias = re.sub(r'[^A-Z0-9\s-]', '', _remove_accents(alias.upper())).strip()
             if len(_clean_alias) >= 4 and (_clean_alias in clean_name or clean_name in _clean_alias):
                 return standard_name
+
+    # Fallback fuzzy match (acima de 82% de similaridade)
+    for standard_name, aliases in TEAM_ALIASES.items():
+        for alias in aliases:
+            _clean_alias = re.sub(r'[^A-Z0-9\s-]', '', _remove_accents(alias.upper())).strip()
+            if len(_clean_alias) >= 4 and difflib.SequenceMatcher(None, clean_name, _clean_alias).ratio() >= 0.82:
+                return standard_name
+
     return clean_name
 
 def calculate_surebet(odd_casa: float, odd_empate: float, odd_visitante: float, banca_total: float = 1000.0):

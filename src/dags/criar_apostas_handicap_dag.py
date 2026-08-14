@@ -60,9 +60,9 @@ default_args = {
 dag = DAG(
     'criar_apostas_handicap_dag',
     default_args=default_args,
-    schedule_interval='0 8 * * *',  # Executa diariamente às 08:00 AM para capturar jogos do dia
+    schedule_interval='0 * * * *',  # Executa de hora em hora (00:00, 01:00, ..., 23:00) para capturar todos os jogos do dia, inclusive da madrugada/05h AM
     catchup=False,
-    description="DAG do Airflow que verifica jogos em aberto do dia corrente e cria apostas no mercado de Handicap Asiático (Odd Mínima: 1.60)",
+    description="DAG do Airflow que verifica jogos em aberto do dia corrente e do dia seguinte, criando apostas no mercado de Handicap Asiático (Odd Mínima: 1.60)",
     tags=['football', 'handicap', 'apostas', 'daily_creation']
 )
 

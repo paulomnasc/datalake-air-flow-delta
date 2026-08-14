@@ -12,13 +12,13 @@ O pipeline é composto por duas rotinas diárias:
 
 ```mermaid
 flowchart TD
-    A["⏱️ Airflow Cron 08:00 AM"] --> B["DAG: criar_apostas_handicap_dag"]
+    A["⏱️ Airflow Cron 0 * * * * (Horário)"] --> B["DAG: criar_apostas_handicap_dag"]
     B --> C["Script: scripts/criar_apostas_handicap_diario.py"]
-    C --> D["Filtra Fixtures em Aberto (Fuso BR -03:00) em fixtures_trends"]
+    C --> D["Filtra Fixtures em Aberto (Hoje + Amanhã Fuso BR -03:00) em fixtures_trends"]
     D --> E["Calcula/Valida Sugestão ah_suggestion"]
     E --> F["Insere Apostas Pendentes em apostas (para todos os Usuários)"]
 
-    G["⏱️ Airflow Cron 23:00 PM"] --> H["DAG: processar_apostas_handicap_dag"]
+    G["⏱️ Airflow Cron 30 * * * * (Horário :30)"] --> H["DAG: processar_apostas_handicap_dag"]
     H --> I["Script: scripts/processar_apostas_handicap_encerradas.py"]
     I --> J["Busca Apostas Pendentes no Mercado Handicap Asiático"]
     J --> K["Compara Placar Final (FT) com Linhas de AH (+0.25, -0.5, 0.0, etc.)"]
@@ -33,17 +33,17 @@ flowchart TD
 - **Identificador DAG:** `criar_apostas_handicap_dag`
 - **Arquivo da DAG:** [`src/dags/criar_apostas_handicap_dag.py`](file:///root/datalake-air-flow-delta/src/dags/criar_apostas_handicap_dag.py)
 - **Script Executado:** [`scripts/criar_apostas_handicap_diario.py`](file:///root/datalake-air-flow-delta/scripts/criar_apostas_handicap_diario.py)
-- **Agendamento (`schedule_interval`):** `0 8 * * *` (Execução diária às 08:00 AM)
+- **Agendamento (`schedule_interval`):** `0 * * * *` (Execução de hora em hora em `:00`)
 - **Operator:** `PythonOperator`
 - **Owner:** `paulomnasc-558`
 
 ### ⚙️ Funcionamento Interno
 1. **Seleção de Partidas:**
-   - Filtra as partidas em aberto da tabela `fixtures_trends` onde a data ajustada ao fuso horário do Brasil (-03:00) corresponde à data atual:
+   - Filtra as partidas em aberto da tabela `fixtures_trends` onde a data ajustada ao fuso horário do Brasil (-03:00) corresponde ao dia corrente ou dia seguinte (para antecipar partidas da madrugada/05h AM):
      ```sql
      SELECT * FROM fixtures_trends
-     WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) = CURRENT_DATE()
-       AND status NOT IN ('FT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED')
+     WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN (CURRENT_DATE(), DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY))
+       AND status NOT IN ('PST', 'CANCELLED', 'POSTPONED')
      ORDER BY fixture_date ASC;
      ```
 2. **Validação de Palpites:**
@@ -51,7 +51,7 @@ flowchart TD
    - Descarta palpites marcados como abstenção ou bloqueados por risco (*"Sem Entrada"*, *"Abstenção"*, *"APOSTA BLOQUEADA"*).
 3. **Mapeamento de Odds:**
    - Identifica se o palpite favorece a equipe mandante ou visitante.
-   - Atribui `odd_home` se for aposta no mandante ou `odd_away` se for aposta no visitante (odd padrão: 1.90 se nula).
+   - Atribui `odd_home` se for aposta no mandante ou `odd_away` se for aposta no visitante (odd padrão: 1.60 se nula).
 4. **Persistência Multi-Usuário (Idempotente):**
    - Itera sobre todos os usuários cadastrados na tabela `usuario`.
    - Verifica se a aposta já foi criada para o par `(fixture_id, usuario_id, 'Handicap Asiático')` antes de inserir, evitando registros duplicados.
@@ -65,7 +65,7 @@ flowchart TD
 - **Identificador DAG:** `processar_apostas_handicap_dag`
 - **Arquivo da DAG:** [`src/dags/processar_apostas_handicap_dag.py`](file:///root/datalake-air-flow-delta/src/dags/processar_apostas_handicap_dag.py)
 - **Script Executado:** [`scripts/processar_apostas_handicap_encerradas.py`](file:///root/datalake-air-flow-delta/scripts/processar_apostas_handicap_encerradas.py)
-- **Agendamento (`schedule_interval`):** `0 23 * * *` (Execução diária às 23:00 hs)
+- **Agendamento (`schedule_interval`):** `30 * * * *` (Execução de hora em hora em `:30`)
 - **Operator:** `PythonOperator`
 - **Owner:** `paulomnasc-558`
 

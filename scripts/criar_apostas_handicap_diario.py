@@ -65,26 +65,32 @@ def criar_apostas_handicap_diario(target_date_str=None):
     cursor = conn.cursor()
 
     if not target_date_str:
-        target_date_str = datetime.now().strftime('%Y-%m-%d')
+        today_dt = datetime.now()
+        tomorrow_dt = today_dt + timedelta(days=1)
+        target_dates = [today_dt.strftime('%Y-%m-%d'), tomorrow_dt.strftime('%Y-%m-%d')]
+        date_desc = f"datas {target_dates[0]} e {target_dates[1]}"
+    else:
+        target_dates = [target_date_str]
+        date_desc = f"data {target_date_str}"
 
-    print(f"🚀 [DAG Criar Apostas AH] Iniciando verificação de jogos em aberto para a data {target_date_str} (Fuso -03:00)...")
+    print(f"🚀 [DAG Criar Apostas AH] Iniciando verificação de jogos em aberto para {date_desc} (Fuso -03:00)...")
 
     user_ids = get_all_user_ids(cursor)
     print(f"👥 Usuários identificados: {user_ids}")
 
-    # 1. Buscar partidas em aberto do dia corrente no fuso horário do Brasil (-03:00),
-    # exatamente como é filtrado no Dashboard ('Jogos de Hoje')
-    cursor.execute("""
+    # 1. Buscar partidas em aberto das datas no fuso horário do Brasil (-03:00)
+    placeholders = ', '.join(['%s'] * len(target_dates))
+    cursor.execute(f"""
         SELECT * FROM fixtures_trends
-        WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) = %s
+        WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN ({placeholders})
           AND status NOT IN ('PST', 'CANCELLED', 'POSTPONED')
         ORDER BY fixture_date ASC
-    """, (target_date_str,))
+    """, tuple(target_dates))
     
     fixtures = cursor.fetchall()
 
     if not fixtures:
-        print(f"ℹ️ Nenhuma partida em aberto encontrada para a data {target_date_str}.")
+        print(f"ℹ️ Nenhuma partida em aberto encontrada para {date_desc}.")
         conn.close()
         return
 

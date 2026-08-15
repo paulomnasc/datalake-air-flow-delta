@@ -175,7 +175,7 @@ $$\lambda_{\text{fora, base}} = \frac{\text{Gols Pró Fora} + \text{Gols Sofrido
 - **Fator Odds de Mercado ($F_{\text{market}}$):**
   - Incorporação dinâmica das probabilidades implícitas ($P = 1 / \text{Odd}$) com amplitude expandida de **0.70 a 1.30** (-30% a +30%).
 - **Trava de Alinhamento com o Mercado (Market Preference Guard):**
-  - Se as odds do visitante indicarem favoritismo do mercado ($P_{\text{visitante}} > P_{\text{mandante}} + 5\%$), a indicação respeita o consenso de mercado e previne falsos palpites no mandante.
+  - Sempre que as odds do mercado indicarem favoritismo ao visitante ($\text{Odd}_{\text{visitante}} < \text{Odd}_{\text{mandante}}$), o modelo ativa o favoritismo do visitante e cancela bônus artificiais de mando quando o visitante possui momento superior/igual, prevenindo palpites contraditórios a favor do mandante.
 - **Fator Forma dos Últimos 5 Jogos ($F_{\text{last5}}$):**
   - Pontuação $P = 3V + 1E$ nos últimos 5 jogos.
   - $P \ge 12$ pts (4V+): $F_{\text{last5}} = 1.25$ (+25% excelente forma)

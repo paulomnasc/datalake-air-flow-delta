@@ -583,17 +583,26 @@ def calculate_asian_handicap_suggestion(
         u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
         return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por xG Indisponível || MOTIVACAO: Risco excessivo sem estatísticas de xG || MEMÓRIA DE CÁLCULO || xG Base 0.00 || U5J_DATA: {u5j_json}"
 
+    # 1. Fator Últimos 5 Jogos (Forma Recente: V-E-D)
+    home_pts = home_last5.get("pts", 7)
+    home_d = home_last5.get("d", 0)
+    home_v = home_last5.get("v", 0)
+
+    away_pts = away_last5.get("pts", 7)
+    away_d = away_last5.get("d", 0)
+    away_v = away_last5.get("v", 0)
+
     # 1. Fator Mando de Campo Recalibrado Dinâmico
     if odd_home and odd_away and float(odd_away) < float(odd_home):
-        home_mando_factor = 1.05  # Mando suavizado para +5% quando o visitante é favorito pelas odds
+        if away_pts >= home_pts or away_v >= home_v:
+            home_mando_factor = 1.00  # Bônus zerado se visitante é favorito nas odds E possui momento superior/igual
+        else:
+            home_mando_factor = 1.05  # Mando suavizado para +5% quando o visitante é apenas favorito nas odds
     else:
         home_mando_factor = 1.10  # Bônus padrão realista de jogar em casa (+10%)
     away_mando_factor = 0.93  # Ajuste de visitante fora de casa (-7%)
 
     # 2. Fator Últimos 5 Jogos (Forma Recente: V-E-D)
-    home_pts = home_last5.get("pts", 7)
-    home_d = home_last5.get("d", 0)
-    home_v = home_last5.get("v", 0)
     if home_pts >= 12 or home_v >= 4:
         home_last5_factor = 1.25  # Excelente forma (+25%)
     elif home_pts >= 9 or home_v >= 3:
@@ -607,9 +616,6 @@ def calculate_asian_handicap_suggestion(
     else:
         home_last5_factor = 1.00
 
-    away_pts = away_last5.get("pts", 7)
-    away_d = away_last5.get("d", 0)
-    away_v = away_last5.get("v", 0)
     if away_pts >= 12 or away_v >= 4:
         away_last5_factor = 1.30
     elif away_pts >= 9 or away_v >= 3:
@@ -683,9 +689,9 @@ def calculate_asian_handicap_suggestion(
                 market_away_boost = max(0.70, min(1.30, 1.0 + (prob_a - 0.34) * 0.85))
                 market_str = f" × Odds (H:{oh:.2f}/A:{oa:.2f})"
 
-                if prob_a > prob_h + 0.05 or oa < oh - 0.30:
+                if oa < oh:
                     market_away_fav = True
-                elif prob_h > prob_a + 0.05 or oh < oa - 0.30:
+                elif oh < oa:
                     market_home_fav = True
         except Exception:
             pass

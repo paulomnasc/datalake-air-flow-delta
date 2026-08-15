@@ -505,15 +505,19 @@ def build_natural_language_motivation(
         )
     elif away_team.lower() in suggestion.lower():
         if odd_home and odd_away and float(odd_home) > float(odd_away):
+            title_text = "Consenso das Odds de Mercado e Desempenho do Visitante"
+            intro_text = f"A indicação a favor do visitante {away_team} fundamenta-se na priorização das probabilidades de mercado:"
             odds_market_text = f"As odds do mercado indicam favoritismo do visitante {away_team}{odd_str}, prevalecendo no modelo sobre o fator casa do {home_team}."
             market_bullet = f"• ⚡ Alinhamento com o Mercado: A precificação da casa de aposta sobressai-se ao bônus de mando de campo do {home_team}."
         else:
+            title_text = "Divergência de Valor e Desempenho do Visitante"
+            intro_text = f"A indicação a favor do visitante {away_team} fundamenta-se na identificação de valor estatístico frente às odds de mercado:"
             odds_market_text = f"Análise combinada das estatísticas ajustadas com preferência ao visitante {away_team}{odd_str}."
             market_bullet = f"• 📊 Divergência de Valor: As odds da casa favorecem o mando do {home_team}, mas o modelo identifica valor no visitante {away_team}."
 
         return (
-            f"🎯 Fator Crucial: Consenso das Odds de Mercado e Desempenho do Visitante.\n"
-            f"A indicação a favor do visitante {away_team} fundamenta-se na priorização das probabilidades de mercado:\n"
+            f"🎯 Fator Crucial: {title_text}.\n"
+            f"{intro_text}\n"
             f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
             f"{market_bullet}\n"
             f"• 🛡️ Proteção de Patrimônio: Indicação com cobertura total de reembolso no empate (0.0 DNB)."
@@ -540,15 +544,14 @@ def build_natural_language_motivation(
             f"{cs_note}"
         )
     elif delta_goals >= -0.60:
-        if odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0:
-            if float(odd_home) > float(odd_away):
-                odds_market_text = f"As odds do mercado indicam favoritismo do visitante {away_team}{odd_str}, prevalecendo no modelo sobre a vantagem de mando de campo."
-            else:
-                odds_market_text = f"As odds do mercado ({float(odd_home):.2f} vs {float(odd_away):.2f}) convergem com a projeção a favor do {home_team}."
-        else:
-            odds_market_text = f"Análise estatística interna aplicada para {home_team} e {away_team}."
-
         if home_team.lower() in suggestion.lower():
+            if odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0:
+                if float(odd_home) > float(odd_away):
+                    odds_market_text = f"As odds do mercado dão preferência ao visitante {away_team}{odd_str}, mas o fator casa do {home_team} sustenta a indicação."
+                else:
+                    odds_market_text = f"As odds do mercado ({float(odd_home):.2f} vs {float(odd_away):.2f}) convergem com a projeção a favor do {home_team}."
+            else:
+                odds_market_text = f"Análise estatística interna aplicada para {home_team} e {away_team}."
             return (
                 f"🎯 Fator Crucial: Mando de Campo Ponderado pelas Odds de Mercado.\n"
                 f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
@@ -557,6 +560,13 @@ def build_natural_language_motivation(
                 f"• 🛡️ Proteção de Patrimônio: Indicação conservadora com cobertura total de reembolso no empate (0.0 DNB)."
             )
         else:
+            if odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0:
+                if float(odd_home) > float(odd_away):
+                    odds_market_text = f"As odds do mercado indicam favoritismo do visitante {away_team}{odd_str}, prevalecendo no modelo sobre a vantagem de mando de campo."
+                else:
+                    odds_market_text = f"As odds da casa de aposta ({float(odd_home):.2f} vs {float(odd_away):.2f}) favorecem o mando do {home_team}, mas o modelo identifica valor no visitante {away_team}."
+            else:
+                odds_market_text = f"Análise estatística interna aplicada para {home_team} e {away_team}."
             return (
                 f"🎯 Fator Crucial: Superioridade do Visitante Ponderada pelas Odds de Mercado.\n"
                 f"A indicação a favor do {away_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
@@ -1541,9 +1551,12 @@ def main():
             last_event_str = None
 
             if status not in ['NS', 'PST', 'CANCELLED', 'POSTPONED']:
-                # 1. Busca estatísticas oficiais da partida (escanteios, chutes no gol, xG, cartões)
-                try:
-                    stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fix_id}"
+                # Se a partida já estiver encerrada e possuir estatísticas salvas no banco local, pula requisições de API para economizar cota
+                has_cached_stats = (status in ['FT', 'AET', 'PEN']) and (f.get('xg_home') is not None and float(f.get('xg_home', 0.0)) > 0.0)
+                if not has_cached_stats:
+                    # 1. Busca estatísticas oficiais da partida (escanteios, chutes no gol, xG, cartões)
+                    try:
+                        stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fix_id}"
                     st_res = requests.get(stats_url, headers=headers, timeout=10)
                     if st_res.status_code == 200:
                         st_data = st_res.json().get("response", [])
@@ -2033,8 +2046,6 @@ def update_oddspedia_odds(conn):
             api_fixture_bms = None
             if api_sports_odds and fix_id in api_sports_odds:
                 api_fixture_bms = api_sports_odds[fix_id]
-            else:
-                api_fixture_bms = fetch_single_api_sports_odds(fix_id)
 
             if api_fixture_bms:
                 valid_c1 = {bm: float(api_fixture_bms[bm]['casa']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('casa', 0.0)) > 1.0}

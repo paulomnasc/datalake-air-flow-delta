@@ -768,36 +768,27 @@ def calculate_asian_handicap_suggestion(
             suggestion = f"{away_team} +0.25 AH"
             confidence = 72.00
             main_reason = f"Contraste de Forma Recente: O excelente momento do {away_team} ({away_last5.get('text')}) sobressai-se à oscilação do mandante {home_team} ({home_last5.get('text')}). Vantagem dada ao visitante com cobertura.{note_str}"
-        elif delta_goals >= 2.00:
+        elif delta_goals >= 1.80:
             suggestion = f"{home_team} -1.0 AH"
             confidence = round(min(88.0, 68.0 + delta_goals * 10), 2)
             main_reason = f"Domínio estrito do {home_team} ({home_goals_scored:.1f} g/j) contra defesa frágil do {away_team}. Expectativa de vitória por 2+ gols.{note_str}"
-        elif delta_goals >= 1.50:
+        elif delta_goals >= 1.20:
             suggestion = f"{home_team} -0.5 AH"
             confidence = round(min(82.0, 62.0 + delta_goals * 12), 2)
             main_reason = f"Vantagem sólida de mando para o {home_team} em casa com saldo positivo significativo (+{delta_goals:.2f} gols esperados).{note_str}"
-        elif delta_goals >= 1.05 and not market_away_fav:
+        elif delta_goals >= 0.25 and not market_away_fav:
             suggestion = f"{home_team} -0.25 AH"
-            confidence = round(min(75.0, 58.0 + abs(delta_goals) * 14), 2)
-            main_reason = f"Favoritismo do {home_team} em casa (+{delta_goals:.2f} gols esperados). Proteção conservadora de meia estaca (AH -0.25) em caso de empate.{note_str}"
-        elif delta_goals >= -0.60:
-            # Trava de Alinhamento com o Mercado (Market Preference Guard):
-            # Se o mercado das casas de apostas aponta favoritismo ao visitante (prob_a > prob_h + 0.05 ou oa < oh - 0.30)
-            # e a vantagem de xG do mandante não for avassaladora (delta_goals < 0.50), o algoritmo respeita o mercado
-            if market_away_fav and delta_goals < 0.50:
-                suggestion = f"{away_team} 0.0 (Empate Anula)"
-            elif delta_goals >= 0.0 and not market_away_fav:
-                suggestion = f"{home_team} 0.0 (Empate Anula)"
-            else:
-                suggestion = f"{away_team} 0.0 (Empate Anula)"
-            confidence = 70.00
-            main_reason = f"Confronto com risco de empate ({home_team} xG: {lambda_home:.1f} vs {away_team} xG: {lambda_away:.1f} | Saldo: {delta_goals:+.2f}). Proteção conservadora de reembolso total (0.0 DNB / Empate Anula) ativada para proteger a banca.{note_str}"
-        elif delta_goals >= -1.10:
-            # Visitante com vantagem: sugere +0.25 AH a favor do visitante
+            confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
+            main_reason = f"Favoritismo do {home_team} em casa (+{delta_goals:.2f} gols esperados). Proteção conservadora de meia estaca (AH -0.25) com odd atrativa de mercado.{note_str}"
+        elif market_away_fav or delta_goals <= -0.25:
+            suggestion = f"{away_team} -0.25 AH"
+            confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
+            main_reason = f"Favoritismo do visitante {away_team} ({away_last5.get('text')} em U5J / {away_goals_scored:.1f} g/j). Proteção conservadora de meia estaca (AH -0.25).{note_str}"
+        elif delta_goals >= -0.80:
             suggestion = f"{away_team} +0.25 AH"
-            confidence = round(min(75.0, 58.0 + abs(delta_goals) * 14), 2)
-            main_reason = f"Boa fase do {away_team} fora de casa ({away_last5.get('text')}). Proteção conservadora com vantagem de empate (+0.25 AH).{note_str}"
-        elif delta_goals >= -1.85:
+            confidence = 72.00
+            main_reason = f"Confronto equilibrado com vantagem competitiva dada ao {away_team} (+0.25 AH) cobrindo vitória e empate.{note_str}"
+        elif delta_goals >= -1.75:
             suggestion = f"{away_team} +0.5 AH (Dupla Chance)"
             confidence = round(min(82.0, 62.0 + abs(delta_goals) * 12), 2)
             main_reason = f"Excelente momento do visitante {away_team} ({away_goals_scored:.1f} g/j fora / U5J: {away_last5.get('text')}). Cobertura em vitória e empate.{note_str}"
@@ -805,19 +796,6 @@ def calculate_asian_handicap_suggestion(
             suggestion = f"{away_team} -1.0 AH"
             confidence = round(min(88.0, 68.0 + abs(delta_goals) * 10), 2)
             main_reason = f"Amplo favoritismo do visitante {away_team} com alta produção ofensiva ({away_goals_scored:.1f} g/j / U5J: {away_last5.get('text')}).{note_str}"
-
-    # Trava Operacional: Garante que o palpite de Handicap Asiático seja estritamente 0.0 (Empate Anula)
-    if "0.0 (Empate Anula)" not in suggestion:
-        s_low = suggestion.lower()
-        a_low = away_team.lower().strip()
-        h_low = home_team.lower().strip()
-        if s_low.startswith(a_low) or (a_low in s_low and h_low not in s_low):
-            team_fav = away_team
-        elif s_low.startswith(h_low) or (h_low in s_low and a_low not in s_low):
-            team_fav = home_team
-        else:
-            team_fav = home_team if delta_goals >= 0.0 else away_team
-        suggestion = f"{team_fav} 0.0 (Empate Anula)"
 
     # Cálculo das Probabilidades 1X2 (%) Plataforma (Modelo Poisson) vs Casa de Apostas (Odds)
     import math

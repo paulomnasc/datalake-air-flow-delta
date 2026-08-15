@@ -812,6 +812,16 @@ if (!function_exists('formatBrtDate')) {
         <button class="filter-btn" id="btnFilterCashout" onclick="filterBets('Cashout', this)"><?= $calcPctBadge('Cashout', $resumo['cashouts'] ?? 0) ?></button>
       </div>
 
+      <!-- Filtro por Mercado de Apostas -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-shop text-primary"></i> Mercado:</span>
+        <select id="betMarketFilterSelect" class="form-select form-select-sm bg-dark text-white border-secondary fw-semibold" onchange="applyBetFilters()" style="width: auto; cursor: pointer; min-width: 180px;">
+          <option value="all" selected>✨ Todos os Mercados</option>
+          <option value="handicap">⚽ Handicap Asiático</option>
+          <option value="cartoes">🟨 Mercado de Cartões</option>
+        </select>
+      </div>
+
       <!-- Filtro de Período (2 Datas) -->
       <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;">
         <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-calendar-range text-info"></i> Período:</span>
@@ -906,7 +916,7 @@ if (!function_exists('formatBrtDate')) {
           $itemCreatedDate = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'Y-m-d') : $itemDate;
           $displayMatchTime = !empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'd/m \à\s H:i') : 'Hoje';
         ?>
-        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
+        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
           
           <div class="bet-card-header">
             <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
@@ -1759,6 +1769,7 @@ if (!function_exists('formatBrtDate')) {
 
   function applyBetFilters() {
     const status = currentStatusFilter;
+    const selectedMarket = document.getElementById('betMarketFilterSelect')?.value || 'all';
     const term = (document.getElementById('betSearchInput')?.value || '').toLowerCase().trim();
     const startDate = document.getElementById('betStartDateInput')?.value || '';
     const endDate = document.getElementById('betEndDateInput')?.value || '';
@@ -1779,6 +1790,8 @@ if (!function_exists('formatBrtDate')) {
 
     cards.forEach(card => {
       const cardStatus = card.getAttribute('data-status') || '';
+      const cardMercado = (card.getAttribute('data-mercado') || '').toLowerCase();
+      const cardPalpite = (card.getAttribute('data-palpite') || '').toLowerCase();
       const cardSearch = card.getAttribute('data-search') || '';
       const cardDate = card.getAttribute('data-date') || ''; // 'YYYY-MM-DD'
       const cardCreated = card.getAttribute('data-created-date') || cardDate;
@@ -1795,7 +1808,23 @@ if (!function_exists('formatBrtDate')) {
         dateMatch = false;
       }
 
-      if (searchMatch && dateMatch) {
+      let marketMatch = true;
+      if (selectedMarket === 'handicap') {
+        marketMatch = cardMercado.includes('handicap') || 
+                      cardMercado.includes('empate anula') || 
+                      cardMercado.includes('dnb') || 
+                      cardPalpite.includes('ah') || 
+                      cardPalpite.includes('handicap');
+      } else if (selectedMarket === 'cartoes') {
+        marketMatch = cardMercado.includes('cartõ') || 
+                      cardMercado.includes('carto') || 
+                      cardMercado.includes('card') || 
+                      cardPalpite.includes('cartõ') || 
+                      cardPalpite.includes('carto') || 
+                      cardPalpite.includes('under');
+      }
+
+      if (searchMatch && dateMatch && marketMatch) {
         counts.all++;
         if (counts.hasOwnProperty(cardStatus)) {
           counts[cardStatus]++;
@@ -1804,7 +1833,7 @@ if (!function_exists('formatBrtDate')) {
 
       const statusMatch = (status === 'all' || cardStatus === status);
 
-      if (statusMatch && searchMatch && dateMatch) {
+      if (statusMatch && searchMatch && dateMatch && marketMatch) {
         card.style.display = 'flex';
         visibleCount++;
       } else {
@@ -1979,6 +2008,8 @@ if (!function_exists('formatBrtDate')) {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       firstBtn.classList.add('active');
     }
+    const marketEl = document.getElementById('betMarketFilterSelect');
+    if (marketEl) marketEl.value = 'all';
     const searchEl = document.getElementById('betSearchInput');
     if (searchEl) searchEl.value = '';
     clearDateFilter();

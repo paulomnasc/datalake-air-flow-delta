@@ -17,6 +17,12 @@ from typing import Dict, List, Any, Optional
 
 log = logging.getLogger(__name__)
 
+def _strip(s: str) -> str:
+    if not s:
+        return ""
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', str(s)) if unicodedata.category(c) != 'Mn').lower().replace('club atletico', '').replace('ca ', '').replace('cd ', '').strip()
+
 def get_bookmaker_credentials(conn_id: str) -> Dict[str, str]:
     """
     Recupera login e senha cadastrados no Airflow Connections para uma casa de apostas.
@@ -279,18 +285,35 @@ def _fetch_oddspedia_via_playwright(target_url: str, cookies: list = None, user_
         log.error(f"[SCRAPER-ODDSPEDIA-PLAYWRIGHT] Erro durante o fallback com Playwright para {target_url}: {e_pw}")
         return None
 
-def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Dict[str, Any]]:
+def scrape_oddspedia_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
     """
     Realiza a raspagem de odds agregadas no Oddspedia para as ligas especificadas.
     Utiliza o FlareSolverr como fluxo principal e o Playwright como fallback de renderização de tela.
     """
-    log.info(f"[SCRAPER-ODDSPEDIA] Iniciando extração para ligas: {leagues}")
-    all_matches = []
-    
     league_urls = {
         'serie-a': 'https://oddspedia.com/br/futebol/brasil/brasileirao-serie-a',
-        'serie-b': 'https://oddspedia.com/br/futebol/brasil/brasileirao-serie-b'
+        'serie-b': 'https://oddspedia.com/br/futebol/brasil/brasileirao-serie-b',
+        'copa-do-brasil': 'https://oddspedia.com/br/futebol/brasil/copa-do-brasil',
+        'copa-libertadores': 'https://oddspedia.com/br/futebol/america-do-sul/copa-libertadores',
+        'copa-sudamericana': 'https://oddspedia.com/br/futebol/america-do-sul/copa-sul-americana',
+        'argentina': 'https://oddspedia.com/br/futebol/argentina/liga-profissional',
+        'premier-league': 'https://oddspedia.com/br/futebol/inglaterra/premier-league',
+        'la-liga': 'https://oddspedia.com/br/futebol/espanha/laliga',
+        'serie-a-italy': 'https://oddspedia.com/br/futebol/italia/serie-a',
+        'bundesliga': 'https://oddspedia.com/br/futebol/alemanha/bundesliga',
+        'ligue-1': 'https://oddspedia.com/br/futebol/franca/ligue-1',
+        'champions-league': 'https://oddspedia.com/br/futebol/europa/liga-dos-campeoes',
+        'mls': 'https://oddspedia.com/br/futebol/eua/mls',
+        'liga-mx': 'https://oddspedia.com/br/futebol/mexico/liga-mx',
+        'primeira-liga': 'https://oddspedia.com/br/futebol/portugal/primeira-liga',
+        'uruguay': 'https://oddspedia.com/br/futebol/uruguai/primeira-divisao'
     }
+
+    if leagues is None:
+        leagues = list(league_urls.keys())
+
+    log.info(f"[SCRAPER-ODDSPEDIA] Iniciando extração para ligas: {leagues}")
+    all_matches = []
     
     for l_key in leagues:
         url = league_urls.get(l_key.lower())
@@ -348,15 +371,24 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
         log.info(f"[SCRAPER-ODDSPEDIA] Liga '{l_key}': encontrados {len(events)} eventos JSON-LD.")
         
         for ev in events:
-            h_norm = ev['home_team'].lower()
-            a_norm = ev['away_team'].lower()
+            h_norm = _strip(ev['home_team'])
+            a_norm = _strip(ev['away_team'])
             
-            target_html = html
-            m_soup = BeautifulSoup(target_html, 'html.parser')
+            # Localiza o container CSS específico da partida no HTML para evitar ruídos de outros jogos
+            match_container = None
+            for card in soup.find_all(['div', 'tr', 'article', 'li']):
+                c_text = _strip(card.get_text(separator=' ', strip=True))
+                if h_norm in c_text and a_norm in c_text and len(c_text) < 3000:
+                    match_container = card
+                    break
+            
+            if not match_container:
+                match_container = m_soup
+
             bookmakers_odds = {}
             known_bms = ['betano', 'bet365', 'stake', 'sportingbet', 'kto', 'superbet', '1xbet', 'pinnacle', 'novibet', 'parimatch', '10bet', 'betfair', 'betsson', 'blaze']
 
-            for img in m_soup.find_all('img'):
+            for img in match_container.find_all('img'):
                 alt = (img.get('alt') or '').strip()
                 src = (img.get('src') or '').strip()
                 
@@ -437,18 +469,36 @@ def scrape_oddspedia_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[D
     return all_matches
 
 
-def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Dict[str, Any]]:
+def scrape_futbol24_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
     """
     Realiza a raspagem de odds agregadas no Futbol24 (https://www.futbol24.com/) para as ligas especificadas.
     Atua como fonte alternativa/complementar ao Oddspedia para diversificar as casas de apostas.
     """
-    log.info(f"[SCRAPER-FUTBOL24] Iniciando extração alternativa para ligas: {leagues}")
-    all_matches = []
-    
     league_urls = {
         'serie-a': 'https://www.futbol24.com/national/Brazil/Serie-A/2026/',
-        'serie-b': 'https://www.futbol24.com/national/Brazil/Serie-B/2026/'
+        'serie-b': 'https://www.futbol24.com/national/Brazil/Serie-B/2026/',
+        'copa-do-brasil': 'https://www.futbol24.com/national/Brazil/Copa-do-Brasil/2026/',
+        'copa-libertadores': 'https://www.futbol24.com/international/South-America/Copa-Libertadores/2026/',
+        'copa-sudamericana': 'https://www.futbol24.com/international/South-America/Copa-Sudamericana/2026/',
+        'argentina': 'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/',
+        'primera-division': 'https://www.futbol24.com/national/Argentina/Primera-Division/2026/Clausura/',
+        'premier-league': 'https://www.futbol24.com/national/England/Premier-League/2025-2026/',
+        'la-liga': 'https://www.futbol24.com/national/Spain/Primera-Division/2025-2026/',
+        'serie-a-italy': 'https://www.futbol24.com/national/Italy/Serie-A/2025-2026/',
+        'bundesliga': 'https://www.futbol24.com/national/Germany/Bundesliga/2025-2026/',
+        'ligue-1': 'https://www.futbol24.com/national/France/Ligue-1/2025-2026/',
+        'champions-league': 'https://www.futbol24.com/international/Europe/Champions-League/2025-2026/',
+        'mls': 'https://www.futbol24.com/national/USA/Major-League-Soccer/2026/',
+        'liga-mx': 'https://www.futbol24.com/national/Mexico/Liga-MX/2025-2026/',
+        'primeira-liga': 'https://www.futbol24.com/national/Portugal/Primeira-Liga/2025-2026/',
+        'uruguay': 'https://www.futbol24.com/national/Uruguay/Primera-Division/2026/'
     }
+
+    if leagues is None:
+        leagues = list(league_urls.keys())
+
+    log.info(f"[SCRAPER-FUTBOL24] Iniciando extração alternativa para ligas: {leagues}")
+    all_matches = []
     
     known_bms = ['bet365', 'betano', 'sportingbet', 'superbet', 'kto', 'stake', '1xbet', 'pinnacle', 'novibet', 'bwin', 'betway', '10bet', 'betfair', 'betsson']
     
@@ -475,12 +525,16 @@ def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Di
         
         for container in soup.find_all(['div', 'tr', 'li']):
             text = container.get_text(separator=' ', strip=True)
-            nums = re.findall(r'\b\d+[\.,]\d+\b', text)
+            # Remove datas (DD.MM.YYYY) e horas (HH:MM) para evitar confundir com odds
+            clean_text = re.sub(r'\b\d{2}[\./]\d{2}[\./]\d{4}\b', '', text)
+            clean_text = re.sub(r'\b\d{2}:\d{2}\b', '', clean_text)
+            
+            nums = re.findall(r'\b\d+[\.,]\d+\b', clean_text)
             clean_nums = []
             for n in nums:
                 try:
                     val = float(n.replace(',', '.'))
-                    if 1.01 <= val <= 100.0 and val not in clean_nums:
+                    if 1.01 <= val <= 30.0 and val not in clean_nums:
                         clean_nums.append(val)
                 except ValueError:
                     pass
@@ -491,7 +545,7 @@ def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Di
                     h_team = team_links[0].split('/')[0].strip()
                     a_team = team_links[1].split('/')[0].strip()
                     
-                    matched_bm = "SPORTINGBET"
+                    matched_bm = "FUTBOL24"
                     for bm in known_bms:
                         if bm in text.lower():
                             matched_bm = bm.upper()
@@ -512,6 +566,134 @@ def scrape_futbol24_odds(leagues: List[str] = ['serie-a', 'serie-b']) -> List[Di
     
     log.info(f"[SCRAPER-FUTBOL24] Extração concluída. Total de {len(all_matches)} partidas extraídas do Futbol24.")
     return all_matches
+
+
+def fetch_futbol24_direct_match_odds(home_team: str, away_team: str, country: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Busca odds 1X2 diretamente no Futbol24 para um confronto específico quando as odds de mercado estão ausentes.
+    Prioriza a extração direta do widget 'Who will win?' (ex: BAN 3.30 X 2.85 BEL 2.40).
+    """
+    def _strip(s: str) -> str:
+        import unicodedata
+        return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn').lower().replace('club atletico', '').replace('ca ', '').replace('cd ', '').strip()
+
+    norm_h = _strip(home_team)
+    norm_a = _strip(away_team)
+
+    h_slug = norm_h.replace(' ', '-').title()
+    a_slug = norm_a.replace(' ', '-').title()
+
+    # Mapeamento dinâmico de conhecidos (país, slug)
+    known_slugs_local = {
+        'paris saint germain': ('France', 'Paris-St-Germain'),
+        'paris st. germain': ('France', 'Paris-St-Germain'),
+        'paris sg': ('France', 'Paris-St-Germain'),
+        'psg': ('France', 'Paris-St-Germain'),
+        'aston villa': ('England', 'Aston-Villa'),
+        'real madrid': ('Spain', 'Real-Madrid'),
+        'barcelona': ('Spain', 'FC-Barcelona'),
+        'bayern munich': ('Germany', 'Bayern-Munchen'),
+        'bayern munchen': ('Germany', 'Bayern-Munchen'),
+        'banfield': ('Argentina', 'Banfield'), 'ca banfield': ('Argentina', 'Banfield'),
+        'belgrano cordoba': ('Argentina', 'Belgrano-Cba'), 'belgrano': ('Argentina', 'Belgrano-Cba'),
+        'union santa fe': ('Argentina', 'Union-Santa-Fe'),
+        'central cordoba de santiago': ('Argentina', 'Central-Cordoba-SdE'), 'central cordoba': ('Argentina', 'Central-Cordoba-SdE'),
+        'goias': ('Brazil', 'Goias-GO'), 'goiás': ('Brazil', 'Goias-GO'),
+        'londrina': ('Brazil', 'Londrina-PR')
+    }
+
+    c_h, c_a = 'Brazil', 'Brazil'
+    if norm_h in known_slugs_local:
+        c_h, h_slug = known_slugs_local[norm_h]
+    if norm_a in known_slugs_local:
+        c_a, a_slug = known_slugs_local[norm_a]
+
+    possible_countries = ['France', 'England', 'Spain', 'Germany', 'Italy', 'Brazil', 'Argentina', 'Chile', 'Colombia', 'Ecuador', 'Uruguay', 'Peru']
+    if country:
+        c_clean = country.capitalize()
+        if c_clean in possible_countries:
+            possible_countries.remove(c_clean)
+            possible_countries.insert(0, c_clean)
+        else:
+            possible_countries.insert(0, c_clean)
+
+    match_urls = [
+        f'https://www.futbol24.com/pt/comparar-equipas/{c_h}/{h_slug}/vs/{c_a}/{a_slug}/',
+        f'https://www.futbol24.com/team-compare/{c_h}/{h_slug}/vs/{c_a}/{a_slug}/'
+    ]
+    for c in possible_countries:
+        if c != c_h or c != c_a:
+            match_urls.append(f'https://www.futbol24.com/pt/comparar-equipas/{c}/{h_slug}/vs/{c}/{a_slug}/')
+
+    league_urls = [
+        'https://www.futbol24.com/national/Brazil/Serie-B/2026/',
+        'https://www.futbol24.com/national/Brazil/Serie-A/2026/',
+        'https://www.futbol24.com/national/Argentina/Primera-Division/2026/'
+    ]
+
+    for url in match_urls + league_urls:
+        try:
+            html = None
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
+            try:
+                r = requests.get(url, headers=headers, timeout=5)
+                if r.status_code == 200 and len(r.text) > 1000:
+                    html = r.text
+            except Exception:
+                pass
+
+            if not html:
+                fs_res = fetch_via_flaresolverr(url)
+                html = fs_res.get('response') or fs_res.get('html') if fs_res else None
+
+            if not html:
+                continue
+
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            # Checa o widget 'Who will win?' (ex: BAN 3.30 X 2.85 BEL 2.40)
+            for container in soup.find_all(['div', 'tr', 'p', 'section']):
+                text = container.get_text(separator=' ', strip=True)
+                w_match = re.search(r'\b([A-Za-z0-9]{2,5})\s+(\d+\.\d{2})\s+X\s+(\d+\.\d{2})\s+([A-Za-z0-9]{2,5})\s+(\d+\.\d{2})\b', text)
+                if w_match:
+                    code1 = w_match.group(1)
+                    o_h = float(w_match.group(2))
+                    o_d = float(w_match.group(3))
+                    code2 = w_match.group(4)
+                    o_a = float(w_match.group(5))
+                    
+                    is_match_url = '/vs/' in url
+                    norm_t = _strip(text)
+                    team_matched = (norm_h in norm_t or norm_a in norm_t or any(w in norm_t for w in norm_h.split() if len(w) > 3))
+                    
+                    if (is_match_url or team_matched) and 1.05 <= o_h <= 30.0 and 1.05 <= o_d <= 30.0 and 1.05 <= o_a <= 30.0:
+                        return {
+                            'odd_home': o_h,
+                            'odd_draw': o_d,
+                            'odd_away': o_a,
+                            'source': 'FUTBOL24'
+                        }
+
+            # Caso o widget não seja encontrado, busca em tabelas genéricas de odds
+            for container in soup.find_all(['tr', 'div']):
+                t = container.get_text(separator=' ', strip=True)
+                norm_t = _strip(t)
+                if norm_h in norm_t and norm_a in norm_t:
+                    clean_text = re.sub(r'\b\d{2}[\./]\d{2}[\./]\d{4}\b', '', t)
+                    clean_text = re.sub(r'\b\d{2}:\d{2}\b', '', clean_text)
+                    nums = re.findall(r'\b\d+\.\d{2}\b', clean_text)
+                    odds = [float(n) for n in nums if 1.05 <= float(n) <= 30.0]
+                    if len(odds) >= 3:
+                        return {
+                            'odd_home': odds[0],
+                            'odd_draw': odds[1],
+                            'odd_away': odds[2],
+                            'source': 'FUTBOL24'
+                        }
+        except Exception as exc:
+            log.warning(f"[SCRAPER-FUTBOL24-DIRECT] Aviso ao buscar odds em {url}: {exc}")
+
+    return None
 
 
 def scrape_futbol24_previews() -> List[Dict[str, Any]]:
@@ -593,6 +775,282 @@ def scrape_futbol24_previews() -> List[Dict[str, Any]]:
     return results
 
 
+def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, limit: int = 6, country: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Realiza a raspagem dos últimos jogos encerrados de uma equipe diretamente no Futbol24 (https://www.futbol24.com/pt/equipa/{pais}/{slug}/).
+    Suporta resolução dinâmica de país (Brasil, Argentina, Colômbia, etc.) e normalização de prefixos (CA, CD, Club).
+    """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    }
+
+    known_slugs = {
+        'goias': ('Brazil', 'Goias-GO'), 'goiás': ('Brazil', 'Goias-GO'),
+        'londrina': ('Brazil', 'Londrina-PR'),
+        'operario': ('Brazil', 'Operario-F-PR'), 'operário': ('Brazil', 'Operario-F-PR'),
+        'coritiba': ('Brazil', 'Coritiba-PR'),
+        'santos': ('Brazil', 'Santos-SP'),
+        'vila nova': ('Brazil', 'Vila-Nova-GO'),
+        'américa mineiro': ('Brazil', 'America-Mineiro-MG'), 'america mineiro': ('Brazil', 'America-Mineiro-MG'),
+        'sport recife': ('Brazil', 'Sport-Recife-PE'), 'sport': ('Brazil', 'Sport-Recife-PE'),
+        'ponte preta': ('Brazil', 'Ponte-Preta-SP'),
+        'crb': ('Brazil', 'CRB-AL'),
+        'ceará': ('Brazil', 'Ceara-SC-CE'), 'ceara': ('Brazil', 'Ceara-SC-CE'),
+        'náutico': ('Brazil', 'Nautico-PE'), 'nautico': ('Brazil', 'Nautico-PE'),
+        'novorizontino': ('Brazil', 'Novorizontino-SP'),
+        'guarani': ('Brazil', 'Guarani-SP'),
+        'criciúma': ('Brazil', 'Criciuma-SC'), 'criciuma': ('Brazil', 'Criciuma-SC'),
+        'botafogo': ('Brazil', 'Botafogo-RJ'), 'botafogo-rj': ('Brazil', 'Botafogo-RJ'), 'botafogo rj': ('Brazil', 'Botafogo-RJ'),
+        'botafogo/sp': ('Brazil', 'Botafogo-SP'), 'botafogo-sp': ('Brazil', 'Botafogo-SP'),
+        'cienciano': ('Peru', 'Cienciano'),
+        'cuiabá': ('Brazil', 'Cuiaba-MT'), 'cuiaba': ('Brazil', 'Cuiaba-MT'),
+        'fortaleza': ('Brazil', 'Fortaleza-CE'),
+        'juventude': ('Brazil', 'Juventude-RS'),
+        'athletic club': ('Brazil', 'Athletic-Club-MG'),
+        'são bernardo': ('Brazil', 'Sao-Bernardo-SP'), 'sao bernardo': ('Brazil', 'Sao-Bernardo-SP'),
+        'avaí': ('Brazil', 'Avai-FC-SC'), 'avai': ('Brazil', 'Avai-FC-SC'),
+        'flamengo': ('Brazil', 'Flamengo-RJ'), 'vitória': ('Brazil', 'Vitoria-BA'), 'vitoria': ('Brazil', 'Vitoria-BA'),
+        'rb bragantino': ('Brazil', 'RB-Bragantino-SP'), 'corinthians': ('Brazil', 'Corinthians-SP'),
+        'athletico': ('Brazil', 'Athletico-PR'), 'bahia': ('Brazil', 'Bahia-BA'),
+        'vasco da gama': ('Brazil', 'Vasco-da-Gama-RJ'), 'vasco': ('Brazil', 'Vasco-da-Gama-RJ'),
+        'palmeiras': ('Brazil', 'Palmeiras-SP'), 'internacional': ('Brazil', 'Internacional-RS'),
+        'cruzeiro': ('Brazil', 'Cruzeiro-MG'), 'mirassol': ('Brazil', 'Mirassol-SP'),
+        'fluminense': ('Brazil', 'Fluminense-RJ'), 'chapecoense': ('Brazil', 'Chapecoense-SC'),
+        'remo': ('Brazil', 'Remo-PA'), 'atlético mineiro': ('Brazil', 'Atletico-Mineiro-MG'), 'atletico mineiro': ('Brazil', 'Atletico-Mineiro-MG'),
+        'grêmio': ('Brazil', 'Gremio-RS'), 'gremio': ('Brazil', 'Gremio-RS'),
+        'são paulo': ('Brazil', 'Sao-Paulo-SP'), 'sao paulo': ('Brazil', 'Sao-Paulo-SP'),
+        'atlético/go': ('Brazil', 'Atletico-GO'), 'atletico/go': ('Brazil', 'Atletico-GO'),
+        'banfield': ('Argentina', 'CA-Banfield'), 'ca banfield': ('Argentina', 'CA-Banfield'),
+        'boca juniors': ('Argentina', 'Boca-Juniors'),
+        'river plate': ('Argentina', 'River-Plate'),
+        'racing club': ('Argentina', 'Racing-Club'),
+        'independiente': ('Argentina', 'Independiente'),
+        'san lorenzo': ('Argentina', 'San-Lorenzo'),
+        'huracán': ('Argentina', 'CA-Huracan'), 'huracan': ('Argentina', 'CA-Huracan'),
+        'talleres': ('Argentina', 'Talleres-Cordoba'),
+        'lanús': ('Argentina', 'Lanus'), 'lanus': ('Argentina', 'Lanus'),
+        'vélez': ('Argentina', 'Velez-Sarsfield'), 'velez': ('Argentina', 'Velez-Sarsfield'),
+        'estudiantes': ('Argentina', 'Estudiantes-La-Plata'),
+        'belgrano cordoba': ('Argentina', 'Belgrano-Cordoba'), 'belgrano': ('Argentina', 'Belgrano-Cordoba'),
+        'independ. rivadavia': ('Argentina', 'Independ.-Rivadavia'), 'independiente rivadavia': ('Argentina', 'Independ.-Rivadavia'),
+        'estudiantes de rio cuarto': ('Argentina', 'Estudiantes-Rio-Cuarto'), 'estudiantes rio cuarto': ('Argentina', 'Estudiantes-Rio-Cuarto'),
+        'sarmiento junin': ('Argentina', 'Sarmiento-Junin'), 'sarmiento': ('Argentina', 'Sarmiento-Junin'),
+        'atletico tucuman': ('Argentina', 'Atletico-Tucuman'), 'atlético tucumán': ('Argentina', 'Atletico-Tucuman'),
+        'barracas central': ('Argentina', 'Barracas-Central'),
+        'gimnasia la plata': ('Argentina', 'Gimnasia-La-Plata'), 'gimnasia lp': ('Argentina', 'Gimnasia-La-Plata'),
+        'rosario central': ('Argentina', 'Rosario-Central'),
+        'tigre': ('Argentina', 'CA-Tigre'),
+        'platense': ('Argentina', 'Platense'),
+        'union santa fe': ('Argentina', 'Union-Santa-Fe'),
+        'central cordoba de santiago': ('Argentina', 'Central-Cordoba-SdE'), 'central cordoba': ('Argentina', 'Central-Cordoba-SdE'),
+        'deportivo recoleta': ('Paraguay', 'Deportivo-Recoleta'),
+        'deportivo maldonado': ('Uruguay', 'Deportivo-Maldonado'),
+        'racing montevideo': ('Uruguay', 'Racing-Montevideo'),
+        'universidad de chile': ('Chile', 'Universidad-De-Chile'),
+        'palestino': ('Chile', 'Palestino'),
+        'a. italiano': ('Chile', 'A.-Italiano'), 'audax italiano': ('Chile', 'A.-Italiano'),
+        'nublense': ('Chile', 'Nublense'), 'ñublense': ('Chile', 'Nublense'),
+        'america de cali': ('Colombia', 'America-De-Cali'),
+        'atletico nacional': ('Colombia', 'Atletico-Nacional'),
+        'independiente medellin': ('Colombia', 'Independiente-Medellin'),
+        'millonarios': ('Colombia', 'Millonarios'),
+        'junior': ('Colombia', 'Junior'),
+        'deportivo pereira': ('Colombia', 'Deportivo-Pereira'),
+        'aguilas doradas': ('Colombia', 'Aguilas-Doradas'),
+        'llaneros': ('Colombia', 'Llaneros'),
+        'guayaquil city fc': ('Ecuador', 'Guayaquil-City-Fc'),
+        'emelec': ('Ecuador', 'Emelec'),
+        'tecnico universitario': ('Ecuador', 'Tecnico-Universitario'),
+        'mushuc runa sc': ('Ecuador', 'Mushuc-Runa-Sc'),
+        'libertad': ('Ecuador', 'Libertad'),
+        'universidad catolica': ('Ecuador', 'Universidad-Catolica'),
+        'deportivo cuenca': ('Ecuador', 'Deportivo-Cuenca'),
+        'manta fc': ('Ecuador', 'Manta-Fc'),
+        # Portugal
+        'sporting cp': ('Portugal', 'Sporting-Lisboa'), 'sporting': ('Portugal', 'Sporting-Lisboa'), 'sporting lisbon': ('Portugal', 'Sporting-Lisboa'), 'sporting lisboa': ('Portugal', 'Sporting-Lisboa'),
+        'vitória sc': ('Portugal', 'Vitoria-Guimaraes'), 'vitoria sc': ('Portugal', 'Vitoria-Guimaraes'), 'vitoria guimaraes': ('Portugal', 'Vitoria-Guimaraes'), 'vitória guimarães': ('Portugal', 'Vitoria-Guimaraes'), 'guimaraes': ('Portugal', 'Vitoria-Guimaraes'), 'guimarães': ('Portugal', 'Vitoria-Guimaraes'),
+        'benfica': ('Portugal', 'SL-Benfica'), 'sl benfica': ('Portugal', 'SL-Benfica'),
+        'fc porto': ('Portugal', 'FC-Porto'), 'porto': ('Portugal', 'FC-Porto'),
+        'sc braga': ('Portugal', 'SC-Braga'), 'braga': ('Portugal', 'SC-Braga'), 'sp. braga': ('Portugal', 'SC-Braga'), 'sp braga': ('Portugal', 'SC-Braga'),
+        'boavista': ('Portugal', 'Boavista-FC'), 'boavista fc': ('Portugal', 'Boavista-FC'),
+        'famalicao': ('Portugal', 'FC-Famalicao'), 'famalicão': ('Portugal', 'FC-Famalicao'), 'fc famalicao': ('Portugal', 'FC-Famalicao'),
+        'gil vicente': ('Portugal', 'Gil-Vicente-FC'), 'gil vicente fc': ('Portugal', 'Gil-Vicente-FC'),
+        'moreirense': ('Portugal', 'Moreirense-FC'), 'moreirense fc': ('Portugal', 'Moreirense-FC'),
+        'rio ave': ('Portugal', 'Rio-Ave-FC'), 'rio ave fc': ('Portugal', 'Rio-Ave-FC'),
+        'santa clara': ('Portugal', 'CD-Santa-Clara'), 'cd santa clara': ('Portugal', 'CD-Santa-Clara'),
+        'arouca': ('Portugal', 'FC-Arouca'), 'fc arouca': ('Portugal', 'FC-Arouca'),
+        'estoril': ('Portugal', 'Estoril-Praia'), 'estoril praia': ('Portugal', 'Estoril-Praia'),
+        'estrela': ('Portugal', 'Estrela-Amadora'), 'estrela amadora': ('Portugal', 'Estrela-Amadora'), 'estrela da amadora': ('Portugal', 'Estrela-Amadora'),
+        'nacional': ('Portugal', 'CD-Nacional'), 'cd nacional': ('Portugal', 'CD-Nacional'),
+        'casa pia': ('Portugal', 'Casa-Pia-AC'), 'casa pia ac': ('Portugal', 'Casa-Pia-AC'),
+        'alverca': ('Portugal', 'FC-Alverca'), 'fc alverca': ('Portugal', 'FC-Alverca'),
+        'academico viseu': ('Portugal', 'Academico-Viseu'), 'académico de viseu': ('Portugal', 'Academico-Viseu'),
+        'maritimo': ('Portugal', 'Maritimo-Funchal'), 'marítimo': ('Portugal', 'Maritimo-Funchal'),
+        'farense': ('Portugal', 'Farense'), 'sc farense': ('Portugal', 'Farense'),
+        # França
+        'paris saint germain': ('France', 'Paris-St-Germain'), 'paris sg': ('France', 'Paris-St-Germain'), 'psg': ('France', 'Paris-St-Germain'), 'paris saint-germain': ('France', 'Paris-St-Germain'),
+        'monaco': ('France', 'AS-Monaco'), 'as monaco': ('France', 'AS-Monaco'),
+        'lyon': ('France', 'Olympique-Lyonnais'), 'olympique lyonnais': ('France', 'Olympique-Lyonnais'),
+        'marseille': ('France', 'Olympique-Marseille'), 'olympique marseille': ('France', 'Olympique-Marseille'),
+        'lille': ('France', 'LOSC-Lille'),
+        # Inglaterra
+        'aston villa': ('England', 'Aston-Villa'),
+        'arsenal': ('England', 'Arsenal'),
+        'chelsea': ('England', 'Chelsea'),
+        'liverpool': ('England', 'Liverpool'),
+        'manchester city': ('England', 'Manchester-City'), 'man city': ('England', 'Manchester-City'),
+        'manchester united': ('England', 'Manchester-United'), 'man united': ('England', 'Manchester-United'),
+        'tottenham': ('England', 'Tottenham-Hotspur'), 'tottenham hotspur': ('England', 'Tottenham-Hotspur'),
+        'newcastle': ('England', 'Newcastle-United'), 'newcastle united': ('England', 'Newcastle-United'),
+        # Espanha
+        'real madrid': ('Spain', 'Real-Madrid'),
+        'barcelona': ('Spain', 'FC-Barcelona'),
+        'atletico madrid': ('Spain', 'Atletico-Madrid'), 'atlético madrid': ('Spain', 'Atletico-Madrid'),
+        # Itália
+        'inter': ('Italy', 'Inter-Milano'), 'inter milan': ('Italy', 'Inter-Milano'), 'internazionale': ('Italy', 'Inter-Milano'),
+        'juventus': ('Italy', 'Juventus'),
+        'milan': ('Italy', 'AC-Milan'), 'ac milan': ('Italy', 'AC-Milan'),
+        # Alemanha
+        'bayern munich': ('Germany', 'Bayern-Munchen'), 'bayern munchen': ('Germany', 'Bayern-Munchen'), 'bayern de munique': ('Germany', 'Bayern-Munchen'),
+        'borussia dortmund': ('Germany', 'Borussia-Dortmund'), 'dortmund': ('Germany', 'Borussia-Dortmund')
+    }
+
+    team_aliases_map = {
+        'sporting cp': {'sporting', 'sporting cp', 'sporting lisboa', 'sporting lisbon'},
+        'vitória sc': {'vitoria sc', 'vitória sc', 'vitoria guimaraes', 'vitória guimarães', 'guimaraes', 'guimarães'},
+        'vitoria sc': {'vitoria sc', 'vitória sc', 'vitoria guimaraes', 'vitória guimarães', 'guimaraes', 'guimarães'},
+        'benfica': {'benfica', 'sl benfica'},
+        'fc porto': {'fc porto', 'porto'},
+        'sc braga': {'sc braga', 'braga', 'sp. braga', 'sp braga', 'sporting braga'},
+        'estrela': {'estrela', 'estrela amadora', 'estrela da amadora'}
+    }
+
+    def _strip_accents(s: str) -> str:
+        import unicodedata
+        return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn').lower().strip()
+
+    def _norm(name_str: str) -> str:
+        n = _strip_accents(name_str).lower()
+        n = n.replace('club atletico', '').replace('ca ', '').replace('cd ', '').replace('fc ', '').replace(' fc', '')
+        n = n.replace('saint', 'st').replace('st.', 'st')
+        n = n.replace('united', 'utd').replace('utd.', 'utd')
+        return n.split('/')[0].strip()
+
+    def _is_team_alias_match(target_name: str, candidate_name: str) -> bool:
+        norm_t = _norm(target_name)
+        norm_c = _norm(candidate_name)
+        if norm_t == norm_c or norm_t in norm_c or norm_c in norm_t:
+            return True
+        aliases = team_aliases_map.get(norm_t, set())
+        for a in aliases:
+            norm_a = _norm(a)
+            if norm_a == norm_c or norm_a in norm_c or norm_c in norm_a:
+                return True
+        return False
+
+    clean_name = team_name.lower().replace('club atlético', '').replace('ca ', '').replace('cd ', '').split('/')[0].strip()
+    known_info = known_slugs.get(clean_name) or known_slugs.get(team_name.lower()) or known_slugs.get(_strip_accents(clean_name))
+
+    if not team_url:
+        if known_info:
+            c_name, slug = known_info
+            team_url = f'https://www.futbol24.com/pt/equipa/{c_name}/{slug}/'
+        else:
+            candidate_countries = [country] if country else ['France', 'England', 'Spain', 'Italy', 'Germany', 'Brazil', 'Argentina', 'Colombia', 'Chile', 'Uruguay', 'Paraguay', 'Peru', 'Ecuador', 'Mexico', 'Sweden', 'Norway', 'Denmark', 'Japan', 'Korea-Republic', 'Poland', 'Czech-Republic', 'Romania', 'Portugal', 'Netherlands', 'Belgium', 'Austria', 'Turkey', 'Scotland']
+            candidate_countries = [c for c in candidate_countries if c]
+            if 'Brazil' not in candidate_countries:
+                candidate_countries.append('Brazil')
+
+            clean_title = _strip_accents(clean_name).title().replace(' ', '-')
+            found_url = None
+            for c in candidate_countries:
+                test_url = f'https://www.futbol24.com/pt/equipa/{c}/{clean_title}/'
+                try:
+                    r = requests.get(test_url, headers=headers, timeout=3, allow_redirects=True)
+                    if r.status_code == 200 and '/equipa/' in r.url:
+                        found_url = r.url
+                        break
+                except Exception:
+                    continue
+
+            team_url = found_url or f'https://www.futbol24.com/pt/equipa/Brazil/{clean_title}/'
+
+    log.info(f"[SCRAPER-FUTBOL24-LAST] Buscando últimos {limit} jogos de '{team_name}' em {team_url}...")
+
+    try:
+        resp = requests.get(team_url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            log.warning(f"[SCRAPER-FUTBOL24-LAST] HTTP {resp.status_code} ao buscar {team_url}")
+            return None
+
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        header = soup.find(class_='f-latest-team-results__header')
+        parent = header.parent if header else soup
+
+        rows = parent.find_all(class_='f-single-result__row')
+        matches = []
+
+        for row in rows:
+            text = row.get_text(separator='|', strip=True)
+            parts = [p.strip() for p in text.split('|') if p.strip()]
+
+            score_part = None
+            h_team = None
+            a_team = None
+
+            for i, p in enumerate(parts):
+                if re.match(r'^\d+-\d+$', p):
+                    score_part = p
+                    if i >= 1:
+                        h_team = parts[i - 1]
+                    if i + 1 < len(parts):
+                        a_team = parts[i + 1]
+                    break
+
+            if not score_part or not h_team or not a_team:
+                continue
+
+            gh, ga = map(int, score_part.split('-'))
+
+            is_home = _is_team_alias_match(clean_name, h_team)
+            opp_name = a_team if is_home else h_team
+
+            if is_home:
+                res = 'V' if gh > ga else ('E' if gh == ga else 'D')
+                sc = f'{gh}x{ga}'
+            else:
+                res = 'V' if ga > gh else ('E' if gh == ga else 'D')
+                sc = f'{ga}x{gh}'
+
+            matches.append({
+                'opponent': opp_name.split('/')[0].strip(),
+                'score': sc,
+                'result': res,
+                'is_home': is_home
+            })
+
+            if len(matches) == limit:
+                break
+
+        if not matches:
+            return None
+
+        v = sum(1 for m in matches if m['result'] == 'V')
+        e = sum(1 for m in matches if m['result'] == 'E')
+        d = sum(1 for m in matches if m['result'] == 'D')
+        pts = (3 * v) + (1 * e)
+
+        return {
+            'v': v, 'e': e, 'd': d, 'pts': pts,
+            'text': f'{v}V-{e}E-{d}D',
+            'matches': matches
+        }
+
+    except Exception as exc:
+        log.error(f"[SCRAPER-FUTBOL24-LAST] Erro ao raspar Futbol24 para '{team_name}': {exc}")
+        return None
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     print("=== EXECUTANDO RASPAGEM DIRETA DO ODDSPEDIA & FUTBOL24 ===")
@@ -600,5 +1058,6 @@ if __name__ == '__main__':
     res_f24 = scrape_futbol24_odds(['serie-a', 'serie-b'])
     res_prev = scrape_futbol24_previews()
     print(f"\nTotal Oddspedia: {len(res_op)} | Total Futbol24 Odds: {len(res_f24)} | Total Prévias Futbol24: {len(res_prev)}\n")
+
 
 

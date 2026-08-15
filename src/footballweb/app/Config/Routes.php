@@ -63,6 +63,8 @@ $routes->post('/apostas/processar', 'ApostaController::processar', ['as' => 'apo
 $routes->get('/apostas/relatorio-top5', 'ApostaController::relatorioTop5', ['as' => 'apostas.relatorio_top5']);
 $routes->get('/apostas/relatorioTop5', 'ApostaController::relatorioTop5');
 $routes->get('/apostas/relatorio-ia-perdas', 'ApostaController::relatorioIaPerdas', ['as' => 'apostas.relatorio_ia_perdas']);
+$routes->get('/apostas/relatorio-eficiencia', 'ApostaController::relatorioEficiencia', ['as' => 'apostas.relatorio_eficiencia']);
+$routes->get('/apostas/relatorioEficiencia', 'ApostaController::relatorioEficiencia');
 $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
 

@@ -7,10 +7,14 @@ require VIEWPATH.'/header.php';
 if (!function_exists('getBookmakerUrl')) {
     function getBookmakerUrl($bmName) {
         $bm = strtoupper(trim($bmName ?? ''));
+        if (empty($bm)) {
+            return 'https://www.bet365.com/';
+        }
+
         $urls = [
+            'BET365'       => 'https://www.bet365.com/',
             'BETANO'       => 'https://br.betano.com/',
             'SPORTINGBET'  => 'https://www.sportingbet.com/pt-br',
-            'BET365'       => 'https://www.bet365.com/',
             'SUPERBET'     => 'https://superbet.com/pt-br/',
             'KTO'          => 'https://www.kto.com/pt/',
             'BETFAIR'      => 'https://www.betfair.com/br',
@@ -21,9 +25,30 @@ if (!function_exists('getBookmakerUrl')) {
             'PINNACLE'     => 'https://www.pinnacle.com/',
             'ESTRELA'      => 'https://estrelabet.com/',
             'RIVALO'       => 'https://www.rivalo.com/pt',
-            '1XBET'        => 'https://br.1xbet.com/',
+            '1XBET'        => 'https://1xbet.com/',
             'GALERA'       => 'https://www.galera.bet/',
-            'BLAZE'        => 'https://blaze.com/'
+            'BLAZE'        => 'https://blaze.com/',
+            'UNIBET'       => 'https://www.unibet.com/',
+            'CASUMO'       => 'https://www.casumo.com/',
+            'GROSVENOR'    => 'https://www.grosvenorcasinos.com/sport',
+            'LADBROKES'    => 'https://sports.ladbrokes.com/',
+            'BETSSON'      => 'https://www.betsson.com/',
+            'COOLBET'      => 'https://www.coolbet.com/',
+            '888SPORT'     => 'https://www.888sport.com/',
+            'WILLIAM HILL' => 'https://sports.williamhill.com/',
+            'BETWAY'       => 'https://www.betway.com/',
+            'LEOVEGAS'     => 'https://www.leovegas.com/',
+            'PADDY POWER'  => 'https://sports.paddypower.com/',
+            'CORAL'        => 'https://sports.coral.co.uk/',
+            'VIRGIN'       => 'https://www.virginbet.com/',
+            'LIVESCORE'    => 'https://www.livescorebet.com/',
+            'WINAMAX'      => 'https://www.winamax.fr/',
+            'MARATHON'     => 'https://www.marathonbet.com/',
+            'CODERE'       => 'https://www.codere.es/',
+            'BETCLIC'      => 'https://www.betclic.fr/',
+            'MATCHBOOK'    => 'https://www.matchbook.com/',
+            'BETONLINE'    => 'https://www.betonline.ag/',
+            'SMARKETS'     => 'https://smarkets.com/'
         ];
         
         foreach ($urls as $key => $url) {
@@ -31,7 +56,176 @@ if (!function_exists('getBookmakerUrl')) {
                 return $url;
             }
         }
-        return 'https://www.google.com/search?q=' . urlencode('casa de aposta ' . $bmName);
+        
+        $cleanDomain = preg_replace('/[^a-z0-9]/', '', strtolower($bmName));
+        return 'https://www.' . $cleanDomain . '.com/';
+    }
+}
+
+if (!function_exists('renderStructuredMotivation')) {
+    function renderStructuredMotivation($rawMotivation, $rawReasoning = '', $fix = null) {
+        if (empty($rawMotivation) && empty($rawReasoning) && !$fix) return '';
+
+        // Limpa prefixos redundantes
+        $cleanText = preg_replace('/^(🎯\s*Fator Crucial:\s*|💡\s*Motivação:\s*|MOTIVACAO:\s*)/u', '', trim($rawMotivation));
+
+        $topics = [];
+
+        // 1. Tenta quebrar por marcadores de tópicos explícitos (ex: "• ")
+        if (strpos($cleanText, '•') !== false) {
+            $rawParts = explode('•', $cleanText);
+            foreach ($rawParts as $index => $part) {
+                $t = trim($part);
+                if (empty($t)) {
+                    continue;
+                }
+                // Se for o texto antes da primeira vieta (cabeçalho), limpa a frase introdutória "A indicação a favor..."
+                if ($index === 0) {
+                    $t = preg_replace('/\n?A indicação a favor.*$/us', '', $t);
+                    $t = trim($t);
+                    if (empty($t)) {
+                        continue;
+                    }
+                }
+                // Garante que o tópico termina de forma limpa sem ponto extra duplo
+                $t = preg_replace('/\.\s*\.$/', '.', $t);
+                $topics[] = $t;
+            }
+        }
+
+        // 2. Se não houver '•', tenta quebrar por linhas de texto "\n"
+        if (empty($topics)) {
+            $lines = explode("\n", $cleanText);
+            foreach ($lines as $line) {
+                $t = trim(preg_replace('/^(?:\d+[\.\)]|•|-)\s*/u', '', trim($line)));
+                if (mb_strlen($t) > 4 && strpos($t, 'A indicação a favor') !== 0 && strpos($t, 'fundamenta-se') === false) {
+                    $topics[] = $t;
+                }
+            }
+        }
+
+        // 3. Fallback por frases completas se ainda estiver vazio
+        if (empty($topics)) {
+            $sentences = preg_split('/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÀÃÕÇ])/u', $cleanText);
+            foreach ($sentences as $s) {
+                $s = trim($s);
+                if (mb_strlen($s) > 5 && strpos($s, 'A indicação a favor') !== 0) {
+                    $topics[] = $s;
+                }
+            }
+        }
+
+        if (empty($topics)) {
+            $topics[] = $cleanText;
+        }
+
+        // Extração/Cálculo dos dados de Probabilidade 1X2 (%) para a tabela de fecho
+        $fullSource = $rawMotivation . ' ' . $rawReasoning;
+        $probData = null;
+        if (preg_match('/\|\|\s*PROBABILIDADES_1X2:\s*(\{.*?\})/u', $fullSource, $mProb)) {
+            $probData = json_decode($mProb[1], true);
+        }
+
+        if (!$probData && $fix) {
+            $oh = (float)($fix->odd_home ?? 0);
+            $od = (float)($fix->odd_draw ?? 3.20);
+            $oa = (float)($fix->odd_away ?? 0);
+            $lh = max(0.4, (float)($fix->home_avg_goals_scored ?? 1.3));
+            $la = max(0.4, (float)($fix->away_avg_goals_scored ?? 1.1));
+
+            $fact = function($n) {
+                $f = 1;
+                for ($i = 2; $i <= $n; $i++) $f *= $i;
+                return $f;
+            };
+
+            $ph = $pd = $pa = 0.0;
+            for ($hg = 0; $hg < 10; $hg++) {
+                for ($ag = 0; $ag < 10; $ag++) {
+                    $p_h = (pow($lh, $hg) * exp(-$lh)) / $fact($hg);
+                    $p_a = (pow($la, $ag) * exp(-$la)) / $fact($ag);
+                    $pj = $p_h * $p_a;
+                    if ($hg > $ag) $ph += $pj;
+                    elseif ($hg == $ag) $pd += $pj;
+                    else $pa += $pj;
+                }
+            }
+            $tot = max(0.0001, $ph + $pd + $pa);
+            $platH = round(($ph / $tot) * 100, 1);
+            $platD = round(($pd / $tot) * 100, 1);
+            $platA = round(($pa / $tot) * 100, 1);
+
+            $bancaH = 45.0; $bancaD = 30.0; $bancaA = 25.0;
+            if ($oh > 1.0 && $oa > 1.0) {
+                $ih = 1.0 / $oh; $id = 1.0 / $od; $ia = 1.0 / $oa;
+                $sinv = max(0.0001, $ih + $id + $ia);
+                $bancaH = round(($ih / $sinv) * 100, 1);
+                $bancaD = round(($id / $sinv) * 100, 1);
+                $bancaA = round(($ia / $sinv) * 100, 1);
+            }
+            $probData = ['plat_h' => $platH, 'plat_d' => $platD, 'plat_a' => $platA, 'banca_h' => $bancaH, 'banca_d' => $bancaD, 'banca_a' => $bancaA];
+        }
+
+        $probTableHtml = '';
+        if ($probData) {
+            $platH = number_format($probData['plat_h'] ?? 0, 1) . '%';
+            $platD = number_format($probData['plat_d'] ?? 0, 1) . '%';
+            $platA = number_format($probData['plat_a'] ?? 0, 1) . '%';
+            
+            $bancaH = number_format($probData['banca_h'] ?? 0, 1) . '%';
+            $bancaD = number_format($probData['banca_d'] ?? 0, 1) . '%';
+            $bancaA = number_format($probData['banca_a'] ?? 0, 1) . '%';
+
+            $probTableHtml .= '<div style="margin-top: 10px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 8px 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); overflow-x: auto;">';
+            $probTableHtml .= '<div style="font-size: 0.72rem; font-weight: 700; color: #38bdf8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">';
+            $probTableHtml .= '<i class="bi bi-bar-chart-line-fill" style="color: #38bdf8; font-size: 0.80rem;"></i> 📊 Probabilidade 1 X 2 (%) — Modelo Plataforma vs Casa de Apostas:';
+            $probTableHtml .= '</div>';
+            $probTableHtml .= '<table style="width: 100%; font-size: 0.68rem; text-align: center; border-collapse: collapse; color: #e2e8f0; table-layout: fixed;">';
+            $probTableHtml .= '<thead>';
+            $probTableHtml .= '<tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-size: 0.66rem; text-transform: uppercase;">';
+            $probTableHtml .= '<th style="width: 43%; padding: 3px 2px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Fonte</th>';
+            $probTableHtml .= '<th style="width: 19%; padding: 3px 2px; color: #38bdf8;">1 (Casa)</th>';
+            $probTableHtml .= '<th style="width: 19%; padding: 3px 2px; color: #f59e0b;">X (Emp)</th>';
+            $probTableHtml .= '<th style="width: 19%; padding: 3px 2px; color: #ef4444;">2 (Fora)</th>';
+            $probTableHtml .= '</tr>';
+            $probTableHtml .= '</thead>';
+            $probTableHtml .= '<tbody>';
+            $probTableHtml .= '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05); font-weight: 800; color: #38bdf8; background: rgba(56, 189, 248, 0.08);">';
+            $probTableHtml .= '<td style="padding: 4px 2px; text-align: left; color: #38bdf8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><i class="bi bi-cpu me-1"></i> Plataforma IA</td>';
+            $probTableHtml .= '<td style="padding: 4px 2px;">' . $platH . '</td>';
+            $probTableHtml .= '<td style="padding: 4px 2px;">' . $platD . '</td>';
+            $probTableHtml .= '<td style="padding: 4px 2px;">' . $platA . '</td>';
+            $probTableHtml .= '</tr>';
+            $probTableHtml .= '<tr style="color: #cbd5e1;">';
+            $probTableHtml .= '<td style="padding: 4px 2px; text-align: left; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><i class="bi bi-bank me-1"></i> Banca (Odds)</td>';
+            $probTableHtml .= '<td style="padding: 4px 2px;">' . $bancaH . '</td>';
+            $probTableHtml .= '<td style="padding: 4px 2px;">' . $bancaD . '</td>';
+            $probTableHtml .= '<td style="padding: 4px 2px;">' . $bancaA . '</td>';
+            $probTableHtml .= '</tr>';
+            $probTableHtml .= '</tbody>';
+            $probTableHtml .= '</table>';
+            $probTableHtml .= '</div>';
+        }
+
+        $html = '<div class="motivation-structured-box" style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.25); border-left: 4px solid #38bdf8; border-radius: 8px;">';
+        $html .= '<div style="font-size: 0.76rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">';
+        $html .= '<i class="bi bi-list-check" style="font-size: 0.88rem; color: #38bdf8;"></i> 💡 Motivação Detalhada do Palpite:';
+        $html .= '</div>';
+        $html .= '<ol style="margin: 0; padding-left: 0; list-style: none;">';
+
+        foreach ($topics as $index => $topic) {
+            $num = $index + 1;
+            $html .= '<li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 0.74rem; color: #e2e8f0; line-height: 1.45;">';
+            $html .= '<span style="background: rgba(56, 189, 248, 0.18); border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; font-weight: 800; font-size: 0.68rem; min-width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;">' . $num . '</span>';
+            $html .= '<span>' . htmlspecialchars($topic) . '</span>';
+            $html .= '</li>';
+        }
+
+        $html .= '</ol>';
+        $html .= $probTableHtml;
+        $html .= '</div>';
+
+        return $html;
     }
 }
 
@@ -63,10 +257,12 @@ $leagueMap = [
     71  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
     72  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
     73  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => false],
+    94  => ['country' => 'Portugal', 'flag' => '🇵🇹', 'popular' => true],
     39  => ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => true],
     140 => ['country' => 'Espanha', 'flag' => '🇪🇸', 'popular' => true],
     135 => ['country' => 'Itália', 'flag' => '🇮🇹', 'popular' => true],
     78  => ['country' => 'Alemanha', 'flag' => '🇩🇪', 'popular' => true],
+    88  => ['country' => 'Holanda', 'flag' => '🇳🇱', 'popular' => true],
     262 => ['country' => 'México', 'flag' => '🇲🇽', 'popular' => true],
     128 => ['country' => 'Argentina', 'flag' => '🇦🇷', 'popular' => true],
     253 => ['country' => 'EUA', 'flag' => '🇺🇸', 'popular' => true],
@@ -81,6 +277,8 @@ $leagueMap = [
     265 => ['country' => 'Chile', 'flag' => '🇨🇱', 'popular' => false],
     239 => ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false],
     169 => ['country' => 'China', 'flag' => '🇨🇳', 'popular' => false],
+    292 => ['country' => 'Coreia do Sul', 'flag' => '🇰🇷', 'popular' => false],
+    98  => ['country' => 'Japão', 'flag' => '🇯🇵', 'popular' => false],
     307 => ['country' => 'Arábia Saudita', 'flag' => '🇸🇦', 'popular' => false],
     203 => ['country' => 'Turquia', 'flag' => '🇹🇷', 'popular' => false],
     207 => ['country' => 'Suíça', 'flag' => '🇨🇭', 'popular' => false],
@@ -1634,9 +1832,6 @@ if (!function_exists('getBetDecisionTree')) {
                         <a href="/auth/google-login" class="btn-recarregar" style="background: #4285f4;"><i class="bi bi-google"></i> <?= lang('App.enter') ?></a>
                     </div>
                 <?php endif; ?>
-                <button type="button" class="btn-update-betano" onclick="triggerIngestion('<?= $targetDate ?>')">
-                    <i class="bi bi-arrow-repeat"></i> <?= lang('App.update_data_api') ?>
-                </button>
             </div>
         </div>
 
@@ -1670,10 +1865,17 @@ if (!function_exists('getBetDecisionTree')) {
             </div>
         </section>
 
-        <!-- Bloco SEO Server-Side Rendered (SSR) -->
+        <!-- Bloco SEO Server-Side Rendered (SSR) com data e hora atual -->
         <section class="bet-seo-header mb-4 p-3 rounded" style="background: rgba(23, 34, 48, 0.6); border: 1px solid rgba(255, 255, 255, 0.05);">
-            <h1 style="font-size: 1.4rem; font-weight: 800; color: #ffffff; margin-bottom: 8px;">
-                ⚽ Tendências de Futebol Hoje & Estatísticas de Cartões e Escanteios
+            <h1 style="font-size: 1.4rem; font-weight: 800; color: #ffffff; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <span>⚽ Tendências de Futebol Hoje & Estatísticas de Cartões e Escanteios</span>
+                <?php 
+                  $dtNowBrt = new DateTime('now', new DateTimeZone('America/Sao_Paulo'));
+                  $nowFormatted = $dtNowBrt->format('d/m/Y \à\s H:i');
+                ?>
+                <span class="badge" style="background: rgba(0, 230, 118, 0.15); border: 1px solid rgba(0, 230, 118, 0.3); color: #00e676; font-size: 0.8rem; font-weight: 700; padding: 5px 12px; border-radius: 20px; display: inline-flex; align-items: center; gap: 6px;" title="Data e hora atual no fuso horário de Brasília (America/Sao_Paulo)">
+                    <i class="bi bi-clock-history" style="color: #00e676;"></i> <?= $nowFormatted ?>
+                </span>
             </h1>
             <p class="mb-0" style="font-size: 0.92rem; line-height: 1.6; color: #ffffff;">
                 Acompanhe as estatísticas completas dos jogos de hoje (<?= $formattedDateHeader ?>). Dados atualizados das principais ligas (Brasileirão, Champions League, Europa), histórico de faltas por árbitro, médias de cartões amarelos e vermelhos, e previsões matemáticas acionadas pelo assistente inteligente Grok AI.
@@ -1749,6 +1951,13 @@ if (!function_exists('getBetDecisionTree')) {
                         <!-- Linha 1: Navegação por datas e Opções de Exibição -->
                         <div class="row align-items-center g-3 mb-3">
                             <div class="col-xl-6 col-lg-7 col-md-12">
+                                <!-- Botão de Atualização Manual de Jogos e Odds posicionado acima de '< Ontem' -->
+                                <div class="mb-2">
+                                    <button type="button" class="btn-update-betano d-inline-flex align-items-center gap-2" onclick="triggerIngestion('<?= $targetDate ?>')" style="padding: 7px 16px; font-size: 0.85rem; font-weight: 700; border-radius: 8px; box-shadow: 0 4px 12px rgba(244, 124, 32, 0.25);">
+                                        <i class="bi bi-arrow-repeat" style="font-size: 1rem;"></i> Atualizar Jogos e Odds
+                                    </button>
+                                </div>
+
                                 <div class="d-flex gap-2 align-items-center flex-wrap">
                                     <?php
                                     $yesterday = date('Y-m-d', strtotime('-1 day'));
@@ -1757,10 +1966,12 @@ if (!function_exists('getBetDecisionTree')) {
                                     $next3days = date('Y-m-d', strtotime('+3 days'));
                                     $next7days = date('Y-m-d', strtotime('+7 days'));
                                     
-                                    $showFinishedQuery = $showFinished ? '&show_finished=1' : '';
-                                    $showPostponedQuery = !empty($showPostponed) ? '&show_postponed=1' : '';
+                                    $showFinishedQuery = '&show_finished=' . ($showFinished ? '1' : '0');
+                                    $showPostponedQuery = '&show_postponed=' . (!empty($showPostponed) ? '1' : '0');
+                                    $onlyLiveQuery = !empty($onlyLive) ? '&only_live=1' : '';
+                                    $onlyResenhaQuery = !empty($onlyResenha) ? '&only_resenha=1' : '';
                                     $searchQuery = !empty($search) ? '&search=' . urlencode($search) : '';
-                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $searchQuery;
+                                    $commonParams = $showFinishedQuery . $showPostponedQuery . $onlyLiveQuery . $onlyResenhaQuery . $searchQuery;
                                     ?>
                                     <a href="?start_date=<?= $yesterday ?>&end_date=<?= $yesterday ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $yesterday && $endDate === $yesterday) ? 'active' : '' ?>">
                                         <i class="bi bi-chevron-left"></i> <?= lang('App.yesterday') ?>
@@ -1791,20 +2002,22 @@ if (!function_exists('getBetDecisionTree')) {
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #aeb9c4; font-weight: 600;"><?= lang('App.show_finished_games') ?></span>
                                     <label class="bet-switch">
-                                        <input type="checkbox" name="show_finished" value="1" <?= $showFinished ? 'checked' : '' ?> onchange="document.getElementById('filterForm').submit()">
+                                        <input type="hidden" name="show_finished" value="0">
+                                        <input type="checkbox" id="showFinishedToggle" name="show_finished" value="1" <?= $showFinished ? 'checked' : '' ?> onchange="toggleShowFinishedFilter(this)">
                                         <span class="bet-slider round"></span>
                                     </label>
-                                    <span class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= $showFinished ? '#f47c20' : '#8a99a8' ?>;">
+                                    <span id="showFinishedToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= $showFinished ? '#f47c20' : '#8a99a8' ?>;">
                                         <?= $showFinished ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #aeb9c4; font-weight: 600;">Exibir Adiados (PST)</span>
                                     <label class="bet-switch">
-                                        <input type="checkbox" name="show_postponed" value="1" <?= !empty($showPostponed) ? 'checked' : '' ?> onchange="document.getElementById('filterForm').submit()">
+                                        <input type="hidden" name="show_postponed" value="0">
+                                        <input type="checkbox" id="showPostponedToggle" name="show_postponed" value="1" <?= !empty($showPostponed) ? 'checked' : '' ?> onchange="toggleShowPostponedFilter(this)">
                                         <span class="bet-slider round"></span>
                                     </label>
-                                    <span class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($showPostponed) ? '#f59e0b' : '#8a99a8' ?>;">
+                                    <span id="showPostponedToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($showPostponed) ? '#f59e0b' : '#8a99a8' ?>;">
                                         <?= !empty($showPostponed) ? 'Sim' : 'Não' ?>
                                     </span>
                                 </div>
@@ -1832,7 +2045,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         <?= !empty($onlySurebet) ? 'Sim' : 'Não' ?>
                                     </span>
                                 </div>
-                                <div class="d-flex align-items-center gap-2" style="background: rgba(192, 132, 252, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(192, 132, 252, 0.3);" title="Exibir apenas partidas que possuem apostas cadastradas">
+                                 <div class="d-flex align-items-center gap-2" style="background: rgba(192, 132, 252, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(192, 132, 252, 0.3);" title="Exibir apenas partidas que possuem apostas cadastradas">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #c084fc; font-weight: 600;">
                                         🃏 Com Aposta
                                     </span>
@@ -1842,6 +2055,30 @@ if (!function_exists('getBetDecisionTree')) {
                                     </label>
                                     <span id="onlyHasBetToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: #8a99a8;">
                                         Não
+                                    </span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2" style="background: rgba(0, 230, 118, 0.08); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0, 230, 118, 0.25);" title="Exibir apenas partidas que possuem resenha e análise editorial">
+                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #00e676; font-weight: 600;">
+                                        <i class="bi bi-chat-quote-fill"></i> Com Resenha
+                                    </span>
+                                    <label class="bet-switch">
+                                        <input type="checkbox" id="onlyResenhaToggle" name="only_resenha" value="1" <?= !empty($onlyResenha) ? 'checked' : '' ?> onchange="toggleResenhaFilter(this)">
+                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
+                                    </label>
+                                    <span id="onlyResenhaToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlyResenha) ? '#00e676' : '#8a99a8' ?>;">
+                                        <?= !empty($onlyResenha) ? 'Sim' : 'Não' ?>
+                                    </span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2" style="background: rgba(239, 68, 68, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(239, 68, 68, 0.3);" title="Exibir apenas partidas em andamento (Ao Vivo)">
+                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #f87171; font-weight: 600;">
+                                        🔴 Em Andamento
+                                    </span>
+                                    <label class="bet-switch">
+                                        <input type="checkbox" id="onlyLiveToggle" name="only_live" value="1" <?= !empty($onlyLive) ? 'checked' : '' ?> onchange="toggleLiveBetsFilter(this)">
+                                        <span class="bet-slider round" style="background-color: #1e293b;"></span>
+                                    </label>
+                                    <span id="onlyLiveToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlyLive) ? '#ef4444' : '#8a99a8' ?>;">
+                                        <?= !empty($onlyLive) ? 'Sim' : 'Não' ?>
                                     </span>
                                 </div>
                             </div>
@@ -1867,10 +2104,20 @@ if (!function_exists('getBetDecisionTree')) {
                     </form>
                 </div>
 
-                <!-- Abas estilo Betano: Destaques vs Todas as Partidas -->
-                <div class="bet-tabs">
-                    <div class="bet-tab active" id="tab-competicoes" onclick="switchMainTab('competicoes')"><?= lang('App.competitions') ?></div>
-                    <div class="bet-tab" id="tab-destaques" onclick="switchMainTab('destaques')"><?= lang('App.highlights') ?></div>
+                <!-- Abas estilo Betano: Destaques vs Todas as Partidas + Contador Recalculado de Jogos -->
+                <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                    <div class="bet-tabs m-0">
+                        <div class="bet-tab active" id="tab-competicoes" onclick="switchMainTab('competicoes')"><?= lang('App.competitions') ?></div>
+                        <div class="bet-tab" id="tab-destaques" onclick="switchMainTab('destaques')"><?= lang('App.highlights') ?></div>
+                    </div>
+
+                    <div class="bet-total-matches-badge d-flex align-items-center gap-2" style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; padding: 7px 16px; backdrop-filter: blur(8px); box-shadow: 0 4px 12px rgba(0,0,0,0.2);" title="Partidas visíveis / Total de jogos no período">
+                        <i class="bi bi-controller" style="color: #f47c20; font-size: 1.1rem;"></i>
+                        <span style="font-size: 0.85rem; color: #94a3b8; font-weight: 600;">Total de Jogos:</span>
+                        <strong id="totalMatchesCount" style="color: #00e676; font-weight: 800; font-size: 1rem; min-width: 30px; text-align: right;">
+                            <?= count($fixtures) ?>
+                        </strong>
+                    </div>
                 </div>
 
                 <!-- Grid de Partidas -->
@@ -1884,6 +2131,7 @@ if (!function_exists('getBetDecisionTree')) {
                             </p>
                         </div>
                     <?php else: ?>
+                        <?php $cardIndex = 0; ?>
                         <?php foreach ($fixtures as $fix): ?>
                             <?php
                             $jsAttr = function($val) {
@@ -1993,6 +2241,12 @@ if (!function_exists('getBetDecisionTree')) {
                             $requiresCredits = \App\Helpers\SubscriptionHelper::leagueRequiresCredits($fix->league_name);
                             $isCardLocked = $requiresCredits && (!$userLoggedIn || !$isGoogleUser || $userGrokCredits <= 0);
                             
+                            // Sempre mantém o primeiro card desbloqueado para degustação (visitantes / sem tokens)
+                            if ($cardIndex === 0) {
+                                $isCardLocked = false;
+                            }
+                            $cardIndex++;
+                            
                              $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']);
                              if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {
                                  $elapsedClass = 'pst';
@@ -2009,15 +2263,40 @@ if (!function_exists('getBetDecisionTree')) {
                              $isFixtureInUserBets = in_array((int)$fix->fixture_id, $userBetFixtureIds ?? []);
                              $isFixtureInAnyBets  = in_array((int)$fix->fixture_id, $allBetFixtureIds ?? []);
                              $hasAposta = $isFixtureInUserBets || $isFixtureInAnyBets;
+
+                             $lId = (int)($fix->league_id ?? 0);
+                             $cMapData = $leagueMap[$lId] ?? null;
+                             $cName = $cMapData['country'] ?? '';
+                             $cFlag = $cMapData['flag'] ?? '';
+                             if (empty($cName) && !empty($fix->league_name)) {
+                                 $lNameLower = strtolower($fix->league_name);
+                                 if (strpos($lNameLower, 'brasil') !== false || strpos($lNameLower, 'copa do brasil') !== false) { $cName = 'Brasil'; $cFlag = '🇧🇷'; }
+                                 elseif (strpos($lNameLower, 'primeira') !== false || strpos($lNameLower, 'portugal') !== false) { $cName = 'Portugal'; $cFlag = '🇵🇹'; }
+                                 elseif (strpos($lNameLower, 'argentina') !== false) { $cName = 'Argentina'; $cFlag = '🇦🇷'; }
+                                 elseif (strpos($lNameLower, 'allsvenskan') !== false) { $cName = 'Suécia'; $cFlag = '🇸🇪'; }
+                                 elseif (strpos($lNameLower, 'eliteserien') !== false) { $cName = 'Noruega'; $cFlag = '🇳🇴'; }
+                                 elseif (strpos($lNameLower, 'veikkausliiga') !== false) { $cName = 'Finlândia'; $cFlag = '🇫🇮'; }
+                                 elseif (strpos($lNameLower, 'eredivisie') !== false) { $cName = 'Holanda'; $cFlag = '🇳🇱'; }
+                                 elseif (strpos($lNameLower, 'bundesliga') !== false) { $cName = 'Alemanha'; $cFlag = '🇩🇪'; }
+                                 elseif (strpos($lNameLower, 'mls') !== false || strpos($lNameLower, 'major league') !== false) { $cName = 'EUA'; $cFlag = '🇺🇸'; }
+                                 elseif (strpos($lNameLower, 'jupiler') !== false) { $cName = 'Bélgica'; $cFlag = '🇧🇪'; }
+                                 elseif (strpos($lNameLower, 'japan') !== false || strpos($lNameLower, 'j1') !== false) { $cName = 'Japão'; $cFlag = '🇯🇵'; }
+                                 elseif (strpos($lNameLower, 'k league') !== false) { $cName = 'Coreia do Sul'; $cFlag = '🇰🇷'; }
+                             }
                              ?>
-                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
+                             <?php
+                             $finishedStatusesList = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
+                             $isPostponedCard = in_array($statusClean, ['PST', 'CANCELLED', 'POSTPONED', 'CANC']);
+                             $isFinishedCard = in_array($statusClean, $finishedStatusesList) || ($fix->goals_home !== null && !$isLiveMatch && !$isPostponedCard) || (isset($diffMins) && $diffMins > 120 && !$isLiveMatch && !$isPostponedCard);
+                             ?>
+                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
                                     <div class="bet-card-header">
                                         <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; max-width: 68%;">
-                                            <span class="bet-league-badge" title="<?= htmlspecialchars($fix->league_name) ?>">
-                                                <?= htmlspecialchars($fix->league_name) ?>
+                                            <span class="bet-league-badge" title="<?= htmlspecialchars((!empty($cName) ? $cName . ' - ' : '') . $fix->league_name) ?>">
+                                                <?= !empty($cFlag) ? $cFlag . ' ' : '' ?><?= !empty($cName) ? htmlspecialchars($cName) . ' • ' : '' ?><?= htmlspecialchars($fix->league_name) ?>
                                             </span>
                                             <?php if ($hasAposta): ?>
                                                 <a href="<?= base_url('apostas?action=edit&fixture_id=' . $fix->fixture_id) ?>" 
@@ -2191,7 +2470,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                     </div>
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cleansheets') ?>">
                                                         <i class="bi bi-shield-fill-check"></i>
-                                                        <span class="label"><?= lang('App.clean_sheets') ?>:</span>
+                                                        <span class="label"><?= lang('App.clean_sheets_away') ?>:</span>
                                                         <span class="val"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : 'Não localizado' ?></span>
                                                     </div>
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_corners') ?>">
@@ -2217,17 +2496,34 @@ if (!function_exists('getBetDecisionTree')) {
                                          $urlHome = getBookmakerUrl($fix->casa_odd_home ?? '');
                                          $urlDraw = getBookmakerUrl($fix->casa_odd_draw ?? '');
                                          $urlAway = getBookmakerUrl($fix->casa_odd_away ?? '');
+                                         $oddSourceLabel = !empty($fix->casa_odd_home) ? htmlspecialchars($fix->casa_odd_home) : 'ODDSPEDIA';
+                                         
+                                         $oddsUpdatedAtFormatted = 'Atualizado recentemente';
+                                         if (!empty($fix->updated_at)) {
+                                             try {
+                                                 $dtOdds = new DateTime($fix->updated_at, new DateTimeZone('UTC'));
+                                                 $dtOdds->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+                                                 $oddsUpdatedAtFormatted = $dtOdds->format('d/m/Y \à\s H:i');
+                                             } catch (\Exception $eFormat) {
+                                                 $oddsUpdatedAtFormatted = date('d/m/Y \à\s H:i', strtotime($fix->updated_at));
+                                             }
+                                         }
                                          ?>
                                          <div class="oddspedia-widget-box" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
-                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
                                                  <span style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
-                                                     <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> Cotações 1X2 (Oddspedia)
+                                                     <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> Cotações 1X2 (<?= $oddSourceLabel ?>)
                                                  </span>
-                                                 <?php if (!empty($fix->is_surebet)): ?>
-                                                     <span class="badge" style="background: rgba(0, 230, 118, 0.2); border: 1px solid #00e676; color: #00e676; font-weight: 800; font-size: 0.75rem; padding: 3px 8px; border-radius: 20px; box-shadow: 0 0 10px rgba(0, 230, 118, 0.4); animation: pulse-live 1.5s infinite;">
-                                                         ⚡ SUREBET +<?= number_format($fix->surebet_profit_pct ?? 0, 2) ?>%
+                                                 <div style="display: flex; align-items: center; gap: 8px;">
+                                                     <span style="font-size: 0.70rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 2px 7px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora da última raspagem e atualização da odd">
+                                                         <i class="bi bi-clock-history" style="font-size: 0.72rem;"></i> <?= $oddsUpdatedAtFormatted ?>
                                                      </span>
-                                                 <?php endif; ?>
+                                                     <?php if (!empty($fix->is_surebet)): ?>
+                                                         <span class="badge" style="background: rgba(0, 230, 118, 0.2); border: 1px solid #00e676; color: #00e676; font-weight: 800; font-size: 0.75rem; padding: 3px 8px; border-radius: 20px; box-shadow: 0 0 10px rgba(0, 230, 118, 0.4); animation: pulse-live 1.5s infinite;">
+                                                             ⚡ SUREBET +<?= number_format($fix->surebet_profit_pct ?? 0, 2) ?>%
+                                                         </span>
+                                                     <?php endif; ?>
+                                                 </div>
                                              </div>
                                              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center;">
                                                  <!-- Casa 1 -->
@@ -2324,28 +2620,10 @@ if (!function_exists('getBetDecisionTree')) {
                                                 }
                                             }
 
-                                            if (empty($u5j_data) || empty($u5j_data['home']['matches'])) {
+                                            if (empty($u5j_data)) {
                                                 $u5j_data = [
-                                                    'home' => [
-                                                        'text' => '1V-1E-3D',
-                                                        'matches' => [
-                                                            ['opponent' => 'Coritiba', 'score' => '0x1', 'result' => 'D', 'is_home' => true],
-                                                            ['opponent' => 'Santos', 'score' => '1x2', 'result' => 'D', 'is_home' => false],
-                                                            ['opponent' => 'Novorizontino', 'score' => '0x0', 'result' => 'E', 'is_home' => true],
-                                                            ['opponent' => 'Guarani', 'score' => '0x1', 'result' => 'D', 'is_home' => false],
-                                                            ['opponent' => 'Vila Nova', 'score' => '0x2', 'result' => 'D', 'is_home' => true]
-                                                        ]
-                                                    ],
-                                                    'away' => [
-                                                        'text' => '3V-1E-1D',
-                                                        'matches' => [
-                                                            ['opponent' => 'Botafogo-SP', 'score' => '2x0', 'result' => 'V', 'is_home' => true],
-                                                            ['opponent' => 'Vila Nova', 'score' => '1x0', 'result' => 'V', 'is_home' => false],
-                                                            ['opponent' => 'Ituano', 'score' => '1x1', 'result' => 'E', 'is_home' => true],
-                                                            ['opponent' => 'Mirassol', 'score' => '2x1', 'result' => 'V', 'is_home' => false],
-                                                            ['opponent' => 'Ponte Preta', 'score' => '0x1', 'result' => 'D', 'is_home' => true]
-                                                        ]
-                                                    ]
+                                                    'home' => ['text' => 'N/D', 'matches' => []],
+                                                    'away' => ['text' => 'N/D', 'matches' => []]
                                                 ];
                                             }
                                         }
@@ -2359,8 +2637,25 @@ if (!function_exists('getBetDecisionTree')) {
                                                 onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'cards')">
                                             <i class="bi bi-card-amber"></i> Cartões (<?= $prob ?>%) <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                         </button>
-                                        
-                                        <?php if (!empty($fix->ah_suggestion)): ?>
+                                        <?php 
+                                            $ahSugClean = strtolower(trim($fix->ah_suggestion ?? ''));
+                                            $isAhBlocked = empty($ahSugClean) 
+                                                || stripos($ahSugClean, 'sem entrada') !== false 
+                                                || stripos($ahSugClean, 'abstenção') !== false 
+                                                || stripos($ahSugClean, 'abstencao') !== false 
+                                                || stripos($ahSugClean, 'bloquead') !== false 
+                                                || stripos($ahSugClean, 'indisponível') !== false 
+                                                || stripos($ahSugClean, 'indisponivel') !== false;
+                                        ?>
+                                        <?php if ($isAhBlocked): ?>
+                                            <button type="button" 
+                                                    id="btn-ah-<?= $fix->fixture_id ?>" 
+                                                    class="bet-toggle-badge red" 
+                                                    style="background: rgba(239, 68, 68, 0.18) !important; border: 1px solid #ef4444 !important; color: #f87171 !important;"
+                                                    onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'ah')">
+                                                <i class="bi bi-slash-circle-fill me-1"></i> 🚫 AH Bloqueado: Abstenção da IA <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                            </button>
+                                        <?php elseif (!empty($fix->ah_suggestion)): ?>
                                             <button type="button" 
                                                     id="btn-ah-<?= $fix->fixture_id ?>" 
                                                     class="bet-toggle-badge blue" 
@@ -2433,7 +2728,102 @@ if (!function_exists('getBetDecisionTree')) {
                                     </div>
 
                                     <!-- Seção Retrátil 2: Handicap Asiático -->
-                                    <?php if (!empty($fix->ah_suggestion)): ?>
+                                    <?php if ($isAhBlocked): ?>
+                                        <div id="sec-ah-<?= $fix->fixture_id ?>" class="bet-card-section">
+                                            <div class="asian-handicap-widget-box" style="padding: 12px 14px; background: rgba(239, 68, 68, 0.08); border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.4); border-left: 5px solid #ef4444; font-size: 0.78rem; color: #fca5a5;">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                                                    <span style="font-weight: 800; color: #f87171; display: flex; align-items: center; gap: 6px; font-size: 0.86rem; text-transform: uppercase; letter-spacing: 0.3px;">
+                                                        <i class="bi bi-shield-x me-1"></i> 🚫 APOSTA BLOQUEADA: ENTRADA IMPEDIDA POR GESTÃO DE RISCO
+                                                    </span>
+                                                    <span class="badge" style="background: rgba(239, 68, 68, 0.25); border: 1px solid #ef4444; color: #fca5a5; font-weight: 700; font-size: 0.76rem; padding: 4px 8px; border-radius: 6px;">
+                                                        ⚪ Sem Entrada (Abstenção)
+                                                    </span>
+                                                </div>
+
+                                                <div style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; font-size: 0.76rem; color: #e2e8f0; line-height: 1.45;">
+                                                    <div style="font-weight: 700; color: #f87171; margin-bottom: 4px; display: flex; align-items: center; gap: 5px;">
+                                                        <i class="bi bi-exclamation-triangle-fill"></i> Motivo da Abstenção da IA:
+                                                    </div>
+                                                    <div style="white-space: pre-line; font-size: 0.74rem; color: #cbd5e1;">
+                                                        <?= htmlspecialchars($nl_explanation) ?>
+                                                    </div>
+                                                </div>
+
+                                                <div style="margin-top: 8px; padding: 6px 8px; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px;">
+                                                    <div style="font-size: 0.72rem; font-weight: 700; color: #fbbf24; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
+                                                        <span><i class="bi bi-clock-history me-1"></i> Retrospecto dos Últimos 5 Jogos (U5J)</span>
+                                                        <span style="font-size: 0.65rem; color: #94a3b8; font-weight: normal;"><?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?></span>
+                                                    </div>
+                                                    <div class="table-responsive" style="margin: 0; padding: 0;">
+                                                        <table class="table table-sm table-borderless text-white mb-0" style="font-size: 0.68rem;">
+                                                            <thead>
+                                                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94a3b8;">
+                                                                    <th style="padding: 2px 4px;">Time</th>
+                                                                    <th style="padding: 2px 4px; text-align: center;">Forma</th>
+                                                                    <th style="padding: 2px 4px;">Últimas Partidas</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                <tr>
+                                                                    <td style="padding: 3px 4px; font-weight: 600; color: #38bdf8; white-space: nowrap;">
+                                                                        🏠 <?= htmlspecialchars($fix->home_team) ?>
+                                                                    </td>
+                                                                    <td style="padding: 3px 4px; text-align: center; font-weight: 700; color: #fbbf24;">
+                                                                        <?= htmlspecialchars($u5j_data['home']['text'] ?? '0V-0E-0D') ?>
+                                                                    </td>
+                                                                    <td style="padding: 3px 4px;">
+                                                                         <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+                                                                             <?php if (empty($u5j_data['home']['matches'])): ?>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                             <?php else: ?>
+                                                                                 <?php foreach ($u5j_data['home']['matches'] as $m): ?>
+                                                                                     <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
+                                                                                     <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
+                                                                                         <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
+                                                                                     </span>
+                                                                                 <?php endforeach; ?>
+                                                                             <?php endif; ?>
+                                                                         </div>
+                                                                     </td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td style="padding: 3px 4px; font-weight: 600; color: #a78bfa; white-space: nowrap;">
+                                                                        ✈️ <?= htmlspecialchars($fix->away_team) ?>
+                                                                    </td>
+                                                                    <td style="padding: 3px 4px; text-align: center; font-weight: 700; color: #fbbf24;">
+                                                                        <?= htmlspecialchars($u5j_data['away']['text'] ?? '0V-0E-0D') ?>
+                                                                    </td>
+                                                                    <td style="padding: 3px 4px;">
+                                                                         <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+                                                                             <?php if (empty($u5j_data['away']['matches'])): ?>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                             <?php else: ?>
+                                                                                 <?php foreach ($u5j_data['away']['matches'] as $m): ?>
+                                                                                     <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
+                                                                                     <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
+                                                                                         <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
+                                                                                     </span>
+                                                                                 <?php endforeach; ?>
+                                                                             <?php endif; ?>
+                                                                         </div>
+                                                                     </td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+
+                                                <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-top: 6px; border-top: 1px solid rgba(239, 68, 68, 0.2);">
+                                                    <span style="font-size: 0.72rem; color: #fda4af; display: flex; align-items: center; gap: 4px;">
+                                                        <i class="bi bi-info-circle-fill"></i> Para proteger sua banca, a automação do Airflow não cria apostas para partidas com abstenção de risco.
+                                                    </span>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger disabled" style="font-size: 0.72rem; font-weight: 700; opacity: 0.65; cursor: not-allowed;" disabled>
+                                                        🚫 Aposta Impedida por Gestão de Risco
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php elseif (!empty($fix->ah_suggestion)): ?>
                                         <div id="sec-ah-<?= $fix->fixture_id ?>" class="bet-card-section">
                                             <div class="asian-handicap-widget-box" style="padding: 8px 10px; background: rgba(15, 23, 42, 0.9); border-radius: 8px; border-left: 4px solid #38bdf8; font-size: 0.78rem; color: #cbd5e1;">
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
@@ -2477,15 +2867,19 @@ if (!function_exists('getBetDecisionTree')) {
                                                                         <?= htmlspecialchars($u5j_data['home']['text'] ?? '0V-0E-0D') ?>
                                                                     </td>
                                                                     <td style="padding: 3px 4px;">
-                                                                        <div style="display: flex; gap: 3px; flex-wrap: wrap;">
-                                                                            <?php foreach (($u5j_data['home']['matches'] ?? []) as $m): ?>
-                                                                                <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
-                                                                                <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
-                                                                                    <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
-                                                                                </span>
-                                                                            <?php endforeach; ?>
-                                                                        </div>
-                                                                    </td>
+                                                                         <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+                                                                             <?php if (empty($u5j_data['home']['matches'])): ?>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                             <?php else: ?>
+                                                                                 <?php foreach ($u5j_data['home']['matches'] as $m): ?>
+                                                                                     <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
+                                                                                     <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
+                                                                                         <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
+                                                                                     </span>
+                                                                                 <?php endforeach; ?>
+                                                                             <?php endif; ?>
+                                                                         </div>
+                                                                     </td>
                                                                 </tr>
                                                                 <tr>
                                                                     <td style="padding: 3px 4px; font-weight: 600; color: #a78bfa; white-space: nowrap;">
@@ -2495,15 +2889,19 @@ if (!function_exists('getBetDecisionTree')) {
                                                                         <?= htmlspecialchars($u5j_data['away']['text'] ?? '0V-0E-0D') ?>
                                                                     </td>
                                                                     <td style="padding: 3px 4px;">
-                                                                        <div style="display: flex; gap: 3px; flex-wrap: wrap;">
-                                                                            <?php foreach (($u5j_data['away']['matches'] ?? []) as $m): ?>
-                                                                                <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
-                                                                                <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
-                                                                                    <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
-                                                                                </span>
-                                                                            <?php endforeach; ?>
-                                                                        </div>
-                                                                    </td>
+                                                                         <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+                                                                             <?php if (empty($u5j_data['away']['matches'])): ?>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                             <?php else: ?>
+                                                                                 <?php foreach ($u5j_data['away']['matches'] as $m): ?>
+                                                                                     <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
+                                                                                     <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 600; font-size: 0.62rem; padding: 2px 4px;" title="<?= htmlspecialchars(($m['is_home'] ? 'vs ' : '@ ') . $m['opponent']) ?>">
+                                                                                         <?= $m['result'] ?> (<?= htmlspecialchars($m['score']) ?>)
+                                                                                     </span>
+                                                                                 <?php endforeach; ?>
+                                                                             <?php endif; ?>
+                                                                         </div>
+                                                                     </td>
                                                                 </tr>
                                                             </tbody>
                                                         </table>
@@ -2511,9 +2909,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 </div>
 
                                                 <?php if (!empty($motivation)): ?>
-                                                    <div style="margin-top: 6px; padding: 6px 8px; background: rgba(30, 41, 59, 0.7); border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 0.72rem; color: #cbd5e1; line-height: 1.35;">
-                                                        💡 <strong>Motivação:</strong> <?= htmlspecialchars($motivation) ?>
-                                                    </div>
+                                                    <?= renderStructuredMotivation($motivation, $raw_reasoning, $fix) ?>
                                                 <?php endif; ?>
 
                                                 <?php if (!empty($calc_details)): ?>
@@ -2685,6 +3081,10 @@ if (!function_exists('getBetDecisionTree')) {
                                             if (!empty($fix->prediction_text) && preg_match('/Under\s*(\d+\.\d+|\d+)/i', $fix->prediction_text, $mPalpite)) {
                                                 $cardPalpite = 'Menos de ' . $mPalpite[1];
                                             }
+                                            $ahPalpiteClean = $fix->home_team . ' 0.0 (Empate Anula)';
+                                            if (!empty($fix->ah_suggestion) && preg_match('/^(.*?)\s*([+-]?\d+(?:\.\d+)?|0\.0)/i', $fix->ah_suggestion, $mAHClean) && !empty($mAHClean[1])) {
+                                                $ahPalpiteClean = trim($mAHClean[1]) . ' 0.0 (Empate Anula)';
+                                            }
                                         ?>
                                         <!-- Botões Tipificados de Registrar Aposta vinculados ao card -->
                                         <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id . '&mercado=cartoes&palpite=' . urlencode($cardPalpite)) ?>" 
@@ -2693,7 +3093,8 @@ if (!function_exists('getBetDecisionTree')) {
                                            title="Registrar Aposta no Mercado de Cartões">
                                             <i class="bi bi-card-amber"></i> Cartões
                                         </a>
-                                        <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id . '&mercado=handicap&palpite=' . urlencode($fix->ah_suggestion ?? 'Handicap 0.0 (Empate Anula)')) ?>" 
+
+                                        <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id . '&mercado=handicap&palpite=' . urlencode($ahPalpiteClean)) ?>" 
                                            class="bet-stats-btn" 
                                            style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; text-decoration: none; padding: 4px 8px; font-size: 0.75rem;" 
                                            title="Registrar Aposta no Mercado de Handicap Asiático">
@@ -3177,9 +3578,33 @@ if (!function_exists('getBetDecisionTree')) {
         applyFilters();
     });
 
+    let currentShowFinishedFilter = <?= $showFinished ? 'true' : 'false' ?>;
+    let currentShowPostponedFilter = <?= !empty($showPostponed) ? 'true' : 'false' ?>;
     let currentOnlySafeFilter = <?= !empty($onlySafe) ? 'true' : 'false' ?>;
     let currentOnlySurebetFilter = <?= !empty($onlySurebet) ? 'true' : 'false' ?>;
     let currentOnlyHasBetFilter = false;
+    let currentOnlyLiveFilter = <?= !empty($onlyLive) ? 'true' : 'false' ?>;
+    let currentOnlyResenhaFilter = <?= !empty($onlyResenha) ? 'true' : 'false' ?>;
+
+    function toggleShowFinishedFilter(checkbox) {
+        currentShowFinishedFilter = checkbox.checked;
+        const statusSpan = document.getElementById('showFinishedToggleStatus');
+        if (statusSpan) {
+            statusSpan.innerText = currentShowFinishedFilter ? 'Sim' : 'Não';
+            statusSpan.style.color = currentShowFinishedFilter ? '#f47c20' : '#8a99a8';
+        }
+        applyFilters();
+    }
+
+    function toggleShowPostponedFilter(checkbox) {
+        currentShowPostponedFilter = checkbox.checked;
+        const statusSpan = document.getElementById('showPostponedToggleStatus');
+        if (statusSpan) {
+            statusSpan.innerText = currentShowPostponedFilter ? 'Sim' : 'Não';
+            statusSpan.style.color = currentShowPostponedFilter ? '#f59e0b' : '#8a99a8';
+        }
+        applyFilters();
+    }
 
     function toggleSafeBetsFilter(checkbox) {
         currentOnlySafeFilter = checkbox.checked;
@@ -3211,7 +3636,27 @@ if (!function_exists('getBetDecisionTree')) {
         applyFilters();
     }
 
-    // Aplica os filtros combinados (Liga + Aba de Destaques + Busca por Texto + Apenas Apostas Seguras + Surebets + Com Aposta)
+    function toggleLiveBetsFilter(checkbox) {
+        currentOnlyLiveFilter = checkbox.checked;
+        const statusSpan = document.getElementById('onlyLiveToggleStatus');
+        if (statusSpan) {
+            statusSpan.innerText = currentOnlyLiveFilter ? 'Sim' : 'Não';
+            statusSpan.style.color = currentOnlyLiveFilter ? '#ef4444' : '#8a99a8';
+        }
+        applyFilters();
+    }
+
+    function toggleResenhaFilter(checkbox) {
+        currentOnlyResenhaFilter = checkbox.checked;
+        const statusSpan = document.getElementById('onlyResenhaToggleStatus');
+        if (statusSpan) {
+            statusSpan.innerText = currentOnlyResenhaFilter ? 'Sim' : 'Não';
+            statusSpan.style.color = currentOnlyResenhaFilter ? '#00e676' : '#8a99a8';
+        }
+        applyFilters();
+    }
+
+    // Aplica os filtros combinados (Liga + Aba de Destaques + Busca por Texto + Jogos Encerrados + Adiados + Apenas Apostas Seguras + Surebets + Com Aposta + Em Andamento + Com Resenha)
     function applyFilters() {
         const cards = document.querySelectorAll('.bet-card');
         let visibleCount = 0;
@@ -3224,6 +3669,10 @@ if (!function_exists('getBetDecisionTree')) {
             const isSafe = card.getAttribute('data-is-safe') === '1';
             const isSurebet = card.getAttribute('data-is-surebet') === '1';
             const hasAposta = card.getAttribute('data-has-aposta') === '1';
+            const isLive = card.getAttribute('data-is-live') === '1';
+            const isFinished = card.getAttribute('data-is-finished') === '1';
+            const isPostponed = card.getAttribute('data-is-postponed') === '1';
+            const hasResenha = card.getAttribute('data-has-resenha') === '1';
             
             const matchLeague = (currentLeagueFilter === 'all' || cardLeague === currentLeagueFilter);
             const matchTab = (currentTabFilter === 'competicoes' || cardProb >= 70.0);
@@ -3231,8 +3680,12 @@ if (!function_exists('getBetDecisionTree')) {
             const matchSafe = (!currentOnlySafeFilter || isSafe);
             const matchSurebet = (!currentOnlySurebetFilter || isSurebet);
             const matchHasBet = (!currentOnlyHasBetFilter || hasAposta);
+            const matchLive = (!currentOnlyLiveFilter || isLive);
+            const matchFinished = (currentShowFinishedFilter || !isFinished);
+            const matchPostponed = (currentShowPostponedFilter || !isPostponed);
+            const matchResenha = (!currentOnlyResenhaFilter || hasResenha);
             
-            if (matchLeague && matchTab && matchText && matchSafe && matchSurebet && matchHasBet) {
+            if (matchLeague && matchTab && matchText && matchSafe && matchSurebet && matchHasBet && matchLive && matchFinished && matchPostponed && matchResenha) {
                 card.style.display = 'flex';
                 visibleCount++;
             } else {
@@ -3241,6 +3694,16 @@ if (!function_exists('getBetDecisionTree')) {
         });
 
         
+        // Atualiza o selo com o quantitativo de partidas visíveis vs total do período
+        const totalBadge = document.getElementById('totalMatchesCount');
+        if (totalBadge) {
+            if (visibleCount !== cards.length) {
+                totalBadge.innerHTML = `${visibleCount} <span style="font-size:0.75rem; color:#94a3b8; font-weight:600;">/ ${cards.length}</span>`;
+            } else {
+                totalBadge.textContent = cards.length;
+            }
+        }
+
         // Trata o empty state se não houver cards visíveis
         const emptyState = document.querySelector('.bet-empty');
         if (emptyState) {
@@ -3530,19 +3993,29 @@ if (!function_exists('getBetDecisionTree')) {
                                 }
                                 cardsAwayEl.innerHTML = html;
                             }
+                            const statusUpper = (fix.status || '').toUpperCase();
+                            const isMatchLiveNow = liveStatuses.includes(statusUpper);
+                            const isMatchFinishedNow = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'].includes(statusUpper);
+                            card.setAttribute('data-is-live', isMatchLiveNow ? '1' : '0');
+                            if (isMatchFinishedNow) {
+                                card.setAttribute('data-is-finished', '1');
+                            }
+
                             if (elapsedEl) {
-                                const statusUpper = (fix.status || '').toUpperCase();
-                                if (liveStatuses.includes(statusUpper)) {
+                                if (isMatchLiveNow) {
                                     elapsedEl.classList.add('live');
                                     const minText = fix.elapsed ? fix.elapsed + "'" : (statusUpper === 'HT' ? 'Int' : 'Ao Vivo');
                                     elapsedEl.innerHTML = `<span class="live-pulse-dot"></span> ${minText}`;
-                                } else if (['FT', 'AET', 'PEN', '120', '90'].includes(statusUpper)) {
+                                } else if (isMatchFinishedNow) {
                                     elapsedEl.classList.remove('live');
                                     elapsedEl.textContent = 'Fim';
                                 }
                             }
                         }
                     });
+                    if (currentOnlyLiveFilter || !currentShowFinishedFilter) {
+                        applyFilters();
+                    }
                 }
             })
             .catch(err => console.error('Erro ao atualizar placares ao vivo:', err));

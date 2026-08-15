@@ -53,10 +53,10 @@ default_args = {
 dag = DAG(
     'processar_apostas_encerradas_dag',
     default_args=default_args,
-    schedule_interval='0 23 * * *',  # Executa diariamente às 23:00 hs
+    schedule_interval='*/30 * * * *',  # Executa a cada 30 minutos para liquidação intra-day
     catchup=False,
-    description="DAG do Airflow que verifica os jogos encerrados do dia às 23:00 hs e processa apostas ganhas/perdidas",
-    tags=['football', 'apostas', 'settlement', 'daily_23h']
+    description="DAG do Airflow que verifica jogos encerrados a cada 30 min e processa apostas/palpites (GREEN, RED, VOID, NO_BET)",
+    tags=['football', 'apostas', 'settlement', 'intraday_30m']
 )
 
 processar_task = PythonOperator(

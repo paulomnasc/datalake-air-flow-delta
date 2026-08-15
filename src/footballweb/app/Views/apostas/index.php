@@ -1,8 +1,16 @@
 <?php
-/**
- * View: Gestão de Apostas (CRUD & UX)
- * Apenas acessível para usuários com tokens de consulta.
- */
+if (!function_exists('formatBrtDate')) {
+    function formatBrtDate($utcDateStr, $format = 'd/m H:i') {
+        if (empty($utcDateStr)) return 'Hoje';
+        try {
+            $dt = new DateTime($utcDateStr, new DateTimeZone('UTC'));
+            $dt->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+            return $dt->format($format);
+        } catch (\Exception $e) {
+            return date($format, strtotime($utcDateStr));
+        }
+    }
+}
 ?>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -755,22 +763,25 @@
   <div class="stats-grid">
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-cash-stack"></i> Total Apostado</div>
-      <div class="stat-value">R$ <?= number_format($resumo['total_apostado'] ?? 0, 2, ',', '.') ?></div>
+      <div class="stat-value" id="topTotalApostado">R$ <?= number_format($resumo['total_apostado'] ?? 0, 2, ',', '.') ?></div>
     </div>
 
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-trophy"></i> Ganhos Potenciais</div>
-      <div class="stat-value primary">R$ <?= number_format($resumo['ganhos_totais'] ?? 0, 2, ',', '.') ?></div>
+      <div class="stat-label"><i class="bi bi-trophy"></i> Retorno Bruto</div>
+      <div class="stat-value primary" id="topRetornoBruto">R$ <?= number_format($resumo['ganhos_totais'] ?? 0, 2, ',', '.') ?></div>
     </div>
 
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-box-arrow-in-down-left"></i> Retorno Cash Out</div>
-      <div class="stat-value accent">R$ <?= number_format($resumo['total_cashout'] ?? 0, 2, ',', '.') ?></div>
+      <div class="stat-label"><i class="bi bi-calculator"></i> Saldo Líquido</div>
+      <?php $saldoTop = (float)($resumo['saldo_liquido'] ?? 0); ?>
+      <div class="stat-value <?= ($saldoTop > 0) ? 'primary' : (($saldoTop < 0) ? 'text-danger' : 'gold') ?>" id="topSaldoLiquido">
+        <?= ($saldoTop > 0 ? '+' : '') ?>R$ <?= number_format($saldoTop, 2, ',', '.') ?>
+      </div>
     </div>
 
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-list-check"></i> Total de Apostas</div>
-      <div class="stat-value gold"><?= $resumo['total_apostas'] ?? 0 ?></div>
+      <div class="stat-value gold" id="topTotalApostas"><?= $resumo['total_apostas'] ?? 0 ?></div>
     </div>
   </div>
 
@@ -779,14 +790,26 @@
     <div class="d-flex align-items-center gap-3 flex-wrap">
       <!-- Status Filters -->
       <div class="bet-filters">
-        <button class="filter-btn active" onclick="filterBets('all', this)">Todas (<?= count($apostas) ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Pendente', this)">Pendentes (<?= $resumo['pendentes'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Ganha', this)">Ganhas (<?= $resumo['ganhas'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Meio Ganha', this)">Meio Ganhas (<?= $resumo['meio_ganhas'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('ANULADA', this)">Anuladas (<?= $resumo['anuladas'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Meio Perdida', this)">Meio Perdidas (<?= $resumo['meio_perdidas'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Perdida', this)">Perdidas (<?= $resumo['perdidas'] ?? 0 ?>)</button>
-        <button class="filter-btn" onclick="filterBets('Cashout', this)">Cashout (<?= $resumo['cashouts'] ?? 0 ?>)</button>
+        <?php
+          $totalApostasCount = count($apostas);
+          $calcPctBadge = function($label, $count) use ($totalApostasCount) {
+            if ($totalApostasCount <= 0) {
+              $pctStr = '0%';
+            } else {
+              $pct = ($count / $totalApostasCount) * 100;
+              $pctStr = ($pct == (int)$pct) ? number_format($pct, 0) . '%' : number_format($pct, 1, ',', '.') . '%';
+            }
+            return "{$label} ({$count} - {$pctStr})";
+          };
+        ?>
+        <button class="filter-btn active" id="btnFilterAll" onclick="filterBets('all', this)"><?= $calcPctBadge('Todas', $totalApostasCount) ?></button>
+        <button class="filter-btn" id="btnFilterPendente" onclick="filterBets('Pendente', this)"><?= $calcPctBadge('Pendentes', $resumo['pendentes'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterGanha" onclick="filterBets('Ganha', this)"><?= $calcPctBadge('Ganhas', $resumo['ganhas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterMeioGanha" onclick="filterBets('Meio Ganha', this)"><?= $calcPctBadge('Meio Ganhas', $resumo['meio_ganhas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterAnulada" onclick="filterBets('ANULADA', this)"><?= $calcPctBadge('Anuladas', $resumo['anuladas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterMeioPerdida" onclick="filterBets('Meio Perdida', this)"><?= $calcPctBadge('Meio Perdidas', $resumo['meio_perdidas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterPerdida" onclick="filterBets('Perdida', this)"><?= $calcPctBadge('Perdida', $resumo['perdidas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterCashout" onclick="filterBets('Cashout', this)"><?= $calcPctBadge('Cashout', $resumo['cashouts'] ?? 0) ?></button>
       </div>
 
       <!-- Filtro de Período (2 Datas) -->
@@ -797,6 +820,39 @@
         <input type="date" id="betEndDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="applyBetFilters()" title="Data Final (Até)">
         <button class="btn btn-sm btn-outline-info text-info border-secondary px-2 py-0.5 ms-1 fw-semibold" onclick="setTodayDateFilter()" title="Selecionar Data de Hoje" style="font-size: 0.78rem;"><i class="bi bi-calendar-check me-1"></i>Hoje</button>
         <button class="btn btn-sm btn-outline-secondary border-0 text-light-50 p-1" onclick="clearDateFilter()" title="Limpar Filtro de Período"><i class="bi bi-x-circle-fill"></i></button>
+      </div>
+
+      <!-- Resumo Financeiro Calculado (Filtro por Período / Seleção) -->
+      <div id="calculatedSummaryWidget" class="d-flex align-items-center gap-3 bg-dark px-3 py-1.5 rounded-3 border border-secondary flex-wrap" style="font-size: 0.82rem; background: rgba(15, 23, 42, 0.9) !important; border-color: rgba(56, 189, 248, 0.35) !important;">
+        <div class="d-flex align-items-center gap-1" title="Soma do valor investido nas apostas do período/filtro">
+          <i class="bi bi-cash-coin text-warning"></i>
+          <span class="text-light-50">Total Apostado:</span>
+          <strong id="calcTotalApostado" class="text-white">R$ 0,00</strong>
+        </div>
+
+        <div class="d-flex align-items-center gap-1" title="Soma dos ganhos em apostas vencidas ou cashouts (Retorno Bruto)">
+          <i class="bi bi-graph-up-arrow text-success"></i>
+          <span class="text-light-50">Total Ganho:</span>
+          <strong id="calcTotalGanho" class="text-success">R$ 0,00</strong>
+        </div>
+
+        <div class="d-flex align-items-center gap-1" title="Soma do ganho obtido sobre as odds ((Aposta × Odd) - Aposta)">
+          <i class="bi bi-piggy-bank-fill" style="color: #00e676;"></i>
+          <span class="text-light-50">Ganho Odds:</span>
+          <strong id="calcTotalLucro" style="color: #00e676; font-weight: 700;">R$ 0,00</strong>
+        </div>
+
+        <div class="d-flex align-items-center gap-1" title="Soma dos valores perdidos nas apostas do período/filtro">
+          <i class="bi bi-graph-down-arrow text-danger"></i>
+          <span class="text-light-50">Total Perda:</span>
+          <strong id="calcTotalPerda" class="text-danger">R$ 0,00</strong>
+        </div>
+
+        <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: Saldo Líquido = Total Retorno Bruto - Total Apostado (Apostas Liquidadas)">
+          <i class="bi bi-calculator text-info"></i>
+          <span class="text-light-50">Saldo Líquido:</span>
+          <strong id="calcSaldoLiquido" class="text-info fw-bold">R$ 0,00</strong>
+        </div>
       </div>
     </div>
 
@@ -843,12 +899,14 @@
         <?php 
           $itemDate = '';
           if (!empty($aposta->data_hora_jogo)) {
-            $itemDate = date('Y-m-d', strtotime($aposta->data_hora_jogo));
+            $itemDate = formatBrtDate($aposta->data_hora_jogo, 'Y-m-d');
           } elseif (!empty($aposta->criado_em)) {
-            $itemDate = date('Y-m-d', strtotime($aposta->criado_em));
+            $itemDate = formatBrtDate($aposta->criado_em, 'Y-m-d');
           }
+          $itemCreatedDate = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'Y-m-d') : $itemDate;
+          $displayMatchTime = !empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'd/m \à\s H:i') : 'Hoje';
         ?>
-        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
+        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
           
           <div class="bet-card-header">
             <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
@@ -867,7 +925,7 @@
             </div>
             <div class="match-time">
               <i class="bi bi-clock"></i>
-              <?= $aposta->data_hora_jogo ? date('d/m H:i', strtotime($aposta->data_hora_jogo)) : 'Hoje' ?>
+              <?= $displayMatchTime ?>
             </div>
           </div>
 
@@ -1001,6 +1059,20 @@
       <form id="newBetForm" onsubmit="submitNewBet(event)">
         <div class="modal-body">
           
+          <!-- Tarja Vermelha Chamativa de Alerta de Risco por Abstenção/Bloqueio da IA -->
+          <div id="xgWarningBanner" class="alert alert-danger d-flex align-items-center gap-3 mb-3" style="display: none; background: rgba(239, 68, 68, 0.18); border: 2px solid #ef4444; color: #fca5a5; border-radius: 12px; padding: 14px 16px; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.25);">
+            <i class="bi bi-slash-circle-fill fs-2 text-danger flex-shrink-0"></i>
+            <div>
+              <strong style="color: #f87171; font-size: 0.95rem; display: block; margin-bottom: 4px;">🚫 ENTRADA BLOQUEADA: ABSTENÇÃO DA IA POR GESTÃO DE RISCO</strong>
+              <div style="font-size: 0.82rem; color: #fca5a5; line-height: 1.45;">
+                Esta partida foi classificada como <strong style="color: #ffffff;">Sem Entrada (Abstenção)</strong> pela inteligência estatística por ausência de dados seguros de gols/xG.<br>
+                <span style="color: #ef4444; font-weight: 800; text-transform: uppercase; display: block; margin-top: 6px; font-size: 0.82rem; letter-spacing: 0.3px;">
+                  💡 GESTÃO DE RISCO: Para proteger sua banca, a criação de apostas no mercado de Handicap Asiático para este jogo está desabilitada pela automação.
+                </span>
+              </div>
+            </div>
+          </div>
+          
           <div class="mb-3 custom-combobox-wrapper" id="fixtureComboboxContainer">
             <label class="form-label text-muted small fw-bold">VINCULAR A UM JOGO DO BANCO (OPCIONAL)</label>
             <div class="input-group">
@@ -1020,7 +1092,12 @@
                         data-date="<?= $fix->fixture_date ?>" 
                         data-palpite-cards="<?= htmlspecialchars($fix->suggested_palpite_cards ?? 'Menos de 5.5') ?>"
                         data-palpite-ah="<?= htmlspecialchars($fix->suggested_palpite_ah ?? 'Handicap 0.0 (Empate Anula)') ?>"
-                        data-palpite="<?= htmlspecialchars($fix->suggested_palpite_cards ?? 'Menos de 5.5') ?>">
+                        data-palpite="<?= htmlspecialchars($fix->suggested_palpite_cards ?? 'Menos de 5.5') ?>"
+                        data-ah-suggestion="<?= htmlspecialchars($fix->ah_suggestion ?? '') ?>"
+                        data-ah-confidence="<?= number_format($fix->ah_confidence_val ?? 0, 1) ?>"
+                        data-ah-max-score="<?= ($fix->is_max_ah_score ?? false) ? '1' : '0' ?>"
+                        data-xg-home="<?= number_format($fix->xg_home ?? 0, 2) ?>"
+                        data-xg-away="<?= number_format($fix->xg_away ?? 0, 2) ?>">
                   <?= date('d/m H:i', strtotime($fix->fixture_date)) ?> | <?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?> (<?= htmlspecialchars($fix->league_name) ?>)
                 </option>
               <?php endforeach; ?>
@@ -1052,7 +1129,20 @@
               <input type="hidden" id="mercadoInput" name="mercado" value="Total de Cartões">
             </div>
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Palpite *</label>
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <label class="form-label text-white mb-0">Palpite *</label>
+                  <div class="form-check form-switch m-0 d-flex align-items-center gap-1" style="font-size: 0.72rem;">
+                    <input class="form-check-input" type="checkbox" role="switch" id="toggleUnlockPalpite" onchange="togglePalpiteLock(this.checked)" style="cursor: pointer; width: 28px; height: 16px;">
+                    <label class="form-check-label text-info fw-bold" for="toggleUnlockPalpite" style="cursor: pointer; user-select: none;">
+                      <i class="bi bi-unlock-fill me-1"></i>Editar
+                    </label>
+                  </div>
+                </div>
+                <span id="maxScoreBadge" class="badge text-white fw-bold" style="display: none; font-size: 0.72rem; background: linear-gradient(135deg, #f59e0b, #ef4444) !important; padding: 3px 8px; border-radius: 6px; box-shadow: 0 0 10px rgba(245, 158, 11, 0.5); border: 1px solid #fbbf24;">
+                  <i class="bi bi-lightning-charge-fill me-1"></i>Max score reached
+                </span>
+              </div>
               <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="palpiteInput" readonly required placeholder="Ex: Menos de 6.5 ou Operário-PR 0.0 (Empate Anula)" oninput="updatePalpiteExplanation()" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
               <div id="palpiteExplanationBox" style="display:none; font-size: 0.75rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 6px 10px; margin-top: 6px; color: #e2e8f0;"></div>
             </div>
@@ -1061,7 +1151,8 @@
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white">Odd *</label>
-              <input type="number" step="0.01" class="form-control" id="oddInput" required placeholder="1.47" oninput="calcGanhos()">
+              <input type="number" step="0.01" min="1.60" class="form-control" id="oddInput" required placeholder="1.60" oninput="calcGanhos()">
+              <div class="form-text" style="font-size: 0.7rem; color: #94a3b8;">Mínimo: 1,60</div>
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white">Valor Aposta (R$) *</label>
@@ -1139,7 +1230,15 @@
               <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editMercadoInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Palpite *</label>
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <label class="form-label text-white mb-0">Palpite *</label>
+                <div class="form-check form-switch m-0 d-flex align-items-center gap-1" style="font-size: 0.72rem;">
+                  <input class="form-check-input" type="checkbox" role="switch" id="toggleUnlockEditPalpite" onchange="toggleEditPalpiteLock(this.checked)" style="cursor: pointer; width: 28px; height: 16px;">
+                  <label class="form-check-label text-info fw-bold" for="toggleUnlockEditPalpite" style="cursor: pointer; user-select: none;">
+                    <i class="bi bi-unlock-fill me-1"></i>Editar
+                  </label>
+                </div>
+              </div>
               <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editPalpiteInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
           </div>
@@ -1147,7 +1246,8 @@
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white">Odd *</label>
-              <input type="number" step="0.01" class="form-control" id="editOddInput" required oninput="calcEditGanhos()">
+              <input type="number" step="0.01" min="1.60" class="form-control" id="editOddInput" required oninput="calcEditGanhos()">
+              <div class="form-text" style="font-size: 0.7rem; color: #94a3b8;">Mínimo: 1,60</div>
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white">Valor Aposta (R$) *</label>
@@ -1213,7 +1313,11 @@
         home: opt.getAttribute('data-home') || '',
         away: opt.getAttribute('data-away') || '',
         date: opt.getAttribute('data-date') || '',
-        palpite: opt.getAttribute('data-palpite') || ''
+        palpiteCards: opt.getAttribute('data-palpite-cards') || opt.getAttribute('data-palpite') || '',
+        palpiteAH: opt.getAttribute('data-palpite-ah') || '',
+        palpite: opt.getAttribute('data-palpite') || '',
+        ahConfidence: parseFloat(opt.getAttribute('data-ah-confidence') || '0'),
+        isMaxScore: opt.getAttribute('data-ah-max-score') === '1'
       });
     }
   }
@@ -1352,11 +1456,17 @@
 
     document.getElementById('timeCasaInput').value = optData.home;
     document.getElementById('timeForaInput').value = optData.away;
-    if (optData.palpite) {
-      document.getElementById('palpiteInput').value = optData.palpite;
+    
+    const currentMercado = document.getElementById('mercadoTypeSelect')?.value || 'Total de Cartões';
+    if (currentMercado === 'Handicap Asiático' && optData.palpiteAH) {
+      document.getElementById('palpiteInput').value = formatHandicapPalpiteJs(optData.palpiteAH, optData.home);
+    } else if (optData.palpiteCards || optData.palpite) {
+      document.getElementById('palpiteInput').value = optData.palpiteCards || optData.palpite;
     }
 
     closeFixtureDropdown();
+    checkPalpiteEditableRule();
+    updatePalpiteExplanation();
   }
 
   function clearFixtureSelection() {
@@ -1368,6 +1478,7 @@
     if (searchInput) searchInput.value = '';
     if (badge) badge.textContent = '';
     closeFixtureDropdown();
+    checkPalpiteEditableRule();
   }
 
   function escapeHtml(text) {
@@ -1451,6 +1562,100 @@
     }
   }
 
+  function formatHandicapPalpiteJs(palpiteRaw, teamDefault) {
+    if (!palpiteRaw) return teamDefault ? `${teamDefault} 0.0 (Empate Anula)` : '0.0 (Empate Anula)';
+    if (palpiteRaw.includes('0.0 (Empate Anula)') || palpiteRaw.includes('0,0 (Empate Anula)')) {
+      return palpiteRaw;
+    }
+    const match = palpiteRaw.match(/^(.*?)\s*([+-]?\d+[\.,]\d+|[+-]?\d+)/);
+    if (match && match[1] && match[1].trim().length > 0) {
+      return `${match[1].trim()} 0.0 (Empate Anula)`;
+    }
+    return teamDefault ? `${teamDefault} 0.0 (Empate Anula)` : `${palpiteRaw} 0.0 (Empate Anula)`;
+  }
+
+  function togglePalpiteLock(unlocked) {
+    const palpiteInput = document.getElementById('palpiteInput');
+    const toggleCheckbox = document.getElementById('toggleUnlockPalpite');
+    if (toggleCheckbox) toggleCheckbox.checked = unlocked;
+    if (!palpiteInput) return;
+    if (unlocked) {
+      palpiteInput.readOnly = false;
+      palpiteInput.style.setProperty('background-color', 'rgba(15, 23, 42, 0.95)', 'important');
+      palpiteInput.style.setProperty('color', '#ffffff', 'important');
+      palpiteInput.style.setProperty('border', '1px solid #38bdf8', 'important');
+      palpiteInput.style.setProperty('cursor', 'text', 'important');
+    } else {
+      palpiteInput.readOnly = true;
+      palpiteInput.style.setProperty('background-color', 'rgba(30, 41, 59, 0.85)', 'important');
+      palpiteInput.style.setProperty('color', '#ffffff', 'important');
+      palpiteInput.style.setProperty('border', '1px solid rgba(255, 255, 255, 0.2)', 'important');
+      palpiteInput.style.setProperty('cursor', 'not-allowed', 'important');
+    }
+  }
+
+  function toggleEditPalpiteLock(unlocked) {
+    const editPalpiteInput = document.getElementById('editPalpiteInput');
+    const toggleCheckbox = document.getElementById('toggleUnlockEditPalpite');
+    if (toggleCheckbox) toggleCheckbox.checked = unlocked;
+    if (!editPalpiteInput) return;
+    if (unlocked) {
+      editPalpiteInput.readOnly = false;
+      editPalpiteInput.style.setProperty('background-color', 'rgba(15, 23, 42, 0.95)', 'important');
+      editPalpiteInput.style.setProperty('color', '#ffffff', 'important');
+      editPalpiteInput.style.setProperty('border', '1px solid #38bdf8', 'important');
+      editPalpiteInput.style.setProperty('cursor', 'text', 'important');
+    } else {
+      editPalpiteInput.readOnly = true;
+      editPalpiteInput.style.setProperty('background-color', 'rgba(30, 41, 59, 0.85)', 'important');
+      editPalpiteInput.style.setProperty('color', '#ffffff', 'important');
+      editPalpiteInput.style.setProperty('border', '1px solid rgba(255, 255, 255, 0.2)', 'important');
+      editPalpiteInput.style.setProperty('cursor', 'not-allowed', 'important');
+    }
+  }
+
+  function checkPalpiteEditableRule() {
+    checkMaxScoreBadge();
+  }
+
+  function checkMaxScoreBadge() {
+    const selectEl = document.getElementById('fixtureSelect');
+    if (!selectEl) return;
+    const selectedIdx = selectEl.selectedIndex;
+    if (selectedIdx < 0) return;
+    const opt = selectEl.options[selectedIdx];
+    if (!opt) return;
+
+    const currentMercado = document.getElementById('mercadoInput')?.value || '';
+    const isHandicap = (currentMercado === 'Handicap Asiático');
+
+    let isMaxScore = false;
+
+    if (opt.hasAttribute('data-ah-max-score')) {
+      const maxAttr = opt.getAttribute('data-ah-max-score');
+      const confAttr = parseFloat(opt.getAttribute('data-ah-confidence') || '0');
+      isMaxScore = (maxAttr === '1' || confAttr >= 78.0);
+    } else if (isHandicap) {
+      const palpiteVal = document.getElementById('palpiteInput')?.value || '';
+      if (palpiteVal) isMaxScore = true;
+    }
+
+    const badge = document.getElementById('maxScoreBadge');
+    const isUserUnlocked = document.getElementById('toggleUnlockPalpite')?.checked;
+
+    if (isUserUnlocked || (isHandicap && isMaxScore)) {
+      togglePalpiteLock(true);
+      if (badge) {
+        badge.style.display = (isHandicap && isMaxScore) ? 'inline-flex' : 'none';
+      }
+    } else {
+      togglePalpiteLock(false);
+      if (badge) {
+        badge.style.display = 'none';
+      }
+    }
+  }
+
   function onMercadoTypeChange(selectEl) {
     const val = selectEl.value;
     const inputMercado = document.getElementById('mercadoInput');
@@ -1460,32 +1665,59 @@
     if (fixSelect && fixSelect.selectedIndex > 0) {
       const opt = fixSelect.options[fixSelect.selectedIndex];
       if (val === 'Handicap Asiático') {
-        const palpiteAH = opt.getAttribute('data-palpite-ah');
+        const palpiteAH = formatHandicapPalpiteJs(opt.getAttribute('data-palpite-ah'), opt.getAttribute('data-home'));
         if (palpiteAH) document.getElementById('palpiteInput').value = palpiteAH;
       } else if (val === 'Total de Cartões') {
         const palpiteCards = opt.getAttribute('data-palpite-cards');
         if (palpiteCards) document.getElementById('palpiteInput').value = palpiteCards;
       }
+    } else if (val === 'Handicap Asiático') {
+      const homeTeam = document.getElementById('timeCasaInput')?.value || '';
+      document.getElementById('palpiteInput').value = formatHandicapPalpiteJs(document.getElementById('palpiteInput')?.value, homeTeam);
     }
+    checkPalpiteEditableRule();
     updatePalpiteExplanation();
   }
 
   function autofillFixture(selectEl) {
     const opt = selectEl.options[selectEl.selectedIndex];
     if (opt && opt.value) {
-      document.getElementById('timeCasaInput').value = opt.getAttribute('data-home') || '';
+      const homeTeam = opt.getAttribute('data-home') || '';
+      document.getElementById('timeCasaInput').value = homeTeam;
       document.getElementById('timeForaInput').value = opt.getAttribute('data-away') || '';
       
       const currentMercado = document.getElementById('mercadoTypeSelect')?.value || 'Total de Cartões';
       if (currentMercado === 'Handicap Asiático') {
-        const palpiteAH = opt.getAttribute('data-palpite-ah');
+        const palpiteAH = formatHandicapPalpiteJs(opt.getAttribute('data-palpite-ah'), homeTeam);
         if (palpiteAH) document.getElementById('palpiteInput').value = palpiteAH;
       } else {
         const palpiteCards = opt.getAttribute('data-palpite-cards') || opt.getAttribute('data-palpite');
         if (palpiteCards) document.getElementById('palpiteInput').value = palpiteCards;
       }
     }
+    checkPalpiteEditableRule();
     updatePalpiteExplanation();
+    checkXgWarning();
+  }
+
+  function checkXgWarning() {
+    const fixSelect = document.getElementById('fixtureSelect');
+    const mercadoSelect = document.getElementById('mercadoTypeSelect');
+    const banner = document.getElementById('xgWarningBanner');
+    if (!banner) return;
+
+    const selectedOpt = fixSelect && fixSelect.selectedIndex >= 0 ? fixSelect.options[fixSelect.selectedIndex] : null;
+    const mercado = mercadoSelect ? mercadoSelect.value : '';
+
+    if (selectedOpt && selectedOpt.value && (mercado === 'Handicap Asiático' || mercado.toLowerCase().includes('handicap'))) {
+      const ahSug = (selectedOpt.getAttribute('data-ah-suggestion') || '').toLowerCase();
+      const isBlocked = ahSug.includes('sem entrada') || ahSug.includes('abstenção') || ahSug.includes('abstencao') || ahSug.includes('bloquead') || ahSug.includes('indisponível') || ahSug.includes('indisponivel');
+      if (isBlocked) {
+        banner.style.display = 'flex';
+        return;
+      }
+    }
+    banner.style.display = 'none';
   }
 
   let currentStatusFilter = 'all';
@@ -1534,21 +1766,43 @@
     const cards = document.querySelectorAll('.bet-card-item');
     let visibleCount = 0;
 
+    const counts = {
+      all: 0,
+      Pendente: 0,
+      Ganha: 0,
+      'Meio Ganha': 0,
+      ANULADA: 0,
+      'Meio Perdida': 0,
+      Perdida: 0,
+      Cashout: 0
+    };
+
     cards.forEach(card => {
       const cardStatus = card.getAttribute('data-status') || '';
       const cardSearch = card.getAttribute('data-search') || '';
       const cardDate = card.getAttribute('data-date') || ''; // 'YYYY-MM-DD'
+      const cardCreated = card.getAttribute('data-created-date') || cardDate;
 
-      const statusMatch = (status === 'all' || cardStatus === status);
+      const itemDate = cardDate || cardCreated;
+
       const searchMatch = (!term || cardSearch.includes(term));
       
       let dateMatch = true;
-      if (startDate && cardDate) {
-        if (cardDate < startDate) dateMatch = false;
+      if (startDate && itemDate < startDate) {
+        dateMatch = false;
       }
-      if (endDate && cardDate) {
-        if (cardDate > endDate) dateMatch = false;
+      if (endDate && itemDate > endDate) {
+        dateMatch = false;
       }
+
+      if (searchMatch && dateMatch) {
+        counts.all++;
+        if (counts.hasOwnProperty(cardStatus)) {
+          counts[cardStatus]++;
+        }
+      }
+
+      const statusMatch = (status === 'all' || cardStatus === status);
 
       if (statusMatch && searchMatch && dateMatch) {
         card.style.display = 'flex';
@@ -1557,6 +1811,8 @@
         card.style.display = 'none';
       }
     });
+
+    updateTabBadges(counts);
 
     let emptyNotice = document.getElementById('noFilteredBetsNotice');
     if (visibleCount === 0 && cards.length > 0) {
@@ -1580,6 +1836,140 @@
     } else if (emptyNotice) {
       emptyNotice.style.display = 'none';
     }
+
+    updateCalculatedSummary();
+  }
+
+  function updateTabBadges(counts) {
+    const total = counts.all || 0;
+
+    function formatBadge(label, count) {
+      if (total <= 0) {
+        return `${label} (${count} - 0%)`;
+      }
+      const pct = (count / total) * 100;
+      const pctStr = (pct % 1 === 0) ? pct.toFixed(0) + '%' : pct.toFixed(1).replace('.', ',') + '%';
+      return `${label} (${count} - ${pctStr})`;
+    }
+
+    const btnAll = document.getElementById('btnFilterAll');
+    const btnPendente = document.getElementById('btnFilterPendente');
+    const btnGanha = document.getElementById('btnFilterGanha');
+    const btnMeioGanha = document.getElementById('btnFilterMeioGanha');
+    const btnAnulada = document.getElementById('btnFilterAnulada');
+    const btnMeioPerdida = document.getElementById('btnFilterMeioPerdida');
+    const btnPerdida = document.getElementById('btnFilterPerdida');
+    const btnCashout = document.getElementById('btnFilterCashout');
+
+    if (btnAll) btnAll.textContent = formatBadge('Todas', total);
+    if (btnPendente) btnPendente.textContent = formatBadge('Pendentes', counts['Pendente'] || 0);
+    if (btnGanha) btnGanha.textContent = formatBadge('Ganhas', counts['Ganha'] || 0);
+    if (btnMeioGanha) btnMeioGanha.textContent = formatBadge('Meio Ganhas', counts['Meio Ganha'] || 0);
+    if (btnAnulada) btnAnulada.textContent = formatBadge('Anuladas', counts['ANULADA'] || 0);
+    if (btnMeioPerdida) btnMeioPerdida.textContent = formatBadge('Meio Perdidas', counts['Meio Perdida'] || 0);
+    if (btnPerdida) btnPerdida.textContent = formatBadge('Perdidas', counts['Perdida'] || 0);
+    if (btnCashout) btnCashout.textContent = formatBadge('Cashout', counts['Cashout'] || 0);
+  }
+
+  function updateCalculatedSummary() {
+    const cards = document.querySelectorAll('.bet-card-item');
+    let totalApostado = 0;
+    let totalApostadoLiquidado = 0;
+    let totalRetorno = 0;
+    let totalLucro = 0;
+    let totalPerda = 0;
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+      if (card.style.display !== 'none') {
+        visibleCount++;
+        const status = card.getAttribute('data-status') || '';
+        const valor = parseFloat(card.getAttribute('data-valor') || '0') || 0;
+        const odd = parseFloat(card.getAttribute('data-odd') || '0') || 0;
+        const ganho = parseFloat(card.getAttribute('data-ganho') || '0') || 0;
+        const cashout = parseFloat(card.getAttribute('data-cashout') || '0') || 0;
+
+        totalApostado += valor;
+
+        if (status !== 'Pendente') {
+          totalApostadoLiquidado += valor;
+        }
+
+        if (status === 'Ganha') {
+          const ret = ganho > 0 ? ganho : (valor * odd);
+          totalRetorno += ret;
+          const lucroItem = (ret - valor);
+          if (lucroItem > 0) totalLucro += lucroItem;
+        } else if (status === 'Meio Ganha') {
+          const fullRet = ganho > 0 ? ganho : (valor * odd);
+          const ret = valor + ((fullRet - valor) / 2);
+          totalRetorno += ret;
+          const lucroItem = ((fullRet - valor) / 2);
+          if (lucroItem > 0) totalLucro += lucroItem;
+        } else if (status === 'Cashout') {
+          const cashVal = cashout > 0 ? cashout : (ganho > 0 ? ganho : (valor * odd));
+          totalRetorno += cashVal;
+          if (cashVal > valor) {
+            totalLucro += (cashVal - valor);
+          }
+        } else if (status === 'Perdida') {
+          totalPerda += valor;
+        } else if (status === 'Meio Perdida') {
+          totalRetorno += (valor * 0.5);
+          totalPerda += (valor * 0.5);
+        } else if (status === 'ANULADA') {
+          totalRetorno += valor;
+        }
+      }
+    });
+
+    // Saldo Líquido Real = Retorno Total Bruto - Total Apostado (Apostas Liquidadas)
+    const saldoLiquido = totalRetorno - totalApostadoLiquidado;
+
+    const formatBrl = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const elApostado = document.getElementById('calcTotalApostado');
+    const elGanho = document.getElementById('calcTotalGanho');
+    const elLucro = document.getElementById('calcTotalLucro');
+    const elPerda = document.getElementById('calcTotalPerda');
+    const elSaldo = document.getElementById('calcSaldoLiquido');
+
+    if (elApostado) elApostado.textContent = formatBrl(totalApostado);
+    if (elGanho) elGanho.textContent = formatBrl(totalRetorno);
+    if (elLucro) elLucro.textContent = formatBrl(totalLucro);
+    if (elPerda) elPerda.textContent = formatBrl(totalPerda);
+    if (elSaldo) {
+      const prefix = saldoLiquido > 0 ? '+' : '';
+      elSaldo.textContent = prefix + formatBrl(saldoLiquido);
+      if (saldoLiquido > 0) {
+        elSaldo.className = 'text-success fw-bold';
+      } else if (saldoLiquido < 0) {
+        elSaldo.className = 'text-danger fw-bold';
+      } else {
+        elSaldo.className = 'text-info fw-bold';
+      }
+    }
+
+    // Atualiza Top Cards (Resumo Superior)
+    const topApostado = document.getElementById('topTotalApostado');
+    const topGanho = document.getElementById('topRetornoBruto');
+    const topSaldo = document.getElementById('topSaldoLiquido');
+    const topApostas = document.getElementById('topTotalApostas');
+
+    if (topApostado) topApostado.textContent = formatBrl(totalApostado);
+    if (topGanho) topGanho.textContent = formatBrl(totalRetorno);
+    if (topApostas) topApostas.textContent = visibleCount;
+    if (topSaldo) {
+      const prefix = saldoLiquido > 0 ? '+' : '';
+      topSaldo.textContent = prefix + formatBrl(saldoLiquido);
+      if (saldoLiquido > 0) {
+        topSaldo.className = 'stat-value primary';
+      } else if (saldoLiquido < 0) {
+        topSaldo.className = 'stat-value text-danger';
+      } else {
+        topSaldo.className = 'stat-value gold';
+      }
+    }
   }
 
   function resetAllBetFilters() {
@@ -1596,6 +1986,11 @@
 
   function submitNewBet(e) {
     e.preventDefault();
+    const oddVal = parseFloat(document.getElementById('oddInput').value) || 0;
+    if (oddVal < 1.60) {
+      alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,60. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,60.');
+      return;
+    }
     const formData = new FormData();
     formData.append('time_casa', document.getElementById('timeCasaInput').value);
     formData.append('time_fora', document.getElementById('timeForaInput').value);
@@ -1616,7 +2011,7 @@
     .then(data => {
       if (data.success) {
         alert('✓ ' + data.message);
-        location.reload();
+        window.location.href = window.location.pathname;
       } else {
         alert('❌ ' + data.message);
       }
@@ -1669,6 +2064,32 @@
     backdrop.className = 'modal-backdrop fade show';
     backdrop.id = 'manual-backdrop-' + modalEl.id;
     document.body.appendChild(backdrop);
+  }
+
+  function hideModalSafely(modalEl) {
+    if (!modalEl) return;
+    try {
+      if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modalObj = bootstrap.Modal.getInstance(modalEl);
+        if (modalObj) {
+          modalObj.hide();
+        }
+      }
+    } catch (e) {}
+
+    try {
+      if (typeof $ !== 'undefined' && typeof $(modalEl).modal === 'function') {
+        $(modalEl).modal('hide');
+      }
+    } catch (e) {}
+
+    modalEl.style.display = 'none';
+    modalEl.classList.remove('show');
+    modalEl.setAttribute('aria-hidden', 'true');
+    modalEl.removeAttribute('aria-modal');
+    document.body.classList.remove('modal-open');
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(b => b.remove());
   }
 
   function handleOpenEditModal(btn) {
@@ -1728,6 +2149,7 @@
     document.getElementById('editCashoutInput').value = val;
     document.getElementById('editTipoSelect').value = aposta.tipo || 'Simples';
     document.getElementById('editStatusSelect').value = aposta.status || 'Pendente';
+    toggleEditPalpiteLock(false);
     calcEditGanhos();
 
     showModalSafely(document.getElementById('editBetModal'));
@@ -1735,6 +2157,11 @@
 
   function submitEditBet(e) {
     e.preventDefault();
+    const oddVal = parseFloat(document.getElementById('editOddInput').value) || 0;
+    if (oddVal < 1.60) {
+      alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,60. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,60.');
+      return;
+    }
     const id = document.getElementById('editIdInput').value;
     const formData = new FormData();
     formData.append('id', id);
@@ -1755,8 +2182,9 @@
     .then(r => r.json())
     .then(data => {
       if (data.success) {
+        hideModalSafely(document.getElementById('editBetModal'));
         alert('✓ ' + data.message);
-        location.reload();
+        window.location.replace('/apostas');
       } else {
         alert('❌ ' + data.message);
       }
@@ -1781,8 +2209,9 @@
     .then(r => r.json())
     .then(data => {
       if (data.success) {
+        hideModalSafely(document.getElementById('editBetModal'));
         alert('✓ ' + data.message);
-        location.reload();
+        window.location.replace('/apostas');
       } else {
         alert('❌ ' + data.message);
       }
@@ -1803,7 +2232,7 @@
     .then(data => {
       if (data.success) {
         alert('✓ ' + data.message);
-        location.reload();
+        window.location.replace('/apostas');
       } else {
         alert('❌ ' + data.message);
       }
@@ -1823,8 +2252,9 @@
     .then(r => r.json())
     .then(data => {
       if (data.success) {
+        hideModalSafely(document.getElementById('editBetModal'));
         alert('✓ ' + data.message);
-        location.reload();
+        window.location.replace('/apostas');
       } else {
         alert('❌ ' + data.message);
       }
@@ -1852,7 +2282,7 @@
     .then(data => {
       if (data.success) {
         alert('✓ ' + data.message + '\n\n' + (data.output || ''));
-        location.reload();
+        window.location.replace('/apostas');
       } else {
         alert('❌ ' + data.message);
       }
@@ -1871,6 +2301,11 @@
     const fixId = urlParams.get('fixture_id');
     const mercadoParam = urlParams.get('mercado');
     const palpiteParam = urlParams.get('palpite');
+
+    // Limpa a URL no histórico do navegador após ler os parâmetros para evitar reaberturas acidentais após reloads manuais
+    if (window.history && window.history.replaceState && (fixId || isNewBet)) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
     const userApostas = <?= json_encode($apostas ?? []) ?>;
 
@@ -1918,13 +2353,27 @@
           }
         }
 
+        const mercSelectEl = document.getElementById('mercadoTypeSelect');
+        if (mercSelectEl) {
+          mercSelectEl.addEventListener('change', checkXgWarning);
+        }
+        checkXgWarning();
+
         if (palpiteParam) {
           const palpiteInput = document.getElementById('palpiteInput');
           if (palpiteInput) {
-            palpiteInput.value = palpiteParam;
+            const currentMerc = (document.getElementById('mercadoTypeSelect')?.value || '').toLowerCase();
+            if (currentMerc.includes('handicap') || (mercadoParam && mercadoParam.toLowerCase().includes('handicap'))) {
+              palpiteInput.value = formatHandicapPalpiteJs(palpiteParam, document.getElementById('timeCasaInput')?.value);
+            } else {
+              palpiteInput.value = palpiteParam;
+            }
           }
         }
+        checkPalpiteEditableRule();
       }
     }
+
+    applyBetFilters();
   });
 </script>

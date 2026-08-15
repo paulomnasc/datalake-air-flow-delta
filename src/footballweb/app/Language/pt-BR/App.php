@@ -64,6 +64,7 @@ return [
     'today'                 => 'Hoje',
     'tomorrow'              => 'Amanhã',
     'show_finished_games'   => 'Ver jogos encerrados ?',
+    'only_live_games'       => 'Somente jogos em andamento',
     'yes'                   => 'Sim',
     'no'                    => 'Não',
     'search_placeholder'    => 'Buscar times, liga ou árbitro...',
@@ -81,7 +82,8 @@ return [
     'goals'                 => 'Gols',
     'corners'               => 'Escanteios',
     'cards'                 => 'Cartões',
-    'clean_sheets'          => 'Zero Gols em Casa',
+    'clean_sheets'          => 'Sem Sofrer Gols Casa',
+    'clean_sheets_away'     => 'Sem Sofrer Gols Fora',
     'referee'               => 'Árbitro',
     'no_referee'            => 'Sem Árbitro',
     'referee_rigor'         => 'Rigor de Arbitragem',
@@ -104,11 +106,11 @@ return [
 
     // Tooltips dos Cards
     'tooltip_home_goals'        => 'Média de Gols em Casa (Marcados / Sofridos por partida)',
-    'tooltip_home_cleansheets'  => 'Zero Gols em Casa: Percentual de partidas em casa em que a equipe não sofreu nenhum gol.',
+    'tooltip_home_cleansheets'  => 'Sem Sofrer Gols Casa: Percentual de partidas em casa em que a defesa não sofreu nenhum gol.',
     'tooltip_home_corners'      => 'Média de Escanteios a favor por jogo em casa',
     'tooltip_home_cards'        => 'Média de Cartões por jogo em casa (Amarelo = 1 ponto, Vermelho = 2 pontos)',
     'tooltip_away_goals'        => 'Média de Gols Fora (Marcados / Sofridos por partida)',
-    'tooltip_away_cleansheets'  => 'Zero Gols Fora: Percentual de partidas fora em que a equipe não sofreu nenhum gol.',
+    'tooltip_away_cleansheets'  => 'Sem Sofrer Gols Fora: Percentual de partidas fora em que a defesa não sofreu nenhum gol.',
     'tooltip_away_corners'      => 'Média de Escanteios a favor por jogo fora',
     'tooltip_away_cards'        => 'Média de Cartões por jogo fora (Amarelo = 1 ponto, Vermelho = 2 pontos)',
 

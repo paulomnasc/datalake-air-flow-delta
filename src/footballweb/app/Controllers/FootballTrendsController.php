@@ -80,10 +80,10 @@ class FootballTrendsController extends BaseController
         // Filtro de busca por time ou árbitro
         $search = $this->request->getVar('search');
 
-        // Filtro para mostrar ou ocultar jogos encerrados
+        // Filtro para mostrar ou ocultar jogos encerrados (padrão true para exibir toda a grade do dia)
         $showFinishedParam = $this->request->getVar('show_finished');
         if ($showFinishedParam === null) {
-            $showFinished = ($startDate < $today);
+            $showFinished = true;
         } else {
             $showFinished = ($showFinishedParam === '1' || $showFinishedParam === 'true' || $showFinishedParam === 'sim');
         }
@@ -99,6 +99,14 @@ class FootballTrendsController extends BaseController
         // Filtro para exibir apenas Surebets (oportunidades de arbitragem)
         $onlySurebetParam = $this->request->getVar('only_surebet');
         $onlySurebet = ($onlySurebetParam === '1' || $onlySurebetParam === 'true' || $onlySurebetParam === 'sim');
+
+        // Filtro para exibir apenas jogos em andamento (Ao Vivo)
+        $onlyLiveParam = $this->request->getVar('only_live');
+        $onlyLive = ($onlyLiveParam === '1' || $onlyLiveParam === 'true' || $onlyLiveParam === 'sim');
+
+        // Filtro para exibir apenas partidas com resenha/análise editorial (Futbol24)
+        $onlyResenhaParam = $this->request->getVar('only_resenha');
+        $onlyResenha = ($onlyResenhaParam === '1' || $onlyResenhaParam === 'true' || $onlyResenhaParam === 'sim');
 
         // Conecta ao banco para realizar a query com join
         $db = \Config\Database::connect();
@@ -117,21 +125,8 @@ class FootballTrendsController extends BaseController
             $builder->where("DATE(CONVERT_TZ(ft.fixture_date, '+00:00', '{$sqlOffset}')) <=", $endDate);
         }
 
-        // Nota: A filtragem de Surebets e Apostas Seguras e tratada dinamicamente via JS na View (dashboard.php)
-        // para que o usuario possa alternar os toggles instantaneamente sem perder as partidas carregadas.
-
-        // Se showFinished for falso (default), exclui jogos encerrados
-        if (!$showFinished) {
-            $builder->groupStart()
-                ->whereNotIn('ft.status', ['FT', 'AET', 'PEN', '120', '90'])
-                ->where('DATE_ADD(ft.fixture_date, INTERVAL 120 MINUTE) >= UTC_TIMESTAMP()')
-            ->groupEnd();
-        }
-
-        // Se showPostponed for falso (default: Não), exclui jogos com status PST / CANCELLED / POSTPONED
-        if (!$showPostponed) {
-            $builder->whereNotIn('ft.status', ['PST', 'CANCELLED', 'POSTPONED']);
-        }
+        // Nota: A filtragem de Surebets, Apostas Seguras, Jogos Encerrados, Adiados e Ao Vivo é tratada dinamicamente via JS na View (dashboard.php)
+        // para que o usuario possa alternar os toggles instantaneamente (Sim/Não) sem perder as partidas carregadas na página.
 
         if (!empty($search)) {
             $builder->groupStart()
@@ -212,6 +207,8 @@ class FootballTrendsController extends BaseController
             'showPostponed'     => $showPostponed,
             'onlySafe'          => $onlySafe,
             'onlySurebet'       => $onlySurebet,
+            'onlyLive'          => $onlyLive,
+            'onlyResenha'       => $onlyResenha,
             'userBetFixtureIds' => $userBetFixtureIds,
             'allBetFixtureIds'  => $allBetFixtureIds,
             'fixtures'          => $fixtures,

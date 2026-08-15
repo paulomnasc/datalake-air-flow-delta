@@ -40,6 +40,39 @@ Além de simplificar a decisão entre duas opções (Mandante ou Visitante), o H
 
 ---
 
+## ⚡ Handicap Asiático Ao Vivo (In-Play) vs Pré-Jogo: A Regra do Placar Zerado (0-0)
+
+Uma dúvida comum no Handicap Asiático diz respeito ao funcionamento de apostas feitas em jogos em andamento (**apostas ao vivo**).
+
+### 🔴 Regra Geral do Handicap Asiático Ao Vivo: O "Placar Zerado"
+Na maioria das casas de apostas (ex: Bet365, Pinnacle, Betano), ao realizar uma aposta em **Handicap Asiático Ao Vivo**:
+* **O placar da partida é ficticiosamente "resetado" para 0 x 0** no momento exato em que a aposta é realizada.
+* A aposta considera **apenas os gols marcados no restante da partida** (após o momento da entrada).
+
+#### 📌 Estudo de Caso Prático:
+* **Placar no momento da aposta:** Time A 1 x 0 Time B.
+* **Sua Aposta Ao Vivo:** `Time A 0.0`.
+* **O que aconteceu depois:** O Time B marca um gol e empata a partida $\rightarrow$ Placar final real: **1 x 1**.
+* **Contagem pós-aposta:**
+  * Gols do Time A após a aposta: **0**
+  * Gols do Time B após a aposta: **1**
+  * Placar do período apostado: **0 x 1** (Vitória do Time B no restante do jogo).
+* **Resultado da Aposta:** 🔴 **RED (Aposta Perdida)**. Para a aposta `Time A 0.0` ser reembolsada ou ganha, o Time A precisaria ter empatado ou vencido o trecho restante da partida (marcando a mesma quantidade ou mais gols que o Time B a partir do momento da entrada).
+
+---
+
+### 🟡 Comparativo: Handicap Asiático Ao Vivo vs Empate Anula (DNB / Placar Cheio)
+
+| Mercado Selecionado Ao Vivo | Placar Considerado | Placar Pós-Aposta (Entrada no 1x0 $\rightarrow$ Final 1x1) | Resultado da Aposta `Time A 0.0` |
+| :--- | :--- | :--- | :--- |
+| **Handicap Asiático Ao Vivo** *(Padrão 0-0)* | Reseta para 0 x 0 na entrada | 0 x 1 (Time B venceu a parcial) | 🔴 **RED** (Perdeu 100%) |
+| **Empate Anula (DNB) / Placar Integral** | Placar Real da Partida (1 x 1) | 1 x 1 (Empate geral do jogo) | 🟡 **REEMBOLSO** (Devolvido 100%) |
+
+> 💡 **Dica Importante ao Apostar Ao Vivo:**
+> Sempre verifique a nomenclatura do mercado na casa de apostas. Se o mercado indicar **`Handicap Asiático (0-0)`** ou exibir o placar atual entre parênteses como **`Handicap Asiático (1-0)`**, a contagem de gols inicia em 0x0 a partir daquele instante.
+
+---
+
 ## ⚽ Exemplos Práticos de Apostas
 
 ### Exemplo 1: *Ceará vs Ponte Preta* — Aposta: **Ceará -0.25 AH**
@@ -137,24 +170,28 @@ $$\lambda_{\text{fora, base}} = \frac{\text{Gols Pró Fora} + \text{Gols Sofrido
 
 #### Multiplicadores & Ponderações:
 - **Fator Mando de Campo ($F_{\text{mando}}$):** 
-  - Mandante em Casa: $F_{\text{mando, casa}} = 1.10$ (+10% bônus de mando de campo)
-  - Visitante Fora: $F_{\text{mando, fora}} = 0.95$ (-5% ajuste de visitante)
+  - Mandante em Casa: $F_{\text{mando, casa}} = 1.10$ (+10% bônus realista de mando)
+  - Visitante Fora: $F_{\text{mando, fora}} = 0.93$ (-7% ajuste de visitante)
+- **Fator Odds de Mercado ($F_{\text{market}}$):**
+  - Incorporação dinâmica das probabilidades implícitas ($P = 1 / \text{Odd}$) com amplitude expandida de **0.70 a 1.30** (-30% a +30%).
+- **Trava de Alinhamento com o Mercado (Market Preference Guard):**
+  - Sempre que as odds do mercado indicarem favoritismo ao visitante ($\text{Odd}_{\text{visitante}} < \text{Odd}_{\text{mandante}}$), o modelo ativa o favoritismo do visitante e cancela bônus artificiais de mando quando o visitante possui momento superior/igual, prevenindo palpites contraditórios a favor do mandante.
 - **Fator Forma dos Últimos 5 Jogos ($F_{\text{last5}}$):**
   - Pontuação $P = 3V + 1E$ nos últimos 5 jogos.
-  - $P \ge 12$ pts (4V+): $F_{\text{last5}} = 1.12$ (+12% excelente forma)
-  - $P \ge 9$ pts (3V): $F_{\text{last5}} = 1.06$ (+6% boa forma)
-  - $P \le 3$ pts (0V/1V): $F_{\text{last5}} = 0.85$ (-15% má fase)
-  - $P \le 5$ pts: $F_{\text{last5}} = 0.92$ (-8% oscilação)
+  - $P \ge 12$ pts (4V+): $F_{\text{last5}} = 1.25$ (+25% excelente forma)
+  - $P \ge 9$ pts (3V): $F_{\text{last5}} = 1.15$ (+15% boa forma)
+  - $P \le 2$ pts (0V/1V): $F_{\text{last5}} = 0.65$ (-35% má fase)
+  - $P \le 4$ pts: $F_{\text{last5}} = 0.78$ (-22% oscilação)
 - **Fator Clean Sheet ($CS_{\text{fator}}$):** Pondera a consistência em manter a meta limpa:
   $$CS_{\text{fator}} = 1.0 + (\text{CleanSheet}_{\%} - 30\%) \times 0.005$$
 - **Fator de Forma Recente / Streak ($F_{\text{streak}}$):**
-  - Sequência $\ge 5$ derrotas consecutivas: Penalidade de **-35%** no $xG$ ($F_{\text{streak}} = 0.65$).
-  - Sequência de 3 ou 4 derrotas consecutivas: Penalidade de **-20%** no $xG$ ($F_{\text{streak}} = 0.80$).
-  - Sequência invicta / vitoriosa (3+ vitórias): Bônus de **+15%** no $xG$ ($F_{\text{streak}} = 1.15$).
+  - Sequência $\ge 4$ derrotas consecutivas: Penalidade de **-30%** no $xG$ ($F_{\text{streak}} = 0.70$).
+  - Sequência de 3 derrotas consecutivas: Penalidade de **-20%** no $xG$ ($F_{\text{streak}} = 0.80$).
+  - Sequência invicta / vitoriosa (3+ vitórias): Bônus de **+20%** no $xG$ ($F_{\text{streak}} = 1.20$).
 
-$$\lambda_{\text{casa, adj}} = \lambda_{\text{casa, base}} \times F_{\text{mando, casa}} \times F_{\text{last5, casa}} \times CS_{\text{fator, casa}} \times F_{\text{streak, casa}}$$
+$$\lambda_{\text{casa, adj}} = \lambda_{\text{casa, base}} \times F_{\text{mando, casa}} \times F_{\text{last5, casa}} \times CS_{\text{fator, casa}} \times F_{\text{streak, casa}} \times F_{\text{market, casa}}$$
 
-$$\lambda_{\text{fora, adj}} = \lambda_{\text{fora, base}} \times F_{\text{mando, fora}} \times F_{\text{last5, fora}} \times CS_{\text{fator, fora}} \times F_{\text{streak, fora}}$$
+$$\lambda_{\text{fora, adj}} = \lambda_{\text{fora, base}} \times F_{\text{mando, fora}} \times F_{\text{last5, fora}} \times CS_{\text{fator, fora}} \times F_{\text{streak, fora}} \times F_{\text{market, fora}}$$
 
 $$\Delta G = \lambda_{\text{casa, adj}} - \lambda_{\text{fora, adj}}$$
 

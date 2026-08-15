@@ -87,6 +87,7 @@ def _is_team_match(search_name, target_team, search_id=None, target_id=None):
     return False
 
 _api_sports_last5_cache = {}
+_futbol24_failed_teams_cache = set()
 
 def fetch_api_sports_team_last5(team_id, limit=5):
     """
@@ -260,15 +261,30 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
         except Exception as e_sql:
             print(f"Aviso na busca SQL por Nome de forma para '{team_name}': {e_sql}")
 
-    # 3. Opção de fallback: Raspagem no Futbol24 se o banco local possuir menos de 5 partidas
-    if len(matches) < 5 and scrape_futbol24_team_last5 is not None:
+    # 3. Consulta rápida na API-Sports por team_id se o banco local possuir menos de 5 partidas
+    if len(matches) < 5 and team_id:
         try:
-            f24_res = scrape_futbol24_team_last5(team_name, limit=6)
-            if f24_res and f24_res.get("matches"):
-                f24_matches = f24_res["matches"]
-                if len(f24_matches) >= 5 or len(f24_matches) > len(matches):
-                    matches = f24_matches
-                else:
+            api_m = fetch_api_sports_team_last5(team_id, limit=5)
+            if api_m:
+                existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
+                for am in api_m:
+                    key = (am.get('opponent'), am.get('score'))
+                    if key not in existing_keys:
+                        matches.append(am)
+                        existing_keys.add(key)
+                    if len(matches) >= 5:
+                        break
+        except Exception as e_api_m:
+            print(f"Aviso na busca por API-Sports para '{team_name}' (#{team_id}): {e_api_m}")
+
+    # 4. Fallback na raspagem Futbol24 apenas se ainda tiver < 5 partidas e o time não tiver falhado antes
+    if len(matches) < 5 and scrape_futbol24_team_last5 is not None:
+        t_key = team_name.lower().strip()
+        if t_key not in _futbol24_failed_teams_cache:
+            try:
+                f24_res = scrape_futbol24_team_last5(team_name, limit=6)
+                if f24_res and f24_res.get("matches"):
+                    f24_matches = f24_res["matches"]
                     existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
                     for fm in f24_matches:
                         key = (fm.get('opponent'), fm.get('score'))
@@ -277,8 +293,11 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                             existing_keys.add(key)
                         if len(matches) >= 5:
                             break
-        except Exception as exc:
-            print(f"Aviso ao consultar Futbol24 para '{team_name}': {exc}")
+                else:
+                    _futbol24_failed_teams_cache.add(t_key)
+            except Exception as exc:
+                _futbol24_failed_teams_cache.add(t_key)
+                print(f"Aviso ao consultar Futbol24 para '{team_name}': {exc}")
 
     # 5. Se não houver partidas encontradas no banco nem via API/scraper
     if not matches:
@@ -1662,54 +1681,61 @@ def main():
                 if yellow_cards_away is None: yellow_cards_away = 0
 
             # Insere ou atualiza a partida com placar, minutos decorridos, cartões, cantos, chutes, xG, Handicap Asiatico e eventos
-            cursor.execute("""
-                INSERT INTO fixtures_trends (
-                    fixture_id, fixture_date, league_id, league_name, home_team, away_team, 
-                    home_team_id, away_team_id,
-                    referee_name, prediction_text, over_cards_probability, status,
-                    goals_home, goals_away, elapsed,
-                    yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away,
-                    corners_home, corners_away, shots_home, shots_away, xg_home, xg_away,
-                    goal_scorers, last_event, ah_suggestion, ah_confidence, ah_reasoning
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    fixture_date = VALUES(fixture_date),
-                    home_team_id = VALUES(home_team_id),
-                    away_team_id = VALUES(away_team_id),
-                    referee_name = COALESCE(VALUES(referee_name), referee_name),
-                    prediction_text = COALESCE(VALUES(prediction_text), prediction_text),
-                    over_cards_probability = VALUES(over_cards_probability),
-                    status = VALUES(status),
-                    goals_home = COALESCE(VALUES(goals_home), goals_home),
-                    goals_away = COALESCE(VALUES(goals_away), goals_away),
-                    elapsed = COALESCE(VALUES(elapsed), elapsed),
-                    yellow_cards_home = IF(VALUES(yellow_cards_home) > 0, VALUES(yellow_cards_home), yellow_cards_home),
-                    yellow_cards_away = IF(VALUES(yellow_cards_away) > 0, VALUES(yellow_cards_away), yellow_cards_away),
-                    red_cards_home = IF(VALUES(red_cards_home) IS NOT NULL AND VALUES(red_cards_home) > 0, VALUES(red_cards_home), red_cards_home),
-                    red_cards_away = IF(VALUES(red_cards_away) IS NOT NULL AND VALUES(red_cards_away) > 0, VALUES(red_cards_away), red_cards_away),
-                    corners_home = IF(VALUES(corners_home) > 0, VALUES(corners_home), corners_home),
-                    corners_away = IF(VALUES(corners_away) > 0, VALUES(corners_away), corners_away),
-                    shots_home = IF(VALUES(shots_home) > 0, VALUES(shots_home), shots_home),
-                    shots_away = IF(VALUES(shots_away) > 0, VALUES(shots_away), shots_away),
-                    xg_home = IF(VALUES(xg_home) > 0, VALUES(xg_home), xg_home),
-                    xg_away = IF(VALUES(xg_away) > 0, VALUES(xg_away), xg_away),
-                    goal_scorers = COALESCE(VALUES(goal_scorers), goal_scorers),
-                    last_event = COALESCE(VALUES(last_event), last_event),
-                    ah_suggestion = VALUES(ah_suggestion),
-                    ah_confidence = VALUES(ah_confidence),
-                    ah_reasoning = VALUES(ah_reasoning);
-            """, (
-                fix_id, fix_date, league_id, league_name, home_team, away_team,
-                home_team_id, away_team_id,
-                referee_name, prediction_text, over_cards_prob, status,
-                goals_home, goals_away, elapsed,
-                yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away,
-                corners_home, corners_away, shots_home, shots_away, xg_home, xg_away,
-                goal_scorers_str, last_event_str, ah_suggestion, ah_confidence, ah_reasoning
-            ))
-            inserted_fixtures += 1
-            
-        conn.commit()
+            for attempt in range(3):
+                try:
+                    cursor.execute("""
+                        INSERT INTO fixtures_trends (
+                            fixture_id, fixture_date, league_id, league_name, home_team, away_team, 
+                            home_team_id, away_team_id,
+                            referee_name, prediction_text, over_cards_probability, status,
+                            goals_home, goals_away, elapsed,
+                            yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away,
+                            corners_home, corners_away, shots_home, shots_away, xg_home, xg_away,
+                            goal_scorers, last_event, ah_suggestion, ah_confidence, ah_reasoning
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE
+                            fixture_date = VALUES(fixture_date),
+                            home_team_id = VALUES(home_team_id),
+                            away_team_id = VALUES(away_team_id),
+                            referee_name = COALESCE(VALUES(referee_name), referee_name),
+                            prediction_text = COALESCE(VALUES(prediction_text), prediction_text),
+                            over_cards_probability = VALUES(over_cards_probability),
+                            status = VALUES(status),
+                            goals_home = COALESCE(VALUES(goals_home), goals_home),
+                            goals_away = COALESCE(VALUES(goals_away), goals_away),
+                            elapsed = COALESCE(VALUES(elapsed), elapsed),
+                            yellow_cards_home = IF(VALUES(yellow_cards_home) > 0, VALUES(yellow_cards_home), yellow_cards_home),
+                            yellow_cards_away = IF(VALUES(yellow_cards_away) > 0, VALUES(yellow_cards_away), yellow_cards_away),
+                            red_cards_home = IF(VALUES(red_cards_home) IS NOT NULL AND VALUES(red_cards_home) > 0, VALUES(red_cards_home), red_cards_home),
+                            red_cards_away = IF(VALUES(red_cards_away) IS NOT NULL AND VALUES(red_cards_away) > 0, VALUES(red_cards_away), red_cards_away),
+                            corners_home = IF(VALUES(corners_home) > 0, VALUES(corners_home), corners_home),
+                            corners_away = IF(VALUES(corners_away) > 0, VALUES(corners_away), corners_away),
+                            shots_home = IF(VALUES(shots_home) > 0, VALUES(shots_home), shots_home),
+                            shots_away = IF(VALUES(shots_away) > 0, VALUES(shots_away), shots_away),
+                            xg_home = IF(VALUES(xg_home) > 0, VALUES(xg_home), xg_home),
+                            xg_away = IF(VALUES(xg_away) > 0, VALUES(xg_away), xg_away),
+                            goal_scorers = COALESCE(VALUES(goal_scorers), goal_scorers),
+                            last_event = COALESCE(VALUES(last_event), last_event),
+                            ah_suggestion = VALUES(ah_suggestion),
+                            ah_confidence = VALUES(ah_confidence),
+                            ah_reasoning = VALUES(ah_reasoning);
+                    """, (
+                        fix_id, fix_date, league_id, league_name, home_team, away_team,
+                        home_team_id, away_team_id,
+                        referee_name, prediction_text, over_cards_prob, status,
+                        goals_home, goals_away, elapsed,
+                        yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away,
+                        corners_home, corners_away, shots_home, shots_away, xg_home, xg_away,
+                        goal_scorers_str, last_event_str, ah_suggestion, ah_confidence, ah_reasoning
+                    ))
+                    conn.commit()
+                    inserted_fixtures += 1
+                    break
+                except pymysql.err.OperationalError as e_dl:
+                    if e_dl.args[0] in (1213, 1205) and attempt < 2:
+                        time.sleep(0.5)
+                    else:
+                        raise e_dl
         
         # Enriquecimento com Odds, Surebets e Prévias Futbol24
         try:
@@ -1730,6 +1756,155 @@ def main():
         cursor.close()
         conn.close()
 
+_api_sports_odds_cache = {}
+_api_sports_single_odds_cache = {}
+
+def fetch_single_api_sports_odds(fix_id):
+    if not fix_id:
+        return {}
+    if fix_id in _api_sports_single_odds_cache:
+        return _api_sports_single_odds_cache[fix_id]
+
+    api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
+    headers = {
+        'x-apisports-key': api_key,
+        'User-Agent': 'Mozilla/5.0'
+    }
+
+    url = f"https://v3.football.api-sports.io/odds?fixture={fix_id}"
+    bms_dict = {}
+    try:
+        resp = requests.get(url, headers=headers, timeout=10).json()
+        items = resp.get('response', [])
+        for item in items:
+            for bm in item.get('bookmakers', []):
+                bm_name = str(bm.get('name', '')).strip().upper()
+                for bet in bm.get('bets', []):
+                    bet_id = bet.get('id')
+                    bet_name = str(bet.get('name', '')).lower()
+                    if bet_id == 1 or 'match winner' in bet_name or '1x2' in bet_name:
+                        c_home, c_draw, c_away = 0.0, 0.0, 0.0
+                        for val in bet.get('values', []):
+                            v_name = str(val.get('value', '')).lower().strip()
+                            try:
+                                odd_val = float(val.get('odd', 0.0))
+                            except (ValueError, TypeError):
+                                odd_val = 0.0
+                            if v_name in ['home', '1', 'mandante', 'casa']:
+                                c_home = odd_val
+                            elif v_name in ['draw', 'x', 'empate']:
+                                c_draw = odd_val
+                            elif v_name in ['away', '2', 'visitante', 'fora']:
+                                c_away = odd_val
+                        if c_home > 1.0 and c_draw > 1.0 and c_away > 1.0:
+                            bms_dict[bm_name] = {'casa': c_home, 'empate': c_draw, 'visitante': c_away}
+    except Exception as e:
+        print(f"[API-Sports Single Odds] Erro para fixture #{fix_id}: {e}")
+
+    _api_sports_single_odds_cache[fix_id] = bms_dict
+    return bms_dict
+
+def fetch_api_sports_odds_by_date(date_list=None):
+    """
+    Busca odds de mercado oficiais via API-Sports (https://v3.football.api-sports.io/odds?date=YYYY-MM-DD).
+    Retorna dicionário mapeado diretamente pelo fixture_id:
+    { fixture_id: { 'BETANO': {'casa': 4.70, 'empate': 4.50, 'visitante': 1.70}, ... } }
+    """
+    if date_list is None:
+        today = datetime.now().strftime('%Y-%m-%d')
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        date_list = [today, tomorrow, yesterday]
+
+    api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
+    headers = {
+        'x-apisports-key': api_key,
+        'User-Agent': 'Mozilla/5.0'
+    }
+
+    odds_by_fixture = {}
+
+    for d in date_list:
+        if d in _api_sports_odds_cache:
+            for fid, bms in _api_sports_odds_cache[d].items():
+                if fid not in odds_by_fixture:
+                    odds_by_fixture[fid] = {}
+                odds_by_fixture[fid].update(bms)
+            continue
+
+        page = 1
+        total_pages = 1
+        day_cache = {}
+
+        while page <= total_pages and page <= 5:
+            url = f"https://v3.football.api-sports.io/odds?date={d}&page={page}"
+            try:
+                resp = requests.get(url, headers=headers, timeout=12).json()
+                errs = resp.get('errors')
+                if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+                    print(f"[API-Sports Odds] Cota diária excedida: {errs}")
+                    break
+
+                paging = resp.get('paging', {})
+                total_pages = paging.get('total', 1)
+
+                items = resp.get('response', [])
+                if not items:
+                    break
+
+                for item in items:
+                    fix_id = item.get('fixture', {}).get('id')
+                    if not fix_id:
+                        continue
+
+                    bookmakers = item.get('bookmakers', [])
+                    for bm in bookmakers:
+                        bm_name = str(bm.get('name', '')).strip().upper()
+                        if not bm_name:
+                            continue
+
+                        # Procura a aposta 1X2 / Match Winner (id=1)
+                        for bet in bm.get('bets', []):
+                            bet_id = bet.get('id')
+                            bet_name = str(bet.get('name', '')).lower()
+                            if bet_id == 1 or 'match winner' in bet_name or '1x2' in bet_name:
+                                c_home, c_draw, c_away = 0.0, 0.0, 0.0
+                                for val in bet.get('values', []):
+                                    v_name = str(val.get('value', '')).lower().strip()
+                                    try:
+                                        odd_val = float(val.get('odd', 0.0))
+                                    except (ValueError, TypeError):
+                                        odd_val = 0.0
+                                    
+                                    if v_name in ['home', '1', 'mandante', 'casa']:
+                                        c_home = odd_val
+                                    elif v_name in ['draw', 'x', 'empate']:
+                                        c_draw = odd_val
+                                    elif v_name in ['away', '2', 'visitante', 'fora']:
+                                        c_away = odd_val
+
+                                if c_home > 1.0 and c_draw > 1.0 and c_away > 1.0:
+                                    if fix_id not in day_cache:
+                                        day_cache[fix_id] = {}
+                                    day_cache[fix_id][bm_name] = {
+                                        'casa': c_home,
+                                        'empate': c_draw,
+                                        'visitante': c_away
+                                    }
+            except Exception as e:
+                print(f"[API-Sports Odds] Erro ao buscar odds da data {d} pag {page}: {e}")
+                break
+
+            page += 1
+
+        _api_sports_odds_cache[d] = day_cache
+        for fid, bms in day_cache.items():
+            if fid not in odds_by_fixture:
+                odds_by_fixture[fid] = {}
+            odds_by_fixture[fid].update(bms)
+
+    return odds_by_fixture
+
 def update_oddspedia_odds(conn):
     try:
         dags_candidate_paths = [
@@ -1745,7 +1920,17 @@ def update_oddspedia_odds(conn):
         from lib.scrapers import scrape_oddspedia_odds, scrape_futbol24_odds, scrape_futbol24_previews, fetch_futbol24_direct_match_odds
         from lib.sports_arbitrage import normalize_team_name, calculate_surebet, fetch_live_odds_from_api
         
-        print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS MULTI-FONTE (THE ODDS API + ODDSPEDIA + FUTBOL24) ---")
+        print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS MULTI-FONTE (API-SPORTS + THE ODDS API + ODDSPEDIA + FUTBOL24) ---")
+        
+        # 1. Ingestão oficial de Odds via API-Sports (Pro Plan por fixture_id)
+        api_sports_odds = {}
+        try:
+            api_sports_odds = fetch_api_sports_odds_by_date()
+            if api_sports_odds:
+                print(f"✅ Odds oficiais da API-Sports obtidas para {len(api_sports_odds)} partidas por fixture_id!")
+        except Exception as e_apis:
+            print(f"Aviso ao consultar Odds oficiais da API-Sports: {e_apis}")
+
         scraped_previews_f24 = []
         try:
             scraped_previews_f24 = scrape_futbol24_previews() or []
@@ -1771,7 +1956,7 @@ def update_oddspedia_odds(conn):
         except Exception as e_f24:
             print(f"Aviso ao consultar Futbol24: {e_f24}")
         
-        # Consolidação de partidas e odds: ODDSPEDIA É A FONTE PRINCIPAL (API e Futbol24 são fallback)
+        # Consolidação de partidas e odds secundárias (scraping/agregadoras)
         scraped_by_teams = {}
         for m in scraped_matches_op + api_odds_matches + scraped_matches_f24:
             s_home = normalize_team_name(m.get('time_casa', ''))
@@ -1798,10 +1983,10 @@ def update_oddspedia_odds(conn):
                     }
 
         cursor = conn.cursor()
-        cursor.execute("SELECT fixture_id, home_team, away_team FROM fixtures_trends WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) >= CURDATE() - INTERVAL 2 DAY")
+        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
         db_fixtures = cursor.fetchall()
 
-        # 1. Ingestão de prévias e palpites editoriais do Futbol24
+        # Ingestão de prévias e palpites editoriais do Futbol24
         if scraped_previews_f24:
             prev_updated = 0
             for fix in db_fixtures:
@@ -1836,25 +2021,21 @@ def update_oddspedia_odds(conn):
             if not valid_c1 or not valid_cX or not valid_c2:
                 return 0.0, "", 0.0, "", 0.0, ""
 
-            # Casas completas (possuem odd para Casa, Empate e Fora na mesma partida)
             all_bms = set(valid_c1.keys()) & set(valid_cX.keys()) & set(valid_c2.keys())
 
-            # Hierarquia oficial de preferência de referência: ODDSPEDIA É A PRIORIDADE NÚMERO 1
-            preferred_hierarchy = ['ODDSPEDIA', 'BET365', 'BETANO', 'PINNACLE', 'SPORTINGBET', 'SUPERBET', '1XBET', 'BETFAIR', 'BETSSON', 'KTO', 'NOVIBET', 'BETNACIONAL']
+            # Hierarquia oficial de preferência: BETANO, BET365 e PINNACLE são as referências principais
+            preferred_hierarchy = ['BETANO', 'BET365', 'PINNACLE', 'ODDSPEDIA', 'SPORTINGBET', 'SUPERBET', '1XBET', 'BETFAIR', 'BETSSON', 'KTO', 'NOVIBET', 'BETNACIONAL']
             
-            # 1. Busca pela casa preferida de referência que tenha a linha completa
             for pref in preferred_hierarchy:
                 matching = [b for b in all_bms if pref in b.upper()]
                 if matching:
                     target_bm = matching[0]
                     return valid_c1[target_bm], target_bm, valid_cX[target_bm], target_bm, valid_c2[target_bm], target_bm
 
-            # 2. Caso nenhuma da hierarquia esteja disponível, usa a primeira casa com linha 1X2 completa
             if all_bms:
                 target_bm = list(all_bms)[0]
                 return valid_c1[target_bm], target_bm, valid_cX[target_bm], target_bm, valid_c2[target_bm], target_bm
 
-            # 3. Fallback: pega maior odd individual indicando a casa de cada opção
             b1, m1 = max(valid_c1.items(), key=lambda x: x[1])
             bX, mX = max(valid_cX.items(), key=lambda x: x[1])
             b2, m2 = max(valid_c2.items(), key=lambda x: x[1])
@@ -1866,45 +2047,60 @@ def update_oddspedia_odds(conn):
             db_home = normalize_team_name(fix['home_team'])
             db_away = normalize_team_name(fix['away_team'])
             
-            matched_m = None
-            for m in scraped_matches:
-                s_home = normalize_team_name(m['time_casa'])
-                s_away = normalize_team_name(m['time_visitante'])
-                if db_home == s_home and db_away == s_away:
-                    matched_m = m
-                    break
-
-            if not matched_m:
-                for m in scraped_matches:
-                    if _is_team_match(fix['home_team'], m['time_casa']) and _is_team_match(fix['away_team'], m['time_visitante']):
-                        matched_m = m
-                        break
-            
             best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = 0.0, "", 0.0, "", 0.0, ""
-            
-            if matched_m:
-                odds = matched_m.get('odds', {})
-                if odds:
-                    import statistics
-                    valid_c1 = {bm: float(odds[bm]['casa']) for bm in odds if float(odds[bm].get('casa', 0.0)) > 1.0}
-                    valid_cX = {bm: float(odds[bm]['empate']) for bm in odds if float(odds[bm].get('empate', 0.0)) > 1.0}
-                    valid_c2 = {bm: float(odds[bm]['visitante']) for bm in odds if float(odds[bm].get('visitante', 0.0)) > 1.0}
 
-                    # Filtro de outliers
-                    if len(valid_c1) >= 2:
-                        med1 = statistics.median(valid_c1.values())
-                        valid_c1 = {bm: val for bm, val in valid_c1.items() if val <= med1 * 1.12}
-                    if len(valid_cX) >= 2:
-                        medX = statistics.median(valid_cX.values())
-                        valid_cX = {bm: val for bm, val in valid_cX.items() if val <= medX * 1.12}
-                    if len(valid_c2) >= 2:
-                        med2 = statistics.median(valid_c2.values())
-                        valid_c2 = {bm: val for bm, val in valid_c2.items() if val <= med2 * 1.12}
+            # 1. Prioridade Absoluta: API-Sports oficial via fixture_id (Betano, Bet365, Pinnacle)
+            api_fixture_bms = None
+            if api_sports_odds and fix_id in api_sports_odds:
+                api_fixture_bms = api_sports_odds[fix_id]
+            else:
+                api_fixture_bms = fetch_single_api_sports_odds(fix_id)
 
+            if api_fixture_bms:
+                valid_c1 = {bm: float(api_fixture_bms[bm]['casa']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('casa', 0.0)) > 1.0}
+                valid_cX = {bm: float(api_fixture_bms[bm]['empate']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('empate', 0.0)) > 1.0}
+                valid_c2 = {bm: float(api_fixture_bms[bm]['visitante']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('visitante', 0.0)) > 1.0}
+                if valid_c1 and valid_cX and valid_c2:
                     best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = select_multi_bookmaker_odds(valid_c1, valid_cX, valid_c2)
 
-            # Fallback direto via Futbol24 se a partida não possuía odds nas agregadoras
-            if (not best_c1 or best_c1 == 0.0) and fetch_futbol24_direct_match_odds is not None:
+            # 2. Fallback: Matching por nome de times em agregadoras secundárias (Oddspedia / The Odds API / Futbol24)
+            if not best_c1 or best_c1 <= 1.0:
+                matched_m = None
+                for m in scraped_matches:
+                    s_home = normalize_team_name(m['time_casa'])
+                    s_away = normalize_team_name(m['time_visitante'])
+                    if db_home == s_home and db_away == s_away:
+                        matched_m = m
+                        break
+
+                if not matched_m:
+                    for m in scraped_matches:
+                        if _is_team_match(fix['home_team'], m['time_casa']) and _is_team_match(fix['away_team'], m['time_visitante']):
+                            matched_m = m
+                            break
+                
+                if matched_m:
+                    odds = matched_m.get('odds', {})
+                    if odds:
+                        import statistics
+                        valid_c1 = {bm: float(odds[bm]['casa']) for bm in odds if float(odds[bm].get('casa', 0.0)) > 1.0}
+                        valid_cX = {bm: float(odds[bm]['empate']) for bm in odds if float(odds[bm].get('empate', 0.0)) > 1.0}
+                        valid_c2 = {bm: float(odds[bm]['visitante']) for bm in odds if float(odds[bm].get('visitante', 0.0)) > 1.0}
+
+                        if len(valid_c1) >= 2:
+                            med1 = statistics.median(valid_c1.values())
+                            valid_c1 = {bm: val for bm, val in valid_c1.items() if val <= med1 * 1.12}
+                        if len(valid_cX) >= 2:
+                            medX = statistics.median(valid_cX.values())
+                            valid_cX = {bm: val for bm, val in valid_cX.items() if val <= medX * 1.12}
+                        if len(valid_c2) >= 2:
+                            med2 = statistics.median(valid_c2.values())
+                            valid_c2 = {bm: val for bm, val in valid_c2.items() if val <= med2 * 1.12}
+
+                        best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = select_multi_bookmaker_odds(valid_c1, valid_cX, valid_c2)
+
+            # 3. Fallback direto via Futbol24
+            if (not best_c1 or best_c1 <= 1.0) and fetch_futbol24_direct_match_odds is not None:
                 try:
                     f24_odds = fetch_futbol24_direct_match_odds(fix['home_team'], fix['away_team'])
                     if f24_odds:
@@ -1917,72 +2113,14 @@ def update_oddspedia_odds(conn):
                 except Exception as e_f24_dir:
                     print(f"Aviso ao consultar odds diretas Futbol24 para '{fix['home_team']} vs {fix['away_team']}': {e_f24_dir}")
 
-            # Fallback estatístico Poisson caso nenhuma cotação tenha sido encontrada nas agregadoras/casas
-            if not best_c1 or best_c1 == 0.0:
-                try:
-                    import math
-                    h_gs, h_gc, a_gs, a_gc = None, None, None, None
-                    try:
-                        cursor.execute("""
-                            SELECT th.avg_goals_scored as h_gs, th.avg_goals_conceded as h_gc,
-                                   ta.avg_goals_scored as a_gs, ta.avg_goals_conceded as a_gc
-                            FROM fixtures_trends ft
-                            LEFT JOIN team_moving_averages th ON (ft.home_team_id = th.team_id AND th.venue_type = 'home')
-                            LEFT JOIN team_moving_averages ta ON (ft.away_team_id = ta.team_id AND ta.venue_type = 'away')
-                            WHERE ft.fixture_id = %s
-                        """, (fix_id,))
-                        st = cursor.fetchone()
-                        if st:
-                            h_gs = float(st['h_gs']) if st.get('h_gs') is not None else None
-                            h_gc = float(st['h_gc']) if st.get('h_gc') is not None else None
-                            a_gs = float(st['a_gs']) if st.get('a_gs') is not None else None
-                            a_gc = float(st['a_gc']) if st.get('a_gc') is not None else None
-                    except Exception:
-                        pass
-                    
-                    if h_gs is None or h_gc is None:
-                        mock_h = generate_deterministic_team_stats(fix['home_team'], 'home')
-                        h_gs, h_gc = mock_h['avg_goals_scored'], mock_h['avg_goals_conceded']
-                    if a_gs is None or a_gc is None:
-                        mock_a = generate_deterministic_team_stats(fix['away_team'], 'away')
-                        a_gs, a_gc = mock_a['avg_goals_scored'], mock_a['avg_goals_conceded']
-                    
-                    hg = max(0.5, (h_gs * 1.12 + a_gc) / 2.0)
-                    ag = max(0.4, (a_gs * 0.88 + h_gc) / 2.0)
-                    
-                    def _poiss(k, lamb):
-                        return (lamb**k * math.exp(-lamb)) / math.factorial(k)
-                    
-                    p_h, p_d, p_a = 0.0, 0.0, 0.0
-                    for h_g in range(7):
-                        for a_g in range(7):
-                            p_val = _poiss(h_g, hg) * _poiss(a_g, ag)
-                            if h_g > a_g: p_h += p_val
-                            elif h_g == a_g: p_d += p_val
-                            else: p_a += p_val
-                    tot_p = p_h + p_d + p_a
-                    if tot_p > 0:
-                        p_h /= tot_p; p_d /= tot_p; p_a /= tot_p
-                    margin = 1.06
-                    best_c1 = round(min(12.0, max(1.40, margin / p_h)), 2)
-                    best_bm1 = 'POISSON'
-                    best_cX = round(min(8.0, max(2.60, margin / p_d)), 2)
-                    best_bmX = 'POISSON'
-                    best_c2 = round(min(12.0, max(1.40, margin / p_a)), 2)
-                    best_bm2 = 'POISSON'
-                except Exception as e_est:
-                    print(f"Aviso na estimativa de odds para '{fix['home_team']} vs {fix['away_team']}': {e_est}")
-                    best_c1, best_bm1 = 1.40, 'POISSON'
-                    best_cX, best_bmX = 4.20, 'POISSON'
-                    best_c2, best_bm2 = 5.50, 'POISSON'
-
-            if best_c1 > 0 and best_cX > 0 and best_c2 > 0:
+            # Grava no banco APENAS se tiver odds reais de casas de apostas (eliminado o fallback de odds sintéticas POISSON)
+            if best_c1 > 1.0 and best_cX > 1.0 and best_c2 > 1.0:
                 calc = calculate_surebet(best_c1, best_cX, best_c2)
                 casas_usadas = {best_bm1.upper(), best_bmX.upper(), best_bm2.upper()} - {""}
                 is_surebet = 1 if (calc and calc['is_surebet'] and len(casas_usadas) > 1 and calc['lucro_percentual'] <= 15.0) else 0
                 profit_pct = calc['lucro_percentual'] if (calc and is_surebet) else 0.0
                 
-                # Recalcula palpite AH
+                # Recalcula palpite AH com odds reais
                 home_last5 = fetch_team_last5_form(cursor, fix['home_team'], fix.get('home_team_id'), fix.get('league_id'))
                 away_last5 = fetch_team_last5_form(cursor, fix['away_team'], fix.get('away_team_id'), fix.get('league_id'))
                 home_losses = home_last5.get('d', 0) if home_last5.get('v', 0) == 0 else 0
@@ -2016,7 +2154,7 @@ def update_oddspedia_odds(conn):
                         else:
                             raise e_dl
 
-        print(f"Total de {updated_count} partidas enriquecidas com odds!")
+        print(f"Total de {updated_count} partidas enriquecidas com odds de mercado reais!")
     except Exception as e:
         print(f"Aviso no enriquecimento de odds: {e}")
 

@@ -43,9 +43,9 @@ default_args = {
 dag = DAG(
     'football_trends_ingestion_dag',
     default_args=default_args,
-    schedule_interval='0 */3 * * *',  # Runs every 3 hours
+    schedule_interval='*/30 * * * *',  # Runs every 30 minutes
     catchup=False,
-    description="Ingests football fixtures, referee statistics and odds for trends dashboard every 3 hours",
+    description="Ingests football fixtures, referee statistics and odds for trends dashboard every 30 minutes",
     tags=['football', 'api', 'ingestion', 'trends']
 )
 

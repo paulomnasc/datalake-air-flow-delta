@@ -506,14 +506,16 @@ def build_natural_language_motivation(
     elif away_team.lower() in suggestion.lower():
         if odd_home and odd_away and float(odd_home) > float(odd_away):
             odds_market_text = f"As odds do mercado indicam favoritismo do visitante {away_team}{odd_str}, prevalecendo no modelo sobre o fator casa do {home_team}."
+            market_bullet = f"• ⚡ Alinhamento com o Mercado: A precificação da casa de aposta sobressai-se ao bônus de mando de campo do {home_team}."
         else:
             odds_market_text = f"Análise combinada das estatísticas ajustadas com preferência ao visitante {away_team}{odd_str}."
+            market_bullet = f"• 📊 Divergência de Valor: As odds da casa favorecem o mando do {home_team}, mas o modelo identifica valor no visitante {away_team}."
 
         return (
             f"🎯 Fator Crucial: Consenso das Odds de Mercado e Desempenho do Visitante.\n"
             f"A indicação a favor do visitante {away_team} fundamenta-se na priorização das probabilidades de mercado:\n"
             f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
-            f"• ⚡ Alinhamento com o Mercado: A precificação da casa de aposta sobressai-se ao bônus de mando de campo do {home_team}.\n"
+            f"{market_bullet}\n"
             f"• 🛡️ Proteção de Patrimônio: Indicação com cobertura total de reembolso no empate (0.0 DNB)."
         )
     elif delta_goals >= 0.10:

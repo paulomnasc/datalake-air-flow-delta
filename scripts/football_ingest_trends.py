@@ -749,13 +749,13 @@ def calculate_asian_handicap_suggestion(
     # Regras de Intervenção para Mandante em Crise
     if home_in_crisis and not away_in_crisis:
         if delta_goals >= -0.20:
-            suggestion = f"{away_team} 0.0 (Empate Anula)"
-            confidence = 72.00
-            main_reason = f"⚠️ Alerta de Risco: {home_team} em crise recente ({home_last5.get('text')} em U5J). O momento superior do visitante {away_team} ({away_last5.get('text')}) inverte a recomendação para {away_team} com reembolso no empate."
-        else:
             suggestion = f"{away_team} +0.25 AH"
+            confidence = 74.00
+            main_reason = f"⚠️ Alerta de Risco: {home_team} em crise recente ({home_last5.get('text')} em U5J). O momento superior do visitante {away_team} ({away_last5.get('text')}) orienta aposta com cobertura em +0.25 AH (meio-green no empate)."
+        else:
+            suggestion = f"{away_team} +0.5 AH (Dupla Chance)"
             confidence = 78.00
-            main_reason = f"⚠️ Alerta de Crise: Severa má fase do {home_team} ({home_last5.get('text')} em U5J). Favoritismo e vantagem direta para o visitante {away_team}."
+            main_reason = f"⚠️ Alerta de Crise: Severa má fase do {home_team} ({home_last5.get('text')} em U5J). Favoritismo e vantagem de cobertura +0.5 (Dupla Chance) para o visitante {away_team}."
     elif away_in_crisis and not home_in_crisis:
         if delta_goals <= 0.20:
             suggestion = f"{home_team} 0.0 (Empate Anula)"
@@ -778,8 +778,8 @@ def calculate_asian_handicap_suggestion(
 
         if form_contrast:
             suggestion = f"{away_team} +0.25 AH"
-            confidence = 72.00
-            main_reason = f"Contraste de Forma Recente: O excelente momento do {away_team} ({away_last5.get('text')}) sobressai-se à oscilação do mandante {home_team} ({home_last5.get('text')}). Vantagem dada ao visitante com cobertura.{note_str}"
+            confidence = 74.00
+            main_reason = f"Contraste de Forma Recente: O excelente momento do {away_team} ({away_last5.get('text')}) sobressai-se à oscilação do mandante {home_team} ({home_last5.get('text')}). Vantagem dada ao visitante com cobertura +0.25 AH (meio-green no empate).{note_str}"
         elif delta_goals >= 1.80:
             suggestion = f"{home_team} -1.0 AH"
             confidence = round(min(88.0, 68.0 + delta_goals * 10), 2)
@@ -793,21 +793,21 @@ def calculate_asian_handicap_suggestion(
             confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
             main_reason = f"Favoritismo do {home_team} em casa (+{delta_goals:.2f} gols esperados). Proteção conservadora de meia estaca (AH -0.25) com odd atrativa de mercado.{note_str}"
         elif market_away_fav or delta_goals <= -0.25:
-            suggestion = f"{away_team} -0.25 AH"
+            suggestion = f"{away_team} +0.25 AH"
             confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
-            main_reason = f"Favoritismo do visitante {away_team} ({away_last5.get('text')} em U5J / {away_goals_scored:.1f} g/j). Proteção conservadora de meia estaca (AH -0.25).{note_str}"
+            main_reason = f"Favoritismo do visitante {away_team} ({away_last5.get('text')} em U5J / {away_goals_scored:.1f} g/j). Proteção de cobertura +0.25 AH (meio-green no empate).{note_str}"
         elif delta_goals >= -0.80:
             suggestion = f"{away_team} +0.25 AH"
             confidence = 72.00
-            main_reason = f"Confronto equilibrado com vantagem competitiva dada ao {away_team} (+0.25 AH) cobrindo vitória e empate.{note_str}"
+            main_reason = f"Confronto equilibrado com vantagem competitiva dada ao {away_team} (+0.25 AH) cobrindo vitória e garantia de meio-green no empate.{note_str}"
         elif delta_goals >= -1.75:
             suggestion = f"{away_team} +0.5 AH (Dupla Chance)"
             confidence = round(min(82.0, 62.0 + abs(delta_goals) * 12), 2)
-            main_reason = f"Excelente momento do visitante {away_team} ({away_goals_scored:.1f} g/j fora / U5J: {away_last5.get('text')}). Cobertura em vitória e empate.{note_str}"
+            main_reason = f"Excelente momento do visitante {away_team} ({away_goals_scored:.1f} g/j fora / U5J: {away_last5.get('text')}). Cobertura em vitória e empate (+0.5 AH Dupla Chance).{note_str}"
         else:
-            suggestion = f"{away_team} -1.0 AH"
+            suggestion = f"{away_team} +0.5 AH (Dupla Chance)"
             confidence = round(min(88.0, 68.0 + abs(delta_goals) * 10), 2)
-            main_reason = f"Amplo favoritismo do visitante {away_team} com alta produção ofensiva ({away_goals_scored:.1f} g/j / U5J: {away_last5.get('text')}).{note_str}"
+            main_reason = f"Amplo favoritismo do visitante {away_team} com alta produção ofensiva ({away_goals_scored:.1f} g/j / U5J: {away_last5.get('text')}). Cobertura total com +0.5 AH.{note_str}"
 
     # Cálculo das Probabilidades 1X2 (%) Plataforma (Modelo Poisson) vs Casa de Apostas (Odds)
     import math
@@ -1557,61 +1557,61 @@ def main():
                     # 1. Busca estatísticas oficiais da partida (escanteios, chutes no gol, xG, cartões)
                     try:
                         stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fix_id}"
-                    st_res = requests.get(stats_url, headers=headers, timeout=10)
-                    if st_res.status_code == 200:
-                        st_data = st_res.json().get("response", [])
-                        for team_st in st_data:
-                            t_id = team_st.get("team", {}).get("id")
-                            is_home = (t_id == home_team_id)
-                            stats_list = team_st.get("statistics", [])
-                            ck, sg, s_total, xg_val = 0, 0, 0, 0.0
-                            yc, rc = 0, 0
-                            for s in stats_list:
-                                s_type = (s.get("type") or "").strip()
-                                s_val = s.get("value")
-                                if s_type == "Corner Kicks" and s_val is not None:
-                                    ck = int(s_val)
-                                elif s_type in ["Shots on Goal", "Shots on Target"] and s_val is not None:
-                                    sg = int(s_val)
-                                elif s_type in ["Total Shots", "Shots"] and s_val is not None:
-                                    s_total = int(s_val)
-                                elif s_type.lower().replace("_", " ").strip() in ["expected goals", "xg", "expectedgoals"] and s_val is not None:
-                                    try:
-                                        xg_val = float(s_val)
-                                    except (ValueError, TypeError):
-                                        xg_val = 0.0
-                                elif s_type == "Yellow Cards" and s_val is not None:
-                                    yc = int(s_val)
-                                elif s_type == "Red Cards" and s_val is not None:
-                                    rc = int(s_val)
+                        st_res = requests.get(stats_url, headers=headers, timeout=10)
+                        if st_res.status_code == 200:
+                            st_data = st_res.json().get("response", [])
+                            for team_st in st_data:
+                                t_id = team_st.get("team", {}).get("id")
+                                is_home = (t_id == home_team_id)
+                                stats_list = team_st.get("statistics", [])
+                                ck, sg, s_total, xg_val = 0, 0, 0, 0.0
+                                yc, rc = 0, 0
+                                for s in stats_list:
+                                    s_type = (s.get("type") or "").strip()
+                                    s_val = s.get("value")
+                                    if s_type == "Corner Kicks" and s_val is not None:
+                                        ck = int(s_val)
+                                    elif s_type in ["Shots on Goal", "Shots on Target"] and s_val is not None:
+                                        sg = int(s_val)
+                                    elif s_type in ["Total Shots", "Shots"] and s_val is not None:
+                                        s_total = int(s_val)
+                                    elif s_type.lower().replace("_", " ").strip() in ["expected goals", "xg", "expectedgoals"] and s_val is not None:
+                                        try:
+                                            xg_val = float(s_val)
+                                        except (ValueError, TypeError):
+                                            xg_val = 0.0
+                                    elif s_type == "Yellow Cards" and s_val is not None:
+                                        yc = int(s_val)
+                                    elif s_type == "Red Cards" and s_val is not None:
+                                        rc = int(s_val)
 
-                            if sg == 0 and s_total > 0:
-                                sg = s_total
+                                if sg == 0 and s_total > 0:
+                                    sg = s_total
 
-                            # Fallback para cálculo de xG em tempo real quando o xG oficial (Opta) não é fornecido pela API-Sports nesta liga
-                            if xg_val == 0.0:
-                                team_goals = int(goals_home if is_home else goals_away) if (goals_home is not None and goals_away is not None) else 0
-                                shots_off = max(0, s_total - sg)
-                                if sg > 0 or s_total > 0 or team_goals > 0:
-                                    calc_xg = round((sg * 0.32) + (shots_off * 0.08) + (team_goals * 0.15), 2)
-                                    if calc_xg == 0.0 and team_goals > 0:
-                                        calc_xg = round(team_goals * 0.75, 2)
-                                    xg_val = max(0.0, calc_xg)
+                                # Fallback para cálculo de xG em tempo real quando o xG oficial (Opta) não é fornecido pela API-Sports nesta liga
+                                if xg_val == 0.0:
+                                    team_goals = int(goals_home if is_home else goals_away) if (goals_home is not None and goals_away is not None) else 0
+                                    shots_off = max(0, s_total - sg)
+                                    if sg > 0 or s_total > 0 or team_goals > 0:
+                                        calc_xg = round((sg * 0.32) + (shots_off * 0.08) + (team_goals * 0.15), 2)
+                                        if calc_xg == 0.0 and team_goals > 0:
+                                            calc_xg = round(team_goals * 0.75, 2)
+                                        xg_val = max(0.0, calc_xg)
 
-                            if is_home:
-                                corners_home = ck
-                                shots_home = sg if sg > 0 else s_total
-                                xg_home = xg_val
-                                yellow_cards_home = yc
-                                red_cards_home = rc
-                            else:
-                                corners_away = ck
-                                shots_away = sg if sg > 0 else s_total
-                                xg_away = xg_val
-                                yellow_cards_away = yc
-                                red_cards_away = rc
-                except Exception as e:
-                    print(f"Aviso ao buscar estatísticas para partida {fix_id}: {e}")
+                                if is_home:
+                                    corners_home = ck
+                                    shots_home = sg if sg > 0 else s_total
+                                    xg_home = xg_val
+                                    yellow_cards_home = yc
+                                    red_cards_home = rc
+                                else:
+                                    corners_away = ck
+                                    shots_away = sg if sg > 0 else s_total
+                                    xg_away = xg_val
+                                    yellow_cards_away = yc
+                                    red_cards_away = rc
+                    except Exception as e:
+                        print(f"Aviso ao buscar estatísticas para partida {fix_id}: {e}")
 
                 # 2. Busca eventos oficiais da partida (cartões, gols, substituições)
                 try:

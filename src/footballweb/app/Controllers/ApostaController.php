@@ -116,15 +116,12 @@ class ApostaController extends BaseController
                 $suggestedCards = 'Menos de ' . $m[1];
             }
             $fix->suggested_palpite_cards = $suggestedCards;
-            $ahSug = $fix->ah_suggestion ?? '';
-            $teamName = $fix->home_team;
+            $ahSug = trim($fix->ah_suggestion ?? '');
             if (!empty($ahSug)) {
-                if (preg_match('/^(.*?)\s*([+-]?\d+(?:\.\d+)?|0\.0)/i', $ahSug, $mAH)) {
-                    $t = trim($mAH[1]);
-                    if (!empty($t)) $teamName = $t;
-                }
+                $fix->suggested_palpite_ah = $ahSug;
+            } else {
+                $fix->suggested_palpite_ah = "{$fix->home_team} 0.0 (Empate Anula)";
             }
-            $fix->suggested_palpite_ah = "{$teamName} 0.0 (Empate Anula)";
             $fix->suggested_palpite = $suggestedCards;
 
             $ahConf = floatval($fix->ah_confidence ?? 0);

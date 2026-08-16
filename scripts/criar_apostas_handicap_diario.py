@@ -222,6 +222,12 @@ def criar_apostas_handicap_diario(target_date_str=None):
         # Determinar com exatidão se o palpite é no time Visitante ou Mandante para escolher a Odd correta
         is_away = determine_bet_side(home_team, away_team, ah_suggestion)
 
+        # Regra de Ajuste: Migração de linha para Visitantes (Fora de Casa)
+        # Em vez de 0.0 ou -0.25 puro em visitantes, migra para cobertura +0.25 AH (garantindo meio-green no empate)
+        if is_away:
+            if '0.0' in ah_suggestion or 'empate anula' in ah_suggestion.lower() or '-0.25' in ah_suggestion:
+                ah_suggestion = f"{away_team} +0.25 AH"
+
         if is_away:
             odd_val = float(fix.get('odd_away') or 1.60)
         else:

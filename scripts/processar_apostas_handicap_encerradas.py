@@ -39,36 +39,24 @@ def get_db_connection():
     print("❌ [ERRO CRÍTICO] Falha ao conectar no MySQL.")
     sys.exit(1)
 
-def ensure_fixture_stats(cursor, fixture):
+def get_fixture_handicap_stats(fixture):
     """
-    Garante estatísticas de fim de jogo para a partida se goals_home/away forem NULOS.
+    Retorna os gols reais da partida se o status for finalizado (FT).
+    Retorna None se os gols ou o status estiverem incompletos no banco.
     """
-    fixture_id = fixture['fixture_id']
-    home = fixture['home_team']
-    away = fixture['away_team']
-    
+    status = (fixture.get('status') or '').strip().upper()
+    finished_statuses = ['FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED']
+    if status not in finished_statuses:
+        return None
+
     goals_home = fixture.get('goals_home')
     goals_away = fixture.get('goals_away')
 
     if goals_home is None or goals_away is None:
-        seed_str = f"{fixture_id}_{home}_{away}"
-        r = random.Random(int(hashlib.md5(seed_str.encode('utf-8')).hexdigest(), 16))
-        if goals_home is None:
-            goals_home = r.randint(1, 3)
-        if goals_away is None:
-            goals_away = r.randint(0, 2)
-            
-        cursor.execute("""
-            UPDATE fixtures_trends
-            SET status = 'FT',
-                goals_home = %s,
-                goals_away = %s,
-                updated_at = NOW()
-            WHERE fixture_id = %s
-        """, (goals_home, goals_away, fixture_id))
+        return None
 
     return {
-        'status': 'FT',
+        'status': status,
         'goals_home': goals_home,
         'goals_away': goals_away
     }
@@ -214,7 +202,10 @@ def processar_apostas_handicap_encerradas():
                 print(f"⏳ Partida {time_casa} vs {time_fora} ainda em andamento. Aposta #{aposta_id} permanece Pendente.")
                 continue
 
-        stats = ensure_fixture_stats(cursor, fixture)
+        stats = get_fixture_handicap_stats(fixture)
+        if not stats:
+            print(f"⏳ Partida {time_casa} vs {time_fora} sem dados finais encerrados de placar. Aposta #{aposta_id} permanece Pendente.")
+            continue
         goals_home = stats['goals_home']
         goals_away = stats['goals_away']
 

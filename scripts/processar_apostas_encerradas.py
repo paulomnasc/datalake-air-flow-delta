@@ -50,58 +50,31 @@ def get_db_connection():
         print(f"❌ [ERRO CRÍTICO] Falha ao conectar no MySQL: {e}")
         sys.exit(1)
 
-def ensure_fixture_stats(cursor, fixture):
+def get_fixture_stats(fixture):
     """
-    Garante estatísticas realistas de fim de jogo (FT) para a partida encerrada se estiverem NULL.
+    Extrai as estatísticas reais finais da partida (FT).
+    Retorna None se os dados de gols ou status do jogo estiverem incompletos/nulos no banco.
     """
-    fixture_id = fixture['fixture_id']
-    home = fixture['home_team']
-    away = fixture['away_team']
-    
-    # Se cartões/gols forem nulos, gera valores realistas determinísticos baseados nas equipes
-    seed_str = f"{fixture_id}_{home}_{away}"
-    r = random.Random(int(hashlib.md5(seed_str.encode('utf-8')).hexdigest(), 16))
-    
-    yellow_home = fixture.get('yellow_cards_home')
-    if yellow_home is None:
-        yellow_home = r.randint(1, 3)
-        
-    yellow_away = fixture.get('yellow_cards_away')
-    if yellow_away is None:
-        yellow_away = r.randint(1, 3)
-        
-    red_home = fixture.get('red_cards_home') if fixture.get('red_cards_home') is not None else 0
-    red_away = fixture.get('red_cards_away') if fixture.get('red_cards_away') is not None else 0
-    
+    status = (fixture.get('status') or '').strip().upper()
+    finished_statuses = ['FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED']
+    if status not in finished_statuses:
+        return None
+
     goals_home = fixture.get('goals_home')
-    if goals_home is None:
-        goals_home = r.randint(1, 3)
-        
     goals_away = fixture.get('goals_away')
-    if goals_away is None:
-        goals_away = r.randint(0, 2)
-        
-    corners_home = fixture.get('corners_home') if fixture.get('corners_home') is not None else r.randint(3, 7)
-    corners_away = fixture.get('corners_away') if fixture.get('corners_away') is not None else r.randint(2, 6)
-    
-    # Atualiza fixture como Encerrada (FT) com estatísticas no banco
-    cursor.execute("""
-        UPDATE fixtures_trends
-        SET status = 'FT',
-            goals_home = %s,
-            goals_away = %s,
-            yellow_cards_home = %s,
-            yellow_cards_away = %s,
-            red_cards_home = %s,
-            red_cards_away = %s,
-            corners_home = %s,
-            corners_away = %s,
-            updated_at = NOW()
-        WHERE fixture_id = %s
-    """, (goals_home, goals_away, yellow_home, yellow_away, red_home, red_away, corners_home, corners_away, fixture_id))
+
+    if goals_home is None or goals_away is None:
+        return None
+
+    yellow_home = fixture.get('yellow_cards_home') or 0
+    yellow_away = fixture.get('yellow_cards_away') or 0
+    red_home = fixture.get('red_cards_home') or 0
+    red_away = fixture.get('red_cards_away') or 0
+    corners_home = fixture.get('corners_home') or 0
+    corners_away = fixture.get('corners_away') or 0
 
     return {
-        'status': 'FT',
+        'status': status,
         'goals_home': goals_home,
         'goals_away': goals_away,
         'yellow_cards_home': yellow_home,
@@ -310,29 +283,15 @@ def process_pending_bets():
         fixture = cursor.fetchone()
 
         if not fixture:
-            # Criar fixture sintética se não existir
-            print(f"⚠️ Fixture não encontrada no banco para {time_casa} vs {time_fora}. Criando registro encerrado para hoje...")
-            fixture_id = int(datetime.now().strftime("%Y%m%d")) + random.randint(100, 999)
-            cursor.execute("""
-                INSERT INTO fixtures_trends (fixture_id, fixture_date, league_id, league_name, home_team, away_team, status)
-                VALUES (%s, NOW(), 71, 'Brasileirão Série A', %s, %s, 'FT')
-            """, (fixture_id, time_casa, time_fora))
-            
-            cursor.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
-            fixture = cursor.fetchone()
+            print(f"⏳ Fixture não encontrada no banco para {time_casa} vs {time_fora}. Aposta #{aposta_id} permanece Pendente.")
+            continue
 
-        # Verificar se a partida já aconteceu / finalizou
-        fixture_date = fixture.get('fixture_date')
-        status = fixture.get('status')
-        now = datetime.now()
-
-        if status != 'FT':
-            if fixture_date and (fixture_date + timedelta(minutes=110)) > now:
-                print(f"⏳ Partida {time_casa} vs {time_fora} ({fixture_date}) ainda não finalizou. Aposta #{aposta_id} permanece Pendente.")
-                continue
-
-        # Atualizar/Obter estatísticas de encerramento do jogo
-        stats = ensure_fixture_stats(cursor, fixture)
+        # Obter estatísticas reais de encerramento do jogo
+        stats = get_fixture_stats(fixture)
+        if not stats:
+            status_curr = fixture.get('status', 'NS')
+            print(f"⏳ Partida {time_casa} vs {time_fora} com status '{status_curr}' ou estatísticas nulas/incompletas. Aposta #{aposta_id} permanece Pendente.")
+            continue
 
         # Avaliar Aposta
         novo_status, detalhe, valor_computado = evaluate_bet(aposta, stats)

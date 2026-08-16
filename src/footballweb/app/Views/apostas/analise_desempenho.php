@@ -260,6 +260,22 @@
     </div>
   </div>
 
+  <!-- Mercado Profit Chart Section -->
+  <div class="chart-card">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <h5 class="fw-bold mb-0 text-white d-flex align-items-center gap-2">
+        <i class="bi bi-bar-chart-line-fill text-accent"></i> Lucro Líquido por Mercado de Aposta
+      </h5>
+      <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
+        <i class="bi bi-funnel-fill me-1 text-warning"></i> Agrupado pelos Mesmos Filtros
+      </span>
+    </div>
+
+    <div class="chart-container-box" id="mercadoChartBox" style="height: 380px;">
+      <canvas id="mercadoProfitChart"></canvas>
+    </div>
+  </div>
+
   <!-- Detailed Table Breakdown -->
   <div class="table-card">
     <h5 class="fw-bold mb-3 text-white d-flex align-items-center gap-2">
@@ -292,6 +308,7 @@
 const rawBets = <?= json_encode($apostas ?? []) ?>;
 
 let perfChart = null;
+let mercadoChart = null;
 
 function formatDateYYYYMMDD(d) {
   try {
@@ -542,6 +559,7 @@ function updatePerformanceDashboard() {
   let settledCount = 0;
 
   const buckets = {};
+  const mercadoBuckets = {};
 
   filteredBets.forEach(bet => {
     const status = bet.status || '';
@@ -571,6 +589,17 @@ function updatePerformanceDashboard() {
     }
     totalRetorno += grossReturn;
     totalLucroLiquido += netProfit;
+
+    let rawMercado = (bet.mercado || 'Outros').trim();
+    if (!rawMercado) rawMercado = 'Outros';
+
+    if (!mercadoBuckets[rawMercado]) {
+      mercadoBuckets[rawMercado] = { apostado: 0, retorno: 0, lucro: 0, count: 0 };
+    }
+    mercadoBuckets[rawMercado].apostado += valor;
+    mercadoBuckets[rawMercado].retorno += grossReturn;
+    mercadoBuckets[rawMercado].lucro += netProfit;
+    mercadoBuckets[rawMercado].count += 1;
 
     const rawDate = getBetDateBRT(bet);
     let key = rawDate || 'Sem Data';
@@ -638,7 +667,38 @@ function updatePerformanceDashboard() {
     cumulativeLucroData.push(runningLucro);
   });
 
+  const mercadoKeys = Object.keys(mercadoBuckets).sort((a, b) => mercadoBuckets[b].lucro - mercadoBuckets[a].lucro);
+
+  const mercadoLabels = [];
+  const mercadoLucroData = [];
+  const mercadoBgColors = [];
+  const mercadoBorderColors = [];
+  const mercadoMetaDetails = [];
+
+  mercadoKeys.forEach(key => {
+    const b = mercadoBuckets[key];
+    mercadoLabels.push(key);
+    mercadoLucroData.push(b.lucro);
+    if (b.lucro >= 0) {
+      mercadoBgColors.push('rgba(0, 230, 118, 0.75)');
+      mercadoBorderColors.push('#00e676');
+    } else {
+      mercadoBgColors.push('rgba(255, 82, 82, 0.75)');
+      mercadoBorderColors.push('#ff5252');
+    }
+
+    const roi = b.apostado > 0 ? (b.lucro / b.apostado) * 100 : 0;
+    mercadoMetaDetails.push({
+      apostado: b.apostado,
+      retorno: b.retorno,
+      lucro: b.lucro,
+      count: b.count,
+      roi: roi
+    });
+  });
+
   renderChart(labels, cumulativeApostadoData, cumulativeLucroData);
+  renderMercadoChart(mercadoLabels, mercadoLucroData, mercadoBgColors, mercadoBorderColors, mercadoMetaDetails);
   renderTableBreakdown(bucketKeys, buckets, groupMode);
 }
 
@@ -722,6 +782,100 @@ function renderChart(labels, apostadoData, lucroData) {
             callback: function(value) {
               return 'R$ ' + value.toLocaleString('pt-BR');
             }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderMercadoChart(labels, data, bgColors, borderColors, metaDetails) {
+  const canvas = document.getElementById('mercadoProfitChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const containerBox = document.getElementById('mercadoChartBox');
+  if (containerBox) {
+    const dynamicHeight = Math.max(320, labels.length * 45);
+    containerBox.style.height = `${dynamicHeight}px`;
+  }
+
+  if (mercadoChart) {
+    mercadoChart.destroy();
+  }
+
+  mercadoChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Lucro Líquido Real (R$)',
+          data: data,
+          backgroundColor: bgColors,
+          borderColor: borderColors,
+          borderWidth: 1.5,
+          borderRadius: 6,
+          barThickness: labels.length > 8 ? 'flex' : 24,
+          maxBarThickness: 32
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          titleColor: '#f0f6fc',
+          bodyColor: '#cbd5e1',
+          borderColor: '#334155',
+          borderWidth: 1,
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            title: function(context) {
+              return 'Mercado: ' + (context[0]?.label || '');
+            },
+            label: function(context) {
+              const idx = context.dataIndex;
+              const meta = metaDetails[idx];
+              if (!meta) return '';
+
+              const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+              const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
+
+              return [
+                `Lucro Líquido: ${formatBrl(meta.lucro)}`,
+                `Total Apostado: ${formatBrl(meta.apostado)}`,
+                `Total Retorno: ${formatBrl(meta.retorno)}`,
+                `ROI: ${formatPct(meta.roi)}`,
+                `Qtd Apostas: ${meta.count}`
+              ];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255, 255, 255, 0.08)' },
+          ticks: {
+            color: '#94a3b8',
+            font: { family: 'Inter' },
+            callback: function(value) {
+              return 'R$ ' + value.toLocaleString('pt-BR');
+            }
+          }
+        },
+        y: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#f0f6fc',
+            font: { family: 'Inter', weight: '600', size: 12 }
           }
         }
       }

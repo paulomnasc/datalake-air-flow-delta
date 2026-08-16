@@ -364,9 +364,20 @@
   <div class="bet-toolbar">
     <form method="GET" action="<?= base_url('apostas/relatorio-ia-perdas') ?>" class="date-filter-form">
       <label style="font-size: 0.85rem; font-weight: 600; color: var(--bet-text-muted);">Período:</label>
-      <input type="date" name="start_date" value="<?= htmlspecialchars($startDate) ?>" required>
+      <select id="preset_ia_perdas" class="form-select form-select-sm bg-dark text-info border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 140px;" onchange="applyIAPerdasPreset(this.value)">
+        <option value="custom">📅 Personalizado</option>
+        <option value="today">⚡ Hoje</option>
+        <option value="yesterday">⏪ Ontem</option>
+        <option value="7days">🗓️ Últimos 7 dias</option>
+        <option value="15days">🗓️ Últimos 15 dias</option>
+        <option value="1month">📅 Último mês</option>
+        <option value="trimestre">📊 Trimestre</option>
+        <option value="semestre">📈 Semestre</option>
+        <option value="all">♾️ Todo o período</option>
+      </select>
+      <input type="date" name="start_date" id="ia_start_date" value="<?= htmlspecialchars($startDate) ?>" required>
       <span style="color: var(--bet-text-muted);">até</span>
-      <input type="date" name="end_date" value="<?= htmlspecialchars($endDate) ?>" required>
+      <input type="date" name="end_date" id="ia_end_date" value="<?= htmlspecialchars($endDate) ?>" required>
       <button type="submit" class="btn-filter"><i class="bi bi-funnel-fill me-1"></i> Filtrar</button>
     </form>
 
@@ -629,5 +640,49 @@
         content.innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i> Erro de comunicação com o servidor ao gerar análise consolidada.</div>';
       }
     });
+  }
+
+  function applyIAPerdasPreset(presetKey) {
+    const startEl = document.getElementById('ia_start_date');
+    const endEl = document.getElementById('ia_end_date');
+    if (!startEl || !endEl) return;
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
+    function getPastDate(m) {
+      const d = new Date();
+      const tm = d.getMonth() - m;
+      d.setMonth(tm);
+      if (d.getMonth() !== ((tm % 12 + 12) % 12)) d.setDate(0);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    if (presetKey === 'today') {
+      startEl.value = todayStr; endEl.value = todayStr;
+    } else if (presetKey === 'yesterday') {
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      const yStr = `${y.getFullYear()}-${String(y.getMonth()+1).padStart(2,'0')}-${String(y.getDate()).padStart(2,'0')}`;
+      startEl.value = yStr; endEl.value = yStr;
+    } else if (presetKey === '7days') {
+      const s = new Date(); s.setDate(s.getDate() - 6);
+      startEl.value = `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`;
+      endEl.value = todayStr;
+    } else if (presetKey === '15days') {
+      const s = new Date(); s.setDate(s.getDate() - 14);
+      startEl.value = `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`;
+      endEl.value = todayStr;
+    } else if (presetKey === '1month') {
+      startEl.value = getPastDate(1); endEl.value = todayStr;
+    } else if (presetKey === 'trimestre') {
+      startEl.value = getPastDate(3); endEl.value = todayStr;
+    } else if (presetKey === 'semestre') {
+      startEl.value = getPastDate(6); endEl.value = todayStr;
+    } else if (presetKey === 'all') {
+      startEl.value = ''; endEl.value = '';
+    }
   }
 </script>

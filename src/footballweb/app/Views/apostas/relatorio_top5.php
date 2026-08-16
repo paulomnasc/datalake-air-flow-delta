@@ -474,6 +474,21 @@
     <form method="GET" action="<?= base_url('apostas/relatorio-top5') ?>" id="filterForm">
       <div class="row g-3 align-items-end">
         <div class="col-md-3 col-sm-6">
+          <label class="form-label text-white small fw-semibold mb-1">Atalho de Período</label>
+          <select id="preset_top5" class="form-select filter-input bg-dark text-info border-secondary fw-semibold" onchange="applyTop5Preset(this.value)">
+            <option value="custom">📅 Personalizado</option>
+            <option value="today">⚡ Hoje</option>
+            <option value="yesterday">⏪ Ontem</option>
+            <option value="7days">🗓️ Últimos 7 dias</option>
+            <option value="15days">🗓️ Últimos 15 dias</option>
+            <option value="1month">📅 Último mês</option>
+            <option value="trimestre">📊 Trimestre</option>
+            <option value="semestre">📈 Semestre</option>
+            <option value="all">♾️ Todo o período</option>
+          </select>
+        </div>
+
+        <div class="col-md-3 col-sm-6">
           <label class="form-label text-white small fw-semibold mb-1">Data Início</label>
           <input type="date" name="data_inicio" id="data_inicio" class="form-control filter-input" value="<?= esc($dataInicio ?? '') ?>">
         </div>
@@ -998,3 +1013,63 @@ function setPeriodMonth() {
     </div>
   </div>
 </div>
+
+<script>
+function formatDateYYYYMMDD(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getPastDateByMonths(months) {
+  const d = new Date();
+  const targetMonth = d.getMonth() - months;
+  d.setMonth(targetMonth);
+  if (d.getMonth() !== ((targetMonth % 12 + 12) % 12)) {
+    d.setDate(0);
+  }
+  return d;
+}
+
+function applyTop5Preset(presetKey) {
+  const startEl = document.getElementById('data_inicio');
+  const endEl = document.getElementById('data_fim');
+  if (!startEl || !endEl) return;
+
+  const now = new Date();
+  const todayStr = formatDateYYYYMMDD(now);
+
+  if (presetKey === 'today') {
+    startEl.value = todayStr;
+    endEl.value = todayStr;
+  } else if (presetKey === 'yesterday') {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    startEl.value = formatDateYYYYMMDD(yesterday);
+    endEl.value = formatDateYYYYMMDD(yesterday);
+  } else if (presetKey === '7days') {
+    const start = new Date();
+    start.setDate(start.getDate() - 6);
+    startEl.value = formatDateYYYYMMDD(start);
+    endEl.value = todayStr;
+  } else if (presetKey === '15days') {
+    const start = new Date();
+    start.setDate(start.getDate() - 14);
+    startEl.value = formatDateYYYYMMDD(start);
+    endEl.value = todayStr;
+  } else if (presetKey === '1month') {
+    startEl.value = formatDateYYYYMMDD(getPastDateByMonths(1));
+    endEl.value = todayStr;
+  } else if (presetKey === 'trimestre') {
+    startEl.value = formatDateYYYYMMDD(getPastDateByMonths(3));
+    endEl.value = todayStr;
+  } else if (presetKey === 'semestre') {
+    startEl.value = formatDateYYYYMMDD(getPastDateByMonths(6));
+    endEl.value = todayStr;
+  } else if (presetKey === 'all') {
+    startEl.value = '';
+    endEl.value = '';
+  }
+}
+</script>

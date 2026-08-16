@@ -65,6 +65,7 @@ $routes->get('/apostas/relatorioTop5', 'ApostaController::relatorioTop5');
 $routes->get('/apostas/relatorio-ia-perdas', 'ApostaController::relatorioIaPerdas', ['as' => 'apostas.relatorio_ia_perdas']);
 $routes->get('/apostas/relatorio-eficiencia', 'ApostaController::relatorioEficiencia', ['as' => 'apostas.relatorio_eficiencia']);
 $routes->get('/apostas/relatorioEficiencia', 'ApostaController::relatorioEficiencia');
+$routes->get('/apostas/analise-desempenho', 'ApostaController::analiseDesempenho', ['as' => 'apostas.analise_desempenho']);
 $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
 

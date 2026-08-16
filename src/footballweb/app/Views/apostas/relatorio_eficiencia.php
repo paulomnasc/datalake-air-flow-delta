@@ -217,13 +217,28 @@
     <div class="filter-card p-3 p-md-4 mb-4">
         <form method="GET" action="<?= base_url('apostas/relatorio-eficiencia') ?>" class="row g-3 align-items-end">
             <div class="col-12 col-md-3">
+                <label class="form-label text-white-50 small font-weight-bold">Atalho de Período</label>
+                <select id="preset_eficiencia" class="form-select bg-dark text-info border-secondary fw-semibold" onchange="applyEficienciaPreset(this.value)">
+                    <option value="custom">📅 Personalizado</option>
+                    <option value="today">⚡ Hoje</option>
+                    <option value="yesterday">⏪ Ontem</option>
+                    <option value="7days">🗓️ Últimos 7 dias</option>
+                    <option value="15days">🗓️ Últimos 15 dias</option>
+                    <option value="1month">📅 Último mês</option>
+                    <option value="trimestre">📊 Trimestre</option>
+                    <option value="semestre">📈 Semestre</option>
+                    <option value="all">♾️ Todo o período</option>
+                </select>
+            </div>
+
+            <div class="col-12 col-md-3">
                 <label class="form-label text-white-50 small font-weight-bold">Data Início</label>
-                <input type="date" name="start_date" class="form-control bg-dark text-white border-secondary" value="<?= esc($startDate) ?>">
+                <input type="date" name="start_date" id="eficiencia_start_date" class="form-control bg-dark text-white border-secondary" value="<?= esc($startDate) ?>">
             </div>
             
             <div class="col-12 col-md-3">
                 <label class="form-label text-white-50 small font-weight-bold">Data Fim</label>
-                <input type="date" name="end_date" class="form-control bg-dark text-white border-secondary" value="<?= esc($endDate) ?>">
+                <input type="date" name="end_date" id="eficiencia_end_date" class="form-control bg-dark text-white border-secondary" value="<?= esc($endDate) ?>">
             </div>
 
             <div class="col-12 col-md-2">
@@ -470,5 +485,49 @@
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    }
+
+    function applyEficienciaPreset(presetKey) {
+        const startEl = document.getElementById('eficiencia_start_date');
+        const endEl = document.getElementById('eficiencia_end_date');
+        if (!startEl || !endEl) return;
+
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+
+        function getPastDate(m) {
+            const d = new Date();
+            const tm = d.getMonth() - m;
+            d.setMonth(tm);
+            if (d.getMonth() !== ((tm % 12 + 12) % 12)) d.setDate(0);
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+
+        if (presetKey === 'today') {
+            startEl.value = todayStr; endEl.value = todayStr;
+        } else if (presetKey === 'yesterday') {
+            const y = new Date(); y.setDate(y.getDate() - 1);
+            const yStr = `${y.getFullYear()}-${String(y.getMonth()+1).padStart(2,'0')}-${String(y.getDate()).padStart(2,'0')}`;
+            startEl.value = yStr; endEl.value = yStr;
+        } else if (presetKey === '7days') {
+            const s = new Date(); s.setDate(s.getDate() - 6);
+            startEl.value = `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`;
+            endEl.value = todayStr;
+        } else if (presetKey === '15days') {
+            const s = new Date(); s.setDate(s.getDate() - 14);
+            startEl.value = `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`;
+            endEl.value = todayStr;
+        } else if (presetKey === '1month') {
+            startEl.value = getPastDate(1); endEl.value = todayStr;
+        } else if (presetKey === 'trimestre') {
+            startEl.value = getPastDate(3); endEl.value = todayStr;
+        } else if (presetKey === 'semestre') {
+            startEl.value = getPastDate(6); endEl.value = todayStr;
+        } else if (presetKey === 'all') {
+            startEl.value = ''; endEl.value = '';
+        }
     }
 </script>

@@ -1850,6 +1850,44 @@ class ApostaController extends BaseController
             log_message('error', 'Erro ao auto-popular palpites_gerados: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Exibe o relatório de Análise de Desempenho com gráfico acumulado de valor apostado bruto e lucro líquido real.
+     */
+    public function analiseDesempenho()
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated']) {
+            session()->setFlashdata('error', 'Você precisa estar logado para acessar a análise de desempenho.');
+            return redirect()->to('/loginUsuario');
+        }
+
+        $userId = $access['user_id'];
+        $hasTokens = $access['has_tokens'];
+        $userCredits = $access['credits'];
+
+        $apostas = [];
+        if ($hasTokens) {
+            $apostas = $this->apostaModel
+                ->where('usuario_id', $userId)
+                ->orderBy('data_hora_jogo', 'ASC')
+                ->orderBy('criado_em', 'ASC')
+                ->findAll();
+        }
+
+        $data = [
+            'title'       => 'Análise de Desempenho | Gestão de Riscos & Palpites',
+            'user'        => $access['user'],
+            'hasTokens'   => $hasTokens,
+            'userCredits' => $userCredits,
+            'apostas'     => $apostas
+        ];
+
+        return view('header', $data)
+             . view('apostas/analise_desempenho', $data)
+             . view('footer');
+    }
 }
 
 

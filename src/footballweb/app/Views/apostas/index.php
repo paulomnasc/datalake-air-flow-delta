@@ -822,13 +822,23 @@ if (!function_exists('formatBrtDate')) {
         </select>
       </div>
 
-      <!-- Filtro de Período (2 Datas) -->
-      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;">
+      <!-- Filtro de Período (Atalhos + Datas) -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary flex-wrap" style="font-size: 0.85rem;">
         <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-calendar-range text-info"></i> Período:</span>
-        <input type="date" id="betStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="applyBetFilters()" title="Data Inicial (De)">
+        <select id="betDatePresetSelect" class="form-select form-select-sm bg-dark text-info border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 155px;" onchange="setBetDatePreset(this.value)" title="Atalhos de Período">
+          <option value="custom">📅 Personalizado</option>
+          <option value="today" selected>⚡ Hoje</option>
+          <option value="yesterday">⏪ Ontem</option>
+          <option value="7days">🗓️ Últimos 7 dias</option>
+          <option value="15days">🗓️ Últimos 15 dias</option>
+          <option value="1month">📅 Último mês</option>
+          <option value="trimestre">📊 Trimestre</option>
+          <option value="semestre">📈 Semestre</option>
+          <option value="all">♾️ Todo o período</option>
+        </select>
+        <input type="date" id="betStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="onManualDateChange()" title="Data Inicial (De)">
         <span class="text-light-50 small">até</span>
-        <input type="date" id="betEndDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="applyBetFilters()" title="Data Final (Até)">
-        <button class="btn btn-sm btn-outline-info text-info border-secondary px-2 py-0.5 ms-1 fw-semibold" onclick="setTodayDateFilter()" title="Selecionar Data de Hoje" style="font-size: 0.78rem;"><i class="bi bi-calendar-check me-1"></i>Hoje</button>
+        <input type="date" id="betEndDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="onManualDateChange()" title="Data Final (Até)">
         <button class="btn btn-sm btn-outline-secondary border-0 text-light-50 p-1" onclick="clearDateFilter()" title="Limpar Filtro de Período"><i class="bi bi-x-circle-fill"></i></button>
       </div>
 
@@ -888,6 +898,10 @@ if (!function_exists('formatBrtDate')) {
 
       <a href="<?= base_url('apostas/relatorio-ia-perdas') ?>" class="btn btn-outline-danger rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;">
         <i class="bi bi-shield-x text-danger"></i> Relatório Perdas (IA)
+      </a>
+
+      <a href="<?= base_url('apostas/analise-desempenho') ?>" target="_blank" class="btn btn-outline-info rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;" title="Abrir Análise de Desempenho em nova aba">
+        <i class="bi bi-graph-up-arrow text-info"></i> Análise Desempenho
       </a>
 
       <button class="btn-new-bet" data-bs-toggle="modal" data-bs-target="#newBetModal">
@@ -1745,25 +1759,117 @@ if (!function_exists('formatBrtDate')) {
     applyBetFilters();
   }
 
-  function setTodayDateFilter() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const todayStr = `${year}-${month}-${day}`;
+  function formatDateYYYYMMDD(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
+  function getPastDateByMonths(months) {
+    const d = new Date();
+    const targetMonth = d.getMonth() - months;
+    d.setMonth(targetMonth);
+    if (d.getMonth() !== ((targetMonth % 12 + 12) % 12)) {
+      d.setDate(0);
+    }
+    return d;
+  }
+
+  function setBetDatePreset(presetKey) {
     const startEl = document.getElementById('betStartDateInput');
     const endEl = document.getElementById('betEndDateInput');
-    if (startEl) startEl.value = todayStr;
-    if (endEl) endEl.value = todayStr;
+    const selectEl = document.getElementById('betDatePresetSelect');
+    if (!startEl || !endEl) return;
+
+    const now = new Date();
+    const todayStr = formatDateYYYYMMDD(now);
+
+    if (presetKey === 'today') {
+      startEl.value = todayStr;
+      endEl.value = todayStr;
+    } else if (presetKey === 'yesterday') {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yestStr = formatDateYYYYMMDD(yesterday);
+      startEl.value = yestStr;
+      endEl.value = yestStr;
+    } else if (presetKey === '7days') {
+      const start = new Date();
+      start.setDate(start.getDate() - 6);
+      startEl.value = formatDateYYYYMMDD(start);
+      endEl.value = todayStr;
+    } else if (presetKey === '15days') {
+      const start = new Date();
+      start.setDate(start.getDate() - 14);
+      startEl.value = formatDateYYYYMMDD(start);
+      endEl.value = todayStr;
+    } else if (presetKey === '1month') {
+      const start = getPastDateByMonths(1);
+      startEl.value = formatDateYYYYMMDD(start);
+      endEl.value = todayStr;
+    } else if (presetKey === 'trimestre') {
+      const start = getPastDateByMonths(3);
+      startEl.value = formatDateYYYYMMDD(start);
+      endEl.value = todayStr;
+    } else if (presetKey === 'semestre') {
+      const start = getPastDateByMonths(6);
+      startEl.value = formatDateYYYYMMDD(start);
+      endEl.value = todayStr;
+    } else if (presetKey === 'all') {
+      startEl.value = '';
+      endEl.value = '';
+    }
+
+    if (selectEl && selectEl.value !== presetKey) {
+      selectEl.value = presetKey;
+    }
+
     applyBetFilters();
   }
 
+  function setTodayDateFilter() {
+    setBetDatePreset('today');
+  }
+
   function clearDateFilter() {
-    const startEl = document.getElementById('betStartDateInput');
-    const endEl = document.getElementById('betEndDateInput');
-    if (startEl) startEl.value = '';
-    if (endEl) endEl.value = '';
+    setBetDatePreset('all');
+  }
+
+  function onManualDateChange() {
+    const startVal = document.getElementById('betStartDateInput')?.value || '';
+    const endVal = document.getElementById('betEndDateInput')?.value || '';
+    const selectEl = document.getElementById('betDatePresetSelect');
+
+    const now = new Date();
+    const todayStr = formatDateYYYYMMDD(now);
+    const yesterdayStr = formatDateYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+    const d7Str = formatDateYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
+    const d15Str = formatDateYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14));
+    const m1Str = formatDateYYYYMMDD(getPastDateByMonths(1));
+    const m3Str = formatDateYYYYMMDD(getPastDateByMonths(3));
+    const m6Str = formatDateYYYYMMDD(getPastDateByMonths(6));
+
+    if (!startVal && !endVal) {
+      if (selectEl) selectEl.value = 'all';
+    } else if (startVal === todayStr && endVal === todayStr) {
+      if (selectEl) selectEl.value = 'today';
+    } else if (startVal === yesterdayStr && endVal === yesterdayStr) {
+      if (selectEl) selectEl.value = 'yesterday';
+    } else if (startVal === d7Str && endVal === todayStr) {
+      if (selectEl) selectEl.value = '7days';
+    } else if (startVal === d15Str && endVal === todayStr) {
+      if (selectEl) selectEl.value = '15days';
+    } else if (startVal === m1Str && endVal === todayStr) {
+      if (selectEl) selectEl.value = '1month';
+    } else if (startVal === m3Str && endVal === todayStr) {
+      if (selectEl) selectEl.value = 'trimestre';
+    } else if (startVal === m6Str && endVal === todayStr) {
+      if (selectEl) selectEl.value = 'semestre';
+    } else {
+      if (selectEl) selectEl.value = 'custom';
+    }
+
     applyBetFilters();
   }
 

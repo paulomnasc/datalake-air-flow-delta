@@ -42,31 +42,85 @@ def get_db_connection():
     print("❌ [ERRO CRÍTICO] Falha ao conectar no MySQL.")
     sys.exit(1)
 
+def fetch_real_fixture_cards_api(fixture_id, home_team_id=None):
+    """
+    Busca estatísticas e eventos oficiais de cartões na API-Sports para a partida.
+    """
+    api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
+    headers = {'x-apisports-key': api_key, 'User-Agent': 'Mozilla/5.0'}
+    yh, ya, rh, ra = None, None, None, None
+
+    try:
+        url_st = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}"
+        res_st = requests.get(url_st, headers=headers, timeout=10)
+        if res_st.status_code == 200:
+            st_data = res_st.json().get("response", [])
+            for idx, team_st in enumerate(st_data):
+                t_id = team_st.get("team", {}).get("id")
+                is_home = (t_id == home_team_id) if home_team_id else (idx == 0)
+                for s in team_st.get("statistics", []):
+                    s_type = (s.get("type") or "").strip()
+                    s_val = s.get("value")
+                    if s_type == "Yellow Cards" and s_val is not None:
+                        if is_home: yh = int(s_val)
+                        else: ya = int(s_val)
+                    elif s_type == "Red Cards" and s_val is not None:
+                        if is_home: rh = int(s_val)
+                        else: ra = int(s_val)
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar estatísticas na API para fixture {fixture_id}: {e}")
+
+    try:
+        url_ev = f"https://v3.football.api-sports.io/fixtures/events?fixture={fixture_id}"
+        res_ev = requests.get(url_ev, headers=headers, timeout=10)
+        if res_ev.status_code == 200:
+            ev_data = res_ev.json().get("response", [])
+            eyh, eya, erh, era = 0, 0, 0, 0
+            has_card_events = False
+            for ev in ev_data:
+                if ev.get("type") == "Card":
+                    has_card_events = True
+                    t_id = ev.get("team", {}).get("id")
+                    is_home = (t_id == home_team_id) if home_team_id else True
+                    detail = ev.get("detail", "")
+                    if "Yellow" in detail:
+                        if is_home: eyh += 1
+                        else: eya += 1
+                    elif "Red" in detail:
+                        if is_home: erh += 1
+                        else: era += 1
+            if has_card_events or yh is None:
+                yh = max(yh if yh is not None else 0, eyh)
+                ya = max(ya if ya is not None else 0, eya)
+                rh = max(rh if rh is not None else 0, erh)
+                ra = max(ra if ra is not None else 0, era)
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar eventos na API para fixture {fixture_id}: {e}")
+
+    return (
+        yh if yh is not None else 0,
+        ya if ya is not None else 0,
+        rh if rh is not None else 0,
+        ra if ra is not None else 0
+    )
+
 def ensure_fixture_card_stats(cursor, fixture):
     """
-    Garante estatísticas de cartões de fim de jogo (FT) para a partida se estiverem NULAS.
+    Garante estatísticas de cartões de fim de jogo (FT) para a partida consultando a API se estiverem NULAS.
     """
     fixture_id = fixture['fixture_id']
-    home = fixture['home_team']
-    away = fixture['away_team']
-    
+    home_team_id = fixture.get('home_team_id')
+
     yellow_home = fixture.get('yellow_cards_home')
     yellow_away = fixture.get('yellow_cards_away')
     red_home = fixture.get('red_cards_home')
     red_away = fixture.get('red_cards_away')
 
     if yellow_home is None or yellow_away is None:
-        seed_str = f"{fixture_id}_{home}_{away}_cards"
-        r = random.Random(int(hashlib.md5(seed_str.encode('utf-8')).hexdigest(), 16))
-        if yellow_home is None:
-            yellow_home = r.randint(1, 3)
-        if yellow_away is None:
-            yellow_away = r.randint(1, 3)
-        if red_home is None:
-            red_home = 0
-        if red_away is None:
-            red_away = 0
-            
+        print(f"📡 Buscando cartões reais na API para partida {fixture_id}...")
+        yh, ya, rh, ra = fetch_real_fixture_cards_api(fixture_id, home_team_id)
+        yellow_home, yellow_away, red_home, red_away = yh, ya, rh, ra
+
         cursor.execute("""
             UPDATE fixtures_trends
             SET status = 'FT',

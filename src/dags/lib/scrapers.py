@@ -23,6 +23,27 @@ def _strip(s: str) -> str:
     import unicodedata
     return ''.join(c for c in unicodedata.normalize('NFD', str(s)) if unicodedata.category(c) != 'Mn').lower().replace('club atletico', '').replace('ca ', '').replace('cd ', '').strip()
 
+def is_women_game(home_team: str = "", away_team: str = "", league_name: str = "") -> bool:
+    """
+    Filtra e desconsidera partidas femininas (W, Womens, Feminino, Femenina).
+    """
+    home = str(home_team or "").strip()
+    away = str(away_team or "").strip()
+    league = str(league_name or "").strip()
+
+    for t in (home, away):
+        t_lower = t.lower()
+        if t.endswith(" W") or t.endswith(" (W)") or " (w)" in t_lower or " w " in t_lower or "(w)" in t_lower:
+            return True
+        if "feminino" in t_lower or "women" in t_lower or "femenina" in t_lower:
+            return True
+
+    league_lower = league.lower()
+    if "women" in league_lower or "feminino" in league_lower or "femenina" in league_lower or " w" in league_lower or "(w)" in league_lower:
+        return True
+
+    return False
+
 def get_bookmaker_credentials(conn_id: str) -> Dict[str, str]:
     """
     Recupera login e senha cadastrados no Airflow Connections para uma casa de apostas.

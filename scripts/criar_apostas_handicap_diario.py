@@ -103,7 +103,12 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     Filtra o escopo de atuação do script de criação de apostas:
     - Campeonatos do Brasil (Série A, Série B, Série C, Série D, Copa do Brasil, Paulistão, etc.)
     - Internacional: Apenas CONMEBOL Libertadores e CONMEBOL Sudamericana.
+    - Desconsidera jogos femininos (Women / Feminino)
     """
+    l_name_low = (league_name or '').lower().strip()
+    if 'women' in l_name_low or 'feminino' in l_name_low or 'femenina' in l_name_low:
+        return False
+
     l_id = None
     if league_id is not None:
         try:

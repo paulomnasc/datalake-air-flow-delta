@@ -935,6 +935,22 @@ if (!function_exists('formatBrtDate')) {
           <div class="bet-card-header">
             <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
               <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
+              
+              <?php 
+                $placarExibir = null;
+                if (isset($aposta->goals_home) && isset($aposta->goals_away) && $aposta->goals_home !== null && $aposta->goals_away !== null) {
+                  $placarExibir = $aposta->goals_home . ' x ' . $aposta->goals_away;
+                } elseif (!empty($aposta->resultado_detalhado) && preg_match('/Placar:\s*(\d+\s*x\s*\d+|\d+x\d+)/i', $aposta->resultado_detalhado, $mPlac)) {
+                  $placarExibir = str_replace('x', ' x ', str_replace(' ', '', $mPlac[1]));
+                }
+              ?>
+
+              <?php if (!empty($placarExibir)): ?>
+                <span class="badge bg-warning text-dark border border-warning px-2.5 py-1 font-monospace fw-bold" style="font-size: 0.81rem; letter-spacing: 0.5px;" title="Placar Final da Partida (FT)">
+                  ⚽ Placar: <?= htmlspecialchars($placarExibir) ?>
+                </span>
+              <?php endif; ?>
+
               <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Aposta cadastrada e vinculada">
                 🂠 Aposta Registrada
               </span>
@@ -973,10 +989,17 @@ if (!function_exists('formatBrtDate')) {
               </div>
             </div>
 
-            <?php if (!empty($aposta->resultado_detalhado)): ?>
+            <?php 
+              $detalhadoExibir = $aposta->resultado_detalhado ?? '';
+              if (empty($detalhadoExibir) && !empty($placarExibir) && $aposta->status !== 'Pendente') {
+                $detalhadoExibir = "FT | Placar: {$placarExibir} | Status: {$aposta->status}";
+              }
+            ?>
+
+            <?php if (!empty($detalhadoExibir)): ?>
               <div style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: center; gap: 6px;">
                 <i class="bi bi-info-circle-fill text-info"></i>
-                <span><?= htmlspecialchars($aposta->resultado_detalhado) ?></span>
+                <span><?= htmlspecialchars($detalhadoExibir) ?></span>
               </div>
             <?php endif; ?>
 

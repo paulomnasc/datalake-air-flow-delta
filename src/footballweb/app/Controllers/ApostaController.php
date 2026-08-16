@@ -145,7 +145,19 @@ class ApostaController extends BaseController
 
         // Apenas carrega apostas se o usuário possuir tokens
         if ($hasTokens) {
-            $apostas = $this->apostaModel->where('usuario_id', $userId)->orderBy('criado_em', 'DESC')->findAll();
+            $db = \Config\Database::connect();
+            $apostas = $db->query("
+                SELECT 
+                    a.*,
+                    f.goals_home,
+                    f.goals_away,
+                    f.status as fixture_status
+                FROM apostas a
+                LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)
+                WHERE a.usuario_id = ?
+                ORDER BY a.criado_em DESC
+            ", [$userId])->getResultObject();
+
             $resumo  = $this->apostaModel->getResumoUsuario($userId);
         }
 

@@ -256,7 +256,10 @@ $formattedDateHeader = $dateObj ? strftime('%d de %B de %Y', $dateObj->getTimest
 $leagueMap = [
     71  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
     72  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
-    73  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => false],
+    73  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+    74  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+    75  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+    76  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
     94  => ['country' => 'Portugal', 'flag' => '🇵🇹', 'popular' => true],
     39  => ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => true],
     140 => ['country' => 'Espanha', 'flag' => '🇪🇸', 'popular' => true],
@@ -310,6 +313,23 @@ foreach ($fixtures as $fix) {
         $country = $leagueMap[$leagueId]['country'];
         $flag = $leagueMap[$leagueId]['flag'];
         $isPopular = $leagueMap[$leagueId]['popular'];
+    }
+
+    // Fallback por palavra-chave no nome da liga (para garantir que a Série C e torneios brasileiros fiquem sob Brasil)
+    $lNameLow = strtolower($leagueName);
+    if (
+        strpos($lNameLow, 'serie c') !== false || strpos($lNameLow, 'série c') !== false ||
+        strpos($lNameLow, 'serie b') !== false || strpos($lNameLow, 'série b') !== false ||
+        strpos($lNameLow, 'serie a') !== false || strpos($lNameLow, 'série a') !== false ||
+        strpos($lNameLow, 'serie d') !== false || strpos($lNameLow, 'série d') !== false ||
+        strpos($lNameLow, 'brasil') !== false || strpos($lNameLow, 'paulista') !== false ||
+        strpos($lNameLow, 'carioca') !== false || strpos($lNameLow, 'gaúcho') !== false ||
+        strpos($lNameLow, 'gaucho') !== false || strpos($lNameLow, 'mineiro') !== false ||
+        strpos($lNameLow, 'baiano') !== false || strpos($lNameLow, 'pernambucano') !== false
+    ) {
+        $country = 'Brasil';
+        $flag = '🇧🇷';
+        $isPopular = true;
     }
     
     // Agrupa ligas por país
@@ -2270,7 +2290,7 @@ if (!function_exists('getBetDecisionTree')) {
                              $cFlag = $cMapData['flag'] ?? '';
                              if (empty($cName) && !empty($fix->league_name)) {
                                  $lNameLower = strtolower($fix->league_name);
-                                 if (strpos($lNameLower, 'brasil') !== false || strpos($lNameLower, 'copa do brasil') !== false) { $cName = 'Brasil'; $cFlag = '🇧🇷'; }
+                                 if (strpos($lNameLower, 'brasil') !== false || strpos($lNameLower, 'copa do brasil') !== false || strpos($lNameLower, 'serie c') !== false || strpos($lNameLower, 'série c') !== false || strpos($lNameLower, 'serie b') !== false || strpos($lNameLower, 'série b') !== false || strpos($lNameLower, 'serie a') !== false || strpos($lNameLower, 'série a') !== false) { $cName = 'Brasil'; $cFlag = '🇧🇷'; }
                                  elseif (strpos($lNameLower, 'primeira') !== false || strpos($lNameLower, 'portugal') !== false) { $cName = 'Portugal'; $cFlag = '🇵🇹'; }
                                  elseif (strpos($lNameLower, 'argentina') !== false) { $cName = 'Argentina'; $cFlag = '🇦🇷'; }
                                  elseif (strpos($lNameLower, 'allsvenskan') !== false) { $cName = 'Suécia'; $cFlag = '🇸🇪'; }

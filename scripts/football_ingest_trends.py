@@ -57,6 +57,27 @@ def calculate_poisson_under_lines(xc):
         
     return results
 
+def is_women_game(home_team="", away_team="", league_name=""):
+    """
+    Filtra e desconsidera partidas femininas (W, Womens, Feminino, Femenina).
+    """
+    home = str(home_team or "").strip()
+    away = str(away_team or "").strip()
+    league = str(league_name or "").strip()
+
+    for t in (home, away):
+        t_lower = t.lower()
+        if t.endswith(" W") or t.endswith(" (W)") or " (w)" in t_lower or " w " in t_lower or "(w)" in t_lower:
+            return True
+        if "feminino" in t_lower or "women" in t_lower or "femenina" in t_lower:
+            return True
+
+    league_lower = league.lower()
+    if "women" in league_lower or "feminino" in league_lower or "femenina" in league_lower or " w" in league_lower or "(w)" in league_lower:
+        return True
+
+    return False
+
 def _normalize_team_name_for_match(n):
     if not n:
         return ""
@@ -1295,6 +1316,10 @@ def main():
             home_team = f["teams"]["home"]["name"]
             away_team = f["teams"]["away"]["name"]
 
+            # Desconsiderar partidas/ligas femininas (W)
+            if is_women_game(home_team, away_team, league_name):
+                continue
+
             # Sanitização: Corrigir atribuição de liga se a API enviar times da Série B sob Série A (league 71)
             SERIE_B_TEAMS = {"mirassol", "remo", "botafogo sp", "operario", "vila nova", "crb", "ituano", "novorizontino", "brusque", "amazonas", "paysandu"}
             if league_id == 71 and (home_team.lower() in SERIE_B_TEAMS or away_team.lower() in SERIE_B_TEAMS):
@@ -1557,8 +1582,8 @@ def main():
             last_event_str = None
 
             if status not in ['NS', 'PST', 'CANCELLED', 'POSTPONED']:
-                # Se a partida já estiver encerrada e possuir estatísticas salvas no banco local, pula requisições de API para economizar cota
-                has_cached_stats = (status in ['FT', 'AET', 'PEN']) and (f.get('xg_home') is not None and float(f.get('xg_home', 0.0)) > 0.0)
+                # Se a partida já estiver encerrada e possuir estatísticas de cartões salvas no banco local, pula requisições de API para economizar cota
+                has_cached_stats = (status in ['FT', 'AET', 'PEN']) and (f.get('yellow_cards_home') is not None and f.get('yellow_cards_away') is not None and f.get('xg_home') is not None)
                 if not has_cached_stats:
                     # 1. Busca estatísticas oficiais da partida (escanteios, chutes no gol, xG, cartões)
                     try:
@@ -1571,7 +1596,7 @@ def main():
                                 is_home = (t_id == home_team_id)
                                 stats_list = team_st.get("statistics", [])
                                 ck, sg, s_total, xg_val = 0, 0, 0, 0.0
-                                yc, rc = 0, 0
+                                yc, rc = None, None
                                 for s in stats_list:
                                     s_type = (s.get("type") or "").strip()
                                     s_val = s.get("value")
@@ -1608,14 +1633,14 @@ def main():
                                     corners_home = ck
                                     shots_home = sg if sg > 0 else s_total
                                     xg_home = xg_val
-                                    yellow_cards_home = yc
-                                    red_cards_home = rc
+                                    if yc is not None: yellow_cards_home = yc
+                                    if rc is not None: red_cards_home = rc
                                 else:
                                     corners_away = ck
                                     shots_away = sg if sg > 0 else s_total
                                     xg_away = xg_val
-                                    yellow_cards_away = yc
-                                    red_cards_away = rc
+                                    if yc is not None: yellow_cards_away = yc
+                                    if rc is not None: red_cards_away = rc
                     except Exception as e:
                         print(f"Aviso ao buscar estatísticas para partida {fix_id}: {e}")
 
@@ -1663,10 +1688,10 @@ def main():
                                 else:
                                     last_ev_text = f"{time_str} {sub_count}ª Substituição: {team_name_ev} ({player_name})"
                         
-                        yellow_cards_home = max(yellow_cards_home or 0, yh)
-                        yellow_cards_away = max(yellow_cards_away or 0, ya)
-                        red_cards_home = max(red_cards_home or 0, rh)
-                        red_cards_away = max(red_cards_away or 0, ra)
+                        yellow_cards_home = max(yellow_cards_home if yellow_cards_home is not None else 0, yh)
+                        yellow_cards_away = max(yellow_cards_away if yellow_cards_away is not None else 0, ya)
+                        red_cards_home = max(red_cards_home if red_cards_home is not None else 0, rh)
+                        red_cards_away = max(red_cards_away if red_cards_away is not None else 0, ra)
 
                         if goals_list:
                             goal_scorers_str = ", ".join(goals_list)
@@ -1678,6 +1703,8 @@ def main():
 
                 if yellow_cards_home is None: yellow_cards_home = 0
                 if yellow_cards_away is None: yellow_cards_away = 0
+                if red_cards_home is None: red_cards_home = 0
+                if red_cards_away is None: red_cards_away = 0
 
             # Insere ou atualiza a partida com placar, minutos decorridos, cartões, cantos, chutes, xG, Handicap Asiatico e eventos
             for attempt in range(3):
@@ -1703,10 +1730,10 @@ def main():
                             goals_home = COALESCE(VALUES(goals_home), goals_home),
                             goals_away = COALESCE(VALUES(goals_away), goals_away),
                             elapsed = COALESCE(VALUES(elapsed), elapsed),
-                            yellow_cards_home = IF(VALUES(yellow_cards_home) > 0, VALUES(yellow_cards_home), yellow_cards_home),
-                            yellow_cards_away = IF(VALUES(yellow_cards_away) > 0, VALUES(yellow_cards_away), yellow_cards_away),
-                            red_cards_home = IF(VALUES(red_cards_home) IS NOT NULL AND VALUES(red_cards_home) > 0, VALUES(red_cards_home), red_cards_home),
-                            red_cards_away = IF(VALUES(red_cards_away) IS NOT NULL AND VALUES(red_cards_away) > 0, VALUES(red_cards_away), red_cards_away),
+                            yellow_cards_home = COALESCE(VALUES(yellow_cards_home), yellow_cards_home),
+                            yellow_cards_away = COALESCE(VALUES(yellow_cards_away), yellow_cards_away),
+                            red_cards_home = COALESCE(VALUES(red_cards_home), red_cards_home),
+                            red_cards_away = COALESCE(VALUES(red_cards_away), red_cards_away),
                             corners_home = IF(VALUES(corners_home) > 0, VALUES(corners_home), corners_home),
                             corners_away = IF(VALUES(corners_away) > 0, VALUES(corners_away), corners_away),
                             shots_home = IF(VALUES(shots_home) > 0, VALUES(shots_home), shots_home),

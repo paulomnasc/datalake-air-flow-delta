@@ -185,14 +185,29 @@
       <button class="btn btn-sm btn-outline-secondary border-0 text-light-50 p-1" onclick="clearPerfDateFilter()" title="Limpar Filtro de Período"><i class="bi bi-x-circle-fill"></i></button>
     </div>
 
-    <!-- Dynamic Grouping (Eixo X) -->
-    <div class="d-flex align-items-center gap-2">
-      <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;"><i class="bi bi-bar-chart-steps text-warning"></i> Agrupar Eixo X:</span>
-      <select id="perfGroupSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 130px;" onchange="updatePerformanceDashboard()">
-        <option value="dia" selected>📅 Por Dia</option>
-        <option value="semana">🗓️ Por Semana</option>
-        <option value="mes">📆 Por Mês</option>
-      </select>
+    <!-- Status Filter + Dynamic Grouping (Eixo X) -->
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;"><i class="bi bi-funnel-fill text-primary"></i> Status:</span>
+        <select id="perfStatusSelect" class="form-select form-select-sm bg-dark text-primary border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 175px;" onchange="updatePerformanceDashboard()" title="Filtro de Status das Apostas">
+          <option value="concluidas" selected>✅ Concluídas (Encerradas)</option>
+          <option value="all">♾️ Todas (Inc. Pendentes)</option>
+          <option value="Pendente">⏳ Apenas Pendentes</option>
+          <option value="Ganha">🟢 Ganhas / Meio Ganhas</option>
+          <option value="Perdida">🔴 Perdidas / Meio Perdidas</option>
+          <option value="Cashout">💰 Cashout</option>
+          <option value="ANULADA">⚪ Anuladas</option>
+        </select>
+      </div>
+
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;"><i class="bi bi-bar-chart-steps text-warning"></i> Agrupar Eixo X:</span>
+        <select id="perfGroupSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 130px;" onchange="updatePerformanceDashboard()">
+          <option value="dia" selected>📅 Por Dia</option>
+          <option value="semana">🗓️ Por Semana</option>
+          <option value="mes">📆 Por Mês</option>
+        </select>
+      </div>
     </div>
   </div>
 
@@ -279,10 +294,15 @@ const rawBets = <?= json_encode($apostas ?? []) ?>;
 let perfChart = null;
 
 function formatDateYYYYMMDD(d) {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  try {
+    const formatter = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' });
+    return formatter.format(d);
+  } catch (e) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 }
 
 function getPastDateByMonths(months) {
@@ -453,23 +473,63 @@ function computeGrossReturn(item) {
   return 0;
 }
 
+function getBetDateBRT(bet) {
+  if (bet && bet.data_brt_dia) {
+    return bet.data_brt_dia;
+  }
+  const rawDateStr = (bet && (bet.data_hora_jogo || bet.criado_em)) || '';
+  if (!rawDateStr) return '';
+
+  let formattedStr = rawDateStr.trim();
+  if (formattedStr.length === 19 && !formattedStr.includes('T') && !formattedStr.includes('Z')) {
+    formattedStr = formattedStr.replace(' ', 'T') + 'Z';
+  } else if (!formattedStr.endsWith('Z') && !formattedStr.includes('+')) {
+    formattedStr += 'Z';
+  }
+
+  try {
+    const d = new Date(formattedStr);
+    if (isNaN(d.getTime())) return rawDateStr.substring(0, 10);
+    const formatter = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' });
+    return formatter.format(d);
+  } catch (e) {
+    return rawDateStr.substring(0, 10);
+  }
+}
+
 function updatePerformanceDashboard() {
   const startDate = document.getElementById('perfStartDateInput')?.value || '';
   const endDate = document.getElementById('perfEndDateInput')?.value || '';
+  const statusFilter = document.getElementById('perfStatusSelect')?.value || 'concluidas';
   const groupMode = document.getElementById('perfGroupSelect')?.value || 'dia';
 
   const filteredBets = rawBets.filter(bet => {
-    const rawDate = bet.data_hora_jogo || bet.criado_em || '';
-    if (!rawDate) return true;
-    const betDate = rawDate.substring(0, 10);
+    const status = bet.status || 'Pendente';
+    
+    if (statusFilter === 'concluidas') {
+      if (status === 'Pendente') return false;
+    } else if (statusFilter === 'Pendente') {
+      if (status !== 'Pendente') return false;
+    } else if (statusFilter === 'Ganha') {
+      if (status !== 'Ganha' && status !== 'Meio Ganha') return false;
+    } else if (statusFilter === 'Perdida') {
+      if (status !== 'Perdida' && status !== 'Meio Perdida') return false;
+    } else if (statusFilter === 'Cashout') {
+      if (status !== 'Cashout') return false;
+    } else if (statusFilter === 'ANULADA') {
+      if (status !== 'ANULADA') return false;
+    }
+
+    const betDate = getBetDateBRT(bet);
+    if (!betDate) return true;
     if (startDate && betDate < startDate) return false;
     if (endDate && betDate > endDate) return false;
     return true;
   });
 
   filteredBets.sort((a, b) => {
-    const da = (a.data_hora_jogo || a.criado_em || '');
-    const db = (b.data_hora_jogo || b.criado_em || '');
+    const da = (a.data_hora_jogo_brt || a.data_hora_jogo || a.criado_em || '');
+    const db = (b.data_hora_jogo_brt || b.data_hora_jogo || b.criado_em || '');
     return da.localeCompare(db);
   });
 
@@ -478,6 +538,7 @@ function updatePerformanceDashboard() {
   let totalRetorno = 0;
   let totalLucroLiquido = 0;
   let winCount = 0;
+  let decidedCount = 0;
   let settledCount = 0;
 
   const buckets = {};
@@ -492,13 +553,26 @@ function updatePerformanceDashboard() {
     if (status !== 'Pendente') {
       totalApostadoLiquidado += valor;
       settledCount++;
-      if (status === 'Ganha') winCount += 1;
-      else if (status === 'Meio Ganha') winCount += 0.5;
+      if (status === 'Ganha') {
+        winCount += 1.0;
+        decidedCount += 1;
+      } else if (status === 'Meio Ganha') {
+        winCount += 0.75;
+        decidedCount += 1;
+      } else if (status === 'Meio Perdida') {
+        winCount += 0.25;
+        decidedCount += 1;
+      } else if (status === 'Perdida') {
+        decidedCount += 1;
+      } else if (status === 'Cashout') {
+        if (netProfit > 0) winCount += 1.0;
+        decidedCount += 1;
+      }
     }
     totalRetorno += grossReturn;
     totalLucroLiquido += netProfit;
 
-    const rawDate = (bet.data_hora_jogo || bet.criado_em || '').substring(0, 10);
+    const rawDate = getBetDateBRT(bet);
     let key = rawDate || 'Sem Data';
     if (rawDate) {
       if (groupMode === 'semana') {
@@ -520,8 +594,9 @@ function updatePerformanceDashboard() {
   const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
-  const roi = totalApostadoLiquidado > 0 ? (totalLucroLiquido / totalApostadoLiquidado) * 100 : 0;
-  const winRate = settledCount > 0 ? (winCount / settledCount) * 100 : 0;
+  const baseInvestida = (totalApostadoLiquidado > 0) ? totalApostadoLiquidado : totalApostado;
+  const roi = baseInvestida > 0 ? (totalLucroLiquido / baseInvestida) * 100 : 0;
+  const winRate = decidedCount > 0 ? (winCount / decidedCount) * 100 : 0;
 
   document.getElementById('kpiTotalApostado').textContent = formatBrl(totalApostado);
   document.getElementById('kpiTotalRetorno').textContent = formatBrl(totalRetorno);

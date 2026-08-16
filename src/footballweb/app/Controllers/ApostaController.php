@@ -1874,6 +1874,28 @@ class ApostaController extends BaseController
                 ->orderBy('data_hora_jogo', 'ASC')
                 ->orderBy('criado_em', 'ASC')
                 ->findAll();
+
+            $tzUtc = new \DateTimeZone('UTC');
+            $tzBrt = new \DateTimeZone('America/Sao_Paulo');
+
+            foreach ($apostas as &$ap) {
+                $dateToConvert = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : ($ap->criado_em ?? null);
+                if (!empty($dateToConvert)) {
+                    try {
+                        $dt = new \DateTime($dateToConvert, $tzUtc);
+                        $dt->setTimezone($tzBrt);
+                        $ap->data_hora_jogo_brt = $dt->format('Y-m-d H:i:s');
+                        $ap->data_brt_dia = $dt->format('Y-m-d');
+                    } catch (\Exception $e) {
+                        $ap->data_hora_jogo_brt = $dateToConvert;
+                        $ap->data_brt_dia = substr($dateToConvert, 0, 10);
+                    }
+                } else {
+                    $ap->data_hora_jogo_brt = date('Y-m-d H:i:s');
+                    $ap->data_brt_dia = date('Y-m-d');
+                }
+            }
+            unset($ap);
         }
 
         $data = [

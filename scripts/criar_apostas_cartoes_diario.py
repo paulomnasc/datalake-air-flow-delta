@@ -131,13 +131,13 @@ def extract_cards_under_suggestion(prediction_text: str):
     match_xc = re.search(r'xC(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)', prediction_text, re.IGNORECASE)
     exp_cards = float(match_xc.group(1)) if match_xc else None
 
-    # Se xC for muito alto (> 4.80), força NO_BET conforme regra estatística de segurança
-    if exp_cards is not None and exp_cards > 4.80:
+    # Se xC for muito alto (> 5.80), força NO_BET conforme regra estatística de segurança
+    if exp_cards is not None and exp_cards > 5.80:
         return None, None, 'NO_BET', None, None, None, exp_cards
 
-    # 3. Procura por sugestões do tipo: "1ª Opção: Under 5.5 (86.37% | Odd Justa: 1.16)"
+    # 3. Procura por sugestões do tipo: "1ª Opção: Under 7.5 (92.08% | Odd Justa: 1.09)"
     # Ou termos genéricos "Under X.5" ou "Menos de X.5"
-    line_val = 5.5 # Default fallback safe line
+    line_val = 7.5 # Default fallback safe line (Linha Mínima de Segurança Gatekeeper)
 
     match_under_op1 = re.search(r'1ª\s*Opção:\s*Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
     if match_under_op1:
@@ -151,6 +151,11 @@ def extract_cards_under_suggestion(prediction_text: str):
             if match_menos:
                 line_val = float(match_menos.group(1))
 
+    # TRAVA RIGOROSA DO GATEKEEPER (LINHA MÍNIMA UNDER 7.5+):
+    # Linhas inferiores a 7.5 (ex: Under 6.5, 5.5, 4.5) são bloqueadas pelo modelo
+    if line_val < 7.5:
+        return None, None, 'NO_BET', None, None, None, exp_cards
+
     # 4. Cálculo de Probabilidade Poisson & Odd Justa
     if exp_cards is None or exp_cards <= 0:
         exp_cards = 3.50 # baseline seguro
@@ -158,9 +163,9 @@ def extract_cards_under_suggestion(prediction_text: str):
     prob_poisson = calculate_poisson_under_cdf(exp_cards, line_val)
     odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
 
-    # 5. Avaliação do Gatekeeper (Regra de Segurança Under)
-    # xC <= 4.80 e Probabilidade Poisson >= 60%
-    if exp_cards <= 4.80 and prob_poisson >= 60.0:
+    # 5. Avaliação do Gatekeeper (Regra de Segurança Under 7.5+)
+    # xC <= 5.80 e Probabilidade Poisson >= 60%
+    if exp_cards <= 5.80 and prob_poisson >= 60.0:
         status_gk = 'APROVADO'
     else:
         status_gk = 'NO_BET'

@@ -96,17 +96,18 @@ Exemplo de saída recomendada:
 - **Opção Principal:** Under 5.5 Cartões (Probabilidade: 86.37% | Odd Justa: 1.16)
 - **Opção Secundária:** Under 4.5 Cartões (Probabilidade: 72.82% | Odd Justa: 1.37)
 
-### 4.2. Trava do Gatekeeper no Cadastro (Triplo Filtro)
-No cadastro/entrada da aposta no **footballweb**, a validação avalia 3 critérios cumulativos:
+### 4.2. Trava do Gatekeeper no Cadastro (Triplo Filtro & Linha Mínima Under 7.5+)
+No cadastro/entrada da aposta no **footballweb**, a validação avalia 4 critérios cumulativos:
 
 | Filtro | Parâmetro | Validação |
 | :--- | :--- | :--- |
-| **1. Risco Estatístico ($xC$)** | $xC \le 4.20$ | Impede apostas Under em partidas com expectativa alta de faltas/cartões. |
-| **2. Probabilidade Mínima ($P$)** | $P(\text{Under 5.5}) \ge 75\%$ | Garante margem estatística suficiente de acerto. |
-| **3. Retorno Financeiro ($EV$)** | $\text{Odd}_{\text{Casa}} > \text{Odd}_{\text{Fair}}$ ($EV > 0$) | Assegura que a casa está pagando mais do que o risco real da aposta. |
+| **1. Linha Mínima de Segurança** | $\text{Linha} \ge 7.5$ | Bloqueia qualquer aposta em cartões com linha inferior a 7.5 (ex: Under 6.5, 5.5, 4.5). |
+| **2. Risco Estatístico ($xC$)** | $xC \le 5.80$ | Impede apostas Under em partidas com expectativa descontrolada de faltas/cartões. |
+| **3. Probabilidade Mínima ($P$)** | $P(\text{Under 7.5}) \ge 60\%$ | Garante margem estatística suficiente de acerto via Poisson. |
+| **4. Retorno Financeiro ($EV$)** | $\text{Odd}_{\text{Casa}} > \text{Odd}_{\text{Fair}}$ ($EV > 0$) | Assegura que a casa está pagando mais do que o risco real da aposta. |
 
-- **Status `APROVADO`:** Todos os 3 critérios são atendidos. Aposta liberada com selo Green Light.
-- **Status `NO_BET`:** Se qualquer um dos 3 critérios falhar (ex: $xC > 4.20$, $P < 75\%$ ou Odd da Casa caindo abaixo da Odd Justa). A aposta é registrada/notificada como sem valor de mercado.
+- **Status `APROVADO`:** Todos os critérios são atendidos. Aposta liberada com selo Green Light.
+- **Status `NO_BET`:** Se qualquer um dos critérios falhar (ex: linha $< 7.5$, $xC > 5.80$, $P < 60\%$ ou Odd da Casa caindo abaixo da Odd Justa). A aposta é registrada/notificada como sem valor de mercado.
 
 ---
 

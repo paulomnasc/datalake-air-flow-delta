@@ -38,10 +38,10 @@ def calculate_poisson_over_under(xc, line=4.5):
 
 def calculate_poisson_under_lines(xc):
     """
-    Calcula as probabilidades de Under para várias linhas de cartões (3.5, 4.5, 5.5, 6.5) via Poisson.
+    Calcula as probabilidades de Under para várias linhas de cartões (3.5, 4.5, 5.5, 6.5, 7.5, 8.5) via Poisson.
     Retorna um dicionário {linha: prob_under}.
     """
-    lines = [3.5, 4.5, 5.5, 6.5]
+    lines = [3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
     results = {}
     if xc <= 0:
         for l in lines:
@@ -1487,29 +1487,24 @@ def main():
             u45 = under_probs[4.5]
             u55 = under_probs[5.5]
             u65 = under_probs[6.5]
+            u75 = under_probs[7.5]
+            u85 = under_probs[8.5]
             
             over_cards_prob = round(100.0 - u45, 2)
 
-            # POLÍTICA EXCLUSIVA UNDER E TRAVA DE SEGURANÇA NO_BET MULTI-NÍVEL:
+            # POLÍTICA EXCLUSIVA UNDER E TRAVA DE SEGURANÇA GATEKEEPER LINHA MÍNIMA (UNDER 7.5+):
             # Calcula Odds Justas (100 / P) para cada linha
-            odd_u35 = round(100.0 / u35, 2) if u35 > 0 else 99.00
-            odd_u45 = round(100.0 / u45, 2) if u45 > 0 else 99.00
-            odd_u55 = round(100.0 / u55, 2) if u55 > 0 else 99.00
-            odd_u65 = round(100.0 / u65, 2) if u65 > 0 else 99.00
+            odd_u75 = round(100.0 / u75, 2) if u75 > 0 else 99.00
+            odd_u85 = round(100.0 / u85, 2) if u85 > 0 else 99.00
 
-            if exp_cards <= 4.20 and u55 >= 75.0:
-                # Cenário Aprovado pelo Gatekeeper de Cartões
-                op1 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
-                op2 = f"Under 4.5 ({u45}% | Odd Justa: {odd_u45})"
-                prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
-            elif exp_cards <= 4.80:
-                # Cenário de expectativa moderada
-                op1 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
-                op2 = f"Under 6.5 ({u65}% | Odd Justa: {odd_u65})"
+            if exp_cards <= 5.80 and u75 >= 60.0:
+                # Cenário Aprovado pelo Gatekeeper de Cartões (Linha mínima Under 7.5+)
+                op1 = f"Under 7.5 ({u75}% | Odd Justa: {odd_u75})"
+                op2 = f"Under 8.5 ({u85}% | Odd Justa: {odd_u85})"
                 prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
             else:
-                # Trava NO_BET: Risco elevado para entradas Under (xC > 4.20 ou probabilidade < 75%)
-                prediction_text = f"🚫 NO_BET: Partida com Expectativa de Cartões elevada ({exp_cards} cartões). Árbitro {referee_name} ({yellows} amarelos/jogo) e média combinada dos times ({team_cards_combined:.1f}) tornam o Under arriscado. Entrada não recomendada."
+                # Trava NO_BET: Risco elevado para entradas Under (xC > 5.80 ou probabilidade Under 7.5 < 60%)
+                prediction_text = f"🚫 NO_BET: Partida com Expectativa de Cartões elevada ({exp_cards} cartões). Linha de segurança mínima Under 7.5 não atendeu a margem aprovada pelo Gatekeeper."
 
 
 

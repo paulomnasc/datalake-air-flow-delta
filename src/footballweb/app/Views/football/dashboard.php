@@ -394,12 +394,10 @@ if (!function_exists('getBetDecisionTree')) {
             $xc = round(($combinedAvg * 0.50) + ($refAvg * 0.35) + ($foulContext * 0.15), 2);
         }
 
-        $u35 = calculate_poisson_php($xc, 3.5)['under'];
-        $u45 = calculate_poisson_php($xc, 4.5)['under'];
-        $u55 = calculate_poisson_php($xc, 5.5)['under'];
-        $u65 = calculate_poisson_php($xc, 6.5)['under'];
+        $u75 = calculate_poisson_php($xc, 7.5)['under'];
+        $u85 = calculate_poisson_php($xc, 8.5)['under'];
 
-        if ($isNoBet || $xc > 4.80) {
+        if ($isNoBet || $xc > 5.80 || $u75 < 60.0) {
             return [
                 'market'        => 'Entrada Não Recomendada',
                 'line_tag'      => 'NO BET 🚫',
@@ -411,12 +409,12 @@ if (!function_exists('getBetDecisionTree')) {
                 'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
                 'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
                 'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
-                'rationale'     => 'Expectativa de cartões elevada (' . number_format($xc, 2) . ' cartões). Risco elevado para Under e apostas Over bloqueadas pelo sistema.'
+                'rationale'     => 'Expectativa de cartões elevada (' . number_format($xc, 2) . ' cartões). Linha mínima de segurança Under 7.5 não atendeu a margem aprovada pelo Gatekeeper.'
             ];
-        } elseif ($xc <= 3.50) {
+        } else {
             return [
                 'market'        => 'Menos de Cartões',
-                'line_tag'      => 'UNDER 4.5 🛡️',
+                'line_tag'      => 'UNDER 7.5 🛡️',
                 'badge_bg'      => 'background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5);',
                 'box_border'    => '#10b981',
                 'region'        => 'Expectativa de Cartões',
@@ -425,35 +423,7 @@ if (!function_exists('getBetDecisionTree')) {
                 'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
                 'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
                 'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
-                'rationale'     => 'Excelente histórico disciplinado (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 4.5 (' . $u45 . '%) | Opção 2: Under 5.5 (' . $u55 . '%).'
-            ];
-        } elseif ($xc <= 4.20) {
-            return [
-                'market'        => 'Menos de Cartões',
-                'line_tag'      => 'UNDER 5.5 🛡️',
-                'badge_bg'      => 'background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5);',
-                'box_border'    => '#10b981',
-                'region'        => 'Expectativa de Cartões',
-                'region_short'  => 'Exp. Cartões: ' . number_format($xc, 2),
-                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
-                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
-                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
-                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
-                'rationale'     => 'Baixa expectativa de cartões (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 5.5 (' . $u55 . '%) | Opção 2: Under 4.5 (' . $u45 . '%).'
-            ];
-        } else { // 4.20 < $xc <= 4.80
-            return [
-                'market'        => 'Menos de Cartões',
-                'line_tag'      => 'UNDER 6.5 🛡️',
-                'badge_bg'      => 'background: rgba(245, 158, 11, 0.25); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.5);',
-                'box_border'    => '#f59e0b',
-                'region'        => 'Expectativa de Cartões',
-                'region_short'  => 'Exp. Cartões: ' . number_format($xc, 2),
-                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
-                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
-                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
-                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
-                'rationale'     => 'Expectativa moderada (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 6.5 (' . $u65 . '%) | Opção 2: Under 5.5 (' . $u55 . '%).'
+                'rationale'     => 'Margem de segurança aprovada pelo Gatekeeper (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 7.5 (' . $u75 . '%) | Opção 2: Under 8.5 (' . $u85 . '%).'
             ];
         }
     }
@@ -3097,8 +3067,10 @@ if (!function_exists('getBetDecisionTree')) {
 
                                     <div class="bet-referee-actions">
                                         <?php
-                                            $cardPalpite = 'Menos de 5.5';
-                                            if (!empty($fix->prediction_text) && preg_match('/Under\s*(\d+\.\d+|\d+)/i', $fix->prediction_text, $mPalpite)) {
+                                            $cardPalpite = 'Menos de 7.5';
+                                            if (!empty($fix->prediction_text) && preg_match('/1ª\s*Opção:\s*Under\s*(\d+(?:\.\d+)?)/i', $fix->prediction_text, $mPalpite)) {
+                                                $cardPalpite = 'Menos de ' . $mPalpite[1];
+                                            } elseif (!empty($fix->prediction_text) && preg_match('/Under\s*(\d+\.\d+|\d+)/i', $fix->prediction_text, $mPalpite)) {
                                                 $cardPalpite = 'Menos de ' . $mPalpite[1];
                                             }
                                             $ahPalpiteClean = $fix->home_team . ' 0.0 (Empate Anula)';

@@ -151,9 +151,9 @@ def extract_cards_under_suggestion(prediction_text: str):
             if match_menos:
                 line_val = float(match_menos.group(1))
 
-    # TRAVA RIGOROSA DO GATEKEEPER (LINHA MÍNIMA UNDER 7.5+):
-    # Linhas inferiores a 7.5 (ex: Under 6.5, 5.5, 4.5) são bloqueadas pelo modelo
-    if line_val < 7.5:
+    # TRAVA RIGOROSA DO GATEKEEPER (LINHA MÍNIMA UNDER 6.5+):
+    # Linhas inferiores a 6.5 (ex: Under 4.5, Under 5.5) são bloqueadas como NO_BET por alto risco
+    if line_val < 6.5:
         return None, None, 'NO_BET', None, None, None, exp_cards
 
     # 4. Cálculo de Probabilidade Poisson & Odd Justa
@@ -163,7 +163,7 @@ def extract_cards_under_suggestion(prediction_text: str):
     prob_poisson = calculate_poisson_under_cdf(exp_cards, line_val)
     odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
 
-    # 5. Avaliação do Gatekeeper (Regra de Segurança Under 7.5+)
+    # 5. Avaliação do Gatekeeper (Regra de Segurança Under 6.5+)
     # xC <= 5.80 e Probabilidade Poisson >= 60%
     if exp_cards <= 5.80 and prob_poisson >= 60.0:
         status_gk = 'APROVADO'

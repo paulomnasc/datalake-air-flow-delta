@@ -254,83 +254,262 @@ $formattedDateHeader = $dateObj ? strftime('%d de %B de %Y', $dateObj->getTimest
 
 // Mapeamento de League ID para País e Bandeira/Ícone (estilo Betano)
 $leagueMap = [
-    71  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
-    72  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
-    73  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
-    74  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
-    75  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
-    76  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
-    94  => ['country' => 'Portugal', 'flag' => '🇵🇹', 'popular' => true],
-    39  => ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => true],
-    140 => ['country' => 'Espanha', 'flag' => '🇪🇸', 'popular' => true],
-    135 => ['country' => 'Itália', 'flag' => '🇮🇹', 'popular' => true],
-    78  => ['country' => 'Alemanha', 'flag' => '🇩🇪', 'popular' => true],
-    88  => ['country' => 'Holanda', 'flag' => '🇳🇱', 'popular' => true],
-    262 => ['country' => 'México', 'flag' => '🇲🇽', 'popular' => true],
-    128 => ['country' => 'Argentina', 'flag' => '🇦🇷', 'popular' => true],
-    253 => ['country' => 'EUA', 'flag' => '🇺🇸', 'popular' => true],
-    113 => ['country' => 'Suécia', 'flag' => '🇸🇪', 'popular' => true],
-    103 => ['country' => 'Noruega', 'flag' => '🇳🇴', 'popular' => true],
-    244 => ['country' => 'Finlândia', 'flag' => '🇫🇮', 'popular' => false],
-    283 => ['country' => 'Romênia', 'flag' => '🇷🇴', 'popular' => false],
-    286 => ['country' => 'Sérvia', 'flag' => '🇷🇸', 'popular' => false],
-    281 => ['country' => 'Peru', 'flag' => '🇵🇪', 'popular' => false],
-    242 => ['country' => 'Equador', 'flag' => '🇪🇨', 'popular' => false],
-    268 => ['country' => 'Uruguai', 'flag' => '🇺🇾', 'popular' => false],
-    265 => ['country' => 'Chile', 'flag' => '🇨🇱', 'popular' => false],
-    239 => ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false],
-    169 => ['country' => 'China', 'flag' => '🇨🇳', 'popular' => false],
-    292 => ['country' => 'Coreia do Sul', 'flag' => '🇰🇷', 'popular' => false],
-    98  => ['country' => 'Japão', 'flag' => '🇯🇵', 'popular' => false],
-    307 => ['country' => 'Arábia Saudita', 'flag' => '🇸🇦', 'popular' => false],
-    203 => ['country' => 'Turquia', 'flag' => '🇹🇷', 'popular' => false],
-    207 => ['country' => 'Suíça', 'flag' => '🇨🇭', 'popular' => false],
-    144 => ['country' => 'Bélgica', 'flag' => '🇧🇪', 'popular' => false],
-    119 => ['country' => 'Dinamarca', 'flag' => '🇩🇰', 'popular' => false],
-    218 => ['country' => 'Áustria', 'flag' => '🇦🇹', 'popular' => false],
-    197 => ['country' => 'Grécia', 'flag' => '🇬🇷', 'popular' => false],
-    2   => ['country' => 'Copas Continentais', 'flag' => '🏆', 'popular' => false],
-    13  => ['country' => 'Copas Continentais', 'flag' => '🏆', 'popular' => false],
-    3   => ['country' => 'Copas Continentais', 'flag' => '🏆', 'popular' => false],
-    11  => ['country' => 'Copas Continentais', 'flag' => '🏆', 'popular' => false],
-    1   => ['country' => 'Mundo', 'flag' => '🌍', 'popular' => false]
+    71   => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+    72   => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+    73   => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+    74   => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+    75   => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+    76   => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+    94   => ['country' => 'Portugal', 'flag' => '🇵🇹', 'popular' => true],
+    95   => ['country' => 'Portugal', 'flag' => '🇵🇹', 'popular' => false],
+    96   => ['country' => 'Portugal', 'flag' => '🇵🇹', 'popular' => false],
+    39   => ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => true],
+    40   => ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => false],
+    41   => ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => false],
+    42   => ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => false],
+    45   => ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => false],
+    48   => ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => false],
+    140  => ['country' => 'Espanha', 'flag' => '🇪🇸', 'popular' => true],
+    141  => ['country' => 'Espanha', 'flag' => '🇪🇸', 'popular' => false],
+    143  => ['country' => 'Espanha', 'flag' => '🇪🇸', 'popular' => false],
+    135  => ['country' => 'Itália', 'flag' => '🇮🇹', 'popular' => true],
+    136  => ['country' => 'Itália', 'flag' => '🇮🇹', 'popular' => false],
+    137  => ['country' => 'Itália', 'flag' => '🇮🇹', 'popular' => false],
+    78   => ['country' => 'Alemanha', 'flag' => '🇩🇪', 'popular' => true],
+    79   => ['country' => 'Alemanha', 'flag' => '🇩🇪', 'popular' => false],
+    81   => ['country' => 'Alemanha', 'flag' => '🇩🇪', 'popular' => false],
+    61   => ['country' => 'França', 'flag' => '🇫🇷', 'popular' => true],
+    62   => ['country' => 'França', 'flag' => '🇫🇷', 'popular' => false],
+    66   => ['country' => 'França', 'flag' => '🇫🇷', 'popular' => false],
+    88   => ['country' => 'Holanda', 'flag' => '🇳🇱', 'popular' => true],
+    89   => ['country' => 'Holanda', 'flag' => '🇳🇱', 'popular' => false],
+    90   => ['country' => 'Holanda', 'flag' => '🇳🇱', 'popular' => false],
+    262  => ['country' => 'México', 'flag' => '🇲🇽', 'popular' => true],
+    263  => ['country' => 'México', 'flag' => '🇲🇽', 'popular' => false],
+    128  => ['country' => 'Argentina', 'flag' => '🇦🇷', 'popular' => true],
+    129  => ['country' => 'Argentina', 'flag' => '🇦🇷', 'popular' => false],
+    130  => ['country' => 'Argentina', 'flag' => '🇦🇷', 'popular' => false],
+    253  => ['country' => 'EUA', 'flag' => '🇺🇸', 'popular' => true],
+    254  => ['country' => 'EUA', 'flag' => '🇺🇸', 'popular' => false],
+    113  => ['country' => 'Suécia', 'flag' => '🇸🇪', 'popular' => true],
+    114  => ['country' => 'Suécia', 'flag' => '🇸🇪', 'popular' => false],
+    103  => ['country' => 'Noruega', 'flag' => '🇳🇴', 'popular' => true],
+    104  => ['country' => 'Noruega', 'flag' => '🇳🇴', 'popular' => false],
+    244  => ['country' => 'Finlândia', 'flag' => '🇫🇮', 'popular' => false],
+    283  => ['country' => 'Romênia', 'flag' => '🇷🇴', 'popular' => false],
+    286  => ['country' => 'Sérvia', 'flag' => '🇷🇸', 'popular' => false],
+    281  => ['country' => 'Peru', 'flag' => '🇵🇪', 'popular' => false],
+    242  => ['country' => 'Equador', 'flag' => '🇪🇨', 'popular' => false],
+    917  => ['country' => 'Equador', 'flag' => '🇪🇨', 'popular' => false],
+    268  => ['country' => 'Uruguai', 'flag' => '🇺🇾', 'popular' => false],
+    265  => ['country' => 'Chile', 'flag' => '🇨🇱', 'popular' => false],
+    239  => ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false],
+    169  => ['country' => 'China', 'flag' => '🇨🇳', 'popular' => false],
+    292  => ['country' => 'Coreia do Sul', 'flag' => '🇰🇷', 'popular' => false],
+    98   => ['country' => 'Japão', 'flag' => '🇯🇵', 'popular' => false],
+    307  => ['country' => 'Arábia Saudita', 'flag' => '🇸🇦', 'popular' => false],
+    203  => ['country' => 'Turquia', 'flag' => '🇹🇷', 'popular' => false],
+    207  => ['country' => 'Suíça', 'flag' => '🇨🇭', 'popular' => false],
+    144  => ['country' => 'Bélgica', 'flag' => '🇧🇪', 'popular' => false],
+    119  => ['country' => 'Dinamarca', 'flag' => '🇩🇰', 'popular' => false],
+    121  => ['country' => 'Dinamarca', 'flag' => '🇩🇰', 'popular' => false],
+    218  => ['country' => 'Áustria', 'flag' => '🇦🇹', 'popular' => false],
+    197  => ['country' => 'Grécia', 'flag' => '🇬🇷', 'popular' => false],
+    106  => ['country' => 'Polônia', 'flag' => '🇵🇱', 'popular' => false],
+    345  => ['country' => 'República Tcheca', 'flag' => '🇨🇿', 'popular' => false],
+    501  => ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false],
+
+    // Competições Internacionais -> INTERNACIONAL
+    1    => ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => false],
+    2    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    3    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    4    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    5    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    9    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    10   => ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => false],
+    11   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    13   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    15   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    17   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    18   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    531  => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    667  => ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => false],
+    772  => ['country' => 'INTERNACIONAL', 'flag' => '🌎', 'popular' => false],
+    848  => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    1028 => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
 ];
+
+if (!function_exists('resolveLeagueCountryAndFlag')) {
+    function resolveLeagueCountryAndFlag($leagueId, $leagueName, $leagueMap) {
+        $lId = (int)$leagueId;
+        if (isset($leagueMap[$lId])) {
+            return [
+                'country' => $leagueMap[$lId]['country'],
+                'flag'    => $leagueMap[$lId]['flag'],
+                'popular' => $leagueMap[$lId]['popular'] ?? false
+            ];
+        }
+
+        $lNameLower = strtolower($leagueName ?? '');
+
+        // 1. Checa competições internacionais por palavra-chave
+        if (
+            strpos($lNameLower, 'champions league') !== false ||
+            strpos($lNameLower, 'europa league') !== false ||
+            strpos($lNameLower, 'conference league') !== false ||
+            strpos($lNameLower, 'libertadores') !== false ||
+            strpos($lNameLower, 'sudamericana') !== false ||
+            strpos($lNameLower, 'world cup') !== false ||
+            strpos($lNameLower, 'copa do mundo') !== false ||
+            strpos($lNameLower, 'friendlies') !== false ||
+            strpos($lNameLower, 'amistoso') !== false ||
+            strpos($lNameLower, 'leagues cup') !== false ||
+            strpos($lNameLower, 'nations league') !== false ||
+            strpos($lNameLower, 'copa america') !== false ||
+            strpos($lNameLower, 'euro') !== false ||
+            strpos($lNameLower, 'recopa') !== false ||
+            strpos($lNameLower, 'concacaf') !== false ||
+            strpos($lNameLower, 'afc') !== false ||
+            strpos($lNameLower, 'caf') !== false ||
+            strpos($lNameLower, 'uefa') !== false ||
+            strpos($lNameLower, 'conmebol') !== false ||
+            strpos($lNameLower, 'internacional') !== false ||
+            strpos($lNameLower, 'international') !== false
+        ) {
+            return ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => false];
+        }
+
+        // 2. Checa países por palavra-chave
+        if (
+            strpos($lNameLower, 'brasil') !== false || strpos($lNameLower, 'copa do brasil') !== false ||
+            strpos($lNameLower, 'serie c') !== false || strpos($lNameLower, 'série c') !== false ||
+            strpos($lNameLower, 'serie b') !== false || strpos($lNameLower, 'série b') !== false ||
+            strpos($lNameLower, 'serie a') !== false || strpos($lNameLower, 'série a') !== false ||
+            strpos($lNameLower, 'serie d') !== false || strpos($lNameLower, 'série d') !== false ||
+            strpos($lNameLower, 'paulista') !== false || strpos($lNameLower, 'carioca') !== false ||
+            strpos($lNameLower, 'gaúcho') !== false || strpos($lNameLower, 'gaucho') !== false ||
+            strpos($lNameLower, 'mineiro') !== false || strpos($lNameLower, 'baiano') !== false ||
+            strpos($lNameLower, 'pernambucano') !== false
+        ) {
+            return ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'primeira') !== false || strpos($lNameLower, 'portugal') !== false) {
+            return ['country' => 'Portugal', 'flag' => '🇵🇹', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'england') !== false || strpos($lNameLower, 'premier league') !== false || strpos($lNameLower, 'championship') !== false || strpos($lNameLower, 'league one') !== false || strpos($lNameLower, 'league two') !== false) {
+            return ['country' => 'Inglaterra', 'flag' => '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'espanha') !== false || strpos($lNameLower, 'spain') !== false || strpos($lNameLower, 'la liga') !== false || strpos($lNameLower, 'segunda divisi') !== false) {
+            return ['country' => 'Espanha', 'flag' => '🇪🇸', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'itália') !== false || strpos($lNameLower, 'italia') !== false || strpos($lNameLower, 'coppa italia') !== false) {
+            return ['country' => 'Itália', 'flag' => '🇮🇹', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'bundesliga') !== false || strpos($lNameLower, 'alemanha') !== false || strpos($lNameLower, 'germany') !== false) {
+            return ['country' => 'Alemanha', 'flag' => '🇩🇪', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'frança') !== false || strpos($lNameLower, 'france') !== false || strpos($lNameLower, 'ligue 1') !== false || strpos($lNameLower, 'ligue 2') !== false) {
+            return ['country' => 'França', 'flag' => '🇫🇷', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'eredivisie') !== false || strpos($lNameLower, 'holanda') !== false || strpos($lNameLower, 'eerste divisie') !== false) {
+            return ['country' => 'Holanda', 'flag' => '🇳🇱', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'argentina') !== false || strpos($lNameLower, 'liga profesional') !== false || strpos($lNameLower, 'primera nacional') !== false) {
+            return ['country' => 'Argentina', 'flag' => '🇦🇷', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'mls') !== false || strpos($lNameLower, 'major league') !== false || strpos($lNameLower, 'usa') !== false) {
+            return ['country' => 'EUA', 'flag' => '🇺🇸', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'méxico') !== false || strpos($lNameLower, 'mexico') !== false || strpos($lNameLower, 'liga mx') !== false) {
+            return ['country' => 'México', 'flag' => '🇲🇽', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'allsvenskan') !== false || strpos($lNameLower, 'suécia') !== false || strpos($lNameLower, 'superettan') !== false) {
+            return ['country' => 'Suécia', 'flag' => '🇸🇪', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'eliteserien') !== false || strpos($lNameLower, 'noruega') !== false) {
+            return ['country' => 'Noruega', 'flag' => '🇳🇴', 'popular' => true];
+        }
+        if (strpos($lNameLower, 'veikkausliiga') !== false || strpos($lNameLower, 'finlândia') !== false) {
+            return ['country' => 'Finlândia', 'flag' => '🇫🇮', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'ekstraklasa') !== false || strpos($lNameLower, 'polônia') !== false) {
+            return ['country' => 'Polônia', 'flag' => '🇵🇱', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'superliga') !== false || strpos($lNameLower, 'dinamarca') !== false) {
+            return ['country' => 'Dinamarca', 'flag' => '🇩🇰', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'jupiler') !== false || strpos($lNameLower, 'bélgica') !== false) {
+            return ['country' => 'Bélgica', 'flag' => '🇧🇪', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'japan') !== false || strpos($lNameLower, 'j1') !== false || strpos($lNameLower, 'japão') !== false) {
+            return ['country' => 'Japão', 'flag' => '🇯🇵', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'k league') !== false || strpos($lNameLower, 'coreia') !== false) {
+            return ['country' => 'Coreia do Sul', 'flag' => '🇰🇷', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'pro league') !== false || strpos($lNameLower, 'saudi') !== false || strpos($lNameLower, 'arábia') !== false) {
+            return ['country' => 'Arábia Saudita', 'flag' => '🇸🇦', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'süper lig') !== false || strpos($lNameLower, 'turquia') !== false) {
+            return ['country' => 'Turquia', 'flag' => '🇹🇷', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'chile') !== false) {
+            return ['country' => 'Chile', 'flag' => '🇨🇱', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'uruguai') !== false || strpos($lNameLower, 'uruguay') !== false) {
+            return ['country' => 'Uruguai', 'flag' => '🇺🇾', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'ecuador') !== false || strpos($lNameLower, 'equador') !== false) {
+            return ['country' => 'Equador', 'flag' => '🇪🇨', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'colômbia') !== false || strpos($lNameLower, 'colombia') !== false) {
+            return ['country' => 'Colômbia', 'flag' => '🇨🇴', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'peru') !== false) {
+            return ['country' => 'Peru', 'flag' => '🇵🇪', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'paraguay') !== false || strpos($lNameLower, 'paraguai') !== false) {
+            return ['country' => 'Paraguai', 'flag' => '🇵🇾', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'romênia') !== false || strpos($lNameLower, 'romenia') !== false || strpos($lNameLower, 'liga i') !== false) {
+            return ['country' => 'Romênia', 'flag' => '🇷🇴', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'sérvia') !== false || strpos($lNameLower, 'servia') !== false) {
+            return ['country' => 'Sérvia', 'flag' => '🇷🇸', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'china') !== false) {
+            return ['country' => 'China', 'flag' => '🇨🇳', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'suíça') !== false || strpos($lNameLower, 'suica') !== false) {
+            return ['country' => 'Suíça', 'flag' => '🇨🇭', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'áustria') !== false || strpos($lNameLower, 'austria') !== false) {
+            return ['country' => 'Áustria', 'flag' => '🇦🇹', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'grécia') !== false || strpos($lNameLower, 'grecia') !== false) {
+            return ['country' => 'Grécia', 'flag' => '🇬🇷', 'popular' => false];
+        }
+        if (strpos($lNameLower, 'tcheca') !== false || strpos($lNameLower, 'czech') !== false) {
+            return ['country' => 'República Tcheca', 'flag' => '🇨🇿', 'popular' => false];
+        }
+
+        // Fallback default: INTERNACIONAL se não houver país identificado
+        return ['country' => 'INTERNACIONAL', 'flag' => '🌐', 'popular' => false];
+    }
+}
 
 // Organiza as partidas e ligas por país/região
 $groupedLeagues = [];
 $popularLeagues = [];
 
 foreach ($fixtures as $fix) {
-    $leagueId = (int)$fix->league_id;
-    $leagueName = $fix->league_name;
+    $leagueId = (int)($fix->league_id ?? 0);
+    $leagueName = $fix->league_name ?? '';
     
-    // Fallback caso não esteja no mapeamento
-    $country = 'Outros';
-    $flag = '🏳️';
-    $isPopular = false;
-    
-    if (isset($leagueMap[$leagueId])) {
-        $country = $leagueMap[$leagueId]['country'];
-        $flag = $leagueMap[$leagueId]['flag'];
-        $isPopular = $leagueMap[$leagueId]['popular'];
-    }
-
-    // Fallback por palavra-chave no nome da liga (para garantir que a Série C e torneios brasileiros fiquem sob Brasil)
-    $lNameLow = strtolower($leagueName);
-    if (
-        strpos($lNameLow, 'serie c') !== false || strpos($lNameLow, 'série c') !== false ||
-        strpos($lNameLow, 'serie b') !== false || strpos($lNameLow, 'série b') !== false ||
-        strpos($lNameLow, 'serie a') !== false || strpos($lNameLow, 'série a') !== false ||
-        strpos($lNameLow, 'serie d') !== false || strpos($lNameLow, 'série d') !== false ||
-        strpos($lNameLow, 'brasil') !== false || strpos($lNameLow, 'paulista') !== false ||
-        strpos($lNameLow, 'carioca') !== false || strpos($lNameLow, 'gaúcho') !== false ||
-        strpos($lNameLow, 'gaucho') !== false || strpos($lNameLow, 'mineiro') !== false ||
-        strpos($lNameLow, 'baiano') !== false || strpos($lNameLow, 'pernambucano') !== false
-    ) {
-        $country = 'Brasil';
-        $flag = '🇧🇷';
-        $isPopular = true;
-    }
+    $leagueInfo = resolveLeagueCountryAndFlag($leagueId, $leagueName, $leagueMap);
+    $country = $leagueInfo['country'];
+    $flag = $leagueInfo['flag'];
+    $isPopular = $leagueInfo['popular'];
     
     // Agrupa ligas por país
     if (!isset($groupedLeagues[$country])) {
@@ -2238,6 +2417,11 @@ if (!function_exists('getBetDecisionTree')) {
                             $cardIndex++;
                             
                              $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']);
+                             $statusClean = strtoupper($fix->status);
+                             $leagueInfo = resolveLeagueCountryAndFlag($fix->league_id ?? 0, $fix->league_name ?? '', $leagueMap ?? []);
+                             $cName = $leagueInfo['country'];
+                             $cFlag = $leagueInfo['flag'];
+
                              if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {
                                  $elapsedClass = 'pst';
                                  $elapsedDisplay = '⚠️ ADIADO';
@@ -2254,37 +2438,16 @@ if (!function_exists('getBetDecisionTree')) {
                              $isFixtureInAnyBets  = in_array((int)$fix->fixture_id, $allBetFixtureIds ?? []);
                              $hasAposta = $isFixtureInUserBets || $isFixtureInAnyBets;
 
-                             $lId = (int)($fix->league_id ?? 0);
-                             $cMapData = $leagueMap[$lId] ?? null;
-                             $cName = $cMapData['country'] ?? '';
-                             $cFlag = $cMapData['flag'] ?? '';
-                             if (empty($cName) && !empty($fix->league_name)) {
-                                 $lNameLower = strtolower($fix->league_name);
-                                 if (strpos($lNameLower, 'brasil') !== false || strpos($lNameLower, 'copa do brasil') !== false || strpos($lNameLower, 'serie c') !== false || strpos($lNameLower, 'série c') !== false || strpos($lNameLower, 'serie b') !== false || strpos($lNameLower, 'série b') !== false || strpos($lNameLower, 'serie a') !== false || strpos($lNameLower, 'série a') !== false) { $cName = 'Brasil'; $cFlag = '🇧🇷'; }
-                                 elseif (strpos($lNameLower, 'primeira') !== false || strpos($lNameLower, 'portugal') !== false) { $cName = 'Portugal'; $cFlag = '🇵🇹'; }
-                                 elseif (strpos($lNameLower, 'argentina') !== false) { $cName = 'Argentina'; $cFlag = '🇦🇷'; }
-                                 elseif (strpos($lNameLower, 'allsvenskan') !== false) { $cName = 'Suécia'; $cFlag = '🇸🇪'; }
-                                 elseif (strpos($lNameLower, 'eliteserien') !== false) { $cName = 'Noruega'; $cFlag = '🇳🇴'; }
-                                 elseif (strpos($lNameLower, 'veikkausliiga') !== false) { $cName = 'Finlândia'; $cFlag = '🇫🇮'; }
-                                 elseif (strpos($lNameLower, 'eredivisie') !== false) { $cName = 'Holanda'; $cFlag = '🇳🇱'; }
-                                 elseif (strpos($lNameLower, 'bundesliga') !== false) { $cName = 'Alemanha'; $cFlag = '🇩🇪'; }
-                                 elseif (strpos($lNameLower, 'mls') !== false || strpos($lNameLower, 'major league') !== false) { $cName = 'EUA'; $cFlag = '🇺🇸'; }
-                                 elseif (strpos($lNameLower, 'jupiler') !== false) { $cName = 'Bélgica'; $cFlag = '🇧🇪'; }
-                                 elseif (strpos($lNameLower, 'japan') !== false || strpos($lNameLower, 'j1') !== false) { $cName = 'Japão'; $cFlag = '🇯🇵'; }
-                                 elseif (strpos($lNameLower, 'k league') !== false) { $cName = 'Coreia do Sul'; $cFlag = '🇰🇷'; }
-                             }
-                             ?>
-                             <?php
                              $finishedStatusesList = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
                              $isPostponedCard = in_array($statusClean, ['PST', 'CANCELLED', 'POSTPONED', 'CANC']);
                              $isFinishedCard = in_array($statusClean, $finishedStatusesList) || ($fix->goals_home !== null && !$isLiveMatch && !$isPostponedCard) || (isset($diffMins) && $diffMins > 120 && !$isLiveMatch && !$isPostponedCard);
                              ?>
-                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars(($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
+                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->league_name ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
                                     <div class="bet-card-header">
-                                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; max-width: 68%;">
+                                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; max-width: 70%;">
                                             <span class="bet-league-badge" title="<?= htmlspecialchars((!empty($cName) ? $cName . ' - ' : '') . $fix->league_name) ?>">
                                                 <?= !empty($cFlag) ? $cFlag . ' ' : '' ?><?= !empty($cName) ? htmlspecialchars($cName) . ' • ' : '' ?><?= htmlspecialchars($fix->league_name) ?>
                                             </span>

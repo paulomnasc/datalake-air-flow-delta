@@ -16,7 +16,13 @@ class ReajusteItemContratoController extends BaseController
 
     public function add()
     {
-        $data = [];
+        $contratoModel = new \App\Models\ContratoModel();
+        $itemContratoModel = new \App\Models\ItemContratoModel();
+
+        $data = [
+            'contrato_list' => $contratoModel->findAll(),
+            'item_contrato_list' => $itemContratoModel->listWithContrato()
+        ];
 
         return view('addReajusteItemContrato', $data);
     }
@@ -27,7 +33,20 @@ class ReajusteItemContratoController extends BaseController
         $model = new ReajusteItemContratoModel();
         $record = $model->find($id);
 
-        $data = ['record' => $record];
+        $contratoModel = new \App\Models\ContratoModel();
+        $itemContratoModel = new \App\Models\ItemContratoModel();
+
+        $itemRecord = null;
+        if ($record && !empty($record->id_item_contrato)) {
+            $itemRecord = $itemContratoModel->find($record->id_item_contrato);
+        }
+
+        $data = [
+            'record' => $record,
+            'selected_id_contrato' => $itemRecord ? $itemRecord->id_contrato : null,
+            'contrato_list' => $contratoModel->findAll(),
+            'item_contrato_list' => $itemContratoModel->listWithContrato()
+        ];
 
         return view('updReajusteItemContrato', $data);
     }

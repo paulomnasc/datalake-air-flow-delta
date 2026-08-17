@@ -20,7 +20,7 @@ require VIEWPATH.'/header.php';
                 <tr>
                     <th>ID</th>
                     <th>Contrato</th>
-                    <th>HorasAlocadas</th><th>NupSei</th><th>DataEmissao</th><th>DataAceite</th><th>Status</th>
+                    <th>HorasAlocadas</th><th>NupSei</th><th>DataEmissao</th><th>DataAceite</th><th>Valor Total (R$)</th><th>Status</th>
                     <th>Clone</th>
                     <th>Ações</th>
                 </tr>
@@ -30,7 +30,7 @@ require VIEWPATH.'/header.php';
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
                     <td> <?php echo esc($item->Numero_Contrato ?? 'Nenhum') ?> </td>
-                    <td> <?php echo $item->Horas_Alocadas ?> </td><td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->Data_Emissao ?> </td><td> <?php echo $item->Data_Aceite ?> </td><td> <?php echo esc($item->status ?? 'Rascunho') ?> </td>
+                    <td> <?php echo $item->Horas_Alocadas ?> </td><td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->Data_Emissao ?> </td><td> <?php echo $item->Data_Aceite ?> </td><td> R$ <?php echo number_format($item->valor_total ?? 0, 2, ',', '.'); ?> </td><td> <?php echo esc($item->status ?? 'Rascunho') ?> </td>
                     <td>
                         <form action="<?php echo site_url('cloneOrdemServico/' . $item->id); ?>" method="post">
                             <button class="clone-button" type="submit" title="Clonar (Duplicar como Rascunho)">📋</button>

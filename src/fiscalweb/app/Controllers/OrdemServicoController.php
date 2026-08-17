@@ -110,9 +110,57 @@ class OrdemServicoController extends BaseController
     public function list()  
     {
         $model = new OrdemServicoModel();
-        return $model->select('ordem_servico.*, contrato.descricao as Numero_Contrato')
-                     ->join('contrato', 'contrato.id = ordem_servico.id_contrato', 'left')
-                     ->findAll();
+        $list = $model->select('ordem_servico.*, contrato.descricao as Numero_Contrato')
+                      ->join('contrato', 'contrato.id = ordem_servico.id_contrato', 'left')
+                      ->findAll();
+
+        $db = \Config\Database::connect();
+
+        foreach ($list as &$osItem) {
+            $dataEmissao = !empty($osItem->Data_Emissao) ? $osItem->Data_Emissao : (!empty($osItem->data_emissao) ? $osItem->data_emissao : date('Y-m-d'));
+            
+            $builder = $db->table('os_item_os oio');
+            $builder->select('
+                io.Quantidade_Horas as quantidade_horas, 
+                s.remuneracao, 
+                s.base_horas_complexidade,
+                mc.sigla as sigla_metrica,
+                (SELECT valor_item_contrato 
+                 FROM reajuste_item_contrato 
+                 WHERE id_item_contrato = cs.id_item_contrato 
+                 AND data_reajuste_item_contrato <= ' . $db->escape($dataEmissao) . ' 
+                 ORDER BY data_reajuste_item_contrato DESC LIMIT 1) as valor_item_contrato
+            ');
+            $builder->join('item_os io', 'io.id = oio.id_item_os');
+            $builder->join('servico s', 's.id = io.id_servico', 'left');
+            $builder->join('atividade_macro am', 'am.id = s.id_atividade_macro', 'left');
+            $builder->join('area_atuacao aa', 'aa.id = am.id_area_atuacao', 'left');
+            $builder->join('catalogo_servicos cs', 'cs.id = aa.id_catalogo_servicos', 'left');
+            $builder->join('item_contrato ic', 'ic.id = cs.id_item_contrato', 'left');
+            $builder->join('metrica_contrato mc', 'mc.id = ic.id_metrica', 'left');
+            $builder->where('oio.id_os', $osItem->id);
+            $itens = $builder->get()->getResult();
+            
+            $totalOs = 0;
+            foreach ($itens as $item) {
+                $valContrato = isset($item->valor_item_contrato) ? (float)$item->valor_item_contrato : 0;
+                $remun = isset($item->remuneracao) ? (float)$item->remuneracao : 0;
+                $baseHoras = isset($item->base_horas_complexidade) ? (float)$item->base_horas_complexidade : 0;
+                $qtd = isset($item->quantidade_horas) ? (float)$item->quantidade_horas : 0;
+                
+                $sigla = isset($item->sigla_metrica) ? strtoupper($item->sigla_metrica) : 'H';
+                if ($sigla === 'PROF') {
+                    $totalOs += $qtd * $baseHoras;
+                } elseif ($sigla === 'PF') {
+                    $totalOs += $qtd * $valContrato;
+                } else {
+                    $totalOs += $qtd * $remun * $valContrato;
+                }
+            }
+            $osItem->valor_total = $totalOs;
+        }
+
+        return $list;
     }
 
     public function insert() 

@@ -11,8 +11,22 @@ require VIEWPATH.'/header.php';
         <form id="addForm">
             
             <div class="form-group">
-                <label for="id_item_contrato">ID Item Contrato:</label>
-                <input type="number" id="id_item_contrato" name="id_item_contrato" required>
+                <label for="id_contrato">Contrato:</label>
+                <select id="id_contrato" required>
+                    <option value="">Selecione o Contrato...</option>
+                    <?php if(isset($contrato_list)): foreach($contrato_list as $c): ?>
+                        <option value="<?php echo $c->id; ?>">
+                            <?php echo 'Contrato #' . $c->id . ' - ' . (isset($c->descricao) ? $c->descricao : '') . ($c->empresa ? ' (' . $c->empresa . ')' : ''); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_item_contrato">Item Contrato:</label>
+                <select id="id_item_contrato" name="id_item_contrato" required disabled>
+                    <option value="">Selecione primeiro o Contrato...</option>
+                </select>
             </div>
 
             <div class="form-group">
@@ -32,7 +46,35 @@ require VIEWPATH.'/header.php';
         </form>
 
         <script>
+            const allItems = <?php echo json_encode($item_contrato_list ?? []); ?>;
+
             $(document).ready(function() {
+                $('#id_contrato').on('change', function() {
+                    const selectedContratoId = $(this).val();
+                    const itemSelect = $('#id_item_contrato');
+                    itemSelect.empty();
+
+                    if (!selectedContratoId) {
+                        itemSelect.append('<option value="">Selecione primeiro o Contrato...</option>');
+                        itemSelect.prop('disabled', true);
+                        return;
+                    }
+
+                    const filteredItems = allItems.filter(item => item.id_contrato == selectedContratoId);
+
+                    if (filteredItems.length === 0) {
+                        itemSelect.append('<option value="">Nenhum item encontrado para este contrato</option>');
+                        itemSelect.prop('disabled', true);
+                    } else {
+                        itemSelect.append('<option value="">Selecione o Item do Contrato...</option>');
+                        filteredItems.forEach(item => {
+                            const desc = `Item #${item.id} - ${item.Objeto || 'Sem Objeto'} (Nº: ${item.Numero_Contrato || '-'})`;
+                            itemSelect.append(`<option value="${item.id}">${desc}</option>`);
+                        });
+                        itemSelect.prop('disabled', false);
+                    }
+                });
+
                 $('#addForm').on('submit', function(e) {
                     e.preventDefault();
                     $.ajax({

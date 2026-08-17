@@ -491,27 +491,13 @@ function computeGrossReturn(item) {
 }
 
 function getBetDateBRT(bet) {
-  if (bet && bet.data_brt_dia) {
+  if (!bet) return '';
+  if (bet.data_brt_dia) {
     return bet.data_brt_dia;
   }
-  const rawDateStr = (bet && (bet.data_hora_jogo || bet.criado_em)) || '';
+  const rawDateStr = bet.data_hora_jogo_brt || bet.data_hora_jogo || bet.criado_em || '';
   if (!rawDateStr) return '';
-
-  let formattedStr = rawDateStr.trim();
-  if (formattedStr.length === 19 && !formattedStr.includes('T') && !formattedStr.includes('Z')) {
-    formattedStr = formattedStr.replace(' ', 'T') + 'Z';
-  } else if (!formattedStr.endsWith('Z') && !formattedStr.includes('+')) {
-    formattedStr += 'Z';
-  }
-
-  try {
-    const d = new Date(formattedStr);
-    if (isNaN(d.getTime())) return rawDateStr.substring(0, 10);
-    const formatter = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' });
-    return formatter.format(d);
-  } catch (e) {
-    return rawDateStr.substring(0, 10);
-  }
+  return rawDateStr.trim().substring(0, 10);
 }
 
 function updatePerformanceDashboard() {

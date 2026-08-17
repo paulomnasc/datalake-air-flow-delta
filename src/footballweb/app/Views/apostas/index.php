@@ -921,12 +921,7 @@ if (!function_exists('formatBrtDate')) {
     <?php else: ?>
       <?php foreach ($apostas as $aposta): ?>
         <?php 
-          $itemDate = '';
-          if (!empty($aposta->data_hora_jogo)) {
-            $itemDate = formatBrtDate($aposta->data_hora_jogo, 'Y-m-d');
-          } elseif (!empty($aposta->criado_em)) {
-            $itemDate = formatBrtDate($aposta->criado_em, 'Y-m-d');
-          }
+          $itemDate = !empty($aposta->data_brt_dia) ? $aposta->data_brt_dia : (!empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'Y-m-d') : formatBrtDate($aposta->criado_em, 'Y-m-d'));
           $itemCreatedDate = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'Y-m-d') : $itemDate;
           $displayMatchTime = !empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'd/m \à\s H:i') : 'Hoje';
         ?>

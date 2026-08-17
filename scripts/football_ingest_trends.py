@@ -182,6 +182,7 @@ def fetch_api_sports_team_last5(team_id, limit=5):
 
             if matches:
                 _api_sports_last5_cache[tid] = matches
+                time.sleep(0.5)
                 return matches
         except Exception as e:
             print(f"Aviso ao consultar API-Sports para últimos 5 jogos do team_id #{team_id} (tentativa {attempt+1}): {e}")
@@ -1868,7 +1869,8 @@ def fetch_api_sports_odds_by_date(date_list=None):
                 resp = requests.get(url, headers=headers, timeout=12).json()
                 errs = resp.get('errors')
                 if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
-                    print(f"[API-Sports Odds] Cota diária excedida: {errs}")
+                    print(f"[API-Sports Odds] Limite de requisições por minuto atingido: {errs}. Aguardando 1s...")
+                    time.sleep(1.0)
                     break
 
                 paging = resp.get('paging', {})
@@ -1922,6 +1924,7 @@ def fetch_api_sports_odds_by_date(date_list=None):
                 break
 
             page += 1
+            time.sleep(0.5)
 
         _api_sports_odds_cache[d] = day_cache
         for fid, bms in day_cache.items():
@@ -1984,13 +1987,10 @@ def update_oddspedia_odds(conn):
 
         # 2. ACIONA WEB SCRAPING PESADO APENAS SE HOUVER PARTIDAS SEM ODDS NA API
         if missing_count > 0 or not api_sports_odds:
-            print(f"⚠️ {missing_count} partidas sem odds na API-Sports. Acionando The Odds API e Web Scraping de Fallback...")
+            print(f"⚠️ {missing_count} partidas sem odds na API-Sports. Acionando Web Scraping de Fallback...")
             
-            try:
-                api_odds_key = os.environ.get('ODDS_API_KEY') or "a8ecbfad087c4db80a9517e4e4a9965f,19034934454fd9bd0a06735a67cd8f1b"
-                api_odds_matches = fetch_live_odds_from_api(api_odds_key) or []
-            except Exception as e_api:
-                print(f"Aviso ao consultar The Odds API: {e_api}")
+            # The Odds API desativada em favor da API-Sports oficial
+            api_odds_matches = []
 
             # Só executa web scraping se ainda faltarem odds para algumas partidas
             try:

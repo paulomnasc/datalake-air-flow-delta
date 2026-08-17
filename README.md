@@ -58,21 +58,21 @@ Para entender a arquitetura Medallion (Bronze → Silver → Gold) e todas as tr
 O ecossistema conta com a integração de duas APIs externas principais para alimentar o **FootballWeb** e a pipeline de **Arbitragem Esportiva**:
 
 ### 1. 📊 **API-Football / API-Sports** (`v3.football.api-sports.io`)
-Alimenta a plataforma **FootballWeb** com estatísticas completas de futebol, placares ao vivo e dados para modelos preditivos:
+Alimenta a plataforma **FootballWeb** e a pipeline de **Arbitragem Esportiva (Surebets)** com estatísticas completas de futebol, placares ao vivo, modelos preditivos e cotações de mercado:
 
 * **Fixtures & Agenda**: Programação completa de partidas por data e liga (Série A, Série B, Premier League, La Liga, Champions League, etc.), incluindo horários convertidos (BRT `UTC-3`) e status do jogo (`NS`, `LIVE`, `FT`, `PST`).
 * **Live Scores & Estatísticas ao Vivo**: Acompanhamento de gols, escanteios, cartões amarelos/vermelhos, chutes a gol, posse de bola e Gols Esperados ($xG$).
 * **Estatísticas de Árbitros**: Média histórica de cartões amarelos/vermelhos, faltas apitadas e classificação do nível de rigor do juiz (*Rigoroso*, *Moderado*, *Permissivo*).
 * **Médias Móveis dos Times**: Desempenho mandante vs visitante, taxa de jogos sem sofrer gols (*Clean Sheets %*), média de escanteios e cartões.
 * **Modelo Preditivo & IA**: Cálculo automático da probabilidade de cartões (*Over Cartões %*) e geração de palpites inteligentes via Grok AI.
+* **Coleta de Odds & Arbitragem (Surebets)**: Ingestão de odds oficiais de mercado 1X2 (Match Winner) de dezenas de casas de apostas (Bet365, Betano, Pinnacle, Superbet, Sportingbet, Novibet, etc.) para cálculo automático de arbitragem sem risco.
 
-### 2. 🎲 **The Odds API** (`api.the-odds-api.com`)
-Alimenta a pipeline automatizada de **Arbitragem de Apostas (Surebets)** via Airflow:
+### 2. ⚠️ **Descontinuações & Fontes de Fallback**
 
-* **Coleta de Odds em Tempo Real**: Monitoramento das cotações de casas de apostas globais e brasileiras (Bet365, Betano, Sportingbet, Betfair, Superbet, Novibet, Pinnacle, KTO, etc.) no mercado H2H (1X2).
-* **Cálculo de Arbitragem Sem Risco**: Algoritmo que identifica oportunidades matemáticas onde a soma dos inversos das odds é menor que `1.0` ($\sum \frac{1}{\text{Odd}_i} < 1.0$), garantindo lucro independente do resultado.
-* **Gestão de Banca Proporcional**: Cálculo da distribuição exata do montante em cada casa de aposta para maximizar o retorno sob o valor da banca total configurada.
-* **Notificação & Relatórios**: Exportação automatizada dos relatórios em CSV e envio por e-mail com as oportunidades ativas de arbitragem.
+* **The Odds API (`api.the-odds-api.com`) [DESCONTINUADA / OBSOLETA]**:
+  Anteriormente utilizada como fonte de cotações. Foi desativada no pipeline ([`football_ingest_trends.py`](file:///root/datalake-air-flow-delta/scripts/football_ingest_trends.py)) e totalmente substituída pela **API-Sports oficial** (`/odds`), eliminando pendências com chaves de API externas expiradas e centralizando os dados em uma única API oficial.
+* **Web Scraping de Fallback (Oddspedia / Futbol24)**:
+  Mecanismo secundário de resiliência (via FlareSolverr / Playwright) acionado automaticamente apenas se houver partidas sem odds registradas na API-Sports.
 
 ---
 

@@ -117,8 +117,12 @@ def ensure_fixture_card_stats(cursor, fixture):
     red_away = fixture.get('red_cards_away')
 
     if yellow_home is None or yellow_away is None:
-        print(f"📡 Buscando cartões reais na API para partida {fixture_id}...")
-        yh, ya, rh, ra = fetch_real_fixture_cards_api(fixture_id, home_team_id)
+        f_date = fixture.get('fixture_date')
+        if f_date and isinstance(f_date, datetime) and (datetime.now() - f_date).total_seconds() > 43200:
+            yh, ya, rh, ra = 0, 0, 0, 0
+        else:
+            print(f"📡 Buscando cartões reais na API para partida {fixture_id}...")
+            yh, ya, rh, ra = fetch_real_fixture_cards_api(fixture_id, home_team_id)
         yellow_home, yellow_away, red_home, red_away = yh, ya, rh, ra
 
         cursor.execute("""

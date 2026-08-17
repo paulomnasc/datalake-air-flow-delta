@@ -931,11 +931,10 @@ def sync_pending_past_fixtures(conn, headers):
               AND (
                 status NOT IN ('FT', 'AET', 'PEN', 'PST', 'CANC') 
                 OR goals_home IS NULL 
-                OR yellow_cards_home IS NULL
-                OR fixture_date >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+                OR (yellow_cards_home IS NULL AND fixture_date >= DATE_SUB(NOW(), INTERVAL 24 HOUR))
               )
             ORDER BY fixture_date DESC
-            LIMIT 300
+            LIMIT 100
         """)
         pending = cursor.fetchall()
         if not pending:
@@ -1305,7 +1304,7 @@ def main():
     
     cached_ft_stats = set()
     try:
-        cursor.execute("SELECT fixture_id FROM fixtures_trends WHERE status IN ('FT', 'AET', 'PEN') AND yellow_cards_home IS NOT NULL AND xg_home > 0")
+        cursor.execute("SELECT fixture_id FROM fixtures_trends WHERE status IN ('FT', 'AET', 'PEN')")
         rows_ft = cursor.fetchall()
         cached_ft_stats = {r['fixture_id'] for r in rows_ft}
     except Exception as e_ft:
@@ -1645,62 +1644,62 @@ def main():
                     except Exception as e:
                         print(f"Aviso ao buscar estatísticas para partida {fix_id}: {e}")
 
-                # 2. Busca eventos oficiais da partida (cartões, gols, substituições)
-                try:
-                    events_url = f"https://v3.football.api-sports.io/fixtures/events?fixture={fix_id}"
-                    ev_res = requests.get(events_url, headers=headers, timeout=10)
-                    goals_list = []
-                    last_ev_text = None
-                    if ev_res.status_code == 200:
-                        ev_data = ev_res.json().get("response", [])
-                        yh, ya, rh, ra = 0, 0, 0, 0
-                        card_count = 0
-                        sub_count = 0
-                        for ev in ev_data:
-                            team_id = ev.get("team", {}).get("id")
-                            is_home = (team_id == home_team_id)
-                            team_name_ev = home_team if is_home else away_team
-                            ev_type = ev.get("type")
-                            detail = ev.get("detail", "")
-                            time_info = ev.get("time", {})
-                            elapsed_min = time_info.get("elapsed", 0)
-                            extra_min = time_info.get("extra")
-                            time_str = f"{elapsed_min}+{extra_min}'" if extra_min else f"{elapsed_min}'"
-                            player_name = ev.get("player", {}).get("name", "")
-                            assist_name = ev.get("assist", {}).get("name", "")
+                    # 2. Busca eventos oficiais da partida (cartões, gols, substituições)
+                    try:
+                        events_url = f"https://v3.football.api-sports.io/fixtures/events?fixture={fix_id}"
+                        ev_res = requests.get(events_url, headers=headers, timeout=10)
+                        goals_list = []
+                        last_ev_text = None
+                        if ev_res.status_code == 200:
+                            ev_data = ev_res.json().get("response", [])
+                            yh, ya, rh, ra = 0, 0, 0, 0
+                            card_count = 0
+                            sub_count = 0
+                            for ev in ev_data:
+                                team_id = ev.get("team", {}).get("id")
+                                is_home = (team_id == home_team_id)
+                                team_name_ev = home_team if is_home else away_team
+                                ev_type = ev.get("type")
+                                detail = ev.get("detail", "")
+                                time_info = ev.get("time", {})
+                                elapsed_min = time_info.get("elapsed", 0)
+                                extra_min = time_info.get("extra")
+                                time_str = f"{elapsed_min}+{extra_min}'" if extra_min else f"{elapsed_min}'"
+                                player_name = ev.get("player", {}).get("name", "")
+                                assist_name = ev.get("assist", {}).get("name", "")
 
-                            if ev_type == "Card":
-                                card_count += 1
-                                if "Yellow" in detail:
-                                    if is_home: yh += 1
-                                    else: ya += 1
-                                    last_ev_text = f"{time_str} {card_count}º Cartão amarelo: {team_name_ev} ({player_name})"
-                                elif "Red" in detail:
-                                    if is_home: rh += 1
-                                    else: ra += 1
-                                    last_ev_text = f"{time_str} Cartão vermelho: {team_name_ev} ({player_name})"
-                            elif ev_type == "Goal":
-                                goals_list.append(f"{time_str} {player_name}".strip())
-                                last_ev_text = f"{time_str} Gol: {team_name_ev} ({player_name})"
-                            elif ev_type in ["subst", "Subst", "Substitution"]:
-                                sub_count += 1
-                                if assist_name:
-                                    last_ev_text = f"{time_str} {sub_count}ª Substituição: {assist_name} (Entra), {player_name} (Sai)"
-                                else:
-                                    last_ev_text = f"{time_str} {sub_count}ª Substituição: {team_name_ev} ({player_name})"
-                        
-                        yellow_cards_home = max(yellow_cards_home if yellow_cards_home is not None else 0, yh)
-                        yellow_cards_away = max(yellow_cards_away if yellow_cards_away is not None else 0, ya)
-                        red_cards_home = max(red_cards_home if red_cards_home is not None else 0, rh)
-                        red_cards_away = max(red_cards_away if red_cards_away is not None else 0, ra)
+                                if ev_type == "Card":
+                                    card_count += 1
+                                    if "Yellow" in detail:
+                                        if is_home: yh += 1
+                                        else: ya += 1
+                                        last_ev_text = f"{time_str} {card_count}º Cartão amarelo: {team_name_ev} ({player_name})"
+                                    elif "Red" in detail:
+                                        if is_home: rh += 1
+                                        else: ra += 1
+                                        last_ev_text = f"{time_str} Cartão vermelho: {team_name_ev} ({player_name})"
+                                elif ev_type == "Goal":
+                                    goals_list.append(f"{time_str} {player_name}".strip())
+                                    last_ev_text = f"{time_str} Gol: {team_name_ev} ({player_name})"
+                                elif ev_type in ["subst", "Subst", "Substitution"]:
+                                    sub_count += 1
+                                    if assist_name:
+                                        last_ev_text = f"{time_str} {sub_count}ª Substituição: {assist_name} (Entra), {player_name} (Sai)"
+                                    else:
+                                        last_ev_text = f"{time_str} {sub_count}ª Substituição: {team_name_ev} ({player_name})"
+                            
+                            yellow_cards_home = max(yellow_cards_home if yellow_cards_home is not None else 0, yh)
+                            yellow_cards_away = max(yellow_cards_away if yellow_cards_away is not None else 0, ya)
+                            red_cards_home = max(red_cards_home if red_cards_home is not None else 0, rh)
+                            red_cards_away = max(red_cards_away if red_cards_away is not None else 0, ra)
 
-                        if goals_list:
-                            goal_scorers_str = ", ".join(goals_list)
-                        if last_ev_text:
-                            last_event_str = last_ev_text
+                            if goals_list:
+                                goal_scorers_str = ", ".join(goals_list)
+                            if last_ev_text:
+                                last_event_str = last_ev_text
 
-                except Exception as e:
-                    print(f"Aviso ao buscar cartões/eventos para partida {fix_id}: {e}")
+                    except Exception as e:
+                        print(f"Aviso ao buscar cartões/eventos para partida {fix_id}: {e}")
 
                 if yellow_cards_home is None: yellow_cards_home = 0
                 if yellow_cards_away is None: yellow_cards_away = 0

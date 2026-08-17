@@ -137,7 +137,11 @@ def get_fixture_stats(fixture, cursor=None):
     if (yellow_home is None or yellow_away is None) and fixture.get('fixture_id'):
         fid = fixture['fixture_id']
         htid = fixture.get('home_team_id')
-        yh, ya, rh, ra = fetch_real_fixture_cards_api(fid, htid)
+        f_date = fixture.get('fixture_date')
+        if f_date and isinstance(f_date, datetime) and (datetime.now() - f_date).total_seconds() > 43200:
+            yh, ya, rh, ra = 0, 0, 0, 0
+        else:
+            yh, ya, rh, ra = fetch_real_fixture_cards_api(fid, htid)
         yellow_home, yellow_away, red_home, red_away = yh, ya, rh, ra
         if cursor:
             cursor.execute("""

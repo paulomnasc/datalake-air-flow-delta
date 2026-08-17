@@ -2,9 +2,10 @@
 
 Este documento fornece a documentação técnica e operacional completa das **DAGs do Apache Airflow** e scripts Python responsáveis pela automação do ciclo de vida das apostas no mercado de **Handicap Asiático (AH)** na plataforma **FootballWeb**.
 
-O pipeline é composto por duas rotinas diárias:
-1. **Geração/Criação Automática de Apostas em Jogos em Aberto (`criar_apostas_handicap_dag`)**
-2. **Auditoria e Liquidação de Apostas em Jogos Encerrados (`processar_apostas_handicap_dag`)**
+O pipeline é composto por três rotinas automatizadas:
+1. **Ingestão e Atualização Continuada de Partidas (`football_trends_ingestion_dag`)**: Atualiza a tabela `fixtures_trends` com placares finais (`goals_home`, `goals_away`) e status (`status = 'FT'`) vindos das APIs a cada 30 minutos.
+2. **Geração/Criação Automática de Apostas em Jogos em Aberto (`criar_apostas_handicap_dag`)**: Registra apostas pendentes para jogos em aberto a cada hora.
+3. **Auditoria e Liquidação de Apostas em Jogos Encerrados (`processar_apostas_handicap_dag`)**: Audita apostas pendentes cruzando com os placares finais atualizados e liquida os resultados a cada hora (no minuto `:30`).
 
 ---
 
@@ -12,18 +13,44 @@ O pipeline é composto por duas rotinas diárias:
 
 ```mermaid
 flowchart TD
-    A["⏱️ Airflow Cron 0 * * * * (Horário)"] --> B["DAG: criar_apostas_handicap_dag"]
+    Z["⏱️ Airflow Cron */30 * * * * (A cada 30 min)"] --> Y["DAG 0: football_trends_ingestion_dag"]
+    Y --> X["Script: scripts/football_ingest_trends.py"]
+    X --> W["Busca Placa/Status das Partidas na API (API-Sports/Oddspedia)"]
+    W --> V["Atualiza status = 'FT', goals_home e goals_away em fixtures_trends"]
+
+    A["⏱️ Airflow Cron 0 * * * * (Toda hora :00)"] --> B["DAG 1: criar_apostas_handicap_dag"]
     B --> C["Script: scripts/criar_apostas_handicap_diario.py"]
-    C --> D["Filtra Fixtures em Aberto (Hoje + Amanhã Fuso BR -03:00) em fixtures_trends"]
+    C --> D["Filtra Fixtures em Aberto em fixtures_trends"]
     D --> E["Calcula/Valida Sugestão ah_suggestion"]
     E --> F["Insere Apostas Pendentes em apostas (para todos os Usuários)"]
 
-    G["⏱️ Airflow Cron 30 * * * * (Horário :30)"] --> H["DAG: processar_apostas_handicap_dag"]
+    G["⏱️ Airflow Cron 30 * * * * (Toda hora :30)"] --> H["DAG 2: processar_apostas_handicap_dag"]
     H --> I["Script: scripts/processar_apostas_handicap_encerradas.py"]
     I --> J["Busca Apostas Pendentes no Mercado Handicap Asiático"]
-    J --> K["Compara Placar Final (FT) com Linhas de AH (+0.25, -0.5, 0.0, etc.)"]
-    K --> L["Atualiza Status: Ganha, Meio Ganha, ANULADA, Meio Perdida, Perdida"]
+    J --> K["Cruza com fixtures_trends onde status = 'FT' e placares atualizados pela DAG 0"]
+    K --> L["Compara Placar Final (FT) com Linhas de AH (+0.25, -0.5, 0.0, etc.)"]
+    L --> M["Atualiza Status em apostas: Ganha, Meio Ganha, ANULADA, Meio Perdida, Perdida"]
 ```
+
+---
+
+## 0. 🔄 DAG 0: `football_trends_ingestion_dag` (Ingestão & Atualização de Resultados)
+
+### 📋 Detalhes da DAG
+- **Identificador DAG:** `football_trends_ingestion_dag`
+- **Arquivo da DAG:** [`src/dags/football_trends_dag.py`](file:///root/datalake-air-flow-delta/src/dags/football_trends_dag.py)
+- **Script Executado:** [`scripts/football_ingest_trends.py`](file:///root/datalake-air-flow-delta/scripts/football_ingest_trends.py)
+- **Agendamento (`schedule_interval`):** `*/30 * * * *` (Execução a cada 30 minutos)
+- **Operator:** `PythonOperator`
+- **Owner:** `paulomnasc-558`
+
+### ⚙️ Funcionamento Interno
+1. **Consulta à API Externa (API-Sports / Oddspedia):**
+   - Requisita os dados atualizados das partidas programadas para a data corrente e datas recentes.
+2. **Atualização de Resultados Finais (FT) e Placares:**
+   - Atualiza na tabela `fixtures_trends` as colunas de placar (`goals_home`, `goals_away`), cartões, escanteios, chutes, xG e o status oficial da partida (`status = 'FT'`).
+3. **Sincronização de Jogos Encerrados Pendentes (`sync_past_finished_fixtures`):**
+   - Executa varredura de partidas passadas ou em andamento que atingiram o tempo final, garantindo a atualização do status para `'FT'` e preenchimento dos gols.
 
 ---
 

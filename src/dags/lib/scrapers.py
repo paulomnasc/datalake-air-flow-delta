@@ -61,7 +61,7 @@ def get_bookmaker_credentials(conn_id: str) -> Dict[str, str]:
         log.warning(f"[CREDENCIAIS] Não foi possível carregar a conexão '{conn_id}' via Airflow BaseHook: {e}")
         return {"login": "", "password": "", "host": ""}
 
-def fetch_via_flaresolverr(url: str, method: str = "request.get", post_data: Optional[str] = None, timeout_ms: int = 60000) -> Optional[Dict[str, Any]]:
+def fetch_via_flaresolverr(url: str, method: str = "request.get", post_data: Optional[str] = None, timeout_ms: int = 6000) -> Optional[Dict[str, Any]]:
     """
     Envia requisição para a API do FlareSolverr (container Docker em background)
     para resolver desafios e interceptar a proteção do Cloudflare (Turnstile/503/403).
@@ -90,7 +90,7 @@ def fetch_via_flaresolverr(url: str, method: str = "request.get", post_data: Opt
     for ep in endpoints:
         try:
             log.info(f"[FLARESOLVERR] Solicitando bypass do Cloudflare para '{url}' via '{ep}'...")
-            resp = requests.post(ep, json=payload, headers=headers, timeout=(3.0, (timeout_ms / 1000) + 15))
+            resp = requests.post(ep, json=payload, headers=headers, timeout=6.0)
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("status") == "ok":
@@ -103,6 +103,7 @@ def fetch_via_flaresolverr(url: str, method: str = "request.get", post_data: Opt
                 log.warning(f"[FLARESOLVERR] Endpoint '{ep}' retornou HTTP status {resp.status_code}")
         except Exception as e:
             log.debug(f"[FLARESOLVERR] Falha ao comunicar com '{ep}': {e}")
+            break  # se falhar a conexão com a porta, não tenta 4 variações de localhost/127.0.0.1 repetidamente
 
     log.error(f"[FLARESOLVERR] Não foi possível resolver a proteção do Cloudflare para '{url}'.")
     return None
@@ -331,7 +332,7 @@ def scrape_oddspedia_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
     }
 
     if leagues is None:
-        leagues = list(league_urls.keys())
+        leagues = ['serie-a', 'premier-league', 'champions-league']
 
     log.info(f"[SCRAPER-ODDSPEDIA] Iniciando extração para ligas: {leagues}")
     all_matches = []

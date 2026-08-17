@@ -110,12 +110,15 @@ def _is_team_match(search_name, target_team, search_id=None, target_id=None):
 _api_sports_last5_cache = {}
 _futbol24_failed_teams_cache = set()
 
+_api_sports_rate_limited = False
+
 def fetch_api_sports_team_last5(team_id, limit=5):
     """
     Busca os últimos N jogos de um time via API-Sports (https://v3.football.api-sports.io/fixtures?team={team_id}&last=5).
     Possui cache em memória e mecanismo de retry/backoff contra rate limiting.
     """
-    if not team_id:
+    global _api_sports_rate_limited
+    if not team_id or _api_sports_rate_limited:
         return None
     
     try:
@@ -134,11 +137,14 @@ def fetch_api_sports_team_last5(team_id, limit=5):
     }
 
     for attempt in range(2):
+        if _api_sports_rate_limited:
+            return None
         try:
-            resp = requests.get(url, headers=headers, timeout=10).json()
+            resp = requests.get(url, headers=headers, timeout=5).json()
             errs = resp.get('errors')
             if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
-                print(f"[API-Sports] Quota diária ou rate limit excedido para team_id #{team_id}: {errs}")
+                print(f"[API-Sports] Rate limit atingido para team_id #{team_id}. Ativando Circuit-Breaker para chamadas de forma recente nesta execução.")
+                _api_sports_rate_limited = True
                 return None
 
             fixtures_api = resp.get('response', [])
@@ -183,6 +189,8 @@ def fetch_api_sports_team_last5(team_id, limit=5):
 
     return None
 
+_team_last5_form_cache = {}
+
 def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
     """
     Busca a sequência recente (últimos 5 jogos) do time.
@@ -190,6 +198,10 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
     seguida de fallback na API-Sports e Futbol24.
     Garante sincronização total entre v, e, d, pts e a lista visual de partidas (matches).
     """
+    cache_key = (str(team_id or '').strip(), str(team_name or '').lower().strip(), str(league_id or '').strip())
+    if cache_key in _team_last5_form_cache:
+        return _team_last5_form_cache[cache_key]
+
     matches = []
     seen_fixtures = set()
 
@@ -298,35 +310,18 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
         except Exception as e_api_m:
             print(f"Aviso na busca por API-Sports para '{team_name}' (#{team_id}): {e_api_m}")
 
-    # 4. Fallback na raspagem Futbol24 apenas se ainda tiver < 5 partidas e o time não tiver falhado antes
-    if len(matches) < 5 and scrape_futbol24_team_last5 is not None:
-        t_key = team_name.lower().strip()
-        if t_key not in _futbol24_failed_teams_cache:
-            try:
-                f24_res = scrape_futbol24_team_last5(team_name, limit=6)
-                if f24_res and f24_res.get("matches"):
-                    f24_matches = f24_res["matches"]
-                    existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
-                    for fm in f24_matches:
-                        key = (fm.get('opponent'), fm.get('score'))
-                        if key not in existing_keys:
-                            matches.append(fm)
-                            existing_keys.add(key)
-                        if len(matches) >= 5:
-                            break
-                else:
-                    _futbol24_failed_teams_cache.add(t_key)
-            except Exception as exc:
-                _futbol24_failed_teams_cache.add(t_key)
-                print(f"Aviso ao consultar Futbol24 para '{team_name}': {exc}")
+    # 4. Fallback na raspagem Futbol24 desativado dentro do loop para evitar I/O síncrono e lentidão
+    # Os dados do histórico dos times já são obtidos do banco local e da API-Sports.
 
     # 5. Se não houver partidas encontradas no banco nem via API/scraper
     if not matches:
-        return {
+        empty_res = {
             "v": 0, "e": 0, "d": 0, "pts": 0,
             "text": "N/D",
             "matches": []
         }
+        _team_last5_form_cache[cache_key] = empty_res
+        return empty_res
 
     # Limpa fixture_id temporário do objeto de retorno das partidas
     clean_matches = []
@@ -340,11 +335,13 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
     d = sum(1 for m in clean_matches if m["result"] == "D")
     pts = (3 * v) + (1 * e)
 
-    return {
+    res = {
         "v": v, "e": e, "d": d, "pts": pts,
         "text": f"{v}V-{e}E-{d}D",
         "matches": clean_matches
     }
+    _team_last5_form_cache[cache_key] = res
+    return res
 
 def build_natural_language_explanation(suggestion, home_team, away_team):
     """
@@ -1305,6 +1302,14 @@ def main():
     inserted_referees = 0
     inserted_fixtures = 0
     
+    cached_ft_stats = set()
+    try:
+        cursor.execute("SELECT fixture_id FROM fixtures_trends WHERE status IN ('FT', 'AET', 'PEN') AND yellow_cards_home IS NOT NULL AND xg_home > 0")
+        rows_ft = cursor.fetchall()
+        cached_ft_stats = {r['fixture_id'] for r in rows_ft}
+    except Exception as e_ft:
+        print(f"Aviso ao carregar cached_ft_stats: {e_ft}")
+
     try:
         for f in filtered_fixtures:
             fix_id = f["fixture"]["id"]
@@ -1578,7 +1583,7 @@ def main():
 
             if status not in ['NS', 'PST', 'CANCELLED', 'POSTPONED']:
                 # Se a partida já estiver encerrada e possuir estatísticas de cartões salvas no banco local, pula requisições de API para economizar cota
-                has_cached_stats = (status in ['FT', 'AET', 'PEN']) and (f.get('yellow_cards_home') is not None and f.get('yellow_cards_away') is not None and f.get('xg_home') is not None)
+                has_cached_stats = (fix_id in cached_ft_stats)
                 if not has_cached_stats:
                     # 1. Busca estatísticas oficiais da partida (escanteios, chutes no gol, xG, cartões)
                     try:
@@ -1941,9 +1946,16 @@ def update_oddspedia_odds(conn):
         from lib.scrapers import scrape_oddspedia_odds, scrape_futbol24_odds, scrape_futbol24_previews, fetch_futbol24_direct_match_odds
         from lib.sports_arbitrage import normalize_team_name, calculate_surebet, fetch_live_odds_from_api
         
-        print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS MULTI-FONTE (API-SPORTS + THE ODDS API + ODDSPEDIA + FUTBOL24) ---")
+        print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS MULTI-FONTE (API-SPORTS + FALLBACKS SEGUNDÁRIOS) ---")
         
-        # 1. Ingestão oficial de Odds via API-Sports (Pro Plan por fixture_id)
+        cursor = conn.cursor()
+        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
+        db_fixtures = cursor.fetchall()
+        if not db_fixtures:
+            print("ℹ️ Nenhuma partida recente encontrada no banco para enriquecimento de odds.")
+            return
+
+        # 1. Ingestão oficial de Odds via API-Sports (Pro Plan por fixture_id) - FONTE PRINCIPAL VIA API
         api_sports_odds = {}
         try:
             api_sports_odds = fetch_api_sports_odds_by_date()
@@ -1952,30 +1964,52 @@ def update_oddspedia_odds(conn):
         except Exception as e_apis:
             print(f"Aviso ao consultar Odds oficiais da API-Sports: {e_apis}")
 
-        scraped_previews_f24 = []
-        try:
-            scraped_previews_f24 = scrape_futbol24_previews() or []
-        except Exception as e_prev:
-            print(f"Aviso ao consultar Prévias Futbol24: {e_prev}")
+        # Identifica partidas que já possuem odds via API-Sports
+        fixtures_with_api_odds = set()
+        if api_sports_odds:
+            for fix in db_fixtures:
+                fid = fix['fixture_id']
+                if fid in api_sports_odds and api_sports_odds[fid]:
+                    bms = api_sports_odds[fid]
+                    if any(float(bms[bm].get('casa', 0.0)) > 1.0 for bm in bms if isinstance(bms[bm], dict)):
+                        fixtures_with_api_odds.add(fid)
 
-        api_odds_matches = []
-        try:
-            api_odds_key = os.environ.get('ODDS_API_KEY') or "a8ecbfad087c4db80a9517e4e4a9965f,19034934454fd9bd0a06735a67cd8f1b"
-            api_odds_matches = fetch_live_odds_from_api(api_odds_key) or []
-        except Exception as e_api:
-            print(f"Aviso ao consultar The Odds API: {e_api}")
+        missing_count = len(db_fixtures) - len(fixtures_with_api_odds)
+        print(f"📊 Status das Odds da API: {len(fixtures_with_api_odds)} de {len(db_fixtures)} partidas obtiveram odds diretamente via API-Sports.")
 
         scraped_matches_op = []
-        try:
-            scraped_matches_op = scrape_oddspedia_odds(leagues=None) or []
-        except Exception as e_op:
-            print(f"Aviso ao consultar Oddspedia: {e_op}")
-
         scraped_matches_f24 = []
-        try:
-            scraped_matches_f24 = scrape_futbol24_odds(leagues=None) or []
-        except Exception as e_f24:
-            print(f"Aviso ao consultar Futbol24: {e_f24}")
+        scraped_previews_f24 = []
+        api_odds_matches = []
+
+        # 2. ACIONA WEB SCRAPING PESADO APENAS SE HOUVER PARTIDAS SEM ODDS NA API
+        if missing_count > 0 or not api_sports_odds:
+            print(f"⚠️ {missing_count} partidas sem odds na API-Sports. Acionando The Odds API e Web Scraping de Fallback...")
+            
+            try:
+                api_odds_key = os.environ.get('ODDS_API_KEY') or "a8ecbfad087c4db80a9517e4e4a9965f,19034934454fd9bd0a06735a67cd8f1b"
+                api_odds_matches = fetch_live_odds_from_api(api_odds_key) or []
+            except Exception as e_api:
+                print(f"Aviso ao consultar The Odds API: {e_api}")
+
+            # Só executa web scraping se ainda faltarem odds para algumas partidas
+            try:
+                print("🕸️ Acionando Fallback Web Scraping (Oddspedia / Futbol24)...")
+                scraped_matches_op = scrape_oddspedia_odds(leagues=None) or []
+            except Exception as e_op:
+                print(f"Aviso ao consultar Oddspedia: {e_op}")
+
+            try:
+                scraped_matches_f24 = scrape_futbol24_odds(leagues=None) or []
+            except Exception as e_f24:
+                print(f"Aviso ao consultar Futbol24: {e_f24}")
+
+            try:
+                scraped_previews_f24 = scrape_futbol24_previews() or []
+            except Exception as e_prev:
+                print(f"Aviso ao consultar Prévias Futbol24: {e_prev}")
+        else:
+            print("⚡ Todas as partidas obtiveram Odds oficiais via API! Pulando Web Scraping pesado (Oddspedia/Futbol24) para alta performance.")
         
         # Consolidação de partidas e odds secundárias (scraping/agregadoras)
         scraped_by_teams = {}

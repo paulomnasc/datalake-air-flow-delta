@@ -267,6 +267,15 @@ def criar_apostas_handicap_diario(target_date_str=None):
             ja_existe = cursor.fetchone()
 
             if ja_existe:
+                cursor.execute("""
+                    UPDATE apostas SET
+                        palpite = %s,
+                        odd = %s,
+                        ganhos_potenciais = %s,
+                        resultado_detalhado = %s,
+                        updated_at = NOW()
+                    WHERE id = %s AND status = 'Pendente'
+                """, (ah_suggestion, odd_val, ganhos_potenciais, (fix.get('ah_reasoning') or '')[:250], ja_existe['id']))
                 apostas_duplicadas += 1
                 continue
 

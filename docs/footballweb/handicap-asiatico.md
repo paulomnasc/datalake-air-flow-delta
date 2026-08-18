@@ -42,29 +42,29 @@ Além de simplificar a decisão entre duas opções (Mandante ou Visitante), o H
 > * **"Perde 50% (Recebe 50% de volta)":** Significa que você perde **50% do VALOR APOSTADO (Stake)**. A **odd não é multiplicada** na metade perdida. Exemplo: se apostar **R$ 100,00**, você perde R$ 50,00 e o saldo de **R$ 50,00 (50% da Stake)** é devolvido à sua conta.
 > * **"Ganha 50% do Lucro (Meio Win)":** Significa que você recebe **100% da sua Stake de volta + 50% do Lucro Líquido** que ganharia com a Odd. Exemplo: R$ 100,00 em Odd 2.00 $\rightarrow$ Lucro total seria R$ 100,00. No meio win você recebe **R$ 100 (Stake) + R$ 50 (50% do Lucro) = R$ 150,00 de retorno total**.
 
-### 💡 Diferença Fundamental entre +0.25 AH vs 0.0 AH (DNB) vs No Bet no Empate
+### 💡 Diferença Fundamental entre +0.25 AH vs -0.25 AH vs No Bet no Empate
 
-Uma dúvida frequente é o funcionamento do **`+0.25 AH`** para o time visitante/azarão em caso de empate, e por que ele se destaca em relação ao **`0.0 AH (DNB)`** ou ao **`No Bet (Abstenção)`**.
+Uma dúvida frequente na gestão de apostas é a distinção entre as linhas de **Quarter-Ball (+0.25 AH e -0.25 AH)**, o **Handicap 0.0 (DNB / Empate Anula)** e a opção de **No Bet (Abstenção)** em cenários onde o jogo termina empatado (ex: placar de 2 x 2).
 
-> ⚠️ **Atenção à diferença de sinais:**
-> * ❌ **`-0.25 AH` (Favorito):** Se a partida empatar, você **perde 50%** da stake investida (Meio-Red).
-> * 🟢 **`+0.25 AH` (Azarão):** Se a partida empatar, você **GANHA 50% do lucro da odd + 100% da stake de volta** (Meio-Green).
+> ⚠️ **Atenção aos Sinais e Direcionamento da Aposta:**
+> * 🔴 **`-0.25 AH` (Mandante/Favorito):** Você aposta na vitória do favorito. Se a partida empatar (ex: 2x2), você sofre **Meia Perda (Half Loss)**: **50% da stake é perdoada/estornada** de volta para sua conta e **50% é perdida**.
+> * 🟢 **`+0.25 AH` (Visitante/Azarão):** Você aposta que o visitante não perde. Se a partida empatar, você obtém **Meio Green (Half Win)**: **100% da stake é devolvida + 50% do lucro da odd**.
+> * 🟡 **`0.0 AH` (Empate Anula / DNB):** Se a partida empatar, há **Reembolso Total (100% da stake estornada)**, sem lucro e sem prejuízo.
+> * ⚪ **`No Bet` (Abstenção):** Entrada não realizada devido ao alto risco ou incerteza estatística.
 
-#### 📊 Estudo Comparativo de uma aposta de R$ 100,00 em caso de Empate:
+#### 📊 Estudo Comparativo de uma aposta de R$ 100,00 em um jogo empatado em 2 a 2:
 
-| Opção de Entrada | Comportamento no Empate | Retorno Total | Lucro Líquido |
-| :--- | :--- | :--- | :--- |
-| **`+0.25 AH` (Visitante/Azarão)** | 🟢 **Meio-Green** *(Recebe os R$ 100 de volta + 50% do lucro da odd)* | **R$ 150,00** *(ex: odd 2.00)* | **+ R$ 50,00** (LUCRO) |
-| **`0.0 AH` (Empate Anula / DNB)** | 🟡 **Reembolso** *(Devolve apenas o valor apostado)* | **R$ 100,00** | **R$ 0,00** (Zero Lucro) |
-| **`No Bet` (Abstenção / Ficar de Fora)** | ⚪ **Ficou de fora** *(Sem entrada realizada)* | **R$ 100,00** | **R$ 0,00** (Zero Lucro) |
+| Opção de Entrada | Tese da Aposta | Comportamento no Empate (2 x 2) | Estorno da Stake | Retorno Total | Lucro / Prejuízo Líquido |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`-0.25 AH` (Favorito)** | Vitória do Favorito | 🟠 **Meia Perda (Half Loss)** | **R$ 50,00** (50% estornada) | **R$ 50,00** | 🔴 **- R$ 50,00** (Perde 50%) |
+| **`+0.25 AH` (Azarão)** | Não-Derrota do Azarão | 🟢 **Meio Green (Half Win)** | **R$ 100,00** (100% devolvida) | **R$ 150,00** *(odd 2.0)* | 🟢 **+ R$ 50,00** (50% do lucro) |
+| **`0.0 AH` (DNB)** | Vitória com Cobertura | 🟡 **Reembolso Total** | **R$ 100,00** (100% estornada) | **R$ 100,00** | 🟡 **R$ 0,00** (Zero Lucro/Perda) |
+| **`No Bet` (Abstenção)** | Ficar de Fora | ⚪ **Ficou de Fora** | **R$ 100,00** (Stake preservada) | **R$ 100,00** | ⚪ **R$ 0,00** (Zero Lucro/Perda) |
 
-#### 🎯 Por que a recomendação `+0.25 AH` supera o `0.0 AH` e o `No Bet`?
-1. **Frente ao `0.0 AH (DNB)`:** Em partidas parelhas onde a tendência de empate é alta, a linha `0.0` apenas protege a banca sem gerar rendimento no empate. O `+0.25 AH` monetiza o empate, garantindo lucro positivo.
-2. **Frente ao `No Bet`:** Quando o modelo estatístico identifica probabilidade elevada de o visitante pontuar (vencer ou empatar), abrir mão da entrada (`No Bet`) significa desperdiçar uma aposta com valor esperado positivo (EV+) onde 2 de 3 resultados do jogo (Vitória ou Empate) trazem lucro ao apostador.
-3. **Divisão Matemática Interna do `+0.25 AH` (Stake R$ 100,00):**
-   * **R$ 50,00** entram em `0.0 AH` $\rightarrow$ No empate, são devolvidos R$ 50,00.
-   * **R$ 50,00** entram em `+0.5 AH (Dupla Chance)` $\rightarrow$ No empate, a aposta é ganha (retorna R$ 100,00 em odd 2.00).
-   * **Total Retornado:** R$ 150,00 (R$ 100,00 de stake devolvida + R$ 50,00 de lucro).
+#### 🎯 Por que escolher `-0.25 AH` em vez de `+0.25 AH` ou `No Bet`?
+1. **Frente ao `-0.5 AH` (Vitória Simples):** O `-0.25 AH` mantém a tese de vitória do favorito, mas reduz em 50% o prejuízo de um empate inesperado (como um 2 x 2 no final da partida).
+2. **Frente ao `+0.25 AH`:** O `+0.25 AH` é o lado oposto (da zebra). Escolhe-se o `-0.25 AH` quando o modelo projeta probabilidade consideravelmente superior de vitória do mandante do que de surpresa do visitante.
+3. **Frente ao `No Bet`:** Quando o modelo enxerga valor na vitória do mandante mas quer blindagem contra o empate, utilizar o `-0.25 AH` é matematicamente superior ao `No Bet`, pois mantém o ganho total no caso de vitória sem expor 100% da stake ao risco do empate.
 
 ---
 

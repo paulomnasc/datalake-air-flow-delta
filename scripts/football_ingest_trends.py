@@ -625,7 +625,14 @@ def calculate_asian_handicap_suggestion(
     if away_last5 is None:
         away_last5 = {"v": 2, "e": 1, "d": 2, "pts": 7, "text": "2V-1E-2D", "matches": []}
 
-    # 0. Trava de Bloqueio Estrito para xG Zerado (xG == 0.00) - EXCLUSIVA PARA HANDICAP ASIÁTICO
+    # 0. Trava de Bloqueio Estrito para Odds Ausentes ou xG Zerado
+    if not odd_home or not odd_away or float(odd_home) <= 1.0 or float(odd_away) <= 1.0:
+        suggestion = "Sem Entrada (Abstenção)"
+        confidence = 50.00
+        reasoning_text = f"🚫 APOSTA BLOQUEADA: Odds de mercado indisponíveis para esta partida. Entrada de Handicap bloqueada para proteger a banca."
+        u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
+        return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por Odds Indisponíveis || MOTIVACAO: Risco excessivo sem cotações de mercado reais || MEMÓRIA DE CÁLCULO || Odds Ausentes || U5J_DATA: {u5j_json}"
+
     if (home_goals_scored <= 0.01 and away_goals_scored <= 0.01 and home_goals_conceded <= 0.01 and away_goals_conceded <= 0.01):
         suggestion = "Sem Entrada (Abstenção)"
         confidence = 50.00

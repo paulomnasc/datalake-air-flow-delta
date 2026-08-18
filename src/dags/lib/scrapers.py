@@ -332,7 +332,7 @@ def scrape_oddspedia_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
     }
 
     if leagues is None:
-        leagues = ['serie-a', 'premier-league', 'champions-league']
+        leagues = ['serie-a', 'serie-b', 'copa-do-brasil', 'copa-libertadores', 'copa-sudamericana', 'argentina', 'premier-league', 'champions-league', 'la-liga']
 
     log.info(f"[SCRAPER-ODDSPEDIA] Iniciando extração para ligas: {leagues}")
     all_matches = []

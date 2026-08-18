@@ -2126,27 +2126,41 @@ def update_oddspedia_odds(conn):
             
             best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = 0.0, "", 0.0, "", 0.0, ""
 
-            # 1. Prioridade Absoluta: API-Sports oficial via fixture_id (Betano, Bet365, Pinnacle)
-            api_fixture_bms = None
-            if api_sports_odds and fix_id in api_sports_odds:
-                api_fixture_bms = api_sports_odds[fix_id]
+            # 1. Prioridade Absoluta: Web Scraping ao vivo da Betano / Oddspedia / Futbol24
+            matched_m = None
+            for m in scraped_matches:
+                s_home = normalize_team_name(m['time_casa'])
+                s_away = normalize_team_name(m['time_visitante'])
+                if db_home == s_home and db_away == s_away:
+                    matched_m = m
+                    break
 
-            if api_fixture_bms:
-                valid_c1 = {bm: float(api_fixture_bms[bm]['casa']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('casa', 0.0)) > 1.0}
-                valid_cX = {bm: float(api_fixture_bms[bm]['empate']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('empate', 0.0)) > 1.0}
-                valid_c2 = {bm: float(api_fixture_bms[bm]['visitante']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('visitante', 0.0)) > 1.0}
-                if valid_c1 and valid_cX and valid_c2:
-                    best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = select_multi_bookmaker_odds(valid_c1, valid_cX, valid_c2)
-
-            # 2. Fallback: Matching por nome de times em agregadoras secundárias (Oddspedia / The Odds API / Futbol24)
-            if not best_c1 or best_c1 <= 1.0:
-                matched_m = None
+            if not matched_m:
                 for m in scraped_matches:
-                    s_home = normalize_team_name(m['time_casa'])
-                    s_away = normalize_team_name(m['time_visitante'])
-                    if db_home == s_home and db_away == s_away:
+                    if _is_team_match(fix['home_team'], m['time_casa']) and _is_team_match(fix['away_team'], m['time_visitante']):
                         matched_m = m
                         break
+
+            if matched_m:
+                best_c1 = float(matched_m.get('odd_casa') or 0.0)
+                best_bm1 = matched_m.get('casa_odd') or 'BETANO'
+                best_cX = float(matched_m.get('odd_empate') or 0.0)
+                best_bmX = matched_m.get('casa_odd') or 'BETANO'
+                best_c2 = float(matched_m.get('odd_visitante') or 0.0)
+                best_bm2 = matched_m.get('casa_odd') or 'BETANO'
+
+            # 2. Fallback: API-Sports oficial por fixture_id se não houver raspagem ao vivo
+            if not best_c1 or best_c1 <= 1.0:
+                api_fixture_bms = None
+                if api_sports_odds and fix_id in api_sports_odds:
+                    api_fixture_bms = api_sports_odds[fix_id]
+
+                if api_fixture_bms:
+                    valid_c1 = {bm: float(api_fixture_bms[bm]['casa']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('casa', 0.0)) > 1.0}
+                    valid_cX = {bm: float(api_fixture_bms[bm]['empate']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('empate', 0.0)) > 1.0}
+                    valid_c2 = {bm: float(api_fixture_bms[bm]['visitante']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('visitante', 0.0)) > 1.0}
+                    if valid_c1 and valid_cX and valid_c2:
+                        best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = select_multi_bookmaker_odds(valid_c1, valid_cX, valid_c2)
 
                 if not matched_m:
                     for m in scraped_matches:

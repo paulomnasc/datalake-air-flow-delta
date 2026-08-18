@@ -29,14 +29,18 @@ Além de simplificar a decisão entre duas opções (Mandante ou Visitante), o H
 | Linha de Handicap | Se o seu time Vence | Se a partida Empata | Se o seu time Perde |
 | :--- | :--- | :--- | :--- |
 | **0.0 (Empate Anula / DNB)** | 🟢 **Ganha 100%** | 🟡 **Reembolso 100%** | 🔴 **Perde 100%** |
-| **-0.25 (-0.0, -0.50)** | 🟢 **Ganha 100%** | 🟡 **Perde 50%** (Recebe 50% de volta) | 🔴 **Perde 100%** |
+| **-0.25 (-0.0, -0.50)** | 🟢 **Ganha 100%** | 🟡 **Perde 50%** *(Recebe 50% da Stake de volta)* | 🔴 **Perde 100%** |
 | **-0.50 (Vitória Simples)** | 🟢 **Ganha 100%** | 🔴 **Perde 100%** | 🔴 **Perde 100%** |
 | **-0.75 (-0.50, -1.00)** | 🟢 Vence por 2+ gols: **Ganha 100%**<br>🟡 Vence por 1 gol: **Ganha 50% do Lucro** | 🔴 **Perde 100%** | 🔴 **Perde 100%** |
 | **-1.00** | 🟢 Vence por 2+ gols: **Ganha 100%**<br>🟡 Vence por 1 gol: **Reembolso 100%** | 🔴 **Perde 100%** | 🔴 **Perde 100%** |
 | **+0.25 (+0.0, +0.50)** | 🟢 **Ganha 100%** | 🟢 **Ganha 50% do Lucro** + 100% Aposta | 🔴 **Perde 100%** |
 | **+0.50 (Dupla Chance)** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🔴 **Perde 100%** |
-| **+0.75 (+0.50, +1.00)** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🔴 Perde por 2+ gols: **Perde 100%**<br>🟡 Perde por 1 gol: **Perde 50%** |
+| **+0.75 (+0.50, +1.00)** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🔴 Perde por 2+ gols: **Perde 100%**<br>🟡 Perde por 1 gol: **Perde 50%** *(Recebe 50% da Stake de volta)* |
 | **+1.00** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🔴 Perde por 2+ gols: **Perde 100%**<br>🟡 Perde por 1 gol: **Reembolso 100%** |
+
+> 💡 **Entendendo a porcentagem no Reembolso Parcial / Meio Loss:**
+> * **"Perde 50% (Recebe 50% de volta)":** Significa que você perde **50% do VALOR APOSTADO (Stake)**. A **odd não é multiplicada** na metade perdida. Exemplo: se apostar **R$ 100,00**, você perde R$ 50,00 e o saldo de **R$ 50,00 (50% da Stake)** é devolvido à sua conta.
+> * **"Ganha 50% do Lucro (Meio Win)":** Significa que você recebe **100% da sua Stake de volta + 50% do Lucro Líquido** que ganharia com a Odd. Exemplo: R$ 100,00 em Odd 2.00 $\rightarrow$ Lucro total seria R$ 100,00. No meio win você recebe **R$ 100 (Stake) + R$ 50 (50% do Lucro) = R$ 150,00 de retorno total**.
 
 ---
 

@@ -8,8 +8,21 @@ require VIEWPATH.'/header.php';
     <div class="container">
         <h4 style="text-align: center;">Listagem de OrdemServico</h4>
         
-        <input type="text" id="filtro-Horas_Alocadas" placeholder="Filtrar">
-        <img src="../assets/img/lupa.jpg" >
+        <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 15px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <input type="text" id="filtro-geral" placeholder="Filtrar...">
+                <img src="../assets/img/lupa.jpg" >
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <label for="filtro-sistema" style="font-weight: 600; margin: 0;">Sistema:</label>
+                <select id="filtro-sistema" style="padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; min-width: 200px; background-color: #fff;">
+                    <option value="">Todos os Sistemas</option>
+                    <?php if(isset($sistemas_list)): foreach($sistemas_list as $sys): ?>
+                        <option value="<?php echo esc($sys->descricao); ?>"><?php echo esc($sys->descricao); ?></option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+        </div>
         
         <form action="<?php echo site_url('addOrdemServico'); ?>" method="post">
             <button type="submit" class="add-button">Incluir</button>
@@ -20,7 +33,8 @@ require VIEWPATH.'/header.php';
                 <tr>
                     <th>ID</th>
                     <th>Contrato</th>
-                    <th>HorasAlocadas</th><th>NupSei</th><th>DataEmissao</th><th>DataAceite</th><th>Valor Total (R$)</th><th>Status</th>
+                    <th>Sistema</th>
+                    <th>NupSei</th><th>DataEmissao</th><th>DataAceite</th><th>Valor Total (R$)</th><th>Status</th>
                     <th>Clone</th>
                     <th>Ações</th>
                 </tr>
@@ -30,7 +44,8 @@ require VIEWPATH.'/header.php';
                 <tr id="row-<?php echo $item->id ?>">
                     <td> <?php echo $item->id ?> </td>
                     <td> <?php echo esc($item->Numero_Contrato ?? 'Nenhum') ?> </td>
-                    <td> <?php echo $item->Horas_Alocadas ?> </td><td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->Data_Emissao ?> </td><td> <?php echo $item->Data_Aceite ?> </td><td> R$ <?php echo number_format($item->valor_total ?? 0, 2, ',', '.'); ?> </td><td> <?php echo esc($item->status ?? 'Rascunho') ?> </td>
+                    <td> <?php echo esc($item->Nome_Sistema ?? 'Nenhum') ?> </td>
+                    <td> <?php echo $item->nup_sei ?> </td><td> <?php echo $item->Data_Emissao ?> </td><td> <?php echo $item->Data_Aceite ?> </td><td> R$ <?php echo number_format($item->valor_total ?? 0, 2, ',', '.'); ?> </td><td> <?php echo esc($item->status ?? 'Rascunho') ?> </td>
                     <td>
                         <form action="<?php echo site_url('cloneOrdemServico/' . $item->id); ?>" method="post">
                             <button class="clone-button" type="submit" title="Clonar (Duplicar como Rascunho)">📋</button>
@@ -92,8 +107,13 @@ require VIEWPATH.'/header.php';
                     language: { "sEmptyTable": "Nenhum registro encontrado" }
                 });
 
-                $('#filtro-Horas_Alocadas').on('keyup', function() {
+                $('#filtro-geral').on('keyup', function() {
                     table.search(this.value).draw();
+                });
+
+                $('#filtro-sistema').on('change', function() {
+                    var val = $.fn.dataTable.util.escapeRegex($(this).val());
+                    table.column(2).search(val ? '^' + val + '$' : '', true, false).draw();
                 });
             });
         </script>

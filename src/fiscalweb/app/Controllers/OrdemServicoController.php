@@ -14,8 +14,9 @@ class OrdemServicoController extends BaseController
 {
     public function index()
     {
-        $list = $this->list();        
-        return view('listOrdemServico', ['list' => $list]);
+        $list = $this->list();
+        $sistemas_list = (new \App\Models\SistemaModel())->listToCombo();
+        return view('listOrdemServico', ['list' => $list, 'sistemas_list' => $sistemas_list]);
     }
 
     public function add()
@@ -24,6 +25,7 @@ class OrdemServicoController extends BaseController
         $data['servicos_list'] = (new ServicoModel())->findAll();
         $data['catalogos_list'] = (new CatalogoServicosModel())->findAll();
         $data['contratos_list'] = (new \App\Models\ContratoModel())->listToCombo();
+        $data['sistemas_list'] = (new \App\Models\SistemaModel())->listToCombo();
         return view('addOrdemServico', $data);
     }
 
@@ -37,6 +39,7 @@ class OrdemServicoController extends BaseController
         $data['servicos_list'] = (new ServicoModel())->findAll();
         $data['catalogos_list'] = (new CatalogoServicosModel())->findAll();
         $data['contratos_list'] = (new \App\Models\ContratoModel())->listToCombo();
+        $data['sistemas_list'] = (new \App\Models\SistemaModel())->listToCombo();
         
         // Buscar itens existentes
         $db = \Config\Database::connect();
@@ -110,8 +113,9 @@ class OrdemServicoController extends BaseController
     public function list()  
     {
         $model = new OrdemServicoModel();
-        $list = $model->select('ordem_servico.*, contrato.descricao as Numero_Contrato')
+        $list = $model->select('ordem_servico.*, contrato.descricao as Numero_Contrato, agile_sistemas.nome as Nome_Sistema')
                       ->join('contrato', 'contrato.id = ordem_servico.id_contrato', 'left')
+                      ->join('agile_sistemas', 'agile_sistemas.id = ordem_servico.id_sistema', 'left')
                       ->findAll();
 
         $db = \Config\Database::connect();
@@ -173,6 +177,14 @@ class OrdemServicoController extends BaseController
             ]);
         }
 
+        $id_sistema = $this->post('id_sistema');
+        if (empty($id_sistema)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'O Sistema é obrigatório.'
+            ]);
+        }
+
         // Validação da vigência do contrato (faltando 30 dias para o fim)
         $contratoModel = new \App\Models\ContratoModel();
         $contrato = $contratoModel->find($id_contrato);
@@ -225,7 +237,8 @@ class OrdemServicoController extends BaseController
             'metodologia_estimativa' => $this->post('metodologia_estimativa'),
             'status' => $status,
             'nota_empenho' => $notaEmpenho ?: null,
-            'id_contrato' => $id_contrato
+            'id_contrato' => $id_contrato,
+            'id_sistema' => $id_sistema
         ];
         
         $model = new OrdemServicoModel();
@@ -294,6 +307,14 @@ class OrdemServicoController extends BaseController
             return $this->response->setJSON([
                 'status' => 'error',
                 'mensagem' => 'O Contrato é obrigatório.'
+            ]);
+        }
+
+        $id_sistema = $this->post('id_sistema');
+        if (empty($id_sistema)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'O Sistema é obrigatório.'
             ]);
         }
 
@@ -392,7 +413,8 @@ class OrdemServicoController extends BaseController
             'metodologia_estimativa' => $this->post('metodologia_estimativa'),
             'status' => $newStatus,
             'nota_empenho' => $notaEmpenho ?: null,
-            'id_contrato' => $id_contrato
+            'id_contrato' => $id_contrato,
+            'id_sistema' => $id_sistema
         ];
         
         $db = \Config\Database::connect();
@@ -622,7 +644,8 @@ class OrdemServicoController extends BaseController
                 'metodologia_estimativa' => $record->metodologia_estimativa ?? $record->Metodologia_Estimativa ?? null,
                 'status'                 => 'Rascunho',
                 'nota_empenho'           => null,
-                'id_contrato'            => $record->id_contrato ?? $record->Id_Contrato ?? null
+                'id_contrato'            => $record->id_contrato ?? $record->Id_Contrato ?? null,
+                'id_sistema'             => $record->id_sistema ?? $record->Id_Sistema ?? null
             ];
 
             $newOsId = $model->insert($data);

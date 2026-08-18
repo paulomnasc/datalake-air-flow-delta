@@ -23,6 +23,18 @@ require VIEWPATH.'/header.php';
                 </select>
             </div>
 
+            <div class="form-group" style="margin-top: 15px;">
+                <label for="id_sistema">Sistema:</label>
+                <select id="id_sistema" name="id_sistema" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">Selecione...</option>
+                    <?php if(isset($sistemas_list)): foreach($sistemas_list as $opt): ?>
+                        <option value="<?php echo $opt->id; ?>" <?php echo (isset($record->id_sistema) && $record->id_sistema == $opt->id) ? 'selected' : ''; ?>>
+                            <?php echo esc($opt->descricao); ?><?php echo !empty($opt->sigla) ? ' (' . esc($opt->sigla) . ')' : ''; ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+
             <div class="form-group">
                 <label for="Horas_Alocadas">HorasAlocadas:</label>
                 <input type="number" step="0.01" id="Horas_Alocadas" name="Horas_Alocadas" value="<?php echo isset($record->Horas_Alocadas) ? $record->Horas_Alocadas : ''; ?>" required>

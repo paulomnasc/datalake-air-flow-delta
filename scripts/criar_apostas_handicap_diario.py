@@ -42,17 +42,27 @@ def get_db_connection():
 
 def get_all_user_ids(cursor):
     """
-    Retorna lista de IDs de todos os usuários cadastrados na tabela 'usuario'.
+    Retorna lista de IDs contendo exclusivamente o usuário 'paulomnasc'.
     """
-    cursor.execute("SELECT id FROM usuario ORDER BY id ASC")
+    cursor.execute("""
+        SELECT id FROM usuario 
+        WHERE email LIKE '%paulomnasc%' OR nome LIKE '%paulomnasc%' OR id = 558
+        ORDER BY id ASC
+        LIMIT 1
+    """)
     rows = cursor.fetchall()
     if rows:
         return [r['id'] for r in rows]
     
-    print("ℹ️ Criando usuário padrão no sistema para vinculação de apostas...")
+    cursor.execute("SELECT id FROM usuario ORDER BY id ASC LIMIT 1")
+    first_user = cursor.fetchone()
+    if first_user:
+        return [first_user['id']]
+
+    print("ℹ️ Criando usuário paulomnasc no sistema para vinculação de apostas...")
     cursor.execute("""
         INSERT INTO usuario (nome, email, senha, email_confirmado, criado_em)
-        VALUES ('Sistema Automação', 'sistema@footballweb.com', '123456', 1, NOW())
+        VALUES ('Paulo Nascimento', 'paulomnasc@gmail.com', '123456', 1, NOW())
     """)
     return [cursor.lastrowid]
 

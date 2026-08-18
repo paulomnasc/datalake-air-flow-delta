@@ -799,6 +799,10 @@ def calculate_asian_handicap_suggestion(
             suggestion = f"{away_team} +0.25 AH"
             confidence = 74.00
             main_reason = f"Contraste de Forma Recente: O excelente momento do {away_team} ({away_last5.get('text')}) sobressai-se à oscilação do mandante {home_team} ({home_last5.get('text')}). Vantagem dada ao visitante com cobertura +0.25 AH (meio-green no empate).{note_str}"
+        elif market_away_fav:
+            suggestion = f"{away_team} +0.25 AH"
+            confidence = round(min(78.0, 64.0 + abs(delta_goals) * 10), 2)
+            main_reason = f"Favoritismo do visitante {away_team} nas odds de mercado ({away_last5.get('text')} em U5J). Proteção de cobertura +0.25 AH (meio-green no empate).{note_str}"
         elif delta_goals >= 1.80:
             suggestion = f"{home_team} -1.0 AH"
             confidence = round(min(88.0, 68.0 + delta_goals * 10), 2)
@@ -807,11 +811,11 @@ def calculate_asian_handicap_suggestion(
             suggestion = f"{home_team} -0.5 AH"
             confidence = round(min(82.0, 62.0 + delta_goals * 12), 2)
             main_reason = f"Vantagem sólida de mando para o {home_team} em casa com saldo positivo significativo (+{delta_goals:.2f} gols esperados).{note_str}"
-        elif delta_goals >= 0.25 and not market_away_fav:
+        elif delta_goals >= 0.25:
             suggestion = f"{home_team} -0.25 AH"
             confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
             main_reason = f"Favoritismo do {home_team} em casa (+{delta_goals:.2f} gols esperados). Proteção conservadora de meia estaca (AH -0.25) com odd atrativa de mercado.{note_str}"
-        elif market_away_fav or delta_goals <= -0.25:
+        elif delta_goals <= -0.25:
             suggestion = f"{away_team} +0.25 AH"
             confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
             main_reason = f"Favoritismo do visitante {away_team} ({away_last5.get('text')} em U5J / {away_goals_scored:.1f} g/j). Proteção de cobertura +0.25 AH (meio-green no empate).{note_str}"

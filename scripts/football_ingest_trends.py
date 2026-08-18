@@ -1878,7 +1878,7 @@ def fetch_api_sports_odds_by_date(date_list=None):
         total_pages = 1
         day_cache = {}
 
-        while page <= total_pages and page <= 5:
+        while page <= total_pages and page <= 25:
             url = f"https://v3.football.api-sports.io/odds?date={d}&page={page}"
             try:
                 resp = requests.get(url, headers=headers, timeout=12).json()

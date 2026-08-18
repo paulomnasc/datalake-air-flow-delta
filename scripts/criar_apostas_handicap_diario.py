@@ -244,16 +244,16 @@ def criar_apostas_handicap_diario(target_date_str=None):
                 ah_suggestion = f"{away_team} +0.25 AH"
 
         if is_away:
-            odd_val = float(fix.get('odd_away') or 1.60)
+            odd_val = float(fix.get('odd_away') or 1.50)
         else:
-            odd_val = float(fix.get('odd_home') or 1.60)
+            odd_val = float(fix.get('odd_home') or 1.50)
 
         if odd_val <= 1.0:
-            odd_val = 1.60
+            odd_val = 1.50
 
-        # Validação de Risco: Não cria aposta automática se a odd for inferior ao mínimo de 1.60
-        if odd_val < 1.60:
-            print(f"🛡️ [Odd Baixa < 1.60] Partida {home_team} vs {away_team} -> Odd {odd_val:.2f} é inferior ao mínimo permitido (1.60). Aposta não criada.")
+        # Validação de Risco: Não cria aposta automática se a odd for inferior ao mínimo de 1.50
+        if odd_val < 1.50:
+            print(f"🛡️ [Odd Baixa < 1.50] Partida {home_team} vs {away_team} -> Odd {odd_val:.2f} é inferior ao mínimo permitido (1.50). Aposta não criada.")
             apostas_abstenção += 1
             continue
 

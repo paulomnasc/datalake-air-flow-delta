@@ -238,10 +238,10 @@ class ApostaController extends BaseController
             ]);
         }
 
-        if ($odd < 1.60) {
+        if ($odd < 1.50) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'A Odd informada ('.number_format($odd, 2, ',', '.').') é inferior ao mínimo permitido de 1,60. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,60.'
+                'message' => 'A Odd informada ('.number_format($odd, 2, ',', '.').') é inferior ao mínimo permitido de 1,50. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,50.'
             ]);
         }
 
@@ -350,13 +350,13 @@ class ApostaController extends BaseController
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
-        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Estratégia Exclusiva Under 7.5+)
+        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Estratégia Exclusiva Under 5.5+)
         preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
         $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
 
-        if ($lineCheck < 7.5) {
+        if ($lineCheck < 5.5) {
             $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Apostas no mercado 'Total de Cartões' com linhas inferiores a 7.5 (ex: Under 6.5, 5.5, 4.5, 3.5) são bloqueadas pelo modelo devido ao elevado risco de perda histórico. Apenas linhas de Under 7.5 ou superior possuem margem de segurança aprovada.";
+            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Apostas no mercado 'Total de Cartões' com linhas inferiores a 5.5 (ex: Under 4.5, 3.5) são bloqueadas pelo modelo por elevado risco. Apenas linhas de Under 5.5 ou superior (Under 5.5, 6.5, 7.5) possuem margem de segurança aprovada.";
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
@@ -373,7 +373,7 @@ class ApostaController extends BaseController
 
         $avgWinningOdd = ($rowAvg && $rowAvg->avg_odd && (int)$rowAvg->total_vitorias > 0) 
             ? round((float)$rowAvg->avg_odd, 2) 
-            : 1.60;
+            : 1.50;
 
         // Teto dinâmico flexível: Média + 0.35 com piso mínimo de 2.00 (evita auto-afunilamento e bloqueia apenas distorções irreais)
         $maxAllowedOdd = round(max(2.00, $avgWinningOdd + 0.35), 2);

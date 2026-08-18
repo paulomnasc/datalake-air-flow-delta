@@ -96,18 +96,18 @@ Exemplo de saída recomendada:
 - **Opção Principal:** Under 5.5 Cartões (Probabilidade: 86.37% | Odd Justa: 1.16)
 - **Opção Secundária:** Under 4.5 Cartões (Probabilidade: 72.82% | Odd Justa: 1.37)
 
-### 4.2. Trava do Gatekeeper no Cadastro (Triplo Filtro & Linha Mínima Under 7.5+)
+### 4.2. Trava do Gatekeeper no Cadastro (Triplo Filtro & Faixa de Linhas Betano Under 5.5+)
 No cadastro/entrada da aposta no **footballweb**, a validação avalia 4 critérios cumulativos:
 
 | Filtro | Parâmetro | Validação |
 | :--- | :--- | :--- |
-| **1. Linha Mínima de Segurança** | $\text{Linha} \ge 7.5$ | Bloqueia qualquer aposta em cartões com linha inferior a 7.5 (ex: Under 6.5, 5.5, 4.5). |
-| **2. Risco Estatístico ($xC$)** | $xC \le 5.80$ | Impede apostas Under em partidas com expectativa descontrolada de faltas/cartões. |
-| **3. Probabilidade Mínima ($P$)** | $P(\text{Under 7.5}) \ge 60\%$ | Garante margem estatística suficiente de acerto via Poisson. |
-| **4. Retorno Financeiro ($EV$)** | $\text{Odd}_{\text{Casa}} > \text{Odd}_{\text{Fair}}$ ($EV > 0$) | Assegura que a casa está pagando mais do que o risco real da aposta. |
+| **1. Linha Mínima de Segurança** | $\text{Linha} \ge 5.5$ | Bloqueia qualquer aposta em cartões com linha inferior a 5.5 (ex: Under 4.5, 3.5). |
+| **2. Risco Estatístico ($xC$)** | $xC \le 6.50$ | Impede apostas Under em partidas com expectativa descontrolada de cartões ($xC > 6.50$). |
+| **3. Mapeamento Dinâmico Betano** | $xC \le 4.0 \Rightarrow \text{Under 5.5}$<br>$4.0 < xC \le 5.8 \Rightarrow \text{Under 6.5 (Linha Conservadora)}$<br>$5.8 < xC \le 6.5 \Rightarrow \text{Under 7.5 (Cobertura Alta)}$ | Seleciona a linha de maior segurança oferecida na Betano de acordo com o risco do jogo. |
+| **4. Probabilidade Mínima ($P$)** | $P(\text{Under Linha}) \ge 60\%$ | Garante margem estatística suficiente de acerto via Distribuição de Poisson. |
 
 - **Status `APROVADO`:** Todos os critérios são atendidos. Aposta liberada com selo Green Light.
-- **Status `NO_BET`:** Se qualquer um dos critérios falhar (ex: linha $< 7.5$, $xC > 5.80$, $P < 60\%$ ou Odd da Casa caindo abaixo da Odd Justa). A aposta é registrada/notificada como sem valor de mercado.
+- **Status `NO_BET`:** Se qualquer um dos critérios falhar (ex: linha $< 5.5$, $xC > 6.50$ ou $P < 60\%$). A aposta é registrada/notificada como sem valor de mercado.
 
 ---
 

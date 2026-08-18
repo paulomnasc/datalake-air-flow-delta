@@ -1497,19 +1497,31 @@ def main():
             
             over_cards_prob = round(100.0 - u45, 2)
 
-            # POLÍTICA EXCLUSIVA UNDER E TRAVA DE SEGURANÇA GATEKEEPER LINHA MÍNIMA (UNDER 7.5+):
+            # POLÍTICA EXCLUSIVA UNDER E SELEÇÃO DINÂMICA DE LINHAS DA BETANO:
             # Calcula Odds Justas (100 / P) para cada linha
+            odd_u55 = round(100.0 / u55, 2) if u55 > 0 else 99.00
+            odd_u65 = round(100.0 / u65, 2) if u65 > 0 else 99.00
             odd_u75 = round(100.0 / u75, 2) if u75 > 0 else 99.00
             odd_u85 = round(100.0 / u85, 2) if u85 > 0 else 99.00
 
-            if exp_cards <= 5.80 and u75 >= 60.0:
-                # Cenário Aprovado pelo Gatekeeper de Cartões (Linha mínima Under 7.5+)
+            if exp_cards <= 4.00 and u55 >= 60.0:
+                # Cenário de Baixo Risco (Expectativa <= 4.00 cartões) -> 1ª Opção Under 5.5
+                op1 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
+                op2 = f"Under 6.5 ({u65}% | Odd Justa: {odd_u65})"
+                prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
+            elif exp_cards <= 5.80 and u65 >= 60.0:
+                # Cenário de Segurança Conservadora Betano (Expectativa 4.01 a 5.80 cartões) -> 1ª Opção Under 6.5
+                op1 = f"Under 6.5 ({u65}% | Odd Justa: {odd_u65})"
+                op2 = f"Under 7.5 ({u75}% | Odd Justa: {odd_u75})"
+                prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
+            elif exp_cards <= 6.50 and u75 >= 60.0:
+                # Cenário de Cobertura Alta Betano (Expectativa 5.81 a 6.50 cartões) -> 1ª Opção Under 7.5
                 op1 = f"Under 7.5 ({u75}% | Odd Justa: {odd_u75})"
                 op2 = f"Under 8.5 ({u85}% | Odd Justa: {odd_u85})"
                 prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
             else:
-                # Trava NO_BET: Risco elevado para entradas Under (xC > 5.80 ou probabilidade Under 7.5 < 60%)
-                prediction_text = f"🚫 NO_BET: Partida com Expectativa de Cartões elevada ({exp_cards} cartões). Linha de segurança mínima Under 7.5 não atendeu a margem aprovada pelo Gatekeeper."
+                # Trava NO_BET: Risco elevado para entradas Under (xC > 6.50 ou probabilidade Under insuficiente)
+                prediction_text = f"🚫 NO_BET: Partida com Expectativa de Cartões elevada ({exp_cards} cartões). Nenhuma linha de segurança Under atendeu a margem aprovada pelo Gatekeeper."
 
 
 

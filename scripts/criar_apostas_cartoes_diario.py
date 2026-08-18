@@ -141,13 +141,13 @@ def extract_cards_under_suggestion(prediction_text: str):
     match_xc = re.search(r'xC(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)', prediction_text, re.IGNORECASE)
     exp_cards = float(match_xc.group(1)) if match_xc else None
 
-    # Se xC for muito alto (> 5.80), força NO_BET conforme regra estatística de segurança
-    if exp_cards is not None and exp_cards > 5.80:
+    # Se xC for muito alto (> 6.50), força NO_BET conforme regra estatística de segurança
+    if exp_cards is not None and exp_cards > 6.50:
         return None, None, 'NO_BET', None, None, None, exp_cards
 
-    # 3. Procura por sugestões do tipo: "1ª Opção: Under 7.5 (92.08% | Odd Justa: 1.09)"
+    # 3. Procura por sugestões do tipo: "1ª Opção: Under 5.5 (62.50% | Odd Justa: 1.60)"
     # Ou termos genéricos "Under X.5" ou "Menos de X.5"
-    line_val = 7.5 # Default fallback safe line (Linha Mínima de Segurança Gatekeeper)
+    line_val = 6.5 # Default fallback safe line (Linha Betano Gatekeeper)
 
     match_under_op1 = re.search(r'1ª\s*Opção:\s*Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
     if match_under_op1:
@@ -161,9 +161,9 @@ def extract_cards_under_suggestion(prediction_text: str):
             if match_menos:
                 line_val = float(match_menos.group(1))
 
-    # TRAVA RIGOROSA DO GATEKEEPER (LINHA MÍNIMA UNDER 6.5+):
-    # Linhas inferiores a 6.5 (ex: Under 4.5, Under 5.5) são bloqueadas como NO_BET por alto risco
-    if line_val < 6.5:
+    # TRAVA RIGOROSA DO GATEKEEPER (LINHA MÍNIMA UNDER 5.5+):
+    # Linhas inferiores a 5.5 (ex: Under 4.5, Under 3.5) são bloqueadas como NO_BET por alto risco
+    if line_val < 5.5:
         return None, None, 'NO_BET', None, None, None, exp_cards
 
     # 4. Cálculo de Probabilidade Poisson & Odd Justa
@@ -173,9 +173,9 @@ def extract_cards_under_suggestion(prediction_text: str):
     prob_poisson = calculate_poisson_under_cdf(exp_cards, line_val)
     odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
 
-    # 5. Avaliação do Gatekeeper (Regra de Segurança Under 6.5+)
-    # xC <= 5.80 e Probabilidade Poisson >= 60%
-    if exp_cards <= 5.80 and prob_poisson >= 60.0:
+    # 5. Avaliação do Gatekeeper (Regra de Segurança Under 5.5+)
+    # xC <= 6.50 e Probabilidade Poisson >= 60%
+    if exp_cards <= 6.50 and prob_poisson >= 60.0:
         status_gk = 'APROVADO'
     else:
         status_gk = 'NO_BET'
@@ -266,15 +266,15 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
         # Definição da Odd Real da Casa para a Aposta
         # Se odd_justa calculada estiver disponível, estimamos uma odd de mercado competitiva (+EV)
-        # Ex: Odd Mercado 1.80 a 1.85 ou odd_justa com margem de segurança
-        odd_val = 1.80
+        # Ex: Odd Mercado Betano entre 1.50 e 1.85 ou odd_justa com margem de segurança
+        odd_val = 1.65
         if odd_justa and odd_justa > 1.0:
-            # Garante que a odd oferecida atenda a margem financeira (+EV)
-            odd_val = round(max(1.80, odd_justa * 1.15), 2)
+            # Garante que a odd oferecida atenda a margem financeira (+EV) da linha da Betano
+            odd_val = round(max(1.50, odd_justa * 1.05), 2)
         
-        # Trava de Risco: Não criar aposta se a odd for inferior ao mínimo permitido (1.60)
-        if odd_val < 1.60:
-            print(f"🛡️ [Odd Baixa < 1.60] Partida {home_team} vs {away_team} -> Odd {odd_val:.2f} é inferior ao mínimo permitido. Aposta ignorada.")
+        # Trava de Risco: Não criar aposta se a odd for inferior ao mínimo permitido (1.50)
+        if odd_val < 1.50:
+            print(f"🛡️ [Odd Baixa < 1.50] Partida {home_team} vs {away_team} -> Odd {odd_val:.2f} é inferior ao mínimo permitido (1.50). Aposta ignorada.")
             apostas_abstencao += 1
             continue
 

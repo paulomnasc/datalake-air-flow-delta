@@ -386,6 +386,11 @@ class AgileController extends BaseController
             ->where('status', 'Ativa')
             ->first();
 
+        $sprints = $this->sprintModel
+            ->where('id_demanda', $id_demanda)
+            ->orderBy('id', 'DESC')
+            ->findAll();
+
         $items = $this->backlogItemModel
             ->where('id_demanda', $id_demanda)
             ->orderBy('ordem', 'ASC')
@@ -398,6 +403,7 @@ class AgileController extends BaseController
         return view('agile/kanban', [
             'demanda' => $demanda,
             'sprintAtiva' => $sprintAtiva,
+            'sprints' => $sprints,
             'items' => $items,
             'cerimonias' => $cerimonias,
             'usuarios' => $usuarios,

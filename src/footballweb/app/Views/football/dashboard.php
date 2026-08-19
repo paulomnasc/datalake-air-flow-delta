@@ -325,14 +325,14 @@ $leagueMap = [
     3    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
     4    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
     5    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
-    9    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
-    10   => ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => false],
-    11   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
-    13   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    9    => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => true],
+    10   => ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => true],
+    11   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => true],
+    13   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => true],
     15   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
     17   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
     18   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
-    531  => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+    531  => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => true],
     667  => ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => false],
     772  => ['country' => 'INTERNACIONAL', 'flag' => '🌎', 'popular' => false],
     848  => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
@@ -352,27 +352,33 @@ if (!function_exists('resolveLeagueCountryAndFlag')) {
 
         $lNameLower = strtolower($leagueName ?? '');
 
-        // 1. Checa competições internacionais por palavra-chave
+        // 1. Checa competições CONMEBOL por palavra-chave (Populares)
+        if (
+            strpos($lNameLower, 'libertadores') !== false ||
+            strpos($lNameLower, 'sudamericana') !== false ||
+            strpos($lNameLower, 'recopa') !== false ||
+            strpos($lNameLower, 'conmebol') !== false ||
+            strpos($lNameLower, 'copa america') !== false
+        ) {
+            return ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => true];
+        }
+
+        // 2. Checa competições internacionais por palavra-chave
         if (
             strpos($lNameLower, 'champions league') !== false ||
             strpos($lNameLower, 'europa league') !== false ||
             strpos($lNameLower, 'conference league') !== false ||
-            strpos($lNameLower, 'libertadores') !== false ||
-            strpos($lNameLower, 'sudamericana') !== false ||
             strpos($lNameLower, 'world cup') !== false ||
             strpos($lNameLower, 'copa do mundo') !== false ||
             strpos($lNameLower, 'friendlies') !== false ||
             strpos($lNameLower, 'amistoso') !== false ||
             strpos($lNameLower, 'leagues cup') !== false ||
             strpos($lNameLower, 'nations league') !== false ||
-            strpos($lNameLower, 'copa america') !== false ||
             strpos($lNameLower, 'euro') !== false ||
-            strpos($lNameLower, 'recopa') !== false ||
             strpos($lNameLower, 'concacaf') !== false ||
             strpos($lNameLower, 'afc') !== false ||
             strpos($lNameLower, 'caf') !== false ||
             strpos($lNameLower, 'uefa') !== false ||
-            strpos($lNameLower, 'conmebol') !== false ||
             strpos($lNameLower, 'internacional') !== false ||
             strpos($lNameLower, 'international') !== false
         ) {

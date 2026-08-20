@@ -2139,13 +2139,33 @@ if (!function_exists('formatBrtDate')) {
     clearDateFilter();
   }
 
-  function submitNewBet(e) {
-    e.preventDefault();
+  let isSubmittingNewBet = false;
+  function submitNewBet(e, confirmRisco = false) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (isSubmittingNewBet && !confirmRisco) return;
+
     const oddVal = parseFloat(document.getElementById('oddInput').value) || 0;
     if (oddVal < 1.50) {
       alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,50. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,50.');
       return;
     }
+
+    const submitBtn = document.querySelector('#newBetForm button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.dataset.origText = submitBtn.dataset.origText || submitBtn.innerHTML;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processando...';
+    }
+    isSubmittingNewBet = true;
+
+    const resetSubmitState = () => {
+      isSubmittingNewBet = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = submitBtn.dataset.origText || 'Salvar Aposta';
+      }
+    };
+
     const formData = new FormData();
     formData.append('time_casa', document.getElementById('timeCasaInput').value);
     formData.append('time_fora', document.getElementById('timeForaInput').value);
@@ -2157,6 +2177,9 @@ if (!function_exists('formatBrtDate')) {
     formData.append('tipo', document.getElementById('tipoSelect').value);
     formData.append('status', document.getElementById('statusSelect').value);
     formData.append('fixture_id', document.getElementById('fixtureSelect').value);
+    if (confirmRisco) {
+      formData.append('confirmar_risco', '1');
+    }
 
     fetch('/apostas/store', {
       method: 'POST',
@@ -2167,11 +2190,21 @@ if (!function_exists('formatBrtDate')) {
       if (data.success) {
         alert('✓ ' + data.message);
         window.location.href = window.location.pathname;
+      } else if (data.require_confirmation || data.is_warning) {
+        resetSubmitState();
+        const msgClean = (data.message || '').replace(/^⚠️\s*/, '');
+        setTimeout(() => {
+          if (confirm(msgClean)) {
+            submitNewBet(null, true);
+          }
+        }, 50);
       } else {
+        resetSubmitState();
         alert('❌ ' + data.message);
       }
     })
     .catch(err => {
+      resetSubmitState();
       console.error(err);
       alert('Erro na requisição.');
     });
@@ -2310,13 +2343,33 @@ if (!function_exists('formatBrtDate')) {
     showModalSafely(document.getElementById('editBetModal'));
   }
 
-  function submitEditBet(e) {
-    e.preventDefault();
+  let isSubmittingEditBet = false;
+  function submitEditBet(e, confirmRisco = false) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (isSubmittingEditBet && !confirmRisco) return;
+
     const oddVal = parseFloat(document.getElementById('editOddInput').value) || 0;
     if (oddVal < 1.50) {
       alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,50. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,50.');
       return;
     }
+
+    const submitBtn = document.querySelector('#editBetForm button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.dataset.origText = submitBtn.dataset.origText || submitBtn.innerHTML;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Atualizando...';
+    }
+    isSubmittingEditBet = true;
+
+    const resetEditState = () => {
+      isSubmittingEditBet = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = submitBtn.dataset.origText || 'Atualizar Aposta';
+      }
+    };
+
     const id = document.getElementById('editIdInput').value;
     const formData = new FormData();
     formData.append('id', id);
@@ -2329,6 +2382,9 @@ if (!function_exists('formatBrtDate')) {
     formData.append('cash_out', document.getElementById('editCashoutInput').value);
     formData.append('tipo', document.getElementById('editTipoSelect').value);
     formData.append('status', document.getElementById('editStatusSelect').value);
+    if (confirmRisco) {
+      formData.append('confirmar_risco', '1');
+    }
 
     fetch('/apostas/update/' + id, {
       method: 'POST',
@@ -2340,11 +2396,21 @@ if (!function_exists('formatBrtDate')) {
         hideModalSafely(document.getElementById('editBetModal'));
         alert('✓ ' + data.message);
         window.location.replace('/apostas');
+      } else if (data.require_confirmation || data.is_warning) {
+        resetEditState();
+        const msgClean = (data.message || '').replace(/^⚠️\s*/, '');
+        setTimeout(() => {
+          if (confirm(msgClean)) {
+            submitEditBet(null, true);
+          }
+        }, 50);
       } else {
+        resetEditState();
         alert('❌ ' + data.message);
       }
     })
     .catch(err => {
+      resetEditState();
       console.error(err);
       alert('Erro na atualização.');
     });
@@ -2373,11 +2439,21 @@ if (!function_exists('formatBrtDate')) {
     });
   }
 
-  function handleReapostar(id) {
-    if (!confirm('Deseja reapostar (duplicar) este palpite?')) return;
+  const activeReapostas = {};
+  function handleReapostar(id, confirmRisco = false) {
+    if (activeReapostas[id]) return;
+
+    if (!confirmRisco) {
+      if (!confirm('Deseja reapostar (duplicar) este palpite?')) return;
+    }
+
+    activeReapostas[id] = true;
 
     const formData = new FormData();
     formData.append('id', id);
+    if (confirmRisco) {
+      formData.append('confirmar_risco', '1');
+    }
 
     fetch('/apostas/reapostar/' + id, {
       method: 'POST',
@@ -2388,9 +2464,23 @@ if (!function_exists('formatBrtDate')) {
       if (data.success) {
         alert('✓ ' + data.message);
         window.location.replace('/apostas');
+      } else if (data.require_confirmation || data.is_warning) {
+        delete activeReapostas[id];
+        const msgClean = (data.message || '').replace(/^⚠️\s*/, '');
+        setTimeout(() => {
+          if (confirm(msgClean)) {
+            handleReapostar(id, true);
+          }
+        }, 50);
       } else {
+        delete activeReapostas[id];
         alert('❌ ' + data.message);
       }
+    })
+    .catch(err => {
+      delete activeReapostas[id];
+      console.error(err);
+      alert('Erro ao reapostar.');
     });
   }
 

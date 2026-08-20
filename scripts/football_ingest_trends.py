@@ -78,6 +78,32 @@ def is_women_game(home_team="", away_team="", league_name=""):
 
     return False
 
+def is_youth_game(home_team="", away_team="", league_name=""):
+    """
+    Filtra e desconsidera partidas de campeonatos/equipes das categorias de base (Sub-17, Sub-21, Sub-20, U17, U21, U20, Youth, etc.).
+    """
+    import re
+    home = str(home_team or "").strip()
+    away = str(away_team or "").strip()
+    league = str(league_name or "").strip()
+
+    # Padrão regex para capturar U15-U23, U-15 a U-23, Sub 15-23, Sub-15-23, Sub15-23
+    youth_pattern = re.compile(
+        r'\b(u[-.]?\s*(15|16|17|18|19|20|21|22|23)|sub[-.]?\s*(15|16|17|18|19|20|21|22|23))\b',
+        re.IGNORECASE
+    )
+
+    for text in (home, away, league):
+        if not text:
+            continue
+        text_lower = text.lower()
+        if youth_pattern.search(text_lower):
+            return True
+        if "youth" in text_lower or "juniores" in text_lower or "(u-21)" in text_lower or "(u-17)" in text_lower or "(u21)" in text_lower or "(u17)" in text_lower:
+            return True
+
+    return False
+
 def _normalize_team_name_for_match(n):
     if not n:
         return ""
@@ -1377,10 +1403,16 @@ def main():
         18: "AFC Champions League Two (Asia)"
     }
 
-    # Filtra partidas pelas ligas permitidas
+    # Filtra partidas pelas ligas permitidas e desconsidera jogos femininos ou de categorias de base (Sub-17, Sub-21, U17, U21, etc.)
     filtered_fixtures = []
     for f in fixtures:
         if f.get("league", {}).get("id") not in ALLOWED_LEAGUES:
+            continue
+
+        h_name = f.get("teams", {}).get("home", {}).get("name", "")
+        a_name = f.get("teams", {}).get("away", {}).get("name", "")
+        l_name = f.get("league", {}).get("name", "")
+        if is_women_game(h_name, a_name, l_name) or is_youth_game(h_name, a_name, l_name):
             continue
         
         if is_live_mode:
@@ -1435,6 +1467,22 @@ def main():
     except Exception as e_ft:
         print(f"Aviso ao carregar cached_ft_stats: {e_ft}")
 
+    # Limpeza automática no banco para remover partidas de categorias de base ou femininas recentes
+    try:
+        cursor.execute("SELECT fixture_id, home_team, away_team, league_name FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 30 DAY")
+        recent_db_fixtures = cursor.fetchall()
+        to_delete = [
+            r['fixture_id'] for r in recent_db_fixtures 
+            if is_women_game(r['home_team'], r['away_team'], r['league_name']) or is_youth_game(r['home_team'], r['away_team'], r['league_name'])
+        ]
+        if to_delete:
+            format_strings = ','.join(['%s'] * len(to_delete))
+            cursor.execute(f"DELETE FROM fixtures_trends WHERE fixture_id IN ({format_strings})", tuple(to_delete))
+            conn.commit()
+            print(f"🧹 Limpeza automática: removidas {len(to_delete)} partidas de categorias de base / femininas da base de dados.")
+    except Exception as e_clean:
+        print(f"Aviso ao executar limpeza de jogos de base/femininos: {e_clean}")
+
     try:
         for f in filtered_fixtures:
             fix_id = f["fixture"]["id"]
@@ -1446,8 +1494,8 @@ def main():
             home_team = f["teams"]["home"]["name"]
             away_team = f["teams"]["away"]["name"]
 
-            # Desconsiderar partidas/ligas femininas (W)
-            if is_women_game(home_team, away_team, league_name):
+            # Desconsiderar partidas/ligas femininas (W) e categorias de base (Sub-17, Sub-21, U17, U21, etc.)
+            if is_women_game(home_team, away_team, league_name) or is_youth_game(home_team, away_team, league_name):
                 continue
 
             # Sanitização: Corrigir atribuição de liga se a API enviar times da Série B sob Série A (league 71)
@@ -2329,13 +2377,21 @@ def update_oddspedia_odds(conn):
                 is_surebet = 1 if (calc and calc['is_surebet'] and len(casas_usadas) > 1 and calc['lucro_percentual'] <= 15.0) else 0
                 profit_pct = calc['lucro_percentual'] if (calc and is_surebet) else 0.0
                 
-                # Recalcula palpite AH com odds reais
+                # Recalcula palpite AH com odds reais e estatísticas de xG do banco
                 home_last5 = fetch_team_last5_form(cursor, fix['home_team'], fix.get('home_team_id'), fix.get('league_id'))
                 away_last5 = fetch_team_last5_form(cursor, fix['away_team'], fix.get('away_team_id'), fix.get('league_id'))
                 home_losses = home_last5.get('d', 0) if home_last5.get('v', 0) == 0 else 0
                 away_losses = away_last5.get('d', 0) if away_last5.get('v', 0) == 0 else 0
+                
+                cursor.execute("SELECT xg_home, xg_away FROM fixtures_trends WHERE fixture_id = %s", (fix_id,))
+                row_xg = cursor.fetchone()
+                xg_h = float(row_xg.get('xg_home') or 0.0) if row_xg else 0.0
+                xg_a = float(row_xg.get('xg_away') or 0.0) if row_xg else 0.0
+                if xg_h <= 0.01: xg_h = 1.35
+                if xg_a <= 0.01: xg_a = 1.10
+
                 sug, conf, reason = calculate_asian_handicap_suggestion(
-                    1.5, 1.0, 1.2, 1.2, fix['home_team'], fix['away_team'], 30.0, 30.0,
+                    xg_h, 1.0, xg_a, 1.0, fix['home_team'], fix['away_team'], 30.0, 30.0,
                     home_losses, away_losses, home_last5.get('v', 0), away_last5.get('v', 0),
                     home_last5, away_last5, best_c1, best_cX, best_c2
                 )
@@ -2364,6 +2420,7 @@ def update_oddspedia_odds(conn):
                             raise e_dl
 
         print(f"Total de {updated_count} partidas enriquecidas com odds de mercado reais!")
+        recalculate_inconsistent_odds_predictions(conn)
     except Exception as e:
         print(f"Aviso no enriquecimento de odds: {e}")
 
@@ -2529,9 +2586,13 @@ def enrich_fixtures_standings(conn):
             h_losses = h_l5.get('d', 0) if h_l5.get('v', 0) == 0 else 0
             a_losses = a_l5.get('d', 0) if a_l5.get('v', 0) == 0 else 0
             
+            xg_h = float(fix_row.get('xg_home') or 0.0)
+            xg_a = float(fix_row.get('xg_away') or 0.0)
+            if xg_h <= 0.01: xg_h = 1.35
+            if xg_a <= 0.01: xg_a = 1.10
+
             sug, conf, reason = calculate_asian_handicap_suggestion(
-                float(fix_row.get('xg_home') or 1.5), float(fix_row.get('xg_away') or 1.0),
-                1.2, 1.2, fix['home_team'], fix['away_team'], 30.0, 30.0,
+                xg_h, 1.0, xg_a, 1.0, fix['home_team'], fix['away_team'], 30.0, 30.0,
                 h_losses, a_losses, h_l5.get('v', 0), a_l5.get('v', 0),
                 h_l5, a_l5,
                 float(fix_row['odd_home']), float(fix_row.get('odd_draw') or 3.5), float(fix_row.get('odd_away') or 2.5),
@@ -2556,7 +2617,57 @@ def enrich_fixtures_standings(conn):
 
     conn.commit()
     print(f"✅ Classificação e motivação atualizadas com sucesso para {updated_count} de {len(fixtures)} partidas!")
+    recalculate_inconsistent_odds_predictions(conn)
+
+def recalculate_inconsistent_odds_predictions(conn):
+    """
+    Passo de consistência: Recalcula o palpite e o motivo da IA para qualquer partida no banco
+    que possua odds reais (> 1.0), mas cujo motivo de abstenção ainda indique "Odds Indisponíveis".
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id,
+                   odd_home, odd_draw, odd_away, xg_home, xg_away,
+                   home_rank, away_rank, home_ppg, away_ppg, standings_motivation_score, home_zone, away_zone
+            FROM fixtures_trends 
+            WHERE odd_home > 1.0 AND odd_draw > 1.0 AND odd_away > 1.0
+              AND (ah_reasoning LIKE '%Odds Indisponíveis%' OR ah_reasoning LIKE '%Odds de mercado indisponíveis%')
+              AND DATE(fixture_date) >= CURDATE() - INTERVAL 7 DAY
+        """)
+        inconsistent_fixtures = cursor.fetchall()
+        if inconsistent_fixtures:
+            print(f"🔧 Recalculando palpite IA para {len(inconsistent_fixtures)} partidas com odds disponíveis mas motivo desatualizado...")
+            for fix in inconsistent_fixtures:
+                fix_id = fix['fixture_id']
+                h_l5 = fetch_team_last5_form(cursor, fix['home_team'], fix.get('home_team_id'), fix.get('league_id'))
+                a_l5 = fetch_team_last5_form(cursor, fix['away_team'], fix.get('away_team_id'), fix.get('league_id'))
+                h_losses = h_l5.get('d', 0) if h_l5.get('v', 0) == 0 else 0
+                a_losses = a_l5.get('d', 0) if a_l5.get('v', 0) == 0 else 0
+
+                xg_h = float(fix.get('xg_home') or 0.0)
+                xg_a = float(fix.get('xg_away') or 0.0)
+                if xg_h <= 0.01: xg_h = 1.35
+                if xg_a <= 0.01: xg_a = 1.10
+
+                sug, conf, reason = calculate_asian_handicap_suggestion(
+                    xg_h, 1.0, xg_a, 1.0, fix['home_team'], fix['away_team'], 30.0, 30.0,
+                    h_losses, a_losses, h_l5.get('v', 0), a_l5.get('v', 0),
+                    h_l5, a_l5,
+                    float(fix['odd_home']), float(fix['odd_draw']), float(fix['odd_away']),
+                    fix.get('home_rank'), fix.get('away_rank'), fix.get('home_ppg'), fix.get('away_ppg'),
+                    fix.get('standings_motivation_score'), fix.get('home_zone'), fix.get('away_zone')
+                )
+
+                cursor.execute("""
+                    UPDATE fixtures_trends SET
+                        ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s, updated_at = NOW()
+                    WHERE fixture_id = %s
+                """, (sug, conf, reason, fix_id))
+            conn.commit()
+            print(f"✅ Sincronização concluída: {len(inconsistent_fixtures)} partidas tiveram seus palpites de IA corrigidos!")
+    except Exception as e_fix_inc:
+        print(f"Aviso ao recalcular palpites com odds disponíveis: {e_fix_inc}")
 
 if __name__ == '__main__':
     main()
-

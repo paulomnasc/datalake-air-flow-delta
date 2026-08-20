@@ -266,10 +266,49 @@ class ApostaController extends BaseController
         $statusGatekeeper = $eval['statusGatekeeper'];
         $gatekeeperMsg    = $eval['gatekeeperMsg'];
 
-        if ($statusGatekeeper === 'NO_BET') {
+        $confirmarRisco = filter_var($this->request->getPost('confirmar_risco') ?? $this->request->getPost('confirm_warning') ?? $this->request->getPost('confirm'), FILTER_VALIDATE_BOOLEAN)
+                          || in_array(strtolower((string)($this->request->getPost('confirmar_risco') ?? '')), ['1', 'true', 'sim', 'yes'])
+                          || in_array(strtolower((string)($this->request->getPost('confirm') ?? '')), ['1', 'true', 'sim', 'yes']);
+
+        if ($statusGatekeeper === 'AVISO_RISCO_OVER') {
+            if (!$confirmarRisco) {
+                return $this->response->setJSON([
+                    'success'              => false,
+                    'require_confirmation' => true,
+                    'is_warning'           => true,
+                    'status_gatekeeper'    => 'AVISO_RISCO_OVER',
+                    'message'              => '⚠️ ' . $gatekeeperMsg
+                ]);
+            }
+            $statusGatekeeper = 'ALERTA_RISCO_OVER';
+        } elseif ($statusGatekeeper === 'NO_BET') {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => '🚫 Aposta recusada pelo Gatekeeper! ' . $gatekeeperMsg
+            ]);
+        }
+
+        // Trava anti-duplicidade de requisições em paralelo (janela de 10 segundos)
+        $dbCheck = \Config\Database::connect();
+        $recentDuplicate = $dbCheck->table('apostas')
+            ->where('usuario_id', $userId)
+            ->where('time_casa', $timeCasa)
+            ->where('time_fora', $timeFora)
+            ->where('mercado', $mercado)
+            ->where('palpite', $palpite)
+            ->where('valor_aposta', $valorAposta)
+            ->where('criado_em >=', date('Y-m-d H:i:s', time() - 10))
+            ->get()->getRow();
+
+        if ($recentDuplicate) {
+            return $this->response->setJSON([
+                'success'           => true,
+                'message'           => 'Aposta já registrada anteriormente! ' . $gatekeeperMsg,
+                'id'                => $recentDuplicate->id,
+                'status_gatekeeper' => $statusGatekeeper,
+                'odd_justa'         => $oddJusta,
+                'ev_percentual'     => $evPercentual,
+                'gatekeeper_msg'    => $gatekeeperMsg
             ]);
         }
 
@@ -339,10 +378,10 @@ class ApostaController extends BaseController
         $isOver = (stripos($palpite, 'over') !== false || stripos($palpite, 'mais') !== false);
         $isCartoes = (stripos($mercado, 'cartõ') !== false || stripos($mercado, 'card') !== false);
 
-        // REGRA DE BLOQUEIO ABSOLUTO (Estratégia Exclusiva Under / Anti-Over)
+        // AVISO DE RISCO GATEKEEPER (Estratégia Exclusiva Under / Anti-Over)
         if ($isOver || ($isCartoes && $isOver)) {
-            $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Estratégia Exclusiva Under): Apostas no mercado 'Over / Mais de' são proibidas pelo sistema devido ao alto risco de perda e volatilidade estatística. Apenas apostas 'Under / Menos de' são permitidas.";
+            $statusGatekeeper = 'AVISO_RISCO_OVER';
+            $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under): Apostas no mercado 'Over / Mais de' possuem elevado risco de perda e volatilidade estatística. Apenas apostas 'Under / Menos de' são recomendadas pelo modelo. Deseja prosseguir mesmo com o risco apontado?";
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
@@ -576,7 +615,22 @@ class ApostaController extends BaseController
         $fixtureId = $aposta->fixture_id ? (int)$aposta->fixture_id : null;
         $eval = $this->evaluateGatekeeper($fixtureId, $timeCasa, $timeFora, $mercado, $palpite, $odd);
 
-        if ($eval['statusGatekeeper'] === 'NO_BET') {
+        $confirmarRisco = filter_var($this->request->getPost('confirmar_risco') ?? $this->request->getPost('confirm_warning') ?? $this->request->getPost('confirm'), FILTER_VALIDATE_BOOLEAN)
+                          || in_array(strtolower((string)($this->request->getPost('confirmar_risco') ?? '')), ['1', 'true', 'sim', 'yes'])
+                          || in_array(strtolower((string)($this->request->getPost('confirm') ?? '')), ['1', 'true', 'sim', 'yes']);
+
+        if ($eval['statusGatekeeper'] === 'AVISO_RISCO_OVER') {
+            if (!$confirmarRisco) {
+                return $this->response->setJSON([
+                    'success'              => false,
+                    'require_confirmation' => true,
+                    'is_warning'           => true,
+                    'status_gatekeeper'    => 'AVISO_RISCO_OVER',
+                    'message'              => '⚠️ ' . $eval['gatekeeperMsg']
+                ]);
+            }
+            $eval['statusGatekeeper'] = 'ALERTA_RISCO_OVER';
+        } elseif ($eval['statusGatekeeper'] === 'NO_BET') {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => '🚫 Aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
@@ -694,10 +748,45 @@ class ApostaController extends BaseController
         $fixtureId = $aposta->fixture_id ? (int)$aposta->fixture_id : null;
         $eval = $this->evaluateGatekeeper($fixtureId, $aposta->time_casa, $aposta->time_fora, $aposta->mercado, $aposta->palpite, (float)$aposta->odd);
 
-        if ($eval['statusGatekeeper'] === 'NO_BET') {
+        $confirmarRisco = filter_var($this->request->getPost('confirmar_risco') ?? $this->request->getPost('confirm_warning') ?? $this->request->getPost('confirm'), FILTER_VALIDATE_BOOLEAN)
+                          || in_array(strtolower((string)($this->request->getPost('confirmar_risco') ?? '')), ['1', 'true', 'sim', 'yes'])
+                          || in_array(strtolower((string)($this->request->getPost('confirm') ?? '')), ['1', 'true', 'sim', 'yes']);
+
+        if ($eval['statusGatekeeper'] === 'AVISO_RISCO_OVER') {
+            if (!$confirmarRisco) {
+                return $this->response->setJSON([
+                    'success'              => false,
+                    'require_confirmation' => true,
+                    'is_warning'           => true,
+                    'status_gatekeeper'    => 'AVISO_RISCO_OVER',
+                    'message'              => '⚠️ ' . $eval['gatekeeperMsg']
+                ]);
+            }
+            $eval['statusGatekeeper'] = 'ALERTA_RISCO_OVER';
+        } elseif ($eval['statusGatekeeper'] === 'NO_BET') {
             return $this->response->setJSON([
                 'success' => false,
                 'message' => '🚫 Reaposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
+            ]);
+        }
+
+        // Trava anti-duplicidade de reapostas em paralelo (janela de 10 segundos)
+        $dbCheck = \Config\Database::connect();
+        $recentDuplicate = $dbCheck->table('apostas')
+            ->where('usuario_id', $access['user_id'])
+            ->where('time_casa', $aposta->time_casa)
+            ->where('time_fora', $aposta->time_fora)
+            ->where('mercado', $aposta->mercado)
+            ->where('palpite', $aposta->palpite)
+            ->where('valor_aposta', $aposta->valor_aposta)
+            ->where('criado_em >=', date('Y-m-d H:i:s', time() - 10))
+            ->get()->getRow();
+
+        if ($recentDuplicate) {
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Reaposta já realizada anteriormente! ' . $eval['gatekeeperMsg'],
+                'id'      => $recentDuplicate->id
             ]);
         }
 

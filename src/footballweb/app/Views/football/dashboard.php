@@ -2415,26 +2415,28 @@ if (!function_exists('getBetDecisionTree')) {
                                 $start = new DateTime($fix->fixture_date, new DateTimeZone('UTC'));
                                 $diffMins = floor(($now->getTimestamp() - $start->getTimestamp()) / 60);
                                 
-                                $finishedStatuses = ['FT', 'AET', 'PEN', '120', '90'];
+                                $finishedStatuses = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
                                 $statusClean = strtoupper($fix->status);
                                 
                                 if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {
                                     $elapsedText = 'ADIADO';
                                     $elapsedClass = 'pst';
-                                } elseif (in_array($statusClean, $finishedStatuses)) {
+                                } elseif (in_array($statusClean, $finishedStatuses) || $diffMins > 115) {
                                     $elapsedText = lang('App.finished');
+                                    $elapsedClass = '';
                                 } elseif ($statusClean === 'HT') {
-                                    $elapsedText = lang('App.halftime');
-                                    $elapsedClass = 'live';
+                                    if ($diffMins >= 65) {
+                                        $elapsedText = $diffMins . "'";
+                                        $elapsedClass = 'live';
+                                    } else {
+                                        $elapsedText = lang('App.halftime');
+                                        $elapsedClass = 'live';
+                                    }
                                 } elseif ($diffMins < 0) {
                                     $elapsedText = lang('App.not_started');
                                 } else {
-                                    if ($diffMins > 120) {
-                                        $elapsedText = lang('App.finished');
-                                    } else {
-                                        $elapsedText = $diffMins . "'";
-                                        $elapsedClass = 'live';
-                                    }
+                                    $elapsedText = $diffMins . "'";
+                                    $elapsedClass = 'live';
                                 }
                             } catch (\Exception $e) {
                                 $elapsedText = '-';
@@ -2450,18 +2452,26 @@ if (!function_exists('getBetDecisionTree')) {
                             }
                             $cardIndex++;
                             
-                             $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']);
+                             $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']) && (!isset($diffMins) || $diffMins <= 115);
                              $statusClean = strtoupper($fix->status);
                              $leagueInfo = resolveLeagueCountryAndFlag($fix->league_id ?? 0, $fix->league_name ?? '', $leagueMap ?? []);
                              $cName = $leagueInfo['country'];
                              $cFlag = $leagueInfo['flag'];
 
+                             $finishedStatusesList = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
                              if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {
                                  $elapsedClass = 'pst';
                                  $elapsedDisplay = '⚠️ ADIADO';
+                             } elseif (in_array($statusClean, $finishedStatusesList) || (isset($diffMins) && $diffMins > 115)) {
+                                 $elapsedClass = '';
+                                 $elapsedDisplay = lang('App.finished');
                              } elseif ($isLiveMatch) {
                                  $elapsedClass = 'live';
-                                 $minDisplay = ($statusClean === 'HT') ? 'Int' : (!empty($fix->elapsed) ? $fix->elapsed . "'" : 'Ao Vivo');
+                                 if ($statusClean === 'HT') {
+                                     $minDisplay = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : 'Int';
+                                 } else {
+                                     $minDisplay = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : 'Ao Vivo');
+                                 }
                                  $elapsedDisplay = '<span class="live-pulse-dot"></span> ' . $minDisplay;
                              } else {
                                  $elapsedDisplay = $elapsedText;
@@ -2472,9 +2482,8 @@ if (!function_exists('getBetDecisionTree')) {
                              $isFixtureInAnyBets  = in_array((int)$fix->fixture_id, $allBetFixtureIds ?? []);
                              $hasAposta = $isFixtureInUserBets || $isFixtureInAnyBets;
 
-                             $finishedStatusesList = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
                              $isPostponedCard = in_array($statusClean, ['PST', 'CANCELLED', 'POSTPONED', 'CANC']);
-                             $isFinishedCard = in_array($statusClean, $finishedStatusesList) || ($fix->goals_home !== null && !$isLiveMatch && !$isPostponedCard) || (isset($diffMins) && $diffMins > 120 && !$isLiveMatch && !$isPostponedCard);
+                             $isFinishedCard = in_array($statusClean, $finishedStatusesList) || ($fix->goals_home !== null && !$isLiveMatch && !$isPostponedCard) || (isset($diffMins) && $diffMins > 115 && !$isPostponedCard);
                              ?>
                              <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->league_name ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
@@ -2513,7 +2522,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                  ?>
                                                  <i class="bi bi-calendar3" style="font-size: 0.7rem; opacity: 0.8;"></i> <?= $fixDateBadge ?><i class="bi bi-clock"></i> <?= $timeStr ?>
                                             </span>
-                                            <span class="bet-elapsed-time <?= $elapsedClass ?>" data-fixture-elapsed="<?= $fix->fixture_id ?>" data-start-utc="<?= $fix->fixture_date ?>" data-status="<?= $statusClean ?>">
+                                             <span class="bet-elapsed-time <?= $elapsedClass ?>" data-fixture-elapsed="<?= $fix->fixture_id ?>" data-start-utc="<?= $fix->fixture_date ?>" data-status="<?= $statusClean ?>" data-elapsed="<?= htmlspecialchars($fix->elapsed ?? '', ENT_QUOTES) ?>">
                                                 <?= $elapsedDisplay ?>
                                             </span>
                                         </div>
@@ -3700,7 +3709,10 @@ if (!function_exists('getBetDecisionTree')) {
         
         document.querySelectorAll('.bet-elapsed-time').forEach(el => {
             const startDateStr = el.getAttribute('data-start-utc');
-            const status = el.getAttribute('data-status');
+            const status = (el.getAttribute('data-status') || '').toUpperCase();
+            const officialElapsed = el.getAttribute('data-elapsed');
+            const fixtureId = el.getAttribute('data-fixture-elapsed');
+            const bTimeEl = fixtureId ? document.querySelector(`[data-betano-time="${fixtureId}"]`) : null;
             
             if (!startDateStr) return;
             
@@ -3713,29 +3725,56 @@ if (!function_exists('getBetDecisionTree')) {
             const diffMins = Math.floor(diffMs / 60000);
             
             let text = '';
+            let showPulse = false;
             
-            const finishedStatuses = ['FT', 'AET', 'PEN', '120', '90'];
+            const finishedStatuses = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
+            const postponedStatuses = ['PST', 'POSTPONED', 'CANCELLED', 'CANC'];
+            const liveStatusesList = ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT'];
             
-            if (finishedStatuses.includes(status)) {
+            if (postponedStatuses.includes(status)) {
+                text = '⚠️ ADIADO';
+                el.classList.remove('live');
+                el.classList.add('pst');
+            } else if (finishedStatuses.includes(status) || diffMins > 115) {
                 text = 'Encerrado';
                 el.classList.remove('live');
             } else if (status === 'HT') {
-                text = 'Intervalo';
-                el.classList.add('live');
-            } else if (diffMins < 0) {
-                text = 'Não iniciado';
-                el.classList.remove('live');
-            } else {
-                if (diffMins > 120) {
-                    text = 'Encerrado';
-                    el.classList.remove('live');
+                if (diffMins >= 65) {
+                    text = (officialElapsed && officialElapsed !== 'null' && officialElapsed !== '') ? officialElapsed + "'" : Math.max(45, diffMins - 15) + "'";
+                    showPulse = true;
+                    el.classList.add('live');
                 } else {
-                    text = diffMins + "'";
+                    text = 'Intervalo';
+                    showPulse = true;
                     el.classList.add('live');
                 }
+            } else if (diffMins < 0) {
+                text = 'Pré-jogo';
+                el.classList.remove('live');
+            } else if (liveStatusesList.includes(status)) {
+                showPulse = true;
+                el.classList.add('live');
+                if (officialElapsed && officialElapsed !== 'null' && officialElapsed !== '') {
+                    text = officialElapsed + "'";
+                } else if (status === '2H') {
+                    text = Math.min(90, Math.max(45, diffMins - 15)) + "'";
+                } else {
+                    text = Math.min(45, Math.max(0, diffMins)) + "'";
+                }
+            } else {
+                text = diffMins + "'";
+                el.classList.add('live');
             }
             
-            el.innerText = text;
+            if (showPulse) {
+                el.innerHTML = `<span class="live-pulse-dot"></span> ${text}`;
+            } else {
+                el.innerText = text;
+            }
+
+            if (bTimeEl) {
+                bTimeEl.textContent = text;
+            }
         });
     }
 
@@ -4183,21 +4222,32 @@ if (!function_exists('getBetDecisionTree')) {
                                 cardsAwayEl.innerHTML = html;
                             }
                             const statusUpper = (fix.status || '').toUpperCase();
-                            const isMatchLiveNow = liveStatuses.includes(statusUpper);
-                            const isMatchFinishedNow = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'].includes(statusUpper);
+                            const startDateStr = elapsedEl ? elapsedEl.getAttribute('data-start-utc') : null;
+                            let diffMinsLive = null;
+                            if (startDateStr) {
+                                const startUtc = new Date(startDateStr.replace(' ', 'T') + 'Z').getTime();
+                                diffMinsLive = Math.floor((Date.now() - startUtc) / 60000);
+                            }
+                            
+                            let isMatchFinishedNow = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'].includes(statusUpper);
+                            if (diffMinsLive !== null && diffMinsLive > 115 && !['PST', 'POSTPONED', 'CANCELLED', 'CANC'].includes(statusUpper)) {
+                                isMatchFinishedNow = true;
+                            }
+                            let isMatchLiveNow = liveStatuses.includes(statusUpper) && !isMatchFinishedNow;
+
                             card.setAttribute('data-is-live', isMatchLiveNow ? '1' : '0');
                             if (isMatchFinishedNow) {
                                 card.setAttribute('data-is-finished', '1');
                             }
 
                             if (elapsedEl) {
-                                if (isMatchLiveNow) {
-                                    elapsedEl.classList.add('live');
-                                    const minText = fix.elapsed ? fix.elapsed + "'" : (statusUpper === 'HT' ? 'Int' : 'Ao Vivo');
-                                    elapsedEl.innerHTML = `<span class="live-pulse-dot"></span> ${minText}`;
-                                } else if (isMatchFinishedNow) {
+                                if (isMatchFinishedNow) {
                                     elapsedEl.classList.remove('live');
-                                    elapsedEl.textContent = 'Fim';
+                                    elapsedEl.textContent = 'Encerrado';
+                                } else if (isMatchLiveNow) {
+                                    elapsedEl.classList.add('live');
+                                    let minText = fix.elapsed ? fix.elapsed + "'" : (statusUpper === 'HT' ? ((diffMinsLive !== null && diffMinsLive >= 65) ? diffMinsLive + "'" : 'Int') : 'Ao Vivo');
+                                    elapsedEl.innerHTML = `<span class="live-pulse-dot"></span> ${minText}`;
                                 }
                             }
                         }

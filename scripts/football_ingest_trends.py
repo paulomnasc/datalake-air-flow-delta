@@ -1078,11 +1078,11 @@ def sync_pending_past_fixtures(conn, headers):
         cursor.execute("""
             SELECT fixture_id, fixture_date, home_team, away_team, status
             FROM fixtures_trends
-            WHERE fixture_date <= NOW() 
+            WHERE fixture_date <= UTC_TIMESTAMP() 
               AND (
                 status NOT IN ('FT', 'AET', 'PEN', 'PST', 'CANC') 
                 OR goals_home IS NULL 
-                OR (yellow_cards_home IS NULL AND fixture_date >= DATE_SUB(NOW(), INTERVAL 24 HOUR))
+                OR (yellow_cards_home IS NULL AND fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR))
               )
             ORDER BY fixture_date DESC
             LIMIT 100

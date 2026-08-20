@@ -461,53 +461,116 @@ def build_natural_language_explanation(suggestion, home_team, away_team):
             f"🔴 Vitória do {away_team}: Aposta Perdida."
         )
 
+def build_natural_standings_motivation_text(home_team, away_team, home_rank, away_rank, home_ppg=None, away_ppg=None, home_zone=None, away_zone=None, motivation_score=None):
+    """
+    Gera a motivação de tabela em linguagem 100% natural e clara em Português.
+    Explica a situação dos times no campeonato e a urgência/impacto no jogo.
+    """
+    if not home_rank or not away_rank:
+        return ""
+    
+    try:
+        h_r = int(home_rank)
+        a_r = int(away_rank)
+    except Exception:
+        return ""
+
+    h_ppg_val = float(home_ppg) if (home_ppg is not None and float(home_ppg) > 0) else None
+    a_ppg_val = float(away_ppg) if (away_ppg is not None and float(away_ppg) > 0) else None
+    
+    h_ppg_str = f" ({h_ppg_val:.2f} pts/jogo)" if h_ppg_val else ""
+    a_ppg_str = f" ({a_ppg_val:.2f} pts/jogo)" if a_ppg_val else ""
+    rank_diff = abs(h_r - a_r)
+
+    # 1. Ambos no Topo / G4 (Confronto Direto pelo Título ou G4)
+    if h_r <= 4 and a_r <= 4:
+        desc = (
+            f"Confronto direto de peso no topo da tabela entre o {home_team} ({h_r}º colocado{h_ppg_str}) e o {away_team} ({a_r}º colocado{a_ppg_str}). "
+            f"A disputa direta pelas primeiras posições eleva ao máximo a motivação e o ritmo decisivo de ambos os times."
+        )
+    # 2. Ambos na Zona de Rebaixamento / Z4 (Jogo de 6 pontos na degola)
+    elif h_r >= 17 and a_r >= 17:
+        desc = (
+            f"Duelo dramático de 6 pontos na luta contra o rebaixamento entre o {home_team} ({h_r}º colocado{h_ppg_str}) e o {away_team} ({a_r}º colocado{a_ppg_str}). "
+            f"Ambas as equipes entram sob altíssima pressão para tentar escapar do Z4."
+        )
+    # 3. Mandante no Z4 (Urgência máxima de vitória em casa)
+    elif h_r >= 17:
+        desc = (
+            f"Urgência máxima de vitória para o {home_team} ({h_r}º colocado{h_ppg_str}), que joga sob forte pressão da torcida para pontuar e sair da Zona de Rebaixamento contra o {away_team} ({a_r}º colocado{a_ppg_str})."
+        )
+    # 4. Visitante no Z4 (Pressão no visitante)
+    elif a_r >= 17:
+        desc = (
+            f"O visitante {away_team} ({a_r}º colocado{a_ppg_str}) necessita desesperadamente de pontos para tentar deixar a Zona de Rebaixamento contra o {home_team} ({h_r}º colocado{h_ppg_str})."
+        )
+    # 5. Clássico de Posições / Confronto Direto de Meio/Topo (Diferença de até 3 posições)
+    elif rank_diff <= 3:
+        desc = (
+            f"Confronto direto muito emparelhado na classificação entre o {home_team} ({h_r}º colocado{h_ppg_str}) e o {away_team} ({a_r}º colocado{a_ppg_str}). "
+            f"Uma vitória garante salto significativo na tabela para qualquer uma das equipes."
+        )
+    # 6. Favorito no Topo recebendo time da parte de baixo (Diferença >= 8 posições)
+    elif h_r < a_r and (a_r - h_r) >= 8:
+        desc = (
+            f"Grande contraste de campanha no campeonato: o {home_team} ({h_r}º colocado{h_ppg_str}) ostenta colocação muito superior na tabela em relação ao {away_team} ({a_r}º colocado{a_ppg_str}), reforçando a tendência de controle do jogo pelo mandante."
+        )
+    elif a_r < h_r and (h_r - a_r) >= 8:
+        desc = (
+            f"O visitante {away_team} ({a_r}º colocado{a_ppg_str}) faz campanha bastante superior no campeonato em comparação ao {home_team} ({h_r}º colocado{h_ppg_str}), reduzindo o peso do fator casa nesta partida."
+        )
+    # 7. Caso geral equilibrado
+    else:
+        desc = (
+            f"Duelo entre o {home_team} ({h_r}º colocado{h_ppg_str}) e o {away_team} ({a_r}º colocado{a_ppg_str}), em momentos distintos na classificação do campeonato."
+        )
+
+    return f"\n• 📊 Contexto de Tabela e Motivação: {desc}"
+
 def build_natural_language_motivation(
     suggestion, home_team, away_team, delta_goals,
     home_goals_scored, away_goals_conceded, away_goals_scored, home_goals_conceded,
     home_cs_pct, away_cs_pct, home_last5, away_last5,
     home_in_crisis, away_in_crisis,
-    odd_home=None, odd_away=None
+    odd_home=None, odd_away=None,
+    home_rank=None, away_rank=None, home_ppg=None, away_ppg=None, standings_motivation=None,
+    home_zone=None, away_zone=None
 ):
     """
-    Gera a motivação do palpite em linguagem natural amigável destacando em alto nível os 3 critérios aplicados:
-    1. Reajuste Realista do Fator Mando de Campo (+10% em casa / -7% fora)
-    2. Integração Ponderada das Odds de Mercado (Market Implied xG - Variação dinâmica estendida)
-    3. Trava de Alinhamento com o Mercado / Preservação do Desempenho de Casa
+    Gera a motivação do palpite em linguagem natural amigável destacando em alto nível os critérios aplicados,
+    incluindo o contexto de Tabela e Motivação dos times.
     """
-    home_text = home_last5.get("text", "2V-1E-2D")
-    away_text = away_last5.get("text", "2V-1E-2D")
+    home_text = home_last5.get("text", "2V-1E-2D") if home_last5 else "2V-1E-2D"
+    away_text = away_last5.get("text", "2V-1E-2D") if away_last5 else "2V-1E-2D"
     odd_str = f" [Odds Mercado: H:{odd_home:.2f}/A:{odd_away:.2f}]" if (odd_home and odd_away and float(odd_home) > 1.0) else ""
 
-    home_pts = home_last5.get("pts", 0)
-    away_pts = away_last5.get("pts", 0)
+    home_pts = home_last5.get("pts", 0) if home_last5 else 0
+    away_pts = away_last5.get("pts", 0) if away_last5 else 0
 
-    # Prioridade 0: Super Favoritos em Casa (Odd Home <= 1.50)
+    res_text = ""
     if odd_home and float(odd_home) <= 1.50:
-        return (
+        res_text = (
             f"🎯 Fator Crucial: Domínio Estatístico e Alto Favoritismo do Mandante ({home_team} {home_text}).\n"
             f"A indicação a favor do mandante {home_team} fundamenta-se no alinhamento das odds de mercado e na produção ofensiva em casa:\n"
             f"• 📈 Consenso das Odds de Mercado: Cotação de alto favoritismo para o mandante {home_team} (Odd {odd_home:.2f} vs {odd_away:.2f}), confirmando ampla probabilidade de vitória.\n"
             f"• 🏠 Fator Mando e Produção Ofensiva: O {home_team} mantém forte saldo projetado em casa ({home_text}).\n"
             f"• 🛡️ Proteção de Banca: Indicação a favor do mandante com cobertura de reembolso no empate."
         )
-
-    # Prioridade Máxima: Contraste Severo de Forma Recente (Streak/Momentum Differential)
-    if (away_pts >= 9 or away_last5.get("v", 0) >= 3) and (home_pts <= 5 or home_last5.get("d", 0) >= 3):
+    elif (away_pts >= 9 or (away_last5 and away_last5.get("v", 0) >= 3)) and (home_pts <= 5 or (home_last5 and home_last5.get("d", 0) >= 3)):
         if odd_home and odd_away and float(odd_home) < float(odd_away):
             market_note = f"• 📈 Contraponto às Odds de Mercado: Embora as odds do mercado atribuam favoritismo ao mandante {home_team} ({odd_home:.2f} vs {odd_away:.2f}), o momento recente superior do {away_team} ({away_text} vs {home_text}) justifica a indicação de proteção (Empate Anula) a favor do visitante."
         else:
             market_note = f"• 📈 Precificação Ponderada do Mercado: O mercado estatístico ajustado alinha-se ao momento superior do visitante {away_team}{odd_str}."
 
-        return (
+        res_text = (
             f"🎯 Fator Crucial: Contraste de Forma Recente e Sequência Vitoriosa do Visitante ({away_team} {away_text} vs {home_team} {home_text}).\n"
             f"A indicação a favor do visitante {away_team} fundamenta-se na priorização de 3 critérios de alta precisão:\n"
             f"• 🔥 Contraste de Forma Recente (Streak Superior): O momento excelente do {away_team} ({away_text} / {away_pts} pts em U5J) sobressai-se à sequência de derrotas/oscilação do mandante {home_team} ({home_text}).\n"
             f"• ⚡ Neutralização do Fator Casa: A disparidade de momentum recente anula o bônus de mando de campo do {home_team}.\n"
             f"{market_note}"
         )
-
-    if home_in_crisis and not away_in_crisis:
-        return (
+    elif home_in_crisis and not away_in_crisis:
+        res_text = (
             f"🎯 Fator Crucial: Alerta de Crise e Sequência Negativa do Mandante ({home_text} em U5J).\n"
             f"A indicação a favor do visitante {away_team} fundamenta-se na priorização de 3 critérios de alta precisão:\n"
             f"• ⚠️ Sequência Negativa do Mandante: Severa má fase do {home_team} em casa (0V em U5J e Zero Gols em Casa de {home_cs_pct:.1f}%).\n"
@@ -515,7 +578,7 @@ def build_natural_language_motivation(
             f"• 🛡️ Inversão com Proteção: Recomendação ajustada para {away_team} com cobertura total de reembolso no empate."
         )
     elif away_in_crisis and not home_in_crisis:
-        return (
+        res_text = (
             f"🎯 Fator Crucial: Instabilidade do Visitante e Sequência de Derrotas ({away_text} em U5J).\n"
             f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
             f"• ⚠️ Instabilidade do Visitante: Momento delicado do visitante {away_team} fora de casa ({away_text} em U5J).\n"
@@ -534,7 +597,7 @@ def build_natural_language_motivation(
             odds_market_text = f"Análise combinada das estatísticas ajustadas com preferência ao visitante {away_team}{odd_str}."
             market_bullet = f"• 📊 Divergência de Valor: As odds da casa favorecem o mando do {home_team}, mas o modelo identifica valor no visitante {away_team}."
 
-        return (
+        res_text = (
             f"🎯 Fator Crucial: {title_text}.\n"
             f"{intro_text}\n"
             f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
@@ -555,7 +618,7 @@ def build_natural_language_motivation(
         else:
             cs_note = f"• ⚠️ Vulnerabilidade Defensiva em Casa: O {home_team} apresentou fragilidade defensiva em casa (defesa vazada na maioria dos jogos / apenas {home_cs_pct:.1f}% sem sofrer gols em casa)."
 
-        return (
+        res_text = (
             f"🎯 Fator Crucial: Peso Ponderado do Mercado e Mando de Campo (+10%) ({home_team} +{delta_goals:.2f} xG Projetados Pré-Jogo).\n"
             f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
             f"• 🏟️ Reajuste Realista do Fator Mando (+10% em casa / -7% fora): A força de jogar em seus domínios impulsiona a produção ofensiva do {home_team} ({home_goals_scored:.1f} g/j).\n"
@@ -571,7 +634,7 @@ def build_natural_language_motivation(
                     odds_market_text = f"As odds do mercado ({float(odd_home):.2f} vs {float(odd_away):.2f}) convergem com a projeção a favor do {home_team}."
             else:
                 odds_market_text = f"Análise estatística interna aplicada para {home_team} e {away_team}."
-            return (
+            res_text = (
                 f"🎯 Fator Crucial: Mando de Campo Ponderado pelas Odds de Mercado.\n"
                 f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
                 f"• 🏟️ Equilíbrio e Fator Casa: Confronto estatisticamente emparelhado ({home_team} xG: {home_goals_scored:.1f} / U5J: {home_text} vs {away_team} xG: {away_goals_scored:.1f} / U5J: {away_text}), onde o fator casa do {home_team} concede vantagem.\n"
@@ -586,7 +649,7 @@ def build_natural_language_motivation(
                     odds_market_text = f"As odds da casa de aposta ({float(odd_home):.2f} vs {float(odd_away):.2f}) favorecem o mando do {home_team}, mas o modelo identifica valor no visitante {away_team}."
             else:
                 odds_market_text = f"Análise estatística interna aplicada para {home_team} e {away_team}."
-            return (
+            res_text = (
                 f"🎯 Fator Crucial: Superioridade do Visitante Ponderada pelas Odds de Mercado.\n"
                 f"A indicação a favor do {away_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
                 f"• ⚡ Desempenho e Momentum: Apesar do mando de campo do {home_team}, o visitante {away_team} sobressaiu-se pelo desempenho superior ajustado em campo.\n"
@@ -594,13 +657,21 @@ def build_natural_language_motivation(
                 f"• 🛡️ Proteção de Patrimônio: Indicação de valor a favor do visitante com cobertura total de reembolso no empate (0.0 DNB)."
             )
     else:
-        return (
+        res_text = (
             f"🎯 Fator Crucial: Amplo Favoritismo do Visitante ({away_team} +{abs(delta_goals):.2f} xG).\n"
             f"A indicação a favor do visitante {away_team} fundamenta-se na priorização de 3 critérios de alta precisão:\n"
             f"• 🔥 Momentum e Produção Ofensiva: Momento superior e alta produção de gols do visitante {away_team} ({away_text} em U5J / {away_goals_scored:.1f} g/j).\n"
             f"• 📈 Precificação de Mercado: Cotação de mercado e favoritismo do {away_team}{odd_str} superando o fator casa do {home_team}.\n"
             f"• 🛡️ Proteção de Banca: Recomendação a favor do visitante com cobertura total de reembolso no empate (0.0 DNB)."
         )
+
+    if home_rank and away_rank:
+        st_text = build_natural_standings_motivation_text(
+            home_team, away_team, home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, standings_motivation
+        )
+        res_text += st_text
+
+    return res_text
 
 def calculate_asian_handicap_suggestion(
     home_goals_scored, home_goals_conceded, 
@@ -610,7 +681,9 @@ def calculate_asian_handicap_suggestion(
     home_recent_losses=0, away_recent_losses=0,
     home_recent_wins=0, away_recent_wins=0,
     home_last5=None, away_last5=None,
-    odd_home=None, odd_draw=None, odd_away=None
+    odd_home=None, odd_draw=None, odd_away=None,
+    home_rank=None, away_rank=None, home_ppg=None, away_ppg=None, standings_motivation=None,
+    home_zone=None, away_zone=None
 ):
     """
     Calcula a sugestão de Handicap Asiático priorizando Odds do Mercado de Apostas, Fator Mando de Campo Recalibrado (+10% / -7%),
@@ -885,7 +958,9 @@ def calculate_asian_handicap_suggestion(
         home_goals_scored, away_goals_conceded, away_goals_scored, home_goals_conceded,
         home_cs_pct, away_cs_pct, home_last5, away_last5,
         home_in_crisis, away_in_crisis,
-        odd_home=odd_home, odd_away=odd_away
+        odd_home=odd_home, odd_away=odd_away,
+        home_rank=home_rank, away_rank=away_rank, home_ppg=home_ppg, away_ppg=away_ppg, standings_motivation=standings_motivation,
+        home_zone=home_zone, away_zone=away_zone
     )
     u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
 
@@ -2269,63 +2344,70 @@ def fetch_api_sports_standings(league_id, season):
         return _api_sports_standings_cache[key]
     
     api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
-    url = f"https://v3.football.api-sports.io/standings?league={league_id}&season={season}"
     headers = {
         'x-apisports-key': api_key,
         'User-Agent': 'Mozilla/5.0'
     }
 
+    seasons_to_try = [int(season)]
+    if int(season) != 2024:
+        seasons_to_try.extend([int(season)-1, 2024])
+
     standings_map = {}
-    try:
-        resp = requests.get(url, headers=headers, timeout=8).json()
-        errs = resp.get('errors')
-        if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
-            print(f"[API-Sports Standings] Rate limit atingido para liga #{league_id}.")
-            _api_sports_rate_limited = True
-            return {}
+    for s_val in seasons_to_try:
+        url = f"https://v3.football.api-sports.io/standings?league={league_id}&season={s_val}"
+        try:
+            resp = requests.get(url, headers=headers, timeout=8).json()
+            errs = resp.get('errors')
+            if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+                print(f"[API-Sports Standings] Rate limit atingido para liga #{league_id}.")
+                _api_sports_rate_limited = True
+                return {}
 
-        response_data = resp.get('response', [])
-        if response_data:
-            league_obj = response_data[0].get('league', {})
-            standings_groups = league_obj.get('standings', [])
-            if standings_groups:
-                main_group = standings_groups[0]
-                for item in main_group:
-                    t_info = item.get('team', {})
-                    t_id = t_info.get('id')
-                    t_name = t_info.get('name', '')
-                    rank = item.get('rank')
-                    points = item.get('points', 0)
-                    all_stats = item.get('all', {})
-                    played = all_stats.get('played', 0)
-                    ppg = round(points / played, 2) if played > 0 else 0.0
-                    zone = item.get('description') or 'Mid-Table'
-                    goals_diff = item.get('goalsDiff', 0)
-                    form = item.get('form', '')
+            response_data = resp.get('response', [])
+            if response_data:
+                league_obj = response_data[0].get('league', {})
+                standings_groups = league_obj.get('standings', [])
+                if standings_groups:
+                    for group in standings_groups:
+                        for item in group:
+                            t_info = item.get('team', {})
+                            t_id = t_info.get('id')
+                            t_name = t_info.get('name', '')
+                            rank = item.get('rank')
+                            points = item.get('points', 0)
+                            all_stats = item.get('all', {})
+                            played = all_stats.get('played', 0)
+                            ppg = round(points / played, 2) if played > 0 else 0.0
+                            zone = item.get('description') or 'Mid-Table'
+                            goals_diff = item.get('goalsDiff', 0)
+                            form = item.get('form', '')
 
-                    entry = {
-                        'team_id': t_id,
-                        'team_name': t_name,
-                        'rank': rank,
-                        'points': points,
-                        'played': played,
-                        'ppg': ppg,
-                        'zone': zone,
-                        'goals_diff': goals_diff,
-                        'form': form
-                    }
-                    if t_id:
-                        standings_map[int(t_id)] = entry
-                    if t_name:
-                        t_norm = _normalize_team_name_for_match(t_name)
-                        if t_norm:
-                            standings_map[t_norm] = entry
+                            entry = {
+                                'team_id': t_id,
+                                'team_name': t_name,
+                                'rank': rank,
+                                'points': points,
+                                'played': played,
+                                'ppg': ppg,
+                                'zone': zone,
+                                'goals_diff': goals_diff,
+                                'form': form
+                            }
+                            if t_id:
+                                standings_map[int(t_id)] = entry
+                            if t_name:
+                                t_norm = _normalize_team_name_for_match(t_name)
+                                if t_norm:
+                                    standings_map[t_norm] = entry
 
-        _api_sports_standings_cache[key] = standings_map
-        return standings_map
-    except Exception as e:
-        print(f"Aviso ao buscar classificação para liga #{league_id}: {e}")
-        return {}
+                    if standings_map:
+                        break
+        except Exception as e:
+            print(f"Aviso ao buscar classificação para liga #{league_id} season {s_val}: {e}")
+
+    _api_sports_standings_cache[key] = standings_map
+    return standings_map
 
 def enrich_fixtures_standings(conn):
     """
@@ -2362,6 +2444,15 @@ def enrich_fixtures_standings(conn):
         home_data = standings.get(int(h_id)) if (h_id and int(h_id) in standings) else standings.get(h_name)
         away_data = standings.get(int(a_id)) if (a_id and int(a_id) in standings) else standings.get(a_name)
 
+        if not home_data or not away_data:
+            # Fallback para ligas nacionais populares (ex: Brasileirão 71)
+            nat_standings = fetch_api_sports_standings(71, season)
+            if nat_standings:
+                if not home_data:
+                    home_data = nat_standings.get(int(h_id)) if (h_id and int(h_id) in nat_standings) else nat_standings.get(h_name)
+                if not away_data:
+                    away_data = nat_standings.get(int(a_id)) if (a_id and int(a_id) in nat_standings) else nat_standings.get(a_name)
+
         if not home_data and not away_data:
             continue
 
@@ -2390,19 +2481,38 @@ def enrich_fixtures_standings(conn):
 
         motivation_score = round(min(10.0, motivation_score), 2)
 
-        cursor.execute("""
-            UPDATE fixtures_trends SET
-                home_rank = %s,
-                away_rank = %s,
-                home_ppg = %s,
-                away_ppg = %s,
-                home_zone = %s,
-                away_zone = %s,
-                standings_motivation_score = %s
-            WHERE fixture_id = %s
-        """, (
-            home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, motivation_score, fix_id
-        ))
+        cursor.execute("SELECT odd_home, odd_draw, odd_away, xg_home, xg_away FROM fixtures_trends WHERE fixture_id = %s", (fix_id,))
+        fix_row = cursor.fetchone()
+        
+        if fix_row and fix_row.get('odd_home') and float(fix_row['odd_home']) > 1.0:
+            h_l5 = fetch_team_last5_form(cursor, fix['home_team'], fix.get('home_team_id'), fix.get('league_id'))
+            a_l5 = fetch_team_last5_form(cursor, fix['away_team'], fix.get('away_team_id'), fix.get('league_id'))
+            h_losses = h_l5.get('d', 0) if h_l5.get('v', 0) == 0 else 0
+            a_losses = a_l5.get('d', 0) if a_l5.get('v', 0) == 0 else 0
+            
+            sug, conf, reason = calculate_asian_handicap_suggestion(
+                float(fix_row.get('xg_home') or 1.5), float(fix_row.get('xg_away') or 1.0),
+                1.2, 1.2, fix['home_team'], fix['away_team'], 30.0, 30.0,
+                h_losses, a_losses, h_l5.get('v', 0), a_l5.get('v', 0),
+                h_l5, a_l5,
+                float(fix_row['odd_home']), float(fix_row.get('odd_draw') or 3.5), float(fix_row.get('odd_away') or 2.5),
+                home_rank, away_rank, home_ppg, away_ppg, motivation_score, home_zone, away_zone
+            )
+            
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    home_rank = %s, away_rank = %s, home_ppg = %s, away_ppg = %s,
+                    home_zone = %s, away_zone = %s, standings_motivation_score = %s,
+                    ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s
+                WHERE fixture_id = %s
+            """, (home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, motivation_score, sug, conf, reason, fix_id))
+        else:
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    home_rank = %s, away_rank = %s, home_ppg = %s, away_ppg = %s,
+                    home_zone = %s, away_zone = %s, standings_motivation_score = %s
+                WHERE fixture_id = %s
+            """, (home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, motivation_score, fix_id))
         updated_count += 1
 
     conn.commit()

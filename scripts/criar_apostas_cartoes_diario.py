@@ -134,11 +134,11 @@ def extract_cards_under_suggestion(prediction_text: str):
     pred_low = prediction_text.lower()
 
     # 1. Trava de Abstenção / NO_BET expressa
-    if any(term in pred_low for term in ['no_bet', 'sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'indisponível', 'indisponivel']):
+    if any(term in pred_low for term in ['no_bet', 'no bet', 'sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'indisponível', 'indisponivel']):
         return None, None, 'NO_BET', None, None, None, None
 
-    # 2. Extrai expectativa matemática de cartões (xC)
-    match_xc = re.search(r'xC(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)', prediction_text, re.IGNORECASE)
+    # 2. Extrai expectativa matemática de cartões (xC / Expectativa)
+    match_xc = re.search(r'(?:xC|Expectativa(?:\s+de\s+[Cc]artões)?(?::|\s+elevad[ao])?)\s*\(?(\d+\.\d+|\d+)', prediction_text, re.IGNORECASE)
     exp_cards = float(match_xc.group(1)) if match_xc else None
 
     # Se xC for muito alto (> 6.50), força NO_BET conforme regra estatística de segurança

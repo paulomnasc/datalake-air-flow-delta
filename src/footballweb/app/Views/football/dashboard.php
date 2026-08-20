@@ -2365,26 +2365,27 @@ if (!function_exists('getBetDecisionTree')) {
                             $u45 = calculate_poisson_php($xc, 4.5)['under'];
                             $u55 = calculate_poisson_php($xc, 5.5)['under'];
                             $u65 = calculate_poisson_php($xc, 6.5)['under'];
+                            $u75 = calculate_poisson_php($xc, 7.5)['under'];
 
-                            if ($isFinished && $totalLiveCards <= 5 && $xc <= 4.80) {
+                            if ($isFinished && $totalLiveCards <= 5 && $xc <= 6.50) {
                                 $prob = 100.0;
                                 $probDisplay = '100% (BATEU 🟢)';
                                 $class = 'safe';
-                            } elseif ($isNoBetFix || $xc > 4.80) {
+                            } elseif ($isNoBetFix || $xc > 6.50) {
                                 $prob = 0.0;
                                 $probDisplay = 'NO BET (Risco 🚫)';
                                 $class = 'nobet';
-                            } elseif ($xc <= 3.50) {
-                                $prob = $u45;
-                                $probDisplay = 'Under 4.5: ' . number_format($prob, 2) . '%';
-                                $class = 'safe';
-                            } elseif ($xc <= 4.20) {
+                            } elseif ($xc <= 4.00 && $u55 >= 60.0) {
                                 $prob = $u55;
                                 $probDisplay = 'Under 5.5: ' . number_format($prob, 2) . '%';
                                 $class = 'safe';
-                            } elseif ($xc <= 4.80) {
+                            } elseif ($xc <= 5.80 && $u65 >= 60.0) {
                                 $prob = $u65;
                                 $probDisplay = 'Under 6.5: ' . number_format($prob, 2) . '%';
+                                $class = 'safe';
+                            } elseif ($xc <= 6.50 && $u75 >= 60.0) {
+                                $prob = $u75;
+                                $probDisplay = 'Under 7.5: ' . number_format($prob, 2) . '%';
                                 $class = 'moderate';
                             } else {
                                 $prob = 0.0;

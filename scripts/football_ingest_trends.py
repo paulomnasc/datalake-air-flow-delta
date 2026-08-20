@@ -2367,11 +2367,11 @@ def enrich_fixtures_standings(conn):
 
         home_rank = home_data['rank'] if home_data else None
         home_ppg = home_data['ppg'] if home_data else None
-        home_zone = home_data['zone'] if home_data else None
+        home_zone = str(home_data['zone'])[:250] if (home_data and home_data.get('zone')) else None
 
         away_rank = away_data['rank'] if away_data else None
         away_ppg = away_data['ppg'] if away_data else None
-        away_zone = away_data['zone'] if away_data else None
+        away_zone = str(away_data['zone'])[:250] if (away_data and away_data.get('zone')) else None
 
         # Cálculo do Fator de Motivação da Classificação (0.00 a 10.00)
         motivation_score = 0.0

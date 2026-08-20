@@ -548,7 +548,16 @@ def build_natural_language_motivation(
     away_pts = away_last5.get("pts", 0) if away_last5 else 0
 
     res_text = ""
-    if odd_home and float(odd_home) <= 1.50:
+
+    # Trava para Abstenção
+    if "Sem Entrada" in suggestion or "Abstenção" in suggestion:
+        res_text = (
+            f"🎯 Fator Crucial: Gestão de Risco e Proteção de Banca.\n"
+            f"A indicação de abstenção fundamenta-se na priorização da segurança operacional:\n"
+            f"• ⚠️ Divergência de Mercado e Estatísticas: As cotações da casa de apostas indicam preferência por um time, mas os dados estatísticos brutos mostram incoerência ou oscilação.\n"
+            f"• 🛡️ Proteção de Banca: Entrada de Handicap bloqueada pelo Gatekeeper para evitar exposições de alto risco em cenários de incerteza."
+        )
+    elif odd_home and float(odd_home) <= 1.50 and home_team.lower() in suggestion.lower():
         res_text = (
             f"🎯 Fator Crucial: Domínio Estatístico e Alto Favoritismo do Mandante ({home_team} {home_text}).\n"
             f"A indicação a favor do mandante {home_team} fundamenta-se no alinhamento das odds de mercado e na produção ofensiva em casa:\n"
@@ -556,7 +565,7 @@ def build_natural_language_motivation(
             f"• 🏠 Fator Mando e Produção Ofensiva: O {home_team} mantém forte saldo projetado em casa ({home_text}).\n"
             f"• 🛡️ Proteção de Banca: Indicação a favor do mandante com cobertura de reembolso no empate."
         )
-    elif (away_pts >= 9 or (away_last5 and away_last5.get("v", 0) >= 3)) and (home_pts <= 5 or (home_last5 and home_last5.get("d", 0) >= 3)):
+    elif (away_pts >= 9 or (away_last5 and away_last5.get("v", 0) >= 3)) and (home_pts <= 5 or (home_last5 and home_last5.get("d", 0) >= 3)) and away_team.lower() in suggestion.lower():
         if odd_home and odd_away and float(odd_home) < float(odd_away):
             market_note = f"• 📈 Contraponto às Odds de Mercado: Embora as odds do mercado atribuam favoritismo ao mandante {home_team} ({odd_home:.2f} vs {odd_away:.2f}), o momento recente superior do {away_team} ({away_text} vs {home_text}) justifica a indicação de proteção (Empate Anula) a favor do visitante."
         else:
@@ -569,7 +578,7 @@ def build_natural_language_motivation(
             f"• ⚡ Neutralização do Fator Casa: A disparidade de momentum recente anula o bônus de mando de campo do {home_team}.\n"
             f"{market_note}"
         )
-    elif home_in_crisis and not away_in_crisis:
+    elif home_in_crisis and not away_in_crisis and away_team.lower() in suggestion.lower():
         res_text = (
             f"🎯 Fator Crucial: Alerta de Crise e Sequência Negativa do Mandante ({home_text} em U5J).\n"
             f"A indicação a favor do visitante {away_team} fundamenta-se na priorização de 3 critérios de alta precisão:\n"
@@ -577,7 +586,7 @@ def build_natural_language_motivation(
             f"• 🔥 Momentum Superior do Visitante: Em contrapartida, o visitante {away_team} atravessa momento superior ({away_text}).\n"
             f"• 🛡️ Inversão com Proteção: Recomendação ajustada para {away_team} com cobertura total de reembolso no empate."
         )
-    elif away_in_crisis and not home_in_crisis:
+    elif away_in_crisis and not home_in_crisis and home_team.lower() in suggestion.lower():
         res_text = (
             f"🎯 Fator Crucial: Instabilidade do Visitante e Sequência de Derrotas ({away_text} em U5J).\n"
             f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
@@ -604,7 +613,7 @@ def build_natural_language_motivation(
             f"{market_bullet}\n"
             f"• 🛡️ Proteção de Patrimônio: Indicação com cobertura total de reembolso no empate (0.0 DNB)."
         )
-    elif delta_goals >= 0.10:
+    elif delta_goals >= 0.10 or home_team.lower() in suggestion.lower():
         if odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0:
             if float(odd_home) <= float(odd_away):
                 odds_market_text = f"As odds do mercado confirmam o favoritismo do {home_team}{odd_str}, convergindo a probabilidade estatística ao consenso das apostas."
@@ -792,14 +801,20 @@ def calculate_asian_handicap_suggestion(
     else:
         away_streak_factor = 1.0
 
-    # 5. Expectativa Ajustada de Gols (Lambda) com Integração de Odds de Mercado Ampliada
+    # 5. Expectativa Ajustada de Gols (Lambda) com Piso de Topo de Tabela e Integração de Odds de Mercado Ampliada
     lambda_home_base = max(0.4, (home_goals_scored + away_goals_conceded) / 2.0)
     lambda_away_base = max(0.4, (away_goals_scored + home_goals_conceded) / 2.0)
 
+    # Piso de segurança de xG Base para times líderes ou com PPG elevado (>= 2.0)
+    if (home_rank and (int(home_rank) == 1 or (home_ppg and float(home_ppg) >= 2.0))):
+        lambda_home_base = max(1.00, lambda_home_base)
+    if (away_rank and (int(away_rank) == 1 or (away_ppg and float(away_ppg) >= 2.0))):
+        lambda_away_base = max(1.00, lambda_away_base)
+
     market_home_boost = 1.0
     market_away_boost = 1.0
-    market_away_fav = False
-    market_home_fav = False
+    is_market_home_fav = False
+    is_market_away_fav = False
     market_str = ""
     if odd_home and odd_away:
         try:
@@ -820,9 +835,9 @@ def calculate_asian_handicap_suggestion(
                 market_str = f" × Odds (H:{oh:.2f}/A:{oa:.2f})"
 
                 if oa < oh:
-                    market_away_fav = True
+                    is_market_away_fav = True
                 elif oh < oa:
-                    market_home_fav = True
+                    is_market_home_fav = True
         except Exception:
             pass
 
@@ -865,7 +880,7 @@ def calculate_asian_handicap_suggestion(
             confidence = 78.00
             main_reason = f"Favoritismo direto para o {home_team} devido à crise de resultados do {away_team} ({away_last5.get('text')})."
     else:
-        # Mapeamento Standard com Comparativo de Forma e Filtro de Mercado
+        # Mapeamento Standard com Comparativo de Forma e Filtro de Mercado Dinâmico
         warning_notes = []
         if home_cs_pct < 20.0:
             warning_notes.append(f"{home_team} CS: {home_cs_pct:.1f}%")
@@ -875,42 +890,66 @@ def calculate_asian_handicap_suggestion(
         warning_notes.append(f"{away_team} U5J: {away_last5.get('text')}")
         note_str = f" [Avisos: {', '.join(warning_notes)}]" if warning_notes else ""
 
-        if form_contrast:
-            suggestion = f"{away_team} +0.25 AH"
-            confidence = 74.00
-            main_reason = f"Contraste de Forma Recente: O excelente momento do {away_team} ({away_last5.get('text')}) sobressai-se à oscilação do mandante {home_team} ({home_last5.get('text')}). Vantagem dada ao visitante com cobertura +0.25 AH (meio-green no empate).{note_str}"
-        elif market_away_fav:
-            suggestion = f"{away_team} +0.25 AH"
-            confidence = round(min(78.0, 64.0 + abs(delta_goals) * 10), 2)
-            main_reason = f"Favoritismo do visitante {away_team} nas odds de mercado ({away_last5.get('text')} em U5J). Proteção de cobertura +0.25 AH (meio-green no empate).{note_str}"
-        elif delta_goals >= 1.80:
-            suggestion = f"{home_team} -1.0 AH"
-            confidence = round(min(88.0, 68.0 + delta_goals * 10), 2)
-            main_reason = f"Domínio estrito do {home_team} ({home_goals_scored:.1f} g/j) contra defesa frágil do {away_team}. Expectativa de vitória por 2+ gols.{note_str}"
-        elif delta_goals >= 1.20:
-            suggestion = f"{home_team} -0.5 AH"
-            confidence = round(min(82.0, 62.0 + delta_goals * 12), 2)
-            main_reason = f"Vantagem sólida de mando para o {home_team} em casa com saldo positivo significativo (+{delta_goals:.2f} gols esperados).{note_str}"
-        elif delta_goals >= 0.25:
-            suggestion = f"{home_team} -0.25 AH"
-            confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
-            main_reason = f"Favoritismo do {home_team} em casa (+{delta_goals:.2f} gols esperados). Proteção conservadora de meia estaca (AH -0.25) com odd atrativa de mercado.{note_str}"
-        elif delta_goals <= -0.25:
-            suggestion = f"{away_team} +0.25 AH"
-            confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
-            main_reason = f"Favoritismo do visitante {away_team} ({away_last5.get('text')} em U5J / {away_goals_scored:.1f} g/j). Proteção de cobertura +0.25 AH (meio-green no empate).{note_str}"
-        elif delta_goals >= -0.80:
-            suggestion = f"{away_team} +0.25 AH"
-            confidence = 72.00
-            main_reason = f"Confronto equilibrado com vantagem competitiva dada ao {away_team} (+0.25 AH) cobrindo vitória e garantia de meio-green no empate.{note_str}"
-        elif delta_goals >= -1.75:
-            suggestion = f"{away_team} +0.5 AH (Dupla Chance)"
-            confidence = round(min(82.0, 62.0 + abs(delta_goals) * 12), 2)
-            main_reason = f"Excelente momento do visitante {away_team} ({away_goals_scored:.1f} g/j fora / U5J: {away_last5.get('text')}). Cobertura em vitória e empate (+0.5 AH Dupla Chance).{note_str}"
+        # TRAVA DE CONFLITO COM FAVORITO DE MERCADO:
+        # Nunca gerar aposta contra o time com a menor odd de mercado!
+        if is_market_home_fav:
+            if delta_goals >= 1.80:
+                suggestion = f"{home_team} -1.0 AH"
+                confidence = round(min(88.0, 68.0 + delta_goals * 10), 2)
+                main_reason = f"Domínio estrito do mandante favorito {home_team} ({home_goals_scored:.1f} g/j) contra {away_team}. Expectativa de vitória por 2+ gols.{note_str}"
+            elif delta_goals >= 1.20:
+                suggestion = f"{home_team} -0.5 AH"
+                confidence = round(min(82.0, 62.0 + delta_goals * 12), 2)
+                main_reason = f"Vantagem sólida de mando e menor odd para o {home_team} em casa (+{delta_goals:.2f} gols esperados).{note_str}"
+            elif delta_goals >= 0.20:
+                suggestion = f"{home_team} -0.25 AH"
+                confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
+                main_reason = f"Favoritismo do {home_team} em casa nas odds e produção (+{delta_goals:.2f} gols esperados). Proteção de meia estaca (AH -0.25).{note_str}"
+            elif delta_goals >= -0.30:
+                suggestion = f"{home_team} 0.0 (Empate Anula)"
+                confidence = 72.00
+                main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com cobertura conservadora de reembolso no empate (0.0 DNB).{note_str}"
+            else:
+                # Conflito severo de xG vs Menor Odd do Mandante -> ABSTENÇÃO POR SEGURANÇA
+                suggestion = "Sem Entrada (Abstenção)"
+                confidence = 50.00
+                main_reason = f"🚫 APOSTA BLOQUEADA: Divergência Crítica entre as Odds de Mercado (favoritismo do mandante {home_team}) e a estatística bruta de xG. Abstenção ativada para proteger a banca.{note_str}"
+        elif is_market_away_fav:
+            if delta_goals <= -1.80:
+                suggestion = f"{away_team} -1.0 AH"
+                confidence = round(min(88.0, 68.0 + abs(delta_goals) * 10), 2)
+                main_reason = f"Domínio estrito do visitante favorito {away_team} contra o {home_team}. Expectativa de vitória por 2+ gols.{note_str}"
+            elif delta_goals <= -1.20:
+                suggestion = f"{away_team} -0.5 AH"
+                confidence = round(min(82.0, 62.0 + abs(delta_goals) * 12), 2)
+                main_reason = f"Vantagem sólida de favoritismo de mercado e produção para o visitante {away_team}.{note_str}"
+            elif delta_goals <= -0.20:
+                suggestion = f"{away_team} -0.25 AH"
+                confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
+                main_reason = f"Favoritismo do visitante {away_team} nas odds de mercado. Proteção conservadora de meia estaca (AH -0.25).{note_str}"
+            elif delta_goals <= 0.30:
+                suggestion = f"{away_team} 0.0 (Empate Anula)"
+                confidence = 72.00
+                main_reason = f"Favoritismo de mercado do visitante {away_team} alinhado com cobertura conservadora de reembolso no empate (0.0 DNB).{note_str}"
+            else:
+                # Conflito severo de xG vs Menor Odd do Visitante -> ABSTENÇÃO POR SEGURANÇA
+                suggestion = "Sem Entrada (Abstenção)"
+                confidence = 50.00
+                main_reason = f"🚫 APOSTA BLOQUEADA: Divergência Crítica entre as Odds de Mercado (favoritismo do visitante {away_team}) e a estatística bruta de xG. Abstenção ativada para proteger a banca.{note_str}"
         else:
-            suggestion = f"{away_team} +0.5 AH (Dupla Chance)"
-            confidence = round(min(88.0, 68.0 + abs(delta_goals) * 10), 2)
-            main_reason = f"Amplo favoritismo do visitante {away_team} com alta produção ofensiva ({away_goals_scored:.1f} g/j / U5J: {away_last5.get('text')}). Cobertura total com +0.5 AH.{note_str}"
+            # Caso neutro ou odds idênticas
+            if delta_goals >= 0.25:
+                suggestion = f"{home_team} -0.25 AH"
+                confidence = 70.00
+                main_reason = f"Confronto equilibrado com ligeira vantagem para o mandante {home_team} em casa.{note_str}"
+            elif delta_goals <= -0.25:
+                suggestion = f"{away_team} +0.25 AH"
+                confidence = 70.00
+                main_reason = f"Confronto equilibrado com ligeira vantagem para o visitante {away_team}.{note_str}"
+            else:
+                suggestion = f"{home_team} 0.0 (Empate Anula)"
+                confidence = 68.00
+                main_reason = f"Confronto de alto equilíbrio técnico. Indicação conservadora com reembolso total no empate.{note_str}"
 
     # Cálculo das Probabilidades 1X2 (%) Plataforma (Modelo Poisson) vs Casa de Apostas (Odds)
     import math

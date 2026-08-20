@@ -1792,6 +1792,12 @@ def main():
         except Exception as e_op:
             print(f"Aviso ao executar update_oddspedia_odds: {e_op}")
 
+        # Enriquecimento com Classificação dos Times (Standings / Motivação)
+        try:
+            enrich_fixtures_standings(conn)
+        except Exception as e_st:
+            print(f"Aviso ao executar enrich_fixtures_standings: {e_st}")
+
         print(f"\n--- RESUMO DE INGESTÃO ---")
         print(f"Modo Ao Vivo: {is_live_mode}")
         print(f"Data: {target_date}")
@@ -2246,6 +2252,161 @@ def update_oddspedia_odds(conn):
         print(f"Total de {updated_count} partidas enriquecidas com odds de mercado reais!")
     except Exception as e:
         print(f"Aviso no enriquecimento de odds: {e}")
+
+_api_sports_standings_cache = {}
+
+def fetch_api_sports_standings(league_id, season):
+    """
+    Busca a tabela de classificação de uma liga e temporada via API-Sports (/standings).
+    Retorna dicionário indexado por team_id e por nome normalizado do time.
+    """
+    global _api_sports_rate_limited
+    if not league_id or not season or _api_sports_rate_limited:
+        return {}
+    
+    key = (int(league_id), int(season))
+    if key in _api_sports_standings_cache:
+        return _api_sports_standings_cache[key]
+    
+    api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
+    url = f"https://v3.football.api-sports.io/standings?league={league_id}&season={season}"
+    headers = {
+        'x-apisports-key': api_key,
+        'User-Agent': 'Mozilla/5.0'
+    }
+
+    standings_map = {}
+    try:
+        resp = requests.get(url, headers=headers, timeout=8).json()
+        errs = resp.get('errors')
+        if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+            print(f"[API-Sports Standings] Rate limit atingido para liga #{league_id}.")
+            _api_sports_rate_limited = True
+            return {}
+
+        response_data = resp.get('response', [])
+        if response_data:
+            league_obj = response_data[0].get('league', {})
+            standings_groups = league_obj.get('standings', [])
+            if standings_groups:
+                main_group = standings_groups[0]
+                for item in main_group:
+                    t_info = item.get('team', {})
+                    t_id = t_info.get('id')
+                    t_name = t_info.get('name', '')
+                    rank = item.get('rank')
+                    points = item.get('points', 0)
+                    all_stats = item.get('all', {})
+                    played = all_stats.get('played', 0)
+                    ppg = round(points / played, 2) if played > 0 else 0.0
+                    zone = item.get('description') or 'Mid-Table'
+                    goals_diff = item.get('goalsDiff', 0)
+                    form = item.get('form', '')
+
+                    entry = {
+                        'team_id': t_id,
+                        'team_name': t_name,
+                        'rank': rank,
+                        'points': points,
+                        'played': played,
+                        'ppg': ppg,
+                        'zone': zone,
+                        'goals_diff': goals_diff,
+                        'form': form
+                    }
+                    if t_id:
+                        standings_map[int(t_id)] = entry
+                    if t_name:
+                        t_norm = _normalize_team_name_for_match(t_name)
+                        if t_norm:
+                            standings_map[t_norm] = entry
+
+        _api_sports_standings_cache[key] = standings_map
+        return standings_map
+    except Exception as e:
+        print(f"Aviso ao buscar classificação para liga #{league_id}: {e}")
+        return {}
+
+def enrich_fixtures_standings(conn):
+    """
+    Enriquece as partidas da tabela fixtures_trends com a classificação oficial (standings) dos times na API-Sports.
+    """
+    print("\n--- INICIANDO ENRIQUECIMENTO DE CLASSIFICAÇÃO (STANDINGS) DOS TIMES ---")
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
+    cursor.execute("""
+        SELECT fixture_id, fixture_date, league_id, home_team, away_team, home_team_id, away_team_id
+        FROM fixtures_trends
+        WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY
+    """)
+    fixtures = cursor.fetchall()
+    if not fixtures:
+        print("ℹ️ Nenhuma partida recente encontrada para enriquecimento de classificação.")
+        return
+
+    updated_count = 0
+    for fix in fixtures:
+        fix_id = fix['fixture_id']
+        fix_date = fix['fixture_date']
+        league_id = fix['league_id']
+        season = fix_date.year if isinstance(fix_date, datetime) else datetime.now().year
+
+        standings = fetch_api_sports_standings(league_id, season)
+        if not standings:
+            continue
+
+        h_id = fix.get('home_team_id')
+        a_id = fix.get('away_team_id')
+        h_name = _normalize_team_name_for_match(fix.get('home_team'))
+        a_name = _normalize_team_name_for_match(fix.get('away_team'))
+
+        home_data = standings.get(int(h_id)) if (h_id and int(h_id) in standings) else standings.get(h_name)
+        away_data = standings.get(int(a_id)) if (a_id and int(a_id) in standings) else standings.get(a_name)
+
+        if not home_data and not away_data:
+            continue
+
+        home_rank = home_data['rank'] if home_data else None
+        home_ppg = home_data['ppg'] if home_data else None
+        home_zone = home_data['zone'] if home_data else None
+
+        away_rank = away_data['rank'] if away_data else None
+        away_ppg = away_data['ppg'] if away_data else None
+        away_zone = away_data['zone'] if away_data else None
+
+        # Cálculo do Fator de Motivação da Classificação (0.00 a 10.00)
+        motivation_score = 0.0
+        zones_concat = (str(home_zone or '') + ' ' + str(away_zone or '')).lower()
+        if any(z in zones_concat for z in ['relegation', 'rebaixamento']):
+            motivation_score += 3.5
+        if any(z in zones_concat for z in ['libertadores', 'champions', 'promotion']):
+            motivation_score += 2.0
+        
+        if home_rank and away_rank:
+            rank_diff = abs(home_rank - away_rank)
+            if rank_diff <= 3:
+                motivation_score += 2.5
+            elif rank_diff >= 10:
+                motivation_score += 1.0
+
+        motivation_score = round(min(10.0, motivation_score), 2)
+
+        cursor.execute("""
+            UPDATE fixtures_trends SET
+                home_rank = %s,
+                away_rank = %s,
+                home_ppg = %s,
+                away_ppg = %s,
+                home_zone = %s,
+                away_zone = %s,
+                standings_motivation_score = %s
+            WHERE fixture_id = %s
+        """, (
+            home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, motivation_score, fix_id
+        ))
+        updated_count += 1
+
+    conn.commit()
+    print(f"✅ Classificação e motivação atualizadas com sucesso para {updated_count} de {len(fixtures)} partidas!")
 
 if __name__ == '__main__':
     main()

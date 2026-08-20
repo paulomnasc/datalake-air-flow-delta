@@ -28,6 +28,13 @@ class FixturesTrendsModel extends Model
         'elapsed',
         'futbol24_tip',
         'futbol24_analysis',
-        'futbol24_url'
+        'futbol24_url',
+        'home_rank',
+        'away_rank',
+        'home_ppg',
+        'away_ppg',
+        'home_zone',
+        'away_zone',
+        'standings_motivation_score'
     ];
 }

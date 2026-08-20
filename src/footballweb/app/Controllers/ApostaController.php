@@ -82,7 +82,7 @@ class ApostaController extends BaseController
         $targetFixId = $this->request->getVar('fixture_id');
 
         $builderFix = $db->table('fixtures_trends')
-            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion, ah_confidence, xg_home, xg_away');
+            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion, ah_confidence, xg_home, xg_away, home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, standings_motivation_score');
         
         $fixtures = $builderFix->orderBy('fixture_date', 'DESC')
             ->limit(100)

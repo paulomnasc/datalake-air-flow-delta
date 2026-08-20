@@ -2592,7 +2592,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?php else: ?>
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
-                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?> <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.8rem; margin-left: 4px;" title="Mandante (Casa)"></i></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?> <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.8rem; margin-left: 4px;" title="Mandante (Casa)"></i><?php if (!empty($fix->home_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="Posição na Tabela: #<?= $fix->home_rank ?> (<?= $fix->home_ppg ?? 0 ?> PPG)">#<?= $fix->home_rank ?></span><?php endif; ?></span>
                                                 <div class="bet-card-badge-container" data-cards-container-home="<?= $fix->fixture_id ?>">
                                                     <?php if (isset($fix->yellow_cards_home) && $fix->yellow_cards_home !== null && $fix->yellow_cards_home > 0): ?>
                                                         <span class="bet-card-badge-item yellow" title="Cartões Amarelos"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_home ?></span>
@@ -2636,7 +2636,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?php else: ?>
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
-                                                <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?><?php if (!empty($fix->away_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="Posição na Tabela: #<?= $fix->away_rank ?> (<?= $fix->away_ppg ?? 0 ?> PPG)">#<?= $fix->away_rank ?></span><?php endif; ?></span>
                                                 <div class="bet-card-badge-container" data-cards-container-away="<?= $fix->fixture_id ?>">
                                                     <?php if (isset($fix->yellow_cards_away) && $fix->yellow_cards_away !== null && $fix->yellow_cards_away > 0): ?>
                                                         <span class="bet-card-badge-item yellow" title="Cartões Amarelos"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_away ?></span>

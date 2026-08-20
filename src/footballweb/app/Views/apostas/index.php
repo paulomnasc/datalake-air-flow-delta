@@ -1140,7 +1140,7 @@ if (!function_exists('formatBrtDate')) {
                         data-ah-max-score="<?= ($fix->is_max_ah_score ?? false) ? '1' : '0' ?>"
                         data-xg-home="<?= number_format($fix->xg_home ?? 0, 2) ?>"
                         data-xg-away="<?= number_format($fix->xg_away ?? 0, 2) ?>">
-                  <?= date('d/m H:i', strtotime($fix->fixture_date)) ?> | <?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?> (<?= htmlspecialchars($fix->league_name) ?>)
+                  <?= date('d/m H:i', strtotime($fix->fixture_date)) ?> | <?= htmlspecialchars($fix->home_team) ?><?= (!empty($fix->home_rank) ? ' (#' . $fix->home_rank . ')' : '') ?> vs <?= htmlspecialchars($fix->away_team) ?><?= (!empty($fix->away_rank) ? ' (#' . $fix->away_rank . ')' : '') ?> (<?= htmlspecialchars($fix->league_name) ?>)
                 </option>
               <?php endforeach; ?>
             </select>

@@ -1476,6 +1476,14 @@ def main():
         print(f"Aviso ao carregar cached_ft_stats: {e_ft}")
 
     # Limpeza automática no banco para remover partidas de categorias de base ou femininas recentes
+    existing_db_referees = {}
+    try:
+        cursor.execute("SELECT fixture_id, referee_name FROM fixtures_trends WHERE referee_name IS NOT NULL AND referee_name != 'Árbitro Não Informado'")
+        rows_ref = cursor.fetchall()
+        existing_db_referees = {r['fixture_id']: r['referee_name'] for r in rows_ref}
+    except Exception as e_ref:
+        print(f"Aviso ao carregar existing_db_referees: {e_ref}")
+
     try:
         cursor.execute("SELECT fixture_id, home_team, away_team, league_name FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 30 DAY")
         recent_db_fixtures = cursor.fetchall()
@@ -1633,7 +1641,7 @@ def main():
                 # Trata "Anderson Daronco, Brazil" -> "Anderson Daronco"
                 referee_name = referee_raw.split(',')[0].strip()
             else:
-                referee_name = "Árbitro Não Informado"
+                referee_name = existing_db_referees.get(fix_id) or "Árbitro Não Informado"
                 
             # Verifica ou insere estatísticas do árbitro
             cursor.execute("SELECT name FROM referee_stats WHERE name = %s", (referee_name,))
@@ -1953,7 +1961,7 @@ def main():
                             fixture_date = VALUES(fixture_date),
                             home_team_id = VALUES(home_team_id),
                             away_team_id = VALUES(away_team_id),
-                            referee_name = COALESCE(VALUES(referee_name), referee_name),
+                            referee_name = IF(VALUES(referee_name) IS NOT NULL AND VALUES(referee_name) != 'Árbitro Não Informado', VALUES(referee_name), referee_name),
                             prediction_text = COALESCE(VALUES(prediction_text), prediction_text),
                             over_cards_probability = VALUES(over_cards_probability),
                             status = VALUES(status),

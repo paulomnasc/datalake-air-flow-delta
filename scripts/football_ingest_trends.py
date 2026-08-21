@@ -1395,7 +1395,6 @@ def main():
         179: "Scottish Premiership (Escocia)",
         106: "Ekstraklasa (Polonia)",
         345: "Czech First League (Tchequia)",
-        667: "Friendlies Clubs (Amistosos de Clubes)",
         10: "Friendlies (Amistosos de Selecoes)",
         1: "Copa do Mundo (Mundo)",
         15: "FIFA Club World Cup (Mundo)",

@@ -96,18 +96,19 @@ Exemplo de saída recomendada:
 - **Opção Principal:** Under 5.5 Cartões (Probabilidade: 86.37% | Odd Justa: 1.16)
 - **Opção Secundária:** Under 4.5 Cartões (Probabilidade: 72.82% | Odd Justa: 1.37)
 
-### 4.2. Trava do Gatekeeper no Cadastro (Triplo Filtro & Faixa de Linhas Betano Under 5.5+)
-No cadastro/entrada da aposta no **footballweb**, a validação avalia 4 critérios cumulativos:
+### 4.2. Trava do Gatekeeper no Cadastro (Triplo Filtro & Faixa de Linhas Betano Under 4.5+)
+No cadastro/entrada da aposta no **footballweb**, a validação avalia os critérios de forma condicional:
 
 | Filtro | Parâmetro | Validação |
 | :--- | :--- | :--- |
-| **1. Linha Mínima de Segurança** | $\text{Linha} \ge 5.5$ | Bloqueia qualquer aposta em cartões com linha inferior a 5.5 (ex: Under 4.5, 3.5). |
-| **2. Risco Estatístico ($xC$)** | $xC \le 6.50$ | Impede apostas Under em partidas com expectativa descontrolada de cartões ($xC > 6.50$). |
-| **3. Mapeamento Dinâmico Betano** | $xC \le 4.0 \Rightarrow \text{Under 5.5}$<br>$4.0 < xC \le 5.8 \Rightarrow \text{Under 6.5 (Linha Conservadora)}$<br>$5.8 < xC \le 6.5 \Rightarrow \text{Under 7.5 (Cobertura Alta)}$ | Seleciona a linha de maior segurança oferecida na Betano de acordo com o risco do jogo. |
-| **4. Probabilidade Mínima ($P$)** | $P(\text{Under Linha}) \ge 60\%$ | Garante margem estatística suficiente de acerto via Distribuição de Poisson. |
+| **1. Linha Mínima Absoluta** | $\text{Linha} \ge 4.5$ | Bloqueia qualquer aposta em cartões com linha inferior a 4.5 (ex: Under 3.5, 2.5). |
+| **2. Exigência Condicional Under 4.5** | $xC \le 3.30 \text{ e } P \ge 75\%$ | Apostas na linha Under 4.5 exigem expectativa muito baixa ($xC \le 3.30$) e alta probabilidade Poisson ($P \ge 75\%$). |
+| **3. Risco Estatístico ($xC$)** | $xC \le 6.50$ | Impede apostas Under em partidas com expectativa descontrolada de cartões ($xC > 6.50$). |
+| **4. Mapeamento Dinâmico Betano** | $xC \le 3.30 \Rightarrow \text{Under 4.5}$<br>$3.30 < xC \le 4.20 \Rightarrow \text{Under 5.5}$<br>$4.20 < xC \le 5.80 \Rightarrow \text{Under 6.5}$<br>$5.80 < xC \le 6.50 \Rightarrow \text{Under 7.5}$ | Seleciona a linha de maior segurança oferecida na Betano de acordo com o risco do jogo. |
+| **5. Probabilidade Mínima ($P$)** | $P(\text{Under Linha}) \ge 60\%$ | Garante margem estatística suficiente de acerto via Distribuição de Poisson (exige $\ge 75\%$ para Under 4.5). |
 
 - **Status `APROVADO`:** Todos os critérios são atendidos. Aposta liberada com selo Green Light.
-- **Status `NO_BET`:** Se qualquer um dos critérios falhar (ex: linha $< 5.5$, $xC > 6.50$ ou $P < 60\%$). A aposta é registrada/notificada como sem valor de mercado.
+- **Status `NO_BET`:** Se qualquer um dos critérios falhar (ex: linha $< 4.5$, Under 4.5 com $xC > 3.30$, $xC > 6.50$ ou $P < 60\%$). A aposta é registrada/notificada como sem valor de mercado.
 
 ---
 

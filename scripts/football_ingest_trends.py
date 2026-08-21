@@ -57,6 +57,27 @@ def calculate_poisson_under_lines(xc):
         
     return results
 
+def calculate_team_poisson_under_lines(xc):
+    """
+    Calcula as probabilidades de Under para várias linhas por TIME (1.5, 2.5, 3.5, 4.5) via Poisson.
+    Retorna um dicionário {linha: prob_under}.
+    """
+    lines = [1.5, 2.5, 3.5, 4.5]
+    results = {}
+    if xc <= 0:
+        for l in lines:
+            results[l] = 100.0
+        return results
+    
+    for l in lines:
+        k_max = int(math.floor(l))
+        prob_under_cdf = 0.0
+        for k in range(k_max + 1):
+            prob_under_cdf += (math.exp(-xc) * (xc ** k)) / math.factorial(k)
+        results[l] = round(max(0.0, min(100.0, prob_under_cdf * 100.0)), 2)
+        
+    return results
+
 def is_women_game(home_team="", away_team="", league_name=""):
     """
     Filtra e desconsidera partidas femininas (W, Womens, Feminino, Femenina).
@@ -1130,31 +1151,19 @@ def sync_pending_past_fixtures(conn, headers):
     finally:
         cursor.close()
 
-# Gerador determinístico de estatísticas de árbitro baseado no nome
+# Gerador de estatísticas neutras para árbitros sem histórico real coletado
 def generate_referee_stats(name):
-    h = int(hashlib.md5(name.encode('utf-8')).hexdigest(), 16)
-    r = random.Random(h)
-    
-    yellows = round(r.uniform(3.2, 6.2), 2)
-    reds = round(r.uniform(0.05, 0.45), 2)
-    fouls = round(r.uniform(20.0, 32.0), 2)
-    games = r.randint(12, 180)
-    
-    if yellows > 5.0:
-        rigor = "Rigoroso"
-    elif yellows > 4.0:
-        rigor = "Moderado"
-    else:
-        rigor = "Permissivo"
-        
+    # Quando o árbitro não possui histórico real coletado ou não é informado,
+    # atribuímos uma média neutra padronizada da competição em vez de sortear valores pseudo-aleatórios.
     return {
         "name": name,
-        "average_yellow_cards": yellows,
-        "average_red_cards": reds,
-        "average_fouls": fouls,
-        "total_games": games,
-        "rigor_level": rigor
+        "average_yellow_cards": 4.20,
+        "average_red_cards": 0.20,
+        "average_fouls": 24.00,
+        "total_games": 50,
+        "rigor_level": "Moderado"
     }
+
 
 # Gerador determinístico de médias realistas para fallback/mock
 def generate_deterministic_team_stats(team_name, venue_type):
@@ -1671,18 +1680,24 @@ def main():
 
             # POLÍTICA EXCLUSIVA UNDER E SELEÇÃO DINÂMICA DE LINHAS DA BETANO:
             # Calcula Odds Justas (100 / P) para cada linha
+            odd_u45 = round(100.0 / u45, 2) if u45 > 0 else 99.00
             odd_u55 = round(100.0 / u55, 2) if u55 > 0 else 99.00
             odd_u65 = round(100.0 / u65, 2) if u65 > 0 else 99.00
             odd_u75 = round(100.0 / u75, 2) if u75 > 0 else 99.00
             odd_u85 = round(100.0 / u85, 2) if u85 > 0 else 99.00
 
-            if exp_cards <= 4.00 and u55 >= 60.0:
-                # Cenário de Baixo Risco (Expectativa <= 4.00 cartões) -> 1ª Opção Under 5.5
+            if exp_cards <= 3.30 and u45 >= 75.0:
+                # Cenário de Baixíssima Expectativa (Expectativa <= 3.30 cartões) -> 1ª Opção Under 4.5
+                op1 = f"Under 4.5 ({u45}% | Odd Justa: {odd_u45})"
+                op2 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
+                prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
+            elif exp_cards <= 4.20 and u55 >= 60.0:
+                # Cenário de Baixo Risco (Expectativa <= 4.20 cartões) -> 1ª Opção Under 5.5
                 op1 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
                 op2 = f"Under 6.5 ({u65}% | Odd Justa: {odd_u65})"
                 prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
             elif exp_cards <= 5.80 and u65 >= 60.0:
-                # Cenário de Segurança Conservadora Betano (Expectativa 4.01 a 5.80 cartões) -> 1ª Opção Under 6.5
+                # Cenário de Segurança Conservadora Betano (Expectativa 4.21 a 5.80 cartões) -> 1ª Opção Under 6.5
                 op1 = f"Under 6.5 ({u65}% | Odd Justa: {odd_u65})"
                 op2 = f"Under 7.5 ({u75}% | Odd Justa: {odd_u75})"
                 prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
@@ -1694,6 +1709,37 @@ def main():
             else:
                 # Trava NO_BET: Risco elevado para entradas Under (xC > 6.50 ou probabilidade Under insuficiente)
                 prediction_text = f"🚫 NO_BET: Partida com Expectativa de Cartões elevada ({exp_cards} cartões). Nenhuma linha de segurança Under atendeu a margem aprovada pelo Gatekeeper."
+
+            # CÁLCULO DE PALPITES DE UNDER CARTÕES POR TIME (MANDANTE & VISITANTE)
+            home_cards_avg = float(home_c_stats.get("avg_cards", 2.0))
+            away_cards_avg = float(away_c_stats.get("avg_cards", 2.0))
+            ref_scale = (yellows / 4.20) if yellows > 0 else 1.0
+
+            xc_home = round(home_cards_avg * (0.65 + 0.35 * ref_scale), 2)
+            xc_away = round(away_cards_avg * (0.65 + 0.35 * ref_scale), 2)
+
+            home_u_probs = calculate_team_poisson_under_lines(xc_home)
+            away_u_probs = calculate_team_poisson_under_lines(xc_away)
+
+            if xc_home <= 0.95 and home_u_probs[1.5] >= 60.0:
+                h_rec = f"Mandante Under 1.5 ({home_u_probs[1.5]}% | xC: {xc_home})"
+            elif xc_home <= 1.85 and home_u_probs[2.5] >= 60.0:
+                h_rec = f"Mandante Under 2.5 ({home_u_probs[2.5]}% | xC: {xc_home})"
+            elif xc_home <= 2.70 and home_u_probs[3.5] >= 60.0:
+                h_rec = f"Mandante Under 3.5 ({home_u_probs[3.5]}% | xC: {xc_home})"
+            else:
+                h_rec = f"Mandante Risco Elevado (xC: {xc_home})"
+
+            if xc_away <= 0.95 and away_u_probs[1.5] >= 60.0:
+                a_rec = f"Visitante Under 1.5 ({away_u_probs[1.5]}% | xC: {xc_away})"
+            elif xc_away <= 1.85 and away_u_probs[2.5] >= 60.0:
+                a_rec = f"Visitante Under 2.5 ({away_u_probs[2.5]}% | xC: {xc_away})"
+            elif xc_away <= 2.70 and away_u_probs[3.5] >= 60.0:
+                a_rec = f"Visitante Under 3.5 ({away_u_probs[3.5]}% | xC: {xc_away})"
+            else:
+                a_rec = f"Visitante Risco Elevado (xC: {xc_away})"
+
+            prediction_text += f" 🚩 Palpite Por Time: {home_team} [{h_rec}] | {away_team} [{a_rec}]."
 
 
 

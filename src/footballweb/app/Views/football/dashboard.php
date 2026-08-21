@@ -579,6 +579,7 @@ if (!function_exists('getBetDecisionTree')) {
             $xc = round(($combinedAvg * 0.50) + ($refAvg * 0.35) + ($foulContext * 0.15), 2);
         }
 
+        $u45 = calculate_poisson_php($xc, 4.5)['under'];
         $u55 = calculate_poisson_php($xc, 5.5)['under'];
         $u65 = calculate_poisson_php($xc, 6.5)['under'];
         $u75 = calculate_poisson_php($xc, 7.5)['under'];
@@ -600,7 +601,10 @@ if (!function_exists('getBetDecisionTree')) {
             ];
         }
 
-        if ($xc <= 4.00 && $u55 >= 60.0) {
+        if ($xc <= 3.30 && $u45 >= 75.0) {
+            $lineTag = 'UNDER 4.5 🛡️';
+            $ratStr = 'Margem de segurança aprovada (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 4.5 (' . $u45 . '%) | Opção 2: Under 5.5 (' . $u55 . '%).';
+        } elseif ($xc <= 4.20 && $u55 >= 60.0) {
             $lineTag = 'UNDER 5.5 🛡️';
             $ratStr = 'Margem de segurança aprovada (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 5.5 (' . $u55 . '%) | Opção 2: Under 6.5 (' . $u65 . '%).';
         } elseif ($xc <= 5.80 && $u65 >= 60.0) {
@@ -2375,7 +2379,11 @@ if (!function_exists('getBetDecisionTree')) {
                                 $prob = 0.0;
                                 $probDisplay = 'NO BET (Risco 🚫)';
                                 $class = 'nobet';
-                            } elseif ($xc <= 4.00 && $u55 >= 60.0) {
+                            } elseif ($xc <= 3.30 && $u45 >= 75.0) {
+                                $prob = $u45;
+                                $probDisplay = 'Under 4.5: ' . number_format($prob, 2) . '%';
+                                $class = 'safe';
+                            } elseif ($xc <= 4.20 && $u55 >= 60.0) {
                                 $prob = $u55;
                                 $probDisplay = 'Under 5.5: ' . number_format($prob, 2) . '%';
                                 $class = 'safe';
@@ -2485,7 +2493,7 @@ if (!function_exists('getBetDecisionTree')) {
                              $isPostponedCard = in_array($statusClean, ['PST', 'CANCELLED', 'POSTPONED', 'CANC']);
                              $isFinishedCard = in_array($statusClean, $finishedStatusesList) || ($fix->goals_home !== null && !$isLiveMatch && !$isPostponedCard) || (isset($diffMins) && $diffMins > 115 && !$isPostponedCard);
                              ?>
-                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->league_name ?? '') . ' ' . ($fix->referee_name ?? ''), ENT_QUOTES) ?>" style="position: relative;">
+                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->league_name ?? '') . ' ' . ($fix->referee_name ?? '') . ' ' . ($fix->prediction_text ?? '') . ' ' . ($fix->ah_suggestion ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
@@ -2920,6 +2928,18 @@ if (!function_exists('getBetDecisionTree')) {
                                             <div style="font-size: 0.74rem; color: #e2e8f0; line-height: 1.35; background: rgba(30, 41, 59, 0.7); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(244, 124, 32, 0.2);">
                                                 💡 <strong>Sugestão:</strong> <?= $decision['rationale'] ?>
                                             </div>
+                                            <?php if (!empty($fix->prediction_text) && strpos($fix->prediction_text, 'Palpite Por Time:') !== false): ?>
+                                                <?php
+                                                $teamCardsMatch = [];
+                                                preg_match('/Palpite Por Time:\s*(.+)$/i', $fix->prediction_text, $teamCardsMatch);
+                                                $teamCardsStr = $teamCardsMatch[1] ?? '';
+                                                ?>
+                                                <?php if (!empty($teamCardsStr)): ?>
+                                                    <div style="margin-top: 6px; font-size: 0.74rem; color: #e2e8f0; line-height: 1.35; background: rgba(15, 23, 42, 0.6); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">
+                                                        🚩 <strong>Cartões Por Time:</strong> <?= htmlspecialchars($teamCardsStr) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
 

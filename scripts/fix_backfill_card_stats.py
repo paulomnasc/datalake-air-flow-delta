@@ -38,16 +38,59 @@ def get_db_connection():
     print("❌ Falha ao conectar no MySQL.")
     sys.exit(1)
 
-def fetch_real_fixture_cards_api(fixture_id, home_team_id=None):
+def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
+    if cursor is not None and fixture_id:
+        try:
+            cursor.execute("""
+                SELECT yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away 
+                FROM fixtures_trends 
+                WHERE fixture_id = %s AND yellow_cards_home IS NOT NULL AND yellow_cards_away IS NOT NULL
+                LIMIT 1
+            """, (fixture_id,))
+            row = cursor.fetchone()
+            if row:
+                yh = row.get('yellow_cards_home', 0) or 0
+                ya = row.get('yellow_cards_away', 0) or 0
+                rh = row.get('red_cards_home', 0) or 0
+                ra = row.get('red_cards_away', 0) or 0
+                return (yh, ya, rh, ra)
+            
+            cursor.execute("""
+                SELECT team_id, yellow_cards, red_cards 
+                FROM match_statistics_cache 
+                WHERE fixture_id = %s
+            """, (fixture_id,))
+            cache_rows = cursor.fetchall()
+            if cache_rows and len(cache_rows) > 0:
+                yh, ya, rh, ra = 0, 0, 0, 0
+                found = False
+                for r in cache_rows:
+                    t_id = r.get('team_id')
+                    is_home = (t_id == home_team_id) if (home_team_id and t_id) else True
+                    if is_home:
+                        yh = r.get('yellow_cards', 0) or 0
+                        rh = r.get('red_cards', 0) or 0
+                        found = True
+                    else:
+                        ya = r.get('yellow_cards', 0) or 0
+                        ra = r.get('red_cards', 0) or 0
+                        found = True
+                if found:
+                    return (yh, ya, rh, ra)
+        except Exception as e_cache:
+            print(f"⚠️ Erro ao consultar cache local para fixture #{fixture_id}: {e_cache}")
+
     api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
     headers = {'x-apisports-key': api_key, 'User-Agent': 'Mozilla/5.0'}
     yh, ya, rh, ra = None, None, None, None
+    api_success = False
 
     # 1. statistics endpoint
     try:
         url_st = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}"
         res_st = requests.get(url_st, headers=headers, timeout=10)
         if res_st.status_code == 200:
+            api_success = True
             st_data = res_st.json().get("response", [])
             for idx, team_st in enumerate(st_data):
                 t_id = team_st.get("team", {}).get("id")
@@ -69,6 +112,7 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None):
         url_ev = f"https://v3.football.api-sports.io/fixtures/events?fixture={fixture_id}"
         res_ev = requests.get(url_ev, headers=headers, timeout=10)
         if res_ev.status_code == 200:
+            api_success = True
             ev_data = res_ev.json().get("response", [])
             eyh, eya, erh, era = 0, 0, 0, 0
             has_card_events = False
@@ -91,6 +135,9 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None):
                 ra = max(ra if ra is not None else 0, era)
     except Exception as e:
         print(f"⚠️ Erro no endpoint events para fixture {fixture_id}: {e}")
+
+    if not api_success and yh is None and ya is None:
+        return None
 
     return (
         yh if yh is not None else 0,
@@ -120,18 +167,19 @@ def main():
         h_team = fix['home_team']
         a_team = fix['away_team']
         
-        yh, ya, rh, ra = fetch_real_fixture_cards_api(fid, htid)
-        print(f"⚡ Fixture {fid} [{h_team} vs {a_team}]: Atualizado -> Amarelos: {yh} Casa / {ya} Fora | Vermelhos: {rh} Casa / {ra} Fora")
-        
-        cursor.execute("""
-            UPDATE fixtures_trends
-            SET yellow_cards_home = %s,
-                yellow_cards_away = %s,
-                red_cards_home = %s,
-                red_cards_away = %s,
-                updated_at = NOW()
-            WHERE fixture_id = %s
-        """, (yh, ya, rh, ra, fid))
+        res = fetch_real_fixture_cards_api(fid, htid, cursor=cursor)
+        if res is not None:
+            yh, ya, rh, ra = res
+            print(f"⚡ Fixture {fid} [{h_team} vs {a_team}]: Atualizado -> Amarelos: {yh} Casa / {ya} Fora | Vermelhos: {rh} Casa / {ra} Fora")
+            cursor.execute("""
+                UPDATE fixtures_trends
+                SET yellow_cards_home = %s,
+                    yellow_cards_away = %s,
+                    red_cards_home = %s,
+                    red_cards_away = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (yh, ya, rh, ra, fid))
         time.sleep(0.2)
 
     # Agora atualizar outras partidas FT que possuem cartões NULOS no banco
@@ -151,18 +199,19 @@ def main():
         h_team = fix['home_team']
         a_team = fix['away_team']
         
-        yh, ya, rh, ra = fetch_real_fixture_cards_api(fid, htid)
-        print(f"[{idx}/{len(pending_fixes)}] Fixture {fid} [{h_team} vs {a_team}]: Cartões API -> {yh}C+{ya}F (Vermelhos {rh}C+{ra}F)")
-        
-        cursor.execute("""
-            UPDATE fixtures_trends
-            SET yellow_cards_home = %s,
-                yellow_cards_away = %s,
-                red_cards_home = %s,
-                red_cards_away = %s,
-                updated_at = NOW()
-            WHERE fixture_id = %s
-        """, (yh, ya, rh, ra, fid))
+        res = fetch_real_fixture_cards_api(fid, htid, cursor=cursor)
+        if res is not None:
+            yh, ya, rh, ra = res
+            print(f"[{idx}/{len(pending_fixes)}] Fixture {fid} [{h_team} vs {a_team}]: Cartões API -> {yh}C+{ya}F (Vermelhos {rh}C+{ra}F)")
+            cursor.execute("""
+                UPDATE fixtures_trends
+                SET yellow_cards_home = %s,
+                    yellow_cards_away = %s,
+                    red_cards_home = %s,
+                    red_cards_away = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (yh, ya, rh, ra, fid))
         time.sleep(0.15)
 
     conn.close()

@@ -238,13 +238,6 @@ class ApostaController extends BaseController
             ]);
         }
 
-        if ($odd < 1.50) {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => 'A Odd informada ('.number_format($odd, 2, ',', '.').') é inferior ao mínimo permitido de 1,50. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,50.'
-            ]);
-        }
-
         if ($status === 'ANULADA') {
             $ganhosPotenciais = $valorAposta;
         } elseif ($status === 'Meio Ganha') {
@@ -389,13 +382,13 @@ class ApostaController extends BaseController
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
-        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Estratégia Exclusiva Under 5.5+)
+        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Estratégia Exclusiva Under 4.5+)
         preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
         $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
 
-        if ($lineCheck < 5.5) {
+        if ($lineCheck < 4.5) {
             $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Apostas no mercado 'Total de Cartões' com linhas inferiores a 5.5 (ex: Under 4.5, 3.5) são bloqueadas pelo modelo por elevado risco. Apenas linhas de Under 5.5 ou superior (Under 5.5, 6.5, 7.5) possuem margem de segurança aprovada.";
+            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Apostas no mercado 'Total de Cartões' com linhas inferiores a 4.5 (ex: Under 3.5, 2.5) são bloqueadas pelo modelo por elevado risco.";
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
@@ -506,7 +499,11 @@ class ApostaController extends BaseController
                     : "";
 
                 // Avaliação final do Gatekeeper
-                if ($odd > $maxAllowedOdd) {
+                if ($lineCheck < 5.5 && ($xc === null || $xc > 3.30 || $probPoisson < 75.0)) {
+                    $statusGatekeeper = 'NO_BET';
+                    $xcFormatted = ($xc !== null) ? $xc : 'N/A';
+                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Entrada na linha Under 4.5 exige Expectativa (xC) <= 3.30 cartões (Atual: {$xcFormatted}) e Probabilidade Poisson >= 75.0% (Atual: {$probPoisson}%).{$duplicidadeMsg}";
+                } elseif ($odd > $maxAllowedOdd) {
                     $statusGatekeeper = 'NO_BET';
                     $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) excede o teto dinâmico de segurança ({$maxAllowedOdd}) derivado da média histórica de vitórias ({$avgWinningOdd}).{$duplicidadeMsg}";
                 } elseif ($evPercentual !== null && $evPercentual >= $minEvExigido && $probPoisson >= $minProbExigida) {

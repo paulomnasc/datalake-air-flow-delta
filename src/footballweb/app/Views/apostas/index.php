@@ -1193,8 +1193,7 @@ if (!function_exists('formatBrtDate')) {
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white">Odd *</label>
-              <input type="number" step="0.01" min="1.50" class="form-control" id="oddInput" required placeholder="1.50" oninput="calcGanhos()">
-              <div class="form-text" style="font-size: 0.7rem; color: #94a3b8;">Mínimo: 1,50</div>
+              <input type="number" step="0.01" min="1.01" class="form-control" id="oddInput" required placeholder="1.50" oninput="calcGanhos()">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white">Valor Aposta (R$) *</label>
@@ -1288,8 +1287,7 @@ if (!function_exists('formatBrtDate')) {
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white">Odd *</label>
-              <input type="number" step="0.01" min="1.50" class="form-control" id="editOddInput" required oninput="calcEditGanhos()">
-              <div class="form-text" style="font-size: 0.7rem; color: #94a3b8;">Mínimo: 1,50</div>
+              <input type="number" step="0.01" min="1.01" class="form-control" id="editOddInput" required oninput="calcEditGanhos()">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white">Valor Aposta (R$) *</label>
@@ -2145,8 +2143,8 @@ if (!function_exists('formatBrtDate')) {
     if (isSubmittingNewBet && !confirmRisco) return;
 
     const oddVal = parseFloat(document.getElementById('oddInput').value) || 0;
-    if (oddVal < 1.50) {
-      alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,50. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,50.');
+    if (oddVal <= 1.0) {
+      alert('❌ A Odd informada é inválida. Informe um valor maior que 1.00.');
       return;
     }
 
@@ -2349,8 +2347,8 @@ if (!function_exists('formatBrtDate')) {
     if (isSubmittingEditBet && !confirmRisco) return;
 
     const oddVal = parseFloat(document.getElementById('editOddInput').value) || 0;
-    if (oddVal < 1.50) {
-      alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,50. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,50.');
+    if (oddVal <= 1.0) {
+      alert('❌ A Odd informada é inválida. Informe um valor maior que 1.00.');
       return;
     }
 

@@ -178,26 +178,26 @@ if (!function_exists('renderStructuredMotivation')) {
 
             $probTableHtml .= '<div style="margin-top: 10px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 8px 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); overflow-x: auto;">';
             $probTableHtml .= '<div style="font-size: 0.72rem; font-weight: 700; color: #38bdf8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">';
-            $probTableHtml .= '<i class="bi bi-bar-chart-line-fill" style="color: #38bdf8; font-size: 0.80rem;"></i> 📊 Probabilidade 1 X 2 (%) — Modelo Plataforma vs Casa de Apostas:';
+            $probTableHtml .= '<i class="bi bi-bar-chart-line-fill" style="color: #38bdf8; font-size: 0.80rem;"></i> ' . lang('App.prob_1x2_table_title');
             $probTableHtml .= '</div>';
             $probTableHtml .= '<table style="width: 100%; font-size: 0.68rem; text-align: center; border-collapse: collapse; color: #e2e8f0; table-layout: fixed;">';
             $probTableHtml .= '<thead>';
             $probTableHtml .= '<tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-size: 0.66rem; text-transform: uppercase;">';
-            $probTableHtml .= '<th style="width: 43%; padding: 3px 2px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Fonte</th>';
-            $probTableHtml .= '<th style="width: 19%; padding: 3px 2px; color: #38bdf8;">1 (Casa)</th>';
-            $probTableHtml .= '<th style="width: 19%; padding: 3px 2px; color: #f59e0b;">X (Emp)</th>';
-            $probTableHtml .= '<th style="width: 19%; padding: 3px 2px; color: #ef4444;">2 (Fora)</th>';
+            $probTableHtml .= '<th style="width: 43%; padding: 3px 2px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' . lang('App.source') . '</th>';
+            $probTableHtml .= '<th style="width: 19%; padding: 3px 2px; color: #38bdf8;">' . lang('App.home_win') . '</th>';
+            $probTableHtml .= '<th style="width: 19%; padding: 3px 2px; color: #f59e0b;">' . lang('App.draw') . '</th>';
+            $probTableHtml .= '<th style="width: 19%; padding: 3px 2px; color: #ef4444;">' . lang('App.away_win') . '</th>';
             $probTableHtml .= '</tr>';
             $probTableHtml .= '</thead>';
             $probTableHtml .= '<tbody>';
             $probTableHtml .= '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05); font-weight: 800; color: #38bdf8; background: rgba(56, 189, 248, 0.08);">';
-            $probTableHtml .= '<td style="padding: 4px 2px; text-align: left; color: #38bdf8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><i class="bi bi-cpu me-1"></i> Plataforma IA</td>';
+            $probTableHtml .= '<td style="padding: 4px 2px; text-align: left; color: #38bdf8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><i class="bi bi-cpu me-1"></i> ' . lang('App.ai_platform') . '</td>';
             $probTableHtml .= '<td style="padding: 4px 2px;">' . $platH . '</td>';
             $probTableHtml .= '<td style="padding: 4px 2px;">' . $platD . '</td>';
             $probTableHtml .= '<td style="padding: 4px 2px;">' . $platA . '</td>';
             $probTableHtml .= '</tr>';
             $probTableHtml .= '<tr style="color: #cbd5e1;">';
-            $probTableHtml .= '<td style="padding: 4px 2px; text-align: left; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><i class="bi bi-bank me-1"></i> Banca (Odds)</td>';
+            $probTableHtml .= '<td style="padding: 4px 2px; text-align: left; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><i class="bi bi-bank me-1"></i> ' . lang('App.bookmaker_odds') . '</td>';
             $probTableHtml .= '<td style="padding: 4px 2px;">' . $bancaH . '</td>';
             $probTableHtml .= '<td style="padding: 4px 2px;">' . $bancaD . '</td>';
             $probTableHtml .= '<td style="padding: 4px 2px;">' . $bancaA . '</td>';
@@ -209,7 +209,7 @@ if (!function_exists('renderStructuredMotivation')) {
 
         $html = '<div class="motivation-structured-box" style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.25); border-left: 4px solid #38bdf8; border-radius: 8px;">';
         $html .= '<div style="font-size: 0.76rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">';
-        $html .= '<i class="bi bi-list-check" style="font-size: 0.88rem; color: #38bdf8;"></i> 💡 Motivação Detalhada do Palpite:';
+        $html .= '<i class="bi bi-list-check" style="font-size: 0.88rem; color: #38bdf8;"></i> ' . lang('App.detailed_motivation_title');
         $html .= '</div>';
         $html .= '<ol style="margin: 0; padding-left: 0; list-style: none;">';
 
@@ -648,59 +648,59 @@ if (!function_exists('getBetDecisionTree')) {
 
         if ($isNoBet || $xc > 6.50) {
             return [
-                'market'        => 'Entrada Não Recomendada',
+                'market'        => lang('App.entry_not_recommended'),
                 'line_tag'      => 'NO BET 🚫',
                 'badge_bg'      => 'background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5);',
                 'box_border'    => '#ef4444',
-                'region'        => 'Expectativa de Cartões',
-                'region_short'  => 'Exp. Cartões: ' . number_format($xc, 2),
-                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
-                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
-                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
-                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
-                'rationale'     => 'Expectativa de cartões elevada (' . number_format($xc, 2) . ' cartões). Nenhuma linha de segurança Under atendeu a margem aprovada pelo Gatekeeper.'
+                'region'        => lang('App.cards_expectation'),
+                'region_short'  => lang('App.cards_exp_short') . ': ' . number_format($xc, 2),
+                'foul_style'    => lang('App.teams') . ' (' . number_format($combinedAvg, 1) . ' c/j)',
+                'foul_short'    => lang('App.teams') . ' (' . number_format($combinedAvg, 1) . ')',
+                'referee'       => lang('App.referee') . ' (' . number_format($refAvg, 1) . ' c/j)',
+                'referee_short' => lang('App.referee') . ' (' . number_format($refAvg, 1) . ')',
+                'rationale'     => sprintf(lang('App.rat_no_bet_gatekeeper'), number_format($xc, 2))
             ];
         }
 
         if ($xc <= 3.30 && $u45 >= 75.0) {
             $lineTag = 'UNDER 4.5 🛡️';
-            $ratStr = 'Margem de segurança aprovada (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 4.5 (' . $u45 . '%) | Opção 2: Under 5.5 (' . $u55 . '%).';
+            $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '4.5', $u45, '5.5', $u55);
         } elseif ($xc <= 4.20 && $u55 >= 60.0) {
             $lineTag = 'UNDER 5.5 🛡️';
-            $ratStr = 'Margem de segurança aprovada (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 5.5 (' . $u55 . '%) | Opção 2: Under 6.5 (' . $u65 . '%).';
+            $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '5.5', $u55, '6.5', $u65);
         } elseif ($xc <= 5.80 && $u65 >= 60.0) {
             $lineTag = 'UNDER 6.5 🛡️';
-            $ratStr = 'Margem de segurança aprovada (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 6.5 (' . $u65 . '%) | Opção 2: Under 7.5 (' . $u75 . '%).';
+            $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '6.5', $u65, '7.5', $u75);
         } elseif ($xc <= 6.50 && $u75 >= 60.0) {
             $lineTag = 'UNDER 7.5 🛡️';
-            $ratStr = 'Margem de segurança aprovada (Expectativa = ' . number_format($xc, 2) . ' cartões). Opção 1: Under 7.5 (' . $u75 . '%) | Opção 2: Under 8.5 (' . $u85 . '%).';
+            $ratStr = sprintf(lang('App.rat_approved_margin'), number_format($xc, 2), '7.5', $u75, '8.5', $u85);
         } else {
             return [
-                'market'        => 'Entrada Não Recomendada',
+                'market'        => lang('App.entry_not_recommended'),
                 'line_tag'      => 'NO BET 🚫',
                 'badge_bg'      => 'background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5);',
                 'box_border'    => '#ef4444',
-                'region'        => 'Expectativa de Cartões',
-                'region_short'  => 'Exp. Cartões: ' . number_format($xc, 2),
-                'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
-                'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
-                'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
-                'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
-                'rationale'     => 'Expectativa de cartões elevada (' . number_format($xc, 2) . ' cartões). Margem de probabilidade Under não aprovada.'
+                'region'        => lang('App.cards_expectation'),
+                'region_short'  => lang('App.cards_exp_short') . ': ' . number_format($xc, 2),
+                'foul_style'    => lang('App.teams') . ' (' . number_format($combinedAvg, 1) . ' c/j)',
+                'foul_short'    => lang('App.teams') . ' (' . number_format($combinedAvg, 1) . ')',
+                'referee'       => lang('App.referee') . ' (' . number_format($refAvg, 1) . ' c/j)',
+                'referee_short' => lang('App.referee') . ' (' . number_format($refAvg, 1) . ')',
+                'rationale'     => sprintf(lang('App.rat_no_bet_margin'), number_format($xc, 2))
             ];
         }
 
         return [
-            'market'        => 'Menos de Cartões',
+            'market'        => lang('App.under_cards'),
             'line_tag'      => $lineTag,
             'badge_bg'      => 'background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5);',
             'box_border'    => '#10b981',
-            'region'        => 'Expectativa de Cartões',
-            'region_short'  => 'Exp. Cartões: ' . number_format($xc, 2),
-            'foul_style'    => 'Times (' . number_format($combinedAvg, 1) . ' c/j)',
-            'foul_short'    => 'Times (' . number_format($combinedAvg, 1) . ')',
-            'referee'       => 'Árbitro (' . number_format($refAvg, 1) . ' c/j)',
-            'referee_short' => 'Árbitro (' . number_format($refAvg, 1) . ')',
+            'region'        => lang('App.cards_expectation'),
+            'region_short'  => lang('App.cards_exp_short') . ': ' . number_format($xc, 2),
+            'foul_style'    => lang('App.teams') . ' (' . number_format($combinedAvg, 1) . ' c/j)',
+            'foul_short'    => lang('App.teams') . ' (' . number_format($combinedAvg, 1) . ')',
+            'referee'       => lang('App.referee') . ' (' . number_format($refAvg, 1) . ' c/j)',
+            'referee_short' => lang('App.referee') . ' (' . number_format($refAvg, 1) . ')',
             'rationale'     => $ratStr
         ];
     }
@@ -2378,9 +2378,9 @@ if (!function_exists('getBetDecisionTree')) {
                         <div class="bet-tab" id="tab-destaques" onclick="switchMainTab('destaques')"><?= lang('App.highlights') ?></div>
                     </div>
 
-                    <div class="bet-total-matches-badge d-flex align-items-center gap-2" style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; padding: 7px 16px; backdrop-filter: blur(8px); box-shadow: 0 4px 12px rgba(0,0,0,0.2);" title="Partidas visíveis / Total de jogos no período">
+                    <div class="bet-total-matches-badge d-flex align-items-center gap-2" style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; padding: 7px 16px; backdrop-filter: blur(8px); box-shadow: 0 4px 12px rgba(0,0,0,0.2);" title="<?= lang('App.tooltip_total_games_period') ?>">
                         <i class="bi bi-controller" style="color: #f47c20; font-size: 1.1rem;"></i>
-                        <span style="font-size: 0.85rem; color: #94a3b8; font-weight: 600;">Total de Jogos:</span>
+                        <span style="font-size: 0.85rem; color: #94a3b8; font-weight: 600;"><?= lang('App.total_games') ?>:</span>
                         <strong id="totalMatchesCount" style="color: #00e676; font-weight: 800; font-size: 1rem; min-width: 30px; text-align: right;">
                             <?= count($fixtures) ?>
                         </strong>
@@ -2527,41 +2527,41 @@ if (!function_exists('getBetDecisionTree')) {
 
                             if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {
                                 $elapsedClass = 'pst';
-                                $elapsedDisplay = '⚠️ ADIADO';
+                                $elapsedDisplay = '⚠️ ' . lang('App.postponed');
                             } elseif (in_array($statusClean, $finishedStatusesList) || (isset($diffMins) && $diffMins > 115)) {
                                 $elapsedClass = '';
                                 $elapsedDisplay = lang('App.finished');
                             } elseif ($isLiveMatch) {
                                 $elapsedClass = 'live';
                                 if ($statusClean === 'HT') {
-                                    $minDisplay = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : 'Int';
+                                    $minDisplay = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : lang('App.halftime');
                                 } else {
-                                    $minDisplay = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : 'Ao Vivo');
+                                    $minDisplay = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : lang('App.live'));
                                 }
                                 $elapsedDisplay = '<span class="live-pulse-dot"></span> ' . $minDisplay;
                             } elseif ($statusClean === 'NS') {
                                 $elapsedClass = '';
-                                $elapsedDisplay = 'Pré-jogo';
+                                $elapsedDisplay = lang('App.pre_match');
                             } else {
                                 $elapsedClass = (isset($diffMins) && $diffMins >= 0) ? 'live' : '';
-                                $elapsedDisplay = (isset($diffMins) && $diffMins >= 0) ? $diffMins . "'" : 'Pré-jogo';
+                                $elapsedDisplay = (isset($diffMins) && $diffMins >= 0) ? $diffMins . "'" : lang('App.pre_match');
                             }
 
-                            $betanoTimeText = 'Pré-jogo';
+                            $betanoTimeText = lang('App.pre_match');
                             if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED', 'CANC'])) {
-                                $betanoTimeText = '⚠️ ADIADO';
+                                $betanoTimeText = '⚠️ ' . lang('App.postponed');
                             } elseif (in_array($statusClean, $finishedStatusesList) || (isset($diffMins) && $diffMins > 115)) {
-                                $betanoTimeText = 'Encerrado';
+                                $betanoTimeText = lang('App.finished');
                             } elseif ($isLiveMatch) {
                                 if ($statusClean === 'HT') {
-                                    $betanoTimeText = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : 'Intervalo';
+                                    $betanoTimeText = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : lang('App.halftime');
                                 } else {
-                                    $betanoTimeText = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : 'Ao Vivo');
+                                    $betanoTimeText = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : lang('App.live'));
                                 }
                             } elseif ($statusClean === 'NS') {
-                                $betanoTimeText = 'Pré-jogo';
+                                $betanoTimeText = lang('App.pre_match');
                             } else {
-                                $betanoTimeText = (isset($diffMins) && $diffMins >= 0) ? $diffMins . "'" : 'Pré-jogo';
+                                $betanoTimeText = (isset($diffMins) && $diffMins >= 0) ? $diffMins . "'" : lang('App.pre_match');
                             }
                             
                             $displayLeague = $fix->display_league_name ?? formatLeagueDisplayName($fix->league_id ?? 0, $fix->league_name ?? '');
@@ -2632,7 +2632,7 @@ if (!function_exists('getBetDecisionTree')) {
                                              <!-- Nomes dos Times e Placar -->
                                              <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; font-weight: 700; font-size: 0.95rem; margin-bottom: 6px;">
                                                  <div style="flex: 1; text-align: right; overflow: hidden; display: flex; align-items: center; justify-content: flex-end; gap: 5px;">
-                                                     <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.85rem; flex-shrink: 0;" title="Mandante (Casa)"></i>
+                                                     <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.85rem; flex-shrink: 0;" title="<?= lang('App.home_team_tooltip') ?>"></i>
                                                      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;"><?= htmlspecialchars($fix->home_team) ?></span>
                                                  </div>
                                                  <div style="background: #232d42; padding: 3px 10px; border-radius: 6px; font-size: 1.15rem; font-weight: 800; letter-spacing: 2px; flex-shrink: 0; min-width: 55px;">
@@ -2652,24 +2652,24 @@ if (!function_exists('getBetDecisionTree')) {
 
                                              <!-- Barra de Estatísticas ao Vivo (Cartões, Escanteios, Chutes Totais, xG) -->
                                              <div style="display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 0.83rem; font-weight: 700; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.08); color: #f8fafc;">
-                                                 <div style="display: flex; align-items: center; gap: 4px;" title="Cartões Amarelos">
+                                                 <div style="display: flex; align-items: center; gap: 4px;" title="<?= lang('App.yellow_cards') ?>">
                                                      <span style="background: #eab308; width: 10px; height: 13px; display: inline-block; border-radius: 2px;"></span>
                                                      <span data-betano-cards="<?= $fix->fixture_id ?>"><?= ($fix->yellow_cards_home ?? 0) ?>-<?= ($fix->yellow_cards_away ?? 0) ?></span>
                                                  </div>
                                                  <?php $hasRedCards = ((int)($fix->red_cards_home ?? 0) + (int)($fix->red_cards_away ?? 0)) > 0; ?>
-                                                 <div style="display: flex; align-items: center; gap: 4px; <?= $hasRedCards ? '' : 'display: none;' ?>" title="Cartões Vermelhos" data-betano-redcards-container="<?= $fix->fixture_id ?>">
+                                                 <div style="display: flex; align-items: center; gap: 4px; <?= $hasRedCards ? '' : 'display: none;' ?>" title="<?= lang('App.red_cards') ?>" data-betano-redcards-container="<?= $fix->fixture_id ?>">
                                                      <span style="background: #ef4444; width: 10px; height: 13px; display: inline-block; border-radius: 2px;"></span>
                                                      <span data-betano-redcards="<?= $fix->fixture_id ?>"><?= ($fix->red_cards_home ?? 0) ?>-<?= ($fix->red_cards_away ?? 0) ?></span>
                                                  </div>
-                                                 <div style="display: flex; align-items: center; gap: 4px;" title="Escanteios">
+                                                 <div style="display: flex; align-items: center; gap: 4px;" title="<?= lang('App.corners') ?>">
                                                      <span style="font-size: 0.85rem;">🚩</span>
                                                      <span data-betano-corners="<?= $fix->fixture_id ?>"><?= ($fix->corners_home ?? 0) ?>-<?= ($fix->corners_away ?? 0) ?></span>
                                                  </div>
-                                                 <div style="display: flex; align-items: center; gap: 4px;" title="Remates / Chutes Totais">
+                                                 <div style="display: flex; align-items: center; gap: 4px;" title="<?= lang('App.total_shots') ?>">
                                                      <span style="font-size: 0.85rem;">👟</span>
                                                      <span data-betano-shots="<?= $fix->fixture_id ?>"><?= ($fix->shots_home ?? 0) ?>-<?= ($fix->shots_away ?? 0) ?></span>
                                                  </div>
-                                                 <div style="display: flex; align-items: center; gap: 4px;" title="Expected Goals (xG)">
+                                                 <div style="display: flex; align-items: center; gap: 4px;" title="<?= lang('App.expected_goals') ?>">
                                                      <span style="color: #94a3b8; font-size: 0.75rem; font-weight: 700;">xG</span>
                                                      <span data-betano-xg="<?= $fix->fixture_id ?>"><?= number_format($fix->xg_home ?? 0.00, 2) ?>-<?= number_format($fix->xg_away ?? 0.00, 2) ?></span>
                                                  </div>
@@ -2694,13 +2694,13 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?php else: ?>
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
-                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?> <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.8rem; margin-left: 4px;" title="Mandante (Casa)"></i><?php if (!empty($fix->home_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="Posição na Tabela: #<?= $fix->home_rank ?> (<?= $fix->home_ppg ?? 0 ?> PPG)">#<?= $fix->home_rank ?></span><?php endif; ?></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?> <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.8rem; margin-left: 4px;" title="<?= lang('App.home_team_tooltip') ?>"></i><?php if (!empty($fix->home_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->home_rank, $fix->home_ppg ?? 0) ?>">#<?= $fix->home_rank ?></span><?php endif; ?></span>
                                                 <div class="bet-card-badge-container" data-cards-container-home="<?= $fix->fixture_id ?>">
                                                     <?php if (isset($fix->yellow_cards_home) && $fix->yellow_cards_home !== null && $fix->yellow_cards_home > 0): ?>
-                                                        <span class="bet-card-badge-item yellow" title="Cartões Amarelos"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_home ?></span>
+                                                        <span class="bet-card-badge-item yellow" title="<?= lang('App.yellow_cards') ?>"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_home ?></span>
                                                     <?php endif; ?>
                                                     <?php if (isset($fix->red_cards_home) && $fix->red_cards_home !== null && $fix->red_cards_home > 0): ?>
-                                                        <span class="bet-card-badge-item red" title="Cartões Vermelhos"><i class="bi bi-file-square-fill"></i> <?= $fix->red_cards_home ?></span>
+                                                        <span class="bet-card-badge-item red" title="<?= lang('App.red_cards') ?>"><i class="bi bi-file-square-fill"></i> <?= $fix->red_cards_home ?></span>
                                                     <?php endif; ?>
                                                 </div>
                                                 <span class="bet-team-score" data-fixture-score-home="<?= $fix->fixture_id ?>" style="<?= (isset($fix->goals_home) && $fix->goals_home !== null) ? '' : 'display: none;' ?>"><?= $fix->goals_home ?? '' ?></span>
@@ -2715,7 +2715,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_cleansheets') ?>">
                                                         <i class="bi bi-shield-fill-check"></i>
                                                         <span class="label"><?= lang('App.clean_sheets') ?>:</span>
-                                                        <span class="val"><?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : 'Não localizado' ?></span>
+                                                        <span class="val"><?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : lang('App.not_found') ?></span>
                                                     </div>
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_home_corners') ?>">
                                                         <i class="bi bi-flag-fill"></i>
@@ -2738,13 +2738,13 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?php else: ?>
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
-                                                <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?><?php if (!empty($fix->away_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="Posição na Tabela: #<?= $fix->away_rank ?> (<?= $fix->away_ppg ?? 0 ?> PPG)">#<?= $fix->away_rank ?></span><?php endif; ?></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?><?php if (!empty($fix->away_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->away_rank, $fix->away_ppg ?? 0) ?>">#<?= $fix->away_rank ?></span><?php endif; ?></span>
                                                 <div class="bet-card-badge-container" data-cards-container-away="<?= $fix->fixture_id ?>">
                                                     <?php if (isset($fix->yellow_cards_away) && $fix->yellow_cards_away !== null && $fix->yellow_cards_away > 0): ?>
-                                                        <span class="bet-card-badge-item yellow" title="Cartões Amarelos"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_away ?></span>
+                                                        <span class="bet-card-badge-item yellow" title="<?= lang('App.yellow_cards') ?>"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_away ?></span>
                                                     <?php endif; ?>
                                                     <?php if (isset($fix->red_cards_away) && $fix->red_cards_away !== null && $fix->red_cards_away > 0): ?>
-                                                        <span class="bet-card-badge-item red" title="Cartões Vermelhos"><i class="bi bi-file-square-fill"></i> <?= $fix->red_cards_away ?></span>
+                                                        <span class="bet-card-badge-item red" title="<?= lang('App.red_cards') ?>"><i class="bi bi-file-square-fill"></i> <?= $fix->red_cards_away ?></span>
                                                     <?php endif; ?>
                                                 </div>
                                                 <span class="bet-team-score" data-fixture-score-away="<?= $fix->fixture_id ?>" style="<?= (isset($fix->goals_away) && $fix->goals_away !== null) ? '' : 'display: none;' ?>"><?= $fix->goals_away ?? '' ?></span>
@@ -2759,7 +2759,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_cleansheets') ?>">
                                                         <i class="bi bi-shield-fill-check"></i>
                                                         <span class="label"><?= lang('App.clean_sheets_away') ?>:</span>
-                                                        <span class="val"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : 'Não localizado' ?></span>
+                                                        <span class="val"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : lang('App.not_found') ?></span>
                                                     </div>
                                                     <div class="bet-team-stats-item" data-tooltip="<?= lang('App.tooltip_away_corners') ?>">
                                                         <i class="bi bi-flag-fill"></i>
@@ -2800,10 +2800,10 @@ if (!function_exists('getBetDecisionTree')) {
                                          <div class="oddspedia-widget-box" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
                                              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
                                                  <span style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
-                                                     <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> Cotações 1X2 (<?= $oddSourceLabel ?>)
+                                                     <i class="bi bi-graph-up-arrow" style="color: #00e676;"></i> <?= lang('App.odds_1x2') ?> (<?= $oddSourceLabel ?>)
                                                  </span>
                                                  <div style="display: flex; align-items: center; gap: 8px;">
-                                                     <span style="font-size: 0.70rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 2px 7px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Data e hora da última raspagem e atualização da odd">
+                                                     <span style="font-size: 0.70rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 2px 7px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="<?= lang('App.odds_updated_tooltip') ?>">
                                                          <i class="bi bi-clock-history" style="font-size: 0.72rem;"></i> <?= $oddsUpdatedAtFormatted ?>
                                                      </span>
                                                      <?php if (!empty($fix->is_surebet)): ?>
@@ -2815,9 +2815,9 @@ if (!function_exists('getBetDecisionTree')) {
                                              </div>
                                              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center;">
                                                  <!-- Casa 1 -->
-                                                 <a href="<?= $urlHome ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="Apostar na <?= htmlspecialchars($fix->casa_odd_home ?? 'Casa') ?> em nova aba">
+                                                 <a href="<?= $urlHome ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="<?= sprintf(lang('App.bet_on_home_new_tab'), htmlspecialchars($fix->casa_odd_home ?? lang('App.odds_home'))) ?>">
                                                      <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
-                                                         <span>Casa (<?= htmlspecialchars($fix->casa_odd_home ?? '1') ?>)</span>
+                                                         <span><?= lang('App.odds_home') ?> (<?= htmlspecialchars($fix->casa_odd_home ?? '1') ?>)</span>
                                                          <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #38bdf8;"></i>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #38bdf8;">
@@ -2825,9 +2825,9 @@ if (!function_exists('getBetDecisionTree')) {
                                                      </div>
                                                  </a>
                                                  <!-- Empate X -->
-                                                 <a href="<?= $urlDraw ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="Apostar no <?= htmlspecialchars($fix->casa_odd_draw ?? 'Empate') ?> em nova aba">
+                                                 <a href="<?= $urlDraw ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="<?= sprintf(lang('App.bet_on_draw_new_tab'), htmlspecialchars($fix->casa_odd_draw ?? lang('App.odds_draw'))) ?>">
                                                      <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
-                                                         <span>Empate (<?= htmlspecialchars($fix->casa_odd_draw ?? 'X') ?>)</span>
+                                                         <span><?= lang('App.odds_draw') ?> (<?= htmlspecialchars($fix->casa_odd_draw ?? 'X') ?>)</span>
                                                          <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #facc15;"></i>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #facc15;">
@@ -2835,9 +2835,9 @@ if (!function_exists('getBetDecisionTree')) {
                                                      </div>
                                                  </a>
                                                  <!-- Fora 2 -->
-                                         <a href="<?= $urlAway ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="Apostar no <?= htmlspecialchars($fix->casa_odd_away ?? 'Fora') ?> em nova aba">
+                                         <a href="<?= $urlAway ?>" target="_blank" rel="noopener noreferrer" class="oddspedia-link-box" style="text-decoration: none; display: block; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 6px 4px; transition: all 0.2s ease;" title="<?= sprintf(lang('App.bet_on_away_new_tab'), htmlspecialchars($fix->casa_odd_away ?? lang('App.odds_away'))) ?>">
                                                      <div style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px;">
-                                                         <span>Fora (<?= htmlspecialchars($fix->casa_odd_away ?? '2') ?>)</span>
+                                                         <span><?= lang('App.odds_away') ?> (<?= htmlspecialchars($fix->casa_odd_away ?? '2') ?>)</span>
                                                          <i class="bi bi-box-arrow-up-right" style="font-size: 0.6rem; color: #f47c20;"></i>
                                                      </div>
                                                      <div style="font-size: 0.95rem; font-weight: 800; color: #f47c20;">
@@ -2857,7 +2857,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         $calc_details = '';
                                         $u5j_data = null;
 
-                                        if (!empty($fix->ah_suggestion)) {
+                                        if (!empty($raw_reasoning)) {
                                             if (strpos($raw_reasoning, '|| EXPLICACAO:') !== false) {
                                                 $parts = explode('|| EXPLICACAO:', $raw_reasoning);
                                                 $main_analysis = trim($parts[0]);
@@ -2881,12 +2881,18 @@ if (!function_exists('getBetDecisionTree')) {
                                                 $main_analysis = trim($ah_parts[0]);
                                                 $motivation = $main_analysis;
                                                 $calc_details = isset($ah_parts[1]) ? trim($ah_parts[1]) : '';
+                                                if (strpos($raw_reasoning, '|| U5J_DATA:') !== false) {
+                                                    $u_parts = explode('|| U5J_DATA:', $raw_reasoning);
+                                                    $u5j_data = json_decode(trim($u_parts[1]), true);
+                                                }
                                             }
+                                        }
 
-                                            if (!empty($motivation) && strpos($motivation, 'Fator Crucial') === false) {
-                                                $motivation = "🎯 Fator Crucial: " . $motivation;
-                                            }
+                                        if (!empty($motivation) && strpos($motivation, 'Fator Crucial') === false) {
+                                            $motivation = "🎯 " . lang('App.crucial_factor') . ": " . $motivation;
+                                        }
 
+                                        if (!empty($fix->ah_suggestion)) {
                                             if (empty($nl_explanation)) {
                                                 $sugText = $fix->ah_suggestion;
                                                 $homeTeam = $fix->home_team;
@@ -2894,25 +2900,56 @@ if (!function_exists('getBetDecisionTree')) {
                                                 if (strpos($sugText, '0.0') !== false || strpos($sugText, 'Empate Anula') !== false || strpos($sugText, '+00') !== false || strpos($sugText, '+ 00') !== false) {
                                                     $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
                                                     $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
-                                                    $nl_explanation = "🟢 Vitória do {$teamFav}: Ganha 100% da aposta (Lucro Total).\n⚪ Empate: Aposta ANULADA (100% Reembolso).\n🔴 Vitória do {$teamOpp}: Aposta PERDIDA.";
+                                                    $nl_explanation = sprintf(lang('App.nl_exp_00'), $teamFav, $teamOpp);
                                                 } elseif (strpos($sugText, '-0.25') !== false) {
                                                     $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
                                                     $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
-                                                    $nl_explanation = "🟢 Vitória do {$teamFav}: Ganha 100% da aposta.\n🟡 Empate: PERDE 50% e recupera 50%.\n🔴 Vitória do {$teamOpp}: Aposta PERDIDA.";
+                                                    $nl_explanation = sprintf(lang('App.nl_exp_minus025'), $teamFav, $teamOpp);
                                                 } elseif (strpos($sugText, '+0.25') !== false) {
                                                     $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
                                                     $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
-                                                    $nl_explanation = "🟢 Vitória do {$teamFav}: Ganha 100% da aposta.\n🟢 Empate: Ganha 50% do Lucro + 100% da aposta de volta.\n🔴 Vitória do {$teamOpp}: Aposta PERDIDA.";
+                                                    $nl_explanation = sprintf(lang('App.nl_exp_plus025'), $teamFav, $teamOpp);
                                                 } else {
-                                                    $nl_explanation = "🟢 Vitória da Equipe Indicada: Ganha Aposta.\n🟡 Empate: Reembolso Parcial/Total.\n🔴 Derrota: Aposta Perdida.";
+                                                    $nl_explanation = lang('App.nl_exp_generic');
                                                 }
                                             }
+                                        }
 
-                                            if (empty($u5j_data)) {
-                                                $u5j_data = [
-                                                    'home' => ['text' => 'N/D', 'matches' => []],
-                                                    'away' => ['text' => 'N/D', 'matches' => []]
-                                                ];
+                                        if (empty($u5j_data)) {
+                                            $u5j_data = [
+                                                'home' => ['text' => lang('App.not_found'), 'matches' => []],
+                                                'away' => ['text' => lang('App.not_found'), 'matches' => []]
+                                            ];
+                                        }
+
+                                        $ahSugClean = strtolower(trim($fix->ah_suggestion ?? ''));
+                                        $isAhBlocked = empty($ahSugClean) 
+                                            || stripos($ahSugClean, 'sem entrada') !== false 
+                                            || stripos($ahSugClean, 'abstenção') !== false 
+                                            || stripos($ahSugClean, 'abstencao') !== false 
+                                            || stripos($ahSugClean, 'bloquead') !== false 
+                                            || stripos($ahSugClean, 'indisponível') !== false 
+                                            || stripos($ahSugClean, 'indisponivel') !== false;
+
+                                        if ($isAhBlocked) {
+                                            if (!empty($fix->odd_home) && !empty($fix->odd_draw) && !empty($fix->odd_away)) {
+                                                $nl_explanation = sprintf(
+                                                    lang('App.ai_abstain_with_odds'),
+                                                    htmlspecialchars($fix->home_team),
+                                                    htmlspecialchars($fix->away_team),
+                                                    lang('App.odds_home'),
+                                                    number_format($fix->odd_home, 2),
+                                                    lang('App.odds_draw'),
+                                                    number_format($fix->odd_draw, 2),
+                                                    lang('App.odds_away'),
+                                                    number_format($fix->odd_away, 2)
+                                                );
+                                            } else {
+                                                $nl_explanation = sprintf(
+                                                    lang('App.ai_abstain_no_odds'),
+                                                    htmlspecialchars($fix->home_team),
+                                                    htmlspecialchars($fix->away_team)
+                                                );
                                             }
                                         }
                                     ?>
@@ -2923,7 +2960,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 id="btn-cards-<?= $fix->fixture_id ?>" 
                                                 class="bet-toggle-badge yellow" 
                                                 onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'cards')">
-                                            <i class="bi bi-card-amber"></i> Cartões (<?= $prob ?>%) <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                            <i class="bi bi-card-amber"></i> <?= lang('App.cards') ?> (<?= $prob ?>%) <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                         </button>
                                         <?php 
                                             $ahSugClean = strtolower(trim($fix->ah_suggestion ?? ''));
@@ -2941,14 +2978,14 @@ if (!function_exists('getBetDecisionTree')) {
                                                     class="bet-toggle-badge red" 
                                                     style="background: rgba(239, 68, 68, 0.18) !important; border: 1px solid #ef4444 !important; color: #f87171 !important;"
                                                     onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'ah')">
-                                                <i class="bi bi-slash-circle-fill me-1"></i> 🚫 AH Bloqueado: Abstenção da IA <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                                <i class="bi bi-slash-circle-fill me-1"></i> 🚫 <?= lang('App.ah_blocked_ai_abstain') ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                             </button>
                                         <?php elseif (!empty($fix->ah_suggestion)): ?>
                                             <button type="button" 
                                                     id="btn-ah-<?= $fix->fixture_id ?>" 
                                                     class="bet-toggle-badge blue" 
                                                     onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'ah')">
-                                                <i class="bi bi-shield-shaded"></i> Handicap AH: <?= htmlspecialchars($fix->ah_suggestion) ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                                <i class="bi bi-shield-shaded"></i> <?= lang('App.handicap_ah') ?>: <?= htmlspecialchars($fix->ah_suggestion) ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                             </button>
                                         <?php endif; ?>
                                         
@@ -2957,7 +2994,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                     id="btn-futbol24-<?= $fix->fixture_id ?>" 
                                                     class="bet-toggle-badge green" 
                                                     onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'futbol24')">
-                                                <i class="bi bi-chat-quote-fill"></i> Resenha <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                                <i class="bi bi-chat-quote-fill"></i> <?= lang('App.review') ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                             </button>
                                         <?php endif; ?>
                                         
@@ -2965,7 +3002,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 id="btn-stats-<?= $fix->fixture_id ?>" 
                                                 class="bet-toggle-badge purple" 
                                                 onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'stats')">
-                                            <i class="bi bi-bar-chart-line-fill"></i> Estatísticas Detalhadas <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
+                                            <i class="bi bi-bar-chart-line-fill"></i> <?= lang('App.detailed_stats') ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                         </button>
                                     </div>
 
@@ -2973,7 +3010,7 @@ if (!function_exists('getBetDecisionTree')) {
                                     <div id="sec-cards-<?= $fix->fixture_id ?>" class="bet-card-section">
                                         <div class="bet-prob-container" style="margin-bottom: 8px;">
                                             <div class="bet-prob-value-row">
-                                                <span class="bet-prob-label">Tendência de Cartões (Poisson Under)</span>
+                                                <span class="bet-prob-label"><?= lang('App.cards_trend_poisson') ?></span>
                                                 <span class="bet-prob-value <?= $class ?>" data-prob-value="<?= $fix->fixture_id ?>"><?= $probDisplay ?></span>
                                             </div>
                                             <div class="bet-progress-track">
@@ -2988,7 +3025,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         <div class="bet-decision-tree-box" style="padding: 8px 10px; background: rgba(15, 23, 42, 0.85); border-radius: 8px; border-left: 4px solid <?= $decision['box_border'] ?? '#f47c20' ?>; font-size: 0.78rem; color: #cbd5e1;">
                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
                                                 <span style="font-weight: 700; color: #f47c20; display: flex; align-items: center; gap: 5px; font-size: 0.8rem;">
-                                                    <i class="bi bi-card-amber"></i> Mercado de Cartões (Árvore de Decisão):
+                                                    <i class="bi bi-card-amber"></i> <?= lang('App.cards_market_decision_tree') ?>:
                                                 </span>
                                                 <span class="badge" style="<?= $decision['badge_bg'] ?> font-weight: 700; font-size: 0.74rem; padding: 3px 7px; border-radius: 4px;">
                                                     <?= $decision['line_tag'] ?>
@@ -2997,20 +3034,20 @@ if (!function_exists('getBetDecisionTree')) {
                                             
                                             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; font-size: 0.72rem; text-align: center; background: rgba(30, 41, 59, 0.6); padding: 5px; border-radius: 6px;">
                                                 <div style="padding: 2px;">
-                                                    <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🌎 Expectativa</span>
+                                                    <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🌎 <?= lang('App.expectation') ?></span>
                                                     <strong style="color: #e2e8f0; font-size: 0.72rem;"><?= $decision['region_short'] ?></strong>
                                                 </div>
                                                 <div style="padding: 2px; border-left: 1px solid rgba(255,255,255,0.08); border-right: 1px solid rgba(255,255,255,0.08);">
-                                                    <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🟨 Times</span>
+                                                    <span style="display: block; color: #94a3b8; font-size: 0.67rem;">🟨 <?= lang('App.teams') ?></span>
                                                     <strong style="color: #fbbf24; font-size: 0.72rem;"><?= $decision['foul_short'] ?></strong>
                                                 </div>
                                                 <div style="padding: 2px;">
-                                                    <span style="display: block; color: #94a3b8; font-size: 0.67rem;">⚖️ Árbitro</span>
+                                                    <span style="display: block; color: #94a3b8; font-size: 0.67rem;">⚖️ <?= lang('App.referee') ?></span>
                                                     <strong style="color: #38bdf8; font-size: 0.72rem;"><?= $decision['referee_short'] ?></strong>
                                                 </div>
                                             </div>
                                             <div style="font-size: 0.74rem; color: #e2e8f0; line-height: 1.35; background: rgba(30, 41, 59, 0.7); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(244, 124, 32, 0.2);">
-                                                💡 <strong>Sugestão:</strong> <?= $decision['rationale'] ?>
+                                                💡 <strong><?= lang('App.suggestion') ?>:</strong> <?= $decision['rationale'] ?>
                                             </div>
                                             <?php if (!empty($fix->prediction_text) && strpos($fix->prediction_text, 'Palpite Por Time:') !== false): ?>
                                                 <?php
@@ -3020,7 +3057,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 ?>
                                                 <?php if (!empty($teamCardsStr)): ?>
                                                     <div style="margin-top: 6px; font-size: 0.74rem; color: #e2e8f0; line-height: 1.35; background: rgba(15, 23, 42, 0.6); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">
-                                                        🚩 <strong>Cartões Por Time:</strong> <?= htmlspecialchars($teamCardsStr) ?>
+                                                        🚩 <strong><?= lang('App.cards_by_team') ?>:</strong> <?= htmlspecialchars($teamCardsStr) ?>
                                                     </div>
                                                 <?php endif; ?>
                                             <?php endif; ?>
@@ -3033,16 +3070,16 @@ if (!function_exists('getBetDecisionTree')) {
                                             <div class="asian-handicap-widget-box" style="padding: 12px 14px; background: rgba(239, 68, 68, 0.08); border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.4); border-left: 5px solid #ef4444; font-size: 0.78rem; color: #fca5a5;">
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
                                                     <span style="font-weight: 800; color: #f87171; display: flex; align-items: center; gap: 6px; font-size: 0.86rem; text-transform: uppercase; letter-spacing: 0.3px;">
-                                                        <i class="bi bi-shield-x me-1"></i> 🚫 APOSTA BLOQUEADA: ENTRADA IMPEDIDA POR GESTÃO DE RISCO
+                                                        <i class="bi bi-shield-x me-1"></i> 🚫 <?= lang('App.bet_blocked_risk_management') ?>
                                                     </span>
                                                     <span class="badge" style="background: rgba(239, 68, 68, 0.25); border: 1px solid #ef4444; color: #fca5a5; font-weight: 700; font-size: 0.76rem; padding: 4px 8px; border-radius: 6px;">
-                                                        ⚪ Sem Entrada (Abstenção)
+                                                        ⚪ <?= lang('App.no_entry_abstention') ?>
                                                     </span>
                                                 </div>
 
                                                 <div style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; font-size: 0.76rem; color: #e2e8f0; line-height: 1.45;">
                                                     <div style="font-weight: 700; color: #f87171; margin-bottom: 4px; display: flex; align-items: center; gap: 5px;">
-                                                        <i class="bi bi-exclamation-triangle-fill"></i> Motivo da Abstenção da IA:
+                                                        <i class="bi bi-exclamation-triangle-fill"></i> <?= lang('App.reason_ai_abstention') ?>:
                                                     </div>
                                                     <div style="white-space: pre-line; font-size: 0.74rem; color: #cbd5e1;">
                                                         <?= htmlspecialchars($nl_explanation) ?>
@@ -3051,16 +3088,16 @@ if (!function_exists('getBetDecisionTree')) {
 
                                                 <div style="margin-top: 8px; padding: 6px 8px; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px;">
                                                     <div style="font-size: 0.72rem; font-weight: 700; color: #fbbf24; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
-                                                        <span><i class="bi bi-clock-history me-1"></i> Retrospecto dos Últimos 5 Jogos (U5J)</span>
+                                                        <span><i class="bi bi-clock-history me-1"></i> <?= lang('App.u5j_history') ?></span>
                                                         <span style="font-size: 0.65rem; color: #94a3b8; font-weight: normal;"><?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?></span>
                                                     </div>
                                                     <div class="table-responsive" style="margin: 0; padding: 0;">
                                                         <table class="table table-sm table-borderless text-white mb-0" style="font-size: 0.68rem;">
                                                             <thead>
                                                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94a3b8;">
-                                                                    <th style="padding: 2px 4px;">Time</th>
-                                                                    <th style="padding: 2px 4px; text-align: center;">Forma</th>
-                                                                    <th style="padding: 2px 4px;">Últimas Partidas</th>
+                                                                    <th style="padding: 2px 4px;"><?= lang('App.team') ?></th>
+                                                                    <th style="padding: 2px 4px; text-align: center;"><?= lang('App.form') ?></th>
+                                                                    <th style="padding: 2px 4px;"><?= lang('App.recent_matches') ?></th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
@@ -3074,7 +3111,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                                     <td style="padding: 3px 4px;">
                                                                          <div style="display: flex; gap: 3px; flex-wrap: wrap;">
                                                                              <?php if (empty($u5j_data['home']['matches'])): ?>
-                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;"><?= lang('App.no_recent_history') ?></span>
                                                                              <?php else: ?>
                                                                                  <?php foreach ($u5j_data['home']['matches'] as $m): ?>
                                                                                      <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
@@ -3096,7 +3133,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                                     <td style="padding: 3px 4px;">
                                                                          <div style="display: flex; gap: 3px; flex-wrap: wrap;">
                                                                              <?php if (empty($u5j_data['away']['matches'])): ?>
-                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;"><?= lang('App.no_recent_history') ?></span>
                                                                              <?php else: ?>
                                                                                  <?php foreach ($u5j_data['away']['matches'] as $m): ?>
                                                                                      <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
@@ -3115,10 +3152,10 @@ if (!function_exists('getBetDecisionTree')) {
 
                                                 <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-top: 6px; border-top: 1px solid rgba(239, 68, 68, 0.2);">
                                                     <span style="font-size: 0.72rem; color: #fda4af; display: flex; align-items: center; gap: 4px;">
-                                                        <i class="bi bi-info-circle-fill"></i> Para proteger sua banca, a automação do Airflow não cria apostas para partidas com abstenção de risco.
+                                                        <i class="bi bi-info-circle-fill"></i> <?= lang('App.airflow_risk_protection_note') ?>
                                                     </span>
                                                     <button type="button" class="btn btn-sm btn-outline-danger disabled" style="font-size: 0.72rem; font-weight: 700; opacity: 0.65; cursor: not-allowed;" disabled>
-                                                        🚫 Aposta Impedida por Gestão de Risco
+                                                        🚫 <?= lang('App.bet_prevented_risk') ?>
                                                     </button>
                                                 </div>
                                             </div>
@@ -3128,7 +3165,7 @@ if (!function_exists('getBetDecisionTree')) {
                                             <div class="asian-handicap-widget-box" style="padding: 8px 10px; background: rgba(15, 23, 42, 0.9); border-radius: 8px; border-left: 4px solid #38bdf8; font-size: 0.78rem; color: #cbd5e1;">
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
                                                     <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; font-size: 0.82rem;">
-                                                        <i class="bi bi-shield-shaded"></i> Mercado de Gols (Handicap Asiático):
+                                                        <i class="bi bi-shield-shaded"></i> <?= lang('App.goals_market_handicap') ?>:
                                                     </span>
                                                     <span class="badge" style="background: rgba(56, 189, 248, 0.18); border: 1px solid #38bdf8; color: #38bdf8; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 6px;">
                                                         🎯 <?= htmlspecialchars($fix->ah_suggestion) ?> (<?= number_format($fix->ah_confidence ?? 65, 1) ?>%)
@@ -3137,7 +3174,7 @@ if (!function_exists('getBetDecisionTree')) {
 
                                                 <div style="margin-top: 6px; padding: 6px 10px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; font-size: 0.74rem; color: #e2e8f0; line-height: 1.4;">
                                                     <div style="font-weight: 700; color: #10b981; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
-                                                        <i class="bi bi-chat-left-text-fill"></i> Explicação em Linguagem Natural:
+                                                        <i class="bi bi-chat-left-text-fill"></i> <?= lang('App.natural_language_explanation') ?>:
                                                     </div>
                                                     <div style="white-space: pre-line; font-size: 0.72rem;">
                                                         <?= htmlspecialchars($nl_explanation) ?>
@@ -3146,16 +3183,16 @@ if (!function_exists('getBetDecisionTree')) {
 
                                                 <div style="margin-top: 8px; padding: 6px 8px; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px;">
                                                     <div style="font-size: 0.72rem; font-weight: 700; color: #fbbf24; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
-                                                        <span><i class="bi bi-clock-history me-1"></i> Retrospecto dos Últimos 5 Jogos (U5J)</span>
+                                                        <span><i class="bi bi-clock-history me-1"></i> <?= lang('App.u5j_history') ?></span>
                                                         <span style="font-size: 0.65rem; color: #94a3b8; font-weight: normal;"><?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?></span>
                                                     </div>
                                                     <div class="table-responsive" style="margin: 0; padding: 0;">
                                                         <table class="table table-sm table-borderless text-white mb-0" style="font-size: 0.68rem;">
                                                             <thead>
                                                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94a3b8;">
-                                                                    <th style="padding: 2px 4px;">Time</th>
-                                                                    <th style="padding: 2px 4px; text-align: center;">Forma</th>
-                                                                    <th style="padding: 2px 4px;">Últimas Partidas</th>
+                                                                    <th style="padding: 2px 4px;"><?= lang('App.team') ?></th>
+                                                                    <th style="padding: 2px 4px; text-align: center;"><?= lang('App.form') ?></th>
+                                                                    <th style="padding: 2px 4px;"><?= lang('App.recent_matches') ?></th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
@@ -3169,7 +3206,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                                     <td style="padding: 3px 4px;">
                                                                          <div style="display: flex; gap: 3px; flex-wrap: wrap;">
                                                                              <?php if (empty($u5j_data['home']['matches'])): ?>
-                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;"><?= lang('App.no_recent_history') ?></span>
                                                                              <?php else: ?>
                                                                                  <?php foreach ($u5j_data['home']['matches'] as $m): ?>
                                                                                      <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
@@ -3191,7 +3228,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                                     <td style="padding: 3px 4px;">
                                                                          <div style="display: flex; gap: 3px; flex-wrap: wrap;">
                                                                              <?php if (empty($u5j_data['away']['matches'])): ?>
-                                                                                 <span class="text-muted" style="font-size: 0.65rem;">Sem histórico recente disponível</span>
+                                                                                 <span class="text-muted" style="font-size: 0.65rem;"><?= lang('App.no_recent_history') ?></span>
                                                                              <?php else: ?>
                                                                                  <?php foreach ($u5j_data['away']['matches'] as $m): ?>
                                                                                      <?php $badgeBg = ($m['result'] === 'V') ? '#10b981' : (($m['result'] === 'E') ? '#f59e0b' : '#ef4444'); ?>
@@ -3215,11 +3252,11 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?php if (!empty($calc_details)): ?>
                                                     <div style="margin-top: 6px;">
                                                         <button type="button" class="btn btn-sm btn-outline-info" style="font-size: 0.68rem; padding: 2px 6px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="$('#ah-calc-<?= $fix->fixture_id ?>').slideToggle(200);">
-                                                            📐 Ver Memória de Cálculo Detalhada <i class="bi bi-chevron-down ms-1"></i>
+                                                            📐 <?= lang('App.view_detailed_calculation') ?> <i class="bi bi-chevron-down ms-1"></i>
                                                         </button>
                                                         <div id="ah-calc-<?= $fix->fixture_id ?>" style="display: none; margin-top: 6px; padding: 6px 8px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; font-size: 0.7rem; color: #cbd5e1;">
                                                             <div style="font-weight: 700; color: #38bdf8; margin-bottom: 4px;">
-                                                                🔍 Memória de Cálculo Passo a Passo:
+                                                                🔍 <?= lang('App.calculation_memory_step_by_step') ?>:
                                                             </div>
                                                             <div style="font-family: monospace; font-size: 0.68rem; color: #e2e8f0; white-space: pre-wrap;">
 <?= htmlspecialchars(str_replace(' | ', "\n", $calc_details)) ?>
@@ -3237,23 +3274,23 @@ if (!function_exists('getBetDecisionTree')) {
                                             <div style="font-size: 0.75rem; color: #e2e8f0; line-height: 1.35; background: rgba(16, 185, 129, 0.1); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.3);">
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                                                     <span style="color: #10b981; font-weight: 700; font-size: 0.78rem;">
-                                                        <i class="bi bi-chat-quote-fill"></i> Resenha & Análise (Futbol24)
+                                                        <i class="bi bi-chat-quote-fill"></i> <?= lang('App.review_analysis_f24') ?>
                                                     </span>
                                                     <?php if (!empty($fix->futbol24_url)): ?>
                                                         <a href="<?= htmlspecialchars($fix->futbol24_url) ?>" target="_blank" rel="noopener" style="color: #38bdf8; font-size: 0.7rem; text-decoration: none;">
-                                                            Ver no Futbol24 <i class="bi bi-box-arrow-up-right"></i>
+                                                            <?= lang('App.view_on_futbol24') ?> <i class="bi bi-box-arrow-up-right"></i>
                                                         </a>
                                                     <?php endif; ?>
                                                 </div>
                                                 <?php if (!empty($fix->futbol24_tip)): ?>
                                                     <div style="margin-bottom: 4px; color: #f8fafc; font-weight: 600;">
-                                                        📌 <strong>Dica Recomendada:</strong> <?= htmlspecialchars($fix->futbol24_tip) ?>
+                                                        📌 <strong><?= lang('App.recommended_tip') ?>:</strong> <?= htmlspecialchars($fix->futbol24_tip) ?>
                                                     </div>
                                                 <?php endif; ?>
                                                 <?php if (!empty($fix->futbol24_analysis)): ?>
                                                     <div style="margin-top: 4px;">
                                                         <button type="button" class="btn btn-sm btn-outline-success" style="font-size: 0.68rem; padding: 2px 6px; border-color: rgba(16, 185, 129, 0.4); color: #10b981;" onclick="$('#f24-analysis-<?= $fix->fixture_id ?>').slideToggle(200);">
-                                                            📖 Ler Análise Editorial <i class="bi bi-chevron-down ms-1"></i>
+                                                            📖 <?= lang('App.read_editorial_analysis') ?> <i class="bi bi-chevron-down ms-1"></i>
                                                         </button>
                                                         <div id="f24-analysis-<?= $fix->fixture_id ?>" style="display: none; margin-top: 6px; padding: 6px 8px; background: rgba(15, 23, 42, 0.9); border-radius: 4px; color: #cbd5e1; font-size: 0.73rem; line-height: 1.4;">
                                                             <?= htmlspecialchars($fix->futbol24_analysis) ?>
@@ -3268,19 +3305,19 @@ if (!function_exists('getBetDecisionTree')) {
                                     <div id="sec-stats-<?= $fix->fixture_id ?>" class="bet-card-section">
                                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-bottom: 10px;">
                                             <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;">Exp. Gols Total</span>
+                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;"><?= lang('App.exp_total_goals') ?></span>
                                                 <strong style="color: #10b981; font-size: 0.88rem;">
                                                     <?= number_format(($fix->home_avg_goals_scored ?? 0) + ($fix->away_avg_goals_scored ?? 0), 2) ?>
                                                 </strong>
                                             </div>
                                             <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;">Proj. Cantos</span>
+                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;"><?= lang('App.proj_corners') ?></span>
                                                 <strong style="color: #38bdf8; font-size: 0.88rem;">
                                                     <?= number_format(($fix->home_avg_corners ?? 0) + ($fix->away_avg_corners ?? 0), 1) ?>
                                                 </strong>
                                             </div>
                                             <div style="background: rgba(30, 41, 59, 0.8); padding: 6px 4px; border-radius: 6px;">
-                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;">Proj. Cartões</span>
+                                                <span style="display: block; color: #94a3b8; font-size: 0.68rem;"><?= lang('App.proj_cards') ?></span>
                                                 <strong style="color: #fbbf24; font-size: 0.88rem;">
                                                     <?= number_format(($fix->home_avg_cards ?? 0) + ($fix->away_avg_cards ?? 0), 1) ?>
                                                 </strong>
@@ -3291,29 +3328,29 @@ if (!function_exists('getBetDecisionTree')) {
                                             <thead>
                                                 <tr style="color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.1);">
                                                     <th style="text-align: left; padding: 4px; width: 40%;"><?= htmlspecialchars($fix->home_team) ?></th>
-                                                    <th style="padding: 4px; width: 20%;">Métrica</th>
+                                                    <th style="padding: 4px; width: 20%;"><?= lang('App.metric') ?></th>
                                                     <th style="text-align: right; padding: 4px; width: 40%;"><?= htmlspecialchars($fix->away_team) ?></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                                     <td style="text-align: left; padding: 4px; color: #38bdf8;"><?= number_format($fix->home_avg_goals_scored ?? 0, 1) ?> / <?= number_format($fix->home_avg_goals_conceded ?? 0, 1) ?></td>
-                                                    <td style="padding: 4px; color: #94a3b8;">Gols</td>
+                                                    <td style="padding: 4px; color: #94a3b8;"><?= lang('App.goals') ?></td>
                                                     <td style="text-align: right; padding: 4px; color: #38bdf8;"><?= number_format($fix->away_avg_goals_scored ?? 0, 1) ?> / <?= number_format($fix->away_avg_goals_conceded ?? 0, 1) ?></td>
                                                 </tr>
                                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                                     <td style="text-align: left; padding: 4px; color: #10b981;"><?= (isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : 'N/A' ?></td>
-                                                    <td style="padding: 4px; color: #94a3b8;">Clean Sheets</td>
+                                                    <td style="padding: 4px; color: #94a3b8;"><?= lang('App.clean_sheets') ?></td>
                                                     <td style="text-align: right; padding: 4px; color: #10b981;"><?= (isset($fix->away_clean_sheets_pct) && $fix->away_clean_sheets_pct !== null && $fix->away_clean_sheets_pct !== '') ? round($fix->away_clean_sheets_pct) . '%' : 'N/A' ?></td>
                                                 </tr>
                                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                                     <td style="text-align: left; padding: 4px; color: #a78bfa;"><?= number_format($fix->home_avg_corners ?? 0, 1) ?></td>
-                                                    <td style="padding: 4px; color: #94a3b8;">Cantos</td>
+                                                    <td style="padding: 4px; color: #94a3b8;"><?= lang('App.corners') ?></td>
                                                     <td style="text-align: right; padding: 4px; color: #a78bfa;"><?= number_format($fix->away_avg_corners ?? 0, 1) ?></td>
                                                 </tr>
                                                 <tr>
                                                     <td style="text-align: left; padding: 4px; color: #fbbf24;"><?= number_format($fix->home_avg_cards ?? 0, 1) ?></td>
-                                                    <td style="padding: 4px; color: #94a3b8;">Cartões</td>
+                                                    <td style="padding: 4px; color: #94a3b8;"><?= lang('App.cards') ?></td>
                                                     <td style="text-align: right; padding: 4px; color: #fbbf24;"><?= number_format($fix->away_avg_cards ?? 0, 1) ?></td>
                                                 </tr>
                                             </tbody>
@@ -3325,35 +3362,35 @@ if (!function_exists('getBetDecisionTree')) {
                                             $expCartoesTotal = ($fix->home_avg_cards ?? 0) + ($fix->away_avg_cards ?? 0);
 
                                             if ($expGolsTotal >= 3.2) {
-                                                $insightGols = "Confronto com <strong>alta tendência de gols</strong> (média de " . number_format($expGolsTotal, 2) . " gols/jogo). Propício para <strong>Ambas Marcam</strong> ou <strong>Over 2.5</strong>.";
+                                                $insightGols = sprintf(lang('App.insight_goals_high'), number_format($expGolsTotal, 2));
                                             } elseif ($expGolsTotal >= 2.5) {
-                                                $insightGols = "Expectativa moderada de gols (" . number_format($expGolsTotal, 2) . " gols/jogo).";
+                                                $insightGols = sprintf(lang('App.insight_goals_moderate'), number_format($expGolsTotal, 2));
                                             } else {
-                                                $insightGols = "Jogo com tendência <strong>defensiva</strong> (média de " . number_format($expGolsTotal, 2) . " gols/jogo). Atentar para <strong>Under Gols</strong>.";
+                                                $insightGols = sprintf(lang('App.insight_goals_low'), number_format($expGolsTotal, 2));
                                             }
 
                                             if ($expCantosTotal >= 11.0) {
-                                                $insightCantos = "Volume ofensivo elevado com projeção de <strong>~" . round($expCantosTotal) . " escanteios</strong>. Excelente para <strong>Over Cantos</strong>.";
+                                                $insightCantos = sprintf(lang('App.insight_corners_high'), round($expCantosTotal));
                                             } else {
-                                                $insightCantos = "Projeção de <strong>~" . round($expCantosTotal) . " escanteios no total</strong>.";
+                                                $insightCantos = sprintf(lang('App.insight_corners_normal'), round($expCantosTotal));
                                             }
 
                                             if (($fix->away_avg_cards ?? 0) >= 3.0) {
-                                                $insightCartoes = "Projeção de <strong>~" . round($expCartoesTotal) . " cartões</strong>. Destaque disciplinar para " . htmlspecialchars($fix->away_team) . " (" . number_format($fix->away_avg_cards ?? 0, 1) . " c/j fora).";
+                                                $insightCartoes = sprintf(lang('App.insight_cards_away'), round($expCartoesTotal), htmlspecialchars($fix->away_team), number_format($fix->away_avg_cards ?? 0, 1));
                                             } elseif (($fix->home_avg_cards ?? 0) >= 3.0) {
-                                                $insightCartoes = "Projeção de <strong>~" . round($expCartoesTotal) . " cartões</strong>. Destaque disciplinar para " . htmlspecialchars($fix->home_team) . " (" . number_format($fix->home_avg_cards ?? 0, 1) . " c/j casa).";
+                                                $insightCartoes = sprintf(lang('App.insight_cards_home'), round($expCartoesTotal), htmlspecialchars($fix->home_team), number_format($fix->home_avg_cards ?? 0, 1));
                                             } else {
-                                                $insightCartoes = "Média combinada de <strong>" . number_format($expCartoesTotal, 1) . " cartões</strong> por jogo.";
+                                                $insightCartoes = sprintf(lang('App.insight_cards_combined'), number_format($expCartoesTotal, 1));
                                             }
                                         ?>
 
                                         <div style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(255, 255, 255, 0.15); font-size: 0.74rem;">
-                                            <span style="color: #f47c20; font-weight: 700; display: block; margin-bottom: 4px;"><i class="bi bi-lightbulb-fill"></i> Insights & Tendências</span>
+                                            <span style="color: #f47c20; font-weight: 700; display: block; margin-bottom: 4px;"><i class="bi bi-lightbulb-fill"></i> <?= lang('App.insights_trends') ?></span>
                                             <ul style="padding-left: 15px; margin-bottom: 0; color: #cbd5e1; line-height: 1.4;">
-                                                <li style="margin-bottom: 3px;">⚽ <strong>Gols:</strong> <?= $insightGols ?></li>
-                                                <li style="margin-bottom: 3px;">🚩 <strong>Escanteios:</strong> <?= $insightCantos ?></li>
-                                                <li style="margin-bottom: 3px;">🟨 <strong>Cartões:</strong> <?= $insightCartoes ?></li>
-                                                <li>🌳 <strong>Árvore de Decisão:</strong> <strong><?= $decision['market'] ?></strong> (Região: <?= $decision['region_short'] ?> | Times: <?= $decision['foul_short'] ?> | Árbitro: <?= $decision['referee_short'] ?>) — <?= $decision['rationale'] ?></li>
+                                                <li style="margin-bottom: 3px;">⚽ <strong><?= lang('App.goals') ?>:</strong> <?= $insightGols ?></li>
+                                                <li style="margin-bottom: 3px;">🚩 <strong><?= lang('App.corners') ?>:</strong> <?= $insightCantos ?></li>
+                                                <li style="margin-bottom: 3px;">🟨 <strong><?= lang('App.cards') ?>:</strong> <?= $insightCartoes ?></li>
+                                                <li>🌳 <strong><?= lang('App.decision_tree') ?>:</strong> <strong><?= $decision['market'] ?></strong> (<?= lang('App.region') ?>: <?= $decision['region_short'] ?> | <?= lang('App.teams') ?>: <?= $decision['foul_short'] ?> | <?= lang('App.referee') ?>: <?= $decision['referee_short'] ?>) — <?= $decision['rationale'] ?></li>
                                             </ul>
                                         </div>
                                 </div>
@@ -3392,31 +3429,31 @@ if (!function_exists('getBetDecisionTree')) {
                                         <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id . '&mercado=cartoes&palpite=' . urlencode($cardPalpite)) ?>" 
                                            class="bet-stats-btn" 
                                            style="border-color: rgba(251, 191, 36, 0.4); color: #fbbf24; text-decoration: none; padding: 4px 8px; font-size: 0.75rem;" 
-                                           title="Registrar Aposta no Mercado de Cartões">
-                                            <i class="bi bi-card-amber"></i> Cartões
+                                           title="<?= lang('App.title_bet_cards') ?>">
+                                            <i class="bi bi-card-amber"></i> <?= lang('App.cards') ?>
                                         </a>
 
                                         <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id . '&mercado=handicap&palpite=' . urlencode($ahPalpiteClean)) ?>" 
                                            class="bet-stats-btn" 
                                            style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; text-decoration: none; padding: 4px 8px; font-size: 0.75rem;" 
-                                           title="Registrar Aposta no Mercado de Handicap Asiático">
-                                            <i class="bi bi-shield-shaded"></i> Handicap AH
+                                           title="<?= lang('App.title_bet_handicap') ?>">
+                                            <i class="bi bi-shield-shaded"></i> <?= lang('App.handicap_ah') ?>
                                         </a>
 
                                         <!-- Botão Estatísticas à esquerda de Grok AI -->
                                         <button type="button" 
                                                 class="bet-stats-btn" 
-                                                data-tooltip="<?= $userHasBalance ? 'Ver Estatísticas Detalhadas' : 'Estatísticas Detalhadas (Requer Saldo/Créditos)' ?>"
+                                                data-tooltip="<?= $userHasBalance ? lang('App.tooltip_view_detailed_stats') : lang('App.tooltip_detailed_stats_credits') ?>"
                                                 onclick="toggleDetailedStats('<?= $fix->fixture_id ?>', <?= $userHasBalance ? 'true' : 'false' ?>)">
                                             <?php if ($userHasBalance): ?>
-                                                <i class="bi bi-bar-chart-line-fill"></i> Estatísticas
+                                                <i class="bi bi-bar-chart-line-fill"></i> <?= lang('App.stats') ?>
                                             <?php else: ?>
-                                                <i class="bi bi-bar-chart-line"></i> Estatísticas <i class="bi bi-lock-fill" style="font-size: 0.7rem; color: #f47c20;"></i>
+                                                <i class="bi bi-bar-chart-line"></i> <?= lang('App.stats') ?> <i class="bi bi-lock-fill" style="font-size: 0.7rem; color: #f47c20;"></i>
                                             <?php endif; ?>
                                         </button>
 
                                         <!-- Botão Conversar com Grok AI -->
-                                        <button type="button" class="bet-ai-btn" title="Conversar com o Assistente de IA Grok" onclick="event.stopPropagation(); openAiChat(
+                                        <button type="button" class="bet-ai-btn" title="<?= lang('App.chat_with_grok_ai') ?>" onclick="event.stopPropagation(); openAiChat(
                                             <?= $jsAttr($fix->home_team) ?>,
                                             <?= $jsAttr($fix->away_team) ?>,
                                             <?= $jsAttr($fix->league_name) ?>,
@@ -3425,7 +3462,7 @@ if (!function_exists('getBetDecisionTree')) {
                                             <?= $jsAttr($prob) ?>,
                                             <?= $jsAttr($fix->home_avg_goals_scored ?? '') ?>,
                                             <?= $jsAttr($fix->home_avg_goals_conceded ?? '') ?>,
-                                            <?= $jsAttr((isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : 'Não localizado') ?>,
+                                            <?= $jsAttr((isset($fix->home_clean_sheets_pct) && $fix->home_clean_sheets_pct !== null && $fix->home_clean_sheets_pct !== '') ? round($fix->home_clean_sheets_pct) . '%' : lang('App.not_found')) ?>,
                                             <?= $jsAttr($fix->home_avg_corners ?? '') ?>,
                                             <?= $jsAttr($fix->home_avg_cards ?? '') ?>,
                                             <?= $jsAttr($fix->away_avg_goals_scored ?? '') ?>,

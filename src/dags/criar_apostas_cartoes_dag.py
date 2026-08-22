@@ -62,8 +62,8 @@ dag = DAG(
     default_args=default_args,
     schedule_interval='*/30 * * * *',  # Executa a cada 30 minutos capturando jogos na janela de pré-jogo (30 a 45 min antes do início)
     catchup=False,
-    description="DAG do Airflow que verifica jogos em aberto na janela pré-jogo (30 a 45 min antes do apito inicial) e cria apostas no mercado de Total de Cartões (Estratégia Exclusiva Under)",
-    tags=['football', 'cartoes', 'cards_under', 'apostas', 'prematch_creation']
+    description="DAG do Airflow que verifica jogos em aberto na janela pré-jogo (30 a 45 min antes do apito inicial), cria apostas no mercado de Total de Cartões (Estratégia Exclusiva Under) e envia e-mail com a lista de apostas criadas para paulomnasc@gmail.com",
+    tags=['football', 'cartoes', 'cards_under', 'apostas', 'prematch_creation', 'email_notification']
 )
 
 criar_task = PythonOperator(

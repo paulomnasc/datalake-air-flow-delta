@@ -10,7 +10,151 @@ import os
 import re
 import math
 import pymysql
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from datetime import datetime, timedelta
+
+def get_live_env_vars():
+    """
+    Lê diretamente o arquivo .env para obter credenciais SMTP e outras configurações.
+    """
+    env_vars = {}
+    search_paths = [
+        '/opt/airflow/.env',
+        '/opt/airflow/dags/../../.env',
+        '/opt/airflow/dags/../.env',
+        '/root/datalake-air-flow-delta/.env',
+        './.env',
+        '../.env'
+    ]
+    for p in search_paths:
+        if os.path.exists(p):
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            k, v = line.split('=', 1)
+                            env_vars[k.strip()] = v.strip().strip('"').strip("'")
+            except Exception:
+                pass
+    return env_vars
+
+def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
+    """
+    Envia e-mail formatado em HTML com a lista das novas apostas de cartões criadas.
+    """
+    if not novas_apostas:
+        return
+
+    env = get_live_env_vars()
+    smtp_host = env.get("SMTP_HOST") or os.environ.get("SMTP_HOST", "smtp-relay.brevo.com")
+    smtp_port = int(env.get("SMTP_PORT") or os.environ.get("SMTP_PORT", 587))
+    smtp_user = env.get("SMTP_USER") or os.environ.get("SMTP_USER", "")
+    smtp_pass = env.get("SMTP_PASSWORD") or os.environ.get("SMTP_PASSWORD", "")
+    smtp_from = env.get("SMTP_FROM_EMAIL") or os.environ.get("SMTP_FROM_EMAIL", "admin@estudotabela.com.br")
+    smtp_from_name = env.get("SMTP_FROM_NAME") or os.environ.get("SMTP_FROM_NAME", "MyDataFlow Cartões")
+
+    agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    total_apostas = len(novas_apostas)
+    subject = f"🟨 [Apostas Cartões] {total_apostas} Nova(s) Aposta(s) Criada(s)! - {agora_str}"
+
+    rows_html = ""
+    for aposta in novas_apostas:
+        tc = aposta.get('time_casa', '-')
+        tv = aposta.get('time_fora', '-')
+        data_j = aposta.get('data_hora_jogo', '-')
+        if isinstance(data_j, datetime):
+            data_j = data_j.strftime("%d/%m/%Y %H:%M")
+        elif not data_j:
+            data_j = '-'
+        
+        palpite = aposta.get('palpite', '-')
+        odd = aposta.get('odd', 0.0)
+        odd_justa = aposta.get('odd_justa')
+        odd_justa_str = f"{odd_justa:.2f}" if isinstance(odd_justa, (float, int)) and odd_justa else "-"
+        prob = aposta.get('probabilidade_poisson', 0.0)
+        ev = aposta.get('ev_percentual', 0.0)
+        valor = aposta.get('valor_aposta', 10.0)
+        ganhos = aposta.get('ganhos_potenciais', 0.0)
+
+        rows_html += f"""
+        <tr style="border-bottom: 1px solid #e0e0e0;">
+            <td style="padding: 10px; font-size: 13px; font-weight: bold;">{tc} <span style="color: #888;">vs</span> {tv}<br><span style="color: #666; font-weight: normal; font-size: 11px;">{data_j}</span></td>
+            <td style="padding: 10px; font-size: 13px; color: #856404; font-weight: bold; background-color: #fff3cd; text-align: center;">{palpite}</td>
+            <td style="padding: 10px; font-size: 13px; text-align: center;"><strong>{odd:.2f}</strong> <span style="font-size: 11px; color: #666;">(Justa: {odd_justa_str})</span></td>
+            <td style="padding: 10px; font-size: 13px; color: #28a745; font-weight: bold; text-align: center;">{prob}% <br><span style="font-size: 11px; color: #17a2b8;">EV: +{ev}%</span></td>
+            <td style="padding: 10px; font-size: 13px; text-align: center;">R$ {valor:.2f}</td>
+            <td style="padding: 10px; font-size: 13px; color: #28a745; font-weight: bold; text-align: center;">R$ {ganhos:.2f}</td>
+        </tr>
+        """
+
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333; max-width: 800px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <img src="https://myflow.estudotabela.com.br:28443/assets/img/carcara-logo.png" alt="MyDataFlow Logo" style="max-height: 70px; width: auto;">
+            <h2 style="color: #d39e00; margin: 10px 0 0 0;">MyDataFlow - Mercado de Cartões Under</h2>
+        </div>
+        
+        <div style="background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; padding: 15px; border-radius: 6px; margin-bottom: 20px; font-size: 15px;">
+            <strong>🚀 NOVAS APOSTAS GERADAS!</strong> Foram identificadas e cadastradas <strong>{total_apostas}</strong> nova(s) aposta(s) no mercado de Total de Cartões (Estratégia Under).
+        </div>
+
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; font-size: 13px; margin-bottom: 20px;">
+            <strong>Data da Execução:</strong> {agora_str}<br>
+            <strong>Destinatário:</strong> {recipient}<br>
+            <strong>Estratégia:</strong> Gatekeeper Exclusivo Under Cartões (Poisson & EV+)
+        </div>
+
+        <div style="margin-top: 20px; overflow-x: auto;">
+            <h3 style="color: #856404; margin-bottom: 10px;">📋 Lista de Apostas Criadas</h3>
+            <table style="width: 100%; border-collapse: collapse; background-color: #ffffff; border: 1px solid #dee2e6; font-family: Arial, sans-serif;">
+                <thead>
+                    <tr style="background-color: #ffc107; color: #212529; text-align: left; font-size: 13px;">
+                        <th style="padding: 10px;">Partida / Horário</th>
+                        <th style="padding: 10px; text-align: center;">Palpite</th>
+                        <th style="padding: 10px; text-align: center;">Odd Casa (Justa)</th>
+                        <th style="padding: 10px; text-align: center;">Prob. / EV</th>
+                        <th style="padding: 10px; text-align: center;">Stake (R$)</th>
+                        <th style="padding: 10px; text-align: center;">Retorno Est.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #eeeeee; font-size: 12px; color: #777777; text-align: center;">
+            Este e-mail foi gerado automaticamente pelo pipeline do Airflow (<code>criar_apostas_cartoes_dag</code>).<br>
+            <strong>MyDataFlow Platform</strong> &bull; <a href="https://myflow.estudotabela.com.br:28443" style="color: #d39e00; text-decoration: none;">Acessar Painel</a>
+        </div>
+      </body>
+    </html>
+    """
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"{smtp_from_name} <{smtp_from}>"
+    msg["To"] = recipient
+
+    html_part = MIMEText(html_content, "html", "utf-8")
+    msg.attach(html_part)
+
+    print(f"📧 [E-mail Apostas Cartões] Conectando ao servidor SMTP {smtp_host}:{smtp_port} para enviar a {recipient}...")
+    try:
+        smtp_client = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+        smtp_client.starttls()
+        if smtp_user and smtp_pass:
+            smtp_client.login(smtp_user, smtp_pass)
+
+        smtp_client.sendmail(smtp_from, [recipient], msg.as_string())
+        smtp_client.quit()
+        print(f"✅ [E-mail Apostas Cartões] E-mail com {total_apostas} aposta(s) enviado com sucesso para {recipient}!")
+    except Exception as err:
+        print(f"❌ [E-mail Apostas Cartões] Falha ao enviar e-mail via SMTP: {err}")
 
 def get_db_connection():
     """
@@ -246,6 +390,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
     apostas_criadas = 0
     apostas_duplicadas = 0
     apostas_abstencao = 0
+    novas_apostas_detalhes = []
 
     for fix in fixtures:
         fixture_id = fix['fixture_id']
@@ -319,6 +464,20 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             ))
 
             apostas_criadas += 1
+            novas_apostas_detalhes.append({
+                'usuario_id': uid,
+                'fixture_id': fixture_id,
+                'time_casa': home_team,
+                'time_fora': away_team,
+                'palpite': palpite_str,
+                'odd': odd_val,
+                'odd_justa': odd_justa,
+                'probabilidade_poisson': prob_poisson,
+                'ev_percentual': ev_perc,
+                'valor_aposta': valor_aposta,
+                'ganhos_potenciais': ganhos_potenciais,
+                'data_hora_jogo': fixture_date
+            })
             print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{cursor.lastrowid} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ Odd {odd_val:.2f} (Prob: {prob_poisson}%, EV: {ev_perc}%)")
 
     print("\n=======================================================")
@@ -327,6 +486,10 @@ def criar_apostas_cartoes_diario(target_date_str=None):
     print(f"🔄 Apostas Já Existentes (Ignoradas): {apostas_duplicadas}")
     print(f"🛡️ Jogos com Abstenção/NO_BET: {apostas_abstencao}")
     print("=======================================================")
+
+    if apostas_criadas > 0:
+        recipient = os.environ.get("CART_BETS_EMAIL_RECIPIENT", "paulomnasc@gmail.com")
+        send_created_bets_email(novas_apostas_detalhes, recipient=recipient)
 
     conn.close()
 

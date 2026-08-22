@@ -2521,32 +2521,54 @@ if (!function_exists('getBetDecisionTree')) {
                             }
                             $cardIndex++;
                             
-                             $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']) && (!isset($diffMins) || $diffMins <= 115);
-                             $statusClean = strtoupper($fix->status);
-                             $displayLeague = $fix->display_league_name ?? formatLeagueDisplayName($fix->league_id ?? 0, $fix->league_name ?? '');
-                             $leagueInfo = resolveLeagueCountryAndFlag($fix->league_id ?? 0, $displayLeague, $leagueMap ?? []);
-                             $cName = $leagueInfo['country'];
-                             $cFlag = $leagueInfo['flag'];
+                            $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']) && (!isset($diffMins) || $diffMins <= 115);
+                            $statusClean = strtoupper($fix->status ?? '');
+                            $finishedStatusesList = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
 
-                             $finishedStatusesList = ['FT', 'AET', 'PEN', '120', '90', 'FINISHED', 'MATCH FINISHED', 'FULL TIME', 'FIN', 'FINAL', 'FT_PEN'];
-                             if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {
-                                 $elapsedClass = 'pst';
-                                 $elapsedDisplay = '⚠️ ADIADO';
-                             } elseif (in_array($statusClean, $finishedStatusesList) || (isset($diffMins) && $diffMins > 115)) {
-                                 $elapsedClass = '';
-                                 $elapsedDisplay = lang('App.finished');
-                             } elseif ($isLiveMatch) {
-                                 $elapsedClass = 'live';
-                                 if ($statusClean === 'HT') {
-                                     $minDisplay = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : 'Int';
-                                 } else {
-                                     $minDisplay = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : 'Ao Vivo');
-                                 }
-                                 $elapsedDisplay = '<span class="live-pulse-dot"></span> ' . $minDisplay;
-                             } else {
-                                 $elapsedDisplay = $elapsedText;
-                             }
-                             ?>
+                            if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED'])) {
+                                $elapsedClass = 'pst';
+                                $elapsedDisplay = '⚠️ ADIADO';
+                            } elseif (in_array($statusClean, $finishedStatusesList) || (isset($diffMins) && $diffMins > 115)) {
+                                $elapsedClass = '';
+                                $elapsedDisplay = lang('App.finished');
+                            } elseif ($isLiveMatch) {
+                                $elapsedClass = 'live';
+                                if ($statusClean === 'HT') {
+                                    $minDisplay = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : 'Int';
+                                } else {
+                                    $minDisplay = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : 'Ao Vivo');
+                                }
+                                $elapsedDisplay = '<span class="live-pulse-dot"></span> ' . $minDisplay;
+                            } elseif ($statusClean === 'NS') {
+                                $elapsedClass = '';
+                                $elapsedDisplay = 'Pré-jogo';
+                            } else {
+                                $elapsedClass = (isset($diffMins) && $diffMins >= 0) ? 'live' : '';
+                                $elapsedDisplay = (isset($diffMins) && $diffMins >= 0) ? $diffMins . "'" : 'Pré-jogo';
+                            }
+
+                            $betanoTimeText = 'Pré-jogo';
+                            if (in_array($statusClean, ['PST', 'POSTPONED', 'CANCELLED', 'CANC'])) {
+                                $betanoTimeText = '⚠️ ADIADO';
+                            } elseif (in_array($statusClean, $finishedStatusesList) || (isset($diffMins) && $diffMins > 115)) {
+                                $betanoTimeText = 'Encerrado';
+                            } elseif ($isLiveMatch) {
+                                if ($statusClean === 'HT') {
+                                    $betanoTimeText = (isset($diffMins) && $diffMins >= 65) ? $diffMins . "'" : 'Intervalo';
+                                } else {
+                                    $betanoTimeText = !empty($fix->elapsed) ? $fix->elapsed . "'" : (isset($diffMins) && $diffMins >= 0 ? $diffMins . "'" : 'Ao Vivo');
+                                }
+                            } elseif ($statusClean === 'NS') {
+                                $betanoTimeText = 'Pré-jogo';
+                            } else {
+                                $betanoTimeText = (isset($diffMins) && $diffMins >= 0) ? $diffMins . "'" : 'Pré-jogo';
+                            }
+                            
+                            $displayLeague = $fix->display_league_name ?? formatLeagueDisplayName($fix->league_id ?? 0, $fix->league_name ?? '');
+                            $leagueInfo = resolveLeagueCountryAndFlag($fix->league_id ?? 0, $displayLeague, $leagueMap ?? []);
+                            $cName = $leagueInfo['country'];
+                            $cFlag = $leagueInfo['flag'];
+                            ?>
                              <?php
                              $isFixtureInUserBets = in_array((int)$fix->fixture_id, $userBetFixtureIds ?? []);
                              $isFixtureInAnyBets  = in_array((int)$fix->fixture_id, $allBetFixtureIds ?? []);
@@ -2604,7 +2626,7 @@ if (!function_exists('getBetDecisionTree')) {
                                          <div class="betano-live-scoreboard" style="background: #171e2e; border-radius: 8px; padding: 12px; margin-bottom: 12px; color: #ffffff; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
                                              <!-- Relógio Superior -->
                                              <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 6px; font-weight: 600;">
-                                                 <span data-betano-time="<?= $fix->fixture_id ?>"><?= !empty($fix->elapsed) ? $fix->elapsed . "'" : ($statusClean === 'FT' ? 'Encerrado' : ($statusClean === 'NS' ? 'Pré-jogo' : '')) ?></span>
+                                                 <span data-betano-time="<?= $fix->fixture_id ?>"><?= $betanoTimeText ?></span>
                                              </div>
 
                                              <!-- Nomes dos Times e Placar -->
@@ -3830,9 +3852,6 @@ if (!function_exists('getBetDecisionTree')) {
                     showPulse = true;
                     el.classList.add('live');
                 }
-            } else if (diffMins < 0) {
-                text = 'Pré-jogo';
-                el.classList.remove('live');
             } else if (liveStatusesList.includes(status)) {
                 showPulse = true;
                 el.classList.add('live');
@@ -3843,6 +3862,9 @@ if (!function_exists('getBetDecisionTree')) {
                 } else {
                     text = Math.min(45, Math.max(0, diffMins)) + "'";
                 }
+            } else if (diffMins < 0 || status === 'NS') {
+                text = 'Pré-jogo';
+                el.classList.remove('live');
             } else {
                 text = diffMins + "'";
                 el.classList.add('live');
@@ -4322,15 +4344,32 @@ if (!function_exists('getBetDecisionTree')) {
                                 card.setAttribute('data-is-finished', '1');
                             }
 
-                            if (elapsedEl) {
-                                if (isMatchFinishedNow) {
+                            if (isMatchFinishedNow) {
+                                if (elapsedEl) {
                                     elapsedEl.classList.remove('live');
                                     elapsedEl.textContent = 'Encerrado';
-                                } else if (isMatchLiveNow) {
+                                }
+                                if (bTimeEl) bTimeEl.textContent = 'Encerrado';
+                            } else if (isMatchLiveNow) {
+                                let minText = fix.elapsed ? fix.elapsed + "'" : (statusUpper === 'HT' ? ((diffMinsLive !== null && diffMinsLive >= 65) ? diffMinsLive + "'" : 'Int') : 'Ao Vivo');
+                                if (elapsedEl) {
                                     elapsedEl.classList.add('live');
-                                    let minText = fix.elapsed ? fix.elapsed + "'" : (statusUpper === 'HT' ? ((diffMinsLive !== null && diffMinsLive >= 65) ? diffMinsLive + "'" : 'Int') : 'Ao Vivo');
                                     elapsedEl.innerHTML = `<span class="live-pulse-dot"></span> ${minText}`;
                                 }
+                                if (bTimeEl) bTimeEl.textContent = minText;
+                            } else if (['PST', 'POSTPONED', 'CANCELLED', 'CANC'].includes(statusUpper)) {
+                                if (elapsedEl) {
+                                    elapsedEl.classList.remove('live');
+                                    elapsedEl.classList.add('pst');
+                                    elapsedEl.textContent = '⚠️ ADIADO';
+                                }
+                                if (bTimeEl) bTimeEl.textContent = '⚠️ ADIADO';
+                            } else if (statusUpper === 'NS') {
+                                if (elapsedEl) {
+                                    elapsedEl.classList.remove('live');
+                                    elapsedEl.textContent = 'Pré-jogo';
+                                }
+                                if (bTimeEl) bTimeEl.textContent = 'Pré-jogo';
                             }
                         }
                     });

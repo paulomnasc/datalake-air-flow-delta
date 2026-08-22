@@ -4548,20 +4548,39 @@ if (!function_exists('getBetDecisionTree')) {
         }
     });
 
-    // Alternar exibição das seções retráteis dos cards por badges
+    // Alternar exibição das seções retráteis dos cards por badges (Comportamento Accordion)
     function toggleCardSection(fixtureId, sectionType) {
-        const sec = $('#sec-' + sectionType + '-' + fixtureId);
-        const btn = $('#btn-' + sectionType + '-' + fixtureId);
-        
-        sec.slideToggle(200, function() {
-            if (sec.is(':visible')) {
-                btn.addClass('active');
-                btn.find('.icon-arrow').removeClass('bi-chevron-down').addClass('bi-chevron-up');
-            } else {
-                btn.removeClass('active');
-                btn.find('.icon-arrow').removeClass('bi-chevron-up').addClass('bi-chevron-down');
-            }
-        });
+        const targetSec = $('#sec-' + sectionType + '-' + fixtureId);
+        const targetBtn = $('#btn-' + sectionType + '-' + fixtureId);
+        const allTypes = ['cards', 'ah', 'futbol24', 'stats'];
+        const isOpening = !targetSec.is(':visible');
+
+        if (isOpening) {
+            // Retrair todas as outras seções do mesmo card
+            allTypes.forEach(function(type) {
+                if (type !== sectionType) {
+                    const otherSec = $('#sec-' + type + '-' + fixtureId);
+                    const otherBtn = $('#btn-' + type + '-' + fixtureId);
+                    if (otherSec.length && (otherSec.is(':visible') || otherSec.is(':animated'))) {
+                        otherSec.slideUp(180);
+                        otherBtn.removeClass('active');
+                        otherBtn.find('.icon-arrow').removeClass('bi-chevron-up').addClass('bi-chevron-down');
+                    }
+                }
+            });
+
+            // Expandir a seção clicada
+            targetSec.slideDown(200, function() {
+                targetBtn.addClass('active');
+                targetBtn.find('.icon-arrow').removeClass('bi-chevron-down').addClass('bi-chevron-up');
+            });
+        } else {
+            // Retrair a seção atual se já estiver aberta
+            targetSec.slideUp(200, function() {
+                targetBtn.removeClass('active');
+                targetBtn.find('.icon-arrow').removeClass('bi-chevron-up').addClass('bi-chevron-down');
+            });
+        }
     }
 </script>
 

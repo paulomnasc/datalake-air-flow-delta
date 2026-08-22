@@ -127,7 +127,7 @@
                         <i class="bi bi-graph-up-arrow fs-2"></i>
                     </div>
                     <div>
-                        <h2 class="fw-bold mb-1 text-white">Relatório de Eficiência de Palpites</h2>
+                        <h2 class="fw-bold mb-1 text-white"><?= lang('App.tips_efficiency') ?></h2>
                         <p class="text-white-50 mb-0">
                             Acurácia e transparência dos palpites da IA comparados ao resultado real de <strong>jogos encerrados (FT)</strong>.
                         </p>
@@ -147,7 +147,7 @@
         <!-- Total Jogos Analisados -->
         <div class="col-12 col-sm-6 col-xl-2">
             <div class="stat-card-glass">
-                <div class="stat-card-title">Jogos Analisados</div>
+                <div class="stat-card-title"><?= lang('App.total_games') ?></div>
                 <div class="stat-value mt-1" style="color: #38bdf8;"><?= number_format($totalAnalisados, 0, ',', '.') ?></div>
                 <div class="stat-card-sub mt-2">
                     <i class="bi bi-check-all me-1"></i> Encerrados (FT)
@@ -169,10 +169,10 @@
         <!-- Taxa de Win (Green) -->
         <div class="col-12 col-sm-6 col-xl-2">
             <div class="stat-card-glass" style="border-color: #166534 !important;">
-                <div class="stat-card-title">Taxa de Win (Green)</div>
+                <div class="stat-card-title"><?= lang('App.win_rate') ?></div>
                 <div class="stat-value mt-1" style="color: #4ade80;"><?= $winRate ?>%</div>
                 <div class="stat-card-sub mt-2" style="color: #4ade80;">
-                    <i class="bi bi-check-circle-fill me-1"></i> <?= $greenCount ?> Apostas Ganhas
+                    <i class="bi bi-check-circle-fill me-1"></i> <?= $greenCount ?> <?= lang('App.won') ?>
                 </div>
             </div>
         </div>
@@ -180,10 +180,10 @@
         <!-- Taxa de Perda (Red) -->
         <div class="col-12 col-sm-6 col-xl-2">
             <div class="stat-card-glass" style="border-color: #991b1b !important;">
-                <div class="stat-card-title">Taxa de Perda (Red)</div>
+                <div class="stat-card-title"><?= lang('App.lost') ?> (%)</div>
                 <div class="stat-value mt-1" style="color: #f87171;"><?= $redRate ?>%</div>
                 <div class="stat-card-sub mt-2" style="color: #f87171;">
-                    <i class="bi bi-x-circle-fill me-1"></i> <?= $redCount ?> Apostas Perdidas
+                    <i class="bi bi-x-circle-fill me-1"></i> <?= $redCount ?> <?= lang('App.lost') ?>
                 </div>
             </div>
         </div>

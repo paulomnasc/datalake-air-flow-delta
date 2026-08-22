@@ -12,17 +12,15 @@ require VIEWPATH . '/header.php';
         <div class="container-xxl py-5">
             <div class="container">
                 <div class="text-center wow fadeInUp" data-wow-delay="0.1s">
-                    <h6 class="section-title bg-white text-center text-primary px-3">Entre em contato</h6>
-                    <h1 class="mb-5">Contacte para qualquer pergunta</h1>
+                    <h6 class="section-title bg-white text-center text-primary px-3"><?= lang('App.contact_us') ?></h6>
                 </div>
                 <div class="row g-4">
                     <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.1s">
-                        <h5>Entre em contato</h5>
+                        <h5><?= lang('App.contact_us') ?></h5>
                         <p class="mb-4">
-                            Seu contato é muito importante  para nós. Para agilizar crie um assunto claro e conciso explicitando sua necessidade que 
-                            entraremos em contato com a maior brevidade possível. 
-
-                            <div class="d-flex align-items-center mb-3">
+                            Seu contato é muito importante para nós.
+                        </p>
+                        <div class="d-flex align-items-center mb-3">
                             <div class="d-flex align-items-center justify-content-center flex-shrink-0 bg-primary" style="width: 50px; height: 50px;">
                                 <i class="fa fa-map-marker-alt text-white"></i>
                             </div>
@@ -30,21 +28,6 @@ require VIEWPATH . '/header.php';
                                 <h5 class="text-primary">Office</h5>
                                 <p class="mb-0">Brasilia, DF, BR</p>
                             </div>
-                        </div>
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="d-flex align-items-center justify-content-center flex-shrink-0 bg-primary" style="width: 50px; height: 50px;">
-                                <i class="fa fa-phone-alt text-white"></i>
-                            </div>
-                            <!-- div class="ms-3">
-                                <h5 class="text-primary">Mobile</h5>
-                                <p class="mb-0">+012 345 67890</p>
-                            </div-->
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div class="d-flex align-items-center justify-content-center flex-shrink-0 bg-primary" style="width: 50px; height: 50px;">
-                                <i class="fa fa-envelope-open text-white"></i>
-                            </div>
-                            
                         </div>
                     </div>
                     <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.3s">
@@ -59,19 +42,19 @@ require VIEWPATH . '/header.php';
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <div class="form-floating">
-                                    <input type="email" class="form-control" id="email" name="email" placeholder="Your Email" required>
-                                    <label for="email">Seu Email</label>
+                                    <input type="email" class="form-control" id="email" name="email" placeholder="<?= lang('App.email') ?>" required>
+                                    <label for="email"><?= lang('App.email') ?></label>
                                 </div>
                             </div>
                             <div class="col-12">
                                 <div class="form-floating">
-                                    <input type="text" class="form-control" id="subject" name="assunto" placeholder="Subject" required>
+                                    <input type="text" class="form-control" id="subject" name="assunto" placeholder="Assunto" required>
                                     <label for="subject">Assunto</label>
                                 </div>
                             </div>
                             <div class="col-12">
                                 <div class="form-floating">
-                                    <textarea class="form-control" placeholder="Leave a message here" id="mensagem" name="mensagem" style="height: 150px" required></textarea>
+                                    <textarea class="form-control" placeholder="Mensagem" id="mensagem" name="mensagem" style="height: 150px" required></textarea>
                                     <label for="mensagem">Mensagem</label>
                                 </div>
                             </div>

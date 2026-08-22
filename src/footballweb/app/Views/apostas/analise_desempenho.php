@@ -214,32 +214,32 @@
   <!-- KPI Summary Cards -->
   <div class="kpi-grid">
     <div class="kpi-card">
-      <div class="kpi-label"><i class="bi bi-cash-coin text-info"></i> Total Apostado Bruto</div>
+      <div class="kpi-label"><i class="bi bi-cash-coin text-info"></i> <?= lang('App.total_staked') ?></div>
       <div class="kpi-value text-info" id="kpiTotalApostado">R$ 0,00</div>
     </div>
     
     <div class="kpi-card">
-      <div class="kpi-label"><i class="bi bi-arrow-return-right text-accent"></i> Retorno Bruto</div>
+      <div class="kpi-label"><i class="bi bi-arrow-return-right text-accent"></i> <?= lang('App.return') ?></div>
       <div class="kpi-value text-white" id="kpiTotalRetorno">R$ 0,00</div>
     </div>
 
     <div class="kpi-card">
-      <div class="kpi-label"><i class="bi bi-piggy-bank-fill" style="color: #00e676;"></i> Lucro Líquido Real</div>
+      <div class="kpi-label"><i class="bi bi-piggy-bank-fill" style="color: #00e676;"></i> <?= lang('App.total_profit') ?></div>
       <div class="kpi-value text-success" id="kpiLucroLiquido">R$ 0,00</div>
     </div>
 
     <div class="kpi-card">
-      <div class="kpi-label"><i class="bi bi-graph-up text-warning"></i> Rendimento / ROI %</div>
+      <div class="kpi-label"><i class="bi bi-graph-up text-warning"></i> <?= lang('App.roi') ?></div>
       <div class="kpi-value text-warning" id="kpiRoi">+0,0%</div>
     </div>
 
     <div class="kpi-card">
-      <div class="kpi-label"><i class="bi bi-check-circle-fill text-success"></i> Taxa de Acerto</div>
+      <div class="kpi-label"><i class="bi bi-check-circle-fill text-success"></i> <?= lang('App.win_rate') ?></div>
       <div class="kpi-value text-white" id="kpiWinRate">0,0%</div>
     </div>
 
     <div class="kpi-card">
-      <div class="kpi-label"><i class="bi bi-ticket-detailed text-secondary"></i> Total de Apostas</div>
+      <div class="kpi-label"><i class="bi bi-ticket-detailed text-secondary"></i> <?= lang('App.total_bets') ?></div>
       <div class="kpi-value text-white" id="kpiTotalApostas">0</div>
     </div>
   </div>

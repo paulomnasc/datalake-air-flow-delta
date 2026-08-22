@@ -2107,16 +2107,16 @@ if (!function_exists('getBetDecisionTree')) {
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                 <h2 class="mb-0 text-white font-weight-bold d-flex align-items-center gap-2" style="font-size: 1.15rem;">
                     <i class="bi bi-play-circle-fill" style="color: #f47c20; font-size: 1.3rem;"></i> 
-                    Vídeo Demonstrativo - FootballWeb
+                    <?= lang('App.demo_video_title') ?>
                 </h2>
                 <a href="https://youtu.be/_Hhg3B1MldQ" target="_blank" rel="noopener noreferrer" class="btn btn-sm text-white font-weight-bold d-inline-flex align-items-center gap-1" style="background: #ff0000; border-radius: 8px; padding: 6px 14px; font-size: 0.88rem; text-decoration: none;">
-                    <i class="bi bi-youtube"></i> Assistir no YouTube <i class="bi bi-box-arrow-up-right" style="font-size: 0.75rem;"></i>
+                    <i class="bi bi-youtube"></i> <?= lang('App.watch_on_youtube') ?> <i class="bi bi-box-arrow-up-right" style="font-size: 0.75rem;"></i>
                 </a>
             </div>
             <div style="max-width: 33.333%; min-width: 280px; margin: 0 auto;">
                 <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); border: 1px solid rgba(255, 255, 255, 0.1);">
                     <iframe src="https://www.youtube.com/embed/_Hhg3B1MldQ" 
-                            title="Vídeo Demonstrativo FootballWeb" 
+                            title="<?= lang('App.demo_video_title') ?>" 
                             frameborder="0" 
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
                             referrerpolicy="strict-origin-when-cross-origin"
@@ -2127,7 +2127,7 @@ if (!function_exists('getBetDecisionTree')) {
             </div>
             <div class="mt-2 text-center">
                 <small style="color: #94a3b8; font-size: 0.8rem;">
-                    <i class="bi bi-info-circle"></i> Caso o vídeo exija verificação de idade pelo YouTube no player embutido, <a href="https://youtu.be/_Hhg3B1MldQ" target="_blank" rel="noopener noreferrer" style="color: #f47c20; text-decoration: underline;">clique aqui para assistir diretamente no YouTube</a>.
+                    <i class="bi bi-info-circle"></i> <?= lang('App.youtube_age_disclaimer') ?>
                 </small>
             </div>
         </section>
@@ -2135,17 +2135,17 @@ if (!function_exists('getBetDecisionTree')) {
         <!-- Bloco SEO Server-Side Rendered (SSR) com data e hora atual -->
         <section class="bet-seo-header mb-4 p-3 rounded" style="background: rgba(23, 34, 48, 0.6); border: 1px solid rgba(255, 255, 255, 0.05);">
             <h1 style="font-size: 1.4rem; font-weight: 800; color: #ffffff; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-                <span>⚽ Tendências de Futebol Hoje & Estatísticas de Cartões e Escanteios</span>
+                <span>⚽ <?= lang('App.football_trends_heading') ?></span>
                 <?php 
                   $dtNowBrt = new DateTime('now', new DateTimeZone('America/Sao_Paulo'));
-                  $nowFormatted = $dtNowBrt->format('d/m/Y \à\s H:i');
+                  $nowFormatted = $dtNowBrt->format('d/m/Y H:i');
                 ?>
                 <span class="badge" style="background: rgba(0, 230, 118, 0.15); border: 1px solid rgba(0, 230, 118, 0.3); color: #00e676; font-size: 0.8rem; font-weight: 700; padding: 5px 12px; border-radius: 20px; display: inline-flex; align-items: center; gap: 6px;" title="Data e hora atual no fuso horário de Brasília (America/Sao_Paulo)">
                     <i class="bi bi-clock-history" style="color: #00e676;"></i> <?= $nowFormatted ?>
                 </span>
             </h1>
             <p class="mb-0" style="font-size: 0.92rem; line-height: 1.6; color: #ffffff;">
-                Acompanhe as estatísticas completas dos jogos de hoje (<?= $formattedDateHeader ?>). Dados atualizados das principais ligas (Brasileirão, Champions League, Europa), histórico de faltas por árbitro, médias de cartões amarelos e vermelhos, e previsões matemáticas acionadas pelo assistente inteligente Grok AI.
+                <?= sprintf(lang('App.seo_description'), $formattedDateHeader) ?>
             </p>
         </section>
 
@@ -2218,10 +2218,10 @@ if (!function_exists('getBetDecisionTree')) {
                         <!-- Linha 1: Navegação por datas e Opções de Exibição -->
                         <div class="row align-items-center g-3 mb-3">
                             <div class="col-xl-6 col-lg-7 col-md-12">
-                                <!-- Botão de Atualização Manual de Jogos e Odds posicionado acima de '< Ontem' -->
-                                <div class="mb-2">
+                                <!-- Botão de Atualização Manual de Jogos e Odds posicionado acima de '< Ontem' (Oculto) -->
+                                <div class="mb-2" style="display: none !important;">
                                     <button type="button" class="btn-update-betano d-inline-flex align-items-center gap-2" onclick="triggerIngestion('<?= $targetDate ?>')" style="padding: 7px 16px; font-size: 0.85rem; font-weight: 700; border-radius: 8px; box-shadow: 0 4px 12px rgba(244, 124, 32, 0.25);">
-                                        <i class="bi bi-arrow-repeat" style="font-size: 1rem;"></i> Atualizar Jogos e Odds
+                                        <i class="bi bi-arrow-repeat" style="font-size: 1rem;"></i> <?= lang('App.update_games_odds') ?>
                                     </button>
                                 </div>
 
@@ -2250,15 +2250,15 @@ if (!function_exists('getBetDecisionTree')) {
                                         <?= lang('App.tomorrow') ?>
                                     </a>
                                     <a href="?start_date=<?= $today ?>&end_date=<?= $next3days ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $today && $endDate === $next3days) ? 'active' : '' ?>" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
-                                        ⚡ Próx. 3 Dias
+                                        ⚡ <?= lang('App.next_3_days') ?>
                                     </a>
                                     <a href="?start_date=<?= $today ?>&end_date=<?= $next7days ?><?= $commonParams ?>" class="bet-date-btn <?= ($startDate === $today && $endDate === $next7days) ? 'active' : '' ?>" style="border-color: rgba(0, 230, 118, 0.4); color: #00e676;">
-                                        🚀 Próx. 7 Dias
+                                        🚀 <?= lang('App.next_7_days') ?>
                                     </a>
                                     <div class="d-flex align-items-center gap-1" style="background: rgba(255, 255, 255, 0.04); padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08);">
-                                        <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">De:</span>
+                                        <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;"><?= lang('App.from_date') ?>:</span>
                                         <input type="date" name="start_date" class="bet-date-input" value="<?= $startDate ?>" onchange="document.getElementById('filterForm').submit()">
-                                        <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600; margin-left: 4px;">Até:</span>
+                                        <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600; margin-left: 4px;"><?= lang('App.to_date') ?>:</span>
                                         <input type="date" name="end_date" class="bet-date-input" value="<?= $endDate ?>" onchange="document.getElementById('filterForm').submit()">
                                     </div>
                                 </div>
@@ -2278,74 +2278,74 @@ if (!function_exists('getBetDecisionTree')) {
                                     </span>
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
-                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #aeb9c4; font-weight: 600;">Exibir Adiados (PST)</span>
+                                    <span class="bet-toggle-label" style="font-size: 0.85rem; color: #aeb9c4; font-weight: 600;"><?= lang('App.show_postponed') ?></span>
                                     <label class="bet-switch">
                                         <input type="hidden" name="show_postponed" value="0">
                                         <input type="checkbox" id="showPostponedToggle" name="show_postponed" value="1" <?= !empty($showPostponed) ? 'checked' : '' ?> onchange="toggleShowPostponedFilter(this)">
                                         <span class="bet-slider round"></span>
                                     </label>
                                     <span id="showPostponedToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($showPostponed) ? '#f59e0b' : '#8a99a8' ?>;">
-                                        <?= !empty($showPostponed) ? 'Sim' : 'Não' ?>
+                                        <?= !empty($showPostponed) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
                                 <div class="d-flex align-items-center gap-2" style="background: rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.25);">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #34d399; font-weight: 600;">
-                                        <i class="bi bi-shield-fill-check"></i> Apostas Seguras
+                                        <i class="bi bi-shield-fill-check"></i> <?= lang('App.safe_bets') ?>
                                     </span>
                                     <label class="bet-switch">
                                         <input type="checkbox" id="onlySafeToggle" name="only_safe" value="1" <?= !empty($onlySafe) ? 'checked' : '' ?> onchange="toggleSafeBetsFilter(this)">
                                         <span class="bet-slider round" style="background-color: #1e293b;"></span>
                                     </label>
                                     <span id="onlySafeToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlySafe) ? '#10b981' : '#8a99a8' ?>;">
-                                        <?= !empty($onlySafe) ? 'Sim' : 'Não' ?>
+                                        <?= !empty($onlySafe) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
                                 <div class="d-flex align-items-center gap-2" style="background: rgba(0, 230, 118, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0, 230, 118, 0.3);">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #00e676; font-weight: 600;">
-                                        ⚡ Surebets (Oddspedia)
+                                        ⚡ <?= lang('App.surebets') ?>
                                     </span>
                                     <label class="bet-switch">
                                         <input type="checkbox" id="onlySurebetToggle" name="only_surebet" value="1" <?= !empty($onlySurebet) ? 'checked' : '' ?> onchange="toggleSurebetsFilter(this)">
                                         <span class="bet-slider round" style="background-color: #1e293b;"></span>
                                     </label>
                                     <span id="onlySurebetToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlySurebet) ? '#00e676' : '#8a99a8' ?>;">
-                                        <?= !empty($onlySurebet) ? 'Sim' : 'Não' ?>
+                                        <?= !empty($onlySurebet) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
                                  <div class="d-flex align-items-center gap-2" style="background: rgba(192, 132, 252, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(192, 132, 252, 0.3);" title="Exibir apenas partidas que possuem apostas cadastradas">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #c084fc; font-weight: 600;">
-                                        🃏 Com Aposta
+                                        🃏 <?= lang('App.with_bets') ?>
                                     </span>
                                     <label class="bet-switch">
                                         <input type="checkbox" id="onlyHasBetToggle" name="only_has_bet" value="1" onchange="toggleHasBetFilter(this)">
                                         <span class="bet-slider round" style="background-color: #1e293b;"></span>
                                     </label>
                                     <span id="onlyHasBetToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: #8a99a8;">
-                                        Não
+                                        <?= lang('App.no') ?>
                                     </span>
                                 </div>
                                 <div class="d-flex align-items-center gap-2" style="background: rgba(0, 230, 118, 0.08); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0, 230, 118, 0.25);" title="Exibir apenas partidas que possuem resenha e análise editorial">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #00e676; font-weight: 600;">
-                                        <i class="bi bi-chat-quote-fill"></i> Com Resenha
+                                        <i class="bi bi-chat-quote-fill"></i> <?= lang('App.with_review') ?>
                                     </span>
                                     <label class="bet-switch">
                                         <input type="checkbox" id="onlyResenhaToggle" name="only_resenha" value="1" <?= !empty($onlyResenha) ? 'checked' : '' ?> onchange="toggleResenhaFilter(this)">
                                         <span class="bet-slider round" style="background-color: #1e293b;"></span>
                                     </label>
                                     <span id="onlyResenhaToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlyResenha) ? '#00e676' : '#8a99a8' ?>;">
-                                        <?= !empty($onlyResenha) ? 'Sim' : 'Não' ?>
+                                        <?= !empty($onlyResenha) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
                                 <div class="d-flex align-items-center gap-2" style="background: rgba(239, 68, 68, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(239, 68, 68, 0.3);" title="Exibir apenas partidas em andamento (Ao Vivo)">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #f87171; font-weight: 600;">
-                                        🔴 Em Andamento
+                                        🔴 <?= lang('App.live_matches') ?>
                                     </span>
                                     <label class="bet-switch">
                                         <input type="checkbox" id="onlyLiveToggle" name="only_live" value="1" <?= !empty($onlyLive) ? 'checked' : '' ?> onchange="toggleLiveBetsFilter(this)">
                                         <span class="bet-slider round" style="background-color: #1e293b;"></span>
                                     </label>
                                     <span id="onlyLiveToggleStatus" class="bet-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: <?= !empty($onlyLive) ? '#ef4444' : '#8a99a8' ?>;">
-                                        <?= !empty($onlyLive) ? 'Sim' : 'Não' ?>
+                                        <?= !empty($onlyLive) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
                             </div>
@@ -2589,16 +2589,16 @@ if (!function_exists('getBetDecisionTree')) {
                                             <?php if ($hasAposta): ?>
                                                 <a href="<?= base_url('apostas?action=edit&fixture_id=' . $fix->fixture_id) ?>" 
                                                    class="bet-card-playing-card-badge has-bet" 
-                                                   title="<?= $isFixtureInUserBets ? 'Sua aposta está registrada para este jogo! Clique para editar.' : 'Existe aposta registrada para este jogo. Clique para ver.' ?>">
+                                                   title="<?= $isFixtureInUserBets ? lang('App.click_to_edit') : lang('App.has_bet') ?>">
                                                     <span class="playing-card-symbol">🂠</span>
-                                                    <span><?= $isFixtureInUserBets ? 'Sua Aposta' : 'Com Aposta' ?></span>
+                                                    <span><?= $isFixtureInUserBets ? lang('App.your_bet') : lang('App.has_bet') ?></span>
                                                 </a>
                                             <?php else: ?>
                                                 <a href="<?= base_url('apostas?new_bet=1&fixture_id=' . $fix->fixture_id) ?>" 
                                                    class="bet-card-playing-card-badge no-bet" 
-                                                   title="Nenhuma aposta cadastrada. Clique para registrar aposta neste jogo.">
+                                                   title="<?= lang('App.click_to_add') ?>">
                                                     <span class="playing-card-symbol" style="opacity: 0.5;">🂠</span>
-                                                    <span>Sem Aposta</span>
+                                                    <span><?= lang('App.no_bet') ?></span>
                                                 </a>
                                             <?php endif; ?>
                                         </div>

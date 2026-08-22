@@ -673,20 +673,20 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     <input type="hidden" id="perfil_usuario_logado" value="<?php echo isset($_SESSION['perfil_usuario_logado']) ? $_SESSION['perfil_usuario_logado'] : 'N/A'; ?>" readonly>
                 </li>
                 <li class="nav-item">
-                    <a href="/" class="nav-link px-2 px-lg-2" title="Início">
+                    <a href="/" class="nav-link px-2 px-lg-2" title="<?= lang('App.home') ?>">
                         <i class="fas fa-home" style="font-size: 24px; vertical-align: middle;"></i>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="<?= base_url('apostas') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-success d-flex align-items-center gap-1" title="Minhas Apostas">
+                    <a href="<?= base_url('apostas') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-success d-flex align-items-center gap-1" title="<?= lang('App.my_bets') ?>">
                         <i class="bi bi-ticket-detailed-fill" style="font-size: 20px;"></i>
-                        <span>Minhas Apostas</span>
+                        <span><?= lang('App.my_bets') ?></span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="<?= base_url('apostas/relatorio-eficiencia') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-info d-flex align-items-center gap-1" title="Eficiência de Palpites">
+                    <a href="<?= base_url('apostas/relatorio-eficiencia') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-info d-flex align-items-center gap-1" title="<?= lang('App.tips_efficiency') ?>">
                         <i class="bi bi-graph-up-arrow" style="font-size: 18px;"></i>
-                        <span>Eficiência de Palpites</span>
+                        <span><?= lang('App.tips_efficiency') ?></span>
                     </a>
                 </li>
             </ul>
@@ -704,8 +704,8 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                     </ul>
                 </div>
 
-                <?php echo anchor("contactUs","Entre em contato", ['class' => 'nav-link px-2 px-lg-2 text-nowrap'])  ?>
-                <?php echo anchor("reportError","Reportar um erro", ['class' => 'nav-link px-2 px-lg-2 text-nowrap'])  ?>
+                <?php echo anchor("contactUs", lang('App.contact_us'), ['class' => 'nav-link px-2 px-lg-2 text-nowrap'])  ?>
+                <?php echo anchor("reportError", lang('App.report_error'), ['class' => 'nav-link px-2 px-lg-2 text-nowrap'])  ?>
 
                 <?php if (isset($_SESSION['nome_usuario_logado']) && !empty($_SESSION['nome_usuario_logado'])): ?>
                     <?php echo anchor(route_to('Usuario.logOut'), lang('App.exit'), ['class' => 'nav-link px-2 px-lg-2']); ?>
@@ -733,7 +733,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
     <form id="submitSaibaMais" method="POST" action="<?php echo route_to('saibaMais'); ?>" style="display: none;">
 
-            <button id="btn-saiba-mais" type="submit" class="nav-button" >Saiba mais
+            <button id="btn-saiba-mais" type="submit" class="nav-button" ><?= lang('App.saiba_mais') ?>
                 <i class="fas fa-info-circle" style="margin-left: 5px;"></i>
             </button>
         

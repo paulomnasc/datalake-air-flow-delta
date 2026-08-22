@@ -9,33 +9,33 @@ require VIEWPATH . '/header.php';
     <div id="content">
 
         <div class="container">
-            <h1>Registrar Usuario</h1>
+            <h1><?= lang('App.register_title') ?></h1>
 
             <!-- Google Registration Button Highlighted -->
             <div style="margin-bottom: 30px; text-align: center;">
                 <a href="<?= route_to('auth.google.login') ?>" class="btn btn-danger" style="background-color: #ea4335; border-color: #ea4335; color: white; text-decoration: none; padding: 14px 32px; display: inline-block; border-radius: 6px; font-size: 1.2em; font-weight: bold; box-shadow: 0 2px 8px rgba(234,67,53,0.15);">
-                    <i class="fab fa-google" style="font-size: 1.4em; vertical-align: middle;"></i> Registrar com Google
+                    <i class="fab fa-google" style="font-size: 1.4em; vertical-align: middle;"></i> <?= lang('App.register_google') ?>
                 </a>
-                <p style="color: #222; margin-top: 12px; font-weight: 500;">Registre-se rapidamente com sua conta Google</p>
+                <p style="color: #222; margin-top: 12px; font-weight: 500;"><?= lang('App.quick_google_register') ?></p>
             </div>
             <div style="margin-top: 20px; text-align: center;">
-                <p style="color: #666; margin-bottom: 10px;">— OU —</p>
+                <p style="color: #666; margin-bottom: 10px;">— <?= lang('App.or') ?> —</p>
                 <!-- Removed Google button from here -->
             </div>
             <form method="post" id="meuFormulario" action="<?php echo route_to('Usuario.insertSigIn'); ?>">
                 <!-- ...existing code... -->
                 <div class="form-group">
-                    <label for="nome">Nome:</label>
-                    <input type="text" id="nome" name="nome" placeholder="nome" required>
+                    <label for="nome"><?= lang('App.name') ?>:</label>
+                    <input type="text" id="nome" name="nome" placeholder="<?= lang('App.name') ?>" required>
                 </div>
 
                 <div class="form-group">
-                    <label for="email">Email:</label>
-                    <input type="email" id="email" name="email" placeholder="email" required>
+                    <label for="email"><?= lang('App.email') ?>:</label>
+                    <input type="email" id="email" name="email" placeholder="<?= lang('App.email') ?>" required>
                 </div>
 
                 <div class="form-group">
-                    <label for="id_perfil">Perfis:</label>
+                    <label for="id_perfil"><?= lang('App.profiles') ?>:</label>
                     <select id="id_perfil" name="id_perfil[]" multiple required style="height: 120px;">
                         <?php foreach($perfis as $perfil): ?>
                             <option value="<?php echo $perfil->id; ?>" <?php echo (!empty($descricao_perfil_selecionado) && $perfil->descricao == $descricao_perfil_selecionado) ? 'selected' : ''; ?>>
@@ -43,20 +43,20 @@ require VIEWPATH . '/header.php';
                             </option>
                         <?php endforeach; ?>
                     </select>
-                    <small style="display: block; margin-top: 5px; color: #666;">Segure Ctrl (Windows) ou Cmd (Mac) para selecionar múltiplos perfis</small>
+                    <small style="display: block; margin-top: 5px; color: #666;"><?= lang('App.select_multiple_profiles_hint') ?></small>
                 </div>
 
                 <div class="form-group">
-                    <label for="senha">Senha:</label>
-                    <input type="password" id="senha" name="senha" placeholder="senha" required>
+                    <label for="senha"><?= lang('App.password') ?>:</label>
+                    <input type="password" id="senha" name="senha" placeholder="<?= lang('App.password') ?>" required>
                 </div>
 
                 <div class="form-group">
-                    <label for="senha">Confirmar senha:</label>
-                    <input type="password" id="repete-senha" name="senha" placeholder="senha" required>
+                    <label for="senha"><?= lang('App.confirm_password') ?>:</label>
+                    <input type="password" id="repete-senha" name="senha" placeholder="<?= lang('App.confirm_password') ?>" required>
                 </div>
                 <div class="form-actions">
-                    <button type="submit" class="save-button" value="Atualizar">Registrar</button>
+                    <button type="submit" class="save-button" value="Atualizar"><?= lang('App.register') ?></button>
                     <!-- button type="button" class="back-button" onclick="history.back();">Voltar</button -->
                 </div>
                 <div id="signup-success-message" class="alert alert-success" style="display:none;"></div>

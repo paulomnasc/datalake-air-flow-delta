@@ -42,7 +42,7 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
     if cursor is not None and fixture_id:
         try:
             cursor.execute("""
-                SELECT yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away 
+                SELECT yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away, last_event 
                 FROM fixtures_trends 
                 WHERE fixture_id = %s AND yellow_cards_home IS NOT NULL AND yellow_cards_away IS NOT NULL
                 LIMIT 1
@@ -53,7 +53,9 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                 ya = row.get('yellow_cards_away', 0) or 0
                 rh = row.get('red_cards_home', 0) or 0
                 ra = row.get('red_cards_away', 0) or 0
-                return (yh, ya, rh, ra)
+                last_ev = row.get('last_event')
+                if (yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != ''):
+                    return (yh, ya, rh, ra)
             
             cursor.execute("""
                 SELECT team_id, yellow_cards, red_cards 
@@ -186,7 +188,7 @@ def main():
     cursor.execute("""
         SELECT fixture_id, home_team, away_team, home_team_id
         FROM fixtures_trends
-        WHERE status = 'FT' AND (yellow_cards_home IS NULL OR (yellow_cards_home = 1 AND yellow_cards_away = 1))
+        WHERE status = 'FT' AND (yellow_cards_home IS NULL OR (yellow_cards_home = 0 AND yellow_cards_away = 0 AND (last_event IS NULL OR last_event = '')) OR (yellow_cards_home = 1 AND yellow_cards_away = 1))
         ORDER BY fixture_date DESC
         LIMIT 200
     """)

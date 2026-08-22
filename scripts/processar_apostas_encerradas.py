@@ -59,7 +59,7 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
     if cursor is not None and fixture_id:
         try:
             cursor.execute("""
-                SELECT yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away 
+                SELECT yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away, last_event 
                 FROM fixtures_trends 
                 WHERE fixture_id = %s AND yellow_cards_home IS NOT NULL AND yellow_cards_away IS NOT NULL
                 LIMIT 1
@@ -70,7 +70,9 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                 ya = row.get('yellow_cards_away', 0) or 0
                 rh = row.get('red_cards_home', 0) or 0
                 ra = row.get('red_cards_away', 0) or 0
-                return (yh, ya, rh, ra)
+                last_ev = row.get('last_event')
+                if (yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != ''):
+                    return (yh, ya, rh, ra)
             
             cursor.execute("""
                 SELECT team_id, yellow_cards, red_cards 
@@ -194,18 +196,14 @@ def get_fixture_stats(fixture, cursor=None):
     red_home = fixture.get('red_cards_home')
     red_away = fixture.get('red_cards_away')
 
-    if (yellow_home is None or yellow_away is None) and fixture.get('fixture_id'):
+    if (yellow_home is None or yellow_away is None or (yellow_home == 0 and yellow_away == 0 and not fixture.get('last_event'))) and fixture.get('fixture_id'):
         fid = fixture['fixture_id']
         htid = fixture.get('home_team_id')
-        f_date = fixture.get('fixture_date')
-        if f_date and isinstance(f_date, datetime) and (datetime.now() - f_date).total_seconds() > 43200:
-            yh, ya, rh, ra = 0, 0, 0, 0
+        cards_res = fetch_real_fixture_cards_api(fid, htid, cursor=cursor)
+        if cards_res is not None:
+            yh, ya, rh, ra = cards_res
         else:
-            cards_res = fetch_real_fixture_cards_api(fid, htid, cursor=cursor)
-            if cards_res is not None:
-                yh, ya, rh, ra = cards_res
-            else:
-                yh, ya, rh, ra = None, None, None, None
+            yh, ya, rh, ra = None, None, None, None
 
         if yh is not None:
             yellow_home, yellow_away, red_home, red_away = yh, ya, rh, ra

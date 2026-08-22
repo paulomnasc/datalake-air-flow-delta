@@ -1469,7 +1469,16 @@ def main():
     
     cached_ft_stats = set()
     try:
-        cursor.execute("SELECT fixture_id FROM fixtures_trends WHERE status IN ('FT', 'AET', 'PEN')")
+        cursor.execute("""
+            SELECT fixture_id FROM fixtures_trends 
+            WHERE status IN ('FT', 'AET', 'PEN') 
+              AND yellow_cards_home IS NOT NULL 
+              AND yellow_cards_away IS NOT NULL
+              AND (
+                  (yellow_cards_home + yellow_cards_away + red_cards_home + red_cards_away) > 0 
+                  OR (last_event IS NOT NULL AND last_event != '')
+              )
+        """)
         rows_ft = cursor.fetchall()
         cached_ft_stats = {r['fixture_id'] for r in rows_ft}
     except Exception as e_ft:
@@ -1939,10 +1948,8 @@ def main():
                     except Exception as e:
                         print(f"Aviso ao buscar cartões/eventos para partida {fix_id}: {e}")
 
-                if yellow_cards_home is None: yellow_cards_home = 0
-                if yellow_cards_away is None: yellow_cards_away = 0
-                if red_cards_home is None: red_cards_home = 0
-                if red_cards_away is None: red_cards_away = 0
+                # Mantém None caso não haja dados de cartões retornados, permitindo gravação de NULL no banco de dados
+                pass
 
             # Insere ou atualiza a partida com placar, minutos decorridos, cartões, cantos, chutes, xG, Handicap Asiatico e eventos
             for attempt in range(3):

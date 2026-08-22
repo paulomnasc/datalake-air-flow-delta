@@ -236,10 +236,13 @@ def ensure_fixture_card_stats(cursor, fixture):
 
 def evaluate_cards_under_bet(aposta, total_cards, yellow_home, yellow_away, red_home, red_away):
     """
-    Avalia a aposta de Cartões Under comparando o total de cartões do jogo com o limite do palpite.
+    Avalia a aposta de Cartões (Total da partida ou por time individual) comparando com o limite do palpite.
     Retorna tupla: (novo_status: 'Ganha'|'Perdida', payout: float, detalhe: str)
     """
     palpite = aposta.get('palpite', '').strip()
+    mercado = aposta.get('mercado', '').strip()
+    time_casa = (aposta.get('time_casa') or '').strip()
+    time_fora = (aposta.get('time_fora') or '').strip()
     valor_aposta = float(aposta.get('valor_aposta', 10.0) or 10.0)
     odd = float(aposta.get('odd', 1.80) or 1.80)
 
@@ -247,14 +250,50 @@ def evaluate_cards_under_bet(aposta, total_cards, yellow_home, yellow_away, red_
     match_line = re.search(r'(\d+(?:\.\d+)?)', palpite)
     threshold = float(match_line.group(1)) if match_line else 5.5
 
-    # Validação Under: Aposta GANHA se total_cards < threshold
-    if total_cards < threshold:
+    cards_home = (yellow_home or 0) + (red_home or 0)
+    cards_away = (yellow_away or 0) + (red_away or 0)
+
+    palpite_lower = palpite.lower()
+    mercado_lower = mercado.lower()
+    tc_lower = time_casa.lower()
+    tf_lower = time_fora.lower()
+
+    is_home_target = False
+    is_away_target = False
+
+    if (tc_lower and tc_lower in palpite_lower) or (tc_lower and tc_lower in mercado_lower) or 'time casa' in palpite_lower or 'time casa' in mercado_lower:
+        is_home_target = True
+    elif (tf_lower and tf_lower in palpite_lower) or (tf_lower and tf_lower in mercado_lower) or 'time fora' in palpite_lower or 'time fora' in mercado_lower:
+        is_away_target = True
+
+    if is_home_target:
+        actual_cards = cards_home
+        target_name = f"Cartões Time Casa ({time_casa})"
+        card_breakdown = f"{yellow_home or 0} Amarelos, {red_home or 0} Vermelhos"
+    elif is_away_target:
+        actual_cards = cards_away
+        target_name = f"Cartões Time Fora ({time_fora})"
+        card_breakdown = f"{yellow_away or 0} Amarelos, {red_away or 0} Vermelhos"
+    else:
+        actual_cards = total_cards
+        target_name = "Total Cartões Jogo"
+        card_breakdown = f"{yellow_home or 0}+{yellow_away or 0} Amarelos, {red_home or 0}+{red_away or 0} Vermelhos"
+
+    is_over = ('mais' in palpite_lower or 'acima' in palpite_lower or 'over' in palpite_lower)
+
+    if is_over:
+        won = (actual_cards > threshold)
+        comp = ">"
+    else:
+        won = (actual_cards < threshold)
+        comp = "<"
+
+    if won:
         payout = round(valor_aposta * odd, 2)
-        detalhe = f"FT | Total Cartões: {total_cards} ({yellow_home}+{yellow_away} Amarelos, {red_home}+{red_away} Vermelhos) < Limite {threshold} -> GANHA (Retorno R$ {payout:.2f})"
+        detalhe = f"FT | {target_name}: {actual_cards} ({card_breakdown}) {comp} Limite {threshold} -> GANHA (Retorno R$ {payout:.2f})"
         return 'Ganha', payout, detalhe
     else:
-        payout = 0.0
-        detalhe = f"FT | Total Cartões: {total_cards} ({yellow_home}+{yellow_away} Amarelos, {red_home}+{red_away} Vermelhos) >= Limite {threshold} -> PERDIDA"
+        detalhe = f"FT | {target_name}: {actual_cards} ({card_breakdown}) {comp} Limite {threshold} -> PERDIDA"
         return 'Perdida', 0.0, detalhe
 
 def processar_apostas_cartoes_encerradas():

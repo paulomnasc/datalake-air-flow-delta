@@ -1161,8 +1161,10 @@ if (!function_exists('formatBrtDate')) {
           <div class="row">
             <div class="col-6 mb-3">
               <label class="form-label text-white">Mercado de Apostas *</label>
-              <select class="form-select text-white fw-bold bg-dark border-secondary" id="mercadoTypeSelect" disabled onchange="onMercadoTypeChange(this)" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
-                <option value="Total de Cartões" selected>🟨 Total de Cartões</option>
+              <select class="form-select text-white fw-bold bg-dark border-secondary" id="mercadoTypeSelect" onchange="onMercadoTypeChange(this)" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;">
+                <option value="Total de Cartões" selected>🟨 Cartões (Partida Completa)</option>
+                <option value="Cartões - Time Casa">🟨 Cartões - Time Casa</option>
+                <option value="Cartões - Time Fora">🟨 Cartões - Time Fora</option>
                 <option value="Handicap Asiático">⚽ Handicap Asiático</option>
                 <option value="Escanteios">🚩 Escanteios</option>
                 <option value="Resultado Final (1X2)">⚽ Resultado Final (1X2)</option>
@@ -1185,8 +1187,33 @@ if (!function_exists('formatBrtDate')) {
                   <i class="bi bi-lightning-charge-fill me-1"></i>Max score reached
                 </span>
               </div>
-              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="palpiteInput" readonly required placeholder="Ex: Menos de 6.5 ou Operário-PR 0.0 (Empate Anula)" oninput="updatePalpiteExplanation()" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="palpiteInput" readonly required placeholder="Ex: Menos de 6.5 ou Time Casa - Menos de 2.5 cartões" oninput="updatePalpiteExplanation()" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
               <div id="palpiteExplanationBox" style="display:none; font-size: 0.75rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 6px 10px; margin-top: 6px; color: #e2e8f0;"></div>
+            </div>
+          </div>
+
+          <!-- Seletor de Time para o Mercado de Cartões -->
+          <div class="row mb-3" id="cardTeamTargetRow" style="display: flex;">
+            <div class="col-12">
+              <label class="form-label text-warning mb-1" style="font-size: 0.8rem; font-weight: 600;">
+                <i class="bi bi-card-amber me-1"></i>Alvo dos Cartões (Seleção Individual do Time):
+              </label>
+              <div class="btn-group w-100" role="group" aria-label="Seleção de Cartões por Time">
+                <input type="radio" class="btn-check" name="cardTeamTarget" id="cardTargetJogo" value="jogo" checked onchange="onCardTargetChange('jogo')">
+                <label class="btn btn-outline-warning btn-sm fw-bold" for="cardTargetJogo">
+                  🌐 Partida Completa (Jogo)
+                </label>
+
+                <input type="radio" class="btn-check" name="cardTeamTarget" id="cardTargetCasa" value="casa" onchange="onCardTargetChange('casa')">
+                <label class="btn btn-outline-warning btn-sm fw-bold" for="cardTargetCasa" id="cardTargetCasaLabel">
+                  🏠 Time Casa
+                </label>
+
+                <input type="radio" class="btn-check" name="cardTeamTarget" id="cardTargetFora" value="fora" onchange="onCardTargetChange('fora')">
+                <label class="btn btn-outline-warning btn-sm fw-bold" for="cardTargetFora" id="cardTargetForaLabel">
+                  ✈️ Time Fora
+                </label>
+              </div>
             </div>
           </div>
 
@@ -1487,6 +1514,53 @@ if (!function_exists('formatBrtDate')) {
     }
   }
 
+  function updateCardTargetLabels(homeTeam, awayTeam) {
+    const homeName = homeTeam || document.getElementById('timeCasaInput')?.value || 'Time Casa';
+    const awayName = awayTeam || document.getElementById('timeForaInput')?.value || 'Time Fora';
+
+    const casaLabel = document.getElementById('cardTargetCasaLabel');
+    const foraLabel = document.getElementById('cardTargetForaLabel');
+
+    if (casaLabel) casaLabel.innerHTML = `🏠 ${escapeHtml(homeName)}`;
+    if (foraLabel) foraLabel.innerHTML = `✈️ ${escapeHtml(awayName)}`;
+  }
+
+  function onCardTargetChange(target) {
+    const homeTeam = document.getElementById('timeCasaInput')?.value || 'Time Casa';
+    const awayTeam = document.getElementById('timeForaInput')?.value || 'Time Fora';
+    const inputMercado = document.getElementById('mercadoInput');
+    const mercadoSelect = document.getElementById('mercadoTypeSelect');
+    const palpiteEl = document.getElementById('palpiteInput');
+
+    updateCardTargetLabels(homeTeam, awayTeam);
+
+    if (target === 'casa') {
+      const mercVal = `Cartões - ${homeTeam}`;
+      if (inputMercado) inputMercado.value = mercVal;
+      if (mercadoSelect) mercadoSelect.value = 'Cartões - Time Casa';
+      if (palpiteEl) palpiteEl.value = `${homeTeam} - Menos de 2.5 cartões`;
+    } else if (target === 'fora') {
+      const mercVal = `Cartões - ${awayTeam}`;
+      if (inputMercado) inputMercado.value = mercVal;
+      if (mercadoSelect) mercadoSelect.value = 'Cartões - Time Fora';
+      if (palpiteEl) palpiteEl.value = `${awayTeam} - Menos de 2.5 cartões`;
+    } else {
+      if (inputMercado) inputMercado.value = 'Total de Cartões';
+      if (mercadoSelect) mercadoSelect.value = 'Total de Cartões';
+
+      const fixSelect = document.getElementById('fixtureSelect');
+      let palpiteCards = 'Menos de 6.5 cartões';
+      if (fixSelect && fixSelect.selectedIndex > 0) {
+        const opt = fixSelect.options[fixSelect.selectedIndex];
+        palpiteCards = opt.getAttribute('data-palpite-cards') || opt.getAttribute('data-palpite') || 'Menos de 6.5 cartões';
+      }
+      if (palpiteEl) palpiteEl.value = palpiteCards;
+    }
+
+    checkPalpiteEditableRule();
+    updatePalpiteExplanation();
+  }
+
   function selectFixtureOption(optData) {
     const select = document.getElementById('fixtureSelect');
     const searchInput = document.getElementById('fixtureSearchInput');
@@ -1497,11 +1571,18 @@ if (!function_exists('formatBrtDate')) {
     document.getElementById('timeCasaInput').value = optData.home;
     document.getElementById('timeForaInput').value = optData.away;
     
-    const currentMercado = document.getElementById('mercadoTypeSelect')?.value || 'Total de Cartões';
-    if (currentMercado === 'Handicap Asiático' && optData.palpiteAH) {
-      document.getElementById('palpiteInput').value = formatHandicapPalpiteJs(optData.palpiteAH, optData.home);
-    } else if (optData.palpiteCards || optData.palpite) {
-      document.getElementById('palpiteInput').value = optData.palpiteCards || optData.palpite;
+    updateCardTargetLabels(optData.home, optData.away);
+
+    const activeTarget = document.querySelector('input[name="cardTeamTarget"]:checked')?.value || 'jogo';
+    if (activeTarget !== 'jogo') {
+      onCardTargetChange(activeTarget);
+    } else {
+      const currentMercado = document.getElementById('mercadoTypeSelect')?.value || 'Total de Cartões';
+      if (currentMercado === 'Handicap Asiático' && optData.palpiteAH) {
+        document.getElementById('palpiteInput').value = formatHandicapPalpiteJs(optData.palpiteAH, optData.home);
+      } else if (optData.palpiteCards || optData.palpite) {
+        document.getElementById('palpiteInput').value = optData.palpiteCards || optData.palpite;
+      }
     }
 
     closeFixtureDropdown();
@@ -1701,15 +1782,36 @@ if (!function_exists('formatBrtDate')) {
     const inputMercado = document.getElementById('mercadoInput');
     if (inputMercado) inputMercado.value = val;
 
+    const targetRow = document.getElementById('cardTeamTargetRow');
+    const isCards = (val === 'Total de Cartões' || val.includes('Cartões') || val.includes('cartoe'));
+
+    if (targetRow) {
+      targetRow.style.display = isCards ? 'flex' : 'none';
+    }
+
+    if (val === 'Cartões - Time Casa') {
+      const r = document.getElementById('cardTargetCasa');
+      if (r) r.checked = true;
+      onCardTargetChange('casa');
+      return;
+    } else if (val === 'Cartões - Time Fora') {
+      const r = document.getElementById('cardTargetFora');
+      if (r) r.checked = true;
+      onCardTargetChange('fora');
+      return;
+    } else if (val === 'Total de Cartões') {
+      const r = document.getElementById('cardTargetJogo');
+      if (r) r.checked = true;
+      onCardTargetChange('jogo');
+      return;
+    }
+
     const fixSelect = document.getElementById('fixtureSelect');
     if (fixSelect && fixSelect.selectedIndex > 0) {
       const opt = fixSelect.options[fixSelect.selectedIndex];
       if (val === 'Handicap Asiático') {
         const palpiteAH = formatHandicapPalpiteJs(opt.getAttribute('data-palpite-ah'), opt.getAttribute('data-home'));
         if (palpiteAH) document.getElementById('palpiteInput').value = palpiteAH;
-      } else if (val === 'Total de Cartões') {
-        const palpiteCards = opt.getAttribute('data-palpite-cards');
-        if (palpiteCards) document.getElementById('palpiteInput').value = palpiteCards;
       }
     } else if (val === 'Handicap Asiático') {
       const homeTeam = document.getElementById('timeCasaInput')?.value || '';

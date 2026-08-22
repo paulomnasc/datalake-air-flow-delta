@@ -382,13 +382,13 @@ class ApostaController extends BaseController
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
-        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Estratégia Exclusiva Under 4.5+)
+        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Trava de Segurança Linha Mínima de 1.15)
         preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
         $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
 
-        if ($lineCheck < 4.5) {
+        if ($lineCheck < 1.15) {
             $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Apostas no mercado 'Total de Cartões' com linhas inferiores a 4.5 (ex: Under 3.5, 2.5) são bloqueadas pelo modelo por elevado risco.";
+            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Apostas com linhas inferiores a 1.15 são bloqueadas pelo modelo por elevado risco.";
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 

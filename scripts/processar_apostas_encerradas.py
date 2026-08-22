@@ -338,26 +338,47 @@ def evaluate_bet(aposta, stats):
             detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta PERDIDA"
             return 'Perdida', detalhe, 0.0
 
-    # 1. MERCADO: TOTAL DE CARTÕES (Ex: "Menos de 6.5", "Menos de 4.5", "Mais de 5.5")
+    # 1. MERCADO: CARTÕES (Total da partida ou por time individual)
     if 'cart' in mercado_norm or 'cart' in palpite_norm:
         match_thresh = re.search(r'(\d+(?:\.\d+)?)', palpite)
-        threshold = float(match_thresh.group(1)) if match_thresh else 6.5
+        threshold = float(match_thresh.group(1)) if match_thresh else 5.5
         
+        cards_home = (stats.get('yellow_cards_home') or 0) + (stats.get('red_cards_home') or 0)
+        cards_away = (stats.get('yellow_cards_away') or 0) + (stats.get('red_cards_away') or 0)
+
+        tc_lower = (time_casa or '').lower()
+        tf_lower = (time_fora or '').lower()
+
+        is_home_target = False
+        is_away_target = False
+
+        if (tc_lower and tc_lower in palpite_norm) or (tc_lower and tc_lower in mercado_norm) or 'time casa' in palpite_norm or 'time casa' in mercado_norm:
+            is_home_target = True
+        elif (tf_lower and tf_lower in palpite_norm) or (tf_lower and tf_lower in mercado_norm) or 'time fora' in palpite_norm or 'time fora' in mercado_norm:
+            is_away_target = True
+
+        if is_home_target:
+            actual_cards = cards_home
+            target_name = f"Cartões Time Casa ({time_casa})"
+        elif is_away_target:
+            actual_cards = cards_away
+            target_name = f"Cartões Time Fora ({time_fora})"
+        else:
+            actual_cards = total_cards
+            target_name = "Total Cartões Jogo"
+
         is_under = ('menos' in palpite_norm or 'abaixo' in palpite_norm or 'under' in palpite_norm)
         is_over  = ('mais' in palpite_norm or 'acima' in palpite_norm or 'over' in palpite_norm)
         
-        if is_under:
-            won = (total_cards < threshold)
-            comp = "<"
-        elif is_over:
-            won = (total_cards > threshold)
+        if is_over:
+            won = (actual_cards > threshold)
             comp = ">"
         else:
-            won = (total_cards < threshold)
+            won = (actual_cards < threshold)
             comp = "<"
 
         status_str = 'Ganha' if won else 'Perdida'
-        detalhe = f"FT 23:00 | Total Cartões: {total_cards} ({stats['yellow_cards_home']}C+{stats['yellow_cards_away']}F) {comp} {threshold} -> Aposta {status_str.upper()}"
+        detalhe = f"FT | {target_name}: {actual_cards} {comp} Limite {threshold} -> Aposta {status_str.upper()}"
         return status_str, detalhe, (ganhos_originais if won else 0.0)
 
     # 2. MERCADO: GOLS (Ex: "Menos de 2.5", "Mais de 2.5")

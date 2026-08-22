@@ -229,6 +229,105 @@ if (!function_exists('renderStructuredMotivation')) {
     }
 }
 
+if (!function_exists('formatStructuredPredictionText')) {
+    function formatStructuredPredictionText($predText) {
+        if (empty($predText)) {
+            return '';
+        }
+
+        $predText = trim($predText);
+
+        if (strpos($predText, 'NO_BET') !== false || (strpos($predText, 'Risco') !== false && strpos($predText, 'Estratégia') === false)) {
+            $formatted = str_replace(
+                ['Jogo com expectativa muito elevada', 'cartões', 'Nenhuma aposta recomendada'],
+                [lang('App.match_high_exp'), lang('App.cards_unit'), lang('App.no_bet_recommended')],
+                $predText
+            );
+            return '<div class="pred-text-box nobet-box" style="padding: 8px 12px; margin-bottom: 8px; background: rgba(239, 68, 68, 0.1); border-left: 3px solid #ef4444; border-radius: 6px; font-size: 0.76rem; color: #fca5a5; line-height: 1.4;">'
+                . htmlspecialchars($formatted) . '</div>';
+        }
+
+        $teamLine = '';
+        $valueLine = '';
+        $strategyLine = '';
+
+        if (strpos($predText, 'Palpite Por Time:') !== false) {
+            $parts = preg_split('/🚩?\s*Palpite Por Time:\s*/u', $predText);
+            $predText = trim($parts[0]);
+            $teamLine = trim($parts[1] ?? '');
+        }
+
+        if (strpos($predText, 'Sugestões de valor:') !== false) {
+            $parts = explode('Sugestões de valor:', $predText);
+            $strategyLine = trim($parts[0]);
+            $valueLine = trim($parts[1] ?? '');
+        } else {
+            $strategyLine = $predText;
+        }
+
+        $strategyLine = preg_replace('/^[\s🛡️]+/u', '', $strategyLine);
+        $strategyLine = str_replace(
+            ['Estratégia Under', 'Under Strategy', 'Estrategia Under'],
+            lang('App.under_strategy'),
+            $strategyLine
+        );
+        $strategyLine = str_replace(['Expectativa:', 'Expectation:'], lang('App.expectation') . ':', $strategyLine);
+        $strategyLine = str_replace(['cartões', 'cards', 'tarjetas'], lang('App.cards_unit'), $strategyLine);
+
+        if (!empty($valueLine)) {
+            $valueLine = str_replace(
+                ['1ª Opção', '1st Option', '1ª Opción'],
+                lang('App.option_1'),
+                $valueLine
+            );
+            $valueLine = str_replace(
+                ['2ª Opção', '2nd Option', '2ª Opción'],
+                lang('App.option_2'),
+                $valueLine
+            );
+            $valueLine = str_replace(
+                ['Odd Justa', 'Fair Odds', 'Cuota Justa'],
+                lang('App.fair_odd'),
+                $valueLine
+            );
+        }
+
+        if (!empty($teamLine)) {
+            $teamLine = str_replace(
+                ['Mandante Risco Elevado', 'Mandante Under', 'Visitante Risco Elevado', 'Visitante Under', 'Mandante', 'Visitante'],
+                [lang('App.home_high_risk'), lang('App.home_under'), lang('App.away_high_risk'), lang('App.away_under'), lang('App.home_label'), lang('App.away_label')],
+                $teamLine
+            );
+        }
+
+        $html = '<div class="pred-text-structured-box" style="margin-bottom: 10px; padding: 10px 12px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; font-size: 0.76rem; color: #cbd5e1; line-height: 1.55;">';
+
+        if (!empty($strategyLine)) {
+            $html .= '<div style="font-weight: 700; color: #38bdf8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">';
+            $html .= $strategyLine;
+            $html .= '</div>';
+        }
+
+        if (!empty($valueLine)) {
+            $html .= '<div style="margin-top: 6px; padding: 6px 10px; background: rgba(244, 124, 32, 0.08); border-left: 3px solid #f47c20; border-radius: 4px; margin-bottom: 6px;">';
+            $html .= '<span style="color: #f47c20; font-weight: 700;">💡 ' . lang('App.value_suggestions') . ':</span> ';
+            $html .= '<span style="color: #e2e8f0;">' . htmlspecialchars($valueLine) . '</span>';
+            $html .= '</div>';
+        }
+
+        if (!empty($teamLine)) {
+            $html .= '<div style="margin-top: 6px; padding: 6px 10px; background: rgba(167, 139, 250, 0.08); border-left: 3px solid #a78bfa; border-radius: 4px;">';
+            $html .= '<span style="color: #a78bfa; font-weight: 700;">🚩 ' . lang('App.cards_per_team') . ':</span> ';
+            $html .= '<span style="color: #e2e8f0;">' . htmlspecialchars($teamLine) . '</span>';
+            $html .= '</div>';
+        }
+
+        $html .= '</div>';
+
+        return $html;
+    }
+}
+
 // Controle de Créditos do Grok AI e Ligas Premium
 $userLoggedIn = false;
 $userGrokCredits = 0;
@@ -2434,11 +2533,11 @@ if (!function_exists('getBetDecisionTree')) {
 
                             if ($isFinished && $totalLiveCards <= 5 && $xc <= 6.50) {
                                 $prob = 100.0;
-                                $probDisplay = '100% (BATEU 🟢)';
+                                $probDisplay = '100% (' . lang('App.won_green') . ' 🟢)';
                                 $class = 'safe';
                             } elseif ($isNoBetFix || $xc > 6.50) {
                                 $prob = 0.0;
-                                $probDisplay = 'NO BET (Risco 🚫)';
+                                $probDisplay = 'NO BET (' . lang('App.risk_no_bet') . ' 🚫)';
                                 $class = 'nobet';
                             } elseif ($xc <= 3.30 && $u45 >= 75.0) {
                                 $prob = $u45;
@@ -2458,7 +2557,7 @@ if (!function_exists('getBetDecisionTree')) {
                                 $class = 'moderate';
                             } else {
                                 $prob = 0.0;
-                                $probDisplay = 'NO BET (Risco 🚫)';
+                                $probDisplay = 'NO BET (' . lang('App.risk_no_bet') . ' 🚫)';
                                 $class = 'nobet';
                             }
 
@@ -3018,9 +3117,7 @@ if (!function_exists('getBetDecisionTree')) {
                                             </div>
                                         </div>
 
-                                        <p class="bet-pred-text <?= $class ?>" style="margin-bottom: 8px;">
-                                            <?= htmlspecialchars($fix->prediction_text) ?>
-                                        </p>
+                                        <?= formatStructuredPredictionText($fix->prediction_text) ?>
 
                                         <div class="bet-decision-tree-box" style="padding: 8px 10px; background: rgba(15, 23, 42, 0.85); border-radius: 8px; border-left: 4px solid <?= $decision['box_border'] ?? '#f47c20' ?>; font-size: 0.78rem; color: #cbd5e1;">
                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">

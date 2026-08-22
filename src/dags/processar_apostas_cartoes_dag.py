@@ -51,7 +51,7 @@ default_args = {
 dag = DAG(
     'processar_apostas_cartoes_dag',
     default_args=default_args,
-    schedule_interval='30 * * * *',  # Executa a cada hora (:30) para liquidação contínua dos jogos encerrados
+    schedule_interval=None,  # DAG desativada para evitar redundância; a liquidação de cartões é realizada pelo processar_apostas_encerradas_dag
     catchup=False,
     description="DAG do Airflow que verifica jogos encerrados e liquida apostas no mercado de Cartões Under (Ganha, Perdida)",
     tags=['football', 'cartoes', 'cards_under', 'apostas', 'settlement_daily']

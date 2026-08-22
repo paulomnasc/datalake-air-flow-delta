@@ -59,9 +59,10 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
     if cursor is not None and fixture_id:
         try:
             cursor.execute("""
-                SELECT yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away, last_event 
+                SELECT yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away, last_event,
+                       cards_api_checked_at, cards_api_retry_count
                 FROM fixtures_trends 
-                WHERE fixture_id = %s AND yellow_cards_home IS NOT NULL AND yellow_cards_away IS NOT NULL
+                WHERE fixture_id = %s
                 LIMIT 1
             """, (fixture_id,))
             row = cursor.fetchone()
@@ -71,8 +72,17 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                 rh = row.get('red_cards_home', 0) or 0
                 ra = row.get('red_cards_away', 0) or 0
                 last_ev = row.get('last_event')
+                checked_at = row.get('cards_api_checked_at')
+                retry_cnt = row.get('cards_api_retry_count', 0) or 0
+
                 if (yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != ''):
                     return (yh, ya, rh, ra)
+
+                if checked_at and isinstance(checked_at, datetime):
+                    hours_since_check = (datetime.now() - checked_at).total_seconds() / 3600.0
+                    if hours_since_check < 6.0:
+                        print(f"⏳ [Cooldown API] Fixture #{fixture_id} consultada há {hours_since_check:.1f}h (tentativas: {retry_cnt}). Pulando chamada HTTP para economizar cota.")
+                        return None
             
             cursor.execute("""
                 SELECT team_id, yellow_cards, red_cards 
@@ -163,13 +173,20 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
         ra if ra is not None else 0
     )
 
-    if cursor is not None and fixture_id and api_success and home_team_id:
+    if cursor is not None and fixture_id and api_success:
         try:
-            cursor.execute("""
-                INSERT INTO match_statistics_cache (fixture_id, team_id, corners, yellow_cards, red_cards)
-                VALUES (%s, %s, 0, %s, %s)
-                ON DUPLICATE KEY UPDATE yellow_cards = VALUES(yellow_cards), red_cards = VALUES(red_cards)
-            """, (fixture_id, home_team_id, res_tuple[0], res_tuple[2]))
+            if home_team_id:
+                cursor.execute("""
+                    INSERT INTO match_statistics_cache (fixture_id, team_id, corners, yellow_cards, red_cards)
+                    VALUES (%s, %s, 0, %s, %s)
+                    ON DUPLICATE KEY UPDATE yellow_cards = VALUES(yellow_cards), red_cards = VALUES(red_cards)
+                """, (fixture_id, home_team_id, res_tuple[0], res_tuple[2]))
+
+            total_c = (res_tuple[0] + res_tuple[1] + res_tuple[2] + res_tuple[3])
+            if total_c > 0:
+                cursor.execute("UPDATE fixtures_trends SET cards_api_checked_at = NOW(), cards_api_retry_count = 0 WHERE fixture_id = %s", (fixture_id,))
+            else:
+                cursor.execute("UPDATE fixtures_trends SET cards_api_checked_at = NOW(), cards_api_retry_count = cards_api_retry_count + 1 WHERE fixture_id = %s", (fixture_id,))
         except Exception:
             pass
 

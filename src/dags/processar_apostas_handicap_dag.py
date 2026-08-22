@@ -51,7 +51,7 @@ default_args = {
 dag = DAG(
     'processar_apostas_handicap_dag',
     default_args=default_args,
-    schedule_interval='30 * * * *',  # Executa a cada hora (:30) para liquidação contínua dos jogos encerrados
+    schedule_interval=None,  # DAG desativada (fora do escopo de atuação do usuário)
     catchup=False,
     description="DAG do Airflow que verifica jogos encerrados e liquida apostas no mercado de Handicap Asiático (Ganha, Meio Ganha, ANULADA, Meio Perdida, Perdida)",
     tags=['football', 'handicap', 'apostas', 'settlement_daily']

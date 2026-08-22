@@ -339,6 +339,60 @@ $leagueMap = [
     1028 => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
 ];
 
+if (!function_exists('formatLeagueDisplayName')) {
+    function formatLeagueDisplayName($leagueId, $leagueName) {
+        $lId = (int)$leagueId;
+        $lName = trim($leagueName ?? '');
+        $lLower = strtolower($lName);
+
+        // Mapeamento por League ID oficial API-Sports
+        if ($lId === 71) return 'Brasileirão Série A';
+        if ($lId === 72) return 'Brasileirão Série B';
+        if ($lId === 75) return 'Brasileirão Série C';
+        if ($lId === 76 || $lId === 74) return 'Brasileirão Série D';
+        if ($lId === 73) return 'Copa do Brasil';
+
+        if ($lId === 135) return 'Serie A Italiana';
+        if ($lId === 136) return 'Serie B Italiana';
+        if ($lId === 137) return 'Coppa Italia';
+
+        if ($lId === 242 || $lId === 917) return 'Liga Pro (Equador)';
+        if ($lId === 239) return 'Primera A (Colômbia)';
+        if ($lId === 265) return 'Primera División (Chile)';
+        if ($lId === 268) return 'Primera División (Uruguai)';
+        if ($lId === 281) return 'Primera División (Peru)';
+        if ($lId === 501) return 'Copa Paraguay';
+        if ($lId === 128) return 'Liga Profesional Argentina';
+        if ($lId === 129) return 'Primera Nacional (Argentina)';
+        if ($lId === 130) return 'Copa Argentina';
+
+        if ($lId === 94) return 'Primeira Liga (Portugal)';
+        if ($lId === 95) return 'Segunda Liga (Portugal)';
+
+        if ($lId === 61) return 'Ligue 1 (França)';
+        if ($lId === 62) return 'Ligue 2 (França)';
+
+        if ($lId === 140) return 'La Liga (Espanha)';
+        if ($lId === 141) return 'Segunda División (Espanha)';
+
+        if ($lId === 39) return 'Premier League (Inglaterra)';
+        if ($lId === 40) return 'Championship (Inglaterra)';
+
+        // Fallbacks por nome de liga caso o ID não seja um dos acima
+        if (strpos($lLower, 'copa do brasil') !== false || strpos($lLower, 'copa brasil') !== false) {
+            return 'Copa do Brasil';
+        }
+        if (strpos($lLower, 'brasileirão') !== false || strpos($lLower, 'brasileirao') !== false) {
+            if (strpos($lLower, 'b') !== false) return 'Brasileirão Série B';
+            if (strpos($lLower, 'c') !== false) return 'Brasileirão Série C';
+            if (strpos($lLower, 'd') !== false) return 'Brasileirão Série D';
+            return 'Brasileirão Série A';
+        }
+
+        return $lName;
+    }
+}
+
 if (!function_exists('resolveLeagueCountryAndFlag')) {
     function resolveLeagueCountryAndFlag($leagueId, $leagueName, $leagueMap) {
         $lId = (int)$leagueId;
@@ -385,17 +439,15 @@ if (!function_exists('resolveLeagueCountryAndFlag')) {
             return ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => false];
         }
 
-        // 2. Checa países por palavra-chave
+        // 3. Checa países por palavra-chave exclusivas (sem ambiguidade de 'serie a/b/c/d' soltos)
         if (
-            strpos($lNameLower, 'brasil') !== false || strpos($lNameLower, 'copa do brasil') !== false ||
-            strpos($lNameLower, 'serie c') !== false || strpos($lNameLower, 'série c') !== false ||
-            strpos($lNameLower, 'serie b') !== false || strpos($lNameLower, 'série b') !== false ||
-            strpos($lNameLower, 'serie a') !== false || strpos($lNameLower, 'série a') !== false ||
-            strpos($lNameLower, 'serie d') !== false || strpos($lNameLower, 'série d') !== false ||
+            strpos($lNameLower, 'brasil') !== false || strpos($lNameLower, 'brasileirão') !== false ||
+            strpos($lNameLower, 'brasileirao') !== false || strpos($lNameLower, 'copa do brasil') !== false ||
             strpos($lNameLower, 'paulista') !== false || strpos($lNameLower, 'carioca') !== false ||
             strpos($lNameLower, 'gaúcho') !== false || strpos($lNameLower, 'gaucho') !== false ||
             strpos($lNameLower, 'mineiro') !== false || strpos($lNameLower, 'baiano') !== false ||
-            strpos($lNameLower, 'pernambucano') !== false
+            strpos($lNameLower, 'pernambucano') !== false || strpos($lNameLower, 'cearense') !== false ||
+            strpos($lNameLower, 'paranaense') !== false || strpos($lNameLower, 'catarinense') !== false
         ) {
             return ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true];
         }
@@ -510,9 +562,12 @@ $popularLeagues = [];
 
 foreach ($fixtures as $fix) {
     $leagueId = (int)($fix->league_id ?? 0);
-    $leagueName = $fix->league_name ?? '';
+    $rawLeagueName = $fix->league_name ?? '';
     
-    $leagueInfo = resolveLeagueCountryAndFlag($leagueId, $leagueName, $leagueMap);
+    $displayName = formatLeagueDisplayName($leagueId, $rawLeagueName);
+    $fix->display_league_name = $displayName;
+    
+    $leagueInfo = resolveLeagueCountryAndFlag($leagueId, $displayName, $leagueMap);
     $country = $leagueInfo['country'];
     $flag = $leagueInfo['flag'];
     $isPopular = $leagueInfo['popular'];
@@ -524,16 +579,22 @@ foreach ($fixtures as $fix) {
             'leagues' => []
         ];
     }
-    if (!in_array($leagueName, $groupedLeagues[$country]['leagues'])) {
-        $groupedLeagues[$country]['leagues'][] = $leagueName;
+    if (!in_array($displayName, $groupedLeagues[$country]['leagues'])) {
+        $groupedLeagues[$country]['leagues'][] = $displayName;
     }
     
     // Populares
-    if ($isPopular && !in_array($leagueName, $popularLeagues)) {
-        $popularLeagues[] = $leagueName;
+    if ($isPopular && !in_array($displayName, $popularLeagues)) {
+        $popularLeagues[] = $displayName;
     }
 }
-ksort($groupedLeagues); // Ordena países alfabeticamente
+ksort($groupedLeagues, SORT_NATURAL | SORT_FLAG_CASE); // Ordena países alfabeticamente
+foreach ($groupedLeagues as $cName => &$cData) {
+    sort($cData['leagues'], SORT_NATURAL | SORT_FLAG_CASE); // Ordena as ligas de cada país alfabeticamente
+}
+unset($cData);
+
+sort($popularLeagues, SORT_NATURAL | SORT_FLAG_CASE); // Ordena ligas populares alfabeticamente
 
 if (!function_exists('factorial_php')) {
     function factorial_php($n) {
@@ -2462,7 +2523,8 @@ if (!function_exists('getBetDecisionTree')) {
                             
                              $isLiveMatch = in_array(strtoupper($fix->status ?? ''), ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT']) && (!isset($diffMins) || $diffMins <= 115);
                              $statusClean = strtoupper($fix->status);
-                             $leagueInfo = resolveLeagueCountryAndFlag($fix->league_id ?? 0, $fix->league_name ?? '', $leagueMap ?? []);
+                             $displayLeague = $fix->display_league_name ?? formatLeagueDisplayName($fix->league_id ?? 0, $fix->league_name ?? '');
+                             $leagueInfo = resolveLeagueCountryAndFlag($fix->league_id ?? 0, $displayLeague, $leagueMap ?? []);
                              $cName = $leagueInfo['country'];
                              $cFlag = $leagueInfo['flag'];
 
@@ -2493,14 +2555,14 @@ if (!function_exists('getBetDecisionTree')) {
                              $isPostponedCard = in_array($statusClean, ['PST', 'CANCELLED', 'POSTPONED', 'CANC']);
                              $isFinishedCard = in_array($statusClean, $finishedStatusesList) || ($fix->goals_home !== null && !$isLiveMatch && !$isPostponedCard) || (isset($diffMins) && $diffMins > 115 && !$isPostponedCard);
                              ?>
-                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($fix->league_name, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . ($fix->league_name ?? '') . ' ' . ($fix->referee_name ?? '') . ' ' . ($fix->prediction_text ?? '') . ' ' . ($fix->ah_suggestion ?? ''), ENT_QUOTES) ?>" style="position: relative;">
+                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($displayLeague, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . $displayLeague . ' ' . ($fix->referee_name ?? '') . ' ' . ($fix->prediction_text ?? '') . ' ' . ($fix->ah_suggestion ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
                                     <div class="bet-card-header">
                                         <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; max-width: 70%;">
-                                            <span class="bet-league-badge" title="<?= htmlspecialchars((!empty($cName) ? $cName . ' - ' : '') . $fix->league_name) ?>">
-                                                <?= !empty($cFlag) ? $cFlag . ' ' : '' ?><?= !empty($cName) ? htmlspecialchars($cName) . ' • ' : '' ?><?= htmlspecialchars($fix->league_name) ?>
+                                            <span class="bet-league-badge" title="<?= htmlspecialchars((!empty($cName) ? $cName . ' - ' : '') . $displayLeague) ?>">
+                                                <?= !empty($cFlag) ? $cFlag . ' ' : '' ?><?= !empty($cName) ? htmlspecialchars($cName) . ' • ' : '' ?><?= htmlspecialchars($displayLeague) ?>
                                             </span>
                                             <?php if ($hasAposta): ?>
                                                 <a href="<?= base_url('apostas?action=edit&fixture_id=' . $fix->fixture_id) ?>" 

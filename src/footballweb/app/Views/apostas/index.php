@@ -1163,8 +1163,7 @@ if (!function_exists('formatBrtDate')) {
               <label class="form-label text-white">Mercado de Apostas *</label>
               <select class="form-select text-white fw-bold bg-dark border-secondary" id="mercadoTypeSelect" onchange="onMercadoTypeChange(this)" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;">
                 <option value="Total de Cartões" selected>🟨 Cartões (Partida Completa)</option>
-                <option value="Cartões - Time Casa">🟨 Cartões - Time Casa</option>
-                <option value="Cartões - Time Fora">🟨 Cartões - Time Fora</option>
+                <option value="Cartões - Individual">🟨 Cartões - Individual</option>
                 <option value="Handicap Asiático">⚽ Handicap Asiático</option>
                 <option value="Escanteios">🚩 Escanteios</option>
                 <option value="Resultado Final (1X2)">⚽ Resultado Final (1X2)</option>
@@ -1535,14 +1534,14 @@ if (!function_exists('formatBrtDate')) {
     updateCardTargetLabels(homeTeam, awayTeam);
 
     if (target === 'casa') {
-      const mercVal = `Cartões - ${homeTeam}`;
+      const mercVal = 'Cartões - Individual';
       if (inputMercado) inputMercado.value = mercVal;
-      if (mercadoSelect) mercadoSelect.value = 'Cartões - Time Casa';
+      if (mercadoSelect) mercadoSelect.value = 'Cartões - Individual';
       if (palpiteEl) palpiteEl.value = `${homeTeam} - Menos de 2.5 cartões`;
     } else if (target === 'fora') {
-      const mercVal = `Cartões - ${awayTeam}`;
+      const mercVal = 'Cartões - Individual';
       if (inputMercado) inputMercado.value = mercVal;
-      if (mercadoSelect) mercadoSelect.value = 'Cartões - Time Fora';
+      if (mercadoSelect) mercadoSelect.value = 'Cartões - Individual';
       if (palpiteEl) palpiteEl.value = `${awayTeam} - Menos de 2.5 cartões`;
     } else {
       if (inputMercado) inputMercado.value = 'Total de Cartões';
@@ -1789,15 +1788,12 @@ if (!function_exists('formatBrtDate')) {
       targetRow.style.display = isCards ? 'flex' : 'none';
     }
 
-    if (val === 'Cartões - Time Casa') {
-      const r = document.getElementById('cardTargetCasa');
+    if (val === 'Cartões - Individual' || val === 'Cartões - Time Casa' || val === 'Cartões - Time Fora') {
+      const activeTarget = document.querySelector('input[name="cardTeamTarget"]:checked')?.value || 'casa';
+      const targetToUse = (activeTarget === 'jogo') ? 'casa' : activeTarget;
+      const r = document.getElementById(targetToUse === 'fora' ? 'cardTargetFora' : 'cardTargetCasa');
       if (r) r.checked = true;
-      onCardTargetChange('casa');
-      return;
-    } else if (val === 'Cartões - Time Fora') {
-      const r = document.getElementById('cardTargetFora');
-      if (r) r.checked = true;
-      onCardTargetChange('fora');
+      onCardTargetChange(targetToUse);
       return;
     } else if (val === 'Total de Cartões') {
       const r = document.getElementById('cardTargetJogo');

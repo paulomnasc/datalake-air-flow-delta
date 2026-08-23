@@ -214,12 +214,16 @@ def get_all_user_ids(cursor):
 def is_allowed_league(league_id, league_name: str) -> bool:
     """
     Filtra o escopo de atuação do script de criação de apostas:
-    - Campeonatos do Brasil (Série A, Série B, Série C, Série D, Copa do Brasil, Paulistão, etc.)
+    - Campeonatos do Brasil (Série A, Série B, Copa do Brasil, Paulistão, etc. - Série C e Série D excluídas)
     - Internacional: Apenas CONMEBOL Libertadores e CONMEBOL Sudamericana.
-    - Desconsidera jogos femininos (Women / Feminino)
+    - Desconsidera jogos femininos (Women / Feminino) e jogos do Brasil Série C e Série D.
     """
     l_name_low = (league_name or '').lower().strip()
     if 'women' in l_name_low or 'feminino' in l_name_low or 'femenina' in l_name_low:
+        return False
+
+    # Exclusão explícita do Brasil Série C e Série D (por nome)
+    if any(s in l_name_low for s in ['serie c', 'série c', 'serie d', 'série d']):
         return False
 
     l_id = None
@@ -229,12 +233,14 @@ def is_allowed_league(league_id, league_name: str) -> bool:
         except (ValueError, TypeError):
             pass
 
-    # IDs Conhecidos da API-Football (Brasil & Libertadores/Sudamericana)
-    ALLOWED_LEAGUE_IDS = {71, 72, 73, 74, 75, 76, 13, 11}
+    # Exclusão explícita por ID do Brasil Série C (ID 75) e Série D (ID 76)
+    if l_id in {75, 76}:
+        return False
+
+    # IDs Conhecidos da API-Football (Brasil & Libertadores/Sudamericana) - Excluindo 75 (Série C) e 76 (Série D)
+    ALLOWED_LEAGUE_IDS = {71, 72, 73, 13, 11}
     if l_id in ALLOWED_LEAGUE_IDS:
         return True
-
-    l_name_low = (league_name or '').lower().strip()
 
     # Checagem por Nome de Liga Internacional Permitida
     if any(k in l_name_low for k in ['libertadores', 'sudamericana', 'sul-americana', 'sul americana']):
@@ -243,12 +249,12 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     # Checagem por Nome de Liga Brasileira
     brazil_keywords = [
         'brasil', 'brasileiro', 'brasileira', 'copa do brasil', 
-        'serie a', 'serie b', 'serie c', 'serie d', 
+        'serie a', 'serie b', 
         'paulista', 'carioca', 'gaúcho', 'gaucho', 'mineiro', 
         'baiano', 'pernambucano', 'cearense', 'paranaense', 'catarinense'
     ]
     if any(kw in l_name_low for kw in brazil_keywords):
-        if l_name_low in ['serie a', 'serie b', 'serie c', 'serie d'] and l_id not in {71, 72, 75, 76}:
+        if l_name_low in ['serie a', 'serie b'] and l_id not in {71, 72}:
             return False
         return True
 

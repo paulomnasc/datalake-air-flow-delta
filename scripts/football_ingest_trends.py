@@ -17,64 +17,110 @@ except Exception:
     scrape_futbol24_team_last5 = None
 
 
+def get_league_card_multiplier(league_name=""):
+    """
+    Retorna o multiplicador de expectativa de cartões (lambda_league) e o fator de sobredispersão (phi)
+    baseado na região geográfica e histórico disciplinar da liga.
+    - América do Sul e América Central (LATAM): lambda_league = 1.18x, phi = 1.28
+    - Europa (todas as ligas europeias): lambda_league = 0.82x, phi = 1.10
+    - Outras ligas / Default: lambda_league = 1.00x, phi = 1.15
+    """
+    if not league_name:
+        return 1.00, 1.15
+
+    leg_lower = str(league_name).lower().strip()
+
+    # Ligas Sul-Americanas e Centro-Americanas (LATAM)
+    latam_keywords = [
+        "brazil", "brasil", "série a", "serie a", "série b", "serie b", "série c", "serie c",
+        "chile", "primera división", "primera division", "argentina", "liga profesional", "copa de la liga",
+        "colombia", "primera a", "uruguay", "peru", "ecuador", "liga mx", "mexico", "méxico",
+        "costa rica", "honduras", "copa libertadores", "copa sudamericana", "bolivia", "paraguay", "venezuela", "guatemala"
+    ]
+    for kw in latam_keywords:
+        if kw in leg_lower:
+            return 1.18, 1.28
+
+    # Ligas Europeias (Europa)
+    europe_keywords = [
+        "premier league", "championship", "la liga", "segunda división", "segunda division",
+        "serie a (italy)", "serie a italia", "serie b", "bundesliga", "ligue 1", "ligue 2",
+        "liga portugal", "eredivisie", "champions league", "europa league", "conference league",
+        "scotland", "belgium", "pro league", "super lig", "turkey", "greece", "super league", "england", "spain", "italy", "germany", "france"
+    ]
+    for kw in europe_keywords:
+        if kw in leg_lower:
+            return 0.82, 1.10
+
+    return 1.00, 1.15
+
+
 def calculate_poisson_over_under(xc, line=4.5):
     """
     Calcula a probabilidade exata de Over e Under X.5 cartões usando Distribuição de Poisson.
     P(X <= k) = sum(e^-xc * xc^k / k!) para k de 0 até floor(line).
     """
     if xc <= 0:
-        return 0.0, 100.0
+        return 0.0, 90.0
     
     k_max = int(math.floor(line))
     prob_under_cdf = 0.0
     for k in range(k_max + 1):
         prob_under_cdf += (math.exp(-xc) * (xc ** k)) / math.factorial(k)
         
-    prob_over = max(0.0, min(100.0, (1.0 - prob_under_cdf) * 100.0))
-    prob_under = max(0.0, min(100.0, prob_under_cdf * 100.0))
+    prob_under = max(0.0, min(90.0, prob_under_cdf * 100.0))
+    prob_over = round(max(0.0, min(100.0, (1.0 - prob_under_cdf) * 100.0)), 2)
     
-    return round(prob_over, 2), round(prob_under, 2)
+    return prob_over, round(prob_under, 2)
 
 
-def calculate_poisson_under_lines(xc):
+def calculate_poisson_under_lines(xc, phi=1.20):
     """
-    Calcula as probabilidades de Under para várias linhas de cartões (3.5, 4.5, 5.5, 6.5, 7.5, 8.5) via Poisson.
-    Retorna um dicionário {linha: prob_under}.
+    Calcula as probabilidades de Under para várias linhas de cartões (3.5, 4.5, 5.5, 6.5, 7.5, 8.5)
+    aplicando Fator de Sobredispersão (phi) para achatar a curva de variância e evitar probabilidades irreais de 99%+.
+    Aplica cap máximo de 90.0% de probabilidade Under (Odd Justa Mínima = 1.11).
     """
     lines = [3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
     results = {}
     if xc <= 0:
         for l in lines:
-            results[l] = 100.0
+            results[l] = 90.0
         return results
-    
+
+    # Ajusta a intensidade Poisson considerando a variância com sobredispersão (phi)
+    effective_xc = xc * (phi ** 0.5)
+
     for l in lines:
         k_max = int(math.floor(l))
         prob_under_cdf = 0.0
         for k in range(k_max + 1):
-            prob_under_cdf += (math.exp(-xc) * (xc ** k)) / math.factorial(k)
-        results[l] = round(max(0.0, min(100.0, prob_under_cdf * 100.0)), 2)
+            prob_under_cdf += (math.exp(-effective_xc) * (effective_xc ** k)) / math.factorial(k)
         
+        prob_percent = round(max(0.0, min(90.0, prob_under_cdf * 100.0)), 2)
+        results[l] = prob_percent
+
     return results
 
-def calculate_team_poisson_under_lines(xc):
+def calculate_team_poisson_under_lines(xc, phi=1.15):
     """
-    Calcula as probabilidades de Under para várias linhas por TIME (1.5, 2.5, 3.5, 4.5) via Poisson.
+    Calcula as probabilidades de Under para várias linhas por TIME (1.5, 2.5, 3.5, 4.5) via Poisson com sobredispersão.
     Retorna um dicionário {linha: prob_under}.
     """
     lines = [1.5, 2.5, 3.5, 4.5]
     results = {}
     if xc <= 0:
         for l in lines:
-            results[l] = 100.0
+            results[l] = 90.0
         return results
-    
+
+    effective_xc = xc * (phi ** 0.5)
+
     for l in lines:
         k_max = int(math.floor(l))
         prob_under_cdf = 0.0
         for k in range(k_max + 1):
-            prob_under_cdf += (math.exp(-xc) * (xc ** k)) / math.factorial(k)
-        results[l] = round(max(0.0, min(100.0, prob_under_cdf * 100.0)), 2)
+            prob_under_cdf += (math.exp(-effective_xc) * (effective_xc ** k)) / math.factorial(k)
+        results[l] = round(max(0.0, min(90.0, prob_under_cdf * 100.0)), 2)
         
     return results
 
@@ -1673,19 +1719,24 @@ def main():
                 cursor.execute("SELECT * FROM referee_stats WHERE name = %s", (referee_name,))
                 ref_data = cursor.fetchone()
                 
-            # Gera predição combinada ponderada (50% Times, 35% Árbitro, 15% Faltas/Contexto)
+            # Obter multiplicador regional por liga (LATAM x1.18, Europa x0.82) e fator de sobredispersão (phi)
+            league_mult, phi_league = get_league_card_multiplier(league_name)
+
             rigor = ref_data["rigor_level"]
             yellows = float(ref_data["average_yellow_cards"])
             ref_fouls = float(ref_data.get("average_fouls", 24.0))
             
+            # Aplica multiplicador regional à média combinada das equipes
+            team_cards_combined_adj = team_cards_combined * league_mult
+
             # Fator de conversão e intensidade de faltas
-            foul_conversion_context = team_cards_combined * (ref_fouls / 24.0)
+            foul_conversion_context = team_cards_combined_adj * (ref_fouls / 24.0)
             
             # xC: Expected Cards
-            exp_cards = round((team_cards_combined * 0.50) + (yellows * 0.35) + (foul_conversion_context * 0.15), 2)
+            exp_cards = round((team_cards_combined_adj * 0.50) + (yellows * 0.35) + (foul_conversion_context * 0.15), 2)
             
-            # Probabilidades de Under via Distribuição de Poisson em múltiplas linhas
-            under_probs = calculate_poisson_under_lines(exp_cards)
+            # Probabilidades de Under via Distribuição de Poisson Ajustada com Sobredispersão (phi)
+            under_probs = calculate_poisson_under_lines(exp_cards, phi=phi_league)
             u35 = under_probs[3.5]
             u45 = under_probs[4.5]
             u55 = under_probs[5.5]
@@ -1703,7 +1754,10 @@ def main():
             odd_u75 = round(100.0 / u75, 2) if u75 > 0 else 99.00
             odd_u85 = round(100.0 / u85, 2) if u85 > 0 else 99.00
 
-            if exp_cards <= 3.30 and u45 >= 75.0:
+            # TRAVA RÍGIDA DE ÁRBITRO SEVERO (> 5.5 CARTÕES)
+            if yellows > 5.50:
+                prediction_text = f"🚫 NO_BET (Trava de Árbitro Severo): O árbitro {referee_name} possui média de {yellows:.2f} cartões/jogo (> 5.50). Entrada de Under bloqueada por elevado risco disciplinar e de expulsão."
+            elif exp_cards <= 3.30 and u45 >= 75.0:
                 # Cenário de Baixíssima Expectativa (Expectativa <= 3.30 cartões) -> 1ª Opção Under 4.5
                 op1 = f"Under 4.5 ({u45}% | Odd Justa: {odd_u45})"
                 op2 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"

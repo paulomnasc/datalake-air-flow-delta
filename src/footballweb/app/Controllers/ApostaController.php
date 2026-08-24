@@ -69,7 +69,7 @@ class ApostaController extends BaseController
 
         // Se não estiver logado, redireciona para login com mensagem
         if (!$access['authenticated']) {
-            session()->setFlashdata('error', 'Você precisa estar logado para acessar a gestão de apostas.');
+            session()->setFlashdata('error', 'Você precisa estar logado para acessar a gestão de simulações de apostas.');
             return redirect()->to('/loginUsuario');
         }
 
@@ -184,7 +184,7 @@ class ApostaController extends BaseController
         }
 
         $data = [
-            'title'       => 'Minhas Apostas | Gestão de Gestão de Riscos & Palpites',
+            'title'       => 'Minhas Simulações de Apostas | Gestão de Riscos & Palpites',
             'hasTokens'   => $hasTokens,
             'userCredits' => $userCredits,
             'apostas'     => $apostas,
@@ -208,7 +208,7 @@ class ApostaController extends BaseController
         if (!$access['authenticated'] || !$access['has_tokens']) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Acesso restrito: É necessário possuir tokens de consulta ativos para criar e gerenciar apostas.'
+                'message' => 'Acesso restrito: É necessário possuir tokens de consulta ativos para criar e gerenciar simulações de apostas.'
             ])->setStatusCode(403);
         }
 
@@ -234,7 +234,7 @@ class ApostaController extends BaseController
         if (empty($timeCasa) || empty($timeFora) || empty($palpite) || $odd <= 0 || $valorAposta <= 0) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Por favor, preencha corretamente os campos obrigatórios (Times, Palpite, Odd e Valor da Aposta).'
+                'message' => 'Por favor, preencha corretamente os campos obrigatórios (Times, Palpite, Odd e Valor da Simulação de Aposta).'
             ]);
         }
 
@@ -277,7 +277,7 @@ class ApostaController extends BaseController
         } elseif ($statusGatekeeper === 'NO_BET') {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => '🚫 Aposta recusada pelo Gatekeeper! ' . $gatekeeperMsg
+                'message' => '🚫 Simulação de aposta recusada pelo Gatekeeper! ' . $gatekeeperMsg
             ]);
         }
 
@@ -296,7 +296,7 @@ class ApostaController extends BaseController
         if ($recentDuplicate) {
             return $this->response->setJSON([
                 'success'           => true,
-                'message'           => 'Aposta já registrada anteriormente! ' . $gatekeeperMsg,
+                'message'           => 'Simulação de aposta já registrada anteriormente! ' . $gatekeeperMsg,
                 'id'                => $recentDuplicate->id,
                 'status_gatekeeper' => $statusGatekeeper,
                 'odd_justa'         => $oddJusta,
@@ -342,7 +342,7 @@ class ApostaController extends BaseController
         if ($newId) {
             return $this->response->setJSON([
                 'success'           => true,
-                'message'           => 'Aposta registrada! ' . $gatekeeperMsg,
+                'message'           => 'Simulação de aposta registrada! ' . $gatekeeperMsg,
                 'id'                => $newId,
                 'status_gatekeeper' => $statusGatekeeper,
                 'odd_justa'         => $oddJusta,
@@ -353,7 +353,7 @@ class ApostaController extends BaseController
 
         return $this->response->setJSON([
             'success' => false,
-            'message' => 'Erro ao salvar aposta no banco de dados.'
+            'message' => 'Erro ao salvar simulação de aposta no banco de dados.'
         ]);
     }
 
@@ -366,7 +366,7 @@ class ApostaController extends BaseController
         $probPoisson = null;
         $evPercentual = null;
         $statusGatekeeper = 'NAO_ANALISADO';
-        $gatekeeperMsg = 'Aposta sem análise de estatísticas.';
+        $gatekeeperMsg = 'Simulação de aposta sem análise de estatísticas.';
 
         $isOver = (stripos($palpite, 'over') !== false || stripos($palpite, 'mais') !== false);
         $isCartoes = (stripos($mercado, 'cartõ') !== false || stripos($mercado, 'card') !== false);
@@ -374,7 +374,7 @@ class ApostaController extends BaseController
         // AVISO DE RISCO GATEKEEPER (Estratégia Exclusiva Under / Anti-Over)
         if ($isOver || ($isCartoes && $isOver)) {
             $statusGatekeeper = 'AVISO_RISCO_OVER';
-            $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under): Apostas no mercado 'Over / Mais de' possuem elevado risco de perda e volatilidade estatística. Apenas apostas 'Under / Menos de' são recomendadas pelo modelo. Deseja prosseguir mesmo com o risco apontado?";
+            $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under): Simulações de apostas no mercado 'Over / Mais de' possuem elevado risco de perda e volatilidade estatística. Apenas apostas 'Under / Menos de' são recomendadas pelo modelo. Deseja prosseguir mesmo com o risco apontado?";
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
@@ -388,7 +388,7 @@ class ApostaController extends BaseController
 
         if ($lineCheck < 1.15) {
             $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Apostas com linhas inferiores a 1.15 são bloqueadas pelo modelo por elevado risco.";
+            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Simulações de apostas com linhas inferiores a 1.15 são bloqueadas pelo modelo por elevado risco.";
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
@@ -535,7 +535,7 @@ class ApostaController extends BaseController
         if (!$access['authenticated'] || !$access['has_tokens']) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Acesso restrito: É necessário possuir tokens de consulta para atualizar apostas.'
+                'message' => 'Acesso restrito: É necessário possuir tokens de consulta para atualizar simulações de apostas.'
             ])->setStatusCode(403);
         }
 
@@ -543,7 +543,7 @@ class ApostaController extends BaseController
         if ($apostaId <= 0) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'ID de aposta inválido.'
+                'message' => 'ID de simulação de aposta inválido.'
             ])->setStatusCode(400);
         }
 
@@ -552,7 +552,7 @@ class ApostaController extends BaseController
         if (!$aposta) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Aposta não encontrada.'
+                'message' => 'Simulação de aposta não encontrada.'
             ])->setStatusCode(404);
         }
 
@@ -560,7 +560,7 @@ class ApostaController extends BaseController
         if ((int)$aposta->usuario_id !== (int)$access['user_id'] && (int)$access['user_id'] !== 146) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Aposta não encontrada ou acesso negado.'
+                'message' => 'Simulação de aposta não encontrada ou acesso negado.'
             ])->setStatusCode(403);
         }
 
@@ -592,7 +592,7 @@ class ApostaController extends BaseController
         if (empty($timeCasa) || empty($timeFora) || empty($palpite) || $odd <= 0 || $valorAposta <= 0) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Por favor, preencha corretamente os campos obrigatórios (Times, Palpite, Odd e Valor da Aposta).'
+                'message' => 'Por favor, preencha corretamente os campos obrigatórios (Times, Palpite, Odd e Valor da Simulação de Aposta).'
             ]);
         }
 
@@ -630,7 +630,7 @@ class ApostaController extends BaseController
         } elseif ($eval['statusGatekeeper'] === 'NO_BET') {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => '🚫 Aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
+                'message' => '🚫 Simulação de aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
             ]);
         }
 
@@ -665,7 +665,7 @@ class ApostaController extends BaseController
 
             return $this->response->setJSON([
                 'success'           => true,
-                'message'           => 'Aposta atualizada com sucesso! ' . $eval['gatekeeperMsg'],
+                'message'           => 'Simulação de aposta atualizada com sucesso! ' . $eval['gatekeeperMsg'],
                 'status_gatekeeper' => $eval['statusGatekeeper'],
                 'odd_justa'         => $eval['oddJusta'],
                 'ev_percentual'     => $eval['evPercentual']
@@ -763,7 +763,7 @@ class ApostaController extends BaseController
         } elseif ($eval['statusGatekeeper'] === 'NO_BET') {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => '🚫 Reaposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
+                'message' => '🚫 Resimulação de aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
             ]);
         }
 
@@ -782,7 +782,7 @@ class ApostaController extends BaseController
         if ($recentDuplicate) {
             return $this->response->setJSON([
                 'success' => true,
-                'message' => 'Reaposta já realizada anteriormente! ' . $eval['gatekeeperMsg'],
+                'message' => 'Resimulação de aposta já realizada anteriormente! ' . $eval['gatekeeperMsg'],
                 'id'      => $recentDuplicate->id
             ]);
         }
@@ -823,7 +823,7 @@ class ApostaController extends BaseController
 
         return $this->response->setJSON([
             'success' => true,
-            'message' => 'Reaposta realizada com sucesso! ' . $eval['gatekeeperMsg'],
+            'message' => 'Resimulação de aposta realizada com sucesso! ' . $eval['gatekeeperMsg'],
             'id'      => $novoId
         ]);
     }
@@ -848,7 +848,7 @@ class ApostaController extends BaseController
         if (!$aposta || ((int)$aposta->usuario_id !== (int)$access['user_id'] && (int)$access['user_id'] !== 146)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Aposta não encontrada ou acesso negado.'
+                'message' => 'Simulação de aposta não encontrada ou acesso negado.'
             ]);
         }
 
@@ -856,7 +856,7 @@ class ApostaController extends BaseController
 
         return $this->response->setJSON([
             'success' => true,
-            'message' => 'Aposta removida com sucesso.'
+            'message' => 'Simulação de aposta removida com sucesso.'
         ]);
     }
 
@@ -887,7 +887,7 @@ class ApostaController extends BaseController
 
         return $this->response->setJSON([
             'success' => false,
-            'message' => 'Script de processamento de apostas não encontrado no servidor.'
+            'message' => 'Script de processamento de simulações de apostas não encontrado no servidor.'
         ]);
     }
 
@@ -1267,7 +1267,7 @@ class ApostaController extends BaseController
         if (empty($apostaId)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'ID da aposta não informado.'
+                'message' => 'ID da simulação de aposta não informado.'
             ]);
         }
 
@@ -1335,7 +1335,7 @@ class ApostaController extends BaseController
         if (!$aposta) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Aposta não encontrada ou não pertence ao seu usuário.'
+                'message' => 'Simulação de aposta não encontrada ou não pertence ao seu usuário.'
             ]);
         }
 
@@ -1566,7 +1566,7 @@ class ApostaController extends BaseController
         if (empty($perdas)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Nenhuma aposta perdida encontrada no período selecionado.'
+                'message' => 'Nenhuma simulação de aposta perdida encontrada no período selecionado.'
             ]);
         }
 

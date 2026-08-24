@@ -314,12 +314,12 @@
   <!-- Header Banner -->
   <div class="bet-header">
     <div class="bet-title">
-      <h1><i class="bi bi-shield-x"></i> Diagnóstico de Apostas Perdidas (IA)</h1>
+      <h1><i class="bi bi-shield-x"></i> Diagnóstico de Simulações de Apostas Perdidas (IA)</h1>
       <div class="bet-subtitle">Exame crítico dos palpites encerrados em red confrontados com a seção temática do Card e refinamento de critérios</div>
     </div>
     <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
       <a href="<?= base_url('apostas') ?>" class="btn btn-outline-light btn-sm" style="border-radius: 20px; padding: 6px 16px;">
-        <i class="bi bi-arrow-left"></i> Voltar à Gestão de Apostas
+        <i class="bi bi-arrow-left"></i> Voltar à Gestão de Simulações de Apostas
       </a>
       <span class="credit-badge" title="Seu saldo atual de créditos Groq AI">
         <i class="bi bi-cpu-fill"></i> Créditos Groq: <strong id="lbl-user-credits"><?= $credits ?></strong>
@@ -330,14 +330,14 @@
   <!-- Métricas Resumidas do Período -->
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-label">Apostas Perdidas</div>
+      <div class="stat-label">Simulações de Apostas Perdidas</div>
       <div class="stat-value danger"><?= $totPerdidas ?></div>
       <div style="font-size: 0.75rem; color: var(--bet-text-muted); margin-top: 4px;">No período de <?= date('d/m/Y', strtotime($startDate)) ?> a <?= date('d/m/Y', strtotime($endDate)) ?></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Montante Investido em Reds</div>
       <div class="stat-value gold">R$ <?= number_format($totInvestidoPerdas, 2, ',', '.') ?></div>
-      <div style="font-size: 0.75rem; color: var(--bet-text-muted); margin-top: 4px;">Soma das stakes das apostas perdedoras</div>
+      <div style="font-size: 0.75rem; color: var(--bet-text-muted); margin-top: 4px;">Soma das stakes das simulações de apostas perdedoras</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Prejuízo Efetivo Acumulado</div>
@@ -401,7 +401,7 @@
   <?php if (empty($apostasPerdidas)): ?>
     <div class="text-center py-5" style="background: var(--bet-card-bg); border-radius: 14px; border: 1px solid var(--bet-card-border);">
       <i class="bi bi-emoji-smile" style="font-size: 3rem; color: var(--bet-primary);"></i>
-      <h3 class="mt-3 text-white">Nenhuma aposta perdida encontrada neste período!</h3>
+      <h3 class="mt-3 text-white">Nenhuma simulação de aposta perdida encontrada neste período!</h3>
       <p class="text-muted">Altere o intervalo de datas acima para consultar outros períodos.</p>
     </div>
   <?php else: ?>
@@ -424,9 +424,14 @@
           <div>
             <span class="badge bg-secondary me-2"><?= htmlspecialchars($ap->league_name ?? 'Futebol') ?></span>
             <strong style="font-size: 1.05rem; color: #ffffff;"><?= htmlspecialchars($ap->time_casa) ?> x <?= htmlspecialchars($ap->time_fora) ?></strong>
-            <span style="font-size: 0.8rem; color: var(--bet-text-muted); margin-left: 10px;">
-              <i class="bi bi-calendar3 me-1"></i><?= date('d/m/Y H:i', strtotime($ap->data_hora_jogo)) ?>
+            <span style="font-size: 0.8rem; color: var(--bet-text-muted); margin-left: 10px;" title="Data e Hora da Partida">
+              <i class="bi bi-calendar3 me-1"></i>Jogo: <?= date('d/m/Y H:i', strtotime($ap->data_hora_jogo)) ?>
             </span>
+            <?php if (!empty($ap->criado_em)): ?>
+              <span style="font-size: 0.8rem; color: var(--bet-accent); margin-left: 10px;" title="Data e Hora de Criação do Registro">
+                <i class="bi bi-clock-history me-1"></i>Criado em: <?= date('d/m/Y H:i', strtotime($ap->criado_em)) ?>
+              </span>
+            <?php endif; ?>
           </div>
           <div>
             <span class="<?= ($ap->status === 'Meio Perdida') ? 'badge-status-half-red' : 'badge-status-red' ?>">
@@ -438,10 +443,10 @@
         <!-- Loss Card Body -->
         <div class="loss-card-body">
           <div class="row g-3">
-            <!-- Coluna 1: Dados da Aposta Efetuada -->
+            <!-- Coluna 1: Dados da Simulação de Aposta Efetuada -->
             <div class="col-md-5" style="border-right: 1px solid var(--bet-card-border);">
               <h6 style="color: var(--bet-gold); font-size: 0.85rem; text-transform: uppercase; font-weight: 700;">
-                <i class="bi bi-ticket-perforated-fill me-1"></i> Aposta Efetuada
+                <i class="bi bi-ticket-perforated-fill me-1"></i> Simulação de Aposta Efetuada
               </h6>
               <div style="background: rgba(30, 41, 59, 0.5); padding: 12px; border-radius: 8px; font-size: 0.85rem;">
                 <div class="d-flex justify-content-between mb-1">
@@ -449,15 +454,15 @@
                   <strong class="text-white"><?= htmlspecialchars($ap->mercado) ?></strong>
                 </div>
                 <div class="d-flex justify-content-between mb-1">
-                  <span class="text-muted">Palpite Apostado:</span>
+                  <span class="text-muted">Palpite Simulado:</span>
                   <strong style="color: var(--bet-accent); font-size: 0.95rem;"><?= htmlspecialchars($ap->palpite) ?></strong>
                 </div>
                 <div class="d-flex justify-content-between mb-1">
-                  <span class="text-muted">Odd Apostada:</span>
+                  <span class="text-muted">Odd Simulada:</span>
                   <span class="badge bg-dark text-warning font-monospace"><?= number_format($ap->odd, 2) ?></span>
                 </div>
                 <div class="d-flex justify-content-between mb-1">
-                  <span class="text-muted">Valor Apostado:</span>
+                  <span class="text-muted">Valor Simulado:</span>
                   <span class="text-white font-weight-bold">R$ <?= number_format($ap->valor_aposta, 2, ',', '.') ?></span>
                 </div>
                 <?php if (!empty($ap->resultado_detalhado)): ?>

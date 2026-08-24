@@ -345,6 +345,11 @@ if (!function_exists('formatBrtDate')) {
     gap: 4px;
     min-width: 200px;
   }
+  .bets-grid.list-view .match-time {
+    align-items: flex-start !important;
+    text-align: left !important;
+    margin-left: 0 !important;
+  }
   .bets-grid.list-view .bet-card-body {
     padding: 0;
     flex: 1;
@@ -409,8 +414,9 @@ if (!function_exists('formatBrtDate')) {
     font-size: 0.8rem;
     color: var(--bet-text-muted);
     display: flex;
-    align-items: center;
-    gap: 4px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
   }
 
   .bet-card-body {
@@ -709,9 +715,9 @@ if (!function_exists('formatBrtDate')) {
       <div class="lock-icon-circle">
         <i class="bi bi-lock-fill"></i>
       </div>
-      <h2>Acesso Restrito a Gestão de Apostas</h2>
+      <h2>Acesso Restrito a Gestão de Simulações de Apostas</h2>
       <p>
-        A persistência e o acompanhamento de apostas na plataforma são recursos exclusivos para usuários que possuem <strong>Tokens de Consulta</strong> ativos.
+        A persistência e o acompanhamento de simulações de apostas na plataforma são recursos exclusivos para usuários que possuem <strong>Tokens de Consulta</strong> ativos.
         <br><br>
         Seu saldo atual: <strong class="text-danger">0 Tokens</strong>. Recarreague agora mesmo para liberar o painel completo de palpites e acompanhamento.
       </p>
@@ -727,8 +733,8 @@ if (!function_exists('formatBrtDate')) {
   <!-- Header -->
   <div class="bet-header">
     <div class="bet-title">
-      <h1><i class="bi bi-ticket-detailed-fill"></i> Minhas Apostas</h1>
-      <div class="bet-subtitle">Gerencie e persista suas apostas, odds, retornos potenciais e controle de cash out.</div>
+      <h1><i class="bi bi-ticket-detailed-fill"></i> Minhas Simulações de Apostas</h1>
+      <div class="bet-subtitle">Gerencie e persista suas simulações de apostas, odds, retornos potenciais e controle de cash out.</div>
     </div>
     <div>
       <?php if ($hasTokens): ?>
@@ -751,7 +757,7 @@ if (!function_exists('formatBrtDate')) {
       </div>
       <div>
         <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">Processamento Automático Diário (Airflow DAG - 23:00 hs)</div>
-        <div style="font-size: 0.82rem; color: var(--bet-text-muted);">As apostas dos jogos encerrados do dia são auditadas e liquidadas automaticamente todas as noites às 23:00 hs.</div>
+        <div style="font-size: 0.82rem; color: var(--bet-text-muted);">As simulações de apostas dos jogos encerrados do dia são auditadas e liquidadas automaticamente todas as noites às 23:00 hs.</div>
       </div>
     </div>
     <button class="btn btn-sm btn-outline-info rounded-pill px-3 fw-bold d-flex align-items-center gap-2" onclick="triggerProcessarDAG()">
@@ -762,7 +768,7 @@ if (!function_exists('formatBrtDate')) {
   <!-- Cards Resumo Stats -->
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-cash-stack"></i> Total Apostado</div>
+      <div class="stat-label"><i class="bi bi-cash-stack"></i> Total Apostado (Simulado)</div>
       <div class="stat-value" id="topTotalApostado">R$ <?= number_format($resumo['total_apostado'] ?? 0, 2, ',', '.') ?></div>
     </div>
 
@@ -780,7 +786,7 @@ if (!function_exists('formatBrtDate')) {
     </div>
 
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-list-check"></i> Total de Apostas</div>
+      <div class="stat-label"><i class="bi bi-list-check"></i> Total de Simulações de Apostas</div>
       <div class="stat-value gold" id="topTotalApostas"><?= $resumo['total_apostas'] ?? 0 ?></div>
     </div>
   </div>
@@ -812,7 +818,7 @@ if (!function_exists('formatBrtDate')) {
         <button class="filter-btn" id="btnFilterCashout" onclick="filterBets('Cashout', this)"><?= $calcPctBadge('Cashout', $resumo['cashouts'] ?? 0) ?></button>
       </div>
 
-      <!-- Filtro por Mercado de Apostas -->
+      <!-- Filtro por Mercado de Simulações de Apostas -->
       <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;">
         <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-shop text-primary"></i> Mercado:</span>
         <select id="betMarketFilterSelect" class="form-select form-select-sm bg-dark text-white border-secondary fw-semibold" onchange="applyBetFilters()" style="width: auto; cursor: pointer; min-width: 180px;">
@@ -844,31 +850,31 @@ if (!function_exists('formatBrtDate')) {
 
       <!-- Resumo Financeiro Calculado (Filtro por Período / Seleção) -->
       <div id="calculatedSummaryWidget" class="d-flex align-items-center gap-3 bg-dark px-3 py-1.5 rounded-3 border border-secondary flex-wrap" style="font-size: 0.82rem; background: rgba(15, 23, 42, 0.9) !important; border-color: rgba(56, 189, 248, 0.35) !important;">
-        <div class="d-flex align-items-center gap-1" title="Soma do valor investido nas apostas do período/filtro">
+        <div class="d-flex align-items-center gap-1" title="Soma do valor investido nas simulações de apostas do período/filtro">
           <i class="bi bi-cash-coin text-warning"></i>
-          <span class="text-light-50">Total Apostado:</span>
+          <span class="text-light-50">Total Apostado (Simulado):</span>
           <strong id="calcTotalApostado" class="text-white">R$ 0,00</strong>
         </div>
 
-        <div class="d-flex align-items-center gap-1" title="Soma dos ganhos em apostas vencidas ou cashouts (Retorno Bruto)">
+        <div class="d-flex align-items-center gap-1" title="Soma dos ganhos em simulações de apostas vencidas ou cashouts (Retorno Bruto)">
           <i class="bi bi-graph-up-arrow text-success"></i>
           <span class="text-light-50">Total Ganho:</span>
           <strong id="calcTotalGanho" class="text-success">R$ 0,00</strong>
         </div>
 
-        <div class="d-flex align-items-center gap-1" title="Soma do ganho obtido sobre as odds ((Aposta × Odd) - Aposta)">
+        <div class="d-flex align-items-center gap-1" title="Soma do ganho obtido sobre as odds ((Simulação × Odd) - Simulação)">
           <i class="bi bi-piggy-bank-fill" style="color: #00e676;"></i>
           <span class="text-light-50">Ganho Odds:</span>
           <strong id="calcTotalLucro" style="color: #00e676; font-weight: 700;">R$ 0,00</strong>
         </div>
 
-        <div class="d-flex align-items-center gap-1" title="Soma dos valores perdidos nas apostas do período/filtro">
+        <div class="d-flex align-items-center gap-1" title="Soma dos valores perdidos nas simulações de apostas do período/filtro">
           <i class="bi bi-graph-down-arrow text-danger"></i>
           <span class="text-light-50">Total Perda:</span>
           <strong id="calcTotalPerda" class="text-danger">R$ 0,00</strong>
         </div>
 
-        <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: Saldo Líquido = Total Retorno Bruto - Total Apostado (Apostas Liquidadas)">
+        <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: Saldo Líquido = Total Retorno Bruto - Total Apostado (Simulações Liquidadas)">
           <i class="bi bi-calculator text-info"></i>
           <span class="text-light-50">Saldo Líquido:</span>
           <strong id="calcSaldoLiquido" class="text-info fw-bold">R$ 0,00</strong>
@@ -889,7 +895,7 @@ if (!function_exists('formatBrtDate')) {
 
       <div class="search-box">
         <i class="bi bi-search"></i>
-        <input type="text" id="betSearchInput" placeholder="Buscar aposta..." onkeyup="applyBetFilters()">
+        <input type="text" id="betSearchInput" placeholder="Buscar simulação de aposta..." onkeyup="applyBetFilters()">
       </div>
       
       <a href="<?= base_url('apostas/relatorio-top5') ?>" target="_blank" class="btn btn-outline-warning rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;">
@@ -905,7 +911,7 @@ if (!function_exists('formatBrtDate')) {
       </a>
 
       <button class="btn-new-bet" data-bs-toggle="modal" data-bs-target="#newBetModal">
-        <i class="bi bi-plus-lg"></i> Nova Aposta
+        <i class="bi bi-plus-lg"></i> Nova Simulação de Aposta
       </button>
     </div>
   </div>
@@ -915,8 +921,8 @@ if (!function_exists('formatBrtDate')) {
     <?php if (empty($apostas)): ?>
       <div class="w-100 text-center py-5" style="grid-column: 1 / -1; color: var(--bet-text-muted);">
         <i class="bi bi-inbox" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
-        <h5>Nenhuma aposta cadastrada ainda.</h5>
-        <p>Clique no botão <strong>Nova Aposta</strong> acima para adicionar seu primeiro palpite.</p>
+        <h5>Nenhuma simulação de aposta cadastrada ainda.</h5>
+        <p>Clique no botão <strong>Nova Simulação de Aposta</strong> acima para adicionar seu primeiro palpite.</p>
       </div>
     <?php else: ?>
       <?php foreach ($apostas as $aposta): ?>
@@ -924,6 +930,7 @@ if (!function_exists('formatBrtDate')) {
           $itemDate = !empty($aposta->data_brt_dia) ? $aposta->data_brt_dia : (!empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'Y-m-d') : formatBrtDate($aposta->criado_em, 'Y-m-d'));
           $itemCreatedDate = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'Y-m-d') : $itemDate;
           $displayMatchTime = !empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'd/m \à\s H:i') : 'Hoje';
+          $displayCreatedTime = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'd/m/Y \à\s H:i') : null;
         ?>
         <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
           
@@ -946,8 +953,8 @@ if (!function_exists('formatBrtDate')) {
                 </span>
               <?php endif; ?>
 
-              <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Aposta cadastrada e vinculada">
-                🂠 Aposta Registrada
+              <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Simulação de aposta cadastrada e vinculada">
+                🂠 Simulação de Aposta Registrada
               </span>
               <?php if (!empty($aposta->fixture_id)): ?>
                 <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
@@ -958,9 +965,15 @@ if (!function_exists('formatBrtDate')) {
                 </a>
               <?php endif; ?>
             </div>
-            <div class="match-time">
-              <i class="bi bi-clock"></i>
-              <?= $displayMatchTime ?>
+            <div class="match-time flex-shrink-0 d-flex flex-column align-items-end text-end ms-auto" style="font-size: 0.78rem; gap: 2px;">
+              <div title="Data e Hora da Partida" style="color: var(--bet-text-muted);">
+                <i class="bi bi-calendar-event me-1"></i> Jogo: <strong><?= $displayMatchTime ?></strong>
+              </div>
+              <?php if (!empty($displayCreatedTime)): ?>
+                <div title="Data e Hora de Criação do Registro de Simulação" style="color: var(--bet-accent); font-weight: 500;">
+                  <i class="bi bi-clock-history me-1"></i> Criado: <strong><?= $displayCreatedTime ?></strong>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
 
@@ -975,7 +988,7 @@ if (!function_exists('formatBrtDate')) {
 
             <div class="values-grid">
               <div class="val-box">
-                <div class="val-title">Aposta</div>
+                <div class="val-title">Simulação de Aposta</div>
                 <div class="val-amount">R$ <?= number_format($aposta->valor_aposta, 2, ',', '.') ?></div>
               </div>
               <div class="val-box highlight">
@@ -998,11 +1011,18 @@ if (!function_exists('formatBrtDate')) {
               </div>
             <?php endif; ?>
 
-            <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <span class="status-tag status-<?= str_replace(' ', '-', $aposta->status) ?>"><?= $aposta->status ?></span>
-              <span style="font-size: 0.8rem; color: var(--bet-text-muted); font-weight: 600; text-transform: uppercase;">
-                Tipo: <?= htmlspecialchars($aposta->tipo) ?>
-              </span>
+              <div class="d-flex align-items-center gap-3 flex-wrap">
+                <span style="font-size: 0.8rem; color: var(--bet-text-muted); font-weight: 600; text-transform: uppercase;">
+                  Tipo: <?= htmlspecialchars($aposta->tipo) ?>
+                </span>
+                <?php if (!empty($displayCreatedTime)): ?>
+                  <span style="font-size: 0.78rem; color: var(--bet-accent); font-weight: 500;" title="Data e Hora de Criação do Registro de Simulação">
+                    <i class="bi bi-clock-history me-1"></i> Criado em: <?= $displayCreatedTime ?>
+                  </span>
+                <?php endif; ?>
+              </div>
             </div>
 
             <?php if (!empty($aposta->status_gatekeeper) && $aposta->status_gatekeeper !== 'NAO_ANALISADO'): ?>
@@ -1037,7 +1057,7 @@ if (!function_exists('formatBrtDate')) {
               <button class="btn-cashout" onclick="handleCashout(<?= $aposta->id ?>, <?= $aposta->cash_out ?? $aposta->valor_aposta ?>)">
                 CASH OUT R$ <?= number_format($aposta->cash_out ?? $aposta->valor_aposta, 2, ',', '.') ?>
               </button>
-              <button class="btn-reapostar" onclick="handleReapostar(<?= $aposta->id ?>)" title="Duplicar Aposta">
+              <button class="btn-reapostar" onclick="handleReapostar(<?= $aposta->id ?>)" title="Duplicar Simulação de Aposta">
                 <i class="bi bi-arrow-repeat"></i> Reapostar
               </button>
             </div>
@@ -1046,7 +1066,7 @@ if (!function_exists('formatBrtDate')) {
               <?php if (!empty($aposta->fixture_id)): ?>
                 <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
                    class="btn-icon-link text-warning fw-semibold text-decoration-none" 
-                   title="Ver Card de Origem da Aposta no Dashboard">
+                   title="Ver Card de Origem da Simulação de Aposta no Dashboard">
                   <i class="bi bi-box-arrow-up-right me-1"></i> Card Origem
                 </a>
               <?php else: ?>
@@ -1073,10 +1093,10 @@ if (!function_exists('formatBrtDate')) {
                         data-tipo="<?= htmlspecialchars($aposta->tipo ?? 'Simples', ENT_QUOTES, 'UTF-8') ?>" 
                         data-status="<?= htmlspecialchars($aposta->status ?? 'Pendente', ENT_QUOTES, 'UTF-8') ?>" 
                         onclick="handleOpenEditModal(this)" 
-                        title="Editar Aposta">
+                        title="Editar Simulação de Aposta">
                   <i class="bi bi-pencil"></i> Editar
                 </button>
-                <button class="btn-icon-link danger" onclick="handleDelete(<?= $aposta->id ?>)" title="Excluir Aposta">
+                <button class="btn-icon-link danger" onclick="handleDelete(<?= $aposta->id ?>)" title="Excluir Simulação de Aposta">
                   <i class="bi bi-trash"></i> Excluir
                 </button>
               </div>
@@ -1095,7 +1115,7 @@ if (!function_exists('formatBrtDate')) {
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title font-weight-bold" style="font-family: 'Outfit', sans-serif;"><i class="bi bi-plus-circle text-success me-2"></i> Adicionar Nova Aposta</h5>
+        <h5 class="modal-title font-weight-bold" style="font-family: 'Outfit', sans-serif;"><i class="bi bi-plus-circle text-success me-2"></i> Adicionar Nova Simulação de Aposta</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form id="newBetForm" onsubmit="submitNewBet(event)">
@@ -1109,7 +1129,7 @@ if (!function_exists('formatBrtDate')) {
               <div style="font-size: 0.82rem; color: #fca5a5; line-height: 1.45;">
                 Esta partida foi classificada como <strong style="color: #ffffff;">Sem Entrada (Abstenção)</strong> pela inteligência estatística por ausência de dados seguros de gols/xG.<br>
                 <span style="color: #ef4444; font-weight: 800; text-transform: uppercase; display: block; margin-top: 6px; font-size: 0.82rem; letter-spacing: 0.3px;">
-                  💡 GESTÃO DE RISCO: Para proteger sua banca, a criação de apostas no mercado de Handicap Asiático para este jogo está desabilitada pela automação.
+                  💡 GESTÃO DE RISCO: Para proteger sua banca, a criação de simulações de apostas no mercado de Handicap Asiático para este jogo está desabilitada pela automação.
                 </span>
               </div>
             </div>
@@ -1160,7 +1180,7 @@ if (!function_exists('formatBrtDate')) {
 
           <div class="row">
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Mercado de Apostas *</label>
+              <label class="form-label text-white">Mercado de Simulação de Aposta *</label>
               <select class="form-select text-white fw-bold bg-dark border-secondary" id="mercadoTypeSelect" onchange="onMercadoTypeChange(this)" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;">
                 <option value="Total de Cartões" selected>🟨 Cartões (Partida Completa)</option>
                 <option value="Cartões - Individual">🟨 Cartões - Individual</option>
@@ -1222,7 +1242,7 @@ if (!function_exists('formatBrtDate')) {
               <input type="number" step="0.01" min="1.01" class="form-control" id="oddInput" required placeholder="1.50" oninput="calcGanhos()">
             </div>
             <div class="col-4 mb-3">
-              <label class="form-label text-white">Valor Aposta (R$) *</label>
+              <label class="form-label text-white">Valor Simulação de Aposta (R$) *</label>
               <input type="number" step="0.01" class="form-control" id="valorInput" required placeholder="10.00" value="10.00" oninput="calcGanhos()">
             </div>
             <div class="col-4 mb-3">
@@ -1241,7 +1261,7 @@ if (!function_exists('formatBrtDate')) {
               <select class="form-select" id="tipoSelect">
                 <option value="Simples" selected>Simples</option>
                 <option value="Múltipla">Múltipla</option>
-                <option value="Criar Aposta">Criar Aposta</option>
+                <option value="Criar Aposta">Criar Simulação de Aposta</option>
               </select>
             </div>
             <div class="col-4 mb-3">
@@ -1261,7 +1281,7 @@ if (!function_exists('formatBrtDate')) {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-success fw-bold px-4">Salvar Aposta</button>
+          <button type="submit" class="btn btn-success fw-bold px-4">Salvar Simulação de Aposta</button>
         </div>
       </form>
     </div>
@@ -1273,7 +1293,7 @@ if (!function_exists('formatBrtDate')) {
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title font-weight-bold" style="font-family: 'Outfit', sans-serif;"><i class="bi bi-pencil-square text-info me-2"></i> Editar Aposta</h5>
+        <h5 class="modal-title font-weight-bold" style="font-family: 'Outfit', sans-serif;"><i class="bi bi-pencil-square text-info me-2"></i> Editar Simulação de Aposta</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form id="editBetForm" onsubmit="submitEditBet(event)">
@@ -1316,7 +1336,7 @@ if (!function_exists('formatBrtDate')) {
               <input type="number" step="0.01" min="1.01" class="form-control" id="editOddInput" required oninput="calcEditGanhos()">
             </div>
             <div class="col-4 mb-3">
-              <label class="form-label text-white">Valor Aposta (R$) *</label>
+              <label class="form-label text-white">Valor Simulação de Aposta (R$) *</label>
               <input type="number" step="0.01" class="form-control" id="editValorInput" required oninput="calcEditGanhos()">
             </div>
             <div class="col-4 mb-3">
@@ -1335,7 +1355,7 @@ if (!function_exists('formatBrtDate')) {
               <select class="form-select" id="editTipoSelect">
                 <option value="Simples">Simples</option>
                 <option value="Múltipla">Múltipla</option>
-                <option value="Criar Aposta">Criar Aposta</option>
+                <option value="Criar Aposta">Criar Simulação de Aposta</option>
               </select>
             </div>
             <div class="col-4 mb-3">
@@ -1355,7 +1375,7 @@ if (!function_exists('formatBrtDate')) {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-info fw-bold px-4 text-white">Atualizar Aposta</button>
+          <button type="submit" class="btn btn-info fw-bold px-4 text-white">Atualizar Simulação de Aposta</button>
         </div>
       </form>
     </div>

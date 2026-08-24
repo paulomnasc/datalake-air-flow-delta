@@ -2411,7 +2411,7 @@ if (!function_exists('getBetDecisionTree')) {
                                         <?= !empty($onlySurebet) ? lang('App.yes') : lang('App.no') ?>
                                     </span>
                                 </div>
-                                 <div class="d-flex align-items-center gap-2" style="background: rgba(192, 132, 252, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(192, 132, 252, 0.3);" title="Exibir apenas partidas que possuem apostas cadastradas">
+                                 <div class="d-flex align-items-center gap-2" style="background: rgba(192, 132, 252, 0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(192, 132, 252, 0.3);" title="Exibir apenas partidas que possuem simulações de apostas cadastradas">
                                     <span class="bet-toggle-label" style="font-size: 0.85rem; color: #c084fc; font-weight: 600;">
                                         🃏 <?= lang('App.with_bets') ?>
                                     </span>

@@ -445,7 +445,7 @@
         <i class="bi bi-printer-fill"></i> Imprimir / Exportar PDF
       </button>
       <a href="<?= base_url('apostas') ?>" class="btn-report-action">
-        <i class="bi bi-arrow-left"></i> Minhas Apostas
+        <i class="bi bi-arrow-left"></i> Minhas Simulações de Apostas
       </a>
     </div>
   </div>
@@ -532,7 +532,7 @@
         <i class="bi bi-check-circle-fill"></i>
       </div>
       <div>
-        <div class="summary-label">Apostas Encerradas</div>
+        <div class="summary-label">Simulações de Apostas Encerradas</div>
         <div class="summary-value"><?= $statSummary['total_ganhas'] ?? 0 ?>G / <?= $statSummary['total_perdidas'] ?? 0 ?>P (<?= $statSummary['total_encerradas'] ?? 0 ?>)</div>
       </div>
     </div>
@@ -630,7 +630,7 @@
                   <?= number_format($statSummary['gk_odd_media_vencedora'] ?? 1.69, 2) ?>
                 </div>
                 <div class="text-white" style="font-size: 0.78rem; line-height: 1.35; color: #ffffff !important;">
-                  <strong class="text-white">O que significa:</strong> Odd média real de todas as apostas vencedoras (Green) registradas no histórico geral (Cartões e Handicap Asiático).
+                  <strong class="text-white">O que significa:</strong> Odd média real de todas as simulações de apostas vencedoras (Green) registradas no histórico geral (Cartões e Handicap Asiático).
                 </div>
               </div>
             </div>
@@ -698,7 +698,7 @@
 
       <div class="col-md-3 col-sm-6">
         <div class="metric-pill-box">
-          <div class="metric-pill-label">Stake Média por Aposta</div>
+          <div class="metric-pill-label">Stake Média por Simulação de Aposta</div>
           <div class="metric-pill-value text-white">
             R$ <?= number_format($statSummary['stake_media'] ?? 0, 2, ',', '.') ?>
           </div>
@@ -716,7 +716,7 @@
           <i class="bi bi-rocket-takeoff-fill text-primary me-2"></i> Lucro Acumulado Projetado (+EV Futuro)
         </div>
         <div class="text-muted small">
-          Lucro esperado por aposta: <strong class="<?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? 'text-success' : 'text-danger' ?>">
+          Lucro esperado por simulação de aposta: <strong class="<?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? 'text-success' : 'text-danger' ?>">
             <?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format(($statSummary['stake_media'] ?? 0) * (($statSummary['roi_percentual'] ?? 0) / 100), 2, ',', '.') ?>
           </strong>
         </div>
@@ -725,7 +725,7 @@
       <div class="row g-3">
         <div class="col-md-4">
           <div class="projection-card <?= ($statSummary['projecao_100'] ?? 0) < 0 ? 'negative' : '' ?>">
-            <div class="projection-volume"><i class="bi bi-layers-fill me-1"></i> Próximas 100 Apostas</div>
+            <div class="projection-volume"><i class="bi bi-layers-fill me-1"></i> Próximas 100 Simulações de Apostas</div>
             <div class="projection-value" style="color: <?= ($statSummary['projecao_100'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
               <?= ($statSummary['projecao_100'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format($statSummary['projecao_100'] ?? 0, 2, ',', '.') ?>
             </div>
@@ -734,7 +734,7 @@
 
         <div class="col-md-4">
           <div class="projection-card <?= ($statSummary['projecao_500'] ?? 0) < 0 ? 'negative' : '' ?>">
-            <div class="projection-volume"><i class="bi bi-stack me-1"></i> Próximas 500 Apostas</div>
+            <div class="projection-volume"><i class="bi bi-stack me-1"></i> Próximas 500 Simulações de Apostas</div>
             <div class="projection-value" style="color: <?= ($statSummary['projecao_500'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
               <?= ($statSummary['projecao_500'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format($statSummary['projecao_500'] ?? 0, 2, ',', '.') ?>
             </div>
@@ -743,7 +743,7 @@
 
         <div class="col-md-4">
           <div class="projection-card <?= ($statSummary['projecao_1000'] ?? 0) < 0 ? 'negative' : '' ?>">
-            <div class="projection-volume"><i class="bi bi-award-fill me-1"></i> Próximas 1.000 Apostas</div>
+            <div class="projection-volume"><i class="bi bi-award-fill me-1"></i> Próximas 1.000 Simulações de Apostas</div>
             <div class="projection-value" style="color: <?= ($statSummary['projecao_1000'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
               <?= ($statSummary['projecao_1000'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format($statSummary['projecao_1000'] ?? 0, 2, ',', '.') ?>
             </div>
@@ -761,7 +761,7 @@
 
     <?php if (empty($top5Usuario)): ?>
       <div class="rank-card text-center py-4 text-muted w-100">
-        <i class="bi bi-info-circle me-2"></i> Você ainda não possui apostas com status <strong>Ganha</strong> para compor seu ranking pessoal.
+        <i class="bi bi-info-circle me-2"></i> Você ainda não possui simulações de apostas com status <strong>Ganha</strong> para compor seu ranking pessoal.
       </div>
     <?php else: ?>
       <?php foreach ($top5Usuario as $index => $item): ?>
@@ -834,7 +834,7 @@
 
     <?php if (empty($top5Geral)): ?>
       <div class="rank-card text-center py-4 text-muted w-100">
-        <i class="bi bi-info-circle me-2"></i> Nenhuma aposta ganha registrada na plataforma até o momento.
+        <i class="bi bi-info-circle me-2"></i> Nenhuma simulação de aposta ganha registrada na plataforma até o momento.
       </div>
     <?php else: ?>
       <?php foreach ($top5Geral as $index => $item): ?>
@@ -952,7 +952,7 @@ function setPeriodMonth() {
             <i class="bi bi-graph-up me-1"></i> 1. ROI / Yield Aferido
           </h6>
           <p class="small text-muted mb-2">
-            Mede a rentabilidade real obtida sobre todo o capital investido nas apostas encerradas do período filtrado.
+            Mede a rentabilidade real obtida sobre todo o capital investido nas simulações de apostas encerradas do período filtrado.
           </p>
           <div class="p-2 rounded bg-dark border border-secondary text-center font-monospace small mb-2 text-info">
             ROI (%) = (Lucro Líquido / Total Investido) × 100
@@ -1002,7 +1002,7 @@ function setPeriodMonth() {
             <i class="bi bi-rocket-takeoff-fill me-1"></i> 4. Projeções de Longo Prazo (+EV)
           </h6>
           <p class="small text-muted mb-2">
-            Estima o acumulado financeiro futuro em 100, 500 e 1.000 apostas com base no Lucro Esperado por Aposta (<em>Stake Média × ROI / 100</em>).
+            Estima o acumulado financeiro futuro em 100, 500 e 1.000 simulações de apostas com base no Lucro Esperado por Simulação de Aposta (<em>Stake Média × ROI / 100</em>).
           </p>
         </div>
 

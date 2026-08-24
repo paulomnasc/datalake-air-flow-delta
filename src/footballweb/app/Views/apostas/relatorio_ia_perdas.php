@@ -314,12 +314,12 @@
   <!-- Header Banner -->
   <div class="bet-header">
     <div class="bet-title">
-      <h1><i class="bi bi-shield-x"></i> Diagnóstico de Simulações de Apostas Perdidas (IA)</h1>
-      <div class="bet-subtitle">Exame crítico dos palpites encerrados em red confrontados com a seção temática do Card e refinamento de critérios</div>
+      <h1><i class="bi bi-shield-x"></i> <?= lang('App.ia_loss_diagnosis_title') ?></h1>
+      <div class="bet-subtitle"><?= lang('App.ia_loss_subtitle') ?></div>
     </div>
     <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
       <a href="<?= base_url('apostas') ?>" class="btn btn-outline-light btn-sm" style="border-radius: 20px; padding: 6px 16px;">
-        <i class="bi bi-arrow-left"></i> Voltar à Gestão de Simulações de Apostas
+        <i class="bi bi-arrow-left"></i> <?= lang('App.back_to_my_bets') ?>
       </a>
       <span class="credit-badge" title="Seu saldo atual de créditos Groq AI">
         <i class="bi bi-cpu-fill"></i> Créditos Groq: <strong id="lbl-user-credits"><?= $credits ?></strong>
@@ -330,22 +330,22 @@
   <!-- Métricas Resumidas do Período -->
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-label">Simulações de Apostas Perdidas</div>
+      <div class="stat-label"><?= lang('App.lost_bet_simulations') ?></div>
       <div class="stat-value danger"><?= $totPerdidas ?></div>
       <div style="font-size: 0.75rem; color: var(--bet-text-muted); margin-top: 4px;">No período de <?= date('d/m/Y', strtotime($startDate)) ?> a <?= date('d/m/Y', strtotime($endDate)) ?></div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Montante Investido em Reds</div>
+      <div class="stat-label"><?= lang('App.amount_invested_reds') ?></div>
       <div class="stat-value gold">R$ <?= number_format($totInvestidoPerdas, 2, ',', '.') ?></div>
       <div style="font-size: 0.75rem; color: var(--bet-text-muted); margin-top: 4px;">Soma das stakes das simulações de apostas perdedoras</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Prejuízo Efetivo Acumulado</div>
+      <div class="stat-label"><?= lang('App.accumulated_effective_loss') ?></div>
       <div class="stat-value danger">R$ <?= number_format($prejuizoTotal, 2, ',', '.') ?></div>
       <div style="font-size: 0.75rem; color: var(--bet-text-muted); margin-top: 4px;">Considerando reembolsos parciais</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Mercado Mais Afetado</div>
+      <div class="stat-label"><?= lang('App.most_affected_market') ?></div>
       <div class="stat-value purple">
         <?php
         arsort($mercadosBreakdown);
@@ -363,27 +363,27 @@
   <!-- Toolbar de Filtro por Data e Botão Consolidado -->
   <div class="bet-toolbar">
     <form method="GET" action="<?= base_url('apostas/relatorio-ia-perdas') ?>" class="date-filter-form">
-      <label style="font-size: 0.85rem; font-weight: 600; color: var(--bet-text-muted);">Período:</label>
+      <label style="font-size: 0.85rem; font-weight: 600; color: var(--bet-text-muted);"><?= lang('App.period') ?>:</label>
       <select id="preset_ia_perdas" class="form-select form-select-sm bg-dark text-info border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 140px;" onchange="applyIAPerdasPreset(this.value)">
-        <option value="custom">📅 Personalizado</option>
-        <option value="today">⚡ Hoje</option>
-        <option value="yesterday">⏪ Ontem</option>
-        <option value="7days">🗓️ Últimos 7 dias</option>
-        <option value="15days">🗓️ Últimos 15 dias</option>
-        <option value="1month">📅 Último mês</option>
-        <option value="trimestre">📊 Trimestre</option>
-        <option value="semestre">📈 Semestre</option>
-        <option value="all">♾️ Todo o período</option>
+        <option value="custom">📅 <?= lang('App.custom') ?></option>
+        <option value="today">⚡ <?= lang('App.today') ?></option>
+        <option value="yesterday">⏪ <?= lang('App.yesterday') ?></option>
+        <option value="7days">🗓️ <?= lang('App.last_7_days') ?></option>
+        <option value="15days">🗓️ <?= lang('App.last_15_days') ?></option>
+        <option value="1month">📅 <?= lang('App.last_month') ?></option>
+        <option value="trimestre">📊 <?= lang('App.quarter') ?></option>
+        <option value="semestre">📈 <?= lang('App.semester') ?></option>
+        <option value="all">♾️ <?= lang('App.all_period') ?></option>
       </select>
       <input type="date" name="start_date" id="ia_start_date" value="<?= htmlspecialchars($startDate) ?>" required>
-      <span style="color: var(--bet-text-muted);">até</span>
+      <span style="color: var(--bet-text-muted);"><?= lang('App.to') ?></span>
       <input type="date" name="end_date" id="ia_end_date" value="<?= htmlspecialchars($endDate) ?>" required>
-      <button type="submit" class="btn-filter"><i class="bi bi-funnel-fill me-1"></i> Filtrar</button>
+      <button type="submit" class="btn-filter"><i class="bi bi-funnel-fill me-1"></i> <?= lang('App.filter') ?></button>
     </form>
 
     <?php if (!empty($apostasPerdidas)): ?>
       <button type="button" class="btn-consolidated-ai" onclick="executarAnaliseConsolidada('<?= htmlspecialchars($startDate) ?>', '<?= htmlspecialchars($endDate) ?>')">
-        <i class="bi bi-cpu-fill"></i> Diagnóstico Global do Período (Groq IA)
+        <i class="bi bi-cpu-fill"></i> <?= lang('App.global_period_diagnosis') ?>
       </button>
     <?php endif; ?>
   </div>

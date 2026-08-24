@@ -150,12 +150,12 @@
   <!-- Header -->
   <div class="bet-header">
     <div class="bet-title">
-      <h1><i class="bi bi-graph-up-arrow"></i> Análise de Desempenho</h1>
-      <div class="bet-subtitle">Acompanhe a evolução acumulada do seu capital investido e saldo líquido real de simulações de apostas</div>
+      <h1><i class="bi bi-graph-up-arrow"></i> <?= lang('App.perf_analysis_title') ?></h1>
+      <div class="bet-subtitle"><?= lang('App.perf_analysis_subtitle') ?></div>
     </div>
     <div>
       <a href="<?= base_url('apostas') ?>" class="btn btn-outline-light rounded-pill px-4 fw-semibold text-decoration-none">
-        <i class="bi bi-arrow-left me-1"></i> Voltar para Minhas Simulações de Apostas
+        <i class="bi bi-arrow-left me-1"></i> <?= lang('App.back_to_my_bets') ?>
       </a>
     </div>
   </div>
@@ -164,18 +164,18 @@
   <div class="filter-bar">
     <!-- Period Presets + Date Inputs -->
     <div class="d-flex align-items-center gap-2 flex-wrap" style="font-size: 0.88rem;">
-      <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-calendar-range text-info"></i> Período:</span>
+      <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-calendar-range text-info"></i> <?= lang('App.period') ?? 'Período' ?>:</span>
       
       <select id="perfDatePresetSelect" class="form-select form-select-sm bg-dark text-info border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 160px;" onchange="setPerfDatePreset(this.value)" title="Atalhos de Período">
         <option value="custom">📅 Personalizado</option>
-        <option value="today">⚡ Hoje</option>
+        <option value="today" selected>⚡ Hoje</option>
         <option value="yesterday">⏪ Ontem</option>
         <option value="7days">🗓️ Últimos 7 dias</option>
         <option value="15days">🗓️ Últimos 15 dias</option>
         <option value="1month">📅 Último mês</option>
         <option value="trimestre">📊 Trimestre</option>
         <option value="semestre">📈 Semestre</option>
-        <option value="all" selected>♾️ Todo o período</option>
+        <option value="all">♾️ Todo o período</option>
       </select>
 
       <input type="date" id="perfStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 138px;" onchange="onPerfManualDateChange()" title="Data Inicial (De)">
@@ -188,15 +188,15 @@
     <!-- Status Filter + Dynamic Grouping (Eixo X) -->
     <div class="d-flex align-items-center gap-3 flex-wrap">
       <div class="d-flex align-items-center gap-2">
-        <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;"><i class="bi bi-funnel-fill text-primary"></i> Status:</span>
-        <select id="perfStatusSelect" class="form-select form-select-sm bg-dark text-primary border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 175px;" onchange="updatePerformanceDashboard()" title="Filtro de Status das Simulações de Apostas">
-          <option value="concluidas" selected>✅ Concluídas (Encerradas)</option>
-          <option value="all">♾️ Todas (Inc. Pendentes)</option>
-          <option value="Pendente">⏳ Apenas Pendentes</option>
-          <option value="Ganha">🟢 Ganhas / Meio Ganhas</option>
-          <option value="Perdida">🔴 Perdidas / Meio Perdidas</option>
+        <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;"><i class="bi bi-funnel-fill text-primary"></i> <?= lang('App.status') ?>:</span>
+        <select id="perfStatusSelect" class="form-select form-select-sm bg-dark text-primary border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 175px;" onchange="updatePerformanceDashboard()" title="<?= lang('App.total_bets') ?>">
+          <option value="concluidas" selected>✅ <?= lang('App.status_concluded') ?></option>
+          <option value="all">♾️ <?= lang('App.status_all_pending') ?></option>
+          <option value="Pendente">⏳ <?= lang('App.status_only_pending') ?></option>
+          <option value="Ganha">🟢 <?= lang('App.won') ?> / Meio Ganhas</option>
+          <option value="Perdida">🔴 <?= lang('App.lost') ?> / Meio Perdidas</option>
           <option value="Cashout">💰 Cashout</option>
-          <option value="ANULADA">⚪ Anuladas</option>
+          <option value="ANULADA">⚪ <?= lang('App.refunded') ?></option>
         </select>
       </div>
 
@@ -248,7 +248,7 @@
   <div class="chart-card">
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
       <h5 class="fw-bold mb-0 text-white d-flex align-items-center gap-2">
-        <i class="bi bi-activity text-success"></i> Curva de Evolução da Banca & Simulações de Apostas
+        <i class="bi bi-activity text-success"></i> <?= lang('App.bankroll_evolution_curve') ?>
       </h5>
       <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
         <i class="bi bi-info-circle me-1 text-info"></i> Exibição Acumulada no Tempo
@@ -264,7 +264,7 @@
   <div class="chart-card">
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
       <h5 class="fw-bold mb-0 text-white d-flex align-items-center gap-2">
-        <i class="bi bi-bar-chart-line-fill text-accent"></i> Lucro Líquido por Mercado de Simulação de Aposta
+        <i class="bi bi-bar-chart-line-fill text-accent"></i> <?= lang('App.net_profit_by_market') ?>
       </h5>
       <span class="badge bg-dark border border-secondary text-light-50 px-3 py-1.5" style="font-size: 0.8rem;">
         <i class="bi bi-funnel-fill me-1 text-warning"></i> Agrupado pelos Mesmos Filtros
@@ -287,7 +287,7 @@
         <thead>
           <tr class="text-white-50 border-secondary">
             <th>Período</th>
-            <th class="text-center">Qtd Simulações de Apostas</th>
+            <th class="text-center"><?= lang('App.qty_bet_simulations') ?></th>
             <th>Simulado Bruto (R$)</th>
             <th>Retorno Bruto (R$)</th>
             <th>Lucro Líquido (R$)</th>
@@ -912,6 +912,6 @@ function renderTableBreakdown(keys, buckets, groupMode) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  setPerfDatePreset('all');
+  setPerfDatePreset('today');
 });
 </script>

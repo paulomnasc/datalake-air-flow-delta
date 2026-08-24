@@ -156,4 +156,20 @@ $$xC = (0.50 \times 3.00) + (0.35 \times 4.33) + (0.15 \times 3.30) = \mathbf{3.
    - Atualizar interface e badges para refletir a validação `APROVADO` vs `NO_BET`.
 
 ---
-*Documento atualizado com a diretriz de Predição Exclusiva Under, Cálculo de Odd Justa, Análise de EV de Mercado e Sinal NO_BET.*
+
+## 7. Hierarquia de Dados de Cartões e Trava de Segurança na DAG
+
+### 7.1. Hierarquia de Fontes de Dados
+Para evitar distorções estatísticas decorrentes de atribuição de médias genéricas/fictícias:
+1. **Fonte Primária (Banco Local MySQL):** O sistema tenta calcular a média móvel de cartões por time a partir do histórico real de partidas encerradas (`status = 'FT'`) salvas em `fixtures_trends` ou `match_statistics_cache`.
+2. **Fonte Secundária (API-Sports):** Se a equipe possuir menos de 3 partidas com estatísticas registradas no banco local, efetua a consulta das estatísticas passadas via API e persiste os cartões no MySQL.
+3. **Fallback Obrigatório (`NO_BET`):** Se os dados de cartões da equipe não forem localizados nem no banco local nem na API, o sistema **NUNCA atribui médias estimadas ou fallbacks genéricos**. A partida é obrigatoriamente gravada com o sinal:
+   `🚫 NO_BET: Dados de cartões indisponíveis ou insuficientes para análise estatística segura dos times.`
+
+### 7.2. Trava da DAG de Apostas Automáticas
+A DAG de criação automática de apostas (`criar_apostas_cartoes_diario.py`) inspeciona o `prediction_text` do confronto. Sempre que identificar o sinal `NO_BET` ou indicação de dados de cartões ausentes:
+- Retorna `status_gatekeeper = 'NO_BET'`.
+- Bloqueia compulsoriamente a criação da aposta para a partida, preservando a banca.
+
+---
+*Documento atualizado com as diretrizes de hierarquia de dados de cartões (DB -> API -> NO_BET) e trava da DAG.*

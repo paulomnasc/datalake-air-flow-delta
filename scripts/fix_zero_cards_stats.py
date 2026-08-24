@@ -38,8 +38,7 @@ def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=N
     """
     Busca no histórico de partidas encerradas ('FT') em fixtures_trends
     a média real de cartões (amarelos + vermelhos*2) do time.
-    Se o time não tiver histórico suficiente no mando específico ou no geral,
-    busca a média das partidas da própria liga no banco.
+    Se não houver histórico de cartões válido, retorna 0.00.
     """
     t_id = team_id or 0
     sql = """
@@ -84,61 +83,13 @@ def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=N
             if len(cards_list) >= limit:
                 break
 
+    if not cards_list and venue_type:
+        return get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id, league_id=found_league_id, limit=limit)
+
     if cards_list and sum(cards_list) > 0:
-        raw_avg = sum(cards_list) / len(cards_list)
-        if len(cards_list) >= 3:
-            return round(raw_avg, 2)
-        
-        # Suavização para Amostra Pequena (N < 3): Blending bayesiano com a média histórica da liga
-        league_baseline = 2.85
-        if found_league_id:
-            cursor.execute("""
-                SELECT AVG(COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + (COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0))*2) / 2.0 as avg_team_cards
-                FROM fixtures_trends
-                WHERE status = 'FT'
-                  AND league_id = %s
-                  AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
-            """, (found_league_id,))
-            l_row = cursor.fetchone()
-            if l_row and l_row['avg_team_cards'] and float(l_row['avg_team_cards']) > 0:
-                league_baseline = float(l_row['avg_team_cards'])
+        return round(sum(cards_list) / len(cards_list), 2)
 
-        weight_sample = len(cards_list) / 3.0 # N=1 -> 33% amostra + 67% liga
-        blended_avg = (raw_avg * weight_sample) + (league_baseline * (1.0 - weight_sample))
-        return round(blended_avg, 2)
-
-    # Se a liga ainda não for conhecida, tenta descobrir via fixtures_trends
-    if not found_league_id and t_id:
-        cursor.execute("SELECT league_id FROM fixtures_trends WHERE home_team_id = %s OR away_team_id = %s LIMIT 1", (t_id, t_id))
-        l_row_team = cursor.fetchone()
-        if l_row_team:
-            found_league_id = l_row_team.get('league_id')
-
-    # Fallback por Liga na fixtures_trends do nosso banco
-    if found_league_id:
-        cursor.execute("""
-            SELECT AVG(COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + (COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0))*2) / 2.0 as avg_team_cards
-            FROM fixtures_trends
-            WHERE status = 'FT'
-              AND league_id = %s
-              AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
-        """, (found_league_id,))
-        l_row = cursor.fetchone()
-        if l_row and l_row['avg_team_cards'] and float(l_row['avg_team_cards']) > 0:
-            return round(float(l_row['avg_team_cards']), 2)
-
-    # Fallback da Média Geral de Partidas FT no Banco
-    cursor.execute("""
-        SELECT AVG(COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + (COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0))*2) / 2.0 as avg_team_cards
-        FROM fixtures_trends
-        WHERE status = 'FT'
-          AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
-    """)
-    g_row = cursor.fetchone()
-    if g_row and g_row['avg_team_cards'] and float(g_row['avg_team_cards']) > 0:
-        return round(float(g_row['avg_team_cards']), 2)
-
-    return 2.20
+    return 0.00
 
 def fix_zero_cards():
     conn = get_db_connection()
@@ -147,34 +98,49 @@ def fix_zero_cards():
     cursor.execute("""
         SELECT team_id, team_name, venue_type 
         FROM team_moving_averages
+        WHERE avg_cards <= 1.50 OR avg_cards IS NULL
     """)
     teams = cursor.fetchall()
     print(f"📊 Processando recálculo real de cartões para {len(teams)} registros em team_moving_averages...")
 
     updated_count = 0
+    zero_count = 0
     for row in teams:
         t_id = row['team_id']
         t_name = row['team_name']
         v_type = row['venue_type']
 
         real_avg = get_team_cards_from_db_history(cursor, t_name, venue_type=v_type, team_id=t_id)
-        if real_avg and real_avg > 0:
-            cursor.execute("""
-                UPDATE team_moving_averages
-                SET avg_cards = %s, updated_at = NOW()
-                WHERE team_id = %s AND venue_type = %s
-            """, (real_avg, t_id, v_type))
+        cursor.execute("""
+            UPDATE team_moving_averages
+            SET avg_cards = %s, updated_at = NOW()
+            WHERE team_id = %s AND venue_type = %s
+        """, (real_avg, t_id, v_type))
+        if real_avg > 0:
             updated_count += 1
+        else:
+            zero_count += 1
 
     conn.commit()
-    print(f"✅ Concluída atualização de {updated_count} registros de cartões na team_moving_averages!")
+    print(f"✅ Concluída atualização! {updated_count} times com histórico real e {zero_count} times sinalizados sem histórico de cartões (avg_cards = 0.00).")
 
-    # Verificar saldo restante <= 0.05
-    cursor.execute("SELECT COUNT(*) as rest FROM team_moving_averages WHERE avg_cards <= 0.05")
-    rest = cursor.fetchone()['rest']
-    print(f"🔍 Saldo restante com avg_cards <= 0.05: {rest}")
+    # Marcar prediction_text como NO_BET para partidas agendadas envolvendo times com avg_cards <= 0.05
+    print("🛡️ Aplicando trava NO_BET em fixtures_trends para partidas com cartões indisponíveis...")
+    cursor.execute("""
+        UPDATE fixtures_trends f
+        JOIN team_moving_averages h ON (f.home_team_id = h.team_id AND h.venue_type = 'home')
+        JOIN team_moving_averages a ON (f.away_team_id = a.team_id AND a.venue_type = 'away')
+        SET f.prediction_text = '🚫 NO_BET: Dados de cartões indisponíveis ou insuficientes para análise estatística segura dos times.'
+        WHERE (h.avg_cards <= 0.05 OR a.avg_cards <= 0.05)
+          AND f.status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'FINISHED')
+    """)
+    conn.commit()
+    print("✅ Trava de segurança NO_BET aplicada com sucesso!")
 
     conn.close()
+
+if __name__ == '__main__':
+    fix_zero_cards()
 
 if __name__ == '__main__':
     fix_zero_cards()

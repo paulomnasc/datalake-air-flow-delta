@@ -121,35 +121,7 @@ def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=N
     if cards_list and sum(cards_list) > 0:
         return round(sum(cards_list) / len(cards_list), 2)
 
-    if not found_league_id and t_id:
-        cursor.execute("SELECT league_id FROM fixtures_trends WHERE home_team_id = %s OR away_team_id = %s LIMIT 1", (t_id, t_id))
-        l_row_team = cursor.fetchone()
-        if l_row_team:
-            found_league_id = l_row_team.get('league_id')
-
-    if found_league_id:
-        cursor.execute("""
-            SELECT AVG(COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + (COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0))*2) / 2.0 as avg_team_cards
-            FROM fixtures_trends
-            WHERE status = 'FT'
-              AND league_id = %s
-              AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
-        """, (found_league_id,))
-        l_row = cursor.fetchone()
-        if l_row and l_row['avg_team_cards'] and float(l_row['avg_team_cards']) > 0:
-            return round(float(l_row['avg_team_cards']), 2)
-
-    cursor.execute("""
-        SELECT AVG(COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + (COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0))*2) / 2.0 as avg_team_cards
-        FROM fixtures_trends
-        WHERE status = 'FT'
-          AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
-    """)
-    g_row = cursor.fetchone()
-    if g_row and g_row['avg_team_cards'] and float(g_row['avg_team_cards']) > 0:
-        return round(float(g_row['avg_team_cards']), 2)
-
-    return 2.20
+    return 0.00
 
 def main():
     print("Iniciando ingestão de performance dos times (médias móveis)...")
@@ -200,13 +172,14 @@ def main():
         
         print(f"\n--- Processando: {team_name} (ID: {team_id}) | Liga: {league_id} | Temporada: {season} ---")
         
-        # 1. Verificar se precisa de atualização (se atualizado há menos de 7 dias, ignoramos para poupar cota de API)
-        cursor.execute("SELECT updated_at FROM team_moving_averages WHERE team_id = %s LIMIT 1", (team_id,))
+        # 1. Verificar se precisa de atualização (se atualizado há menos de 7 dias, ignoramos para poupar cota de API, A MENOS que avg_cards seja <= 1.50)
+        cursor.execute("SELECT updated_at, avg_cards FROM team_moving_averages WHERE team_id = %s LIMIT 1", (team_id,))
         row = cursor.fetchone()
         if row:
             updated_at = row["updated_at"]
-            if datetime.now() - updated_at < timedelta(days=7):
-                print(f"Skipping {team_name} - atualizado recentemente em {updated_at}.")
+            avg_c = float(row.get("avg_cards") or 0.0)
+            if avg_c > 1.50 and (datetime.now() - updated_at < timedelta(days=7)):
+                print(f"Skipping {team_name} - atualizado recentemente em {updated_at} (Média de cartões válida: {avg_c}).")
                 continue
         
         # 2. Tentar buscar `/teams/statistics`
@@ -234,6 +207,14 @@ def main():
                 continue
                 
             stats_data = stats_json.get("response")
+
+            # Se a temporada atual tiver menos de 3 partidas jogadas, busca o histórico completo de 2024
+            played_total = (stats_data.get("fixtures", {}).get("played", {}).get("total", 0) or 0) if stats_data else 0
+            if played_total < 3 and use_season > 2024:
+                print(f"Temporada {use_season} com poucas partidas ({played_total}). Buscando histórico estatístico de 2024 para {team_name}...")
+                use_season = 2024
+                continue
+
             break
             
         # 3. Processamento de estatísticas com fallback
@@ -276,7 +257,9 @@ def main():
             else:
                 for f in db_past_fixtures:
                     st = (f.get('status') or '').strip().upper()
-                    if st not in ['FT', 'AET', 'PEN', 'FINISHED'] or f.get('goals_home') is None:
+                    yh = f.get('yellow_cards_home')
+                    ya = f.get('yellow_cards_away')
+                    if st not in ['FT', 'AET', 'PEN', 'FINISHED'] or f.get('goals_home') is None or (yh is None and ya is None):
                         has_unprocessed_past_game = True
                         break
 
@@ -398,7 +381,7 @@ def main():
                             db_hist_cards = get_team_cards_from_db_history(cursor, team_name, venue_type=('home' if is_home else 'away'), team_id=team_id)
                             yellows = int(db_hist_cards)
                                     
-                        # Cache
+                        # Cache e persistência no banco principal
                         cursor.execute("""
                             INSERT INTO match_statistics_cache (fixture_id, team_id, corners, yellow_cards, red_cards)
                             VALUES (%s, %s, %s, %s, %s)
@@ -407,6 +390,20 @@ def main():
                                 yellow_cards = VALUES(yellow_cards),
                                 red_cards = VALUES(red_cards)
                         """, (fix_id, team_id, corners, yellows, reds))
+
+                        if is_home:
+                            cursor.execute("""
+                                UPDATE fixtures_trends
+                                SET yellow_cards_home = %s, red_cards_home = %s, corners_home = %s
+                                WHERE fixture_id = %s
+                            """, (yellows, reds, corners, fix_id))
+                        else:
+                            cursor.execute("""
+                                UPDATE fixtures_trends
+                                SET yellow_cards_away = %s, red_cards_away = %s, corners_away = %s
+                                WHERE fixture_id = %s
+                            """, (yellows, reds, corners, fix_id))
+
                         conn.commit()
                         
                     total_cards = yellows + (reds * 2)

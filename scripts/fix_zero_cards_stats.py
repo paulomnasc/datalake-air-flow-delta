@@ -84,12 +84,28 @@ def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=N
             if len(cards_list) >= limit:
                 break
 
-    if not cards_list and venue_type:
-        # Tenta sem filtrar por mando (home + away combinados)
-        return get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id, league_id=found_league_id, limit=limit)
-
     if cards_list and sum(cards_list) > 0:
-        return round(sum(cards_list) / len(cards_list), 2)
+        raw_avg = sum(cards_list) / len(cards_list)
+        if len(cards_list) >= 3:
+            return round(raw_avg, 2)
+        
+        # Suavização para Amostra Pequena (N < 3): Blending bayesiano com a média histórica da liga
+        league_baseline = 2.85
+        if found_league_id:
+            cursor.execute("""
+                SELECT AVG(COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + (COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0))*2) / 2.0 as avg_team_cards
+                FROM fixtures_trends
+                WHERE status = 'FT'
+                  AND league_id = %s
+                  AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
+            """, (found_league_id,))
+            l_row = cursor.fetchone()
+            if l_row and l_row['avg_team_cards'] and float(l_row['avg_team_cards']) > 0:
+                league_baseline = float(l_row['avg_team_cards'])
+
+        weight_sample = len(cards_list) / 3.0 # N=1 -> 33% amostra + 67% liga
+        blended_avg = (raw_avg * weight_sample) + (league_baseline * (1.0 - weight_sample))
+        return round(blended_avg, 2)
 
     # Se a liga ainda não for conhecida, tenta descobrir via fixtures_trends
     if not found_league_id and t_id:

@@ -215,7 +215,18 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     """
     Filtra o escopo de atuação do script de criação de apostas:
     - Campeonatos do Brasil (Série A, Série B, Copa do Brasil, Paulistão, etc. - Série C e Série D excluídas)
-    - Internacional: Apenas CONMEBOL Libertadores e CONMEBOL Sudamericana.
+    - Internacional CONMEBOL: Libertadores e Sul-Americana
+    - Ligas Internacionais Permitidas:
+      - Allsvenskan (ID 113)
+      - Eredivisie (ID 88)
+      - La Liga - Espanha (ID 140)
+      - Liga MX (ID 262)
+      - Liga Profesional Argentina (ID 128)
+      - Ligue 1 - França (ID 61)
+      - Major League Soccer - MLS (ID 253)
+      - Premier League - Inglaterra (ID 39)
+      - Primeira Liga - Portugal (ID 94)
+      - Serie A Italiana (ID 135)
     - Desconsidera jogos femininos (Women / Feminino) e jogos do Brasil Série C e Série D.
     """
     l_name_low = (league_name or '').lower().strip()
@@ -237,13 +248,42 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     if l_id in {75, 76}:
         return False
 
-    # IDs Conhecidos da API-Football (Brasil & Libertadores/Sudamericana) - Excluindo 75 (Série C) e 76 (Série D)
-    ALLOWED_LEAGUE_IDS = {71, 72, 73, 13, 11}
+    # IDs Conhecidos da API-Football (Brasil, Libertadores/Sudamericana e Ligas de Elite Internacionais/Americanas)
+    ALLOWED_LEAGUE_IDS = {
+        71,   # Brasil Série A
+        72,   # Brasil Série B
+        73,   # Copa do Brasil
+        13,   # CONMEBOL Libertadores
+        11,   # CONMEBOL Sudamericana
+        39,   # Premier League (Inglaterra)
+        140,  # La Liga (Espanha)
+        135,  # Serie A Italiana (Itália)
+        61,   # Ligue 1 (França)
+        94,   # Primeira Liga (Portugal)
+        88,   # Eredivisie (Holanda)
+        113,  # Allsvenskan (Suécia)
+        253,  # Major League Soccer (EUA)
+        262,  # Liga MX (México)
+        128,  # Liga Profesional (Argentina)
+    }
     if l_id in ALLOWED_LEAGUE_IDS:
         return True
 
-    # Checagem por Nome de Liga Internacional Permitida
-    if any(k in l_name_low for k in ['libertadores', 'sudamericana', 'sul-americana', 'sul americana']):
+    # Checagem por Nome de Liga Internacional Permitida (CONMEBOL + 10 novas ligas)
+    allowed_int_keywords = [
+        'libertadores', 'sudamericana', 'sul-americana', 'sul americana',
+        'allsvenskan',
+        'eredivisie',
+        'la liga', 'laliga',
+        'liga mx',
+        'liga profesional', 'primera division (argentina)', 'primera división (argentina)', 'liga profesional argentina',
+        'ligue 1',
+        'major league soccer', 'mls',
+        'premier league',
+        'primeira liga', 'liga portugal',
+        'serie a (italia)', 'serie a (italy)', 'serie a italia', 'serie a italiana'
+    ]
+    if any(k in l_name_low for k in allowed_int_keywords):
         return True
 
     # Checagem por Nome de Liga Brasileira
@@ -430,9 +470,9 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         league_id = fix.get('league_id')
         league_name = fix.get('league_name') or ''
 
-        # Filtro Estrito de Escopo: Apenas campeonatos do Brasil e Internacional (Libertadores e Sul-Americana)
+        # Filtro Estrito de Escopo: Brasil, CONMEBOL e Ligas de Elite Selecionadas
         if not is_allowed_league(league_id, league_name):
-            print(f"🌍 [Fora do Escopo] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada. Escopo restrito a Brasil, Libertadores e Sul-Americana.")
+            print(f"🌍 [Fora do Escopo] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada. Liga fora do escopo permitido.")
             continue
 
         prediction_text = (fix.get('prediction_text') or '').strip()

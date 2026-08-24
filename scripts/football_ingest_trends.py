@@ -1591,7 +1591,88 @@ def main():
             over_cards_prob = 50.00
             
             # Busca estatísticas reais consolidadas na tabela team_moving_averages
-            def get_real_team_stats_from_db(cur_db, t_name, t_id, v_type):
+            def get_team_cards_from_db_history(cur_db, t_name, v_type, t_id, l_id=None, limit=10):
+                t_id_num = t_id or 0
+                sql = """
+                    SELECT 
+                        fixture_id, home_team, away_team, home_team_id, away_team_id, league_id,
+                        yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away
+                    FROM fixtures_trends
+                    WHERE status = 'FT'
+                      AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
+                      AND (
+                        (%s > 0 AND (home_team_id = %s OR away_team_id = %s))
+                        OR (LOWER(home_team) = LOWER(%s) OR LOWER(away_team) = LOWER(%s))
+                      )
+                    ORDER BY fixture_date DESC
+                    LIMIT %s
+                """
+                cur_db.execute(sql, (t_id_num, t_id_num, t_id_num, t_name, t_name, limit * 3))
+                rows = cur_db.fetchall()
+
+                cards_list = []
+                found_l_id = l_id
+
+                for r in rows:
+                    if not found_l_id and r.get('league_id'):
+                        found_l_id = r['league_id']
+
+                    is_home = (r['home_team_id'] == t_id_num) if (t_id_num and r['home_team_id']) else (r['home_team'].lower() == t_name.lower())
+                    
+                    if v_type == 'home' and not is_home:
+                        continue
+                    if v_type == 'away' and is_home:
+                        continue
+
+                    yh = r.get('yellow_cards_home') or 0
+                    rh = r.get('red_cards_home') or 0
+                    ya = r.get('yellow_cards_away') or 0
+                    ra = r.get('red_cards_away') or 0
+
+                    c = (yh + rh * 2) if is_home else (ya + ra * 2)
+                    if (yh + rh + ya + ra) > 0:
+                        cards_list.append(c)
+                        if len(cards_list) >= limit:
+                            break
+
+                if not cards_list and v_type:
+                    return get_team_cards_from_db_history(cur_db, t_name, None, t_id, found_l_id, limit)
+
+                if cards_list and sum(cards_list) > 0:
+                    return round(sum(cards_list) / len(cards_list), 2)
+
+                if not found_l_id and t_id_num:
+                    cur_db.execute("SELECT league_id FROM fixtures_trends WHERE home_team_id = %s OR away_team_id = %s LIMIT 1", (t_id_num, t_id_num))
+                    l_row_team = cur_db.fetchone()
+                    if l_row_team:
+                        found_l_id = l_row_team.get('league_id')
+
+                if found_l_id:
+                    cur_db.execute("""
+                        SELECT AVG(COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + (COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0))*2) / 2.0 as avg_team_cards
+                        FROM fixtures_trends
+                        WHERE status = 'FT'
+                          AND league_id = %s
+                          AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
+                    """, (found_l_id,))
+                    l_row = cur_db.fetchone()
+                    if l_row and l_row['avg_team_cards'] and float(l_row['avg_team_cards']) > 0:
+                        return round(float(l_row['avg_team_cards']), 2)
+
+                cur_db.execute("""
+                    SELECT AVG(COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + (COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0))*2) / 2.0 as avg_team_cards
+                    FROM fixtures_trends
+                    WHERE status = 'FT'
+                      AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
+                """)
+                g_row = cur_db.fetchone()
+                if g_row and g_row['avg_team_cards'] and float(g_row['avg_team_cards']) > 0:
+                    return round(float(g_row['avg_team_cards']), 2)
+
+                return 2.20
+
+            def get_real_team_stats_from_db(cur_db, t_name, t_id, v_type, l_id=None):
+                res_stats = None
                 if t_id:
                     cur_db.execute("""
                         SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards
@@ -1600,31 +1681,38 @@ def main():
                     """, (t_id, v_type))
                     r_db = cur_db.fetchone()
                     if r_db:
-                        return {
+                        res_stats = {
                             "avg_goals_scored": float(r_db["avg_goals_scored"]),
                             "avg_goals_conceded": float(r_db["avg_goals_conceded"]),
                             "clean_sheets_pct": float(r_db["clean_sheets_pct"]),
                             "avg_corners": float(r_db["avg_corners"]),
                             "avg_cards": float(r_db["avg_cards"])
                         }
-                cur_db.execute("""
-                    SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards
-                    FROM team_moving_averages
-                    WHERE LOWER(team_name) = LOWER(%s) AND venue_type = %s
-                """, (t_name, v_type))
-                r_db = cur_db.fetchone()
-                if r_db:
-                    return {
-                        "avg_goals_scored": float(r_db["avg_goals_scored"]),
-                        "avg_goals_conceded": float(r_db["avg_goals_conceded"]),
-                        "clean_sheets_pct": float(r_db["clean_sheets_pct"]),
-                        "avg_corners": float(r_db["avg_corners"]),
-                        "avg_cards": float(r_db["avg_cards"])
-                    }
-                return generate_deterministic_team_stats(t_name, v_type)
+                if not res_stats:
+                    cur_db.execute("""
+                        SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards
+                        FROM team_moving_averages
+                        WHERE LOWER(team_name) = LOWER(%s) AND venue_type = %s
+                    """, (t_name, v_type))
+                    r_db = cur_db.fetchone()
+                    if r_db:
+                        res_stats = {
+                            "avg_goals_scored": float(r_db["avg_goals_scored"]),
+                            "avg_goals_conceded": float(r_db["avg_goals_conceded"]),
+                            "clean_sheets_pct": float(r_db["clean_sheets_pct"]),
+                            "avg_corners": float(r_db["avg_corners"]),
+                            "avg_cards": float(r_db["avg_cards"])
+                        }
+                if not res_stats:
+                    res_stats = generate_deterministic_team_stats(t_name, v_type)
 
-            home_c_stats = get_real_team_stats_from_db(cursor, home_team, home_team_id, 'home')
-            away_c_stats = get_real_team_stats_from_db(cursor, away_team, away_team_id, 'away')
+                if res_stats.get("avg_cards", 0.0) <= 0.05:
+                    res_stats["avg_cards"] = get_team_cards_from_db_history(cur_db, t_name, v_type, t_id, l_id)
+
+                return res_stats
+
+            home_c_stats = get_real_team_stats_from_db(cursor, home_team, home_team_id, 'home', league_id)
+            away_c_stats = get_real_team_stats_from_db(cursor, away_team, away_team_id, 'away', league_id)
             team_cards_combined = home_c_stats["avg_cards"] + away_c_stats["avg_cards"]
 
             # Detecção de forma nos últimos 5 jogos e sequência recente

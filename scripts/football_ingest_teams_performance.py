@@ -65,6 +65,92 @@ def generate_deterministic_team_stats(team_name, venue_type):
         "avg_cards": avg_cards
     }
 
+def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=None, league_id=None, limit=10):
+    """
+    Busca no histórico de partidas encerradas ('FT') em fixtures_trends
+    a média real de cartões (amarelos + vermelhos*2) do time.
+    Se o time não tiver histórico suficiente no mando específico ou no geral,
+    busca a média das partidas da própria liga no banco.
+    """
+    t_id = team_id or 0
+    sql = """
+        SELECT 
+            fixture_id, home_team, away_team, home_team_id, away_team_id, league_id,
+            yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away
+        FROM fixtures_trends
+        WHERE status = 'FT'
+          AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
+          AND (
+            (%s > 0 AND (home_team_id = %s OR away_team_id = %s))
+            OR (LOWER(home_team) = LOWER(%s) OR LOWER(away_team) = LOWER(%s))
+          )
+        ORDER BY fixture_date DESC
+        LIMIT %s
+    """
+    cursor.execute(sql, (t_id, t_id, t_id, team_name, team_name, limit * 3))
+    rows = cursor.fetchall()
+
+    cards_list = []
+    found_league_id = league_id
+
+    for r in rows:
+        if not found_league_id and r.get('league_id'):
+            found_league_id = r['league_id']
+
+        is_home = (r['home_team_id'] == t_id) if (t_id and r['home_team_id']) else (r['home_team'].lower() == team_name.lower())
+        
+        if venue_type == 'home' and not is_home:
+            continue
+        if venue_type == 'away' and is_home:
+            continue
+
+        yh = r.get('yellow_cards_home') or 0
+        rh = r.get('red_cards_home') or 0
+        ya = r.get('yellow_cards_away') or 0
+        ra = r.get('red_cards_away') or 0
+
+        c = (yh + rh * 2) if is_home else (ya + ra * 2)
+        if (yh + rh + ya + ra) > 0:
+            cards_list.append(c)
+            if len(cards_list) >= limit:
+                break
+
+    if not cards_list and venue_type:
+        return get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id, league_id=found_league_id, limit=limit)
+
+    if cards_list and sum(cards_list) > 0:
+        return round(sum(cards_list) / len(cards_list), 2)
+
+    if not found_league_id and t_id:
+        cursor.execute("SELECT league_id FROM fixtures_trends WHERE home_team_id = %s OR away_team_id = %s LIMIT 1", (t_id, t_id))
+        l_row_team = cursor.fetchone()
+        if l_row_team:
+            found_league_id = l_row_team.get('league_id')
+
+    if found_league_id:
+        cursor.execute("""
+            SELECT AVG(COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + (COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0))*2) / 2.0 as avg_team_cards
+            FROM fixtures_trends
+            WHERE status = 'FT'
+              AND league_id = %s
+              AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
+        """, (found_league_id,))
+        l_row = cursor.fetchone()
+        if l_row and l_row['avg_team_cards'] and float(l_row['avg_team_cards']) > 0:
+            return round(float(l_row['avg_team_cards']), 2)
+
+    cursor.execute("""
+        SELECT AVG(COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + (COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0))*2) / 2.0 as avg_team_cards
+        FROM fixtures_trends
+        WHERE status = 'FT'
+          AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
+    """)
+    g_row = cursor.fetchone()
+    if g_row and g_row['avg_team_cards'] and float(g_row['avg_team_cards']) > 0:
+        return round(float(g_row['avg_team_cards']), 2)
+
+    return 2.20
+
 def main():
     print("Iniciando ingestão de performance dos times (médias móveis)...")
     
@@ -242,16 +328,31 @@ def main():
                     fix_id = f["fixture"]["id"]
                     is_home = (f["teams"]["home"]["id"] == team_id)
                     
-                    # Check cache
+                    # Check cache primeiro (match_statistics_cache ou fixtures_trends do nosso MySQL)
                     cursor.execute("SELECT corners, yellow_cards, red_cards FROM match_statistics_cache WHERE fixture_id = %s AND team_id = %s", (fix_id, team_id))
                     cached_stat = cursor.fetchone()
-                    
-                    if cached_stat:
+
+                    if not cached_stat:
+                        cursor.execute("""
+                            SELECT yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away, corners_home, corners_away, home_team_id
+                            FROM fixtures_trends
+                            WHERE fixture_id = %s AND (yellow_cards_home IS NOT NULL OR yellow_cards_away IS NOT NULL)
+                        """, (fix_id,))
+                        fix_db = cursor.fetchone()
+                        if fix_db:
+                            is_h = (int(fix_db.get("home_team_id") or 0) == team_id)
+                            cached_stat = {
+                                "corners": (fix_db.get("corners_home") if is_h else fix_db.get("corners_away")) or 0,
+                                "yellow_cards": (fix_db.get("yellow_cards_home") if is_h else fix_db.get("yellow_cards_away")) or 0,
+                                "red_cards": (fix_db.get("red_cards_home") if is_h else fix_db.get("red_cards_away")) or 0
+                            }
+
+                    if cached_stat and (cached_stat.get("yellow_cards", 0) > 0 or cached_stat.get("red_cards", 0) > 0 or cached_stat.get("corners", 0) > 0):
                         corners = cached_stat["corners"]
                         yellows = cached_stat["yellow_cards"]
                         reds = cached_stat["red_cards"]
                     else:
-                        print(f"Match ID {fix_id} não está em cache. Buscando estatísticas na API...")
+                        print(f"Match ID {fix_id} não possui estatísticas em cache DB local. Buscando na API...")
                         match_stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fix_id}"
                         try:
                             rate_limit_delay()
@@ -259,7 +360,16 @@ def main():
                             ms_resp.raise_for_status()
                             ms_json = ms_resp.json()
                         except Exception as e:
-                            print(f"Erro ao buscar stats da partida {fix_id}: {e}")
+                            print(f"Erro ao buscar stats da partida {fix_id} na API: {e}. Recuperando do histórico do banco...")
+                            db_hist_cards = get_team_cards_from_db_history(cursor, team_name, venue_type=('home' if is_home else 'away'), team_id=team_id)
+                            yellows = int(db_hist_cards)
+                            reds = 0
+                            corners = 4
+                            total_cards = yellows
+                            if is_home:
+                                home_cards.append(total_cards)
+                            else:
+                                away_cards.append(total_cards)
                             continue
                             
                         ms_response = ms_json.get("response", [])
@@ -283,6 +393,10 @@ def main():
                                     yellows = int(t_val) if t_val is not None else 0
                                 elif t_type == "Red Cards":
                                     reds = int(t_val) if t_val is not None else 0
+                        
+                        if yellows == 0 and reds == 0:
+                            db_hist_cards = get_team_cards_from_db_history(cursor, team_name, venue_type=('home' if is_home else 'away'), team_id=team_id)
+                            yellows = int(db_hist_cards)
                                     
                         # Cache
                         cursor.execute("""
@@ -308,19 +422,24 @@ def main():
             avg_corners_away = round(sum(away_corners) / len(away_corners), 2) if away_corners else 0.00
             avg_cards_away = round(sum(away_cards) / len(away_cards), 2) if away_cards else 0.00
             
-            # Se as listas históricas de escanteios/cartões vierem vazias, geramos valores determinísticos para corners/cards
+            # Se as estatísticas de cartões vierem zeradas ou incompletas (sum == 0 ou <= 0.05), busca no histórico real de fixtures_trends do nosso banco
+            if avg_cards_home <= 0.05:
+                avg_cards_home = get_team_cards_from_db_history(cursor, team_name, venue_type='home', team_id=team_id)
+
+            if avg_cards_away <= 0.05:
+                avg_cards_away = get_team_cards_from_db_history(cursor, team_name, venue_type='away', team_id=team_id)
+
+            # Se as listas históricas de escanteios vierem vazias, geramos valores determinísticos para corners
             if not home_corners:
                 mock_home = generate_deterministic_team_stats(team_name, 'home')
                 avg_corners_home = mock_home["avg_corners"]
-                avg_cards_home = mock_home["avg_cards"]
             if not away_corners:
                 mock_away = generate_deterministic_team_stats(team_name, 'away')
                 avg_corners_away = mock_away["avg_corners"]
-                avg_cards_away = mock_away["avg_cards"]
                 
         else:
-            # Fallback total para mock determinístico
-            print(f"⚠️ Sem dados da API para {team_name}. Gerando dados de performance de fallback...")
+            # Fallback total quando sem dados da API
+            print(f"⚠️ Sem dados da API para {team_name}. Buscando histórico real no banco de dados...")
             mock_home = generate_deterministic_team_stats(team_name, 'home')
             mock_away = generate_deterministic_team_stats(team_name, 'away')
             
@@ -328,13 +447,13 @@ def main():
             avg_goals_against_home = mock_home["avg_goals_conceded"]
             clean_sheets_pct_home = mock_home["clean_sheets_pct"]
             avg_corners_home = mock_home["avg_corners"]
-            avg_cards_home = mock_home["avg_cards"]
+            avg_cards_home = get_team_cards_from_db_history(cursor, team_name, venue_type='home', team_id=team_id)
             
             avg_goals_for_away = mock_away["avg_goals_scored"]
             avg_goals_against_away = mock_away["avg_goals_conceded"]
             clean_sheets_pct_away = mock_away["clean_sheets_pct"]
             avg_corners_away = mock_away["avg_corners"]
-            avg_cards_away = mock_away["avg_cards"]
+            avg_cards_away = get_team_cards_from_db_history(cursor, team_name, venue_type='away', team_id=team_id)
             
         # Salvar no banco
         # Home

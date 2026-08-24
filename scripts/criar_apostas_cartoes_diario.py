@@ -324,7 +324,7 @@ def extract_cards_under_suggestion(prediction_text: str):
     pred_low = prediction_text.lower()
 
     # 1. Trava de Abstenção / NO_BET expressa
-    if any(term in pred_low for term in ['no_bet', 'no bet', 'sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'indisponível', 'indisponivel']):
+    if any(term in pred_low for term in ['no_bet', 'no bet', 'sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'indisponível', 'indisponivel', 'xc: 0.0', 'xc: 0.00']):
         return None, None, 'NO_BET', None, None, None, None
 
     # 2. Extrai expectativa matemática de cartões (xC / Expectativa)

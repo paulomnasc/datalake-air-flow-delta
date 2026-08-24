@@ -182,14 +182,14 @@ def main():
                 print(f"Skipping {team_name} - atualizado recentemente em {updated_at} (Média de cartões válida: {avg_c}).")
                 continue
         
-        # 2. Tentar buscar `/teams/statistics`
-        # Se season > 2024 e o plano for Free, tentaremos buscar com season = 2024 como fallback
+        # 2. Tentar buscar `/teams/statistics` nas temporadas disponíveis (temporada atual, anterior, etc.)
         stats_data = None
         use_season = season
+        seasons_to_try = [season, season - 1, season - 2]
         
-        for attempt in range(2):
-            stats_url = f"https://v3.football.api-sports.io/teams/statistics?league={league_id}&season={use_season}&team={team_id}"
-            print(f"Chamando /teams/statistics (Temporada: {use_season}) para {team_name}...")
+        for s in seasons_to_try:
+            stats_url = f"https://v3.football.api-sports.io/teams/statistics?league={league_id}&season={s}&team={team_id}"
+            print(f"Chamando /teams/statistics (Temporada: {s}) para {team_name}...")
             try:
                 rate_limit_delay()
                 resp = requests.get(stats_url, headers=headers, timeout=20)
@@ -197,25 +197,22 @@ def main():
                 stats_json = resp.json()
             except Exception as e:
                 print(f"Erro na requisição: {e}")
-                break
+                continue
                 
             errors = stats_json.get("errors", {})
-            # Se for erro de plano por conta da temporada, tenta 2024 no segundo loop
-            if errors and "plan" in errors and use_season > 2024:
-                print(f"Plano Free não tem acesso à temporada {use_season}. Tentando temporada 2024...")
-                use_season = 2024
+            if errors:
+                print(f"Aviso API na temporada {s}: {errors}")
                 continue
                 
-            stats_data = stats_json.get("response")
-
-            # Se a temporada atual tiver menos de 3 partidas jogadas, busca o histórico completo de 2024
-            played_total = (stats_data.get("fixtures", {}).get("played", {}).get("total", 0) or 0) if stats_data else 0
-            if played_total < 3 and use_season > 2024:
-                print(f"Temporada {use_season} com poucas partidas ({played_total}). Buscando histórico estatístico de 2024 para {team_name}...")
-                use_season = 2024
-                continue
-
-            break
+            resp_data = stats_json.get("response")
+            played_total = (resp_data.get("fixtures", {}).get("played", {}).get("total", 0) or 0) if resp_data else 0
+            if played_total >= 3:
+                stats_data = resp_data
+                use_season = s
+                print(f"✅ Encontradas {played_total} partidas estatísticas na temporada {s} para {team_name}.")
+                break
+            else:
+                print(f"Temporada {s} possui poucas partidas ({played_total}). Tentando temporada anterior...")
             
         # 3. Processamento de estatísticas com fallback
         if stats_data:
@@ -419,12 +416,18 @@ def main():
             avg_corners_away = round(sum(away_corners) / len(away_corners), 2) if away_corners else 0.00
             avg_cards_away = round(sum(away_cards) / len(away_cards), 2) if away_cards else 0.00
             
-            # Se as estatísticas de cartões vierem zeradas ou incompletas (sum == 0 ou <= 0.05), busca no histórico real de fixtures_trends do nosso banco
+            # Se as estatísticas de cartões dos últimos jogos vierem zeradas ou incompletas, extrai a média da temporada diretamente da API
+            cards_dict = stats_data.get("cards", {}) if stats_data else {}
+            y_tot = sum(v.get("total") or 0 for v in cards_dict.get("yellow", {}).values() if isinstance(v, dict))
+            r_tot = sum(v.get("total") or 0 for v in cards_dict.get("red", {}).values() if isinstance(v, dict))
+            tot_p = (stats_data.get("fixtures", {}).get("played", {}).get("total", 0) or 0) if stats_data else 0
+            api_cards_avg = round((y_tot + r_tot * 2) / tot_p, 2) if tot_p > 0 else 0.0
+
             if avg_cards_home <= 0.05:
-                avg_cards_home = get_team_cards_from_db_history(cursor, team_name, venue_type='home', team_id=team_id)
+                avg_cards_home = api_cards_avg if api_cards_avg > 0 else get_team_cards_from_db_history(cursor, team_name, venue_type='home', team_id=team_id)
 
             if avg_cards_away <= 0.05:
-                avg_cards_away = get_team_cards_from_db_history(cursor, team_name, venue_type='away', team_id=team_id)
+                avg_cards_away = api_cards_avg if api_cards_avg > 0 else get_team_cards_from_db_history(cursor, team_name, venue_type='away', team_id=team_id)
 
             # Se as listas históricas de escanteios vierem vazias, geramos valores determinísticos para corners
             if not home_corners:

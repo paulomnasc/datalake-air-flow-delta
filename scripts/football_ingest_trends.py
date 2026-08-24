@@ -1786,9 +1786,15 @@ def main():
             yellows = float(ref_data["average_yellow_cards"])
             ref_fouls = float(ref_data.get("average_fouls", 24.0))
             
-            # TRAVA DE SEGURANÇA CONTRA DADOS DE CARTÕES INDISPONÍVEIS / NULOS
-            if home_c_stats.get("avg_cards", 0.0) <= 0.05 or away_c_stats.get("avg_cards", 0.0) <= 0.05:
-                prediction_text = "🚫 NO_BET: Dados de cartões indisponíveis ou insuficientes para análise estatística segura dos times."
+            # TRAVA DE SEGURANÇA CONTRA DADOS DE CARTÕES INDISPONÍVEIS / NULOS OU AMOSTRA INSUFICIENTE
+            has_insufficient_cards = (
+                home_c_stats.get("avg_cards", 0.0) <= 0.05 or
+                away_c_stats.get("avg_cards", 0.0) <= 0.05 or
+                (home_c_stats.get("avg_cards", 0.0) <= 1.0 and float(home_c_stats.get("avg_goals_scored", 0.0)) == 0.0) or
+                (away_c_stats.get("avg_cards", 0.0) <= 1.0 and float(away_c_stats.get("avg_goals_scored", 0.0)) == 0.0)
+            )
+            if has_insufficient_cards:
+                prediction_text = "🚫 NO_BET: Dados de cartões indisponíveis ou amostragem histórica insuficiente para análise estatística segura dos times."
             else:
                 # Aplica multiplicador regional à média combinada das equipes
                 team_cards_combined_adj = team_cards_combined * league_mult

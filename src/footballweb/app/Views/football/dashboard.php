@@ -745,7 +745,12 @@ if (!function_exists('getBetDecisionTree')) {
         $u75 = calculate_poisson_php($xc, 7.5)['under'];
         $u85 = calculate_poisson_php($xc, 8.5)['under'];
 
-        if ($isNoBet || $xc > 6.50) {
+        $hasInsufficientStats = (
+            ($homeAvg <= 1.0 && isset($fix->home_avg_goals_scored) && (float)$fix->home_avg_goals_scored == 0.0) ||
+            ($awayAvg <= 1.0 && isset($fix->away_avg_goals_scored) && (float)$fix->away_avg_goals_scored == 0.0)
+        );
+
+        if ($isNoBet || $hasInsufficientStats || $xc > 6.50) {
             return [
                 'market'        => lang('App.entry_not_recommended'),
                 'line_tag'      => 'NO BET 🚫',

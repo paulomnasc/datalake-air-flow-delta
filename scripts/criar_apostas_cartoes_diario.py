@@ -475,6 +475,14 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             print(f"🌍 [Fora do Escopo] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada. Liga fora do escopo permitido.")
             continue
 
+        # Trava Obrigatória do Gatekeeper: Não criar apostas em jogos sem árbitro definido (65% de peso no modelo)
+        referee_name = (fix.get('referee_name') or '').strip()
+        ref_low = referee_name.lower()
+        if not referee_name or any(un in ref_low for un in ['árbitro não informado', 'arbitro nao informado', 'não informado', 'nao informado', 'unassigned', 'n/a', 'tbd', 'sem arbitro']):
+            print(f"🛡️ [Gatekeeper NO_BET / Sem Árbitro] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Árbitro não definido ('{referee_name or 'Nulo'}'). Entrada ignorada por segurança.")
+            apostas_abstencao += 1
+            continue
+
         prediction_text = (fix.get('prediction_text') or '').strip()
 
         line_val, palpite_str, status_gk, odd_justa, prob_poisson, ev_perc, exp_cards = extract_cards_under_suggestion(prediction_text)

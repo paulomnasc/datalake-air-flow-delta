@@ -1820,8 +1820,8 @@ def main():
             # Fator de conversão e intensidade de faltas
             foul_conversion_context = team_cards_combined_adj * (ref_fouls / 24.0)
             
-            # xC: Expected Cards
-            exp_cards = round((team_cards_combined_adj * 0.50) + (yellows * 0.35) + (foul_conversion_context * 0.15), 2)
+            # xC: Expected Cards (Ponderação Calibrada: 65% Árbitro [50% direto + 15% faltas] x 35% Times)
+            exp_cards = round((team_cards_combined_adj * 0.35) + (yellows * 0.50) + (foul_conversion_context * 0.15), 2)
             
             # Probabilidades de Under via Distribuição de Poisson Ajustada com Sobredispersão (phi)
             under_probs = calculate_poisson_under_lines(exp_cards, phi=phi_league)
@@ -1851,37 +1851,64 @@ def main():
             odd_o55 = round(100.0 / o55, 2) if o55 > 0 else 99.00
             odd_o65 = round(100.0 / o65, 2) if o65 > 0 else 99.00
 
-            if exp_cards <= 3.30 and u45 >= 75.0:
-                # Cenário de Baixíssima Expectativa (Expectativa <= 3.30 cartões) -> 1ª Opção Under 4.5
-                op1 = f"Under 4.5 ({u45}% | Odd Justa: {odd_u45})"
-                op2 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
-                prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
-            elif exp_cards <= 4.20 and u55 >= 60.0:
-                # Cenário de Baixo Risco (Expectativa <= 4.20 cartões) -> 1ª Opção Under 5.5
-                op1 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
-                op2 = f"Under 6.5 ({u65}% | Odd Justa: {odd_u65})"
-                prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
-            elif exp_cards <= 5.80 and u65 >= 60.0:
-                # Cenário de Segurança Conservadora Betano (Expectativa 4.21 a 5.80 cartões) -> 1ª Opção Under 6.5
-                op1 = f"Under 6.5 ({u65}% | Odd Justa: {odd_u65})"
-                op2 = f"Under 7.5 ({u75}% | Odd Justa: {odd_u75})"
-                prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
-            elif exp_cards <= 6.50 and u75 >= 60.0:
-                # Cenário de Cobertura Alta Betano (Expectativa 5.81 a 6.50 cartões) -> 1ª Opção Under 7.5
-                op1 = f"Under 7.5 ({u75}% | Odd Justa: {odd_u75})"
-                op2 = f"Under 8.5 ({u85}% | Odd Justa: {odd_u85})"
-                prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
-            elif (exp_cards >= 5.30 or yellows > 5.20) and o45 >= 60.0:
-                # Cenário de Alta Expectativa / Árbitro Severo -> Estratégia Over 4.5 / Over 5.5
-                if exp_cards >= 6.20 and o55 >= 60.0:
-                    op1 = f"Over 5.5 ({o55}% | Odd Justa: {odd_o55})"
-                    op2 = f"Over 4.5 ({o45}% | Odd Justa: {odd_o45})"
+            # SELEÇÃO BIDIRECIONAL PROBABILÍSTICA (TOP OVER & TOP UNDER >= 60%)
+            valid_options = []
+            
+            # Candidatos de Over
+            over_candidates = [
+                ("Over 3.5", o35, odd_o35),
+                ("Over 4.5", o45, odd_o45),
+                ("Over 5.5", o55, odd_o55),
+            ]
+            for label, prob, odd in over_candidates:
+                if prob >= 60.0:
+                    valid_options.append({'market': 'Over', 'label': label, 'prob': prob, 'odd': odd})
+                    
+            # Candidatos de Under (linha de segurança >= 4.5)
+            under_candidates = [
+                ("Under 4.5", u45, odd_u45),
+                ("Under 5.5", u55, odd_u55),
+                ("Under 6.5", u65, odd_u65),
+                ("Under 7.5", u75, odd_u75),
+                ("Under 8.5", u85, odd_u85),
+            ]
+            for label, prob, odd in under_candidates:
+                if prob >= 60.0:
+                    valid_options.append({'market': 'Under', 'label': label, 'prob': prob, 'odd': odd})
+
+            if valid_options:
+                valid_options.sort(key=lambda x: x['prob'], reverse=True)
+
+                best_over = next((opt for opt in valid_options if opt['market'] == 'Over'), None)
+                # Para o Under, priorizamos a melhor linha de alta cobertura (ex: Under 7.5/Under 6.5/Under 8.5)
+                under_opts = [opt for opt in valid_options if opt['market'] == 'Under']
+                best_under = None
+                if under_opts:
+                    # Prefere Under 7.5 ou Under 6.5 se disponível para melhor odd, senão pega a de maior prob
+                    pref_under = next((opt for opt in under_opts if opt['label'] in ['Under 7.5', 'Under 6.5']), None)
+                    best_under = pref_under if pref_under else under_opts[0]
+
+                if best_over and best_under:
+                    # Exibe a de maior probabilidade como 1ª Opção e a complementar como 2ª Opção
+                    if best_over['prob'] >= best_under['prob']:
+                        op1_str = f"1ª Opção: {best_over['label']} ({best_over['prob']}% | Odd Justa: {best_over['odd']})"
+                        op2_str = f"2ª Opção: {best_under['label']} ({best_under['prob']}% | Odd Justa: {best_under['odd']})"
+                    else:
+                        op1_str = f"1ª Opção: {best_under['label']} ({best_under['prob']}% | Odd Justa: {best_under['odd']})"
+                        op2_str = f"2ª Opção: {best_over['label']} ({best_over['prob']}% | Odd Justa: {best_over['odd']})"
+                    prediction_text = f"⚡🛡️ Estratégia Bidirecional (Expectativa: {exp_cards} cartões). Sugestões de valor: {op1_str} | {op2_str}."
+                elif best_under:
+                    top_u = under_opts[0]
+                    sec_u = under_opts[1] if len(under_opts) > 1 else under_opts[0]
+                    prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd']})."
+                elif best_over:
+                    over_opts = [opt for opt in valid_options if opt['market'] == 'Over']
+                    top_o = over_opts[0]
+                    sec_o = over_opts[1] if len(over_opts) > 1 else over_opts[0]
+                    prediction_text = f"⚡ Estratégia Over (Expectativa: {exp_cards} cartões | Árbitro: {yellows:.2f} cartões/jogo). Sugestões de valor: 1ª Opção: {top_o['label']} ({top_o['prob']}% | Odd Justa: {top_o['odd']}) | 2ª Opção: {sec_o['label']} ({sec_o['prob']}% | Odd Justa: {sec_o['odd']})."
                 else:
-                    op1 = f"Over 4.5 ({o45}% | Odd Justa: {odd_o45})"
-                    op2 = f"Over 3.5 ({o35}% | Odd Justa: {odd_o35})"
-                prediction_text = f"⚡ Estratégia Over (Expectativa: {exp_cards} cartões | Árbitro: {yellows:.2f} cartões/jogo). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
+                    prediction_text = f"🚫 NO_BET: Partida neutra ou sem margem estatística (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
             else:
-                # Trava NO_BET: Risco elevado para Under e probabilidade insuficiente para Over (< 60.0%)
                 prediction_text = f"🚫 NO_BET: Partida neutra ou sem margem estatística (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
 
             # CÁLCULO DE PALPITES DE UNDER CARTÕES POR TIME (MANDANTE & VISITANTE)
@@ -1889,8 +1916,9 @@ def main():
             away_cards_avg = float(away_c_stats.get("avg_cards", 2.0))
             ref_scale = (yellows / 4.20) if yellows > 0 else 1.0
 
-            xc_home = round(home_cards_avg * (0.65 + 0.35 * ref_scale), 2)
-            xc_away = round(away_cards_avg * (0.65 + 0.35 * ref_scale), 2)
+            # O árbitro modula 65% do comportamento individual de cartões por time
+            xc_home = round(home_cards_avg * (0.35 + 0.65 * ref_scale), 2)
+            xc_away = round(away_cards_avg * (0.35 + 0.65 * ref_scale), 2)
 
             home_u_probs = calculate_team_poisson_under_lines(xc_home)
             away_u_probs = calculate_team_poisson_under_lines(xc_away)

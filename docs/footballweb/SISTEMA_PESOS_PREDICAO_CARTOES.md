@@ -43,16 +43,17 @@ graph TD
 $$xC = (w_{times} \times M_{times}) + (w_{arbitro} \times M_{arbitro}) + (w_{contexto} \times \Delta_{contexto})$$
 
 Onde:
-- **$M_{times}$ (50% de peso):** Média combinada de cartões (Média Mandante em casa + Média Visitante fora).
-- **$M_{arbitro}$ (35% de peso):** Média histórica de cartões amarelos/vermelhos do árbitro na competição.
-- **$\Delta_{contexto}$ (15% de peso):** Ajuste baseado na Taxa de Conversão $Cartões / Faltas$ e relevância do jogo.
+- **$M_{arbitro}$ (50% de peso direto):** Média histórica de cartões amarelos do árbitro na competição.
+- **$\Delta_{contexto}$ (15% de peso de faltas):** Ajuste baseado na Taxa de Conversão $Cartões / Faltas$ e perfil do árbitro.
+- **Total Árbitro (65%):** O perfil do árbitro modula 65% da expectativa final de cartões.
+- **$M_{times}$ (35% de peso):** Média combinada de cartões (Média Mandante em casa + Média Visitante fora).
 
 #### Tabela de Pesos do Sistema:
 | Métrica | Identificador | Peso ($w$) | Papel no Algoritmo |
 | :--- | :--- | :---: | :--- |
-| **Média Combinada dos Times** | `team_cards_combined` | **0.50** | **Âncora Principal:** Comportamento base real das equipes. |
-| **Média do Árbitro** | `yellows_referee` | **0.35** | **Regulador:** Modula a tendência para cima ou para baixo. |
-| **Conversão Faltas/Cartões** | `foul_conversion_factor` | **0.15** | **Ajuste Contextual:** Avalia a severidade real das faltas. |
+| **Média do Árbitro (Direta)** | `yellows_referee` | **0.50** | **Âncora Principal (50%):** O rigor do apito define o teto do jogo. |
+| **Conversão Faltas/Cartões** | `foul_conversion_factor` | **0.15** | **Ajuste Contextual (15%):** Avalia a severidade real das faltas. |
+| **Média Combinada dos Times** | `team_cards_combined` | **0.35** | **Fator Complementar (35%):** Histórico das equipes no confronto. |
 
 ---
 

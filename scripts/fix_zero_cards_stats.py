@@ -150,6 +150,7 @@ def fix_zero_cards():
             """, (real_avg, t_id, v_type))
             updated_count += 1
 
+    conn.commit()
     print(f"✅ Concluída atualização de {updated_count} registros de cartões na team_moving_averages!")
 
     # Verificar saldo restante <= 0.05

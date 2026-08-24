@@ -70,9 +70,7 @@ try:
             match_line_chk = re.search(r'(\d+\.\d+|\d+)', palpite)
             line_chk = float(match_line_chk.group(1)) if match_line_chk else 5.5
 
-            if is_over or (is_cartoes and is_over) or (is_cartoes and line_chk < 7.5):
-                status_gatekeeper = 'NO_BET'
-            elif is_cartoes:
+            if is_cartoes:
                 fixture = None
                 if fixture_id:
                     cursor.execute("SELECT prediction_text FROM fixtures_trends WHERE fixture_id = %s LIMIT 1", (fixture_id,))
@@ -104,15 +102,20 @@ try:
                         for k in range(k_max + 1):
                             prob_under_cdf += (math.exp(-xc) * (xc ** k)) / factorial(k)
 
-                        prob_poisson = round(min(100.0, max(0.0, prob_under_cdf * 100.0)), 2)
+                        if is_over:
+                            prob_poisson = round(min(100.0, max(0.0, (1.0 - prob_under_cdf) * 100.0)), 2)
+                        else:
+                            prob_poisson = round(min(100.0, max(0.0, prob_under_cdf * 100.0)), 2)
 
                         if prob_poisson > 0:
                             odd_justa = round(100.0 / prob_poisson, 2)
                             ev_percentual = round((((prob_poisson / 100.0) * odd) - 1.0) * 100.0, 2)
 
+                        min_prob_required = 60.0 if is_over else 50.0
+
                         if odd > max_allowed_odd:
                             status_gatekeeper = 'NO_BET'
-                        elif ev_percentual is not None and ev_percentual >= 0 and prob_poisson >= 50.0:
+                        elif ev_percentual is not None and ev_percentual >= 0 and prob_poisson >= min_prob_required:
                             status_gatekeeper = 'APROVADO'
                         else:
                             status_gatekeeper = 'NO_BET'

@@ -1744,9 +1744,13 @@ def main():
             u75 = under_probs[7.5]
             u85 = under_probs[8.5]
             
-            over_cards_prob = round(100.0 - u45, 2)
+            # Probabilidades de Over (Complemento de Under)
+            o35 = round(100.0 - u35, 2)
+            o45 = round(100.0 - u45, 2)
+            o55 = round(100.0 - u55, 2)
+            o65 = round(100.0 - u65, 2)
 
-            # POLÍTICA EXCLUSIVA UNDER E SELEÇÃO DINÂMICA DE LINHAS DA BETANO:
+            # POLÍTICA BIDIRECIONAL (UNDER & OVER) DA BETANO:
             # Calcula Odds Justas (100 / P) para cada linha
             odd_u45 = round(100.0 / u45, 2) if u45 > 0 else 99.00
             odd_u55 = round(100.0 / u55, 2) if u55 > 0 else 99.00
@@ -1754,10 +1758,12 @@ def main():
             odd_u75 = round(100.0 / u75, 2) if u75 > 0 else 99.00
             odd_u85 = round(100.0 / u85, 2) if u85 > 0 else 99.00
 
-            # TRAVA RÍGIDA DE ÁRBITRO SEVERO (> 5.5 CARTÕES)
-            if yellows > 5.50:
-                prediction_text = f"🚫 NO_BET (Trava de Árbitro Severo): O árbitro {referee_name} possui média de {yellows:.2f} cartões/jogo (> 5.50). Entrada de Under bloqueada por elevado risco disciplinar e de expulsão."
-            elif exp_cards <= 3.30 and u45 >= 75.0:
+            odd_o35 = round(100.0 / o35, 2) if o35 > 0 else 99.00
+            odd_o45 = round(100.0 / o45, 2) if o45 > 0 else 99.00
+            odd_o55 = round(100.0 / o55, 2) if o55 > 0 else 99.00
+            odd_o65 = round(100.0 / o65, 2) if o65 > 0 else 99.00
+
+            if exp_cards <= 3.30 and u45 >= 75.0:
                 # Cenário de Baixíssima Expectativa (Expectativa <= 3.30 cartões) -> 1ª Opção Under 4.5
                 op1 = f"Under 4.5 ({u45}% | Odd Justa: {odd_u45})"
                 op2 = f"Under 5.5 ({u55}% | Odd Justa: {odd_u55})"
@@ -1777,9 +1783,18 @@ def main():
                 op1 = f"Under 7.5 ({u75}% | Odd Justa: {odd_u75})"
                 op2 = f"Under 8.5 ({u85}% | Odd Justa: {odd_u85})"
                 prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
+            elif (exp_cards >= 5.30 or yellows > 5.20) and o45 >= 60.0:
+                # Cenário de Alta Expectativa / Árbitro Severo -> Estratégia Over 4.5 / Over 5.5
+                if exp_cards >= 6.20 and o55 >= 60.0:
+                    op1 = f"Over 5.5 ({o55}% | Odd Justa: {odd_o55})"
+                    op2 = f"Over 4.5 ({o45}% | Odd Justa: {odd_o45})"
+                else:
+                    op1 = f"Over 4.5 ({o45}% | Odd Justa: {odd_o45})"
+                    op2 = f"Over 3.5 ({o35}% | Odd Justa: {odd_o35})"
+                prediction_text = f"⚡ Estratégia Over (Expectativa: {exp_cards} cartões | Árbitro: {yellows:.2f} cartões/jogo). Sugestões de valor: 1ª Opção: {op1} | 2ª Opção: {op2}."
             else:
-                # Trava NO_BET: Risco elevado para entradas Under (xC > 6.50 ou probabilidade Under insuficiente)
-                prediction_text = f"🚫 NO_BET: Partida com Expectativa de Cartões elevada ({exp_cards} cartões). Nenhuma linha de segurança Under atendeu a margem aprovada pelo Gatekeeper."
+                # Trava NO_BET: Risco elevado para Under e probabilidade insuficiente para Over (< 60.0%)
+                prediction_text = f"🚫 NO_BET: Partida neutra ou sem margem estatística (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
 
             # CÁLCULO DE PALPITES DE UNDER CARTÕES POR TIME (MANDANTE & VISITANTE)
             home_cards_avg = float(home_c_stats.get("avg_cards", 2.0))

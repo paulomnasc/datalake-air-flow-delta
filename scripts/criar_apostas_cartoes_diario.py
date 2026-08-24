@@ -291,17 +291,28 @@ def extract_cards_under_suggestion(prediction_text: str):
     match_xc = re.search(r'(?:xC|Expectativa(?:\s+de\s+[Cc]artões)?(?::|\s+elevad[ao])?)\s*\(?(\d+\.\d+|\d+)', prediction_text, re.IGNORECASE)
     exp_cards = float(match_xc.group(1)) if match_xc else None
 
-    # Se xC for muito alto (> 6.50), força NO_BET conforme regra estatística de segurança
-    if exp_cards is not None and exp_cards > 6.50:
-        return None, None, 'NO_BET', None, None, None, exp_cards
+    # 3. Identifica se a estratégia é Over ou Under e extrai a linha
+    line_val = 5.5
+    is_over = False
 
-    # 3. Procura por sugestões do tipo: "1ª Opção: Under 5.5 (62.50% | Odd Justa: 1.60)"
-    # Ou termos genéricos "Under X.5" ou "Menos de X.5"
-    line_val = 6.5 # Default fallback safe line (Linha Betano Gatekeeper)
+    match_op1_over = re.search(r'1ª\s*Opção:\s*Over\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
+    match_op1_under = re.search(r'1ª\s*Opção:\s*Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
 
-    match_under_op1 = re.search(r'1ª\s*Opção:\s*Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
-    if match_under_op1:
-        line_val = float(match_under_op1.group(1))
+    if match_op1_over:
+        is_over = True
+        line_val = float(match_op1_over.group(1))
+    elif match_op1_under:
+        is_over = False
+        line_val = float(match_op1_under.group(1))
+    elif 'estratégia over' in pred_low or 'over' in pred_low:
+        is_over = True
+        match_over_gen = re.search(r'Over\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
+        if match_over_gen:
+            line_val = float(match_over_gen.group(1))
+        else:
+            match_mais = re.search(r'mais\s+de\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
+            if match_mais:
+                line_val = float(match_mais.group(1))
     else:
         match_under_gen = re.search(r'Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
         if match_under_gen:
@@ -311,31 +322,44 @@ def extract_cards_under_suggestion(prediction_text: str):
             if match_menos:
                 line_val = float(match_menos.group(1))
 
-    # TRAVA RIGOROSA DO GATEKEEPER (LINHA MÍNIMA UNDER 4.5+):
-    # Linhas inferiores a 4.5 (ex: Under 3.5, Under 2.5) são bloqueadas como NO_BET por elevado risco
-    if line_val < 4.5:
-        return None, None, 'NO_BET', None, None, None, exp_cards
-
-    # 4. Cálculo de Probabilidade Poisson & Odd Justa
+    # 4. Cálculo de Probabilidade Poisson & Odd Justa (Bidirecional)
     if exp_cards is None or exp_cards <= 0:
         exp_cards = 3.50 # baseline seguro
 
-    prob_poisson = calculate_poisson_under_cdf(exp_cards, line_val)
-    odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
+    prob_under = calculate_poisson_under_cdf(exp_cards, line_val)
 
-    # 5. Avaliação do Gatekeeper (Regra de Segurança Under 4.5+ e Under 5.5+)
-    if line_val < 5.5:
-        # Exigência condicional Under 4.5: xC <= 3.30 e Probabilidade Poisson >= 75.0%
-        if exp_cards <= 3.30 and prob_poisson >= 75.0:
+    if is_over:
+        prob_poisson = round(100.0 - prob_under, 2)
+        odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
+
+        # Regra do Gatekeeper para Over (Mínimo 60.0% Poisson e exp_cards >= 5.0)
+        if prob_poisson >= 60.0 and exp_cards >= 5.0:
             status_gk = 'APROVADO'
         else:
             status_gk = 'NO_BET'
-    elif exp_cards <= 6.50 and prob_poisson >= 60.0:
-        status_gk = 'APROVADO'
-    else:
-        status_gk = 'NO_BET'
 
-    palpite_str = f"Menos de {line_val} Cartões"
+        palpite_str = f"Mais de {line_val} Cartões"
+    else:
+        prob_poisson = prob_under
+        odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
+
+        # TRAVA RIGOROSA DO GATEKEEPER (LINHA MÍNIMA UNDER 4.5+):
+        if line_val < 4.5:
+            return None, None, 'NO_BET', None, None, None, exp_cards
+
+        # 5. Avaliação do Gatekeeper (Regra de Segurança Under 4.5+ e Under 5.5+)
+        if line_val < 5.5:
+            # Exigência condicional Under 4.5: xC <= 3.30 e Probabilidade Poisson >= 75.0%
+            if exp_cards <= 3.30 and prob_poisson >= 75.0:
+                status_gk = 'APROVADO'
+            else:
+                status_gk = 'NO_BET'
+        elif exp_cards <= 6.50 and prob_poisson >= 60.0:
+            status_gk = 'APROVADO'
+        else:
+            status_gk = 'NO_BET'
+
+        palpite_str = f"Menos de {line_val} Cartões"
 
     return line_val, palpite_str, status_gk, odd_justa, prob_poisson, None, exp_cards
 

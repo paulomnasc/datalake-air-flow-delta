@@ -28,6 +28,14 @@ Identificou-se uma alta taxa de abstenção em apostas de cartões pré-jogo. As
 - **Impacto:** Evita inflar artificialmente o $xC$ e forçar sugestões de linhas desnecessariamente distantes (Under 6.5/7.5).
 - **Arquivos impactados:** `scripts/football_ingest_trends.py`.
 
+#### 3. Módulo Bidirecional Over/Under no Gatekeeper de Cartões
+- **Descrição:** Expandir o algoritmo para emitir e aprovar sugestões de `Over Cartões` (`Mais de 4.5` ou `Mais de 5.5`) quando a expectativa de cartões $xC \ge 5.30$ ou a média de amarelos do árbitro $> 5.20$.
+- **Regras de Aprovação:**
+  - Probabilidade de Poisson do Over $P(\text{Over X.5}) \ge 60.0\%$.
+  - Eliminação da trava de `NO_BET` para partidas violentas/quentes.
+- **Impacto:** Contorna o bloqueio da Betano em linhas de Under 6.5/7.5 e reduz a taxa de abstenção.
+- **Arquivos impactados:** `scripts/football_ingest_trends.py`, `scripts/criar_apostas_cartoes_diario.py`, `src/footballweb/scratch/reavaliar_gatekeeper_banco.py`.
+
 ---
 
 ### 🟡 FASE 2: Backlog de Médio Prazo (Aguardando Desenvolvimento)

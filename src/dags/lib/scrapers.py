@@ -368,18 +368,16 @@ def scrape_oddspedia_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
         if not url:
             continue
             
-        log.info(f"[SCRAPER-ODDSPEDIA] Acessando {url} via FlareSolverr...")
-        fs_res = fetch_via_flaresolverr(url)
-        solved_cookies = fs_res.get("cookies", []) if fs_res else []
-        solved_ua = fs_res.get("userAgent", "") if fs_res else ""
-        html = fs_res.get("response") or fs_res.get("html") if fs_res else None
+        log.info(f"[SCRAPER-ODDSPEDIA] Acessando {url} via Playwright (direto)...")
+        html = _fetch_oddspedia_via_playwright(url)
         
         if not html:
-            log.warning(f"[SCRAPER-ODDSPEDIA] FlareSolverr não retornou HTML para {url}. Disparando Fallback Playwright...")
-            html = _fetch_oddspedia_via_playwright(url, cookies=solved_cookies, user_agent=solved_ua)
+            log.warning(f"[SCRAPER-ODDSPEDIA] Playwright não retornou HTML para {url}. Tentando fallback FlareSolverr...")
+            fs_res = fetch_via_flaresolverr(url)
+            html = fs_res.get("response") or fs_res.get("html") if fs_res else None
             
         if not html:
-            log.error(f"[SCRAPER-ODDSPEDIA] Falha crítica ao obter HTML de {url} via FlareSolverr e Playwright.")
+            log.error(f"[SCRAPER-ODDSPEDIA] Falha crítica ao obter HTML de {url} via Playwright e FlareSolverr.")
             continue
             
         soup = BeautifulSoup(html, 'html.parser')
@@ -555,18 +553,16 @@ def scrape_futbol24_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
         if not url:
             continue
             
-        log.info(f"[SCRAPER-FUTBOL24] Acessando {url} via FlareSolverr...")
-        fs_res = fetch_via_flaresolverr(url)
-        solved_cookies = fs_res.get("cookies", []) if fs_res else []
-        solved_ua = fs_res.get("userAgent", "") if fs_res else ""
-        html = fs_res.get("response") or fs_res.get("html") if fs_res else None
+        log.info(f"[SCRAPER-FUTBOL24] Acessando {url} via Playwright (direto)...")
+        html = _fetch_oddspedia_via_playwright(url)
         
         if not html:
-            log.warning(f"[SCRAPER-FUTBOL24] FlareSolverr não retornou HTML para {url}. Disparando Fallback Playwright...")
-            html = _fetch_oddspedia_via_playwright(url, cookies=solved_cookies, user_agent=solved_ua)
+            log.warning(f"[SCRAPER-FUTBOL24] Playwright não retornou HTML para {url}. Tentando fallback FlareSolverr...")
+            fs_res = fetch_via_flaresolverr(url)
+            html = fs_res.get("response") or fs_res.get("html") if fs_res else None
             
         if not html:
-            log.error(f"[SCRAPER-FUTBOL24] Falha ao obter HTML de {url}.")
+            log.error(f"[SCRAPER-FUTBOL24] Falha ao obter HTML de {url} via Playwright e FlareSolverr.")
             continue
             
         soup = BeautifulSoup(html, 'html.parser')
@@ -690,6 +686,8 @@ def fetch_futbol24_direct_match_odds(home_team: str, away_team: str, country: Op
             except Exception:
                 pass
 
+            if not html:
+                html = _fetch_oddspedia_via_playwright(url)
             if not html:
                 fs_res = fetch_via_flaresolverr(url)
                 html = fs_res.get('response') or fs_res.get('html') if fs_res else None

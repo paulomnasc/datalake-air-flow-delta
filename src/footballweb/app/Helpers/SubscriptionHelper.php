@@ -50,15 +50,8 @@ class SubscriptionHelper
      */
     public static function deveMostrarAviso(?string $dataVencimento, string $statusAssinatura): bool
     {
-        // Só mostra aviso para assinaturas ativas ou em trial
-        if (!in_array($statusAssinatura, ['trial', 'active'])) {
-            return false;
-        }
-
-        $diasRestantes = self::calcularDiasRestantes($dataVencimento);
-        
-        // Mostra aviso se faltam 7 dias ou menos (e não venceu ainda)
-        return $diasRestantes >= 0 && $diasRestantes <= 7;
+        // Monetização agora é por compra de tokens na plataforma; avisos de renovação não são exibidos
+        return false;
     }
 
     /**
@@ -206,24 +199,7 @@ class SubscriptionHelper
      */
     public static function podeAcessarPlataforma(string $statusAssinatura, ?string $dataVencimento): array
     {
-        // Cancelada: não pode acessar
-        if ($statusAssinatura === 'cancelled') {
-            return [
-                'pode_acessar' => false,
-                'mensagem' => 'Sua assinatura foi cancelada. Entre em contato para reativar.'
-            ];
-        }
-
-        // Expirada: verifica se já passou da data
-        if ($statusAssinatura === 'expired' || self::estaExpirada($dataVencimento)) {
-            $diasVencidos = abs(self::calcularDiasRestantes($dataVencimento));
-            return [
-                'pode_acessar' => false,
-                'mensagem' => "Sua assinatura expirou há {$diasVencidos} dia(s). Renove para continuar usando a plataforma."
-            ];
-        }
-
-        // Trial ou Active: pode acessar
+        // Monetização agora é por compra de tokens na plataforma; renovação de assinatura não restringe acesso.
         return [
             'pode_acessar' => true,
             'mensagem' => ''

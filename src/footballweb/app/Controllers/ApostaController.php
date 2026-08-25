@@ -4,14 +4,17 @@ namespace App\Controllers;
 
 use App\Models\ApostaModel;
 use App\Models\UsuarioModel;
+use App\Models\ContaCorrenteModel;
 
 class ApostaController extends BaseController
 {
     protected ApostaModel $apostaModel;
+    protected ContaCorrenteModel $contaCorrenteModel;
 
     public function __construct()
     {
-        $this->apostaModel = new ApostaModel();
+        $this->apostaModel        = new ApostaModel();
+        $this->contaCorrenteModel = new ContaCorrenteModel();
     }
 
     /**
@@ -340,6 +343,25 @@ class ApostaController extends BaseController
         ]);
 
         if ($newId) {
+            // Débito do valor da aposta na Conta Corrente
+            $this->contaCorrenteModel->debitarAposta(
+                $userId,
+                (int)$newId,
+                $valorAposta,
+                "Aposta #{$newId} ({$timeCasa} x {$timeFora} - {$palpite})"
+            );
+
+            // Se o status da aposta já for de encerramento/retorno, credita a conta corrente
+            if (in_array($status, ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida', 'Cashout'])) {
+                $retorno = ($status === 'Cashout' && $cashOut !== null) ? $cashOut : $ganhosPotenciais;
+                $this->contaCorrenteModel->creditarRetornoAposta(
+                    $userId,
+                    (int)$newId,
+                    (float)$retorno,
+                    "Retorno Aposta #{$newId} ({$status})"
+                );
+            }
+
             return $this->response->setJSON([
                 'success'           => true,
                 'message'           => 'Simulação de aposta registrada! ' . $gatekeeperMsg,
@@ -663,6 +685,17 @@ class ApostaController extends BaseController
                 ]);
             }
 
+            // Credita o retorno na Conta Corrente caso a aposta tenha sido resolvida/ganha/cashout
+            if (in_array($status, ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida', 'Cashout'])) {
+                $retorno = ($status === 'Cashout' && $cashOut !== null) ? $cashOut : $ganhosPotenciais;
+                $this->contaCorrenteModel->creditarRetornoAposta(
+                    (int)$aposta->usuario_id,
+                    $apostaId,
+                    (float)$retorno,
+                    "Retorno Aposta #{$apostaId} ({$status})"
+                );
+            }
+
             return $this->response->setJSON([
                 'success'           => true,
                 'message'           => 'Simulação de aposta atualizada com sucesso! ' . $eval['gatekeeperMsg'],
@@ -711,6 +744,14 @@ class ApostaController extends BaseController
             'cash_out'   => $valorCashout,
             'updated_at' => date('Y-m-d H:i:s')
         ]);
+
+        // Credita valor do cashout na Conta Corrente
+        $this->contaCorrenteModel->creditarRetornoAposta(
+            (int)$aposta->usuario_id,
+            $apostaId,
+            (float)$valorCashout,
+            "Cashout Aposta #{$apostaId}"
+        );
 
         return $this->response->setJSON([
             'success' => true,
@@ -821,6 +862,15 @@ class ApostaController extends BaseController
             'criado_em'             => $nowBr
         ]);
 
+        if ($novoId) {
+            $this->contaCorrenteModel->debitarAposta(
+                (int)$access['user_id'],
+                (int)$novoId,
+                (float)$aposta->valor_aposta,
+                "Reaposta #{$novoId} ({$aposta->time_casa} x {$aposta->time_fora})"
+            );
+        }
+
         return $this->response->setJSON([
             'success' => true,
             'message' => 'Resimulação de aposta realizada com sucesso! ' . $eval['gatekeeperMsg'],
@@ -850,6 +900,15 @@ class ApostaController extends BaseController
                 'success' => false,
                 'message' => 'Simulação de aposta não encontrada ou acesso negado.'
             ]);
+        }
+
+        if ($aposta && $aposta->status === 'Pendente') {
+            $this->contaCorrenteModel->estornarAposta(
+                (int)$aposta->usuario_id,
+                $apostaId,
+                (float)$aposta->valor_aposta,
+                "Estorno Exclusão Aposta #{$apostaId}"
+            );
         }
 
         $this->apostaModel->delete($apostaId);

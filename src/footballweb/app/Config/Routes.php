@@ -69,6 +69,12 @@ $routes->get('/apostas/analise-desempenho', 'ApostaController::analiseDesempenho
 $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
 
+// Rotas de Conta Corrente, Extrato e Gráfico de Evolução Financeira
+$routes->get('/apostas/extrato', 'ContaCorrenteController::extrato', ['as' => 'apostas.extrato']);
+$routes->get('/conta-corrente/extrato', 'ContaCorrenteController::extrato', ['as' => 'conta_corrente.extrato']);
+$routes->post('/conta-corrente/adicionar-credito', 'ContaCorrenteController::adicionarCredito', ['as' => 'conta_corrente.adicionar_credito']);
+$routes->get('/conta-corrente/grafico-dados', 'ContaCorrenteController::getGraficoDados', ['as' => 'conta_corrente.grafico_dados']);
+
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);
 $routes->match(['get', 'head'], '/team-logo/(:num)', 'FootballTrendsController::teamLogo/$1', ['as'=>'football.team-logo']);

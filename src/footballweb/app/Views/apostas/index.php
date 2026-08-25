@@ -898,9 +898,14 @@ if (!function_exists('formatBrtDate')) {
         <input type="text" id="betSearchInput" placeholder="<?= lang('App.search_bet_placeholder') ?>" onkeyup="applyBetFilters()">
       </div>
       
+      <?php 
+      $userNameIndex = $_SESSION['nome_usuario_logado'] ?? session()->get('nome_usuario_logado') ?? ($user->nome ?? '');
+      if (\App\Helpers\SessionHelper::isPauloNascimento($userNameIndex)): 
+      ?>
       <a href="<?= base_url('apostas/extrato') ?>" class="btn btn-outline-success rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;" title="Abrir Extrato e Conta Corrente">
         <i class="bi bi-wallet2 text-success"></i> Extrato & Conta Corrente
       </a>
+      <?php endif; ?>
 
       <a href="<?= base_url('apostas/relatorio-top5') ?>" target="_blank" class="btn btn-outline-warning rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;">
         <i class="bi bi-trophy-fill text-warning"></i> <?= lang('App.top5_report') ?>

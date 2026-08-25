@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\ContaCorrenteModel;
 use App\Models\ApostaModel;
+use App\Helpers\SessionHelper;
 
 class ContaCorrenteController extends BaseController
 {
@@ -17,7 +18,7 @@ class ContaCorrenteController extends BaseController
     }
 
     /**
-     * Verifica autenticação do usuário
+     * Verifica autenticação e permissão do usuário (apenas Paulo Nascimento)
      */
     private function checkAccess(): array
     {
@@ -29,6 +30,7 @@ class ContaCorrenteController extends BaseController
         if (!$isLogged || !$userId) {
             return [
                 'authenticated' => false,
+                'is_paulo'      => false,
                 'user_id'       => null,
                 'user'          => null
             ];
@@ -37,8 +39,12 @@ class ContaCorrenteController extends BaseController
         $db = \Config\Database::connect();
         $userRow = $db->table('usuario')->where('id', $userId)->get()->getRow();
 
+        $userName = $userRow->nome ?? $_SESSION['nome_usuario_logado'] ?? session()->get('nome_usuario_logado') ?? '';
+        $isPaulo = SessionHelper::isPauloNascimento($userName);
+
         return [
             'authenticated' => true,
+            'is_paulo'      => $isPaulo,
             'user_id'       => (int)$userId,
             'user'          => $userRow
         ];
@@ -54,6 +60,11 @@ class ContaCorrenteController extends BaseController
         if (!$access['authenticated']) {
             session()->setFlashdata('error', 'Você precisa estar logado para acessar o extrato da conta corrente.');
             return redirect()->to('/loginUsuario');
+        }
+
+        if (!$access['is_paulo']) {
+            session()->setFlashdata('error', 'Acesso negado: O extrato de conta corrente está disponível apenas para o usuário Paulo Nascimento.');
+            return redirect()->to('/apostas');
         }
 
         $userId = $access['user_id'];
@@ -94,6 +105,13 @@ class ContaCorrenteController extends BaseController
             ])->setStatusCode(401);
         }
 
+        if (!$access['is_paulo']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Acesso negado: Funcionalidade disponível apenas para o usuário Paulo Nascimento.'
+            ])->setStatusCode(403);
+        }
+
         $userId = $access['user_id'];
         $valor = (float)$this->request->getPost('valor');
         $descricaoInput = trim((string)$this->request->getPost('descricao'));
@@ -126,6 +144,13 @@ class ContaCorrenteController extends BaseController
                 'success' => false,
                 'message' => 'Não autorizado.'
             ])->setStatusCode(401);
+        }
+
+        if (!$access['is_paulo']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Acesso negado: Funcionalidade disponível apenas para o usuário Paulo Nascimento.'
+            ])->setStatusCode(403);
         }
 
         $graficoData = $this->contaCorrenteModel->getEvolucaoFinanceira($access['user_id']);

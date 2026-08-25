@@ -683,12 +683,17 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <span><?= lang('App.my_bets') ?></span>
                     </a>
                 </li>
+                <?php 
+                $userNameHeader = $_SESSION['nome_usuario_logado'] ?? session()->get('nome_usuario_logado') ?? ($user->nome ?? '');
+                if (\App\Helpers\SessionHelper::isPauloNascimento($userNameHeader)): 
+                ?>
                 <li class="nav-item">
                     <a href="<?= base_url('apostas/extrato') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-warning d-flex align-items-center gap-1" title="Extrato & Conta Corrente">
                         <i class="bi bi-wallet2" style="font-size: 19px;"></i>
                         <span>Extrato & Conta Corrente</span>
                     </a>
                 </li>
+                <?php endif; ?>
                 <li class="nav-item">
                     <a href="<?= base_url('apostas/relatorio-eficiencia') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-info d-flex align-items-center gap-1" title="<?= lang('App.tips_efficiency') ?>">
                         <i class="bi bi-graph-up-arrow" style="font-size: 18px;"></i>

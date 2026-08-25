@@ -1846,13 +1846,11 @@ def main():
                     if prob >= 60.0:
                         valid_options.append({'market': 'Over', 'label': label, 'prob': prob, 'odd': odd})
                         
-                # Candidatos de Under (linha de segurança >= 4.5)
+                # Candidatos de Under realizáveis no mercado pré-jogo da Betano (linha de segurança <= 6.5)
                 under_candidates = [
                     ("Under 4.5", u45, odd_u45),
                     ("Under 5.5", u55, odd_u55),
                     ("Under 6.5", u65, odd_u65),
-                    ("Under 7.5", u75, odd_u75),
-                    ("Under 8.5", u85, odd_u85),
                 ]
                 for label, prob, odd in under_candidates:
                     if prob >= 60.0:
@@ -1865,7 +1863,14 @@ def main():
                     under_opts = [opt for opt in valid_options if opt['market'] == 'Under']
                     best_under = None
                     if under_opts:
-                        pref_under = next((opt for opt in under_opts if opt['label'] in ['Under 7.5', 'Under 6.5']), None)
+                        if exp_cards <= 3.30:
+                            target_labels = ['Under 4.5', 'Under 5.5', 'Under 6.5']
+                        elif exp_cards <= 4.50:
+                            target_labels = ['Under 5.5', 'Under 4.5', 'Under 6.5']
+                        else:
+                            target_labels = ['Under 6.5', 'Under 5.5']
+                        
+                        pref_under = next((opt for opt in under_opts if opt['label'] in target_labels), None)
                         best_under = pref_under if pref_under else under_opts[0]
 
                     if best_over and best_under:

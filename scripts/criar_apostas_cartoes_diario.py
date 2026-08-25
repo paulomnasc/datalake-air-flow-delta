@@ -361,16 +361,18 @@ def extract_all_cards_suggestions(prediction_text: str):
             if match_under:
                 candidates.append((False, float(match_under.group(1))))
 
-    # Se a estratégia for Over/Under, adiciona também linhas alternativas padrão para avaliação
-    is_over_strategy = 'estratégia over' in pred_low or 'over' in pred_low
-    if is_over_strategy:
-        for alt_line in [3.5, 4.5, 5.5]:
-            if (True, alt_line) not in candidates:
-                candidates.append((True, alt_line))
-    else:
-        for alt_line in [5.5, 4.5, 6.5]:
-            if (False, alt_line) not in candidates:
-                candidates.append((False, alt_line))
+    # Adiciona sempre as linhas padrão comercializadas na Betano para garantir avaliação completa
+    standard_lines = [
+        (False, 5.5),
+        (False, 4.5),
+        (False, 6.5),
+        (True, 3.5),
+        (True, 4.5),
+        (True, 5.5)
+    ]
+    for std in standard_lines:
+        if std not in candidates:
+            candidates.append(std)
 
     suggestions = []
     for is_over, line_val in candidates:
@@ -391,14 +393,18 @@ def extract_all_cards_suggestions(prediction_text: str):
 
             if line_val < 4.5:
                 status_gk = 'NO_BET'
-            elif line_val < 5.5:
+            elif line_val <= 4.5:
                 if exp_cards <= 3.30 and prob_poisson >= 75.0:
                     status_gk = 'APROVADO'
                 else:
                     status_gk = 'NO_BET'
-            elif exp_cards <= 6.50 and prob_poisson >= 60.0:
-                status_gk = 'APROVADO'
+            elif line_val <= 6.5:
+                if exp_cards <= 6.50 and prob_poisson >= 60.0:
+                    status_gk = 'APROVADO'
+                else:
+                    status_gk = 'NO_BET'
             else:
+                # Linhas irrealistas no pré-jogo da Betano (ex: Under 7.5, Under 8.5)
                 status_gk = 'NO_BET'
             palpite_str = f"Menos de {line_val} Cartões"
 

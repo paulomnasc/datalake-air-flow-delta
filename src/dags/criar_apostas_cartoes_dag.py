@@ -62,7 +62,7 @@ dag = DAG(
     default_args=default_args,
     schedule_interval='0 * * * *',  # Executa a cada 1 hora capturando jogos em aberto com estatísticas completas e árbitro definido
     catchup=False,
-    description="DAG do Airflow que verifica jogos em aberto que possuam dados estatísticos completos e árbitro definido, cria apostas em Total de Cartões (Estratégia Under) para ligas do Brasil, CONMEBOL e Ligas de Elite (Premier League, La Liga, Serie A, Ligue 1, Primeira Liga, Eredivisie, Allsvenskan, MLS, Liga MX e Liga Profesional Arg) e envia e-mail com apostas criadas.",
+    description="DAG do Airflow que verifica jogos em aberto que possuam dados estatísticos completos e árbitro definido, cria apostas em Total de Cartões (Estratégia Under) para ligas do Brasil, UEFA/CONMEBOL e Ligas de Elite (UEFA Champions League, Premier League, La Liga, Serie A, Ligue 1, Primeira Liga, Eredivisie, Allsvenskan, MLS, Liga MX e Liga Profesional Arg) e envia e-mail com apostas criadas.",
     tags=['football', 'cartoes', 'cards_under', 'apostas', 'prematch_creation', 'email_notification']
 )
 

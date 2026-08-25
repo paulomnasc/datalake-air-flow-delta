@@ -218,7 +218,7 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     """
     Filtra o escopo de atuação do script de criação de apostas:
     - Campeonatos do Brasil (Série A, Série B, Copa do Brasil, Paulistão, etc. - Série C e Série D excluídas)
-    - Internacional CONMEBOL: Libertadores e Sul-Americana
+    - Internacional UEFA & CONMEBOL: UEFA Champions League (ID 2), Libertadores e Sul-Americana
     - Ligas Internacionais Permitidas:
       - Allsvenskan (ID 113)
       - Eredivisie (ID 88)
@@ -230,6 +230,7 @@ def is_allowed_league(league_id, league_name: str) -> bool:
       - Premier League - Inglaterra (ID 39)
       - Primeira Liga - Portugal (ID 94)
       - Serie A Italiana (ID 135)
+      - UEFA Champions League (ID 2)
     - Desconsidera jogos femininos (Women / Feminino) e jogos do Brasil Série C e Série D.
     """
     l_name_low = (league_name or '').lower().strip()
@@ -251,8 +252,9 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     if l_id in {75, 76}:
         return False
 
-    # IDs Conhecidos da API-Football (Brasil, Libertadores/Sudamericana e Ligas de Elite Internacionais/Americanas)
+    # IDs Conhecidos da API-Football (Brasil, UEFA/CONMEBOL e Ligas de Elite Internacionais/Americanas)
     ALLOWED_LEAGUE_IDS = {
+        2,    # UEFA Champions League
         71,   # Brasil Série A
         72,   # Brasil Série B
         73,   # Copa do Brasil
@@ -272,8 +274,9 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     if l_id in ALLOWED_LEAGUE_IDS:
         return True
 
-    # Checagem por Nome de Liga Internacional Permitida (CONMEBOL + 10 novas ligas)
+    # Checagem por Nome de Liga Internacional Permitida (UEFA, CONMEBOL + 10 novas ligas)
     allowed_int_keywords = [
+        'champions league', 'uefa champions league',
         'libertadores', 'sudamericana', 'sul-americana', 'sul americana',
         'allsvenskan',
         'eredivisie',

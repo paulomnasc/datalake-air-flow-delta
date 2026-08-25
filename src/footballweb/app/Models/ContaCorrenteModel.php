@@ -49,6 +49,11 @@ class ContaCorrenteModel extends Model
         }
 
         foreach ($apostas as $ap) {
+            $isConfirmada = isset($ap->confirmada) ? (int)$ap->confirmada : 1;
+            if ($isConfirmada === 0 || $ap->status === 'Não Confirmada') {
+                continue; // Pula apostas em rascunho/não confirmadas
+            }
+
             $apostaId = (int)$ap->id;
             $valorAposta = (float)$ap->valor_aposta;
             $status = $ap->status;

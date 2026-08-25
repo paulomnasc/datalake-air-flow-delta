@@ -59,6 +59,8 @@ $routes->post('/apostas/cashout/(:num)', 'ApostaController::cashout/$1', ['as' =
 $routes->post('/apostas/cashout', 'ApostaController::cashout', ['as' => 'apostas.cashout_post']);
 $routes->post('/apostas/reapostar/(:num)', 'ApostaController::reapostar/$1', ['as' => 'apostas.reapostar']);
 $routes->post('/apostas/reapostar', 'ApostaController::reapostar', ['as' => 'apostas.reapostar_post']);
+$routes->post('/apostas/confirmar/(:num)', 'ApostaController::confirmar/$1', ['as' => 'apostas.confirmar']);
+$routes->post('/apostas/confirmar', 'ApostaController::confirmar', ['as' => 'apostas.confirmar_post']);
 $routes->post('/apostas/processar', 'ApostaController::processar', ['as' => 'apostas.processar']);
 $routes->get('/apostas/relatorio-top5', 'ApostaController::relatorioTop5', ['as' => 'apostas.relatorio_top5']);
 $routes->get('/apostas/relatorioTop5', 'ApostaController::relatorioTop5');

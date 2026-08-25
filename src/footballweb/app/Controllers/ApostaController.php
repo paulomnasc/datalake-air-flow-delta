@@ -321,6 +321,14 @@ class ApostaController extends BaseController
             $dataHoraJogo = $nowBr;
         }
 
+        $confirmarDebitar = $this->request->getPost('confirmar_debitar') !== null 
+                            ? filter_var($this->request->getPost('confirmar_debitar'), FILTER_VALIDATE_BOOLEAN) 
+                            : true;
+
+        if (!$confirmarDebitar && $status === 'Pendente') {
+            $status = 'Não Confirmada';
+        }
+
         $newId = $this->apostaModel->insert([
             'usuario_id'            => $userId,
             'fixture_id'            => $fixtureId,
@@ -339,27 +347,30 @@ class ApostaController extends BaseController
             'cash_out'              => $cashOut,
             'tipo'                  => $tipo,
             'status'                => $status,
+            'confirmada'            => $confirmarDebitar ? 1 : 0,
             'criado_em'             => $nowBr
         ]);
 
         if ($newId) {
-            // Débito do valor da aposta na Conta Corrente
-            $this->contaCorrenteModel->debitarAposta(
-                $userId,
-                (int)$newId,
-                $valorAposta,
-                "Aposta #{$newId} ({$timeCasa} x {$timeFora} - {$palpite})"
-            );
-
-            // Se o status da aposta já for de encerramento/retorno, credita a conta corrente
-            if (in_array($status, ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida', 'Cashout'])) {
-                $retorno = ($status === 'Cashout' && $cashOut !== null) ? $cashOut : $ganhosPotenciais;
-                $this->contaCorrenteModel->creditarRetornoAposta(
+            if ($confirmarDebitar) {
+                // Débito do valor da aposta na Conta Corrente se confirmado
+                $this->contaCorrenteModel->debitarAposta(
                     $userId,
                     (int)$newId,
-                    (float)$retorno,
-                    "Retorno Aposta #{$newId} ({$status})"
+                    $valorAposta,
+                    "Aposta #{$newId} ({$timeCasa} x {$timeFora} - {$palpite})"
                 );
+
+                // Se o status da aposta já for de encerramento/retorno, credita a conta corrente
+                if (in_array($status, ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida', 'Cashout'])) {
+                    $retorno = ($status === 'Cashout' && $cashOut !== null) ? $cashOut : $ganhosPotenciais;
+                    $this->contaCorrenteModel->creditarRetornoAposta(
+                        $userId,
+                        (int)$newId,
+                        (float)$retorno,
+                        "Retorno Aposta #{$newId} ({$status})"
+                    );
+                }
             }
 
             return $this->response->setJSON([
@@ -916,6 +927,107 @@ class ApostaController extends BaseController
         return $this->response->setJSON([
             'success' => true,
             'message' => 'Simulação de aposta removida com sucesso.'
+        ]);
+    }
+
+    /**
+     * Confirma uma aposta e realiza o débito do valor na conta corrente (AJAX)
+     */
+    public function confirmar($id = null)
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated'] || !$access['has_tokens']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Acesso restrito: É necessário possuir tokens de consulta ativos para confirmar simulações de apostas.'
+            ])->setStatusCode(403);
+        }
+
+        $apostaId = (int)($id ?? $this->request->getPost('id'));
+        if ($apostaId <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'ID de simulação de aposta inválido.'
+            ])->setStatusCode(400);
+        }
+
+        $aposta = $this->apostaModel->find($apostaId);
+
+        if (!$aposta) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Simulação de aposta não encontrada.'
+            ])->setStatusCode(404);
+        }
+
+        $userId = (int)$access['user_id'];
+        if ((int)$aposta->usuario_id !== $userId && $userId !== 146) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Simulação de aposta não encontrada ou acesso negado.'
+            ])->setStatusCode(403);
+        }
+
+        $db = \Config\Database::connect();
+        $qExists = $db->table('conta_corrente')
+            ->where('usuario_id', $userId)
+            ->where('aposta_id', $apostaId)
+            ->where('tipo', 'DEBITO_APOSTA')
+            ->get();
+
+        $debitoExistente = $qExists ? $qExists->getRow() : null;
+
+        if ($debitoExistente || (isset($aposta->confirmada) && (int)$aposta->confirmada === 1 && $aposta->status !== 'Não Confirmada')) {
+            $this->apostaModel->update($apostaId, ['confirmada' => 1]);
+            $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
+            return $this->response->setJSON([
+                'success'           => true,
+                'already_confirmed' => true,
+                'message'           => "Aposta #{$apostaId} já foi confirmada e debitada anteriormente.",
+                'novo_saldo'        => $saldoAtual,
+                'id'                => $apostaId
+            ]);
+        }
+
+        $valorAposta = (float)$aposta->valor_aposta;
+        $saldoAtual  = $this->contaCorrenteModel->getSaldo($userId);
+
+        if ($saldoAtual < $valorAposta) {
+            return $this->response->setJSON([
+                'success'      => false,
+                'insufficient' => true,
+                'saldo_atual'  => $saldoAtual,
+                'valor_aposta' => $valorAposta,
+                'message'      => "Saldo insuficiente na conta corrente para confirmar esta aposta! Saldo atual: R$ " . number_format($saldoAtual, 2, ',', '.') . " | Valor necessário: R$ " . number_format($valorAposta, 2, ',', '.')
+            ]);
+        }
+
+        $desc = "Débito Aposta #{$apostaId} ({$aposta->time_casa} x {$aposta->time_fora} - {$aposta->palpite})";
+        $resDebito = $this->contaCorrenteModel->debitarAposta($userId, $apostaId, $valorAposta, $desc);
+
+        if (!$resDebito['success']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao processar débito na conta corrente: ' . ($resDebito['message'] ?? 'Falha de transação.')
+            ]);
+        }
+
+        $novoStatus = ($aposta->status === 'Não Confirmada') ? 'Pendente' : $aposta->status;
+        $this->apostaModel->update($apostaId, [
+            'confirmada' => 1,
+            'status'     => $novoStatus,
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
+
+        $novoSaldo = $resDebito['saldo_posterior'] ?? $this->contaCorrenteModel->getSaldo($userId);
+
+        return $this->response->setJSON([
+            'success'     => true,
+            'message'     => "Aposta #{$apostaId} confirmada com sucesso! R$ " . number_format($valorAposta, 2, ',', '.') . " debitado da conta corrente.",
+            'novo_saldo'  => $novoSaldo,
+            'id'          => $apostaId,
+            'novo_status' => $novoStatus
         ]);
     }
 

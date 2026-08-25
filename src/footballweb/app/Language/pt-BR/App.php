@@ -413,4 +413,19 @@ return [
     'edit_bet_simulation'           => 'Editar Simulação de Aposta',
     'link_to_match_optional'        => 'VINCULAR A UM JOGO DO BANCO (OPCIONAL)',
     'bet_simulation_market'         => 'Mercado de Simulação de Aposta',
+
+    // Confirmação de Apostas e Débito em Conta Corrente
+    'confirm_bet'                   => 'Confirmar Aposta',
+    'confirm_bet_debit'             => 'Confirmar e Debitar (R$ %s)',
+    'save_as_draft'                 => 'Salvar como Rascunho',
+    'unconfirmed'                   => 'Não Confirmada',
+    'unconfirmed_badge'             => '⚠️ Não Confirmada (Sem Débito)',
+    'debited_badge'                 => '✅ Debitada em Conta',
+    'confirm_bet_modal_title'       => 'Confirmar Aposta e Débito em Conta Corrente',
+    'confirm_bet_modal_desc'        => 'Deseja confirmar esta aposta e debitar o valor correspondente da sua conta corrente?',
+    'current_balance'               => 'Saldo Atual em Conta',
+    'bet_amount'                    => 'Valor da Aposta',
+    'balance_after_debit'           => 'Saldo Projetado Após Débito',
+    'confirm_debit_btn'             => '⚡ Efetivar Confirmação e Débito',
+    'insufficient_balance_msg'      => 'Saldo insuficiente na conta corrente para confirmar esta aposta.',
 ];

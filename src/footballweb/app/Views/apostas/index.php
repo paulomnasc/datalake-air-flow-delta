@@ -968,9 +968,16 @@ if (!function_exists('formatBrtDate')) {
                 </span>
               <?php endif; ?>
 
-              <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="<?= lang('App.bet_simulation_registered') ?>">
-                🂠 <?= lang('App.bet_simulation_registered') ?>
-              </span>
+              <?php $isConfirmada = isset($aposta->confirmada) ? (int)$aposta->confirmada : 1; ?>
+              <?php if ($isConfirmada === 0 || $aposta->status === 'Não Confirmada'): ?>
+                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning px-2 py-1" style="font-size: 0.75rem;" title="Simulação não confirmada / Sem débito em conta">
+                  ⚠️ <?= lang('App.unconfirmed_badge') ?>
+                </span>
+              <?php else: ?>
+                <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Débito em conta corrente efetuado">
+                  ✅ <?= lang('App.debited_badge') ?>
+                </span>
+              <?php endif; ?>
               <?php if (!empty($aposta->fixture_id)): ?>
                 <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
                    class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
@@ -1018,13 +1025,14 @@ if (!function_exists('formatBrtDate')) {
                 $detalhadoExibir = "FT | Placar: {$placarExibir} | Status: {$aposta->status}";
               }
               $statusLabelMap = [
-                'Pendente'     => lang('App.pending'),
-                'Ganha'        => lang('App.won'),
-                'Meio Ganha'   => lang('App.half_won'),
-                'ANULADA'      => lang('App.refunded'),
-                'Meio Perdida' => lang('App.half_lost'),
-                'Perdida'      => lang('App.lost'),
-                'Cashout'      => 'Cashout',
+                'Pendente'       => lang('App.pending'),
+                'Não Confirmada' => lang('App.unconfirmed'),
+                'Ganha'          => lang('App.won'),
+                'Meio Ganha'     => lang('App.half_won'),
+                'ANULADA'        => lang('App.refunded'),
+                'Meio Perdida'   => lang('App.half_lost'),
+                'Perdida'        => lang('App.lost'),
+                'Cashout'        => 'Cashout',
               ];
               $displayStatusLabel = mb_strtoupper($statusLabelMap[$aposta->status] ?? $aposta->status, 'UTF-8');
             ?>
@@ -1079,6 +1087,11 @@ if (!function_exists('formatBrtDate')) {
 
           <div class="bet-card-footer">
             <div class="actions-primary">
+              <?php if ($isConfirmada === 0 || $aposta->status === 'Não Confirmada'): ?>
+                <button type="button" class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px;" onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>)">
+                  <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
+                </button>
+              <?php endif; ?>
               <button class="btn-cashout" onclick="handleCashout(<?= $aposta->id ?>, <?= $aposta->cash_out ?? $aposta->valor_aposta ?>)">
                 CASH OUT R$ <?= number_format($aposta->cash_out ?? $aposta->valor_aposta, 2, ',', '.') ?>
               </button>
@@ -1306,7 +1319,12 @@ if (!function_exists('formatBrtDate')) {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
-          <button type="submit" class="btn btn-success fw-bold px-4"><?= lang('App.save_bet_simulation') ?></button>
+          <button type="button" class="btn btn-outline-secondary text-white fw-bold px-3 me-2" onclick="submitNewBet(event, false, false)">
+            <i class="bi bi-bookmark me-1"></i> <?= lang('App.save_as_draft') ?>
+          </button>
+          <button type="submit" class="btn btn-success fw-bold px-4" onclick="submitNewBet(event, false, true)">
+            <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
+          </button>
         </div>
       </form>
     </div>
@@ -1338,42 +1356,30 @@ if (!function_exists('formatBrtDate')) {
 
           <div class="row">
             <div class="col-6 mb-3">
-              <label class="form-label text-white"><?= lang('App.market') ?> *</label>
-              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editMercadoInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <label class="form-label text-white"><?= lang('App.bet_simulation_market') ?> *</label>
+              <input type="text" class="form-control bg-dark text-white border-secondary" id="editMercadoInput" required>
             </div>
             <div class="col-6 mb-3">
-              <div class="d-flex align-items-center justify-content-between mb-1">
-                <label class="form-label text-white mb-0"><?= lang('App.tip_label') ?> *</label>
-                <div class="form-check form-switch m-0 d-flex align-items-center gap-1" style="font-size: 0.72rem;">
-                  <input class="form-check-input" type="checkbox" role="switch" id="toggleUnlockEditPalpite" onchange="toggleEditPalpiteLock(this.checked)" style="cursor: pointer; width: 28px; height: 16px;">
-                  <label class="form-check-label text-info fw-bold" for="toggleUnlockEditPalpite" style="cursor: pointer; user-select: none;">
-                    <i class="bi bi-unlock-fill me-1"></i><?= lang('App.edit') ?>
-                  </label>
-                </div>
-              </div>
-              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editPalpiteInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <label class="form-label text-white"><?= lang('App.tip_label') ?> *</label>
+              <input type="text" class="form-control bg-dark text-white border-secondary" id="editPalpiteInput" required>
             </div>
           </div>
 
           <div class="row">
-            <div class="col-4 mb-3">
+            <div class="col-6 mb-3">
               <label class="form-label text-white">Odd *</label>
-              <input type="number" step="0.01" min="1.01" class="form-control" id="editOddInput" required oninput="calcEditGanhos()">
+              <input type="number" step="0.01" min="1.01" class="form-control bg-dark text-white border-secondary fw-bold text-success" id="editOddInput" required>
             </div>
-            <div class="col-4 mb-3">
-              <label class="form-label text-white"><?= lang('App.stake_amount') ?> *</label>
-              <input type="number" step="0.01" class="form-control" id="editValorInput" required oninput="calcEditGanhos()">
-            </div>
-            <div class="col-4 mb-3">
-              <label class="form-label text-white"><?= lang('App.potential_earnings') ?></label>
-              <input type="text" class="form-control text-success fw-bold" id="editGanhosDisplay" readonly>
+            <div class="col-6 mb-3">
+              <label class="form-label text-white"><?= lang('App.bet_simulation_label') ?> (R$) *</label>
+              <input type="number" step="0.01" min="0.01" class="form-control bg-dark text-white border-secondary fw-bold text-warning" id="editValorInput" required>
             </div>
           </div>
 
           <div class="row">
             <div class="col-4 mb-3">
-              <label class="form-label text-white"><?= lang('App.cashout_value') ?></label>
-              <input type="number" step="0.01" class="form-control text-white fw-bold bg-dark border-secondary" id="editCashoutInput" readonly style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <label class="form-label text-white"><?= lang('App.cashout') ?> (R$)</label>
+              <input type="number" step="0.01" min="0" class="form-control bg-dark text-white border-secondary" id="editCashoutInput" placeholder="Opcional">
             </div>
             <div class="col-4 mb-3">
               <label class="form-label text-white"><?= lang('App.type') ?></label>
@@ -1387,6 +1393,7 @@ if (!function_exists('formatBrtDate')) {
               <label class="form-label text-white"><?= lang('App.status') ?></label>
               <select class="form-select" id="editStatusSelect">
                 <option value="Pendente"><?= lang('App.pending') ?></option>
+                <option value="Não Confirmada"><?= lang('App.unconfirmed') ?></option>
                 <option value="Ganha"><?= lang('App.won') ?></option>
                 <option value="Meio Ganha"><?= lang('App.half_won') ?></option>
                 <option value="ANULADA"><?= lang('App.refunded') ?></option>
@@ -1403,6 +1410,57 @@ if (!function_exists('formatBrtDate')) {
           <button type="submit" class="btn btn-info fw-bold px-4 text-white"><?= lang('App.update_bet_simulation') ?></button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAR APOSTA E DÉBITO -->
+<div class="modal fade modal-dark" id="confirmBetModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background: #0f172a; border: 1px solid rgba(16, 185, 129, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+      <div class="modal-header border-bottom border-secondary">
+        <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+          <i class="bi bi-lightning-charge-fill text-success"></i> <?= lang('App.confirm_bet_modal_title') ?>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-light-50 small mb-3"><?= lang('App.confirm_bet_modal_desc') ?></p>
+        
+        <div class="p-3 mb-3 rounded-3" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Partida:</span>
+            <strong id="confirmBetMatchName" class="text-white">--</strong>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Mercado / Palpite:</span>
+            <span id="confirmBetPickInfo" class="text-info font-monospace small">--</span>
+          </div>
+          <div class="d-flex justify-content-between mb-0">
+            <span class="text-muted small"><?= lang('App.bet_amount') ?> (Débito):</span>
+            <strong id="confirmBetAmount" class="text-warning fs-6">R$ 0,00</strong>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-3" style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2);">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-light-50 small"><?= lang('App.current_balance') ?>:</span>
+            <span id="confirmBetCurrentBalance" class="fw-bold text-success">R$ 0,00</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="text-light-50 small"><?= lang('App.balance_after_debit') ?>:</span>
+            <strong id="confirmBetProjectedBalance" class="fw-bold text-white">R$ 0,00</strong>
+          </div>
+        </div>
+
+        <div id="confirmBetAlert" style="display: none;"></div>
+      </div>
+      <div class="modal-footer border-top border-secondary">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
+        <button type="button" class="btn btn-success fw-bold px-4 shadow" id="btnExecuteConfirmBet" onclick="executeConfirmBet()">
+          <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -2554,6 +2612,91 @@ if (!function_exists('formatBrtDate')) {
       resetEditState();
       console.error(err);
       alert('Erro na atualização.');
+    });
+  }
+
+  let currentBetToConfirm = null;
+
+  function openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpite, valorAposta) {
+    currentBetToConfirm = { id: apostaId, timeCasa, timeFora, mercado, palpite, valor: parseFloat(valorAposta) || 0 };
+    
+    const matchNameEl = document.getElementById('confirmBetMatchName');
+    const pickInfoEl = document.getElementById('confirmBetPickInfo');
+    const betAmountEl = document.getElementById('confirmBetAmount');
+    
+    if (matchNameEl) matchNameEl.textContent = timeCasa + ' x ' + timeFora;
+    if (pickInfoEl) pickInfoEl.textContent = mercado + ' — ' + palpite;
+    if (betAmountEl) betAmountEl.textContent = 'R$ ' + currentBetToConfirm.valor.toFixed(2).replace('.', ',');
+    
+    const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
+    let saldoVal = 0;
+    if (saldoEl) {
+      const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+      saldoVal = parseFloat(raw) || 0;
+    }
+    
+    const proj = saldoVal - currentBetToConfirm.valor;
+    
+    const curBalEl = document.getElementById('confirmBetCurrentBalance');
+    const projBalEl = document.getElementById('confirmBetProjectedBalance');
+    
+    if (curBalEl) curBalEl.textContent = 'R$ ' + saldoVal.toFixed(2).replace('.', ',');
+    if (projBalEl) projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+    
+    const alertEl = document.getElementById('confirmBetAlert');
+    const btnExec = document.getElementById('btnExecuteConfirmBet');
+    
+    if (proj < 0) {
+      if (alertEl) {
+        alertEl.style.display = 'block';
+        alertEl.className = 'alert alert-danger py-2 px-3 small rounded-3 mt-3 m-0';
+        alertEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Saldo Insuficiente!</strong> Adicione saldo à sua conta corrente antes de confirmar esta aposta.';
+      }
+      if (btnExec) btnExec.disabled = true;
+    } else {
+      if (alertEl) alertEl.style.display = 'none';
+      if (btnExec) btnExec.disabled = false;
+    }
+    
+    const modalEl = document.getElementById('confirmBetModal');
+    if (modalEl) {
+      showModalSafely(modalEl);
+    }
+  }
+
+  function executeConfirmBet() {
+    if (!currentBetToConfirm || !currentBetToConfirm.id) return;
+    
+    const btnExec = document.getElementById('btnExecuteConfirmBet');
+    if (btnExec) {
+      btnExec.disabled = true;
+      btnExec.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Debitando...';
+    }
+    
+    fetch('/apostas/confirmar/' + currentBetToConfirm.id, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('⚡ ' + data.message);
+        window.location.reload();
+      } else {
+        if (btnExec) {
+          btnExec.disabled = false;
+          btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> Efetivar Débito e Confirmar';
+        }
+        alert('❌ ' + data.message);
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      if (btnExec) {
+        btnExec.disabled = false;
+        btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> Efetivar Débito e Confirmar';
+      }
+      alert('Erro na confirmação da aposta.');
     });
   }
 

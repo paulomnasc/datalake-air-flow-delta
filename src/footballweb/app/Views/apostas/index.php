@@ -968,8 +968,11 @@ if (!function_exists('formatBrtDate')) {
                 </span>
               <?php endif; ?>
 
-              <?php $isConfirmada = isset($aposta->confirmada) ? (int)$aposta->confirmada : 1; ?>
-              <?php if ($isConfirmada === 0 || $aposta->status === 'Não Confirmada'): ?>
+              <?php 
+                $temDebitoCc = !empty($aposta->tem_debito) && (int)$aposta->tem_debito > 0;
+                $isConfirmada = $temDebitoCc && (isset($aposta->confirmada) ? (int)$aposta->confirmada : 1) === 1 && $aposta->status !== 'Não Confirmada';
+              ?>
+              <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
                 <span class="badge bg-warning bg-opacity-25 text-warning border border-warning px-2 py-1" style="font-size: 0.75rem;" title="Simulação não confirmada / Sem débito em conta">
                   ⚠️ <?= lang('App.unconfirmed_badge') ?>
                 </span>
@@ -1087,7 +1090,7 @@ if (!function_exists('formatBrtDate')) {
 
           <div class="bet-card-footer">
             <div class="actions-primary">
-              <?php if ($isConfirmada === 0 || $aposta->status === 'Não Confirmada'): ?>
+              <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
                 <button type="button" class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px;" onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>)">
                   <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
                 </button>

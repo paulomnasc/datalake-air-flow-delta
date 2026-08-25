@@ -316,95 +316,101 @@ def calculate_poisson_under_cdf(xc: float, line: float) -> float:
         prob_sum += (math.exp(-xc) * (xc ** k)) / math.factorial(k)
     return round(min(100.0, max(0.0, prob_sum * 100.0)), 2)
 
-def extract_cards_under_suggestion(prediction_text: str):
+def extract_all_cards_suggestions(prediction_text: str):
     """
-    Extrai a linha de cartões Under sugerida a partir do prediction_text de fixtures_trends.
-    Retorna tupla: (line_float, palpite_str, status_gatekeeper, odd_justa, prob_poisson, ev_perc, exp_cards)
+    Extrai todas as linhas de cartões sugeridas (1ª Opção, 2ª Opção, etc.) a partir do prediction_text de fixtures_trends.
+    Retorna lista de tuplas: [(line_float, palpite_str, status_gatekeeper, odd_justa, prob_poisson, ev_perc, exp_cards), ...]
     """
     if not prediction_text:
-        return None, None, 'NO_BET', None, None, None, None
+        return []
 
     pred_low = prediction_text.lower()
 
     # 1. Trava de Abstenção / NO_BET expressa
     if any(term in pred_low for term in ['no_bet', 'no bet', 'sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'indisponível', 'indisponivel', 'xc: 0.0', 'xc: 0.00']):
-        return None, None, 'NO_BET', None, None, None, None
+        return []
 
     # 2. Extrai expectativa matemática de cartões (xC / Expectativa)
     match_xc = re.search(r'(?:xC|Expectativa(?:\s+de\s+[Cc]artões)?(?::|\s+elevad[ao])?)\s*\(?(\d+\.\d+|\d+)', prediction_text, re.IGNORECASE)
     exp_cards = float(match_xc.group(1)) if match_xc else None
 
-    # 3. Identifica se a estratégia é Over ou Under e extrai a linha
-    line_val = 5.5
-    is_over = False
-
-    match_op1_over = re.search(r'1ª\s*Opção:\s*Over\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
-    match_op1_under = re.search(r'1ª\s*Opção:\s*Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
-
-    if match_op1_over:
-        is_over = True
-        line_val = float(match_op1_over.group(1))
-    elif match_op1_under:
-        is_over = False
-        line_val = float(match_op1_under.group(1))
-    elif 'estratégia over' in pred_low or 'over' in pred_low:
-        is_over = True
-        match_over_gen = re.search(r'Over\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
-        if match_over_gen:
-            line_val = float(match_over_gen.group(1))
-        else:
-            match_mais = re.search(r'mais\s+de\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
-            if match_mais:
-                line_val = float(match_mais.group(1))
-    else:
-        match_under_gen = re.search(r'Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
-        if match_under_gen:
-            line_val = float(match_under_gen.group(1))
-        else:
-            match_menos = re.search(r'menos\s+de\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
-            if match_menos:
-                line_val = float(match_menos.group(1))
-
-    # 4. Cálculo de Probabilidade Poisson & Odd Justa (Bidirecional)
     if exp_cards is None or exp_cards <= 0:
-        exp_cards = 3.50 # baseline seguro
+        return []
 
-    prob_under = calculate_poisson_under_cdf(exp_cards, line_val)
+    # 3. Busca opções explícitas em prediction_text ("1ª Opção: Over 3.5 | 2ª Opção: Over 4.5", etc.)
+    raw_options = re.findall(r'(?:1ª|2ª|3ª)?\s*Opção:\s*(Over|Under)\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
 
-    if is_over:
-        prob_poisson = round(100.0 - prob_under, 2)
-        odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
+    candidates = []
+    if raw_options:
+        for op_type, line_str in raw_options:
+            is_over = (op_type.lower() == 'over')
+            line_val = float(line_str)
+            if (is_over, line_val) not in candidates:
+                candidates.append((is_over, line_val))
 
-        # Regra do Gatekeeper para Over (Mínimo 60.0% Poisson e exp_cards >= 5.0)
-        if prob_poisson >= 60.0 and exp_cards >= 5.0:
-            status_gk = 'APROVADO'
+    if not candidates:
+        if 'estratégia over' in pred_low or 'over' in pred_low:
+            match_over = re.search(r'Over\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE) or re.search(r'mais\s+de\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
+            if match_over:
+                candidates.append((True, float(match_over.group(1))))
         else:
-            status_gk = 'NO_BET'
+            match_under = re.search(r'Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE) or re.search(r'menos\s+de\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
+            if match_under:
+                candidates.append((False, float(match_under.group(1))))
 
-        palpite_str = f"Mais de {line_val} Cartões"
+    # Se a estratégia for Over/Under, adiciona também linhas alternativas padrão para avaliação
+    is_over_strategy = 'estratégia over' in pred_low or 'over' in pred_low
+    if is_over_strategy:
+        for alt_line in [3.5, 4.5, 5.5]:
+            if (True, alt_line) not in candidates:
+                candidates.append((True, alt_line))
     else:
-        prob_poisson = prob_under
-        odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
+        for alt_line in [5.5, 4.5, 6.5]:
+            if (False, alt_line) not in candidates:
+                candidates.append((False, alt_line))
 
-        # TRAVA RIGOROSA DO GATEKEEPER (LINHA MÍNIMA UNDER 4.5+):
-        if line_val < 4.5:
-            return None, None, 'NO_BET', None, None, None, exp_cards
+    suggestions = []
+    for is_over, line_val in candidates:
+        prob_under = calculate_poisson_under_cdf(exp_cards, line_val)
 
-        # 5. Avaliação do Gatekeeper (Regra de Segurança Under 4.5+ e Under 5.5+)
-        if line_val < 5.5:
-            # Exigência condicional Under 4.5: xC <= 3.30 e Probabilidade Poisson >= 75.0%
-            if exp_cards <= 3.30 and prob_poisson >= 75.0:
+        if is_over:
+            prob_poisson = round(100.0 - prob_under, 2)
+            odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
+            # Regra do Gatekeeper para Over (Mínimo 60.0% Poisson e exp_cards >= 5.0)
+            if prob_poisson >= 60.0 and exp_cards >= 5.0:
                 status_gk = 'APROVADO'
             else:
                 status_gk = 'NO_BET'
-        elif exp_cards <= 6.50 and prob_poisson >= 60.0:
-            status_gk = 'APROVADO'
+            palpite_str = f"Mais de {line_val} Cartões"
         else:
-            status_gk = 'NO_BET'
+            prob_poisson = prob_under
+            odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
 
-        palpite_str = f"Menos de {line_val} Cartões"
+            if line_val < 4.5:
+                status_gk = 'NO_BET'
+            elif line_val < 5.5:
+                if exp_cards <= 3.30 and prob_poisson >= 75.0:
+                    status_gk = 'APROVADO'
+                else:
+                    status_gk = 'NO_BET'
+            elif exp_cards <= 6.50 and prob_poisson >= 60.0:
+                status_gk = 'APROVADO'
+            else:
+                status_gk = 'NO_BET'
+            palpite_str = f"Menos de {line_val} Cartões"
 
-    return line_val, palpite_str, status_gk, odd_justa, prob_poisson, None, exp_cards
+        suggestions.append((line_val, palpite_str, status_gk, odd_justa, prob_poisson, None, exp_cards))
+
+    return suggestions
+
+def extract_cards_under_suggestion(prediction_text: str):
+    """
+    Função de compatibilidade: retorna a primeira sugestão de extract_all_cards_suggestions.
+    """
+    suggestions = extract_all_cards_suggestions(prediction_text)
+    if suggestions:
+        return suggestions[0]
+    return None, None, 'NO_BET', None, None, None, None
 
 _betano_cards_odds_cache = {}
 
@@ -429,37 +435,42 @@ def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: flo
     is_under = 'menos' in (palpite_str or '').lower() or 'under' in (palpite_str or '').lower()
     target_type = 'under' if is_under else 'over'
 
-    url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
-    try:
-        resp = requests.get(url, headers=headers, timeout=10).json()
-        items = resp.get('response', [])
-        for item in items:
-            for bm in item.get('bookmakers', []):
-                bm_name = str(bm.get('name', '')).strip().upper()
-                bm_id = bm.get('id')
-                if 'BETANO' not in bm_name and bm_id != 32:
-                    continue
+    urls = [
+        f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32&bet=80",
+        f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bet=80",
+        f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
+    ]
 
-                for bet in bm.get('bets', []):
-                    b_id = bet.get('id')
-                    b_name = str(bet.get('name', '')).lower()
+    for url in urls:
+        try:
+            resp = requests.get(url, headers=headers, timeout=10).json()
+            items = resp.get('response', [])
+            for item in items:
+                for bm in item.get('bookmakers', []):
+                    bm_name = str(bm.get('name', '')).strip().upper()
+                    bm_id = bm.get('id')
+                    if 'BETANO' not in bm_name and bm_id != 32:
+                        continue
 
-                    # ID 80: Cards Over/Under | ID 81: Cards Asian Handicap | ID 82: Home | ID 83: Away
-                    if b_id in [80, 81, 82, 83, 204, 299, 335] or 'cards over/under' in b_name or 'total de cartões' in b_name or ('cards' in b_name and 'over' in b_name):
-                        for val in bet.get('values', []):
-                            v_str = str(val.get('value', '')).strip().lower()
-                            try:
-                                v_odd = float(val.get('odd', 0))
-                            except (ValueError, TypeError):
-                                continue
+                    for bet in bm.get('bets', []):
+                        b_id = bet.get('id')
+                        b_name = str(bet.get('name', '')).lower()
 
-                            if target_type in v_str and str(line_val) in v_str:
-                                if v_odd > 1.0:
-                                    res = (v_odd, 'BETANO')
-                                    _betano_cards_odds_cache[cache_key] = res
-                                    return res
-    except Exception as e:
-        print(f"⚠️ [API Betano Cards] Erro ao buscar odd para fixture #{fixture_id}: {e}")
+                        if b_id in [80, 81, 82, 83, 204, 299, 335] or 'cards' in b_name or 'cartões' in b_name:
+                            for val in bet.get('values', []):
+                                v_str = str(val.get('value', '')).strip().lower()
+                                try:
+                                    v_odd = float(val.get('odd', 0))
+                                except (ValueError, TypeError):
+                                    continue
+
+                                if target_type in v_str and str(line_val) in v_str:
+                                    if v_odd > 1.0:
+                                        res = (v_odd, 'BETANO')
+                                        _betano_cards_odds_cache[cache_key] = res
+                                        return res
+        except Exception as e:
+            print(f"⚠️ [API Betano Cards] Erro ao buscar odd para fixture #{fixture_id}: {e}")
 
     _betano_cards_odds_cache[cache_key] = (None, None)
     return None, None
@@ -472,16 +483,11 @@ def criar_apostas_cartoes_diario(target_date_str=None):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    is_prematch_window = False
+    is_all_open = False
 
-    if not target_date_str or target_date_str.lower() in ('prematch', 'pre-match'):
-        is_prematch_window = True
-        date_desc = "janela pré-jogo (30 a 45 minutos antes do início)"
-    elif target_date_str.lower() == 'all':
-        today_dt = datetime.now()
-        tomorrow_dt = today_dt + timedelta(days=1)
-        target_dates = [today_dt.strftime('%Y-%m-%d'), tomorrow_dt.strftime('%Y-%m-%d')]
-        date_desc = f"todas as partidas em aberto das datas {target_dates[0]} e {target_dates[1]}"
+    if not target_date_str or target_date_str.lower() in ('prematch', 'pre-match', 'all'):
+        is_all_open = True
+        date_desc = "todas as partidas em aberto futuras (sem limitação de janela pré-jogo)"
     else:
         target_dates = [target_date_str]
         date_desc = f"data {target_date_str}"
@@ -492,11 +498,10 @@ def criar_apostas_cartoes_diario(target_date_str=None):
     print(f"👥 Usuários identificados: {user_ids}")
 
     # 1. Buscar partidas em aberto
-    if is_prematch_window:
+    if is_all_open:
         cursor.execute("""
             SELECT * FROM fixtures_trends
             WHERE fixture_date >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
-              AND fixture_date <= DATE_ADD(NOW(), INTERVAL 45 MINUTE)
               AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """)
@@ -505,7 +510,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         cursor.execute(f"""
             SELECT * FROM fixtures_trends
             WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN ({placeholders})
-              AND status NOT IN ('PST', 'CANCELLED', 'POSTPONED')
+              AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """, tuple(target_dates))
 
@@ -546,28 +551,38 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
         prediction_text = (fix.get('prediction_text') or '').strip()
 
-        line_val, palpite_str, status_gk, odd_justa, prob_poisson, ev_perc, exp_cards = extract_cards_under_suggestion(prediction_text)
+        suggestions = extract_all_cards_suggestions(prediction_text)
 
-        if status_gk == 'NO_BET' or not palpite_str:
-            print(f"🛡️ [Gatekeeper NO_BET / Abstenção] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Predição: '{prediction_text[:60]}...'. Entrada Under não recomendada.")
+        if not suggestions:
+            print(f"🛡️ [Gatekeeper NO_BET / Abstenção] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Predição sem amostragem estatística suficiente.")
             apostas_abstencao += 1
             continue
 
-        # Definição da Odd REAL da Betano para a Aposta (Sem odds sintéticas/estimadas)
-        real_odd_betano, odd_source = fetch_betano_real_card_odds(fixture_id, palpite_str, line_val)
+        selected_suggestion = None
+        for s_line_val, s_palpite_str, s_status_gk, s_odd_justa, s_prob_poisson, s_ev, s_exp_cards in suggestions:
+            if s_status_gk == 'NO_BET' or not s_palpite_str:
+                continue
 
-        if not real_odd_betano or real_odd_betano <= 1.0:
-            print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Mercado de cartões '{palpite_str}' indisponível/não à venda na Betano. Entrada ignorada.")
+            real_odd_betano, odd_source = fetch_betano_real_card_odds(fixture_id, s_palpite_str, s_line_val)
+
+            if not real_odd_betano or real_odd_betano <= 1.0:
+                print(f"ℹ️ [Linha Indisponível Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Mercado '{s_palpite_str}' indisponível na Betano. Testando próxima sugestão...")
+                continue
+
+            if real_odd_betano < 1.50:
+                print(f"ℹ️ [Odd Baixa < 1.50] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Odd Betano ({real_odd_betano:.2f}) para '{s_palpite_str}' é inferior ao mínimo (1.50). Testando próxima opção...")
+                continue
+
+            # Opção válida encontrada na Betano e aprovada pelo Gatekeeper!
+            selected_suggestion = (s_line_val, s_palpite_str, s_status_gk, s_odd_justa, s_prob_poisson, real_odd_betano, s_exp_cards)
+            break
+
+        if not selected_suggestion:
+            print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha recomendada está disponível na Betano com odd >= 1.50.")
             apostas_abstencao += 1
             continue
 
-        odd_val = real_odd_betano
-
-        # Trava de Risco: Não criar aposta se a odd for inferior ao mínimo permitido (1.50)
-        if odd_val < 1.50:
-            print(f"🛡️ [Odd Baixa < 1.50] Partida {home_team} vs {away_team} -> Odd Betano ({odd_val:.2f}) é inferior ao mínimo permitido (1.50). Aposta ignorada.")
-            apostas_abstencao += 1
-            continue
+        line_val, palpite_str, status_gk, odd_justa, prob_poisson, odd_val, exp_cards = selected_suggestion
 
         # Calcula EV percentual final ((Prob * Odd) - 1) * 100
         if prob_poisson and prob_poisson > 0:

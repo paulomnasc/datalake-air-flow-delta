@@ -14,6 +14,9 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
+import requests
+import time
+
 
 def get_live_env_vars():
     """
@@ -403,6 +406,64 @@ def extract_cards_under_suggestion(prediction_text: str):
 
     return line_val, palpite_str, status_gk, odd_justa, prob_poisson, None, exp_cards
 
+_betano_cards_odds_cache = {}
+
+def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: float):
+    """
+    Busca na API-Sports a odd REAL do mercado de cartões oferecida exclusivamente pela Betano (Bookmaker ID 32).
+    Retorna tupla: (odd_float, 'BETANO') se encontrada, ou (None, None) se o mercado não estiver à venda na Betano.
+    """
+    if not fixture_id:
+        return None, None
+
+    cache_key = f"{fixture_id}_{palpite_str}_{line_val}"
+    if cache_key in _betano_cards_odds_cache:
+        return _betano_cards_odds_cache[cache_key]
+
+    api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
+    headers = {
+        'x-apisports-key': api_key,
+        'User-Agent': 'Mozilla/5.0'
+    }
+
+    is_under = 'menos' in (palpite_str or '').lower() or 'under' in (palpite_str or '').lower()
+    target_type = 'under' if is_under else 'over'
+
+    url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
+    try:
+        resp = requests.get(url, headers=headers, timeout=10).json()
+        items = resp.get('response', [])
+        for item in items:
+            for bm in item.get('bookmakers', []):
+                bm_name = str(bm.get('name', '')).strip().upper()
+                bm_id = bm.get('id')
+                if 'BETANO' not in bm_name and bm_id != 32:
+                    continue
+
+                for bet in bm.get('bets', []):
+                    b_id = bet.get('id')
+                    b_name = str(bet.get('name', '')).lower()
+
+                    # ID 80: Cards Over/Under | ID 81: Cards Asian Handicap | ID 82: Home | ID 83: Away
+                    if b_id in [80, 81, 82, 83, 204, 299, 335] or 'cards over/under' in b_name or 'total de cartões' in b_name or ('cards' in b_name and 'over' in b_name):
+                        for val in bet.get('values', []):
+                            v_str = str(val.get('value', '')).strip().lower()
+                            try:
+                                v_odd = float(val.get('odd', 0))
+                            except (ValueError, TypeError):
+                                continue
+
+                            if target_type in v_str and str(line_val) in v_str:
+                                if v_odd > 1.0:
+                                    res = (v_odd, 'BETANO')
+                                    _betano_cards_odds_cache[cache_key] = res
+                                    return res
+    except Exception as e:
+        print(f"⚠️ [API Betano Cards] Erro ao buscar odd para fixture #{fixture_id}: {e}")
+
+    _betano_cards_odds_cache[cache_key] = (None, None)
+    return None, None
+
 def criar_apostas_cartoes_diario(target_date_str=None):
     """
     Busca os jogos em aberto na janela pré-jogo (ou data especificada)
@@ -492,17 +553,19 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             apostas_abstencao += 1
             continue
 
-        # Definição da Odd Real da Casa para a Aposta
-        # Se odd_justa calculada estiver disponível, estimamos uma odd de mercado competitiva (+EV)
-        # Ex: Odd Mercado Betano entre 1.50 e 1.85 ou odd_justa com margem de segurança
-        odd_val = 1.65
-        if odd_justa and odd_justa > 1.0:
-            # Garante que a odd oferecida atenda a margem financeira (+EV) da linha da Betano
-            odd_val = round(max(1.50, odd_justa * 1.05), 2)
-        
+        # Definição da Odd REAL da Betano para a Aposta (Sem odds sintéticas/estimadas)
+        real_odd_betano, odd_source = fetch_betano_real_card_odds(fixture_id, palpite_str, line_val)
+
+        if not real_odd_betano or real_odd_betano <= 1.0:
+            print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Mercado de cartões '{palpite_str}' indisponível/não à venda na Betano. Entrada ignorada.")
+            apostas_abstencao += 1
+            continue
+
+        odd_val = real_odd_betano
+
         # Trava de Risco: Não criar aposta se a odd for inferior ao mínimo permitido (1.50)
         if odd_val < 1.50:
-            print(f"🛡️ [Odd Baixa < 1.50] Partida {home_team} vs {away_team} -> Odd {odd_val:.2f} é inferior ao mínimo permitido (1.50). Aposta ignorada.")
+            print(f"🛡️ [Odd Baixa < 1.50] Partida {home_team} vs {away_team} -> Odd Betano ({odd_val:.2f}) é inferior ao mínimo permitido (1.50). Aposta ignorada.")
             apostas_abstencao += 1
             continue
 

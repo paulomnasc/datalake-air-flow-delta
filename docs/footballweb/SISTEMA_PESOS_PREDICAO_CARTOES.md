@@ -107,9 +107,12 @@ No cadastro/entrada da aposta no **footballweb**, a validação avalia os crité
 | **3. Risco Estatístico ($xC$)** | $xC \le 6.50$ | Impede apostas Under em partidas com expectativa descontrolada de cartões ($xC > 6.50$). |
 | **4. Mapeamento Dinâmico Betano** | $xC \le 3.30 \Rightarrow \text{Under 4.5}$<br>$3.30 < xC \le 4.20 \Rightarrow \text{Under 5.5}$<br>$4.20 < xC \le 5.80 \Rightarrow \text{Under 6.5}$<br>$5.80 < xC \le 6.50 \Rightarrow \text{Under 7.5}$ | Seleciona a linha de maior segurança oferecida na Betano de acordo com o risco do jogo. |
 | **5. Probabilidade Mínima ($P$)** | $P(\text{Under Linha}) \ge 60\%$ | Garante margem estatística suficiente de acerto via Distribuição de Poisson (exige $\ge 75\%$ para Under 4.5). |
+| **6. Exigência de Odd REAL Betano** | $\text{Odd}_{\text{Betano}} > 1.0$ (API-Sports #32) | Exige que a Betano possua o mercado de cartões realmente aberto à venda no momento da execução. Elimina odds sintéticas. |
+| **7. Piso Mínimo de Odd (Risco/Retorno)** | $\text{Odd}_{\text{Betano}} \ge 1.50$ | Rejeita apostas com odd inferior a 1.50 (ex: 1.18) para evitar risco desproporcional por retornos baixos. |
 
-- **Status `APROVADO`:** Todos os critérios são atendidos. Aposta liberada com selo Green Light.
-- **Status `NO_BET`:** Se qualquer um dos critérios falhar (ex: linha $< 4.5$, Under 4.5 com $xC > 3.30$, $xC > 6.50$ ou $P < 60\%$). A aposta é registrada/notificada como sem valor de mercado.
+- **Status `APROVADO`:** Todos os critérios são atendidos e a Betano oferece cotação $\ge 1.50$. Aposta liberada.
+- **Status `NO_BET`:** Se qualquer um dos critérios falhar ou se o mercado da Betano não estiver disponível / odd $< 1.50$.
+- **Documentação Detalhada de Automação:** Veja [`docs/footballweb/REGRAS_CRIACAO_APOSTAS_CARTOES_BETANO.md`](file:///root/datalake-air-flow-delta/docs/footballweb/REGRAS_CRIACAO_APOSTAS_CARTOES_BETANO.md).
 
 ---
 

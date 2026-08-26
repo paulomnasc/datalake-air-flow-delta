@@ -155,6 +155,7 @@ class ApostaController extends BaseController
                     f.goals_home,
                     f.goals_away,
                     f.status as fixture_status,
+                    f.league_name,
                     (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') as tem_debito
                 FROM apostas a
                 LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)

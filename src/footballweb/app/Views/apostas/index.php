@@ -951,55 +951,59 @@ if (!function_exists('formatBrtDate')) {
           $displayMatchTime = !empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'd/m \à\s H:i') : 'Hoje';
           $displayCreatedTime = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'd/m/Y \à\s H:i') : null;
         ?>
-        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
+        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? ''))) ?>">
           
           <div class="bet-card-header">
-            <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
-              <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
-              
-              <?php 
-                $placarExibir = null;
-                if (isset($aposta->goals_home) && isset($aposta->goals_away) && $aposta->goals_home !== null && $aposta->goals_away !== null) {
-                  $placarExibir = $aposta->goals_home . ' x ' . $aposta->goals_away;
-                } elseif (!empty($aposta->resultado_detalhado) && preg_match('/Placar:\s*(\d+\s*x\s*\d+|\d+x\d+)/i', $aposta->resultado_detalhado, $mPlac)) {
-                  $placarExibir = str_replace('x', ' x ', str_replace(' ', '', $mPlac[1]));
-                }
-              ?>
+            <div class="d-flex flex-column align-items-start gap-1">
+              <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
+                <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
+                
+                <?php 
+                  $placarExibir = null;
+                  if (isset($aposta->goals_home) && isset($aposta->goals_away) && $aposta->goals_home !== null && $aposta->goals_away !== null) {
+                    $placarExibir = $aposta->goals_home . ' x ' . $aposta->goals_away;
+                  } elseif (!empty($aposta->resultado_detalhado) && preg_match('/Placar:\s*(\d+\s*x\s*\d+|\d+x\d+)/i', $aposta->resultado_detalhado, $mPlac)) {
+                    $placarExibir = str_replace('x', ' x ', str_replace(' ', '', $mPlac[1]));
+                  }
+                ?>
 
-              <?php if (!empty($placarExibir)): ?>
-                <span class="badge bg-warning text-dark border border-warning px-2.5 py-1 font-monospace fw-bold" style="font-size: 0.81rem; letter-spacing: 0.5px;" title="Placar Final da Partida (FT)">
-                  ⚽ Placar: <?= htmlspecialchars($placarExibir) ?>
-                </span>
-              <?php endif; ?>
+                <?php if (!empty($placarExibir)): ?>
+                  <span class="badge bg-warning text-dark border border-warning px-2.5 py-1 font-monospace fw-bold" style="font-size: 0.81rem; letter-spacing: 0.5px;" title="Placar Final da Partida (FT)">
+                    ⚽ Placar: <?= htmlspecialchars($placarExibir) ?>
+                  </span>
+                <?php endif; ?>
 
-              <?php if (!empty($placarExibir)): ?>
-                <span class="badge bg-warning text-dark border border-warning px-2.5 py-1 font-monospace fw-bold" style="font-size: 0.81rem; letter-spacing: 0.5px;" title="Placar Final da Partida (FT)">
-                  ⚽ Placar: <?= htmlspecialchars($placarExibir) ?>
-                </span>
-              <?php endif; ?>
+                <?php 
+                  $temDebitoCc = !empty($aposta->tem_debito) && (int)$aposta->tem_debito > 0;
+                  $isConfirmada = $temDebitoCc && (isset($aposta->confirmada) ? (int)$aposta->confirmada : 1) === 1 && $aposta->status !== 'Não Confirmada';
+                ?>
+                <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
+                  <span class="badge bg-warning bg-opacity-25 text-warning border border-warning px-2 py-1" style="font-size: 0.75rem;" title="Simulação não confirmada / Sem débito em conta">
+                    ⚠️ <?= lang('App.unconfirmed_badge') ?>
+                  </span>
+                <?php else: ?>
+                  <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Débito em conta corrente efetuado">
+                    ✅ <?= lang('App.debited_badge') ?>
+                  </span>
+                <?php endif; ?>
+                <?php if (!empty($aposta->fixture_id)): ?>
+                  <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
+                     class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
+                     style="font-size: 0.75rem; transition: all 0.2s ease;" 
+                     title="<?= lang('App.origin_card') ?>">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> <?= lang('App.origin_card') ?>
+                  </a>
+                <?php endif; ?>
+              </div>
 
-              <?php 
-                $temDebitoCc = !empty($aposta->tem_debito) && (int)$aposta->tem_debito > 0;
-                $isConfirmada = $temDebitoCc && (isset($aposta->confirmada) ? (int)$aposta->confirmada : 1) === 1 && $aposta->status !== 'Não Confirmada';
-              ?>
-              <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
-                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning px-2 py-1" style="font-size: 0.75rem;" title="Simulação não confirmada / Sem débito em conta">
-                  ⚠️ <?= lang('App.unconfirmed_badge') ?>
-                </span>
-              <?php else: ?>
-                <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Débito em conta corrente efetuado">
-                  ✅ <?= lang('App.debited_badge') ?>
-                </span>
-              <?php endif; ?>
-              <?php if (!empty($aposta->fixture_id)): ?>
-                <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
-                   class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
-                   style="font-size: 0.75rem; transition: all 0.2s ease;" 
-                   title="<?= lang('App.origin_card') ?>">
-                  <i class="bi bi-box-arrow-up-right me-1"></i> <?= lang('App.origin_card') ?>
-                </a>
+              <?php if (!empty($aposta->league_name)): ?>
+                <div class="match-league" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: flex; align-items: center; gap: 5px; margin-top: 1px;">
+                  <i class="bi bi-trophy-fill" style="color: var(--bet-gold); font-size: 0.78rem;"></i>
+                  <span><?= htmlspecialchars($aposta->league_name) ?></span>
+                </div>
               <?php endif; ?>
             </div>
+
             <div class="match-time flex-shrink-0 d-flex flex-column align-items-end text-end ms-auto" style="font-size: 0.78rem; gap: 2px;">
               <div title="<?= lang('App.match') ?>" style="color: var(--bet-text-muted);">
                 <i class="bi bi-calendar-event me-1"></i> <?= lang('App.match') ?>: <strong><?= $displayMatchTime ?></strong>

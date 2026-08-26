@@ -70,6 +70,11 @@ require VIEWPATH.'/header.php';
                         <option value="Aguardando assinatura" selected>Aguardando assinatura</option>
                         <option value="Execução">Execução</option>
                     </select>
+                <?php elseif ($currentStatus === 'Execução'): ?>
+                    <select id="status" name="status" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;">
+                        <option value="Execução" selected>Execução</option>
+                        <option value="Cancelada">Cancelada</option>
+                    </select>
                 <?php else: ?>
                     <input type="text" id="status_display" value="<?php echo htmlspecialchars($currentStatus); ?>" readonly disabled style="width: 100%; padding: 8px; background-color: #e9ecef; border: 1px solid #ddd; border-radius: 4px;">
                     <input type="hidden" name="status" value="<?php echo htmlspecialchars($currentStatus); ?>">

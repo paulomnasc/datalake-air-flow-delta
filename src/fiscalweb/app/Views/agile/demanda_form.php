@@ -86,6 +86,7 @@ $isEdit = isset($demanda);
                                 <option value="SERPRO" <?= $demanda->status === 'SERPRO' ? 'selected' : '' ?>>SERPRO</option>
                                 <option value="Atualizado Produção" <?= $demanda->status === 'Atualizado Produção' ? 'selected' : '' ?>>Atualizado Produção</option>
                                 <option value="Atualizado Produção (Esteira SERPRO)" <?= $demanda->status === 'Atualizado Produção (Esteira SERPRO)' ? 'selected' : '' ?>>Atualizado Produção (Esteira SERPRO)</option>
+                                <option value="Cancelada" <?= $demanda->status === 'Cancelada' ? 'selected' : '' ?>>Cancelada</option>
                             </select>
                         </div>
                     <?php endif; ?>

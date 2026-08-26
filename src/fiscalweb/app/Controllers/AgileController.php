@@ -103,7 +103,8 @@ class AgileController extends BaseController
             'CCM',
             'Homologação',
             'Atualizado Produção',
-            'Atualizado Produção (Esteira SERPRO)'
+            'Atualizado Produção (Esteira SERPRO)',
+            'Cancelada'
         ];
         $dbStatusesQuery = $this->demandaModel->select('DISTINCT(status) as status')->where('status IS NOT NULL AND status != ""')->findAll();
         $dbStatuses = array_filter(array_map(function($item) {

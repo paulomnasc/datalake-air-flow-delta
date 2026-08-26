@@ -391,10 +391,11 @@ class OrdemServicoController extends BaseController
         $allowedManualTransitions = [
             'Rascunho' => ['Rascunho', 'Aguardando assinatura'],
             'Aguardando assinatura' => ['Aguardando assinatura', 'Execução'],
-            'Execução' => ['Execução'],
+            'Execução' => ['Execução', 'Cancelada'],
             'Recebido Provisorio' => ['Recebido Provisorio'],
             'Recebido definitivo' => ['Recebido definitivo'],
-            'Concluido' => ['Concluido']
+            'Concluido' => ['Concluido'],
+            'Cancelada' => ['Cancelada']
         ];
 
         if (!in_array($newStatus, $allowedManualTransitions[$currentStatus])) {

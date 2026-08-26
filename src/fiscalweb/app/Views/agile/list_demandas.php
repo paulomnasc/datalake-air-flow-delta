@@ -118,6 +118,7 @@ require VIEWPATH.'/header.php';
                                 if ($demanda->status === 'Em Execução') $badgeClass = 'bg-primary';
                                 if ($demanda->status === 'Homologação') $badgeClass = 'bg-warning text-dark';
                                 if ($demanda->status === 'Atualizado Produção' || $demanda->status === 'Atualizado Produção (Esteira SERPRO)') $badgeClass = 'bg-success';
+                                if ($demanda->status === 'Cancelada') $badgeClass = 'bg-danger';
                                 ?>
                                 <span class="badge <?= $badgeClass ?>"><?= htmlspecialchars($demanda->status) ?></span>
                             </td>

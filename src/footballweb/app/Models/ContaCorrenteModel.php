@@ -147,6 +147,59 @@ class ContaCorrenteModel extends Model
     }
 
     /**
+     * Resgatar crédito da conta corrente (Saque / Retirada)
+     */
+    public function resgatarCredito(int $usuarioId, float $valor, string $descricao = 'Resgate de Crédito da Conta Corrente'): array
+    {
+        if ($valor <= 0) {
+            return ['success' => false, 'message' => 'O valor do resgate deve ser maior que zero.'];
+        }
+
+        $saldoAnterior = $this->getSaldo($usuarioId);
+        if ($valor > $saldoAnterior) {
+            return [
+                'success' => false,
+                'message' => 'Saldo insuficiente para resgate. Saldo atual disponível: R$ ' . number_format($saldoAnterior, 2, ',', '.')
+            ];
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        $saldoPosterior = round($saldoAnterior - $valor, 2);
+        $now = date('Y-m-d H:i:s');
+
+        $db->table($this->table)->insert([
+            'usuario_id'      => $usuarioId,
+            'aposta_id'       => null,
+            'tipo'            => 'RESGATE_CREDITO',
+            'descricao'       => $descricao,
+            'valor'           => -$valor, // Armazena negativo representando débito/saída
+            'saldo_anterior'  => $saldoAnterior,
+            'saldo_posterior' => $saldoPosterior,
+            'criado_em'       => $now
+        ]);
+
+        $db->table('usuario')
+            ->where('id', $usuarioId)
+            ->update(['saldo_conta_corrente' => $saldoPosterior]);
+
+        $db->transComplete();
+
+        if ($db->transStatus() === false) {
+            return ['success' => false, 'message' => 'Erro ao processar resgate no banco de dados.'];
+        }
+
+        return [
+            'success'         => true,
+            'message'         => 'Resgate de crédito realizado com sucesso!',
+            'saldo_anterior'  => $saldoAnterior,
+            'saldo_posterior' => $saldoPosterior,
+            'valor'           => $valor
+        ];
+    }
+
+    /**
      * Debitar valor de uma aposta criada
      */
     public function debitarAposta(int $usuarioId, int $apostaId, float $valor, string $descricao = ''): array
@@ -365,6 +418,7 @@ class ContaCorrenteModel extends Model
                 COALESCE(SUM(CASE WHEN tipo = 'DEBITO_APOSTA' THEN ABS(valor) ELSE 0 END), 0) as total_debitado_apostas,
                 COALESCE(SUM(CASE WHEN tipo = 'CREDITO_RETORNO_APOSTA' THEN valor ELSE 0 END), 0) as total_retorno_apostas,
                 COALESCE(SUM(CASE WHEN tipo = 'ESTORNO_APOSTA' THEN valor ELSE 0 END), 0) as total_estornos,
+                COALESCE(SUM(CASE WHEN tipo = 'RESGATE_CREDITO' THEN ABS(valor) ELSE 0 END), 0) as total_resgates,
                 COUNT(*) as total_transacoes
             ")
             ->where('usuario_id', $usuarioId)
@@ -378,6 +432,7 @@ class ContaCorrenteModel extends Model
         $totalDebitos  = (float)($summary->total_debitado_apostas ?? 0);
         $totalRetornos = (float)($summary->total_retorno_apostas ?? 0);
         $totalEstornos = (float)($summary->total_estornos ?? 0);
+        $totalResgates = (float)($summary->total_resgates ?? 0);
 
         // Resultado líquido proveniente das apostas
         $lucroLiquidoApostas = $totalRetornos - ($totalDebitos - $totalEstornos);
@@ -389,6 +444,7 @@ class ContaCorrenteModel extends Model
             'total_debitado_apostas'     => $totalDebitos,
             'total_retorno_apostas'      => $totalRetornos,
             'total_estornos'             => $totalEstornos,
+            'total_resgates'             => $totalResgates,
             'lucro_liquido_apostas'      => $lucroLiquidoApostas,
             'total_transacoes'           => (int)($summary->total_transacoes ?? 0)
         ];

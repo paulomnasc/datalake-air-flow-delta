@@ -187,14 +187,17 @@ class ApostaController extends BaseController
             $resumo  = $this->apostaModel->getResumoUsuario($userId);
         }
 
+        $saldoContaCorrente = $this->contaCorrenteModel->getSaldo($userId);
+
         $data = [
-            'title'       => 'Minhas Simulações de Apostas | Gestão de Riscos & Palpites',
-            'hasTokens'   => $hasTokens,
-            'userCredits' => $userCredits,
-            'apostas'     => $apostas,
-            'resumo'      => $resumo,
-            'fixtures'    => $fixtures,
-            'user'        => $access['user']
+            'title'              => 'Minhas Simulações de Apostas | Gestão de Riscos & Palpites',
+            'hasTokens'          => $hasTokens,
+            'userCredits'        => $userCredits,
+            'saldoContaCorrente' => $saldoContaCorrente,
+            'apostas'            => $apostas,
+            'resumo'             => $resumo,
+            'fixtures'           => $fixtures,
+            'user'               => $access['user']
         ];
 
         return view('header', $data)
@@ -326,7 +329,16 @@ class ApostaController extends BaseController
                             ? filter_var($this->request->getPost('confirmar_debitar'), FILTER_VALIDATE_BOOLEAN) 
                             : true;
 
-        if (!$confirmarDebitar && $status === 'Pendente') {
+        $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
+        $saldoInsuficienteAviso = '';
+
+        if ($confirmarDebitar && $saldoAtual < $valorAposta) {
+            $confirmarDebitar = false;
+            if ($status === 'Pendente') {
+                $status = 'Não Confirmada';
+            }
+            $saldoInsuficienteAviso = " ⚠️ Saldo em conta corrente insuficiente (R$ " . number_format($saldoAtual, 2, ',', '.') . ") - gravada como Não Confirmada.";
+        } elseif (!$confirmarDebitar && $status === 'Pendente') {
             $status = 'Não Confirmada';
         }
 
@@ -376,7 +388,7 @@ class ApostaController extends BaseController
 
             return $this->response->setJSON([
                 'success'           => true,
-                'message'           => 'Simulação de aposta registrada! ' . $gatekeeperMsg,
+                'message'           => 'Simulação de aposta registrada! ' . $gatekeeperMsg . $saldoInsuficienteAviso,
                 'id'                => $newId,
                 'status_gatekeeper' => $statusGatekeeper,
                 'odd_justa'         => $oddJusta,

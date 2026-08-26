@@ -83,6 +83,28 @@ $transacoes = $extrato['transacoes'] ?? [];
   color: white;
 }
 
+.btn-redeem-credit {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn-redeem-credit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+  color: white;
+}
+
 /* Cards KPI Grid */
 .kpi-grid {
   display: grid;
@@ -344,6 +366,12 @@ $transacoes = $extrato['transacoes'] ?? [];
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
+.badge-resgate-credito {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
 .val-positivo {
   color: #34d399;
   font-weight: 700;
@@ -407,9 +435,14 @@ $transacoes = $extrato['transacoes'] ?? [];
       <h1><i class="fas fa-wallet"></i> Extrato da Conta Corrente</h1>
       <p>Acompanhe em tempo real seus créditos adicionados, débitos de apostas e a evolução financeira do seu saldo.</p>
     </div>
-    <button type="button" class="btn-add-credit" onclick="openAddCreditModal()">
-      <i class="fas fa-plus-circle"></i> Adicionar Crédito
-    </button>
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+      <button type="button" class="btn-add-credit" onclick="openAddCreditModal()">
+        <i class="fas fa-plus-circle"></i> Adicionar Crédito
+      </button>
+      <button type="button" class="btn-redeem-credit" onclick="openRedeemCreditModal()">
+        <i class="fas fa-hand-holding-usd"></i> Resgatar Crédito
+      </button>
+    </div>
   </div>
 
   <!-- KPI Summary Cards Grid -->
@@ -481,6 +514,7 @@ $transacoes = $extrato['transacoes'] ?? [];
         <select id="tipo" name="tipo" class="filter-input">
           <option value="">Todas as Movimentações</option>
           <option value="CREDITO_ADICIONADO" <?= $tipoFiltroVal === 'CREDITO_ADICIONADO' ? 'selected' : '' ?>>Crédito Adicionado (Aporte)</option>
+          <option value="RESGATE_CREDITO" <?= $tipoFiltroVal === 'RESGATE_CREDITO' ? 'selected' : '' ?>>Resgate de Crédito</option>
           <option value="DEBITO_APOSTA" <?= $tipoFiltroVal === 'DEBITO_APOSTA' ? 'selected' : '' ?>>Débito de Aposta</option>
           <option value="CREDITO_RETORNO_APOSTA" <?= $tipoFiltroVal === 'CREDITO_RETORNO_APOSTA' ? 'selected' : '' ?>>Retorno de Aposta</option>
           <option value="ESTORNO_APOSTA" <?= $tipoFiltroVal === 'ESTORNO_APOSTA' ? 'selected' : '' ?>>Estorno de Aposta</option>
@@ -562,6 +596,11 @@ $transacoes = $extrato['transacoes'] ?? [];
                     $tipoLabel = 'Estorno';
                     $tipoIcon = 'fa-undo';
                     break;
+                  case 'RESGATE_CREDITO':
+                    $tipoClass = 'badge-resgate-credito';
+                    $tipoLabel = 'Resgate de Crédito';
+                    $tipoIcon = 'fa-hand-holding-usd';
+                    break;
                   default:
                     $tipoClass = 'badge-credito-adicionado';
                     $tipoLabel = $t->tipo;
@@ -613,6 +652,34 @@ $transacoes = $extrato['transacoes'] ?? [];
       <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
         <button type="button" class="btn-clear" onclick="closeAddCreditModal()">Cancelar</button>
         <button type="submit" class="btn-add-credit"><i class="fas fa-check"></i> Confirmar Crédito</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Resgatar Crédito -->
+<div id="redeemCreditModal" class="cc-modal-overlay">
+  <div class="cc-modal-card">
+    <div class="cc-modal-header">
+      <h3><i class="fas fa-hand-holding-usd" style="color: #f59e0b;"></i> Resgatar Crédito do Saldo</h3>
+      <button class="cc-modal-close" onclick="closeRedeemCreditModal()">&times;</button>
+    </div>
+    <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 0.5rem; padding: 0.75rem 1rem; margin-bottom: 1.25rem; font-size: 0.875rem; color: #fef3c7;">
+      <i class="fas fa-info-circle me-1"></i> Saldo disponível para resgate: <strong style="color: #fbbf24;">R$ <?= number_format($saldoAtual, 2, ',', '.') ?></strong>
+    </div>
+    <form id="formRedeemCredit" onsubmit="submitRedeemCredit(event)">
+      <div class="filter-group" style="margin-bottom: 1rem;">
+        <label for="valor_resgate">Valor a Resgatar (R$)</label>
+        <input type="number" step="0.01" min="0.01" max="<?= max(0, $saldoAtual) ?>" id="valor_resgate" name="valor" class="filter-input" placeholder="Ex: 50.00" required>
+        <small style="color: var(--cc-text-secondary); font-size: 0.775rem;">Máximo permitido: R$ <?= number_format($saldoAtual, 2, ',', '.') ?></small>
+      </div>
+      <div class="filter-group" style="margin-bottom: 1.5rem;">
+        <label for="descricao_resgate">Descrição / Motivo (Opcional)</label>
+        <input type="text" id="descricao_resgate" name="descricao" class="filter-input" placeholder="Ex: Retirada de lucro, Transferência externa">
+      </div>
+      <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+        <button type="button" class="btn-clear" onclick="closeRedeemCreditModal()">Cancelar</button>
+        <button type="submit" class="btn-redeem-credit"><i class="fas fa-check"></i> Confirmar Resgate</button>
       </div>
     </form>
   </div>
@@ -758,6 +825,55 @@ function submitAddCredit(e) {
   .catch(err => {
     console.error(err);
     alert('Erro de conexão ao adicionar crédito.');
+  });
+}
+
+const saldoDisponivelAtual = <?= (float)$saldoAtual ?>;
+
+function openRedeemCreditModal() {
+  document.getElementById('redeemCreditModal').style.display = 'flex';
+}
+
+function closeRedeemCreditModal() {
+  document.getElementById('redeemCreditModal').style.display = 'none';
+}
+
+function submitRedeemCredit(e) {
+  e.preventDefault();
+  const valorInput = document.getElementById('valor_resgate');
+  const valor = parseFloat(valorInput.value);
+  const descricao = document.getElementById('descricao_resgate').value;
+
+  if (isNaN(valor) || valor <= 0) {
+    alert('⚠️ Por favor, informe um valor válido maior que zero.');
+    return;
+  }
+
+  if (valor > saldoDisponivelAtual) {
+    alert('⚠️ O valor do resgate (R$ ' + valor.toFixed(2) + ') excede o saldo disponível na conta corrente (R$ ' + saldoDisponivelAtual.toFixed(2) + ').');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('valor', valor);
+  formData.append('descricao', descricao);
+
+  fetch('<?= site_url('/conta-corrente/resgatar-credito') ?>', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      alert('✅ Resgate de R$ ' + valor.toFixed(2) + ' realizado com sucesso!');
+      window.location.reload();
+    } else {
+      alert('❌ Erro ao realizar resgate: ' + (data.message || 'Tente novamente.'));
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    alert('Erro de conexão ao processar o resgate.');
   });
 }
 </script>

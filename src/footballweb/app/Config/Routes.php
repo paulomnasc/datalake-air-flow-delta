@@ -75,6 +75,7 @@ $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::anal
 $routes->get('/apostas/extrato', 'ContaCorrenteController::extrato', ['as' => 'apostas.extrato']);
 $routes->get('/conta-corrente/extrato', 'ContaCorrenteController::extrato', ['as' => 'conta_corrente.extrato']);
 $routes->post('/conta-corrente/adicionar-credito', 'ContaCorrenteController::adicionarCredito', ['as' => 'conta_corrente.adicionar_credito']);
+$routes->post('/conta-corrente/resgatar-credito', 'ContaCorrenteController::resgatarCredito', ['as' => 'conta_corrente.resgatar_credito']);
 $routes->get('/conta-corrente/grafico-dados', 'ContaCorrenteController::getGraficoDados', ['as' => 'conta_corrente.grafico_dados']);
 
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas

@@ -767,6 +767,16 @@ if (!function_exists('formatBrtDate')) {
 
   <!-- Cards Resumo Stats -->
   <div class="stats-grid">
+    <?php 
+      $saldoCcVal = (float)($saldoContaCorrente ?? $user->saldo_conta_corrente ?? 0);
+    ?>
+    <div class="stat-card" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);" title="Saldo de crédito disponível em conta corrente para confirmação e débito de apostas">
+      <div class="stat-label" style="color: #34d399;"><i class="bi bi-wallet2"></i> Saldo Conta Corrente</div>
+      <div class="stat-value current-balance-value" style="color: <?= $saldoCcVal >= 0 ? '#34d399' : '#f87171' ?>;" id="topSaldoContaCorrente" data-saldo-cc="<?= $saldoCcVal ?>">
+        R$ <?= number_format($saldoCcVal, 2, ',', '.') ?>
+      </div>
+    </div>
+
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-cash-stack"></i> <?= lang('App.total_staked') ?></div>
       <div class="stat-value" id="topTotalApostado">R$ <?= number_format($resumo['total_apostado'] ?? 0, 2, ',', '.') ?></div>

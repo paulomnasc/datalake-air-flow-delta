@@ -133,6 +133,55 @@ class ContaCorrenteController extends BaseController
     }
 
     /**
+     * Resgata crédito da conta corrente (AJAX)
+     */
+    public function resgatarCredito()
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Sessão expirada. Faça login novamente.'
+            ])->setStatusCode(401);
+        }
+
+        if (!$access['is_paulo']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Acesso negado: Funcionalidade disponível apenas para o usuário Paulo Nascimento.'
+            ])->setStatusCode(403);
+        }
+
+        $userId = $access['user_id'];
+        $valor = (float)$this->request->getPost('valor');
+        $descricaoInput = trim((string)$this->request->getPost('descricao'));
+
+        if ($valor <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Por favor, informe um valor de resgate válido maior que zero.'
+            ]);
+        }
+
+        $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
+        if ($valor > $saldoAtual) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'O valor do resgate (R$ ' . number_format($valor, 2, ',', '.') . ') excede o saldo disponível na conta corrente (R$ ' . number_format($saldoAtual, 2, ',', '.') . ').'
+            ]);
+        }
+
+        $descricao = !empty($descricaoInput) 
+            ? "Resgate: " . $descricaoInput 
+            : "Resgate de Crédito da Conta Corrente";
+
+        $result = $this->contaCorrenteModel->resgatarCredito($userId, $valor, $descricao);
+
+        return $this->response->setJSON($result);
+    }
+
+    /**
      * Retorna dados em JSON para o gráfico de evolução financeira (AJAX)
      */
     public function getGraficoDados()

@@ -39,6 +39,59 @@ def get_db_connection():
     print("❌ [ERRO CRÍTICO] Falha ao conectar no MySQL.")
     sys.exit(1)
 
+def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descricao=None):
+    """
+    Credita o retorno de uma aposta resolvida/ganha/anulada na conta_corrente e atualiza usuario.saldo_conta_corrente.
+    Possui checagem anti-duplicidade (idempotência) para evitar creditar a mesma aposta duas vezes.
+    """
+    try:
+        valor = float(valor or 0.0)
+        if valor <= 0 or not usuario_id:
+            return False
+
+        cursor.execute("""
+            SELECT id FROM conta_corrente 
+            WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'CREDITO_RETORNO_APOSTA'
+            LIMIT 1
+        """, (usuario_id, aposta_id))
+        if cursor.fetchone():
+            return False
+
+        if not descricao:
+            descricao = f"Retorno Aposta #{aposta_id} ({status})"
+
+        cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (usuario_id,))
+        row_u = cursor.fetchone()
+        if row_u and row_u.get('saldo_conta_corrente') is not None:
+            saldo_anterior = float(row_u['saldo_conta_corrente'])
+        else:
+            cursor.execute("""
+                SELECT saldo_posterior FROM conta_corrente 
+                WHERE usuario_id = %s 
+                ORDER BY id DESC LIMIT 1
+            """, (usuario_id,))
+            row_cc = cursor.fetchone()
+            saldo_anterior = float(row_cc['saldo_posterior']) if row_cc and row_cc.get('saldo_posterior') is not None else 0.0
+
+        saldo_posterior = round(saldo_anterior + valor, 2)
+
+        cursor.execute("""
+            INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em)
+            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, NOW())
+        """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior))
+
+        cursor.execute("""
+            UPDATE usuario
+            SET saldo_conta_corrente = %s
+            WHERE id = %s
+        """, (saldo_posterior, usuario_id))
+
+        print(f"💰 [Crédito Conta Corrente] Aposta #{aposta_id} -> Creditado R$ {valor:.2f} para Usuário #{usuario_id} (Novo Saldo: R$ {saldo_posterior:.2f})")
+        return True
+    except Exception as e:
+        print(f"⚠️ Erro ao creditar retorno da aposta #{aposta_id} na conta corrente: {e}")
+        return False
+
 def get_fixture_handicap_stats(fixture):
     """
     Retorna os gols reais da partida se o status for finalizado (FT).
@@ -196,10 +249,12 @@ def processar_apostas_handicap_encerradas():
         fixture_date = fixture.get('fixture_date')
         now = datetime.now()
 
+        finished_statuses = ['FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED']
+
         # Se a partida ainda não foi encerrada (e menos de 110 min se passaram), pula
-        if status_fix != 'FT':
+        if status_fix not in finished_statuses:
             if fixture_date and (fixture_date + timedelta(minutes=110)) > now:
-                print(f"⏳ Partida {time_casa} vs {time_fora} ainda em andamento. Aposta #{aposta_id} permanece Pendente.")
+                print(f"⏳ Partida {time_casa} vs {time_fora} ainda em andamento (status '{status_fix}'). Aposta #{aposta_id} permanece Pendente.")
                 continue
 
         stats = get_fixture_handicap_stats(fixture)
@@ -221,6 +276,16 @@ def processar_apostas_handicap_encerradas():
                 updated_at = NOW()
             WHERE id = %s
         """, (novo_status, detalhe, valor_computado, aposta_id))
+
+        if novo_status in ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida']:
+            creditar_retorno_aposta(
+                cursor,
+                aposta.get('usuario_id'),
+                aposta_id,
+                valor_computado,
+                novo_status,
+                f"Retorno Aposta #{aposta_id} ({time_casa} x {time_fora} - {novo_status})"
+            )
 
         processadas += 1
         if novo_status == 'Ganha':

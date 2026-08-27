@@ -261,6 +261,7 @@ def is_allowed_league(league_id, league_name: str) -> bool:
         13,   # CONMEBOL Libertadores
         11,   # CONMEBOL Sudamericana
         39,   # Premier League (Inglaterra)
+        48,   # EFL Cup / League Cup (Inglaterra)
         140,  # La Liga (Espanha)
         135,  # Serie A Italiana (Itália)
         61,   # Ligue 1 (França)
@@ -274,13 +275,14 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     if l_id in ALLOWED_LEAGUE_IDS:
         return True
 
-    # Checagem por Nome de Liga Internacional Permitida (UEFA, CONMEBOL + 10 novas ligas)
+    # Checagem por Nome de Liga Internacional Permitida (UEFA, CONMEBOL + ligas de elite e taças nacionais)
     allowed_int_keywords = [
         'champions league', 'uefa champions league',
         'libertadores', 'sudamericana', 'sul-americana', 'sul americana',
         'allsvenskan',
         'eredivisie',
         'la liga', 'laliga',
+        'league cup', 'efl cup', 'carabao cup', 'efl',
         'liga mx',
         'liga profesional', 'primera division (argentina)', 'primera división (argentina)', 'liga profesional argentina',
         'ligue 1',

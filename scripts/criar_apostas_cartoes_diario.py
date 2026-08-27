@@ -255,6 +255,8 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     # IDs Conhecidos da API-Football (Brasil, UEFA/CONMEBOL e Ligas de Elite Internacionais/Americanas)
     ALLOWED_LEAGUE_IDS = {
         2,    # UEFA Champions League
+        3,    # UEFA Europa League
+        848,  # UEFA Europa Conference League
         71,   # Brasil Série A
         72,   # Brasil Série B
         73,   # Copa do Brasil
@@ -278,6 +280,8 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     # Checagem por Nome de Liga Internacional Permitida (UEFA, CONMEBOL + ligas de elite e taças nacionais)
     allowed_int_keywords = [
         'champions league', 'uefa champions league',
+        'europa league', 'uefa europa league',
+        'conference league', 'europa conference league', 'uefa conference league', 'uefa europa conference league',
         'libertadores', 'sudamericana', 'sul-americana', 'sul americana',
         'allsvenskan',
         'eredivisie',

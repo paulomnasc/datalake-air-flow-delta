@@ -134,8 +134,8 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     if l_id in {75, 76}:
         return False
 
-    # IDs Conhecidos da API-Football (Brasil, Libertadores, Sudamericana, La Liga e EFL Cup)
-    ALLOWED_LEAGUE_IDS = {71, 72, 73, 13, 11, 140, 48}
+    # IDs Conhecidos da API-Football (Brasil, Libertadores, Sudamericana, La Liga, EFL Cup e UEFA Conference/Europa)
+    ALLOWED_LEAGUE_IDS = {71, 72, 73, 13, 11, 140, 48, 848, 3}
     if l_id in ALLOWED_LEAGUE_IDS:
         return True
 
@@ -143,7 +143,9 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     allowed_int_keywords = [
         'libertadores', 'sudamericana', 'sul-americana', 'sul americana',
         'la liga', 'laliga',
-        'league cup', 'efl cup', 'carabao cup', 'efl'
+        'league cup', 'efl cup', 'carabao cup', 'efl',
+        'conference league', 'europa conference league', 'uefa conference league', 'uefa europa conference league',
+        'europa league', 'uefa europa league'
     ]
     if any(k in l_name_low for k in allowed_int_keywords):
         return True

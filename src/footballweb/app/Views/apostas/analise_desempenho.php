@@ -460,7 +460,7 @@ function computeNetProfit(item) {
     return -valor;
   } else if (status === 'Meio Perdida') {
     return -(valor * 0.5);
-  } else if (status === 'ANULADA') {
+  } else if (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA') {
     return 0;
   }
   return 0;
@@ -484,7 +484,7 @@ function computeGrossReturn(item) {
     return 0;
   } else if (status === 'Meio Perdida') {
     return valor * 0.5;
-  } else if (status === 'ANULADA') {
+  } else if (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA') {
     return valor;
   }
   return 0;

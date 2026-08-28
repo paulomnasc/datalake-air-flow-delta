@@ -509,7 +509,7 @@ if (!function_exists('formatBrtDate')) {
   .status-Meio-Ganha, .status-Meio_Ganha { background: rgba(76, 175, 80, 0.2); color: #81c784; border: 1px solid rgba(76, 175, 80, 0.4); }
   .status-Meio-Perdida, .status-Meio_Perdida { background: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid rgba(255, 152, 0, 0.4); }
   .status-Perdida  { background: rgba(255, 82, 82, 0.15); color: var(--bet-danger); border: 1px solid rgba(255, 82, 82, 0.3); }
-  .status-ANULADA, .status-Anulada { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }
+  .status-ANULADA, .status-Anulada, .status-Cancelada, .status-CANCELADA { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }
   .status-Cashout  { background: rgba(0, 176, 255, 0.15); color: var(--bet-accent); border: 1px solid rgba(0, 176, 255, 0.3); }
 
   .bet-card-footer {
@@ -2258,9 +2258,13 @@ if (!function_exists('formatBrtDate')) {
         const ganho = parseFloat(card.getAttribute('data-ganho') || '0') || 0;
         const cashout = parseFloat(card.getAttribute('data-cashout') || '0') || 0;
 
-        totalApostado += valor;
+        const isCanceled = (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA');
 
-        if (status !== 'Pendente') {
+        if (!isCanceled) {
+          totalApostado += valor;
+        }
+
+        if (status !== 'Pendente' && !isCanceled) {
           totalApostadoLiquidado += valor;
         }
 
@@ -2286,8 +2290,6 @@ if (!function_exists('formatBrtDate')) {
         } else if (status === 'Meio Perdida') {
           totalRetorno += (valor * 0.5);
           totalPerda += (valor * 0.5);
-        } else if (status === 'ANULADA') {
-          totalRetorno += valor;
         }
       }
     });

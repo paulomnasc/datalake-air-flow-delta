@@ -579,13 +579,52 @@ function updatePerformanceDashboard() {
     let rawMercado = (bet.mercado || 'Outros').trim();
     if (!rawMercado) rawMercado = 'Outros';
 
-    if (!mercadoBuckets[rawMercado]) {
-      mercadoBuckets[rawMercado] = { apostado: 0, retorno: 0, lucro: 0, count: 0 };
+    let palpite = (bet.palpite || '').trim();
+    let finalMercadoKey = rawMercado;
+
+    const isCardMarket = /cartã|carto|card/i.test(rawMercado);
+
+    if (isCardMarket) {
+      if (palpite) {
+        if (/mais de|menos de|over|under/i.test(rawMercado) && !/^(total de cartã|total de carto|cartã|carto)/i.test(rawMercado)) {
+          finalMercadoKey = rawMercado;
+        } else {
+          let cleanPalpite = palpite
+            .replace(/\s+(cartõ?es?|cards?)$/i, '')
+            .replace(/^under\s+/i, 'Menos de ')
+            .replace(/^over\s+/i, 'Mais de ')
+            .trim();
+
+          if (/^(total de cartõ?es?|cartõ?es?)$/i.test(rawMercado)) {
+            finalMercadoKey = `Total de Cartões - ${cleanPalpite}`;
+          } else {
+            finalMercadoKey = `${rawMercado} - ${cleanPalpite}`;
+          }
+        }
+      } else {
+        if (/^cartõ?es?$/i.test(rawMercado)) {
+          finalMercadoKey = 'Total de Cartões';
+        }
+      }
+    } else {
+      if (palpite && !rawMercado.toLowerCase().includes(palpite.toLowerCase())) {
+        if (/mais de|menos de|over|under|[+-]\d|vence|vitória|empate/i.test(palpite)) {
+          let cleanP = palpite
+            .replace(/^under\s+/i, 'Menos de ')
+            .replace(/^over\s+/i, 'Mais de ')
+            .trim();
+          finalMercadoKey = `${rawMercado} - ${cleanP}`;
+        }
+      }
     }
-    mercadoBuckets[rawMercado].apostado += valor;
-    mercadoBuckets[rawMercado].retorno += grossReturn;
-    mercadoBuckets[rawMercado].lucro += netProfit;
-    mercadoBuckets[rawMercado].count += 1;
+
+    if (!mercadoBuckets[finalMercadoKey]) {
+      mercadoBuckets[finalMercadoKey] = { apostado: 0, retorno: 0, lucro: 0, count: 0 };
+    }
+    mercadoBuckets[finalMercadoKey].apostado += valor;
+    mercadoBuckets[finalMercadoKey].retorno += grossReturn;
+    mercadoBuckets[finalMercadoKey].lucro += netProfit;
+    mercadoBuckets[finalMercadoKey].count += 1;
 
     const rawDate = getBetDateBRT(bet);
     let key = rawDate || 'Sem Data';

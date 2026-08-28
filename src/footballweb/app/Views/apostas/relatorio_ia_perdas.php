@@ -314,12 +314,12 @@
   <!-- Header Banner -->
   <div class="bet-header">
     <div class="bet-title">
-      <h1><i class="bi bi-shield-x"></i> Diagnóstico de Apostas Perdidas (IA)</h1>
-      <div class="bet-subtitle">Exame crítico dos palpites encerrados em red confrontados com a seção temática do Card e refinamento de critérios</div>
+      <h1><i class="bi bi-shield-x"></i> <?= lang('App.ia_loss_diagnosis_title') ?></h1>
+      <div class="bet-subtitle"><?= lang('App.ia_loss_subtitle') ?></div>
     </div>
     <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
       <a href="<?= base_url('apostas') ?>" class="btn btn-outline-light btn-sm" style="border-radius: 20px; padding: 6px 16px;">
-        <i class="bi bi-arrow-left"></i> Voltar à Gestão de Apostas
+        <i class="bi bi-arrow-left"></i> <?= lang('App.back_to_my_bets') ?>
       </a>
       <span class="credit-badge" title="Seu saldo atual de créditos Groq AI">
         <i class="bi bi-cpu-fill"></i> Créditos Groq: <strong id="lbl-user-credits"><?= $credits ?></strong>
@@ -330,22 +330,22 @@
   <!-- Métricas Resumidas do Período -->
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-label">Apostas Perdidas</div>
+      <div class="stat-label"><?= lang('App.lost_bet_simulations') ?></div>
       <div class="stat-value danger"><?= $totPerdidas ?></div>
       <div style="font-size: 0.75rem; color: var(--bet-text-muted); margin-top: 4px;">No período de <?= date('d/m/Y', strtotime($startDate)) ?> a <?= date('d/m/Y', strtotime($endDate)) ?></div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Montante Investido em Reds</div>
+      <div class="stat-label"><?= lang('App.amount_invested_reds') ?></div>
       <div class="stat-value gold">R$ <?= number_format($totInvestidoPerdas, 2, ',', '.') ?></div>
-      <div style="font-size: 0.75rem; color: var(--bet-text-muted); margin-top: 4px;">Soma das stakes das apostas perdedoras</div>
+      <div style="font-size: 0.75rem; color: var(--bet-text-muted); margin-top: 4px;">Soma das stakes das simulações de apostas perdedoras</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Prejuízo Efetivo Acumulado</div>
+      <div class="stat-label"><?= lang('App.accumulated_effective_loss') ?></div>
       <div class="stat-value danger">R$ <?= number_format($prejuizoTotal, 2, ',', '.') ?></div>
       <div style="font-size: 0.75rem; color: var(--bet-text-muted); margin-top: 4px;">Considerando reembolsos parciais</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Mercado Mais Afetado</div>
+      <div class="stat-label"><?= lang('App.most_affected_market') ?></div>
       <div class="stat-value purple">
         <?php
         arsort($mercadosBreakdown);
@@ -363,16 +363,27 @@
   <!-- Toolbar de Filtro por Data e Botão Consolidado -->
   <div class="bet-toolbar">
     <form method="GET" action="<?= base_url('apostas/relatorio-ia-perdas') ?>" class="date-filter-form">
-      <label style="font-size: 0.85rem; font-weight: 600; color: var(--bet-text-muted);">Período:</label>
-      <input type="date" name="start_date" value="<?= htmlspecialchars($startDate) ?>" required>
-      <span style="color: var(--bet-text-muted);">até</span>
-      <input type="date" name="end_date" value="<?= htmlspecialchars($endDate) ?>" required>
-      <button type="submit" class="btn-filter"><i class="bi bi-funnel-fill me-1"></i> Filtrar</button>
+      <label style="font-size: 0.85rem; font-weight: 600; color: var(--bet-text-muted);"><?= lang('App.period') ?>:</label>
+      <select id="preset_ia_perdas" class="form-select form-select-sm bg-dark text-info border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 140px;" onchange="applyIAPerdasPreset(this.value)">
+        <option value="custom">📅 <?= lang('App.custom') ?></option>
+        <option value="today">⚡ <?= lang('App.today') ?></option>
+        <option value="yesterday">⏪ <?= lang('App.yesterday') ?></option>
+        <option value="7days">🗓️ <?= lang('App.last_7_days') ?></option>
+        <option value="15days">🗓️ <?= lang('App.last_15_days') ?></option>
+        <option value="1month">📅 <?= lang('App.last_month') ?></option>
+        <option value="trimestre">📊 <?= lang('App.quarter') ?></option>
+        <option value="semestre">📈 <?= lang('App.semester') ?></option>
+        <option value="all">♾️ <?= lang('App.all_period') ?></option>
+      </select>
+      <input type="date" name="start_date" id="ia_start_date" value="<?= htmlspecialchars($startDate) ?>" required>
+      <span style="color: var(--bet-text-muted);"><?= lang('App.to') ?></span>
+      <input type="date" name="end_date" id="ia_end_date" value="<?= htmlspecialchars($endDate) ?>" required>
+      <button type="submit" class="btn-filter"><i class="bi bi-funnel-fill me-1"></i> <?= lang('App.filter') ?></button>
     </form>
 
     <?php if (!empty($apostasPerdidas)): ?>
       <button type="button" class="btn-consolidated-ai" onclick="executarAnaliseConsolidada('<?= htmlspecialchars($startDate) ?>', '<?= htmlspecialchars($endDate) ?>')">
-        <i class="bi bi-cpu-fill"></i> Diagnóstico Global do Período (Groq IA)
+        <i class="bi bi-cpu-fill"></i> <?= lang('App.global_period_diagnosis') ?>
       </button>
     <?php endif; ?>
   </div>
@@ -390,7 +401,7 @@
   <?php if (empty($apostasPerdidas)): ?>
     <div class="text-center py-5" style="background: var(--bet-card-bg); border-radius: 14px; border: 1px solid var(--bet-card-border);">
       <i class="bi bi-emoji-smile" style="font-size: 3rem; color: var(--bet-primary);"></i>
-      <h3 class="mt-3 text-white">Nenhuma aposta perdida encontrada neste período!</h3>
+      <h3 class="mt-3 text-white">Nenhuma simulação de aposta perdida encontrada neste período!</h3>
       <p class="text-muted">Altere o intervalo de datas acima para consultar outros períodos.</p>
     </div>
   <?php else: ?>
@@ -413,9 +424,14 @@
           <div>
             <span class="badge bg-secondary me-2"><?= htmlspecialchars($ap->league_name ?? 'Futebol') ?></span>
             <strong style="font-size: 1.05rem; color: #ffffff;"><?= htmlspecialchars($ap->time_casa) ?> x <?= htmlspecialchars($ap->time_fora) ?></strong>
-            <span style="font-size: 0.8rem; color: var(--bet-text-muted); margin-left: 10px;">
-              <i class="bi bi-calendar3 me-1"></i><?= date('d/m/Y H:i', strtotime($ap->data_hora_jogo)) ?>
+            <span style="font-size: 0.8rem; color: var(--bet-text-muted); margin-left: 10px;" title="Data e Hora da Partida">
+              <i class="bi bi-calendar3 me-1"></i>Jogo: <?= date('d/m/Y H:i', strtotime($ap->data_hora_jogo)) ?>
             </span>
+            <?php if (!empty($ap->criado_em)): ?>
+              <span style="font-size: 0.8rem; color: var(--bet-accent); margin-left: 10px;" title="Data e Hora de Criação do Registro">
+                <i class="bi bi-clock-history me-1"></i>Criado em: <?= date('d/m/Y H:i', strtotime($ap->criado_em)) ?>
+              </span>
+            <?php endif; ?>
           </div>
           <div>
             <span class="<?= ($ap->status === 'Meio Perdida') ? 'badge-status-half-red' : 'badge-status-red' ?>">
@@ -427,10 +443,10 @@
         <!-- Loss Card Body -->
         <div class="loss-card-body">
           <div class="row g-3">
-            <!-- Coluna 1: Dados da Aposta Efetuada -->
+            <!-- Coluna 1: Dados da Simulação de Aposta Efetuada -->
             <div class="col-md-5" style="border-right: 1px solid var(--bet-card-border);">
               <h6 style="color: var(--bet-gold); font-size: 0.85rem; text-transform: uppercase; font-weight: 700;">
-                <i class="bi bi-ticket-perforated-fill me-1"></i> Aposta Efetuada
+                <i class="bi bi-ticket-perforated-fill me-1"></i> Simulação de Aposta Efetuada
               </h6>
               <div style="background: rgba(30, 41, 59, 0.5); padding: 12px; border-radius: 8px; font-size: 0.85rem;">
                 <div class="d-flex justify-content-between mb-1">
@@ -438,15 +454,15 @@
                   <strong class="text-white"><?= htmlspecialchars($ap->mercado) ?></strong>
                 </div>
                 <div class="d-flex justify-content-between mb-1">
-                  <span class="text-muted">Palpite Apostado:</span>
+                  <span class="text-muted">Palpite Simulado:</span>
                   <strong style="color: var(--bet-accent); font-size: 0.95rem;"><?= htmlspecialchars($ap->palpite) ?></strong>
                 </div>
                 <div class="d-flex justify-content-between mb-1">
-                  <span class="text-muted">Odd Apostada:</span>
+                  <span class="text-muted">Odd Simulada:</span>
                   <span class="badge bg-dark text-warning font-monospace"><?= number_format($ap->odd, 2) ?></span>
                 </div>
                 <div class="d-flex justify-content-between mb-1">
-                  <span class="text-muted">Valor Apostado:</span>
+                  <span class="text-muted">Valor Simulado:</span>
                   <span class="text-white font-weight-bold">R$ <?= number_format($ap->valor_aposta, 2, ',', '.') ?></span>
                 </div>
                 <?php if (!empty($ap->resultado_detalhado)): ?>
@@ -629,5 +645,49 @@
         content.innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i> Erro de comunicação com o servidor ao gerar análise consolidada.</div>';
       }
     });
+  }
+
+  function applyIAPerdasPreset(presetKey) {
+    const startEl = document.getElementById('ia_start_date');
+    const endEl = document.getElementById('ia_end_date');
+    if (!startEl || !endEl) return;
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
+    function getPastDate(m) {
+      const d = new Date();
+      const tm = d.getMonth() - m;
+      d.setMonth(tm);
+      if (d.getMonth() !== ((tm % 12 + 12) % 12)) d.setDate(0);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    if (presetKey === 'today') {
+      startEl.value = todayStr; endEl.value = todayStr;
+    } else if (presetKey === 'yesterday') {
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      const yStr = `${y.getFullYear()}-${String(y.getMonth()+1).padStart(2,'0')}-${String(y.getDate()).padStart(2,'0')}`;
+      startEl.value = yStr; endEl.value = yStr;
+    } else if (presetKey === '7days') {
+      const s = new Date(); s.setDate(s.getDate() - 6);
+      startEl.value = `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`;
+      endEl.value = todayStr;
+    } else if (presetKey === '15days') {
+      const s = new Date(); s.setDate(s.getDate() - 14);
+      startEl.value = `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`;
+      endEl.value = todayStr;
+    } else if (presetKey === '1month') {
+      startEl.value = getPastDate(1); endEl.value = todayStr;
+    } else if (presetKey === 'trimestre') {
+      startEl.value = getPastDate(3); endEl.value = todayStr;
+    } else if (presetKey === 'semestre') {
+      startEl.value = getPastDate(6); endEl.value = todayStr;
+    } else if (presetKey === 'all') {
+      startEl.value = ''; endEl.value = '';
+    }
   }
 </script>

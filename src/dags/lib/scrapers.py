@@ -23,6 +23,53 @@ def _strip(s: str) -> str:
     import unicodedata
     return ''.join(c for c in unicodedata.normalize('NFD', str(s)) if unicodedata.category(c) != 'Mn').lower().replace('club atletico', '').replace('ca ', '').replace('cd ', '').strip()
 
+def is_women_game(home_team: str = "", away_team: str = "", league_name: str = "") -> bool:
+    """
+    Filtra e desconsidera partidas femininas (W, Womens, Feminino, Femenina).
+    """
+    home = str(home_team or "").strip()
+    away = str(away_team or "").strip()
+    league = str(league_name or "").strip()
+
+    for t in (home, away):
+        t_lower = t.lower()
+        if t.endswith(" W") or t.endswith(" (W)") or " (w)" in t_lower or " w " in t_lower or "(w)" in t_lower:
+            return True
+        if "feminino" in t_lower or "women" in t_lower or "femenina" in t_lower:
+            return True
+
+    league_lower = league.lower()
+    if "women" in league_lower or "feminino" in league_lower or "femenina" in league_lower or " w" in league_lower or "(w)" in league_lower:
+        return True
+
+    return False
+
+def is_youth_game(home_team: str = "", away_team: str = "", league_name: str = "") -> bool:
+    """
+    Filtra e desconsidera partidas de campeonatos/equipes das categorias de base (Sub-17, Sub-21, Sub-20, U17, U21, U20, Youth, etc.).
+    """
+    import re
+    home = str(home_team or "").strip()
+    away = str(away_team or "").strip()
+    league = str(league_name or "").strip()
+
+    # Padrão regex para capturar U15-U23, U-15 a U-23, Sub 15-23, Sub-15-23, Sub15-23
+    youth_pattern = re.compile(
+        r'\b(u[-.]?\s*(15|16|17|18|19|20|21|22|23)|sub[-.]?\s*(15|16|17|18|19|20|21|22|23))\b',
+        re.IGNORECASE
+    )
+
+    for text in (home, away, league):
+        if not text:
+            continue
+        text_lower = text.lower()
+        if youth_pattern.search(text_lower):
+            return True
+        if "youth" in text_lower or "juniores" in text_lower or "(u-21)" in text_lower or "(u-17)" in text_lower or "(u21)" in text_lower or "(u17)" in text_lower:
+            return True
+
+    return False
+
 def get_bookmaker_credentials(conn_id: str) -> Dict[str, str]:
     """
     Recupera login e senha cadastrados no Airflow Connections para uma casa de apostas.
@@ -40,7 +87,7 @@ def get_bookmaker_credentials(conn_id: str) -> Dict[str, str]:
         log.warning(f"[CREDENCIAIS] Não foi possível carregar a conexão '{conn_id}' via Airflow BaseHook: {e}")
         return {"login": "", "password": "", "host": ""}
 
-def fetch_via_flaresolverr(url: str, method: str = "request.get", post_data: Optional[str] = None, timeout_ms: int = 60000) -> Optional[Dict[str, Any]]:
+def fetch_via_flaresolverr(url: str, method: str = "request.get", post_data: Optional[str] = None, timeout_ms: int = 6000) -> Optional[Dict[str, Any]]:
     """
     Envia requisição para a API do FlareSolverr (container Docker em background)
     para resolver desafios e interceptar a proteção do Cloudflare (Turnstile/503/403).
@@ -69,7 +116,7 @@ def fetch_via_flaresolverr(url: str, method: str = "request.get", post_data: Opt
     for ep in endpoints:
         try:
             log.info(f"[FLARESOLVERR] Solicitando bypass do Cloudflare para '{url}' via '{ep}'...")
-            resp = requests.post(ep, json=payload, headers=headers, timeout=(3.0, (timeout_ms / 1000) + 15))
+            resp = requests.post(ep, json=payload, headers=headers, timeout=6.0)
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("status") == "ok":
@@ -82,6 +129,7 @@ def fetch_via_flaresolverr(url: str, method: str = "request.get", post_data: Opt
                 log.warning(f"[FLARESOLVERR] Endpoint '{ep}' retornou HTTP status {resp.status_code}")
         except Exception as e:
             log.debug(f"[FLARESOLVERR] Falha ao comunicar com '{ep}': {e}")
+            break  # se falhar a conexão com a porta, não tenta 4 variações de localhost/127.0.0.1 repetidamente
 
     log.error(f"[FLARESOLVERR] Não foi possível resolver a proteção do Cloudflare para '{url}'.")
     return None
@@ -310,7 +358,7 @@ def scrape_oddspedia_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
     }
 
     if leagues is None:
-        leagues = list(league_urls.keys())
+        leagues = ['serie-a', 'serie-b', 'copa-do-brasil', 'copa-libertadores', 'copa-sudamericana', 'argentina', 'premier-league', 'champions-league', 'la-liga']
 
     log.info(f"[SCRAPER-ODDSPEDIA] Iniciando extração para ligas: {leagues}")
     all_matches = []
@@ -320,18 +368,16 @@ def scrape_oddspedia_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
         if not url:
             continue
             
-        log.info(f"[SCRAPER-ODDSPEDIA] Acessando {url} via FlareSolverr...")
-        fs_res = fetch_via_flaresolverr(url)
-        solved_cookies = fs_res.get("cookies", []) if fs_res else []
-        solved_ua = fs_res.get("userAgent", "") if fs_res else ""
-        html = fs_res.get("response") or fs_res.get("html") if fs_res else None
+        log.info(f"[SCRAPER-ODDSPEDIA] Acessando {url} via Playwright (direto)...")
+        html = _fetch_oddspedia_via_playwright(url)
         
         if not html:
-            log.warning(f"[SCRAPER-ODDSPEDIA] FlareSolverr não retornou HTML para {url}. Disparando Fallback Playwright...")
-            html = _fetch_oddspedia_via_playwright(url, cookies=solved_cookies, user_agent=solved_ua)
+            log.warning(f"[SCRAPER-ODDSPEDIA] Playwright não retornou HTML para {url}. Tentando fallback FlareSolverr...")
+            fs_res = fetch_via_flaresolverr(url)
+            html = fs_res.get("response") or fs_res.get("html") if fs_res else None
             
         if not html:
-            log.error(f"[SCRAPER-ODDSPEDIA] Falha crítica ao obter HTML de {url} via FlareSolverr e Playwright.")
+            log.error(f"[SCRAPER-ODDSPEDIA] Falha crítica ao obter HTML de {url} via Playwright e FlareSolverr.")
             continue
             
         soup = BeautifulSoup(html, 'html.parser')
@@ -507,18 +553,16 @@ def scrape_futbol24_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
         if not url:
             continue
             
-        log.info(f"[SCRAPER-FUTBOL24] Acessando {url} via FlareSolverr...")
-        fs_res = fetch_via_flaresolverr(url)
-        solved_cookies = fs_res.get("cookies", []) if fs_res else []
-        solved_ua = fs_res.get("userAgent", "") if fs_res else ""
-        html = fs_res.get("response") or fs_res.get("html") if fs_res else None
+        log.info(f"[SCRAPER-FUTBOL24] Acessando {url} via Playwright (direto)...")
+        html = _fetch_oddspedia_via_playwright(url)
         
         if not html:
-            log.warning(f"[SCRAPER-FUTBOL24] FlareSolverr não retornou HTML para {url}. Disparando Fallback Playwright...")
-            html = _fetch_oddspedia_via_playwright(url, cookies=solved_cookies, user_agent=solved_ua)
+            log.warning(f"[SCRAPER-FUTBOL24] Playwright não retornou HTML para {url}. Tentando fallback FlareSolverr...")
+            fs_res = fetch_via_flaresolverr(url)
+            html = fs_res.get("response") or fs_res.get("html") if fs_res else None
             
         if not html:
-            log.error(f"[SCRAPER-FUTBOL24] Falha ao obter HTML de {url}.")
+            log.error(f"[SCRAPER-FUTBOL24] Falha ao obter HTML de {url} via Playwright e FlareSolverr.")
             continue
             
         soup = BeautifulSoup(html, 'html.parser')
@@ -642,6 +686,8 @@ def fetch_futbol24_direct_match_odds(home_team: str, away_team: str, country: Op
             except Exception:
                 pass
 
+            if not html:
+                html = _fetch_oddspedia_via_playwright(url)
             if not html:
                 fs_res = fetch_via_flaresolverr(url)
                 html = fs_res.get('response') or fs_res.get('html') if fs_res else None

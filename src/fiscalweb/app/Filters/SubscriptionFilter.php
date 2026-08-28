@@ -124,9 +124,8 @@ class SubscriptionFilter implements FilterInterface
         $mostrarAviso = SubscriptionHelper::deveMostrarAviso($dataVencimento, $usuario->status_assinatura ?? 'trial');
         $_SESSION['subscription_show_warning'] = $mostrarAviso;
         
-        // Define se os serviços (menu SERVIÇOS) devem estar bloqueados
-        $statusBloqueado = in_array($usuario->status_assinatura ?? 'trial', ['expired', 'cancelled']);
-        $_SESSION['subscription_services_blocked'] = $statusBloqueado;
+        // Define se os serviços (menu SERVIÇOS) devem estar bloqueados (monetização agora por tokens)
+        $_SESSION['subscription_services_blocked'] = false;
 
         // Verifica se pode acessar
         $acessoInfo = SubscriptionHelper::podeAcessarPlataforma(

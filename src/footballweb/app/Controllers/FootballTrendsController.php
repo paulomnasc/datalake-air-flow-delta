@@ -157,7 +157,9 @@ class FootballTrendsController extends BaseController
                 $leagues[] = $fix->league_name;
             }
             $fixTimestamp = !empty($fix->fixture_date) ? strtotime($fix->fixture_date) : 0;
-            if (($fix->status !== 'NS' || ($fixTimestamp > 0 && $fixTimestamp <= time())) && $fix->goals_home === null) {
+            $statusUpper = strtoupper($fix->status ?? '');
+            $isFinalStatus = in_array($statusUpper, ['FT', 'AET', 'PEN', 'PST', 'CANCELLED', 'CANC']);
+            if (($fixTimestamp > 0 && $fixTimestamp <= time() && !$isFinalStatus) || ($statusUpper !== 'NS' && $fix->goals_home === null)) {
                 $needsGoalsUpdate = true;
             }
         }

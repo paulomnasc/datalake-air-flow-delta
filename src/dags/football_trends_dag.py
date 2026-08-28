@@ -14,23 +14,22 @@ def run_football_ingest_script(**kwargs):
     if dag_run and dag_run.conf:
         target_date = dag_run.conf.get('target_date')
         
-    cmd = ['python3', script_path]
+    import sys
+    cmd = ['python3', '-u', script_path]
     if target_date:
         cmd.append(str(target_date))
         
-    print(f"Executing script: {' '.join(cmd)}")
+    print(f"Executing script: {' '.join(cmd)}", flush=True)
     
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    if process.stdout:
+        for line in process.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+    process.wait()
     
-    print("STDOUT:")
-    print(result.stdout)
-    
-    if result.stderr:
-        print("STDERR:")
-        print(result.stderr)
-        
-    if result.returncode != 0:
-        raise Exception(f"The football trends ingest script failed with exit code {result.returncode}")
+    if process.returncode != 0:
+        raise Exception(f"The football trends ingest script failed with exit code {process.returncode}")
 
 default_args = {
     'owner': 'paulomnasc-558',
@@ -43,9 +42,9 @@ default_args = {
 dag = DAG(
     'football_trends_ingestion_dag',
     default_args=default_args,
-    schedule_interval='*/30 * * * *',  # Runs every 30 minutes
+    schedule_interval='0 */3 * * *',  # Executa a cada 3 horas
     catchup=False,
-    description="Ingests football fixtures, referee statistics and odds for trends dashboard every 30 minutes",
+    description="Ingests football fixtures, referee statistics and odds for trends dashboard every 3 hours",
     tags=['football', 'api', 'ingestion', 'trends']
 )
 

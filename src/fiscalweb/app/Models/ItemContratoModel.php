@@ -22,4 +22,11 @@ class ItemContratoModel extends Model
         $data = $this->select('id, Objeto as descricao')->findAll();
         return $data;
     }
+
+    public function listWithContrato()
+    {
+        return $this->select('item_contrato.*, contrato.descricao as contrato_descricao, contrato.empresa as contrato_empresa')
+                    ->join('contrato', 'contrato.id = item_contrato.id_contrato', 'left')
+                    ->findAll();
+    }
 }

@@ -436,16 +436,16 @@
   <!-- Header -->
   <div class="report-header">
     <div class="report-title">
-      <h1><i class="bi bi-trophy-fill"></i> Rank Top 5 Mercado + Palpite</h1>
-      <div class="report-subtitle">Relatório das combinações de maior taxa de vitória e lucro acumulado no sistema.</div>
+      <h1><i class="bi bi-trophy-fill"></i> <?= lang('App.top5_report') ?></h1>
+      <div class="report-subtitle"><?= lang('App.top5_subtitle') ?></div>
     </div>
 
     <div class="header-actions">
       <button class="btn-report-action" onclick="window.print()">
-        <i class="bi bi-printer-fill"></i> Imprimir / Exportar PDF
+        <i class="bi bi-printer-fill"></i> <?= lang('App.print_export_pdf') ?>
       </button>
       <a href="<?= base_url('apostas') ?>" class="btn-report-action">
-        <i class="bi bi-arrow-left"></i> Minhas Apostas
+        <i class="bi bi-arrow-left"></i> <?= lang('App.back_to_my_bets') ?>
       </a>
     </div>
   </div>
@@ -454,18 +454,18 @@
   <div class="filter-card">
     <div class="filter-card-title">
       <div>
-        <i class="bi bi-calendar-range text-info me-2"></i> Filtrar por Período
+        <i class="bi bi-calendar-range text-info me-2"></i> <?= lang('App.filter_by_period') ?>
       </div>
       <div>
         <?php if (!empty($dataInicio) || !empty($dataFim)): ?>
           <span class="filter-badge-period">
             <i class="bi bi-funnel-fill me-1"></i>
-            Período: <?= !empty($dataInicio) ? date('d/m/Y', strtotime($dataInicio)) : 'Início' ?> 
-            até <?= !empty($dataFim) ? date('d/m/Y', strtotime($dataFim)) : 'Hoje' ?>
+            <?= lang('App.period') ?>: <?= !empty($dataInicio) ? date('d/m/Y', strtotime($dataInicio)) : 'Início' ?> 
+            <?= lang('App.to') ?> <?= !empty($dataFim) ? date('d/m/Y', strtotime($dataFim)) : 'Hoje' ?>
           </span>
         <?php else: ?>
           <span class="filter-badge-period text-muted" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: #8b949e;">
-            <i class="bi bi-globe me-1"></i> Todo o histórico
+            <i class="bi bi-globe me-1"></i> <?= lang('App.all_history') ?>
           </span>
         <?php endif; ?>
       </div>
@@ -474,36 +474,51 @@
     <form method="GET" action="<?= base_url('apostas/relatorio-top5') ?>" id="filterForm">
       <div class="row g-3 align-items-end">
         <div class="col-md-3 col-sm-6">
-          <label class="form-label text-white small fw-semibold mb-1">Data Início</label>
+          <label class="form-label text-white small fw-semibold mb-1"><?= lang('App.period_shortcut') ?></label>
+          <select id="preset_top5" class="form-select filter-input bg-dark text-info border-secondary fw-semibold" onchange="applyTop5Preset(this.value)">
+            <option value="custom">📅 <?= lang('App.custom') ?></option>
+            <option value="today">⚡ <?= lang('App.today') ?></option>
+            <option value="yesterday">⏪ <?= lang('App.yesterday') ?></option>
+            <option value="7days">🗓️ <?= lang('App.last_7_days') ?></option>
+            <option value="15days">🗓️ <?= lang('App.last_15_days') ?></option>
+            <option value="1month">📅 <?= lang('App.last_month') ?></option>
+            <option value="trimestre">📊 <?= lang('App.quarter') ?></option>
+            <option value="semestre">📈 <?= lang('App.semester') ?></option>
+            <option value="all">♾️ <?= lang('App.all_period') ?></option>
+          </select>
+        </div>
+
+        <div class="col-md-3 col-sm-6">
+          <label class="form-label text-white small fw-semibold mb-1"><?= lang('App.start_date') ?></label>
           <input type="date" name="data_inicio" id="data_inicio" class="form-control filter-input" value="<?= esc($dataInicio ?? '') ?>">
         </div>
 
         <div class="col-md-3 col-sm-6">
-          <label class="form-label text-white small fw-semibold mb-1">Data Final</label>
+          <label class="form-label text-white small fw-semibold mb-1"><?= lang('App.end_date') ?></label>
           <input type="date" name="data_fim" id="data_fim" class="form-control filter-input" value="<?= esc($dataFim ?? '') ?>">
         </div>
 
         <div class="col-md-6 col-sm-12 d-flex align-items-end gap-2 flex-wrap">
           <button type="submit" class="btn btn-primary filter-btn">
-            <i class="bi bi-search me-1"></i> Filtrar Período
+            <i class="bi bi-search me-1"></i> <?= lang('App.filter_by_period') ?>
           </button>
 
           <?php if (!empty($dataInicio) || !empty($dataFim)): ?>
             <a href="<?= base_url('apostas/relatorio-top5') ?>" class="btn btn-outline-secondary filter-btn filter-btn-clear">
-              <i class="bi bi-x-circle me-1"></i> Limpar
+              <i class="bi bi-x-circle me-1"></i> <?= lang('App.clear') ?>
             </a>
           <?php endif; ?>
 
           <button type="button" class="btn btn-outline-info filter-btn" data-bs-toggle="modal" data-bs-target="#modalExplicacaoIndicadores">
-            <i class="bi bi-info-circle me-1"></i> Exibir Explicação indicadores
+            <i class="bi bi-info-circle me-1"></i> <?= lang('App.show_indicator_explanation') ?>
           </button>
 
           <div class="ms-auto d-flex gap-1 align-items-center flex-wrap">
-            <span class="text-white small me-1">Atalhos:</span>
-            <button type="button" class="quick-btn" onclick="setPeriodToday()">Hoje</button>
+            <span class="text-white small me-1"><?= lang('App.shortcuts') ?>:</span>
+            <button type="button" class="quick-btn" onclick="setPeriodToday()"><?= lang('App.today') ?></button>
             <button type="button" class="quick-btn" onclick="setPeriodQuick(7)">7D</button>
             <button type="button" class="quick-btn" onclick="setPeriodQuick(30)">30D</button>
-            <button type="button" class="quick-btn" onclick="setPeriodMonth()">Este Mês</button>
+            <button type="button" class="quick-btn" onclick="setPeriodMonth()"><?= lang('App.this_month') ?></button>
           </div>
         </div>
       </div>
@@ -517,7 +532,7 @@
         <i class="bi bi-check-circle-fill"></i>
       </div>
       <div>
-        <div class="summary-label">Apostas Encerradas</div>
+        <div class="summary-label"><?= lang('App.settled_bet_simulations') ?></div>
         <div class="summary-value"><?= $statSummary['total_ganhas'] ?? 0 ?>G / <?= $statSummary['total_perdidas'] ?? 0 ?>P (<?= $statSummary['total_encerradas'] ?? 0 ?>)</div>
       </div>
     </div>
@@ -527,7 +542,7 @@
         <i class="bi bi-cash-coin"></i>
       </div>
       <div>
-        <div class="summary-label">Lucro Líquido Aferido</div>
+        <div class="summary-label"><?= lang('App.net_profit_measured') ?></div>
         <div class="summary-value" style="color: <?= ($statSummary['lucro_liquido'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
           <?= ($statSummary['lucro_liquido'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format($statSummary['lucro_liquido'] ?? 0, 2, ',', '.') ?>
         </div>
@@ -539,7 +554,7 @@
         <i class="bi bi-graph-up"></i>
       </div>
       <div>
-        <div class="summary-label">ROI / Yield Aferido</div>
+        <div class="summary-label"><?= lang('App.roi_yield_measured') ?></div>
         <div class="summary-value" style="color: <?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
           <?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? '+' : '' ?><?= number_format($statSummary['roi_percentual'] ?? 0, 2, ',', '.') ?>%
         </div>
@@ -551,10 +566,10 @@
   <div class="performance-panel">
     <div class="performance-panel-title">
       <div>
-        <i class="bi bi-cpu-fill text-warning me-2"></i> Performance & Projeção +EV de Longo Prazo
+        <i class="bi bi-cpu-fill text-warning me-2"></i> <?= lang('App.long_term_projection') ?>
       </div>
       <span class="badge bg-secondary bg-opacity-25 border border-secondary text-light px-3 py-2 fw-semibold" style="font-size: 0.8rem;">
-        <i class="bi bi-shield-check text-success me-1"></i> Baseado no Período Selecionado
+        <i class="bi bi-shield-check text-success me-1"></i> <?= lang('App.based_on_selected_period') ?>
       </span>
     </div>
 
@@ -615,7 +630,7 @@
                   <?= number_format($statSummary['gk_odd_media_vencedora'] ?? 1.69, 2) ?>
                 </div>
                 <div class="text-white" style="font-size: 0.78rem; line-height: 1.35; color: #ffffff !important;">
-                  <strong class="text-white">O que significa:</strong> Odd média real de todas as apostas vencedoras (Green) registradas no histórico geral (Cartões e Handicap Asiático).
+                  <strong class="text-white">O que significa:</strong> Odd média real de todas as simulações de apostas vencedoras (Green) registradas no histórico geral (Cartões e Handicap Asiático).
                 </div>
               </div>
             </div>
@@ -683,7 +698,7 @@
 
       <div class="col-md-3 col-sm-6">
         <div class="metric-pill-box">
-          <div class="metric-pill-label">Stake Média por Aposta</div>
+          <div class="metric-pill-label">Stake Média por Simulação de Aposta</div>
           <div class="metric-pill-value text-white">
             R$ <?= number_format($statSummary['stake_media'] ?? 0, 2, ',', '.') ?>
           </div>
@@ -701,7 +716,7 @@
           <i class="bi bi-rocket-takeoff-fill text-primary me-2"></i> Lucro Acumulado Projetado (+EV Futuro)
         </div>
         <div class="text-muted small">
-          Lucro esperado por aposta: <strong class="<?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? 'text-success' : 'text-danger' ?>">
+          Lucro esperado por simulação de aposta: <strong class="<?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? 'text-success' : 'text-danger' ?>">
             <?= ($statSummary['roi_percentual'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format(($statSummary['stake_media'] ?? 0) * (($statSummary['roi_percentual'] ?? 0) / 100), 2, ',', '.') ?>
           </strong>
         </div>
@@ -710,7 +725,7 @@
       <div class="row g-3">
         <div class="col-md-4">
           <div class="projection-card <?= ($statSummary['projecao_100'] ?? 0) < 0 ? 'negative' : '' ?>">
-            <div class="projection-volume"><i class="bi bi-layers-fill me-1"></i> Próximas 100 Apostas</div>
+            <div class="projection-volume"><i class="bi bi-layers-fill me-1"></i> Próximas 100 Simulações de Apostas</div>
             <div class="projection-value" style="color: <?= ($statSummary['projecao_100'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
               <?= ($statSummary['projecao_100'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format($statSummary['projecao_100'] ?? 0, 2, ',', '.') ?>
             </div>
@@ -719,7 +734,7 @@
 
         <div class="col-md-4">
           <div class="projection-card <?= ($statSummary['projecao_500'] ?? 0) < 0 ? 'negative' : '' ?>">
-            <div class="projection-volume"><i class="bi bi-stack me-1"></i> Próximas 500 Apostas</div>
+            <div class="projection-volume"><i class="bi bi-stack me-1"></i> Próximas 500 Simulações de Apostas</div>
             <div class="projection-value" style="color: <?= ($statSummary['projecao_500'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
               <?= ($statSummary['projecao_500'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format($statSummary['projecao_500'] ?? 0, 2, ',', '.') ?>
             </div>
@@ -728,7 +743,7 @@
 
         <div class="col-md-4">
           <div class="projection-card <?= ($statSummary['projecao_1000'] ?? 0) < 0 ? 'negative' : '' ?>">
-            <div class="projection-volume"><i class="bi bi-award-fill me-1"></i> Próximas 1.000 Apostas</div>
+            <div class="projection-volume"><i class="bi bi-award-fill me-1"></i> Próximas 1.000 Simulações de Apostas</div>
             <div class="projection-value" style="color: <?= ($statSummary['projecao_1000'] ?? 0) >= 0 ? 'var(--accent-green)' : '#ff1744' ?>">
               <?= ($statSummary['projecao_1000'] ?? 0) >= 0 ? '+' : '' ?>R$ <?= number_format($statSummary['projecao_1000'] ?? 0, 2, ',', '.') ?>
             </div>
@@ -746,7 +761,7 @@
 
     <?php if (empty($top5Usuario)): ?>
       <div class="rank-card text-center py-4 text-muted w-100">
-        <i class="bi bi-info-circle me-2"></i> Você ainda não possui apostas com status <strong>Ganha</strong> para compor seu ranking pessoal.
+        <i class="bi bi-info-circle me-2"></i> Você ainda não possui simulações de apostas com status <strong>Ganha</strong> para compor seu ranking pessoal.
       </div>
     <?php else: ?>
       <?php foreach ($top5Usuario as $index => $item): ?>
@@ -819,7 +834,7 @@
 
     <?php if (empty($top5Geral)): ?>
       <div class="rank-card text-center py-4 text-muted w-100">
-        <i class="bi bi-info-circle me-2"></i> Nenhuma aposta ganha registrada na plataforma até o momento.
+        <i class="bi bi-info-circle me-2"></i> Nenhuma simulação de aposta ganha registrada na plataforma até o momento.
       </div>
     <?php else: ?>
       <?php foreach ($top5Geral as $index => $item): ?>
@@ -937,7 +952,7 @@ function setPeriodMonth() {
             <i class="bi bi-graph-up me-1"></i> 1. ROI / Yield Aferido
           </h6>
           <p class="small text-muted mb-2">
-            Mede a rentabilidade real obtida sobre todo o capital investido nas apostas encerradas do período filtrado.
+            Mede a rentabilidade real obtida sobre todo o capital investido nas simulações de apostas encerradas do período filtrado.
           </p>
           <div class="p-2 rounded bg-dark border border-secondary text-center font-monospace small mb-2 text-info">
             ROI (%) = (Lucro Líquido / Total Investido) × 100
@@ -987,7 +1002,7 @@ function setPeriodMonth() {
             <i class="bi bi-rocket-takeoff-fill me-1"></i> 4. Projeções de Longo Prazo (+EV)
           </h6>
           <p class="small text-muted mb-2">
-            Estima o acumulado financeiro futuro em 100, 500 e 1.000 apostas com base no Lucro Esperado por Aposta (<em>Stake Média × ROI / 100</em>).
+            Estima o acumulado financeiro futuro em 100, 500 e 1.000 simulações de apostas com base no Lucro Esperado por Simulação de Aposta (<em>Stake Média × ROI / 100</em>).
           </p>
         </div>
 
@@ -998,3 +1013,63 @@ function setPeriodMonth() {
     </div>
   </div>
 </div>
+
+<script>
+function formatDateYYYYMMDD(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getPastDateByMonths(months) {
+  const d = new Date();
+  const targetMonth = d.getMonth() - months;
+  d.setMonth(targetMonth);
+  if (d.getMonth() !== ((targetMonth % 12 + 12) % 12)) {
+    d.setDate(0);
+  }
+  return d;
+}
+
+function applyTop5Preset(presetKey) {
+  const startEl = document.getElementById('data_inicio');
+  const endEl = document.getElementById('data_fim');
+  if (!startEl || !endEl) return;
+
+  const now = new Date();
+  const todayStr = formatDateYYYYMMDD(now);
+
+  if (presetKey === 'today') {
+    startEl.value = todayStr;
+    endEl.value = todayStr;
+  } else if (presetKey === 'yesterday') {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    startEl.value = formatDateYYYYMMDD(yesterday);
+    endEl.value = formatDateYYYYMMDD(yesterday);
+  } else if (presetKey === '7days') {
+    const start = new Date();
+    start.setDate(start.getDate() - 6);
+    startEl.value = formatDateYYYYMMDD(start);
+    endEl.value = todayStr;
+  } else if (presetKey === '15days') {
+    const start = new Date();
+    start.setDate(start.getDate() - 14);
+    startEl.value = formatDateYYYYMMDD(start);
+    endEl.value = todayStr;
+  } else if (presetKey === '1month') {
+    startEl.value = formatDateYYYYMMDD(getPastDateByMonths(1));
+    endEl.value = todayStr;
+  } else if (presetKey === 'trimestre') {
+    startEl.value = formatDateYYYYMMDD(getPastDateByMonths(3));
+    endEl.value = todayStr;
+  } else if (presetKey === 'semestre') {
+    startEl.value = formatDateYYYYMMDD(getPastDateByMonths(6));
+    endEl.value = todayStr;
+  } else if (presetKey === 'all') {
+    startEl.value = '';
+    endEl.value = '';
+  }
+}
+</script>

@@ -56,204 +56,302 @@ foreach ($items as $item) {
             </div>
         <?php endif; ?>
 
-        <!-- PAINÉIS DE INTERAÇÃO CONFORME O STATUS ATUAL -->
-        <div class="row mb-4">
-            <div class="col-12">
-                
-                <!-- Fase: Triagem, Preparar SERPRO ou Alocar Fábrica (Ainda não em backlog completo) -->
-                <?php if (in_array($demanda->status, ['Triagem', 'Preparar Demanda SERPRO', 'Alocar Time Fábricas', 'Refinamento Backlog', 'Sprint Planning', 'Em Execução']) && !$sprintAtiva): ?>
-                    <div class="card border-warning shadow-sm">
-                        <div class="card-body">
-                            <h5 class="text-warning-emphasis"><i class="fas fa-play-circle"></i> Iniciar Planejamento da Sprint</h5>
-                            <p class="mb-3">Para iniciar o Ciclo da Sprint (Kanban), é obrigatório ter realizado uma cerimônia de <strong>Sprint Planning</strong> com ata registrada e presença dos participantes.</p>
-                            
-                            <!-- Formulário de Inicialização da Sprint -->
-                            <form action="<?= route_to('agile.sprint.salvar') ?>" method="post" class="row g-3 align-items-end">
-                                <input type="hidden" name="id_demanda" value="<?= $demanda->id ?>">
-                                <div class="col-md-4">
-                                    <label class="form-label">Meta da Sprint</label>
-                                    <input type="text" name="meta" class="form-control" placeholder="Ex: Entregar telas de cadastro e validação" required>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Data de Início</label>
-                                    <input type="date" name="data_inicio" class="form-control" required>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Data de Fim</label>
-                                    <input type="date" name="data_fim" class="form-control" required>
-                                </div>
-                                <div class="col-md-2">
-                                    <button type="submit" class="btn btn-warning w-100"><i class="fas fa-play"></i> Iniciar Sprint</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                <?php endif; ?>
+        <!-- Navegação por Abas -->
+        <ul class="nav nav-tabs mb-4" id="kanbanTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold" id="quadro-tab" data-bs-toggle="tab" data-bs-target="#quadro-pane" type="button" role="tab" aria-controls="quadro-pane" aria-selected="true">
+                    <i class="fas fa-columns me-1"></i> Quadro Kanban
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold" id="historico-tab" data-bs-toggle="tab" data-bs-target="#historico-pane" type="button" role="tab" aria-controls="historico-pane" aria-selected="false">
+                    <i class="fas fa-history me-1"></i> Histórico de Sprints
+                    <?php if (!empty($sprints)): ?>
+                        <span class="badge bg-secondary rounded-pill ms-1"><?= count($sprints) ?></span>
+                    <?php endif; ?>
+                </button>
+            </li>
+        </ul>
 
-                <!-- Fase: Em Execução com Sprint Ativa -->
-                <?php if ($sprintAtiva && $demanda->status === 'Em Execução'): ?>
-                    <div class="card border-primary shadow-sm">
-                        <div class="card-body d-flex justify-content-between align-items-center">
-                            <div>
-                                <h5 class="text-primary-emphasis"><i class="fas fa-running"></i> Sprint Ativa em Execução</h5>
-                                <p class="mb-0"><strong>Meta:</strong> <?= htmlspecialchars($sprintAtiva->meta) ?> | <strong>Período:</strong> <?= date('d/m/Y', strtotime($sprintAtiva->data_inicio)) ?> até <?= date('d/m/Y', strtotime($sprintAtiva->data_fim)) ?></p>
-                            </div>
-                            <div>
-                                <form action="<?= route_to('agile.sprint.review') ?>" method="post" onsubmit="return confirm('Deseja realmente encerrar esta Sprint e avançar para Homologação?')">
-                                    <input type="hidden" name="id_sprint" value="<?= $sprintAtiva->id ?>">
-                                    <input type="hidden" name="id_demanda" value="<?= $demanda->id ?>">
-                                    <button type="submit" class="btn btn-outline-danger"><i class="fas fa-stop"></i> Finalizar Sprint (Review)</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                <?php endif; ?>
+        <div class="tab-content" id="kanbanTabsContent">
+            <!-- ABA 1: QUADRO KANBAN OPERACIONAL -->
+            <div class="tab-pane fade show active" id="quadro-pane" role="tabpanel" aria-labelledby="quadro-tab" tabindex="0">
 
-                <!-- Fase: Homologação do Produto pelo PO -->
-                <?php if ($demanda->status === 'Homologação'): ?>
-                    <div class="card border-warning shadow-sm">
-                        <div class="card-body">
-                            <h5 class="text-warning-emphasis"><i class="fas fa-check-double"></i> Homologação do Produto (Product Owner)</h5>
-                            <p class="mb-3">Analise o incremento da Sprint. Se aceito, a demanda seguirá para a liberação da release. Caso rejeitado, retornará para execução com as tarefas resetadas.</p>
-                            
-                            <form action="<?= route_to('agile.demanda.homologar') ?>" method="post" class="row g-3">
-                                <input type="hidden" name="id_demanda" value="<?= $demanda->id ?>">
-                                <div class="col-md-3">
-                                    <label class="form-label">Parecer de Homologação</label>
-                                    <select class="form-select" name="parecer" required>
-                                        <option value="">Selecione...</option>
-                                        <option value="Favorável">Favorável (Aprovado)</option>
-                                        <option value="Rejeitado">Rejeitado (Retornar)</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-7">
-                                    <label class="form-label">Observações e Feedback</label>
-                                    <input type="text" name="observacoes" class="form-control" placeholder="Escreva considerações ou motivos de rejeição..." required>
-                                </div>
-                                <div class="col-md-2 align-self-end">
-                                    <button type="submit" class="btn btn-warning w-100"><i class="fas fa-paper-plane"></i> Enviar Parecer</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-                <!-- Fase: Submissão de Release para Produção -->
-                <?php if ($demanda->status === 'Submissão Release'): ?>
-                    <div class="card border-info shadow-sm">
-                        <div class="card-body">
-                            <h5 class="text-info-emphasis"><i class="fas fa-upload"></i> Submissão de Release para Produção (Servidor)</h5>
-                            <p class="mb-3">Preencha os metadados do deploy. A liberação de release exige homologação de parecer favorável registrado previamente.</p>
-                            
-                            <form action="<?= route_to('agile.demanda.release') ?>" method="post" class="row g-3">
-                                <input type="hidden" name="id_demanda" value="<?= $demanda->id ?>">
-                                <div class="col-md-3">
-                                    <label class="form-label">Ticket RDM Cistmart</label>
-                                    <input type="text" name="ticket_rdm" class="form-control" placeholder="Ex: RDM-2026-987" required>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Servidor Destino</label>
-                                    <input type="text" name="servidor_deploy" class="form-control" placeholder="Ex: SERPRO-PRD-01" required>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Janela de Homologação</label>
-                                    <input type="text" name="janela_homologacao" class="form-control" placeholder="Ex: Sábado, das 00:00 às 04:00" required>
-                                </div>
-                                <div class="col-md-2 align-self-end">
-                                    <button type="submit" class="btn btn-info text-white w-100"><i class="fas fa-rocket"></i> Submeter Release</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-                <!-- Fase: Comitê de Mudanças (CCM) - Apenas Fluxos Comuns -->
-                <?php if ($demanda->status === 'CCM'): ?>
-                    <div class="card border-success shadow-sm">
-                        <div class="card-body">
-                            <h5 class="text-success-emphasis"><i class="fas fa-users-cog"></i> Avaliação do Comitê de Mudanças (CCM)</h5>
-                            <p class="mb-3">A release comum foi submetida. Realize a avaliação técnica final para autorizar a atualização no ambiente de produção.</p>
-                            
-                            <div class="d-flex gap-2">
-                                <form action="<?= route_to('agile.demanda.update') ?>" method="post">
-                                    <input type="hidden" name="id" value="<?= $demanda->id ?>">
-                                    <input type="hidden" name="titulo" value="<?= htmlspecialchars($demanda->titulo) ?>">
-                                    <input type="hidden" name="descricao" value="<?= htmlspecialchars($demanda->descricao) ?>">
-                                    <input type="hidden" name="sistema_critico" value="<?= $demanda->sistema_critico ?>">
-                                    <input type="hidden" name="status" value="Atualizado Produção">
-                                    <button type="submit" class="btn btn-success"><i class="fas fa-check"></i> Autorizar Implantação em Produção</button>
-                                </form>
-                                <form action="<?= route_to('agile.demanda.update') ?>" method="post">
-                                    <input type="hidden" name="id" value="<?= $demanda->id ?>">
-                                    <input type="hidden" name="titulo" value="<?= htmlspecialchars($demanda->titulo) ?>">
-                                    <input type="hidden" name="descricao" value="<?= htmlspecialchars($demanda->descricao) ?>">
-                                    <input type="hidden" name="sistema_critico" value="<?= $demanda->sistema_critico ?>">
-                                    <input type="hidden" name="status" value="Em Execução">
-                                    <button type="submit" class="btn btn-outline-danger"><i class="fas fa-times"></i> Rejeitar e Retornar ao Ciclo</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-                <!-- Fase: Esteira SERPRO - Apenas Fluxos Críticos -->
-                <?php if ($demanda->status === 'SERPRO'): ?>
-                    <div class="card border-danger shadow-sm">
-                        <div class="card-body">
-                            <h5 class="text-danger-emphasis"><i class="fas fa-shield-alt"></i> Homologação de Prontidão e Segurança (Esteira SERPRO)</h5>
-                            <p class="mb-3">A release de sistema crítico foi submetida. Avalie os testes automatizados e o plano de rollback na esteira ALM.</p>
-                            
-                            <form action="<?= route_to('agile.demanda.update') ?>" method="post">
-                                <input type="hidden" name="id" value="<?= $demanda->id ?>">
-                                <input type="hidden" name="titulo" value="<?= htmlspecialchars($demanda->titulo) ?>">
-                                <input type="hidden" name="descricao" value="<?= htmlspecialchars($demanda->descricao) ?>">
-                                <input type="hidden" name="sistema_critico" value="<?= $demanda->sistema_critico ?>">
-                                <input type="hidden" name="status" value="Atualizado Produção (Esteira SERPRO)">
-                                <button type="submit" class="btn btn-danger"><i class="fas fa-check-double"></i> Liberar na Esteira SERPRO</button>
-                            </form>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-                <!-- Fase Final: Concluído / Atualizado em Produção -->
-                <?php if (str_contains($demanda->status, 'Atualizado Produção')): ?>
-                    <div class="card bg-success text-white shadow-sm">
-                        <div class="card-body">
-                            <h5><i class="fas fa-check-circle"></i> Demanda Concluída e Atualizada em Produção</h5>
-                            <p class="mb-0">Todos os ciclos ágeis, ritos, homologações e janelas de deploy foram concluídos com sucesso para esta demanda!</p>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-            </div>
-        </div>
-
-        <!-- QUADRO KANBAN OPERACIONAL (Visível apenas se no status de Execução ou posterior) -->
-        <div class="row g-3">
-            <?php foreach ($colunas as $colName => $colItems): ?>
-                <div class="col-md-2-4 col-sm-6">
-                    <div class="card bg-light border-0 shadow-sm h-100">
-                        <div class="card-header bg-dark-subtle d-flex justify-content-between align-items-center py-2">
-                            <strong class="text-dark-emphasis"><?= $colName ?></strong>
-                            <span class="badge bg-secondary rounded-pill"><?= count($colItems) ?></span>
-                        </div>
-                        <div class="card-body p-2 kanban-column" data-status="<?= $colName ?>" style="min-height: 400px; max-height: 600px; overflow-y: auto;">
-                            <?php foreach ($colItems as $item): ?>
-                                <div class="card border-0 shadow-sm mb-2 kanban-item-card" data-id="<?= $item->id ?>" style="cursor: grab;">
-                                    <div class="card-body p-3">
-                                        <h6 class="card-title text-dark mb-1 small"><?= htmlspecialchars($item->titulo) ?></h6>
-                                        <div class="d-flex justify-content-between align-items-center mt-2">
-                                            <span class="badge bg-info text-dark small" style="font-size: 0.75em;"><?= $item->pontuacao ?> SP</span>
-                                            <small class="text-muted" style="font-size: 0.75em;"><i class="fas fa-grip-lines"></i></small>
+                <!-- PAINÉIS DE INTERAÇÃO CONFORME O STATUS ATUAL -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        
+                        <!-- Fase: Triagem, Preparar SERPRO ou Alocar Fábrica (Ainda não em backlog completo) -->
+                        <?php if (in_array($demanda->status, ['Triagem', 'Preparar Demanda SERPRO', 'Alocar Time Fábricas', 'Refinamento Backlog', 'Sprint Planning', 'Em Execução']) && !$sprintAtiva): ?>
+                            <div class="card border-warning shadow-sm">
+                                <div class="card-body">
+                                    <h5 class="text-warning-emphasis"><i class="fas fa-play-circle"></i> Iniciar Planejamento da Sprint</h5>
+                                    <p class="mb-3">Para iniciar o Ciclo da Sprint (Kanban), é obrigatório ter realizado uma cerimônia de <strong>Sprint Planning</strong> com ata registrada e presença dos participantes.</p>
+                                    
+                                    <!-- Formulário de Inicialização da Sprint -->
+                                    <form action="<?= route_to('agile.sprint.salvar') ?>" method="post" class="row g-3 align-items-end">
+                                        <input type="hidden" name="id_demanda" value="<?= $demanda->id ?>">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Meta da Sprint</label>
+                                            <input type="text" name="meta" class="form-control" placeholder="Ex: Entregar telas de cadastro e validação" required>
                                         </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Data de Início</label>
+                                            <input type="date" name="data_inicio" class="form-control" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Data de Fim</label>
+                                            <input type="date" name="data_fim" class="form-control" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="submit" class="btn btn-warning w-100"><i class="fas fa-play"></i> Iniciar Sprint</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Fase: Em Execução com Sprint Ativa -->
+                        <?php if ($sprintAtiva && $demanda->status === 'Em Execução'): ?>
+                            <div class="card border-primary shadow-sm">
+                                <div class="card-body d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h5 class="text-primary-emphasis"><i class="fas fa-running"></i> Sprint Ativa em Execução</h5>
+                                        <p class="mb-0"><strong>Meta:</strong> <?= htmlspecialchars($sprintAtiva->meta) ?> | <strong>Período:</strong> <?= date('d/m/Y', strtotime($sprintAtiva->data_inicio)) ?> até <?= date('d/m/Y', strtotime($sprintAtiva->data_fim)) ?></p>
+                                    </div>
+                                    <div>
+                                        <form action="<?= route_to('agile.sprint.review') ?>" method="post" onsubmit="return confirm('Deseja realmente encerrar esta Sprint e avançar para Homologação?')">
+                                            <input type="hidden" name="id_sprint" value="<?= $sprintAtiva->id ?>">
+                                            <input type="hidden" name="id_demanda" value="<?= $demanda->id ?>">
+                                            <button type="submit" class="btn btn-outline-danger"><i class="fas fa-stop"></i> Finalizar Sprint (Review)</button>
+                                        </form>
                                     </div>
                                 </div>
-                            <?php endforeach; ?>
-                        </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Fase: Homologação do Produto pelo PO -->
+                        <?php if ($demanda->status === 'Homologação'): ?>
+                            <div class="card border-warning shadow-sm">
+                                <div class="card-body">
+                                    <h5 class="text-warning-emphasis"><i class="fas fa-check-double"></i> Homologação do Produto (Product Owner)</h5>
+                                    <p class="mb-3">Analise o incremento da Sprint. Se aceito, a demanda seguirá para a liberação da release. Caso rejeitado, retornará para execução com as tarefas resetadas.</p>
+                                    
+                                    <form action="<?= route_to('agile.demanda.homologar') ?>" method="post" class="row g-3">
+                                        <input type="hidden" name="id_demanda" value="<?= $demanda->id ?>">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Parecer de Homologação</label>
+                                            <select class="form-select" name="parecer" required>
+                                                <option value="">Selecione...</option>
+                                                <option value="Favorável">Favorável (Aprovado)</option>
+                                                <option value="Rejeitado">Rejeitado (Retornar)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-7">
+                                            <label class="form-label">Observações e Feedback</label>
+                                            <input type="text" name="observacoes" class="form-control" placeholder="Escreva considerações ou motivos de rejeição..." required>
+                                        </div>
+                                        <div class="col-md-2 align-self-end">
+                                            <button type="submit" class="btn btn-warning w-100"><i class="fas fa-paper-plane"></i> Enviar Parecer</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Fase: Submissão de Release para Produção -->
+                        <?php if ($demanda->status === 'Submissão Release'): ?>
+                            <div class="card border-info shadow-sm">
+                                <div class="card-body">
+                                    <h5 class="text-info-emphasis"><i class="fas fa-upload"></i> Submissão de Release para Produção (Servidor)</h5>
+                                    <p class="mb-3">Preencha os metadados do deploy. A liberação de release exige homologação de parecer favorável registrado previamente.</p>
+                                    
+                                    <form action="<?= route_to('agile.demanda.release') ?>" method="post" class="row g-3">
+                                        <input type="hidden" name="id_demanda" value="<?= $demanda->id ?>">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Ticket RDM Cistmart</label>
+                                            <input type="text" name="ticket_rdm" class="form-control" placeholder="Ex: RDM-2026-987" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Servidor Destino</label>
+                                            <input type="text" name="servidor_deploy" class="form-control" placeholder="Ex: SERPRO-PRD-01" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Janela de Homologação</label>
+                                            <input type="text" name="janela_homologacao" class="form-control" placeholder="Ex: Sábado, das 00:00 às 04:00" required>
+                                        </div>
+                                        <div class="col-md-2 align-self-end">
+                                            <button type="submit" class="btn btn-info text-white w-100"><i class="fas fa-rocket"></i> Submeter Release</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Fase: Comitê de Mudanças (CCM) - Apenas Fluxos Comuns -->
+                        <?php if ($demanda->status === 'CCM'): ?>
+                            <div class="card border-success shadow-sm">
+                                <div class="card-body">
+                                    <h5 class="text-success-emphasis"><i class="fas fa-users-cog"></i> Avaliação do Comitê de Mudanças (CCM)</h5>
+                                    <p class="mb-3">A release comum foi submetida. Realize a avaliação técnica final para autorizar a atualização no ambiente de produção.</p>
+                                    
+                                    <div class="d-flex gap-2">
+                                        <form action="<?= route_to('agile.demanda.update') ?>" method="post">
+                                            <input type="hidden" name="id" value="<?= $demanda->id ?>">
+                                            <input type="hidden" name="titulo" value="<?= htmlspecialchars($demanda->titulo) ?>">
+                                            <input type="hidden" name="descricao" value="<?= htmlspecialchars($demanda->descricao) ?>">
+                                            <input type="hidden" name="sistema_critico" value="<?= $demanda->sistema_critico ?>">
+                                            <input type="hidden" name="status" value="Atualizado Produção">
+                                            <button type="submit" class="btn btn-success"><i class="fas fa-check"></i> Autorizar Implantação em Produção</button>
+                                        </form>
+                                        <form action="<?= route_to('agile.demanda.update') ?>" method="post">
+                                            <input type="hidden" name="id" value="<?= $demanda->id ?>">
+                                            <input type="hidden" name="titulo" value="<?= htmlspecialchars($demanda->titulo) ?>">
+                                            <input type="hidden" name="descricao" value="<?= htmlspecialchars($demanda->descricao) ?>">
+                                            <input type="hidden" name="sistema_critico" value="<?= $demanda->sistema_critico ?>">
+                                            <input type="hidden" name="status" value="Em Execução">
+                                            <button type="submit" class="btn btn-outline-danger"><i class="fas fa-times"></i> Rejeitar e Retornar ao Ciclo</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Fase: Esteira SERPRO - Apenas Fluxos Críticos -->
+                        <?php if ($demanda->status === 'SERPRO'): ?>
+                            <div class="card border-danger shadow-sm">
+                                <div class="card-body">
+                                    <h5 class="text-danger-emphasis"><i class="fas fa-shield-alt"></i> Homologação de Prontidão e Segurança (Esteira SERPRO)</h5>
+                                    <p class="mb-3">A release de sistema crítico foi submetida. Avalie os testes automatizados e o plano de rollback na esteira ALM.</p>
+                                    
+                                    <form action="<?= route_to('agile.demanda.update') ?>" method="post">
+                                        <input type="hidden" name="id" value="<?= $demanda->id ?>">
+                                        <input type="hidden" name="titulo" value="<?= htmlspecialchars($demanda->titulo) ?>">
+                                        <input type="hidden" name="descricao" value="<?= htmlspecialchars($demanda->descricao) ?>">
+                                        <input type="hidden" name="sistema_critico" value="<?= $demanda->sistema_critico ?>">
+                                        <input type="hidden" name="status" value="Atualizado Produção (Esteira SERPRO)">
+                                        <button type="submit" class="btn btn-danger"><i class="fas fa-check-double"></i> Liberar na Esteira SERPRO</button>
+                                    </form>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Fase Final: Concluído / Atualizado em Produção -->
+                        <?php if (str_contains($demanda->status, 'Atualizado Produção')): ?>
+                            <div class="card bg-success text-white shadow-sm">
+                                <div class="card-body">
+                                    <h5><i class="fas fa-check-circle"></i> Demanda Concluída e Atualizada em Produção</h5>
+                                    <p class="mb-0">Todos os ciclos ágeis, ritos, homologações e janelas de deploy foram concluídos com sucesso para esta demanda!</p>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
                     </div>
                 </div>
-            <?php endforeach; ?>
-        </div>
+
+                <!-- QUADRO KANBAN OPERACIONAL (Visível apenas se no status de Execução ou posterior) -->
+                <div class="row g-3">
+                    <?php foreach ($colunas as $colName => $colItems): ?>
+                        <div class="col-md-2-4 col-sm-6">
+                            <div class="card bg-light border-0 shadow-sm h-100">
+                                <div class="card-header bg-dark-subtle d-flex justify-content-between align-items-center py-2">
+                                    <strong class="text-dark-emphasis"><?= $colName ?></strong>
+                                    <span class="badge bg-secondary rounded-pill"><?= count($colItems) ?></span>
+                                </div>
+                                <div class="card-body p-2 kanban-column" data-status="<?= $colName ?>" style="min-height: 400px; max-height: 600px; overflow-y: auto;">
+                                    <?php foreach ($colItems as $item): ?>
+                                        <div class="card border-0 shadow-sm mb-2 kanban-item-card" data-id="<?= $item->id ?>" style="cursor: grab;">
+                                            <div class="card-body p-3">
+                                                <h6 class="card-title text-dark mb-1 small"><?= htmlspecialchars($item->titulo) ?></h6>
+                                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                                    <span class="badge bg-info text-dark small" style="font-size: 0.75em;"><?= $item->pontuacao ?> SP</span>
+                                                    <small class="text-muted" style="font-size: 0.75em;"><i class="fas fa-grip-lines"></i></small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+            </div> <!-- Fim de #quadro-pane -->
+
+            <!-- ABA 2: HISTÓRICO DE SPRINTS -->
+            <div class="tab-pane fade" id="historico-pane" role="tabpanel" aria-labelledby="historico-tab" tabindex="0">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+                        <h5 class="mb-0"><i class="fas fa-history me-2"></i>Histórico de Sprints da Demanda</h5>
+                        <span class="badge bg-light text-dark"><?= count($sprints ?? []) ?> Sprint(s) Registrada(s)</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <?php if (empty($sprints)): ?>
+                            <div class="text-center py-5 text-muted">
+                                <i class="fas fa-running fa-3x mb-3 text-secondary"></i>
+                                <h5>Nenhuma Sprint cadastrada para esta demanda.</h5>
+                                <p class="mb-0">Inicie o planejamento da Sprint na aba do Quadro Kanban quando a demanda estiver na fase de planejamento.</p>
+                            </div>
+                        <?php else: ?>
+                            <?php
+                                $totalItensDemanda = count($items ?? []);
+                                $totalPontosDemanda = array_reduce($items ?? [], function($acc, $item) {
+                                    return $acc + ($item->pontuacao ?? 0);
+                                }, 0);
+                            ?>
+                            <div class="table-responsive">
+                                <table class="table table-hover table-striped mb-0 align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 50px;">#</th>
+                                            <th>Meta da Sprint</th>
+                                            <th>Data de Início</th>
+                                            <th>Data de Fim</th>
+                                            <th class="text-center">Status</th>
+                                            <th class="text-center">Total de Itens</th>
+                                            <th class="text-center">Total Story Points</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($sprints as $index => $sprint): ?>
+                                            <tr>
+                                                <td class="fw-bold"><?= count($sprints) - $index ?></td>
+                                                <td>
+                                                    <strong><?= htmlspecialchars($sprint->meta) ?></strong>
+                                                </td>
+                                                <td>
+                                                    <i class="far fa-calendar-alt me-1 text-muted"></i>
+                                                    <?= date('d/m/Y', strtotime($sprint->data_inicio)) ?>
+                                                </td>
+                                                <td>
+                                                    <i class="far fa-calendar-check me-1 text-muted"></i>
+                                                    <?= date('d/m/Y', strtotime($sprint->data_fim)) ?>
+                                                </td>
+                                                <td class="text-center">
+                                                    <?php if ($sprint->status === 'Ativa'): ?>
+                                                        <span class="badge bg-primary px-3 py-2"><i class="fas fa-play me-1"></i> Ativa</span>
+                                                    <?php elseif ($sprint->status === 'Concluída'): ?>
+                                                        <span class="badge bg-success px-3 py-2"><i class="fas fa-check me-1"></i> Concluída</span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-secondary px-3 py-2"><?= htmlspecialchars($sprint->status) ?></span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td class="text-center fw-bold">
+                                                    <span class="badge bg-light text-dark border"><?= $totalItensDemanda ?> itens</span>
+                                                </td>
+                                                <td class="text-center fw-bold text-primary">
+                                                    <span class="badge bg-info text-dark"><?= $totalPontosDemanda ?> SP</span>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div> <!-- Fim de #historico-pane -->
+        </div> <!-- Fim de .tab-content -->
 
     </div>
 </div>

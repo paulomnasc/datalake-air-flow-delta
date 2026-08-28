@@ -345,6 +345,11 @@ if (!function_exists('formatBrtDate')) {
     gap: 4px;
     min-width: 200px;
   }
+  .bets-grid.list-view .match-time {
+    align-items: flex-start !important;
+    text-align: left !important;
+    margin-left: 0 !important;
+  }
   .bets-grid.list-view .bet-card-body {
     padding: 0;
     flex: 1;
@@ -409,8 +414,9 @@ if (!function_exists('formatBrtDate')) {
     font-size: 0.8rem;
     color: var(--bet-text-muted);
     display: flex;
-    align-items: center;
-    gap: 4px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
   }
 
   .bet-card-body {
@@ -503,7 +509,7 @@ if (!function_exists('formatBrtDate')) {
   .status-Meio-Ganha, .status-Meio_Ganha { background: rgba(76, 175, 80, 0.2); color: #81c784; border: 1px solid rgba(76, 175, 80, 0.4); }
   .status-Meio-Perdida, .status-Meio_Perdida { background: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid rgba(255, 152, 0, 0.4); }
   .status-Perdida  { background: rgba(255, 82, 82, 0.15); color: var(--bet-danger); border: 1px solid rgba(255, 82, 82, 0.3); }
-  .status-ANULADA, .status-Anulada { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }
+  .status-ANULADA, .status-Anulada, .status-Cancelada, .status-CANCELADA { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }
   .status-Cashout  { background: rgba(0, 176, 255, 0.15); color: var(--bet-accent); border: 1px solid rgba(0, 176, 255, 0.3); }
 
   .bet-card-footer {
@@ -709,9 +715,9 @@ if (!function_exists('formatBrtDate')) {
       <div class="lock-icon-circle">
         <i class="bi bi-lock-fill"></i>
       </div>
-      <h2>Acesso Restrito a Gestão de Apostas</h2>
+      <h2><?= lang('App.access_restricted_title') ?></h2>
       <p>
-        A persistência e o acompanhamento de apostas na plataforma são recursos exclusivos para usuários que possuem <strong>Tokens de Consulta</strong> ativos.
+        <?= lang('App.access_restricted_msg') ?>
         <br><br>
         Seu saldo atual: <strong class="text-danger">0 Tokens</strong>. Recarreague agora mesmo para liberar o painel completo de palpites e acompanhamento.
       </p>
@@ -727,17 +733,17 @@ if (!function_exists('formatBrtDate')) {
   <!-- Header -->
   <div class="bet-header">
     <div class="bet-title">
-      <h1><i class="bi bi-ticket-detailed-fill"></i> Minhas Apostas</h1>
-      <div class="bet-subtitle">Gerencie e persista suas apostas, odds, retornos potenciais e controle de cash out.</div>
+      <h1><i class="bi bi-ticket-detailed-fill"></i> <?= lang('App.my_bets') ?></h1>
+      <div class="bet-subtitle"><?= lang('App.bets_subtitle') ?></div>
     </div>
     <div>
       <?php if ($hasTokens): ?>
         <div class="token-badge">
-          <i class="bi bi-coin"></i> Tokens de Consulta: <strong><?= $userCredits ?> disponíveis</strong>
+          <i class="bi bi-coin"></i> <?= sprintf(lang('App.tokens_available'), $userCredits) ?>
         </div>
       <?php else: ?>
         <div class="token-badge token-badge-locked">
-          <i class="bi bi-exclamation-triangle-fill"></i> Tokens Insuficientes (0)
+          <i class="bi bi-exclamation-triangle-fill"></i> <?= lang('App.tokens_insufficient') ?>
         </div>
       <?php endif; ?>
     </div>
@@ -750,29 +756,39 @@ if (!function_exists('formatBrtDate')) {
         <i class="bi bi-clock-history"></i>
       </div>
       <div>
-        <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">Processamento Automático Diário (Airflow DAG - 23:00 hs)</div>
-        <div style="font-size: 0.82rem; color: var(--bet-text-muted);">As apostas dos jogos encerrados do dia são auditadas e liquidadas automaticamente todas as noites às 23:00 hs.</div>
+        <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;"><?= lang('App.daily_processing_title') ?></div>
+        <div style="font-size: 0.82rem; color: var(--bet-text-muted);"><?= lang('App.daily_processing_desc') ?></div>
       </div>
     </div>
     <button class="btn btn-sm btn-outline-info rounded-pill px-3 fw-bold d-flex align-items-center gap-2" onclick="triggerProcessarDAG()">
-      <i class="bi bi-arrow-clockwise"></i> Executar Verificação das 23h Agora
+      <i class="bi bi-arrow-clockwise"></i> <?= lang('App.trigger_dag_now') ?>
     </button>
   </div>
 
   <!-- Cards Resumo Stats -->
   <div class="stats-grid">
+    <?php 
+      $saldoCcVal = (float)($saldoContaCorrente ?? $user->saldo_conta_corrente ?? 0);
+    ?>
+    <div class="stat-card" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);" title="Saldo de crédito disponível em conta corrente para confirmação e débito de apostas">
+      <div class="stat-label" style="color: #34d399;"><i class="bi bi-wallet2"></i> Saldo Conta Corrente</div>
+      <div class="stat-value current-balance-value" style="color: <?= $saldoCcVal >= 0 ? '#34d399' : '#f87171' ?>;" id="topSaldoContaCorrente" data-saldo-cc="<?= $saldoCcVal ?>">
+        R$ <?= number_format($saldoCcVal, 2, ',', '.') ?>
+      </div>
+    </div>
+
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-cash-stack"></i> Total Apostado</div>
+      <div class="stat-label"><i class="bi bi-cash-stack"></i> <?= lang('App.total_staked') ?></div>
       <div class="stat-value" id="topTotalApostado">R$ <?= number_format($resumo['total_apostado'] ?? 0, 2, ',', '.') ?></div>
     </div>
 
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-trophy"></i> Retorno Bruto</div>
+      <div class="stat-label"><i class="bi bi-trophy"></i> <?= lang('App.gross_return') ?></div>
       <div class="stat-value primary" id="topRetornoBruto">R$ <?= number_format($resumo['ganhos_totais'] ?? 0, 2, ',', '.') ?></div>
     </div>
 
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-calculator"></i> Saldo Líquido</div>
+      <div class="stat-label"><i class="bi bi-calculator"></i> <?= lang('App.net_balance') ?></div>
       <?php $saldoTop = (float)($resumo['saldo_liquido'] ?? 0); ?>
       <div class="stat-value <?= ($saldoTop > 0) ? 'primary' : (($saldoTop < 0) ? 'text-danger' : 'gold') ?>" id="topSaldoLiquido">
         <?= ($saldoTop > 0 ? '+' : '') ?>R$ <?= number_format($saldoTop, 2, ',', '.') ?>
@@ -780,7 +796,7 @@ if (!function_exists('formatBrtDate')) {
     </div>
 
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-list-check"></i> Total de Apostas</div>
+      <div class="stat-label"><i class="bi bi-list-check"></i> <?= lang('App.total_bets') ?></div>
       <div class="stat-value gold" id="topTotalApostas"><?= $resumo['total_apostas'] ?? 0 ?></div>
     </div>
   </div>
@@ -802,55 +818,75 @@ if (!function_exists('formatBrtDate')) {
             return "{$label} ({$count} - {$pctStr})";
           };
         ?>
-        <button class="filter-btn active" id="btnFilterAll" onclick="filterBets('all', this)"><?= $calcPctBadge('Todas', $totalApostasCount) ?></button>
-        <button class="filter-btn" id="btnFilterPendente" onclick="filterBets('Pendente', this)"><?= $calcPctBadge('Pendentes', $resumo['pendentes'] ?? 0) ?></button>
-        <button class="filter-btn" id="btnFilterGanha" onclick="filterBets('Ganha', this)"><?= $calcPctBadge('Ganhas', $resumo['ganhas'] ?? 0) ?></button>
-        <button class="filter-btn" id="btnFilterMeioGanha" onclick="filterBets('Meio Ganha', this)"><?= $calcPctBadge('Meio Ganhas', $resumo['meio_ganhas'] ?? 0) ?></button>
-        <button class="filter-btn" id="btnFilterAnulada" onclick="filterBets('ANULADA', this)"><?= $calcPctBadge('Anuladas', $resumo['anuladas'] ?? 0) ?></button>
-        <button class="filter-btn" id="btnFilterMeioPerdida" onclick="filterBets('Meio Perdida', this)"><?= $calcPctBadge('Meio Perdidas', $resumo['meio_perdidas'] ?? 0) ?></button>
-        <button class="filter-btn" id="btnFilterPerdida" onclick="filterBets('Perdida', this)"><?= $calcPctBadge('Perdida', $resumo['perdidas'] ?? 0) ?></button>
+        <button class="filter-btn active" id="btnFilterAll" onclick="filterBets('all', this)"><?= $calcPctBadge(lang('App.all_statuses'), $totalApostasCount) ?></button>
+        <button class="filter-btn" id="btnFilterPendente" onclick="filterBets('Pendente', this)"><?= $calcPctBadge(lang('App.pending'), $resumo['pendentes'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterGanha" onclick="filterBets('Ganha', this)"><?= $calcPctBadge(lang('App.won'), $resumo['ganhas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterMeioGanha" onclick="filterBets('Meio Ganha', this)"><?= $calcPctBadge(lang('App.half_won'), $resumo['meio_ganhas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterAnulada" onclick="filterBets('ANULADA', this)"><?= $calcPctBadge(lang('App.refunded'), $resumo['anuladas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterMeioPerdida" onclick="filterBets('Meio Perdida', this)"><?= $calcPctBadge(lang('App.half_lost'), $resumo['meio_perdidas'] ?? 0) ?></button>
+        <button class="filter-btn" id="btnFilterPerdida" onclick="filterBets('Perdida', this)"><?= $calcPctBadge(lang('App.lost'), $resumo['perdidas'] ?? 0) ?></button>
         <button class="filter-btn" id="btnFilterCashout" onclick="filterBets('Cashout', this)"><?= $calcPctBadge('Cashout', $resumo['cashouts'] ?? 0) ?></button>
       </div>
 
-      <!-- Filtro de Período (2 Datas) -->
+      <!-- Filtro por Mercado de Simulações de Apostas -->
       <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;">
-        <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-calendar-range text-info"></i> Período:</span>
-        <input type="date" id="betStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="applyBetFilters()" title="Data Inicial (De)">
-        <span class="text-light-50 small">até</span>
-        <input type="date" id="betEndDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="applyBetFilters()" title="Data Final (Até)">
-        <button class="btn btn-sm btn-outline-info text-info border-secondary px-2 py-0.5 ms-1 fw-semibold" onclick="setTodayDateFilter()" title="Selecionar Data de Hoje" style="font-size: 0.78rem;"><i class="bi bi-calendar-check me-1"></i>Hoje</button>
-        <button class="btn btn-sm btn-outline-secondary border-0 text-light-50 p-1" onclick="clearDateFilter()" title="Limpar Filtro de Período"><i class="bi bi-x-circle-fill"></i></button>
+        <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-shop text-primary"></i> <?= lang('App.market') ?>:</span>
+        <select id="betMarketFilterSelect" class="form-select form-select-sm bg-dark text-white border-secondary fw-semibold" onchange="applyBetFilters()" style="width: auto; cursor: pointer; min-width: 180px;">
+          <option value="all" selected><?= lang('App.all_markets') ?></option>
+          <option value="handicap">⚽ <?= lang('App.goals_market_handicap') ?></option>
+          <option value="cartoes">🟨 <?= lang('App.cards_trend_poisson') ?></option>
+        </select>
+      </div>
+
+      <!-- Filtro de Período (Atalhos + Datas) -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary flex-wrap" style="font-size: 0.85rem;">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-calendar-range text-info"></i> <?= lang('App.period') ?>:</span>
+        <select id="betDatePresetSelect" class="form-select form-select-sm bg-dark text-info border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 155px;" onchange="setBetDatePreset(this.value)" title="<?= lang('App.period_shortcut') ?>">
+          <option value="custom">📅 <?= lang('App.custom') ?></option>
+          <option value="today">⚡ <?= lang('App.today') ?></option>
+          <option value="yesterday">⏪ <?= lang('App.yesterday') ?></option>
+          <option value="7days">🗓️ <?= lang('App.last_7_days') ?></option>
+          <option value="15days">🗓️ <?= lang('App.last_15_days') ?></option>
+          <option value="1month">📅 <?= lang('App.last_month') ?></option>
+          <option value="trimestre">📊 <?= lang('App.quarter') ?></option>
+          <option value="semestre">📈 <?= lang('App.semester') ?></option>
+          <option value="all" selected>♾️ <?= lang('App.all_period') ?></option>
+        </select>
+        <input type="date" id="betStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="onManualDateChange()" title="<?= lang('App.start_date') ?>">
+        <span class="text-light-50 small"><?= lang('App.to') ?></span>
+        <input type="date" id="betEndDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="onManualDateChange()" title="<?= lang('App.end_date') ?>">
+        <button class="btn btn-sm btn-outline-secondary border-0 text-light-50 p-1" onclick="clearDateFilter()" title="<?= lang('App.clear') ?>"><i class="bi bi-x-circle-fill"></i></button>
       </div>
 
       <!-- Resumo Financeiro Calculado (Filtro por Período / Seleção) -->
       <div id="calculatedSummaryWidget" class="d-flex align-items-center gap-3 bg-dark px-3 py-1.5 rounded-3 border border-secondary flex-wrap" style="font-size: 0.82rem; background: rgba(15, 23, 42, 0.9) !important; border-color: rgba(56, 189, 248, 0.35) !important;">
-        <div class="d-flex align-items-center gap-1" title="Soma do valor investido nas apostas do período/filtro">
+        <div class="d-flex align-items-center gap-1" title="Soma do valor investido nas simulações de apostas do período/filtro">
           <i class="bi bi-cash-coin text-warning"></i>
-          <span class="text-light-50">Total Apostado:</span>
+          <span class="text-light-50"><?= lang('App.total_staked') ?>:</span>
           <strong id="calcTotalApostado" class="text-white">R$ 0,00</strong>
         </div>
 
-        <div class="d-flex align-items-center gap-1" title="Soma dos ganhos em apostas vencidas ou cashouts (Retorno Bruto)">
+        <div class="d-flex align-items-center gap-1" title="Soma dos ganhos em simulações de apostas vencidas ou cashouts (Retorno Bruto)">
           <i class="bi bi-graph-up-arrow text-success"></i>
-          <span class="text-light-50">Total Ganho:</span>
+          <span class="text-light-50"><?= lang('App.total_won_label') ?>:</span>
           <strong id="calcTotalGanho" class="text-success">R$ 0,00</strong>
         </div>
 
-        <div class="d-flex align-items-center gap-1" title="Soma do ganho obtido sobre as odds ((Aposta × Odd) - Aposta)">
+        <div class="d-flex align-items-center gap-1" title="Soma do ganho obtido sobre as odds ((Simulação × Odd) - Simulação)">
           <i class="bi bi-piggy-bank-fill" style="color: #00e676;"></i>
-          <span class="text-light-50">Ganho Odds:</span>
+          <span class="text-light-50"><?= lang('App.odds_gain_label') ?>:</span>
           <strong id="calcTotalLucro" style="color: #00e676; font-weight: 700;">R$ 0,00</strong>
         </div>
 
-        <div class="d-flex align-items-center gap-1" title="Soma dos valores perdidos nas apostas do período/filtro">
+        <div class="d-flex align-items-center gap-1" title="Soma dos valores perdidos nas simulações de apostas do período/filtro">
           <i class="bi bi-graph-down-arrow text-danger"></i>
-          <span class="text-light-50">Total Perda:</span>
+          <span class="text-light-50"><?= lang('App.total_loss_label') ?>:</span>
           <strong id="calcTotalPerda" class="text-danger">R$ 0,00</strong>
         </div>
 
-        <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: Saldo Líquido = Total Retorno Bruto - Total Apostado (Apostas Liquidadas)">
+        <div class="d-flex align-items-center gap-1 border-start border-secondary ps-2 ms-1" title="Fórmula: Saldo Líquido = Total Retorno Bruto - Total Apostado (Simulações Liquidadas)">
           <i class="bi bi-calculator text-info"></i>
-          <span class="text-light-50">Saldo Líquido:</span>
+          <span class="text-light-50"><?= lang('App.net_balance') ?>:</span>
           <strong id="calcSaldoLiquido" class="text-info fw-bold">R$ 0,00</strong>
         </div>
       </div>
@@ -860,28 +896,41 @@ if (!function_exists('formatBrtDate')) {
       <!-- Botão Slide para alternar entre Lista e Cards -->
       <div class="view-toggle-pill" title="Alternar Modo de Exibição">
         <button type="button" class="view-toggle-btn active" id="btnViewList" onclick="setViewMode('list')" title="Exibir em Lista">
-          <i class="bi bi-list-ul"></i> Lista
+          <i class="bi bi-list-ul"></i> <?= lang('App.list') ?>
         </button>
         <button type="button" class="view-toggle-btn" id="btnViewGrid" onclick="setViewMode('grid')" title="Exibir em Cards">
-          <i class="bi bi-grid-fill"></i> Cards
+          <i class="bi bi-grid-fill"></i> <?= lang('App.cards') ?>
         </button>
       </div>
 
       <div class="search-box">
         <i class="bi bi-search"></i>
-        <input type="text" id="betSearchInput" placeholder="Buscar aposta..." onkeyup="applyBetFilters()">
+        <input type="text" id="betSearchInput" placeholder="<?= lang('App.search_bet_placeholder') ?>" onkeyup="applyBetFilters()">
       </div>
       
+      <?php 
+      $userNameIndex = $_SESSION['nome_usuario_logado'] ?? session()->get('nome_usuario_logado') ?? ($user->nome ?? '');
+      if (\App\Helpers\SessionHelper::isPauloNascimento($userNameIndex)): 
+      ?>
+      <a href="<?= base_url('apostas/extrato') ?>" class="btn btn-outline-success rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;" title="Abrir Extrato e Conta Corrente">
+        <i class="bi bi-wallet2 text-success"></i> Extrato & Conta Corrente
+      </a>
+      <?php endif; ?>
+
       <a href="<?= base_url('apostas/relatorio-top5') ?>" target="_blank" class="btn btn-outline-warning rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;">
-        <i class="bi bi-trophy-fill text-warning"></i> Rank Top 5 Vencedores
+        <i class="bi bi-trophy-fill text-warning"></i> <?= lang('App.top5_report') ?>
       </a>
 
       <a href="<?= base_url('apostas/relatorio-ia-perdas') ?>" class="btn btn-outline-danger rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;">
-        <i class="bi bi-shield-x text-danger"></i> Relatório Perdas (IA)
+        <i class="bi bi-shield-x text-danger"></i> <?= lang('App.ia_loss_report') ?>
+      </a>
+
+      <a href="<?= base_url('apostas/analise-desempenho') ?>" target="_blank" class="btn btn-outline-info rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;" title="Abrir Análise de Desempenho em nova aba">
+        <i class="bi bi-graph-up-arrow text-info"></i> <?= lang('App.perf_analysis_title') ?>
       </a>
 
       <button class="btn-new-bet" data-bs-toggle="modal" data-bs-target="#newBetModal">
-        <i class="bi bi-plus-lg"></i> Nova Aposta
+        <i class="bi bi-plus-lg"></i> <?= lang('App.new_bet') ?>
       </button>
     </div>
   </div>
@@ -891,41 +940,79 @@ if (!function_exists('formatBrtDate')) {
     <?php if (empty($apostas)): ?>
       <div class="w-100 text-center py-5" style="grid-column: 1 / -1; color: var(--bet-text-muted);">
         <i class="bi bi-inbox" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
-        <h5>Nenhuma aposta cadastrada ainda.</h5>
-        <p>Clique no botão <strong>Nova Aposta</strong> acima para adicionar seu primeiro palpite.</p>
+        <h5><?= lang('App.no_bets_registered_yet') ?></h5>
+        <p><?= lang('App.click_new_bet_above') ?></p>
       </div>
     <?php else: ?>
       <?php foreach ($apostas as $aposta): ?>
         <?php 
-          $itemDate = '';
-          if (!empty($aposta->data_hora_jogo)) {
-            $itemDate = formatBrtDate($aposta->data_hora_jogo, 'Y-m-d');
-          } elseif (!empty($aposta->criado_em)) {
-            $itemDate = formatBrtDate($aposta->criado_em, 'Y-m-d');
-          }
+          $itemDate = !empty($aposta->data_brt_dia) ? $aposta->data_brt_dia : (!empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'Y-m-d') : formatBrtDate($aposta->criado_em, 'Y-m-d'));
           $itemCreatedDate = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'Y-m-d') : $itemDate;
           $displayMatchTime = !empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'd/m \à\s H:i') : 'Hoje';
+          $displayCreatedTime = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'd/m/Y \à\s H:i') : null;
         ?>
-        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite)) ?>">
+        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? ''))) ?>">
           
           <div class="bet-card-header">
-            <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
-              <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
-              <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Aposta cadastrada e vinculada">
-                🂠 Aposta Registrada
-              </span>
-              <?php if (!empty($aposta->fixture_id)): ?>
-                <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
-                   class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
-                   style="font-size: 0.75rem; transition: all 0.2s ease;" 
-                   title="Ir para o Card de Origem no Dashboard">
-                  <i class="bi bi-box-arrow-up-right me-1"></i> Card Origem
-                </a>
+            <div class="d-flex flex-column align-items-start gap-1">
+              <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
+                <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
+                
+                <?php 
+                  $placarExibir = null;
+                  if (isset($aposta->goals_home) && isset($aposta->goals_away) && $aposta->goals_home !== null && $aposta->goals_away !== null) {
+                    $placarExibir = $aposta->goals_home . ' x ' . $aposta->goals_away;
+                  } elseif (!empty($aposta->resultado_detalhado) && preg_match('/Placar:\s*(\d+\s*x\s*\d+|\d+x\d+)/i', $aposta->resultado_detalhado, $mPlac)) {
+                    $placarExibir = str_replace('x', ' x ', str_replace(' ', '', $mPlac[1]));
+                  }
+                ?>
+
+                <?php if (!empty($placarExibir)): ?>
+                  <span class="badge bg-warning text-dark border border-warning px-2.5 py-1 font-monospace fw-bold" style="font-size: 0.81rem; letter-spacing: 0.5px;" title="Placar Final da Partida (FT)">
+                    ⚽ Placar: <?= htmlspecialchars($placarExibir) ?>
+                  </span>
+                <?php endif; ?>
+
+                <?php 
+                  $temDebitoCc = !empty($aposta->tem_debito) && (int)$aposta->tem_debito > 0;
+                  $isConfirmada = $temDebitoCc && (isset($aposta->confirmada) ? (int)$aposta->confirmada : 1) === 1 && $aposta->status !== 'Não Confirmada';
+                ?>
+                <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
+                  <span class="badge bg-warning bg-opacity-25 text-warning border border-warning px-2 py-1" style="font-size: 0.75rem;" title="Simulação não confirmada / Sem débito em conta">
+                    ⚠️ <?= lang('App.unconfirmed_badge') ?>
+                  </span>
+                <?php else: ?>
+                  <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1" style="font-size: 0.75rem;" title="Débito em conta corrente efetuado">
+                    ✅ <?= lang('App.debited_badge') ?>
+                  </span>
+                <?php endif; ?>
+                <?php if (!empty($aposta->fixture_id)): ?>
+                  <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
+                     class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
+                     style="font-size: 0.75rem; transition: all 0.2s ease;" 
+                     title="<?= lang('App.origin_card') ?>">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> <?= lang('App.origin_card') ?>
+                  </a>
+                <?php endif; ?>
+              </div>
+
+              <?php if (!empty($aposta->league_name)): ?>
+                <div class="match-league" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: flex; align-items: center; gap: 5px; margin-top: 1px;">
+                  <i class="bi bi-trophy-fill" style="color: var(--bet-gold); font-size: 0.78rem;"></i>
+                  <span><?= htmlspecialchars($aposta->league_name) ?></span>
+                </div>
               <?php endif; ?>
             </div>
-            <div class="match-time">
-              <i class="bi bi-clock"></i>
-              <?= $displayMatchTime ?>
+
+            <div class="match-time flex-shrink-0 d-flex flex-column align-items-end text-end ms-auto" style="font-size: 0.78rem; gap: 2px;">
+              <div title="<?= lang('App.match') ?>" style="color: var(--bet-text-muted);">
+                <i class="bi bi-calendar-event me-1"></i> <?= lang('App.match') ?>: <strong><?= $displayMatchTime ?></strong>
+              </div>
+              <?php if (!empty($displayCreatedTime)): ?>
+                <div title="<?= lang('App.created') ?>" style="color: var(--bet-accent); font-weight: 500;">
+                  <i class="bi bi-clock-history me-1"></i> <?= lang('App.created') ?>: <strong><?= $displayCreatedTime ?></strong>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
 
@@ -940,44 +1027,69 @@ if (!function_exists('formatBrtDate')) {
 
             <div class="values-grid">
               <div class="val-box">
-                <div class="val-title">Aposta</div>
+                <div class="val-title"><?= lang('App.bet_simulation_label') ?></div>
                 <div class="val-amount">R$ <?= number_format($aposta->valor_aposta, 2, ',', '.') ?></div>
               </div>
               <div class="val-box highlight">
-                <div class="val-title">Ganhos Potenciais</div>
+                <div class="val-title"><?= lang('App.potential_earnings_label') ?></div>
                 <div class="val-amount primary">R$ <?= number_format($aposta->ganhos_potenciais, 2, ',', '.') ?></div>
               </div>
             </div>
 
-            <?php if (!empty($aposta->resultado_detalhado)): ?>
+            <?php 
+              $detalhadoExibir = $aposta->resultado_detalhado ?? '';
+              if (empty($detalhadoExibir) && !empty($placarExibir) && $aposta->status !== 'Pendente') {
+                $detalhadoExibir = "FT | Placar: {$placarExibir} | Status: {$aposta->status}";
+              }
+              $statusLabelMap = [
+                'Pendente'       => lang('App.pending'),
+                'Não Confirmada' => lang('App.unconfirmed'),
+                'Ganha'          => lang('App.won'),
+                'Meio Ganha'     => lang('App.half_won'),
+                'ANULADA'        => lang('App.refunded'),
+                'Meio Perdida'   => lang('App.half_lost'),
+                'Perdida'        => lang('App.lost'),
+                'Cashout'        => 'Cashout',
+              ];
+              $displayStatusLabel = mb_strtoupper($statusLabelMap[$aposta->status] ?? $aposta->status, 'UTF-8');
+            ?>
+
+            <?php if (!empty($detalhadoExibir)): ?>
               <div style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: center; gap: 6px;">
                 <i class="bi bi-info-circle-fill text-info"></i>
-                <span><?= htmlspecialchars($aposta->resultado_detalhado) ?></span>
+                <span><?= htmlspecialchars($detalhadoExibir) ?></span>
               </div>
             <?php endif; ?>
 
-            <div class="d-flex justify-content-between align-items-center">
-              <span class="status-tag status-<?= str_replace(' ', '-', $aposta->status) ?>"><?= $aposta->status ?></span>
-              <span style="font-size: 0.8rem; color: var(--bet-text-muted); font-weight: 600; text-transform: uppercase;">
-                Tipo: <?= htmlspecialchars($aposta->tipo) ?>
-              </span>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <span class="status-tag status-<?= str_replace(' ', '-', $aposta->status) ?>"><?= htmlspecialchars($displayStatusLabel) ?></span>
+              <div class="d-flex align-items-center gap-3 flex-wrap">
+                <span style="font-size: 0.8rem; color: var(--bet-text-muted); font-weight: 600; text-transform: uppercase;">
+                  <?= lang('App.type') ?>: <?= htmlspecialchars($aposta->tipo) ?>
+                </span>
+                <?php if (!empty($displayCreatedTime)): ?>
+                  <span style="font-size: 0.78rem; color: var(--bet-accent); font-weight: 500;" title="<?= lang('App.created_at') ?>">
+                    <i class="bi bi-clock-history me-1"></i> <?= lang('App.created_at') ?>: <?= $displayCreatedTime ?>
+                  </span>
+                <?php endif; ?>
+              </div>
             </div>
 
             <?php if (!empty($aposta->status_gatekeeper) && $aposta->status_gatekeeper !== 'NAO_ANALISADO'): ?>
               <div class="mt-2 d-flex align-items-center gap-2 flex-wrap" style="font-size: 0.78rem;">
                 <?php if ($aposta->status_gatekeeper === 'APROVADO'): ?>
                   <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1">
-                    <i class="bi bi-shield-check me-1"></i> Gatekeeper: +EV Aprovado
+                    <i class="bi bi-shield-check me-1"></i> Gatekeeper: <?= lang('App.ev_approved') ?>
                   </span>
                 <?php elseif ($aposta->status_gatekeeper === 'NO_BET'): ?>
                   <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50 px-2 py-1">
-                    <i class="bi bi-shield-x me-1"></i> Gatekeeper: NO_BET (Sem Valor)
+                    <i class="bi bi-shield-x me-1"></i> Gatekeeper: NO_BET
                   </span>
                 <?php endif; ?>
 
                 <?php if (!empty($aposta->odd_justa)): ?>
-                  <span class="badge px-2.5 py-1 fw-bold" style="background-color: #00b0ff; color: #000000;" title="Odd Justa calculada pelo modelo de Poisson">
-                    <i class="bi bi-calculator-fill me-1"></i> Odd Justa: <?= number_format($aposta->odd_justa, 2) ?>
+                  <span class="badge px-2.5 py-1 fw-bold" style="background-color: #00b0ff; color: #000000;" title="<?= lang('App.fair_odd') ?>">
+                    <i class="bi bi-calculator-fill me-1"></i> <?= lang('App.fair_odd') ?>: <?= number_format($aposta->odd_justa, 2) ?>
                   </span>
                 <?php endif; ?>
 
@@ -992,11 +1104,16 @@ if (!function_exists('formatBrtDate')) {
 
           <div class="bet-card-footer">
             <div class="actions-primary">
+              <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
+                <button type="button" class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px;" onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>)">
+                  <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
+                </button>
+              <?php endif; ?>
               <button class="btn-cashout" onclick="handleCashout(<?= $aposta->id ?>, <?= $aposta->cash_out ?? $aposta->valor_aposta ?>)">
                 CASH OUT R$ <?= number_format($aposta->cash_out ?? $aposta->valor_aposta, 2, ',', '.') ?>
               </button>
-              <button class="btn-reapostar" onclick="handleReapostar(<?= $aposta->id ?>)" title="Duplicar Aposta">
-                <i class="bi bi-arrow-repeat"></i> Reapostar
+              <button class="btn-reapostar" onclick="handleReapostar(<?= $aposta->id ?>)" title="<?= lang('App.rebet') ?>">
+                <i class="bi bi-arrow-repeat"></i> <?= lang('App.rebet') ?>
               </button>
             </div>
 
@@ -1004,19 +1121,19 @@ if (!function_exists('formatBrtDate')) {
               <?php if (!empty($aposta->fixture_id)): ?>
                 <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
                    class="btn-icon-link text-warning fw-semibold text-decoration-none" 
-                   title="Ver Card de Origem da Aposta no Dashboard">
-                  <i class="bi bi-box-arrow-up-right me-1"></i> Card Origem
+                   title="<?= lang('App.origin_card') ?>">
+                  <i class="bi bi-box-arrow-up-right me-1"></i> <?= lang('App.origin_card') ?>
                 </a>
               <?php else: ?>
                 <a href="<?= base_url('football-trends?search=' . urlencode($aposta->time_casa)) ?>" 
                    class="btn-icon-link text-muted text-decoration-none" 
-                   title="Buscar Partida no Dashboard">
-                  <i class="bi bi-search me-1"></i> Card Origem
+                   title="<?= lang('App.origin_card') ?>">
+                  <i class="bi bi-search me-1"></i> <?= lang('App.origin_card') ?>
                 </a>
               <?php endif; ?>
 
               <button class="btn-icon-link" onclick="shareBet('<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', '<?= number_format($aposta->odd, 2) ?>')">
-                <i class="bi bi-share"></i> Compartilhar
+                <i class="bi bi-share"></i> <?= lang('App.share') ?>
               </button>
 
               <div class="d-flex gap-2">
@@ -1031,11 +1148,11 @@ if (!function_exists('formatBrtDate')) {
                         data-tipo="<?= htmlspecialchars($aposta->tipo ?? 'Simples', ENT_QUOTES, 'UTF-8') ?>" 
                         data-status="<?= htmlspecialchars($aposta->status ?? 'Pendente', ENT_QUOTES, 'UTF-8') ?>" 
                         onclick="handleOpenEditModal(this)" 
-                        title="Editar Aposta">
-                  <i class="bi bi-pencil"></i> Editar
+                        title="<?= lang('App.edit') ?>">
+                  <i class="bi bi-pencil"></i> <?= lang('App.edit') ?>
                 </button>
-                <button class="btn-icon-link danger" onclick="handleDelete(<?= $aposta->id ?>)" title="Excluir Aposta">
-                  <i class="bi bi-trash"></i> Excluir
+                <button class="btn-icon-link danger" onclick="handleDelete(<?= $aposta->id ?>)" title="<?= lang('App.delete') ?>">
+                  <i class="bi bi-trash"></i> <?= lang('App.delete') ?>
                 </button>
               </div>
             </div>
@@ -1053,7 +1170,7 @@ if (!function_exists('formatBrtDate')) {
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title font-weight-bold" style="font-family: 'Outfit', sans-serif;"><i class="bi bi-plus-circle text-success me-2"></i> Adicionar Nova Aposta</h5>
+        <h5 class="modal-title font-weight-bold" style="font-family: 'Outfit', sans-serif;"><i class="bi bi-plus-circle text-success me-2"></i> <?= lang('App.add_new_bet_simulation') ?></h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form id="newBetForm" onsubmit="submitNewBet(event)">
@@ -1067,18 +1184,18 @@ if (!function_exists('formatBrtDate')) {
               <div style="font-size: 0.82rem; color: #fca5a5; line-height: 1.45;">
                 Esta partida foi classificada como <strong style="color: #ffffff;">Sem Entrada (Abstenção)</strong> pela inteligência estatística por ausência de dados seguros de gols/xG.<br>
                 <span style="color: #ef4444; font-weight: 800; text-transform: uppercase; display: block; margin-top: 6px; font-size: 0.82rem; letter-spacing: 0.3px;">
-                  💡 GESTÃO DE RISCO: Para proteger sua banca, a criação de apostas no mercado de Handicap Asiático para este jogo está desabilitada pela automação.
+                  💡 GESTÃO DE RISCO: Para proteger sua banca, a criação de simulações de apostas no mercado de Handicap Asiático para este jogo está desabilitada pela automação.
                 </span>
               </div>
             </div>
           </div>
           
           <div class="mb-3 custom-combobox-wrapper" id="fixtureComboboxContainer">
-            <label class="form-label text-muted small fw-bold">VINCULAR A UM JOGO DO BANCO (OPCIONAL)</label>
+            <label class="form-label text-muted small fw-bold"><?= lang('App.link_to_match_optional') ?></label>
             <div class="input-group">
               <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-search"></i></span>
               <input type="text" class="form-control bg-dark text-white border-secondary" id="fixtureSearchInput" placeholder="Digite para filtrar partidas (ex: Time, Liga, Data)..." autocomplete="off" oninput="filterFixtureSelect(this.value)" onfocus="openFixtureDropdown()" onclick="openFixtureDropdown()">
-              <button class="btn btn-outline-secondary border-secondary text-muted" type="button" onclick="clearFixtureSelection()" title="Limpar Seleção"><i class="bi bi-x-lg"></i></button>
+              <button class="btn btn-outline-secondary border-secondary text-muted" type="button" onclick="clearFixtureSelection()" title="<?= lang('App.clear') ?>"><i class="bi bi-x-lg"></i></button>
             </div>
             
             <div id="fixtureDropdownList" class="custom-combobox-dropdown" style="display: none;"></div>
@@ -1098,7 +1215,7 @@ if (!function_exists('formatBrtDate')) {
                         data-ah-max-score="<?= ($fix->is_max_ah_score ?? false) ? '1' : '0' ?>"
                         data-xg-home="<?= number_format($fix->xg_home ?? 0, 2) ?>"
                         data-xg-away="<?= number_format($fix->xg_away ?? 0, 2) ?>">
-                  <?= date('d/m H:i', strtotime($fix->fixture_date)) ?> | <?= htmlspecialchars($fix->home_team) ?> vs <?= htmlspecialchars($fix->away_team) ?> (<?= htmlspecialchars($fix->league_name) ?>)
+                  <?= date('d/m H:i', strtotime($fix->fixture_date)) ?> | <?= htmlspecialchars($fix->home_team) ?><?= (!empty($fix->home_rank) ? ' (#' . $fix->home_rank . ')' : '') ?> vs <?= htmlspecialchars($fix->away_team) ?><?= (!empty($fix->away_rank) ? ' (#' . $fix->away_rank . ')' : '') ?> (<?= htmlspecialchars($fix->league_name) ?>)
                 </option>
               <?php endforeach; ?>
             </select>
@@ -1107,20 +1224,21 @@ if (!function_exists('formatBrtDate')) {
 
           <div class="row">
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Time Casa *</label>
+              <label class="form-label text-white"><?= lang('App.home_team') ?> *</label>
               <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="timeCasaInput" readonly required placeholder="Ex: Mirassol" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Time Fora *</label>
+              <label class="form-label text-white"><?= lang('App.away_team') ?> *</label>
               <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="timeForaInput" readonly required placeholder="Ex: Grêmio" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
           </div>
 
           <div class="row">
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Mercado de Apostas *</label>
-              <select class="form-select text-white fw-bold bg-dark border-secondary" id="mercadoTypeSelect" disabled onchange="onMercadoTypeChange(this)" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
-                <option value="Total de Cartões" selected>🟨 Total de Cartões</option>
+              <label class="form-label text-white"><?= lang('App.bet_simulation_market') ?> *</label>
+              <select class="form-select text-white fw-bold bg-dark border-secondary" id="mercadoTypeSelect" onchange="onMercadoTypeChange(this)" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;">
+                <option value="Total de Cartões" selected>🟨 Cartões (Partida Completa)</option>
+                <option value="Cartões - Individual">🟨 Cartões - Individual</option>
                 <option value="Handicap Asiático">⚽ Handicap Asiático</option>
                 <option value="Escanteios">🚩 Escanteios</option>
                 <option value="Resultado Final (1X2)">⚽ Resultado Final (1X2)</option>
@@ -1131,11 +1249,11 @@ if (!function_exists('formatBrtDate')) {
             <div class="col-6 mb-3">
               <div class="d-flex align-items-center justify-content-between mb-1">
                 <div class="d-flex align-items-center gap-2">
-                  <label class="form-label text-white mb-0">Palpite *</label>
+                  <label class="form-label text-white mb-0"><?= lang('App.tip_label') ?> *</label>
                   <div class="form-check form-switch m-0 d-flex align-items-center gap-1" style="font-size: 0.72rem;">
                     <input class="form-check-input" type="checkbox" role="switch" id="toggleUnlockPalpite" onchange="togglePalpiteLock(this.checked)" style="cursor: pointer; width: 28px; height: 16px;">
                     <label class="form-check-label text-info fw-bold" for="toggleUnlockPalpite" style="cursor: pointer; user-select: none;">
-                      <i class="bi bi-unlock-fill me-1"></i>Editar
+                      <i class="bi bi-unlock-fill me-1"></i><?= lang('App.edit') ?>
                     </label>
                   </div>
                 </div>
@@ -1143,49 +1261,73 @@ if (!function_exists('formatBrtDate')) {
                   <i class="bi bi-lightning-charge-fill me-1"></i>Max score reached
                 </span>
               </div>
-              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="palpiteInput" readonly required placeholder="Ex: Menos de 6.5 ou Operário-PR 0.0 (Empate Anula)" oninput="updatePalpiteExplanation()" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="palpiteInput" readonly required placeholder="Ex: Menos de 6.5 ou Time Casa - Menos de 2.5 cartões" oninput="updatePalpiteExplanation()" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
               <div id="palpiteExplanationBox" style="display:none; font-size: 0.75rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 6px 10px; margin-top: 6px; color: #e2e8f0;"></div>
+            </div>
+          </div>
+
+          <!-- Seletor de Time para o Mercado de Cartões -->
+          <div class="row mb-3" id="cardTeamTargetRow" style="display: flex;">
+            <div class="col-12">
+              <label class="form-label text-warning mb-1" style="font-size: 0.8rem; font-weight: 600;">
+                <i class="bi bi-card-amber me-1"></i>Alvo dos Cartões (Seleção Individual do Time):
+              </label>
+              <div class="btn-group w-100" role="group" aria-label="Seleção de Cartões por Time">
+                <input type="radio" class="btn-check" name="cardTeamTarget" id="cardTargetJogo" value="jogo" checked onchange="onCardTargetChange('jogo')">
+                <label class="btn btn-outline-warning btn-sm fw-bold" for="cardTargetJogo">
+                  🌐 Partida Completa (Jogo)
+                </label>
+
+                <input type="radio" class="btn-check" name="cardTeamTarget" id="cardTargetCasa" value="casa" onchange="onCardTargetChange('casa')">
+                <label class="btn btn-outline-warning btn-sm fw-bold" for="cardTargetCasa" id="cardTargetCasaLabel">
+                  🏠 <?= lang('App.home_team') ?>
+                </label>
+
+                <input type="radio" class="btn-check" name="cardTeamTarget" id="cardTargetFora" value="fora" onchange="onCardTargetChange('fora')">
+                <label class="btn btn-outline-warning btn-sm fw-bold" for="cardTargetFora" id="cardTargetForaLabel">
+                  ✈️ <?= lang('App.away_team') ?>
+                </label>
+              </div>
             </div>
           </div>
 
           <div class="row">
             <div class="col-4 mb-3">
               <label class="form-label text-white">Odd *</label>
-              <input type="number" step="0.01" min="1.60" class="form-control" id="oddInput" required placeholder="1.60" oninput="calcGanhos()">
-              <div class="form-text" style="font-size: 0.7rem; color: #94a3b8;">Mínimo: 1,60</div>
+              <input type="number" step="0.01" min="1.01" class="form-control" id="oddInput" required placeholder="1.50" oninput="calcGanhos()">
             </div>
             <div class="col-4 mb-3">
-              <label class="form-label text-white">Valor Aposta (R$) *</label>
+              <label class="form-label text-white"><?= lang('App.stake_amount') ?> *</label>
               <input type="number" step="0.01" class="form-control" id="valorInput" required placeholder="10.00" value="10.00" oninput="calcGanhos()">
             </div>
             <div class="col-4 mb-3">
-              <label class="form-label text-white">Ganhos Potenciais</label>
+              <label class="form-label text-white"><?= lang('App.potential_earnings') ?></label>
               <input type="text" class="form-control text-success fw-bold" id="ganhosDisplay" readonly placeholder="R$ 14,70">
             </div>
           </div>
 
           <div class="row">
             <div class="col-4 mb-3">
-              <label class="form-label text-white">Cash Out (R$)</label>
+              <label class="form-label text-white"><?= lang('App.cashout_value') ?></label>
               <input type="number" step="0.01" class="form-control text-white fw-bold bg-dark border-secondary" id="cashoutInput" readonly placeholder="10.00" value="10.00" style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-4 mb-3">
-              <label class="form-label text-white">Tipo</label>
+              <label class="form-label text-white"><?= lang('App.type') ?></label>
               <select class="form-select" id="tipoSelect">
                 <option value="Simples" selected>Simples</option>
                 <option value="Múltipla">Múltipla</option>
-                <option value="Criar Aposta">Criar Aposta</option>
+                <option value="Criar Aposta"><?= lang('App.add_new_bet_simulation') ?></option>
               </select>
             </div>
             <div class="col-4 mb-3">
-              <label class="form-label text-white">Status</label>
+              <label class="form-label text-white"><?= lang('App.status') ?></label>
               <select class="form-select" id="statusSelect">
-                <option value="Pendente" selected>Pendente</option>
-                <option value="Ganha">Ganha</option>
-                <option value="Meio Ganha">Meio Ganha</option>
-                <option value="ANULADA">ANULADA</option>
-                <option value="Meio Perdida">Meio Perdida</option>
-                <option value="Perdida">Perdida</option>
+                <option value="Pendente" selected><?= lang('App.pending') ?></option>
+                <option value="Ganha"><?= lang('App.won') ?></option>
+                <option value="Meio Ganha"><?= lang('App.half_won') ?></option>
+                <option value="ANULADA"><?= lang('App.refunded') ?></option>
+                <option value="Meio Perdida"><?= lang('App.half_lost') ?></option>
+                <option value="Perdida"><?= lang('App.lost') ?></option>
                 <option value="Cashout">Cashout</option>
               </select>
             </div>
@@ -1193,8 +1335,13 @@ if (!function_exists('formatBrtDate')) {
 
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-success fw-bold px-4">Salvar Aposta</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
+          <button type="button" class="btn btn-outline-secondary text-white fw-bold px-3 me-2" onclick="submitNewBet(event, false, false)">
+            <i class="bi bi-bookmark me-1"></i> <?= lang('App.save_as_draft') ?>
+          </button>
+          <button type="submit" class="btn btn-success fw-bold px-4" onclick="submitNewBet(event, false, true)">
+            <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
+          </button>
         </div>
       </form>
     </div>
@@ -1206,7 +1353,7 @@ if (!function_exists('formatBrtDate')) {
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title font-weight-bold" style="font-family: 'Outfit', sans-serif;"><i class="bi bi-pencil-square text-info me-2"></i> Editar Aposta</h5>
+        <h5 class="modal-title font-weight-bold" style="font-family: 'Outfit', sans-serif;"><i class="bi bi-pencil-square text-info me-2"></i> <?= lang('App.edit_bet_simulation') ?></h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form id="editBetForm" onsubmit="submitEditBet(event)">
@@ -1215,72 +1362,60 @@ if (!function_exists('formatBrtDate')) {
 
           <div class="row">
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Time Casa *</label>
+              <label class="form-label text-white"><?= lang('App.home_team') ?> *</label>
               <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editTimeCasaInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Time Fora *</label>
+              <label class="form-label text-white"><?= lang('App.away_team') ?> *</label>
               <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editTimeForaInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
             </div>
           </div>
 
           <div class="row">
             <div class="col-6 mb-3">
-              <label class="form-label text-white">Mercado *</label>
-              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editMercadoInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <label class="form-label text-white"><?= lang('App.bet_simulation_market') ?> *</label>
+              <input type="text" class="form-control bg-dark text-white border-secondary" id="editMercadoInput" required>
             </div>
             <div class="col-6 mb-3">
-              <div class="d-flex align-items-center justify-content-between mb-1">
-                <label class="form-label text-white mb-0">Palpite *</label>
-                <div class="form-check form-switch m-0 d-flex align-items-center gap-1" style="font-size: 0.72rem;">
-                  <input class="form-check-input" type="checkbox" role="switch" id="toggleUnlockEditPalpite" onchange="toggleEditPalpiteLock(this.checked)" style="cursor: pointer; width: 28px; height: 16px;">
-                  <label class="form-check-label text-info fw-bold" for="toggleUnlockEditPalpite" style="cursor: pointer; user-select: none;">
-                    <i class="bi bi-unlock-fill me-1"></i>Editar
-                  </label>
-                </div>
-              </div>
-              <input type="text" class="form-control text-white fw-bold bg-dark border-secondary" id="editPalpiteInput" readonly required style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <label class="form-label text-white"><?= lang('App.tip_label') ?> *</label>
+              <input type="text" class="form-control bg-dark text-white border-secondary" id="editPalpiteInput" required>
             </div>
           </div>
 
           <div class="row">
-            <div class="col-4 mb-3">
+            <div class="col-6 mb-3">
               <label class="form-label text-white">Odd *</label>
-              <input type="number" step="0.01" min="1.60" class="form-control" id="editOddInput" required oninput="calcEditGanhos()">
-              <div class="form-text" style="font-size: 0.7rem; color: #94a3b8;">Mínimo: 1,60</div>
+              <input type="number" step="0.01" min="1.01" class="form-control bg-dark text-white border-secondary fw-bold text-success" id="editOddInput" required>
             </div>
-            <div class="col-4 mb-3">
-              <label class="form-label text-white">Valor Aposta (R$) *</label>
-              <input type="number" step="0.01" class="form-control" id="editValorInput" required oninput="calcEditGanhos()">
-            </div>
-            <div class="col-4 mb-3">
-              <label class="form-label text-white">Ganhos Potenciais</label>
-              <input type="text" class="form-control text-success fw-bold" id="editGanhosDisplay" readonly>
+            <div class="col-6 mb-3">
+              <label class="form-label text-white"><?= lang('App.bet_simulation_label') ?> (R$) *</label>
+              <input type="number" step="0.01" min="0.01" class="form-control bg-dark text-white border-secondary fw-bold text-warning" id="editValorInput" required>
             </div>
           </div>
 
           <div class="row">
             <div class="col-4 mb-3">
-              <label class="form-label text-white">Cash Out (R$)</label>
-              <input type="number" step="0.01" class="form-control text-white fw-bold bg-dark border-secondary" id="editCashoutInput" readonly style="background-color: rgba(30, 41, 59, 0.85) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; cursor: not-allowed;">
+              <label class="form-label text-white"><?= lang('App.cashout') ?> (R$)</label>
+              <input type="number" step="0.01" min="0" class="form-control bg-dark text-white border-secondary" id="editCashoutInput" placeholder="Opcional">
             </div>
             <div class="col-4 mb-3">
-              <label class="form-label text-white">Tipo</label>
+              <label class="form-label text-white"><?= lang('App.type') ?></label>
               <select class="form-select" id="editTipoSelect">
                 <option value="Simples">Simples</option>
                 <option value="Múltipla">Múltipla</option>
-                <option value="Criar Aposta">Criar Aposta</option>
+                <option value="Criar Aposta"><?= lang('App.add_new_bet_simulation') ?></option>
               </select>
             </div>
             <div class="col-4 mb-3">
-              <label class="form-label text-white">Status</label>
+              <label class="form-label text-white"><?= lang('App.status') ?></label>
               <select class="form-select" id="editStatusSelect">
-                <option value="Pendente">Pendente</option>
-                <option value="Ganha">Ganha</option>
-                <option value="Meio Ganha">Meio Ganha</option>
-                <option value="ANULADA">ANULADA</option>
-                <option value="Meio Perdida">Meio Perdida</option>
-                <option value="Perdida">Perdida</option>
+                <option value="Pendente"><?= lang('App.pending') ?></option>
+                <option value="Não Confirmada"><?= lang('App.unconfirmed') ?></option>
+                <option value="Ganha"><?= lang('App.won') ?></option>
+                <option value="Meio Ganha"><?= lang('App.half_won') ?></option>
+                <option value="ANULADA"><?= lang('App.refunded') ?></option>
+                <option value="Meio Perdida"><?= lang('App.half_lost') ?></option>
+                <option value="Perdida"><?= lang('App.lost') ?></option>
                 <option value="Cashout">Cashout</option>
               </select>
             </div>
@@ -1288,10 +1423,61 @@ if (!function_exists('formatBrtDate')) {
 
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-info fw-bold px-4 text-white">Atualizar Aposta</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
+          <button type="submit" class="btn btn-info fw-bold px-4 text-white"><?= lang('App.update_bet_simulation') ?></button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAR APOSTA E DÉBITO -->
+<div class="modal fade modal-dark" id="confirmBetModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background: #0f172a; border: 1px solid rgba(16, 185, 129, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+      <div class="modal-header border-bottom border-secondary">
+        <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+          <i class="bi bi-lightning-charge-fill text-success"></i> <?= lang('App.confirm_bet_modal_title') ?>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-light-50 small mb-3"><?= lang('App.confirm_bet_modal_desc') ?></p>
+        
+        <div class="p-3 mb-3 rounded-3" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Partida:</span>
+            <strong id="confirmBetMatchName" class="text-white">--</strong>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Mercado / Palpite:</span>
+            <span id="confirmBetPickInfo" class="text-info font-monospace small">--</span>
+          </div>
+          <div class="d-flex justify-content-between mb-0">
+            <span class="text-muted small"><?= lang('App.bet_amount') ?> (Débito):</span>
+            <strong id="confirmBetAmount" class="text-warning fs-6">R$ 0,00</strong>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-3" style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2);">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-light-50 small"><?= lang('App.current_balance') ?>:</span>
+            <span id="confirmBetCurrentBalance" class="fw-bold text-success">R$ 0,00</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="text-light-50 small"><?= lang('App.balance_after_debit') ?>:</span>
+            <strong id="confirmBetProjectedBalance" class="fw-bold text-white">R$ 0,00</strong>
+          </div>
+        </div>
+
+        <div id="confirmBetAlert" style="display: none;"></div>
+      </div>
+      <div class="modal-footer border-top border-secondary">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang('App.cancel') ?></button>
+        <button type="button" class="btn btn-success fw-bold px-4 shadow" id="btnExecuteConfirmBet" onclick="executeConfirmBet()">
+          <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_debit_btn') ?>
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -1447,6 +1633,53 @@ if (!function_exists('formatBrtDate')) {
     }
   }
 
+  function updateCardTargetLabels(homeTeam, awayTeam) {
+    const homeName = homeTeam || document.getElementById('timeCasaInput')?.value || 'Time Casa';
+    const awayName = awayTeam || document.getElementById('timeForaInput')?.value || 'Time Fora';
+
+    const casaLabel = document.getElementById('cardTargetCasaLabel');
+    const foraLabel = document.getElementById('cardTargetForaLabel');
+
+    if (casaLabel) casaLabel.innerHTML = `🏠 ${escapeHtml(homeName)}`;
+    if (foraLabel) foraLabel.innerHTML = `✈️ ${escapeHtml(awayName)}`;
+  }
+
+  function onCardTargetChange(target) {
+    const homeTeam = document.getElementById('timeCasaInput')?.value || 'Time Casa';
+    const awayTeam = document.getElementById('timeForaInput')?.value || 'Time Fora';
+    const inputMercado = document.getElementById('mercadoInput');
+    const mercadoSelect = document.getElementById('mercadoTypeSelect');
+    const palpiteEl = document.getElementById('palpiteInput');
+
+    updateCardTargetLabels(homeTeam, awayTeam);
+
+    if (target === 'casa') {
+      const mercVal = 'Cartões - Individual';
+      if (inputMercado) inputMercado.value = mercVal;
+      if (mercadoSelect) mercadoSelect.value = 'Cartões - Individual';
+      if (palpiteEl) palpiteEl.value = `${homeTeam} - Menos de 2.5 cartões`;
+    } else if (target === 'fora') {
+      const mercVal = 'Cartões - Individual';
+      if (inputMercado) inputMercado.value = mercVal;
+      if (mercadoSelect) mercadoSelect.value = 'Cartões - Individual';
+      if (palpiteEl) palpiteEl.value = `${awayTeam} - Menos de 2.5 cartões`;
+    } else {
+      if (inputMercado) inputMercado.value = 'Total de Cartões';
+      if (mercadoSelect) mercadoSelect.value = 'Total de Cartões';
+
+      const fixSelect = document.getElementById('fixtureSelect');
+      let palpiteCards = 'Menos de 6.5 cartões';
+      if (fixSelect && fixSelect.selectedIndex > 0) {
+        const opt = fixSelect.options[fixSelect.selectedIndex];
+        palpiteCards = opt.getAttribute('data-palpite-cards') || opt.getAttribute('data-palpite') || 'Menos de 6.5 cartões';
+      }
+      if (palpiteEl) palpiteEl.value = palpiteCards;
+    }
+
+    checkPalpiteEditableRule();
+    updatePalpiteExplanation();
+  }
+
   function selectFixtureOption(optData) {
     const select = document.getElementById('fixtureSelect');
     const searchInput = document.getElementById('fixtureSearchInput');
@@ -1457,11 +1690,18 @@ if (!function_exists('formatBrtDate')) {
     document.getElementById('timeCasaInput').value = optData.home;
     document.getElementById('timeForaInput').value = optData.away;
     
-    const currentMercado = document.getElementById('mercadoTypeSelect')?.value || 'Total de Cartões';
-    if (currentMercado === 'Handicap Asiático' && optData.palpiteAH) {
-      document.getElementById('palpiteInput').value = formatHandicapPalpiteJs(optData.palpiteAH, optData.home);
-    } else if (optData.palpiteCards || optData.palpite) {
-      document.getElementById('palpiteInput').value = optData.palpiteCards || optData.palpite;
+    updateCardTargetLabels(optData.home, optData.away);
+
+    const activeTarget = document.querySelector('input[name="cardTeamTarget"]:checked')?.value || 'jogo';
+    if (activeTarget !== 'jogo') {
+      onCardTargetChange(activeTarget);
+    } else {
+      const currentMercado = document.getElementById('mercadoTypeSelect')?.value || 'Total de Cartões';
+      if (currentMercado === 'Handicap Asiático' && optData.palpiteAH) {
+        document.getElementById('palpiteInput').value = formatHandicapPalpiteJs(optData.palpiteAH, optData.home);
+      } else if (optData.palpiteCards || optData.palpite) {
+        document.getElementById('palpiteInput').value = optData.palpiteCards || optData.palpite;
+      }
     }
 
     closeFixtureDropdown();
@@ -1661,15 +1901,33 @@ if (!function_exists('formatBrtDate')) {
     const inputMercado = document.getElementById('mercadoInput');
     if (inputMercado) inputMercado.value = val;
 
+    const targetRow = document.getElementById('cardTeamTargetRow');
+    const isCards = (val === 'Total de Cartões' || val.includes('Cartões') || val.includes('cartoe'));
+
+    if (targetRow) {
+      targetRow.style.display = isCards ? 'flex' : 'none';
+    }
+
+    if (val === 'Cartões - Individual' || val === 'Cartões - Time Casa' || val === 'Cartões - Time Fora') {
+      const activeTarget = document.querySelector('input[name="cardTeamTarget"]:checked')?.value || 'casa';
+      const targetToUse = (activeTarget === 'jogo') ? 'casa' : activeTarget;
+      const r = document.getElementById(targetToUse === 'fora' ? 'cardTargetFora' : 'cardTargetCasa');
+      if (r) r.checked = true;
+      onCardTargetChange(targetToUse);
+      return;
+    } else if (val === 'Total de Cartões') {
+      const r = document.getElementById('cardTargetJogo');
+      if (r) r.checked = true;
+      onCardTargetChange('jogo');
+      return;
+    }
+
     const fixSelect = document.getElementById('fixtureSelect');
     if (fixSelect && fixSelect.selectedIndex > 0) {
       const opt = fixSelect.options[fixSelect.selectedIndex];
       if (val === 'Handicap Asiático') {
         const palpiteAH = formatHandicapPalpiteJs(opt.getAttribute('data-palpite-ah'), opt.getAttribute('data-home'));
         if (palpiteAH) document.getElementById('palpiteInput').value = palpiteAH;
-      } else if (val === 'Total de Cartões') {
-        const palpiteCards = opt.getAttribute('data-palpite-cards');
-        if (palpiteCards) document.getElementById('palpiteInput').value = palpiteCards;
       }
     } else if (val === 'Handicap Asiático') {
       const homeTeam = document.getElementById('timeCasaInput')?.value || '';
@@ -1735,30 +1993,123 @@ if (!function_exists('formatBrtDate')) {
     applyBetFilters();
   }
 
-  function setTodayDateFilter() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const todayStr = `${year}-${month}-${day}`;
+  function formatDateYYYYMMDD(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
+  function getPastDateByMonths(months) {
+    const d = new Date();
+    const targetMonth = d.getMonth() - months;
+    d.setMonth(targetMonth);
+    if (d.getMonth() !== ((targetMonth % 12 + 12) % 12)) {
+      d.setDate(0);
+    }
+    return d;
+  }
+
+  function setBetDatePreset(presetKey) {
     const startEl = document.getElementById('betStartDateInput');
     const endEl = document.getElementById('betEndDateInput');
-    if (startEl) startEl.value = todayStr;
-    if (endEl) endEl.value = todayStr;
+    const selectEl = document.getElementById('betDatePresetSelect');
+    if (!startEl || !endEl) return;
+
+    const now = new Date();
+    const todayStr = formatDateYYYYMMDD(now);
+
+    if (presetKey === 'today') {
+      startEl.value = todayStr;
+      endEl.value = todayStr;
+    } else if (presetKey === 'yesterday') {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yestStr = formatDateYYYYMMDD(yesterday);
+      startEl.value = yestStr;
+      endEl.value = yestStr;
+    } else if (presetKey === '7days') {
+      const start = new Date();
+      start.setDate(start.getDate() - 6);
+      startEl.value = formatDateYYYYMMDD(start);
+      endEl.value = todayStr;
+    } else if (presetKey === '15days') {
+      const start = new Date();
+      start.setDate(start.getDate() - 14);
+      startEl.value = formatDateYYYYMMDD(start);
+      endEl.value = todayStr;
+    } else if (presetKey === '1month') {
+      const start = getPastDateByMonths(1);
+      startEl.value = formatDateYYYYMMDD(start);
+      endEl.value = todayStr;
+    } else if (presetKey === 'trimestre') {
+      const start = getPastDateByMonths(3);
+      startEl.value = formatDateYYYYMMDD(start);
+      endEl.value = todayStr;
+    } else if (presetKey === 'semestre') {
+      const start = getPastDateByMonths(6);
+      startEl.value = formatDateYYYYMMDD(start);
+      endEl.value = todayStr;
+    } else if (presetKey === 'all') {
+      startEl.value = '';
+      endEl.value = '';
+    }
+
+    if (selectEl && selectEl.value !== presetKey) {
+      selectEl.value = presetKey;
+    }
+
     applyBetFilters();
   }
 
+  function setTodayDateFilter() {
+    setBetDatePreset('today');
+  }
+
   function clearDateFilter() {
-    const startEl = document.getElementById('betStartDateInput');
-    const endEl = document.getElementById('betEndDateInput');
-    if (startEl) startEl.value = '';
-    if (endEl) endEl.value = '';
+    setBetDatePreset('all');
+  }
+
+  function onManualDateChange() {
+    const startVal = document.getElementById('betStartDateInput')?.value || '';
+    const endVal = document.getElementById('betEndDateInput')?.value || '';
+    const selectEl = document.getElementById('betDatePresetSelect');
+
+    const now = new Date();
+    const todayStr = formatDateYYYYMMDD(now);
+    const yesterdayStr = formatDateYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+    const d7Str = formatDateYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
+    const d15Str = formatDateYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14));
+    const m1Str = formatDateYYYYMMDD(getPastDateByMonths(1));
+    const m3Str = formatDateYYYYMMDD(getPastDateByMonths(3));
+    const m6Str = formatDateYYYYMMDD(getPastDateByMonths(6));
+
+    if (!startVal && !endVal) {
+      if (selectEl) selectEl.value = 'all';
+    } else if (startVal === todayStr && endVal === todayStr) {
+      if (selectEl) selectEl.value = 'today';
+    } else if (startVal === yesterdayStr && endVal === yesterdayStr) {
+      if (selectEl) selectEl.value = 'yesterday';
+    } else if (startVal === d7Str && endVal === todayStr) {
+      if (selectEl) selectEl.value = '7days';
+    } else if (startVal === d15Str && endVal === todayStr) {
+      if (selectEl) selectEl.value = '15days';
+    } else if (startVal === m1Str && endVal === todayStr) {
+      if (selectEl) selectEl.value = '1month';
+    } else if (startVal === m3Str && endVal === todayStr) {
+      if (selectEl) selectEl.value = 'trimestre';
+    } else if (startVal === m6Str && endVal === todayStr) {
+      if (selectEl) selectEl.value = 'semestre';
+    } else {
+      if (selectEl) selectEl.value = 'custom';
+    }
+
     applyBetFilters();
   }
 
   function applyBetFilters() {
     const status = currentStatusFilter;
+    const selectedMarket = document.getElementById('betMarketFilterSelect')?.value || 'all';
     const term = (document.getElementById('betSearchInput')?.value || '').toLowerCase().trim();
     const startDate = document.getElementById('betStartDateInput')?.value || '';
     const endDate = document.getElementById('betEndDateInput')?.value || '';
@@ -1779,6 +2130,8 @@ if (!function_exists('formatBrtDate')) {
 
     cards.forEach(card => {
       const cardStatus = card.getAttribute('data-status') || '';
+      const cardMercado = (card.getAttribute('data-mercado') || '').toLowerCase();
+      const cardPalpite = (card.getAttribute('data-palpite') || '').toLowerCase();
       const cardSearch = card.getAttribute('data-search') || '';
       const cardDate = card.getAttribute('data-date') || ''; // 'YYYY-MM-DD'
       const cardCreated = card.getAttribute('data-created-date') || cardDate;
@@ -1795,7 +2148,23 @@ if (!function_exists('formatBrtDate')) {
         dateMatch = false;
       }
 
-      if (searchMatch && dateMatch) {
+      let marketMatch = true;
+      if (selectedMarket === 'handicap') {
+        marketMatch = cardMercado.includes('handicap') || 
+                      cardMercado.includes('empate anula') || 
+                      cardMercado.includes('dnb') || 
+                      cardPalpite.includes('ah') || 
+                      cardPalpite.includes('handicap');
+      } else if (selectedMarket === 'cartoes') {
+        marketMatch = cardMercado.includes('cartõ') || 
+                      cardMercado.includes('carto') || 
+                      cardMercado.includes('card') || 
+                      cardPalpite.includes('cartõ') || 
+                      cardPalpite.includes('carto') || 
+                      cardPalpite.includes('under');
+      }
+
+      if (searchMatch && dateMatch && marketMatch) {
         counts.all++;
         if (counts.hasOwnProperty(cardStatus)) {
           counts[cardStatus]++;
@@ -1804,7 +2173,7 @@ if (!function_exists('formatBrtDate')) {
 
       const statusMatch = (status === 'all' || cardStatus === status);
 
-      if (statusMatch && searchMatch && dateMatch) {
+      if (statusMatch && searchMatch && dateMatch && marketMatch) {
         card.style.display = 'flex';
         visibleCount++;
       } else {
@@ -1861,13 +2230,13 @@ if (!function_exists('formatBrtDate')) {
     const btnPerdida = document.getElementById('btnFilterPerdida');
     const btnCashout = document.getElementById('btnFilterCashout');
 
-    if (btnAll) btnAll.textContent = formatBadge('Todas', total);
-    if (btnPendente) btnPendente.textContent = formatBadge('Pendentes', counts['Pendente'] || 0);
-    if (btnGanha) btnGanha.textContent = formatBadge('Ganhas', counts['Ganha'] || 0);
-    if (btnMeioGanha) btnMeioGanha.textContent = formatBadge('Meio Ganhas', counts['Meio Ganha'] || 0);
-    if (btnAnulada) btnAnulada.textContent = formatBadge('Anuladas', counts['ANULADA'] || 0);
-    if (btnMeioPerdida) btnMeioPerdida.textContent = formatBadge('Meio Perdidas', counts['Meio Perdida'] || 0);
-    if (btnPerdida) btnPerdida.textContent = formatBadge('Perdidas', counts['Perdida'] || 0);
+    if (btnAll) btnAll.textContent = formatBadge(<?= json_encode(lang('App.all_statuses')) ?>, total);
+    if (btnPendente) btnPendente.textContent = formatBadge(<?= json_encode(lang('App.pending')) ?>, counts['Pendente'] || 0);
+    if (btnGanha) btnGanha.textContent = formatBadge(<?= json_encode(lang('App.won')) ?>, counts['Ganha'] || 0);
+    if (btnMeioGanha) btnMeioGanha.textContent = formatBadge(<?= json_encode(lang('App.half_won')) ?>, counts['Meio Ganha'] || 0);
+    if (btnAnulada) btnAnulada.textContent = formatBadge(<?= json_encode(lang('App.refunded')) ?>, counts['ANULADA'] || 0);
+    if (btnMeioPerdida) btnMeioPerdida.textContent = formatBadge(<?= json_encode(lang('App.half_lost')) ?>, counts['Meio Perdida'] || 0);
+    if (btnPerdida) btnPerdida.textContent = formatBadge(<?= json_encode(lang('App.lost')) ?>, counts['Perdida'] || 0);
     if (btnCashout) btnCashout.textContent = formatBadge('Cashout', counts['Cashout'] || 0);
   }
 
@@ -1889,9 +2258,13 @@ if (!function_exists('formatBrtDate')) {
         const ganho = parseFloat(card.getAttribute('data-ganho') || '0') || 0;
         const cashout = parseFloat(card.getAttribute('data-cashout') || '0') || 0;
 
-        totalApostado += valor;
+        const isCanceled = (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA');
 
-        if (status !== 'Pendente') {
+        if (!isCanceled) {
+          totalApostado += valor;
+        }
+
+        if (status !== 'Pendente' && !isCanceled) {
           totalApostadoLiquidado += valor;
         }
 
@@ -1917,8 +2290,6 @@ if (!function_exists('formatBrtDate')) {
         } else if (status === 'Meio Perdida') {
           totalRetorno += (valor * 0.5);
           totalPerda += (valor * 0.5);
-        } else if (status === 'ANULADA') {
-          totalRetorno += valor;
         }
       }
     });
@@ -1979,18 +2350,40 @@ if (!function_exists('formatBrtDate')) {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       firstBtn.classList.add('active');
     }
+    const marketEl = document.getElementById('betMarketFilterSelect');
+    if (marketEl) marketEl.value = 'all';
     const searchEl = document.getElementById('betSearchInput');
     if (searchEl) searchEl.value = '';
     clearDateFilter();
   }
 
-  function submitNewBet(e) {
-    e.preventDefault();
+  let isSubmittingNewBet = false;
+  function submitNewBet(e, confirmRisco = false) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (isSubmittingNewBet && !confirmRisco) return;
+
     const oddVal = parseFloat(document.getElementById('oddInput').value) || 0;
-    if (oddVal < 1.60) {
-      alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,60. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,60.');
+    if (oddVal <= 1.0) {
+      alert('❌ A Odd informada é inválida. Informe um valor maior que 1.00.');
       return;
     }
+
+    const submitBtn = document.querySelector('#newBetForm button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.dataset.origText = submitBtn.dataset.origText || submitBtn.innerHTML;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processando...';
+    }
+    isSubmittingNewBet = true;
+
+    const resetSubmitState = () => {
+      isSubmittingNewBet = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = submitBtn.dataset.origText || 'Salvar Aposta';
+      }
+    };
+
     const formData = new FormData();
     formData.append('time_casa', document.getElementById('timeCasaInput').value);
     formData.append('time_fora', document.getElementById('timeForaInput').value);
@@ -2002,6 +2395,9 @@ if (!function_exists('formatBrtDate')) {
     formData.append('tipo', document.getElementById('tipoSelect').value);
     formData.append('status', document.getElementById('statusSelect').value);
     formData.append('fixture_id', document.getElementById('fixtureSelect').value);
+    if (confirmRisco) {
+      formData.append('confirmar_risco', '1');
+    }
 
     fetch('/apostas/store', {
       method: 'POST',
@@ -2012,11 +2408,21 @@ if (!function_exists('formatBrtDate')) {
       if (data.success) {
         alert('✓ ' + data.message);
         window.location.href = window.location.pathname;
+      } else if (data.require_confirmation || data.is_warning) {
+        resetSubmitState();
+        const msgClean = (data.message || '').replace(/^⚠️\s*/, '');
+        setTimeout(() => {
+          if (confirm(msgClean)) {
+            submitNewBet(null, true);
+          }
+        }, 50);
       } else {
+        resetSubmitState();
         alert('❌ ' + data.message);
       }
     })
     .catch(err => {
+      resetSubmitState();
       console.error(err);
       alert('Erro na requisição.');
     });
@@ -2155,13 +2561,33 @@ if (!function_exists('formatBrtDate')) {
     showModalSafely(document.getElementById('editBetModal'));
   }
 
-  function submitEditBet(e) {
-    e.preventDefault();
+  let isSubmittingEditBet = false;
+  function submitEditBet(e, confirmRisco = false) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (isSubmittingEditBet && !confirmRisco) return;
+
     const oddVal = parseFloat(document.getElementById('editOddInput').value) || 0;
-    if (oddVal < 1.60) {
-      alert('❌ A Odd informada (' + oddVal.toFixed(2) + ') é inferior ao mínimo permitido de 1,60. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,60.');
+    if (oddVal <= 1.0) {
+      alert('❌ A Odd informada é inválida. Informe um valor maior que 1.00.');
       return;
     }
+
+    const submitBtn = document.querySelector('#editBetForm button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.dataset.origText = submitBtn.dataset.origText || submitBtn.innerHTML;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Atualizando...';
+    }
+    isSubmittingEditBet = true;
+
+    const resetEditState = () => {
+      isSubmittingEditBet = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = submitBtn.dataset.origText || 'Atualizar Aposta';
+      }
+    };
+
     const id = document.getElementById('editIdInput').value;
     const formData = new FormData();
     formData.append('id', id);
@@ -2174,6 +2600,9 @@ if (!function_exists('formatBrtDate')) {
     formData.append('cash_out', document.getElementById('editCashoutInput').value);
     formData.append('tipo', document.getElementById('editTipoSelect').value);
     formData.append('status', document.getElementById('editStatusSelect').value);
+    if (confirmRisco) {
+      formData.append('confirmar_risco', '1');
+    }
 
     fetch('/apostas/update/' + id, {
       method: 'POST',
@@ -2185,13 +2614,108 @@ if (!function_exists('formatBrtDate')) {
         hideModalSafely(document.getElementById('editBetModal'));
         alert('✓ ' + data.message);
         window.location.replace('/apostas');
+      } else if (data.require_confirmation || data.is_warning) {
+        resetEditState();
+        const msgClean = (data.message || '').replace(/^⚠️\s*/, '');
+        setTimeout(() => {
+          if (confirm(msgClean)) {
+            submitEditBet(null, true);
+          }
+        }, 50);
       } else {
+        resetEditState();
+        alert('❌ ' + data.message);
+      }
+    })
+    .catch(err => {
+      resetEditState();
+      console.error(err);
+      alert('Erro na atualização.');
+    });
+  }
+
+  let currentBetToConfirm = null;
+
+  function openConfirmBetModal(apostaId, timeCasa, timeFora, mercado, palpite, valorAposta) {
+    currentBetToConfirm = { id: apostaId, timeCasa, timeFora, mercado, palpite, valor: parseFloat(valorAposta) || 0 };
+    
+    const matchNameEl = document.getElementById('confirmBetMatchName');
+    const pickInfoEl = document.getElementById('confirmBetPickInfo');
+    const betAmountEl = document.getElementById('confirmBetAmount');
+    
+    if (matchNameEl) matchNameEl.textContent = timeCasa + ' x ' + timeFora;
+    if (pickInfoEl) pickInfoEl.textContent = mercado + ' — ' + palpite;
+    if (betAmountEl) betAmountEl.textContent = 'R$ ' + currentBetToConfirm.valor.toFixed(2).replace('.', ',');
+    
+    const saldoEl = document.querySelector('.current-balance-value') || document.querySelector('[data-saldo-cc]');
+    let saldoVal = 0;
+    if (saldoEl) {
+      const raw = saldoEl.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+      saldoVal = parseFloat(raw) || 0;
+    }
+    
+    const proj = saldoVal - currentBetToConfirm.valor;
+    
+    const curBalEl = document.getElementById('confirmBetCurrentBalance');
+    const projBalEl = document.getElementById('confirmBetProjectedBalance');
+    
+    if (curBalEl) curBalEl.textContent = 'R$ ' + saldoVal.toFixed(2).replace('.', ',');
+    if (projBalEl) projBalEl.textContent = 'R$ ' + proj.toFixed(2).replace('.', ',');
+    
+    const alertEl = document.getElementById('confirmBetAlert');
+    const btnExec = document.getElementById('btnExecuteConfirmBet');
+    
+    if (proj < 0) {
+      if (alertEl) {
+        alertEl.style.display = 'block';
+        alertEl.className = 'alert alert-danger py-2 px-3 small rounded-3 mt-3 m-0';
+        alertEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Saldo Insuficiente!</strong> Adicione saldo à sua conta corrente antes de confirmar esta aposta.';
+      }
+      if (btnExec) btnExec.disabled = true;
+    } else {
+      if (alertEl) alertEl.style.display = 'none';
+      if (btnExec) btnExec.disabled = false;
+    }
+    
+    const modalEl = document.getElementById('confirmBetModal');
+    if (modalEl) {
+      showModalSafely(modalEl);
+    }
+  }
+
+  function executeConfirmBet() {
+    if (!currentBetToConfirm || !currentBetToConfirm.id) return;
+    
+    const btnExec = document.getElementById('btnExecuteConfirmBet');
+    if (btnExec) {
+      btnExec.disabled = true;
+      btnExec.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Debitando...';
+    }
+    
+    fetch('/apostas/confirmar/' + currentBetToConfirm.id, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('⚡ ' + data.message);
+        window.location.reload();
+      } else {
+        if (btnExec) {
+          btnExec.disabled = false;
+          btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> Efetivar Débito e Confirmar';
+        }
         alert('❌ ' + data.message);
       }
     })
     .catch(err => {
       console.error(err);
-      alert('Erro na atualização.');
+      if (btnExec) {
+        btnExec.disabled = false;
+        btnExec.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> Efetivar Débito e Confirmar';
+      }
+      alert('Erro na confirmação da aposta.');
     });
   }
 
@@ -2218,11 +2742,21 @@ if (!function_exists('formatBrtDate')) {
     });
   }
 
-  function handleReapostar(id) {
-    if (!confirm('Deseja reapostar (duplicar) este palpite?')) return;
+  const activeReapostas = {};
+  function handleReapostar(id, confirmRisco = false) {
+    if (activeReapostas[id]) return;
+
+    if (!confirmRisco) {
+      if (!confirm('Deseja reapostar (duplicar) este palpite?')) return;
+    }
+
+    activeReapostas[id] = true;
 
     const formData = new FormData();
     formData.append('id', id);
+    if (confirmRisco) {
+      formData.append('confirmar_risco', '1');
+    }
 
     fetch('/apostas/reapostar/' + id, {
       method: 'POST',
@@ -2233,9 +2767,23 @@ if (!function_exists('formatBrtDate')) {
       if (data.success) {
         alert('✓ ' + data.message);
         window.location.replace('/apostas');
+      } else if (data.require_confirmation || data.is_warning) {
+        delete activeReapostas[id];
+        const msgClean = (data.message || '').replace(/^⚠️\s*/, '');
+        setTimeout(() => {
+          if (confirm(msgClean)) {
+            handleReapostar(id, true);
+          }
+        }, 50);
       } else {
+        delete activeReapostas[id];
         alert('❌ ' + data.message);
       }
+    })
+    .catch(err => {
+      delete activeReapostas[id];
+      console.error(err);
+      alert('Erro ao reapostar.');
     });
   }
 

@@ -12,32 +12,18 @@ require VIEWPATH . '/header.php';
         <div class="container-xxl py-5">
             <div class="container">
                 <div class="text-center wow fadeInUp" data-wow-delay="0.1s">
-                    <h6 class="section-title bg-white text-center text-primary px-3">Reportar um Erro</h6>
-                    <h1 class="mb-5">Relatar problema técnico ou falha</h1>
+                    <h6 class="section-title bg-white text-center text-primary px-3"><?= lang('App.report_error') ?></h6>
                 </div>
                 <div class="row g-4 justify-content-center">
                     <div class="col-lg-5 col-md-6 wow fadeInUp" data-wow-delay="0.1s">
-                        <h5>Como podemos ajudar?</h5>
-                        <p class="mb-4">
-                            Encontrou algum problema, erro de processamento ou comportamento inesperado na plataforma?
-                            Descreva os detalhes do ocorrido no formulário ao lado para que nossa equipe técnica possa analisar e solucionar com agilidade.
-                        </p>
+                        <h5><?= lang('App.report_error') ?></h5>
                         <div class="d-flex align-items-center mb-3">
                             <div class="d-flex align-items-center justify-content-center flex-shrink-0 bg-primary text-white rounded-circle" style="width: 50px; height: 50px;">
                                 <i class="fa fa-envelope-open" style="font-size: 20px;"></i>
                             </div>
                             <div class="ms-3">
-                                <h5 class="text-primary mb-0">E-mail de Destino</h5>
+                                <h5 class="text-primary mb-0"><?= lang('App.email') ?></h5>
                                 <p class="mb-0 text-muted">admin@estudotabela.com.br</p>
-                            </div>
-                        </div>
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="d-flex align-items-center justify-content-center flex-shrink-0 bg-primary text-white rounded-circle" style="width: 50px; height: 50px;">
-                                <i class="fa fa-bug" style="font-size: 20px;"></i>
-                            </div>
-                            <div class="ms-3">
-                                <h5 class="text-primary mb-0">Atendimento Técnico</h5>
-                                <p class="mb-0 text-muted">Análise e resposta técnica prioritária</p>
                             </div>
                         </div>
                     </div>
@@ -47,25 +33,25 @@ require VIEWPATH . '/header.php';
                         <div class="row g-3">
                             <div class="col-md-12">
                                 <div class="form-floating">
-                                    <input type="email" class="form-control" id="email" name="email" placeholder="Seu E-mail" value="<?= esc($_SESSION['email_usuario_logado'] ?? $_SESSION['usuario_email'] ?? '') ?>" required>
-                                    <label for="email">Seu E-mail</label>
+                                    <input type="email" class="form-control" id="email" name="email" placeholder="<?= lang('App.email') ?>" value="<?= esc($_SESSION['email_usuario_logado'] ?? $_SESSION['usuario_email'] ?? '') ?>" required>
+                                    <label for="email"><?= lang('App.email') ?></label>
                                 </div>
                             </div>
                             <div class="col-12">
                                 <div class="form-floating">
-                                    <input type="text" class="form-control" id="subject" name="assunto" placeholder="Assunto do Erro" required>
-                                    <label for="subject">Assunto / Resumo do Erro</label>
+                                    <input type="text" class="form-control" id="subject" name="assunto" placeholder="Assunto" required>
+                                    <label for="subject">Assunto</label>
                                 </div>
                             </div>
                             <div class="col-12">
                                 <div class="form-floating">
-                                    <textarea class="form-control" placeholder="Detalhamento do erro..." id="mensagem" name="mensagem" style="height: 160px" required></textarea>
-                                    <label for="mensagem">Descrição do Erro (passos para reproduzir, mensagens, etc.)</label>
+                                    <textarea class="form-control" placeholder="Descrição" id="mensagem" name="mensagem" style="height: 160px" required></textarea>
+                                    <label for="mensagem">Descrição</label>
                                 </div>
                             </div>
                             <div class="col-12">
                                 <button type="submit" class="btn btn-primary w-100 py-3">
-                                    <i class="fa fa-paper-plane me-2"></i>Enviar Relatório de Erro
+                                    <i class="fa fa-paper-plane me-2"></i><?= lang('App.report_error') ?>
                                 </button>
                             </div>
                         </div>

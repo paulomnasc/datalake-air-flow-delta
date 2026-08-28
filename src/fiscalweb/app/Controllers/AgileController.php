@@ -92,7 +92,25 @@ class AgileController extends BaseController
     public function index()
     {
         $id_sistema = $this->request->getGet('id_sistema');
+        $status_selecionado = $this->request->getGet('status');
+
         $sistemas = $this->sistemaModel->orderBy('sigla', 'ASC')->findAll();
+
+        $defaultStatuses = [
+            'Preparar Demanda SERPRO',
+            'Alocar Time Fábricas',
+            'Em Execução',
+            'CCM',
+            'Homologação',
+            'Atualizado Produção',
+            'Atualizado Produção (Esteira SERPRO)',
+            'Cancelada'
+        ];
+        $dbStatusesQuery = $this->demandaModel->select('DISTINCT(status) as status')->where('status IS NOT NULL AND status != ""')->findAll();
+        $dbStatuses = array_filter(array_map(function($item) {
+            return is_object($item) ? $item->status : ($item['status'] ?? null);
+        }, $dbStatusesQuery));
+        $status_list = array_values(array_unique(array_merge($defaultStatuses, $dbStatuses)));
 
         $builder = $this->demandaModel
             ->select('agile_demandas.*, agile_sistemas.sigla as sistema_sigla, agile_sistemas.nome as sistema_nome, ordem_servico.nup_sei')
@@ -103,12 +121,18 @@ class AgileController extends BaseController
             $builder->where('agile_demandas.id_sistema', $id_sistema);
         }
 
+        if (!empty($status_selecionado)) {
+            $builder->where('agile_demandas.status', $status_selecionado);
+        }
+
         $demandas = $builder->orderBy('agile_demandas.criado_em', 'DESC')->findAll();
 
         return view('agile/list_demandas', [
             'demandas' => $demandas,
             'sistemas' => $sistemas,
-            'sistema_selecionado' => $id_sistema
+            'sistema_selecionado' => $id_sistema,
+            'status_list' => $status_list,
+            'status_selecionado' => $status_selecionado
         ]);
     }
 
@@ -363,6 +387,11 @@ class AgileController extends BaseController
             ->where('status', 'Ativa')
             ->first();
 
+        $sprints = $this->sprintModel
+            ->where('id_demanda', $id_demanda)
+            ->orderBy('id', 'DESC')
+            ->findAll();
+
         $items = $this->backlogItemModel
             ->where('id_demanda', $id_demanda)
             ->orderBy('ordem', 'ASC')
@@ -375,6 +404,7 @@ class AgileController extends BaseController
         return view('agile/kanban', [
             'demanda' => $demanda,
             'sprintAtiva' => $sprintAtiva,
+            'sprints' => $sprints,
             'items' => $items,
             'cerimonias' => $cerimonias,
             'usuarios' => $usuarios,

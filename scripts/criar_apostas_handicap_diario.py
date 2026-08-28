@@ -42,17 +42,27 @@ def get_db_connection():
 
 def get_all_user_ids(cursor):
     """
-    Retorna lista de IDs de todos os usuários cadastrados na tabela 'usuario'.
+    Retorna lista de IDs contendo exclusivamente o usuário 'paulomnasc'.
     """
-    cursor.execute("SELECT id FROM usuario ORDER BY id ASC")
+    cursor.execute("""
+        SELECT id FROM usuario 
+        WHERE email LIKE '%paulomnasc%' OR nome LIKE '%paulomnasc%' OR id = 558
+        ORDER BY id ASC
+        LIMIT 1
+    """)
     rows = cursor.fetchall()
     if rows:
         return [r['id'] for r in rows]
     
-    print("ℹ️ Criando usuário padrão no sistema para vinculação de apostas...")
+    cursor.execute("SELECT id FROM usuario ORDER BY id ASC LIMIT 1")
+    first_user = cursor.fetchone()
+    if first_user:
+        return [first_user['id']]
+
+    print("ℹ️ Criando usuário paulomnasc no sistema para vinculação de apostas...")
     cursor.execute("""
         INSERT INTO usuario (nome, email, senha, email_confirmado, criado_em)
-        VALUES ('Sistema Automação', 'sistema@footballweb.com', '123456', 1, NOW())
+        VALUES ('Paulo Nascimento', 'paulomnasc@gmail.com', '123456', 1, NOW())
     """)
     return [cursor.lastrowid]
 
@@ -101,9 +111,18 @@ def determine_bet_side(home_team: str, away_team: str, ah_suggestion: str) -> bo
 def is_allowed_league(league_id, league_name: str) -> bool:
     """
     Filtra o escopo de atuação do script de criação de apostas:
-    - Campeonatos do Brasil (Série A, Série B, Série C, Série D, Copa do Brasil, Paulistão, etc.)
+    - Campeonatos do Brasil (Série A, Série B, Copa do Brasil, Paulistão, etc. - Série C e Série D excluídas)
     - Internacional: Apenas CONMEBOL Libertadores e CONMEBOL Sudamericana.
+    - Desconsidera jogos femininos (Women / Feminino) e jogos do Brasil Série C e Série D.
     """
+    l_name_low = (league_name or '').lower().strip()
+    if 'women' in l_name_low or 'feminino' in l_name_low or 'femenina' in l_name_low:
+        return False
+
+    # Exclusão explícita do Brasil Série C e Série D (por nome)
+    if any(s in l_name_low for s in ['serie c', 'série c', 'serie d', 'série d']):
+        return False
+
     l_id = None
     if league_id is not None:
         try:
@@ -111,23 +130,35 @@ def is_allowed_league(league_id, league_name: str) -> bool:
         except (ValueError, TypeError):
             pass
 
-    # IDs Conhecidos da API-Football
-    # 71: Serie A (Brasil), 72: Serie B (Brasil), 73: Copa do Brasil, 74: Brasileiro Women, 75: Serie C, 76: Serie D
-    # 13: CONMEBOL Libertadores, 11: CONMEBOL Sudamericana
-    ALLOWED_LEAGUE_IDS = {71, 72, 73, 74, 75, 76, 13, 11}
+    # Exclusão explícita por ID do Brasil Série C (ID 75) e Série D (ID 76)
+    if l_id in {75, 76}:
+        return False
+
+    # IDs Conhecidos da API-Football (Brasil, Libertadores, Sudamericana, La Liga, EFL Cup e UEFA Conference/Europa)
+    ALLOWED_LEAGUE_IDS = {71, 72, 73, 13, 11, 140, 48, 848, 3}
     if l_id in ALLOWED_LEAGUE_IDS:
         return True
 
-    l_name_low = (league_name or '').lower().strip()
-
     # Checagem por Nome de Liga Internacional Permitida
-    if any(k in l_name_low for k in ['libertadores', 'sudamericana', 'sul-americana', 'sul americana']):
+    allowed_int_keywords = [
+        'libertadores', 'sudamericana', 'sul-americana', 'sul americana',
+        'la liga', 'laliga',
+        'league cup', 'efl cup', 'carabao cup', 'efl',
+        'conference league', 'europa conference league', 'uefa conference league', 'uefa europa conference league',
+        'europa league', 'uefa europa league'
+    ]
+    if any(k in l_name_low for k in allowed_int_keywords):
         return True
 
     # Checagem por Nome de Liga Brasileira
-    brazil_keywords = ['brasil', 'brasileiro', 'brasileira', 'copa do brasil', 'serie a', 'serie b', 'serie c', 'serie d', 'paulista', 'carioca', 'gaúcho', 'gaucho', 'mineiro', 'baiano', 'pernambucano', 'cearense', 'paranaense', 'catarinense']
+    brazil_keywords = [
+        'brasil', 'brasileiro', 'brasileira', 'copa do brasil', 
+        'serie a', 'serie b', 
+        'paulista', 'carioca', 'gaúcho', 'gaucho', 'mineiro', 
+        'baiano', 'pernambucano', 'cearense', 'paranaense', 'catarinense'
+    ]
     if any(kw in l_name_low for kw in brazil_keywords):
-        if l_name_low in ['serie a', 'serie b', 'serie c', 'serie d'] and l_id not in {71, 72, 75, 76}:
+        if l_name_low in ['serie a', 'serie b'] and l_id not in {71, 72}:
             return False
         return True
 
@@ -222,17 +253,21 @@ def criar_apostas_handicap_diario(target_date_str=None):
         # Determinar com exatidão se o palpite é no time Visitante ou Mandante para escolher a Odd correta
         is_away = determine_bet_side(home_team, away_team, ah_suggestion)
 
+        # Regra de Ajuste: Migração de linha para Visitantes (Fora de Casa)
+        # Em vez de 0.0 ou -0.25 puro em visitantes, migra para cobertura +0.25 AH (garantindo meio-green no empate)
         if is_away:
-            odd_val = float(fix.get('odd_away') or 1.60)
-        else:
-            odd_val = float(fix.get('odd_home') or 1.60)
+            if '0.0' in ah_suggestion or 'empate anula' in ah_suggestion.lower() or '-0.25' in ah_suggestion:
+                ah_suggestion = f"{away_team} +0.25 AH"
 
-        if odd_val <= 1.0:
-            odd_val = 1.60
+        raw_odd = fix.get('odd_away') if is_away else fix.get('odd_home')
+        if not raw_odd or float(raw_odd) <= 1.0 or not fix.get('odd_home') or not fix.get('odd_away'):
+            print(f"🛡️ [Sem Odds Reais] Partida {home_team} vs {away_team} -> Odds ausentes ou inválidas no mercado. Aposta não criada.")
+            apostas_abstenção += 1
+            continue
 
-        # Validação de Risco: Não cria aposta automática se a odd for inferior ao mínimo de 1.60
-        if odd_val < 1.60:
-            print(f"🛡️ [Odd Baixa < 1.60] Partida {home_team} vs {away_team} -> Odd {odd_val:.2f} é inferior ao mínimo permitido (1.60). Aposta não criada.")
+        odd_val = float(raw_odd)
+        if odd_val < 1.50:
+            print(f"🛡️ [Odd Baixa < 1.50] Partida {home_team} vs {away_team} -> Odd {odd_val:.2f} é inferior ao mínimo permitido (1.50). Aposta não criada.")
             apostas_abstenção += 1
             continue
 
@@ -248,6 +283,15 @@ def criar_apostas_handicap_diario(target_date_str=None):
             ja_existe = cursor.fetchone()
 
             if ja_existe:
+                cursor.execute("""
+                    UPDATE apostas SET
+                        palpite = %s,
+                        odd = %s,
+                        ganhos_potenciais = %s,
+                        resultado_detalhado = %s,
+                        updated_at = NOW()
+                    WHERE id = %s AND status = 'Pendente'
+                """, (ah_suggestion, odd_val, ganhos_potenciais, (fix.get('ah_reasoning') or '')[:250], ja_existe['id']))
                 apostas_duplicadas += 1
                 continue
 

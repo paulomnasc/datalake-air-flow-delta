@@ -4,14 +4,17 @@ namespace App\Controllers;
 
 use App\Models\ApostaModel;
 use App\Models\UsuarioModel;
+use App\Models\ContaCorrenteModel;
 
 class ApostaController extends BaseController
 {
     protected ApostaModel $apostaModel;
+    protected ContaCorrenteModel $contaCorrenteModel;
 
     public function __construct()
     {
-        $this->apostaModel = new ApostaModel();
+        $this->apostaModel        = new ApostaModel();
+        $this->contaCorrenteModel = new ContaCorrenteModel();
     }
 
     /**
@@ -69,7 +72,7 @@ class ApostaController extends BaseController
 
         // Se não estiver logado, redireciona para login com mensagem
         if (!$access['authenticated']) {
-            session()->setFlashdata('error', 'Você precisa estar logado para acessar a gestão de apostas.');
+            session()->setFlashdata('error', 'Você precisa estar logado para acessar a gestão de simulações de apostas.');
             return redirect()->to('/loginUsuario');
         }
 
@@ -82,7 +85,7 @@ class ApostaController extends BaseController
         $targetFixId = $this->request->getVar('fixture_id');
 
         $builderFix = $db->table('fixtures_trends')
-            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion, ah_confidence, xg_home, xg_away');
+            ->select('fixture_id, home_team, away_team, fixture_date, league_name, prediction_text, ah_suggestion, ah_confidence, xg_home, xg_away, home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, standings_motivation_score');
         
         $fixtures = $builderFix->orderBy('fixture_date', 'DESC')
             ->limit(100)
@@ -116,15 +119,12 @@ class ApostaController extends BaseController
                 $suggestedCards = 'Menos de ' . $m[1];
             }
             $fix->suggested_palpite_cards = $suggestedCards;
-            $ahSug = $fix->ah_suggestion ?? '';
-            $teamName = $fix->home_team;
+            $ahSug = trim($fix->ah_suggestion ?? '');
             if (!empty($ahSug)) {
-                if (preg_match('/^(.*?)\s*([+-]?\d+(?:\.\d+)?|0\.0)/i', $ahSug, $mAH)) {
-                    $t = trim($mAH[1]);
-                    if (!empty($t)) $teamName = $t;
-                }
+                $fix->suggested_palpite_ah = $ahSug;
+            } else {
+                $fix->suggested_palpite_ah = "{$fix->home_team} 0.0 (Empate Anula)";
             }
-            $fix->suggested_palpite_ah = "{$teamName} 0.0 (Empate Anula)";
             $fix->suggested_palpite = $suggestedCards;
 
             $ahConf = floatval($fix->ah_confidence ?? 0);
@@ -148,18 +148,57 @@ class ApostaController extends BaseController
 
         // Apenas carrega apostas se o usuário possuir tokens
         if ($hasTokens) {
-            $apostas = $this->apostaModel->where('usuario_id', $userId)->orderBy('criado_em', 'DESC')->findAll();
+            $db = \Config\Database::connect();
+            $apostas = $db->query("
+                SELECT 
+                    a.*,
+                    f.goals_home,
+                    f.goals_away,
+                    f.status as fixture_status,
+                    f.league_name,
+                    (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') as tem_debito
+                FROM apostas a
+                LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)
+                WHERE a.usuario_id = ?
+                ORDER BY a.criado_em DESC
+            ", [$userId])->getResultObject();
+
+            $tzUtc = new \DateTimeZone('UTC');
+            $tzBrt = new \DateTimeZone('America/Sao_Paulo');
+
+            foreach ($apostas as &$ap) {
+                $dateToConvert = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : ($ap->criado_em ?? null);
+                if (!empty($dateToConvert)) {
+                    try {
+                        $dt = new \DateTime($dateToConvert, $tzUtc);
+                        $dt->setTimezone($tzBrt);
+                        $ap->data_hora_jogo_brt = $dt->format('Y-m-d H:i:s');
+                        $ap->data_brt_dia = $dt->format('Y-m-d');
+                    } catch (\Exception $e) {
+                        $ap->data_hora_jogo_brt = $dateToConvert;
+                        $ap->data_brt_dia = substr($dateToConvert, 0, 10);
+                    }
+                } else {
+                    $ap->data_hora_jogo_brt = date('Y-m-d H:i:s');
+                    $ap->data_brt_dia = date('Y-m-d');
+                }
+            }
+            unset($ap);
+
             $resumo  = $this->apostaModel->getResumoUsuario($userId);
         }
 
+        $saldoContaCorrente = $this->contaCorrenteModel->getSaldo($userId);
+
         $data = [
-            'title'       => 'Minhas Apostas | Gestão de Gestão de Riscos & Palpites',
-            'hasTokens'   => $hasTokens,
-            'userCredits' => $userCredits,
-            'apostas'     => $apostas,
-            'resumo'      => $resumo,
-            'fixtures'    => $fixtures,
-            'user'        => $access['user']
+            'title'              => 'Minhas Simulações de Apostas | Gestão de Riscos & Palpites',
+            'hasTokens'          => $hasTokens,
+            'userCredits'        => $userCredits,
+            'saldoContaCorrente' => $saldoContaCorrente,
+            'apostas'            => $apostas,
+            'resumo'             => $resumo,
+            'fixtures'           => $fixtures,
+            'user'               => $access['user']
         ];
 
         return view('header', $data)
@@ -177,7 +216,7 @@ class ApostaController extends BaseController
         if (!$access['authenticated'] || !$access['has_tokens']) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Acesso restrito: É necessário possuir tokens de consulta ativos para criar e gerenciar apostas.'
+                'message' => 'Acesso restrito: É necessário possuir tokens de consulta ativos para criar e gerenciar simulações de apostas.'
             ])->setStatusCode(403);
         }
 
@@ -203,14 +242,7 @@ class ApostaController extends BaseController
         if (empty($timeCasa) || empty($timeFora) || empty($palpite) || $odd <= 0 || $valorAposta <= 0) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Por favor, preencha corretamente os campos obrigatórios (Times, Palpite, Odd e Valor da Aposta).'
-            ]);
-        }
-
-        if ($odd < 1.60) {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => 'A Odd informada ('.number_format($odd, 2, ',', '.').') é inferior ao mínimo permitido de 1,60. Por gestão de risco, não são aceitas apostas com odd abaixo de 1,60.'
+                'message' => 'Por favor, preencha corretamente os campos obrigatórios (Times, Palpite, Odd e Valor da Simulação de Aposta).'
             ]);
         }
 
@@ -235,10 +267,49 @@ class ApostaController extends BaseController
         $statusGatekeeper = $eval['statusGatekeeper'];
         $gatekeeperMsg    = $eval['gatekeeperMsg'];
 
-        if ($statusGatekeeper === 'NO_BET') {
+        $confirmarRisco = filter_var($this->request->getPost('confirmar_risco') ?? $this->request->getPost('confirm_warning') ?? $this->request->getPost('confirm'), FILTER_VALIDATE_BOOLEAN)
+                          || in_array(strtolower((string)($this->request->getPost('confirmar_risco') ?? '')), ['1', 'true', 'sim', 'yes'])
+                          || in_array(strtolower((string)($this->request->getPost('confirm') ?? '')), ['1', 'true', 'sim', 'yes']);
+
+        if ($statusGatekeeper === 'AVISO_RISCO_OVER') {
+            if (!$confirmarRisco) {
+                return $this->response->setJSON([
+                    'success'              => false,
+                    'require_confirmation' => true,
+                    'is_warning'           => true,
+                    'status_gatekeeper'    => 'AVISO_RISCO_OVER',
+                    'message'              => '⚠️ ' . $gatekeeperMsg
+                ]);
+            }
+            $statusGatekeeper = 'ALERTA_RISCO_OVER';
+        } elseif ($statusGatekeeper === 'NO_BET') {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => '🚫 Aposta recusada pelo Gatekeeper! ' . $gatekeeperMsg
+                'message' => '🚫 Simulação de aposta recusada pelo Gatekeeper! ' . $gatekeeperMsg
+            ]);
+        }
+
+        // Trava anti-duplicidade de requisições em paralelo (janela de 10 segundos)
+        $dbCheck = \Config\Database::connect();
+        $recentDuplicate = $dbCheck->table('apostas')
+            ->where('usuario_id', $userId)
+            ->where('time_casa', $timeCasa)
+            ->where('time_fora', $timeFora)
+            ->where('mercado', $mercado)
+            ->where('palpite', $palpite)
+            ->where('valor_aposta', $valorAposta)
+            ->where('criado_em >=', date('Y-m-d H:i:s', time() - 10))
+            ->get()->getRow();
+
+        if ($recentDuplicate) {
+            return $this->response->setJSON([
+                'success'           => true,
+                'message'           => 'Simulação de aposta já registrada anteriormente! ' . $gatekeeperMsg,
+                'id'                => $recentDuplicate->id,
+                'status_gatekeeper' => $statusGatekeeper,
+                'odd_justa'         => $oddJusta,
+                'ev_percentual'     => $evPercentual,
+                'gatekeeper_msg'    => $gatekeeperMsg
             ]);
         }
 
@@ -253,6 +324,23 @@ class ApostaController extends BaseController
         } else {
             // Caso não haja fixture_id e nem data informada, grava com a data de hoje em America/Sao_Paulo
             $dataHoraJogo = $nowBr;
+        }
+
+        $confirmarDebitar = $this->request->getPost('confirmar_debitar') !== null 
+                            ? filter_var($this->request->getPost('confirmar_debitar'), FILTER_VALIDATE_BOOLEAN) 
+                            : true;
+
+        $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
+        $saldoInsuficienteAviso = '';
+
+        if ($confirmarDebitar && $saldoAtual < $valorAposta) {
+            $confirmarDebitar = false;
+            if ($status === 'Pendente') {
+                $status = 'Não Confirmada';
+            }
+            $saldoInsuficienteAviso = " ⚠️ Saldo em conta corrente insuficiente (R$ " . number_format($saldoAtual, 2, ',', '.') . ") - gravada como Não Confirmada.";
+        } elseif (!$confirmarDebitar && $status === 'Pendente') {
+            $status = 'Não Confirmada';
         }
 
         $newId = $this->apostaModel->insert([
@@ -273,13 +361,35 @@ class ApostaController extends BaseController
             'cash_out'              => $cashOut,
             'tipo'                  => $tipo,
             'status'                => $status,
+            'confirmada'            => $confirmarDebitar ? 1 : 0,
             'criado_em'             => $nowBr
         ]);
 
         if ($newId) {
+            if ($confirmarDebitar) {
+                // Débito do valor da aposta na Conta Corrente se confirmado
+                $this->contaCorrenteModel->debitarAposta(
+                    $userId,
+                    (int)$newId,
+                    $valorAposta,
+                    "Aposta #{$newId} ({$timeCasa} x {$timeFora} - {$palpite})"
+                );
+
+                // Se o status da aposta já for de encerramento/retorno, credita a conta corrente
+                if (in_array($status, ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida', 'Cashout'])) {
+                    $retorno = ($status === 'Cashout' && $cashOut !== null) ? $cashOut : $ganhosPotenciais;
+                    $this->contaCorrenteModel->creditarRetornoAposta(
+                        $userId,
+                        (int)$newId,
+                        (float)$retorno,
+                        "Retorno Aposta #{$newId} ({$status})"
+                    );
+                }
+            }
+
             return $this->response->setJSON([
                 'success'           => true,
-                'message'           => 'Aposta registrada! ' . $gatekeeperMsg,
+                'message'           => 'Simulação de aposta registrada! ' . $gatekeeperMsg . $saldoInsuficienteAviso,
                 'id'                => $newId,
                 'status_gatekeeper' => $statusGatekeeper,
                 'odd_justa'         => $oddJusta,
@@ -290,7 +400,7 @@ class ApostaController extends BaseController
 
         return $this->response->setJSON([
             'success' => false,
-            'message' => 'Erro ao salvar aposta no banco de dados.'
+            'message' => 'Erro ao salvar simulação de aposta no banco de dados.'
         ]);
     }
 
@@ -303,15 +413,15 @@ class ApostaController extends BaseController
         $probPoisson = null;
         $evPercentual = null;
         $statusGatekeeper = 'NAO_ANALISADO';
-        $gatekeeperMsg = 'Aposta sem análise de estatísticas.';
+        $gatekeeperMsg = 'Simulação de aposta sem análise de estatísticas.';
 
         $isOver = (stripos($palpite, 'over') !== false || stripos($palpite, 'mais') !== false);
         $isCartoes = (stripos($mercado, 'cartõ') !== false || stripos($mercado, 'card') !== false);
 
-        // REGRA DE BLOQUEIO ABSOLUTO (Estratégia Exclusiva Under / Anti-Over)
+        // AVISO DE RISCO GATEKEEPER (Estratégia Exclusiva Under / Anti-Over)
         if ($isOver || ($isCartoes && $isOver)) {
-            $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Estratégia Exclusiva Under): Apostas no mercado 'Over / Mais de' são proibidas pelo sistema devido ao alto risco de perda e volatilidade estatística. Apenas apostas 'Under / Menos de' são permitidas.";
+            $statusGatekeeper = 'AVISO_RISCO_OVER';
+            $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under): Simulações de apostas no mercado 'Over / Mais de' possuem elevado risco de perda e volatilidade estatística. Apenas apostas 'Under / Menos de' são recomendadas pelo modelo. Deseja prosseguir mesmo com o risco apontado?";
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
@@ -319,13 +429,13 @@ class ApostaController extends BaseController
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
-        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Estratégia Exclusiva Under 7.5+)
+        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Trava de Segurança Linha Mínima de 1.15)
         preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
         $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
 
-        if ($lineCheck < 7.5) {
+        if ($lineCheck < 1.15) {
             $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Apostas no mercado 'Total de Cartões' com linhas inferiores a 7.5 (ex: Under 6.5, 5.5, 4.5, 3.5) são bloqueadas pelo modelo devido ao elevado risco de perda histórico. Apenas linhas de Under 7.5 ou superior possuem margem de segurança aprovada.";
+            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Simulações de apostas com linhas inferiores a 1.15 são bloqueadas pelo modelo por elevado risco.";
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
@@ -342,7 +452,7 @@ class ApostaController extends BaseController
 
         $avgWinningOdd = ($rowAvg && $rowAvg->avg_odd && (int)$rowAvg->total_vitorias > 0) 
             ? round((float)$rowAvg->avg_odd, 2) 
-            : 1.60;
+            : 1.50;
 
         // Teto dinâmico flexível: Média + 0.35 com piso mínimo de 2.00 (evita auto-afunilamento e bloqueia apenas distorções irreais)
         $maxAllowedOdd = round(max(2.00, $avgWinningOdd + 0.35), 2);
@@ -436,7 +546,11 @@ class ApostaController extends BaseController
                     : "";
 
                 // Avaliação final do Gatekeeper
-                if ($odd > $maxAllowedOdd) {
+                if ($lineCheck < 5.5 && ($xc === null || $xc > 3.30 || $probPoisson < 75.0)) {
+                    $statusGatekeeper = 'NO_BET';
+                    $xcFormatted = ($xc !== null) ? $xc : 'N/A';
+                    $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Entrada na linha Under 4.5 exige Expectativa (xC) <= 3.30 cartões (Atual: {$xcFormatted}) e Probabilidade Poisson >= 75.0% (Atual: {$probPoisson}%).{$duplicidadeMsg}";
+                } elseif ($odd > $maxAllowedOdd) {
                     $statusGatekeeper = 'NO_BET';
                     $gatekeeperMsg = "Aviso Gatekeeper (NO_BET): Odd da casa ({$odd}) excede o teto dinâmico de segurança ({$maxAllowedOdd}) derivado da média histórica de vitórias ({$avgWinningOdd}).{$duplicidadeMsg}";
                 } elseif ($evPercentual !== null && $evPercentual >= $minEvExigido && $probPoisson >= $minProbExigida) {
@@ -468,7 +582,7 @@ class ApostaController extends BaseController
         if (!$access['authenticated'] || !$access['has_tokens']) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Acesso restrito: É necessário possuir tokens de consulta para atualizar apostas.'
+                'message' => 'Acesso restrito: É necessário possuir tokens de consulta para atualizar simulações de apostas.'
             ])->setStatusCode(403);
         }
 
@@ -476,7 +590,7 @@ class ApostaController extends BaseController
         if ($apostaId <= 0) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'ID de aposta inválido.'
+                'message' => 'ID de simulação de aposta inválido.'
             ])->setStatusCode(400);
         }
 
@@ -485,7 +599,7 @@ class ApostaController extends BaseController
         if (!$aposta) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Aposta não encontrada.'
+                'message' => 'Simulação de aposta não encontrada.'
             ])->setStatusCode(404);
         }
 
@@ -493,7 +607,7 @@ class ApostaController extends BaseController
         if ((int)$aposta->usuario_id !== (int)$access['user_id'] && (int)$access['user_id'] !== 146) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Aposta não encontrada ou acesso negado.'
+                'message' => 'Simulação de aposta não encontrada ou acesso negado.'
             ])->setStatusCode(403);
         }
 
@@ -525,7 +639,7 @@ class ApostaController extends BaseController
         if (empty($timeCasa) || empty($timeFora) || empty($palpite) || $odd <= 0 || $valorAposta <= 0) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Por favor, preencha corretamente os campos obrigatórios (Times, Palpite, Odd e Valor da Aposta).'
+                'message' => 'Por favor, preencha corretamente os campos obrigatórios (Times, Palpite, Odd e Valor da Simulação de Aposta).'
             ]);
         }
 
@@ -545,10 +659,25 @@ class ApostaController extends BaseController
         $fixtureId = $aposta->fixture_id ? (int)$aposta->fixture_id : null;
         $eval = $this->evaluateGatekeeper($fixtureId, $timeCasa, $timeFora, $mercado, $palpite, $odd);
 
-        if ($eval['statusGatekeeper'] === 'NO_BET') {
+        $confirmarRisco = filter_var($this->request->getPost('confirmar_risco') ?? $this->request->getPost('confirm_warning') ?? $this->request->getPost('confirm'), FILTER_VALIDATE_BOOLEAN)
+                          || in_array(strtolower((string)($this->request->getPost('confirmar_risco') ?? '')), ['1', 'true', 'sim', 'yes'])
+                          || in_array(strtolower((string)($this->request->getPost('confirm') ?? '')), ['1', 'true', 'sim', 'yes']);
+
+        if ($eval['statusGatekeeper'] === 'AVISO_RISCO_OVER') {
+            if (!$confirmarRisco) {
+                return $this->response->setJSON([
+                    'success'              => false,
+                    'require_confirmation' => true,
+                    'is_warning'           => true,
+                    'status_gatekeeper'    => 'AVISO_RISCO_OVER',
+                    'message'              => '⚠️ ' . $eval['gatekeeperMsg']
+                ]);
+            }
+            $eval['statusGatekeeper'] = 'ALERTA_RISCO_OVER';
+        } elseif ($eval['statusGatekeeper'] === 'NO_BET') {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => '🚫 Aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
+                'message' => '🚫 Simulação de aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
             ]);
         }
 
@@ -581,9 +710,20 @@ class ApostaController extends BaseController
                 ]);
             }
 
+            // Credita o retorno na Conta Corrente caso a aposta tenha sido resolvida/ganha/cashout
+            if (in_array($status, ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida', 'Cashout'])) {
+                $retorno = ($status === 'Cashout' && $cashOut !== null) ? $cashOut : $ganhosPotenciais;
+                $this->contaCorrenteModel->creditarRetornoAposta(
+                    (int)$aposta->usuario_id,
+                    $apostaId,
+                    (float)$retorno,
+                    "Retorno Aposta #{$apostaId} ({$status})"
+                );
+            }
+
             return $this->response->setJSON([
                 'success'           => true,
-                'message'           => 'Aposta atualizada com sucesso! ' . $eval['gatekeeperMsg'],
+                'message'           => 'Simulação de aposta atualizada com sucesso! ' . $eval['gatekeeperMsg'],
                 'status_gatekeeper' => $eval['statusGatekeeper'],
                 'odd_justa'         => $eval['oddJusta'],
                 'ev_percentual'     => $eval['evPercentual']
@@ -630,6 +770,14 @@ class ApostaController extends BaseController
             'updated_at' => date('Y-m-d H:i:s')
         ]);
 
+        // Credita valor do cashout na Conta Corrente
+        $this->contaCorrenteModel->creditarRetornoAposta(
+            (int)$aposta->usuario_id,
+            $apostaId,
+            (float)$valorCashout,
+            "Cashout Aposta #{$apostaId}"
+        );
+
         return $this->response->setJSON([
             'success' => true,
             'message' => 'Cash out realizado com sucesso! Valor resgatado: R$ ' . number_format($valorCashout, 2, ',', '.')
@@ -663,10 +811,45 @@ class ApostaController extends BaseController
         $fixtureId = $aposta->fixture_id ? (int)$aposta->fixture_id : null;
         $eval = $this->evaluateGatekeeper($fixtureId, $aposta->time_casa, $aposta->time_fora, $aposta->mercado, $aposta->palpite, (float)$aposta->odd);
 
-        if ($eval['statusGatekeeper'] === 'NO_BET') {
+        $confirmarRisco = filter_var($this->request->getPost('confirmar_risco') ?? $this->request->getPost('confirm_warning') ?? $this->request->getPost('confirm'), FILTER_VALIDATE_BOOLEAN)
+                          || in_array(strtolower((string)($this->request->getPost('confirmar_risco') ?? '')), ['1', 'true', 'sim', 'yes'])
+                          || in_array(strtolower((string)($this->request->getPost('confirm') ?? '')), ['1', 'true', 'sim', 'yes']);
+
+        if ($eval['statusGatekeeper'] === 'AVISO_RISCO_OVER') {
+            if (!$confirmarRisco) {
+                return $this->response->setJSON([
+                    'success'              => false,
+                    'require_confirmation' => true,
+                    'is_warning'           => true,
+                    'status_gatekeeper'    => 'AVISO_RISCO_OVER',
+                    'message'              => '⚠️ ' . $eval['gatekeeperMsg']
+                ]);
+            }
+            $eval['statusGatekeeper'] = 'ALERTA_RISCO_OVER';
+        } elseif ($eval['statusGatekeeper'] === 'NO_BET') {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => '🚫 Reaposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
+                'message' => '🚫 Resimulação de aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
+            ]);
+        }
+
+        // Trava anti-duplicidade de reapostas em paralelo (janela de 10 segundos)
+        $dbCheck = \Config\Database::connect();
+        $recentDuplicate = $dbCheck->table('apostas')
+            ->where('usuario_id', $access['user_id'])
+            ->where('time_casa', $aposta->time_casa)
+            ->where('time_fora', $aposta->time_fora)
+            ->where('mercado', $aposta->mercado)
+            ->where('palpite', $aposta->palpite)
+            ->where('valor_aposta', $aposta->valor_aposta)
+            ->where('criado_em >=', date('Y-m-d H:i:s', time() - 10))
+            ->get()->getRow();
+
+        if ($recentDuplicate) {
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Resimulação de aposta já realizada anteriormente! ' . $eval['gatekeeperMsg'],
+                'id'      => $recentDuplicate->id
             ]);
         }
 
@@ -704,9 +887,18 @@ class ApostaController extends BaseController
             'criado_em'             => $nowBr
         ]);
 
+        if ($novoId) {
+            $this->contaCorrenteModel->debitarAposta(
+                (int)$access['user_id'],
+                (int)$novoId,
+                (float)$aposta->valor_aposta,
+                "Reaposta #{$novoId} ({$aposta->time_casa} x {$aposta->time_fora})"
+            );
+        }
+
         return $this->response->setJSON([
             'success' => true,
-            'message' => 'Reaposta realizada com sucesso! ' . $eval['gatekeeperMsg'],
+            'message' => 'Resimulação de aposta realizada com sucesso! ' . $eval['gatekeeperMsg'],
             'id'      => $novoId
         ]);
     }
@@ -731,15 +923,125 @@ class ApostaController extends BaseController
         if (!$aposta || ((int)$aposta->usuario_id !== (int)$access['user_id'] && (int)$access['user_id'] !== 146)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Aposta não encontrada ou acesso negado.'
+                'message' => 'Simulação de aposta não encontrada ou acesso negado.'
             ]);
+        }
+
+        if ($aposta && $aposta->status === 'Pendente') {
+            $this->contaCorrenteModel->estornarAposta(
+                (int)$aposta->usuario_id,
+                $apostaId,
+                (float)$aposta->valor_aposta,
+                "Estorno Exclusão Aposta #{$apostaId}"
+            );
         }
 
         $this->apostaModel->delete($apostaId);
 
         return $this->response->setJSON([
             'success' => true,
-            'message' => 'Aposta removida com sucesso.'
+            'message' => 'Simulação de aposta removida com sucesso.'
+        ]);
+    }
+
+    /**
+     * Confirma uma aposta e realiza o débito do valor na conta corrente (AJAX)
+     */
+    public function confirmar($id = null)
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated'] || !$access['has_tokens']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Acesso restrito: É necessário possuir tokens de consulta ativos para confirmar simulações de apostas.'
+            ])->setStatusCode(403);
+        }
+
+        $apostaId = (int)($id ?? $this->request->getPost('id'));
+        if ($apostaId <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'ID de simulação de aposta inválido.'
+            ])->setStatusCode(400);
+        }
+
+        $aposta = $this->apostaModel->find($apostaId);
+
+        if (!$aposta) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Simulação de aposta não encontrada.'
+            ])->setStatusCode(404);
+        }
+
+        $userId = (int)$access['user_id'];
+        if ((int)$aposta->usuario_id !== $userId && $userId !== 146) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Simulação de aposta não encontrada ou acesso negado.'
+            ])->setStatusCode(403);
+        }
+
+        $db = \Config\Database::connect();
+        $qExists = $db->table('conta_corrente')
+            ->where('usuario_id', $userId)
+            ->where('aposta_id', $apostaId)
+            ->where('tipo', 'DEBITO_APOSTA')
+            ->get();
+
+        $debitoExistente = $qExists ? $qExists->getRow() : null;
+
+        if ($debitoExistente || (isset($aposta->confirmada) && (int)$aposta->confirmada === 1 && $aposta->status !== 'Não Confirmada')) {
+            $this->apostaModel->update($apostaId, ['confirmada' => 1]);
+            $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
+            return $this->response->setJSON([
+                'success'           => true,
+                'already_confirmed' => true,
+                'message'           => "Aposta #{$apostaId} já foi confirmada e debitada anteriormente.",
+                'novo_saldo'        => $saldoAtual,
+                'id'                => $apostaId
+            ]);
+        }
+
+        $valorAposta = (float)$aposta->valor_aposta;
+        $saldoAtual  = $this->contaCorrenteModel->getSaldo($userId);
+
+        if ($saldoAtual < $valorAposta) {
+            return $this->response->setJSON([
+                'success'      => false,
+                'insufficient' => true,
+                'saldo_atual'  => $saldoAtual,
+                'valor_aposta' => $valorAposta,
+                'message'      => "Saldo insuficiente na conta corrente para confirmar esta aposta! Saldo atual: R$ " . number_format($saldoAtual, 2, ',', '.') . " | Valor necessário: R$ " . number_format($valorAposta, 2, ',', '.')
+            ]);
+        }
+
+        $desc = "Débito Aposta #{$apostaId} ({$aposta->time_casa} x {$aposta->time_fora} - {$aposta->palpite})";
+        $resDebito = $this->contaCorrenteModel->debitarAposta($userId, $apostaId, $valorAposta, $desc);
+
+        if (!$resDebito['success']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao processar débito na conta corrente: ' . ($resDebito['message'] ?? 'Falha de transação.')
+            ]);
+        }
+
+        $novoStatus = ($aposta->status === 'Não Confirmada') ? 'Pendente' : $aposta->status;
+        $this->apostaModel->update($apostaId, [
+            'confirmada' => 1,
+            'status'     => $novoStatus,
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
+
+        $novoSaldo = $resDebito['saldo_posterior'] ?? $this->contaCorrenteModel->getSaldo($userId);
+
+        return $this->response->setJSON([
+            'success'     => true,
+            'message'     => "Aposta #{$apostaId} confirmada com sucesso! R$ " . number_format($valorAposta, 2, ',', '.') . " debitado da conta corrente.",
+            'novo_saldo'  => $novoSaldo,
+            'id'          => $apostaId,
+            'novo_status' => $novoStatus
         ]);
     }
 
@@ -770,7 +1072,7 @@ class ApostaController extends BaseController
 
         return $this->response->setJSON([
             'success' => false,
-            'message' => 'Script de processamento de apostas não encontrado no servidor.'
+            'message' => 'Script de processamento de simulações de apostas não encontrado no servidor.'
         ]);
     }
 
@@ -1150,7 +1452,7 @@ class ApostaController extends BaseController
         if (empty($apostaId)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'ID da aposta não informado.'
+                'message' => 'ID da simulação de aposta não informado.'
             ]);
         }
 
@@ -1218,7 +1520,7 @@ class ApostaController extends BaseController
         if (!$aposta) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Aposta não encontrada ou não pertence ao seu usuário.'
+                'message' => 'Simulação de aposta não encontrada ou não pertence ao seu usuário.'
             ]);
         }
 
@@ -1449,7 +1751,7 @@ class ApostaController extends BaseController
         if (empty($perdas)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Nenhuma aposta perdida encontrada no período selecionado.'
+                'message' => 'Nenhuma simulação de aposta perdida encontrada no período selecionado.'
             ]);
         }
 
@@ -1852,6 +2154,66 @@ class ApostaController extends BaseController
         } catch (\Exception $e) {
             log_message('error', 'Erro ao auto-popular palpites_gerados: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Exibe o relatório de Análise de Desempenho com gráfico acumulado de valor apostado bruto e lucro líquido real.
+     */
+    public function analiseDesempenho()
+    {
+        $access = $this->checkAccess();
+
+        if (!$access['authenticated']) {
+            session()->setFlashdata('error', 'Você precisa estar logado para acessar a análise de desempenho.');
+            return redirect()->to('/loginUsuario');
+        }
+
+        $userId = $access['user_id'];
+        $hasTokens = $access['has_tokens'];
+        $userCredits = $access['credits'];
+
+        $apostas = [];
+        if ($hasTokens) {
+            $apostas = $this->apostaModel
+                ->where('usuario_id', $userId)
+                ->orderBy('data_hora_jogo', 'ASC')
+                ->orderBy('criado_em', 'ASC')
+                ->findAll();
+
+            $tzUtc = new \DateTimeZone('UTC');
+            $tzBrt = new \DateTimeZone('America/Sao_Paulo');
+
+            foreach ($apostas as &$ap) {
+                $dateToConvert = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : ($ap->criado_em ?? null);
+                if (!empty($dateToConvert)) {
+                    try {
+                        $dt = new \DateTime($dateToConvert, $tzUtc);
+                        $dt->setTimezone($tzBrt);
+                        $ap->data_hora_jogo_brt = $dt->format('Y-m-d H:i:s');
+                        $ap->data_brt_dia = $dt->format('Y-m-d');
+                    } catch (\Exception $e) {
+                        $ap->data_hora_jogo_brt = $dateToConvert;
+                        $ap->data_brt_dia = substr($dateToConvert, 0, 10);
+                    }
+                } else {
+                    $ap->data_hora_jogo_brt = date('Y-m-d H:i:s');
+                    $ap->data_brt_dia = date('Y-m-d');
+                }
+            }
+            unset($ap);
+        }
+
+        $data = [
+            'title'       => 'Análise de Desempenho | Gestão de Riscos & Palpites',
+            'user'        => $access['user'],
+            'hasTokens'   => $hasTokens,
+            'userCredits' => $userCredits,
+            'apostas'     => $apostas
+        ];
+
+        return view('header', $data)
+             . view('apostas/analise_desempenho', $data)
+             . view('footer');
     }
 }
 

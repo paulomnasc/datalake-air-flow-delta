@@ -23,4 +23,10 @@ class SistemaModel extends Model
     protected $dateFormat    = 'datetime';
     protected $createdField  = 'criado_em';
     protected $updatedField  = 'atualizado_em';
+
+    public function listToCombo()
+    {
+        return $this->select('id, nome as descricao, sigla')->orderBy('nome', 'ASC')->findAll();
+    }
 }
+

@@ -60,7 +60,7 @@ default_args = {
 dag = DAG(
     'criar_apostas_handicap_dag',
     default_args=default_args,
-    schedule_interval='*/15 * * * *',  # Executa a cada 15 minutos capturando jogos na janela de pré-jogo (30 a 45 min antes do início)
+    schedule_interval=None,  # DAG desativada (fora do escopo de atuação do usuário)
     catchup=False,
     description="DAG do Airflow que verifica jogos em aberto na janela pré-jogo (30 a 45 min antes do apito inicial) e cria apostas no mercado de Handicap Asiático (Odd Mínima: 1.60)",
     tags=['football', 'handicap', 'apostas', 'prematch_creation']

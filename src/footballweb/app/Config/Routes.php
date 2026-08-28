@@ -59,14 +59,24 @@ $routes->post('/apostas/cashout/(:num)', 'ApostaController::cashout/$1', ['as' =
 $routes->post('/apostas/cashout', 'ApostaController::cashout', ['as' => 'apostas.cashout_post']);
 $routes->post('/apostas/reapostar/(:num)', 'ApostaController::reapostar/$1', ['as' => 'apostas.reapostar']);
 $routes->post('/apostas/reapostar', 'ApostaController::reapostar', ['as' => 'apostas.reapostar_post']);
+$routes->post('/apostas/confirmar/(:num)', 'ApostaController::confirmar/$1', ['as' => 'apostas.confirmar']);
+$routes->post('/apostas/confirmar', 'ApostaController::confirmar', ['as' => 'apostas.confirmar_post']);
 $routes->post('/apostas/processar', 'ApostaController::processar', ['as' => 'apostas.processar']);
 $routes->get('/apostas/relatorio-top5', 'ApostaController::relatorioTop5', ['as' => 'apostas.relatorio_top5']);
 $routes->get('/apostas/relatorioTop5', 'ApostaController::relatorioTop5');
 $routes->get('/apostas/relatorio-ia-perdas', 'ApostaController::relatorioIaPerdas', ['as' => 'apostas.relatorio_ia_perdas']);
 $routes->get('/apostas/relatorio-eficiencia', 'ApostaController::relatorioEficiencia', ['as' => 'apostas.relatorio_eficiencia']);
 $routes->get('/apostas/relatorioEficiencia', 'ApostaController::relatorioEficiencia');
+$routes->get('/apostas/analise-desempenho', 'ApostaController::analiseDesempenho', ['as' => 'apostas.analise_desempenho']);
 $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
+
+// Rotas de Conta Corrente, Extrato e Gráfico de Evolução Financeira
+$routes->get('/apostas/extrato', 'ContaCorrenteController::extrato', ['as' => 'apostas.extrato']);
+$routes->get('/conta-corrente/extrato', 'ContaCorrenteController::extrato', ['as' => 'conta_corrente.extrato']);
+$routes->post('/conta-corrente/adicionar-credito', 'ContaCorrenteController::adicionarCredito', ['as' => 'conta_corrente.adicionar_credito']);
+$routes->post('/conta-corrente/resgatar-credito', 'ContaCorrenteController::resgatarCredito', ['as' => 'conta_corrente.resgatar_credito']);
+$routes->get('/conta-corrente/grafico-dados', 'ContaCorrenteController::getGraficoDados', ['as' => 'conta_corrente.grafico_dados']);
 
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);

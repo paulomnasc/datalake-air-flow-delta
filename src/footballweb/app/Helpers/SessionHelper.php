@@ -155,4 +155,16 @@ class SessionHelper
         // Substitui s3://lab01 pelo bucket do usuário para compatibilidade com queries antigas
         return str_replace('s3://lab01', "s3://{$userBucket}", $text);
     }
+
+    /**
+     * Verifica se o usuário informado ou logado na sessão é 'Paulo Nascimento'
+     * 
+     * @param string|null $name Nome opcional para validar. Se omitido, busca da sessão.
+     * @return bool True se for 'Paulo Nascimento', False caso contrário
+     */
+    public static function isPauloNascimento(?string $name = null): bool
+    {
+        $userName = $name ?? self::getUserName() ?? (function_exists('session') ? session()->get('nome_usuario_logado') : null) ?? '';
+        return strcasecmp(trim((string)$userName), 'Paulo Nascimento') === 0;
+    }
 }

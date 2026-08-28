@@ -14,8 +14,9 @@ class OrdemServicoController extends BaseController
 {
     public function index()
     {
-        $list = $this->list();        
-        return view('listOrdemServico', ['list' => $list]);
+        $list = $this->list();
+        $sistemas_list = (new \App\Models\SistemaModel())->listToCombo();
+        return view('listOrdemServico', ['list' => $list, 'sistemas_list' => $sistemas_list]);
     }
 
     public function add()
@@ -24,6 +25,7 @@ class OrdemServicoController extends BaseController
         $data['servicos_list'] = (new ServicoModel())->findAll();
         $data['catalogos_list'] = (new CatalogoServicosModel())->findAll();
         $data['contratos_list'] = (new \App\Models\ContratoModel())->listToCombo();
+        $data['sistemas_list'] = (new \App\Models\SistemaModel())->listToCombo();
         return view('addOrdemServico', $data);
     }
 
@@ -37,6 +39,7 @@ class OrdemServicoController extends BaseController
         $data['servicos_list'] = (new ServicoModel())->findAll();
         $data['catalogos_list'] = (new CatalogoServicosModel())->findAll();
         $data['contratos_list'] = (new \App\Models\ContratoModel())->listToCombo();
+        $data['sistemas_list'] = (new \App\Models\SistemaModel())->listToCombo();
         
         // Buscar itens existentes
         $db = \Config\Database::connect();
@@ -110,9 +113,58 @@ class OrdemServicoController extends BaseController
     public function list()  
     {
         $model = new OrdemServicoModel();
-        return $model->select('ordem_servico.*, contrato.descricao as Numero_Contrato')
-                     ->join('contrato', 'contrato.id = ordem_servico.id_contrato', 'left')
-                     ->findAll();
+        $list = $model->select('ordem_servico.*, contrato.descricao as Numero_Contrato, agile_sistemas.nome as Nome_Sistema')
+                      ->join('contrato', 'contrato.id = ordem_servico.id_contrato', 'left')
+                      ->join('agile_sistemas', 'agile_sistemas.id = ordem_servico.id_sistema', 'left')
+                      ->findAll();
+
+        $db = \Config\Database::connect();
+
+        foreach ($list as &$osItem) {
+            $dataEmissao = !empty($osItem->Data_Emissao) ? $osItem->Data_Emissao : (!empty($osItem->data_emissao) ? $osItem->data_emissao : date('Y-m-d'));
+            
+            $builder = $db->table('os_item_os oio');
+            $builder->select('
+                io.Quantidade_Horas as quantidade_horas, 
+                s.remuneracao, 
+                s.base_horas_complexidade,
+                mc.sigla as sigla_metrica,
+                (SELECT valor_item_contrato 
+                 FROM reajuste_item_contrato 
+                 WHERE id_item_contrato = cs.id_item_contrato 
+                 AND data_reajuste_item_contrato <= ' . $db->escape($dataEmissao) . ' 
+                 ORDER BY data_reajuste_item_contrato DESC LIMIT 1) as valor_item_contrato
+            ');
+            $builder->join('item_os io', 'io.id = oio.id_item_os');
+            $builder->join('servico s', 's.id = io.id_servico', 'left');
+            $builder->join('atividade_macro am', 'am.id = s.id_atividade_macro', 'left');
+            $builder->join('area_atuacao aa', 'aa.id = am.id_area_atuacao', 'left');
+            $builder->join('catalogo_servicos cs', 'cs.id = aa.id_catalogo_servicos', 'left');
+            $builder->join('item_contrato ic', 'ic.id = cs.id_item_contrato', 'left');
+            $builder->join('metrica_contrato mc', 'mc.id = ic.id_metrica', 'left');
+            $builder->where('oio.id_os', $osItem->id);
+            $itens = $builder->get()->getResult();
+            
+            $totalOs = 0;
+            foreach ($itens as $item) {
+                $valContrato = isset($item->valor_item_contrato) ? (float)$item->valor_item_contrato : 0;
+                $remun = isset($item->remuneracao) ? (float)$item->remuneracao : 0;
+                $baseHoras = isset($item->base_horas_complexidade) ? (float)$item->base_horas_complexidade : 0;
+                $qtd = isset($item->quantidade_horas) ? (float)$item->quantidade_horas : 0;
+                
+                $sigla = isset($item->sigla_metrica) ? strtoupper($item->sigla_metrica) : 'H';
+                if ($sigla === 'PROF') {
+                    $totalOs += $qtd * $baseHoras;
+                } elseif ($sigla === 'PF') {
+                    $totalOs += $qtd * $valContrato;
+                } else {
+                    $totalOs += $qtd * $remun * $valContrato;
+                }
+            }
+            $osItem->valor_total = $totalOs;
+        }
+
+        return $list;
     }
 
     public function insert() 
@@ -122,6 +174,14 @@ class OrdemServicoController extends BaseController
             return $this->response->setJSON([
                 'status' => 'error',
                 'mensagem' => 'O Contrato é obrigatório.'
+            ]);
+        }
+
+        $id_sistema = $this->post('id_sistema');
+        if (empty($id_sistema)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'O Sistema é obrigatório.'
             ]);
         }
 
@@ -177,7 +237,8 @@ class OrdemServicoController extends BaseController
             'metodologia_estimativa' => $this->post('metodologia_estimativa'),
             'status' => $status,
             'nota_empenho' => $notaEmpenho ?: null,
-            'id_contrato' => $id_contrato
+            'id_contrato' => $id_contrato,
+            'id_sistema' => $id_sistema
         ];
         
         $model = new OrdemServicoModel();
@@ -246,6 +307,14 @@ class OrdemServicoController extends BaseController
             return $this->response->setJSON([
                 'status' => 'error',
                 'mensagem' => 'O Contrato é obrigatório.'
+            ]);
+        }
+
+        $id_sistema = $this->post('id_sistema');
+        if (empty($id_sistema)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'mensagem' => 'O Sistema é obrigatório.'
             ]);
         }
 
@@ -322,10 +391,11 @@ class OrdemServicoController extends BaseController
         $allowedManualTransitions = [
             'Rascunho' => ['Rascunho', 'Aguardando assinatura'],
             'Aguardando assinatura' => ['Aguardando assinatura', 'Execução'],
-            'Execução' => ['Execução'],
+            'Execução' => ['Execução', 'Cancelada'],
             'Recebido Provisorio' => ['Recebido Provisorio'],
             'Recebido definitivo' => ['Recebido definitivo'],
-            'Concluido' => ['Concluido']
+            'Concluido' => ['Concluido'],
+            'Cancelada' => ['Cancelada']
         ];
 
         if (!in_array($newStatus, $allowedManualTransitions[$currentStatus])) {
@@ -344,7 +414,8 @@ class OrdemServicoController extends BaseController
             'metodologia_estimativa' => $this->post('metodologia_estimativa'),
             'status' => $newStatus,
             'nota_empenho' => $notaEmpenho ?: null,
-            'id_contrato' => $id_contrato
+            'id_contrato' => $id_contrato,
+            'id_sistema' => $id_sistema
         ];
         
         $db = \Config\Database::connect();
@@ -574,7 +645,8 @@ class OrdemServicoController extends BaseController
                 'metodologia_estimativa' => $record->metodologia_estimativa ?? $record->Metodologia_Estimativa ?? null,
                 'status'                 => 'Rascunho',
                 'nota_empenho'           => null,
-                'id_contrato'            => $record->id_contrato ?? $record->Id_Contrato ?? null
+                'id_contrato'            => $record->id_contrato ?? $record->Id_Contrato ?? null,
+                'id_sistema'             => $record->id_sistema ?? $record->Id_Sistema ?? null
             ];
 
             $newOsId = $model->insert($data);

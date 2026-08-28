@@ -30,6 +30,7 @@ class ApostaModel extends Model
         'cash_out',
         'tipo',
         'status',
+        'confirmada',
         'resultado_detalhado',
         'analise_ia_perda',
         'analise_ia_data',

@@ -12,8 +12,22 @@ require VIEWPATH.'/header.php';
             <input type="hidden" name="id" value="<?php echo isset($record->id) ? $record->id : ''; ?>">
             
             <div class="form-group">
-                <label for="id_item_contrato">ID Item Contrato:</label>
-                <input type="number" id="id_item_contrato" name="id_item_contrato" value="<?php echo isset($record->id_item_contrato) ? $record->id_item_contrato : ''; ?>" required>
+                <label for="id_contrato">Contrato:</label>
+                <select id="id_contrato" required>
+                    <option value="">Selecione o Contrato...</option>
+                    <?php if(isset($contrato_list)): foreach($contrato_list as $c): ?>
+                        <option value="<?php echo $c->id; ?>" <?php echo (isset($selected_id_contrato) && $selected_id_contrato == $c->id) ? 'selected' : ''; ?>>
+                            <?php echo 'Contrato #' . $c->id . ' - ' . (isset($c->descricao) ? $c->descricao : '') . ($c->empresa ? ' (' . $c->empresa . ')' : ''); ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_item_contrato">Item Contrato:</label>
+                <select id="id_item_contrato" name="id_item_contrato" required>
+                    <option value="">Selecione o Item do Contrato...</option>
+                </select>
             </div>
 
             <div class="form-group">
@@ -33,7 +47,45 @@ require VIEWPATH.'/header.php';
         </form>
 
         <script>
+            const allItems = <?php echo json_encode($item_contrato_list ?? []); ?>;
+            const currentItemContratoId = <?php echo json_encode($record->id_item_contrato ?? null); ?>;
+
+            function populateItems(contratoId, selectedItemId) {
+                const itemSelect = $('#id_item_contrato');
+                itemSelect.empty();
+
+                if (!contratoId) {
+                    itemSelect.append('<option value="">Selecione primeiro o Contrato...</option>');
+                    itemSelect.prop('disabled', true);
+                    return;
+                }
+
+                const filteredItems = allItems.filter(item => item.id_contrato == contratoId);
+
+                if (filteredItems.length === 0) {
+                    itemSelect.append('<option value="">Nenhum item encontrado para este contrato</option>');
+                    itemSelect.prop('disabled', true);
+                } else {
+                    itemSelect.append('<option value="">Selecione o Item do Contrato...</option>');
+                    filteredItems.forEach(item => {
+                        const isSel = selectedItemId && item.id == selectedItemId ? 'selected' : '';
+                        const desc = `Item #${item.id} - ${item.Objeto || 'Sem Objeto'} (Nº: ${item.Numero_Contrato || '-'})`;
+                        itemSelect.append(`<option value="${item.id}" ${isSel}>${desc}</option>`);
+                    });
+                    itemSelect.prop('disabled', false);
+                }
+            }
+
             $(document).ready(function() {
+                const initialContratoId = $('#id_contrato').val();
+                if (initialContratoId) {
+                    populateItems(initialContratoId, currentItemContratoId);
+                }
+
+                $('#id_contrato').on('change', function() {
+                    populateItems($(this).val(), null);
+                });
+
                 $('#updForm').on('submit', function(e) {
                     e.preventDefault();
                     $.ajax({

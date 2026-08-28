@@ -11,6 +11,7 @@ import re
 import pymysql
 import hashlib
 import random
+import requests
 from datetime import datetime, timedelta
 
 def get_db_connection():
@@ -50,58 +51,253 @@ def get_db_connection():
         print(f"❌ [ERRO CRÍTICO] Falha ao conectar no MySQL: {e}")
         sys.exit(1)
 
-def ensure_fixture_stats(cursor, fixture):
+def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descricao=None):
     """
-    Garante estatísticas realistas de fim de jogo (FT) para a partida encerrada se estiverem NULL.
+    Credita o retorno de uma aposta resolvida/ganha/anulada na conta_corrente e atualiza usuario.saldo_conta_corrente.
+    Possui checagem anti-duplicidade (idempotência) para evitar creditar a mesma aposta duas vezes.
     """
-    fixture_id = fixture['fixture_id']
-    home = fixture['home_team']
-    away = fixture['away_team']
-    
-    # Se cartões/gols forem nulos, gera valores realistas determinísticos baseados nas equipes
-    seed_str = f"{fixture_id}_{home}_{away}"
-    r = random.Random(int(hashlib.md5(seed_str.encode('utf-8')).hexdigest(), 16))
-    
-    yellow_home = fixture.get('yellow_cards_home')
-    if yellow_home is None:
-        yellow_home = r.randint(1, 3)
-        
-    yellow_away = fixture.get('yellow_cards_away')
-    if yellow_away is None:
-        yellow_away = r.randint(1, 3)
-        
-    red_home = fixture.get('red_cards_home') if fixture.get('red_cards_home') is not None else 0
-    red_away = fixture.get('red_cards_away') if fixture.get('red_cards_away') is not None else 0
-    
+    try:
+        valor = float(valor or 0.0)
+        if valor <= 0 or not usuario_id:
+            return False
+
+        cursor.execute("""
+            SELECT id FROM conta_corrente 
+            WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'CREDITO_RETORNO_APOSTA'
+            LIMIT 1
+        """, (usuario_id, aposta_id))
+        if cursor.fetchone():
+            return False
+
+        if not descricao:
+            descricao = f"Retorno Aposta #{aposta_id} ({status})"
+
+        cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (usuario_id,))
+        row_u = cursor.fetchone()
+        if row_u and row_u.get('saldo_conta_corrente') is not None:
+            saldo_anterior = float(row_u['saldo_conta_corrente'])
+        else:
+            cursor.execute("""
+                SELECT saldo_posterior FROM conta_corrente 
+                WHERE usuario_id = %s 
+                ORDER BY id DESC LIMIT 1
+            """, (usuario_id,))
+            row_cc = cursor.fetchone()
+            saldo_anterior = float(row_cc['saldo_posterior']) if row_cc and row_cc.get('saldo_posterior') is not None else 0.0
+
+        saldo_posterior = round(saldo_anterior + valor, 2)
+
+        cursor.execute("""
+            INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em)
+            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, NOW())
+        """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior))
+
+        cursor.execute("""
+            UPDATE usuario
+            SET saldo_conta_corrente = %s
+            WHERE id = %s
+        """, (saldo_posterior, usuario_id))
+
+        print(f"💰 [Crédito Conta Corrente] Aposta #{aposta_id} -> Creditado R$ {valor:.2f} para Usuário #{usuario_id} (Novo Saldo: R$ {saldo_posterior:.2f})")
+        return True
+    except Exception as e:
+        print(f"⚠️ Erro ao creditar retorno da aposta #{aposta_id} na conta corrente: {e}")
+        return False
+
+def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
+    """
+    Busca estatísticas e eventos oficiais de cartões na API-Sports para a partida.
+    Verifica primeiro se os cartões já estão armazenados no cache local (match_statistics_cache ou fixtures_trends).
+    """
+    if cursor is not None and fixture_id:
+        try:
+            cursor.execute("""
+                SELECT yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away, last_event,
+                       cards_api_checked_at, cards_api_retry_count
+                FROM fixtures_trends 
+                WHERE fixture_id = %s
+                LIMIT 1
+            """, (fixture_id,))
+            row = cursor.fetchone()
+            if row:
+                yh = row.get('yellow_cards_home', 0) or 0
+                ya = row.get('yellow_cards_away', 0) or 0
+                rh = row.get('red_cards_home', 0) or 0
+                ra = row.get('red_cards_away', 0) or 0
+                last_ev = row.get('last_event')
+                checked_at = row.get('cards_api_checked_at')
+                retry_cnt = row.get('cards_api_retry_count', 0) or 0
+
+                if checked_at is not None:
+                    if (yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != ''):
+                        return (yh, ya, rh, ra)
+
+                    if isinstance(checked_at, datetime):
+                        hours_since_check = (datetime.now() - checked_at).total_seconds() / 3600.0
+                        if hours_since_check < 6.0:
+                            print(f"⏳ [Cooldown API] Fixture #{fixture_id} consultada há {hours_since_check:.1f}h (tentativas: {retry_cnt}). Pulando chamada HTTP para economizar cota.")
+                            return None
+            
+            cursor.execute("""
+                SELECT team_id, yellow_cards, red_cards 
+                FROM match_statistics_cache 
+                WHERE fixture_id = %s
+            """, (fixture_id,))
+            cache_rows = cursor.fetchall()
+            if cache_rows and len(cache_rows) > 0:
+                yh, ya, rh, ra = 0, 0, 0, 0
+                found = False
+                for r in cache_rows:
+                    t_id = r.get('team_id')
+                    is_home = (t_id == home_team_id) if (home_team_id and t_id) else True
+                    if is_home:
+                        yh = r.get('yellow_cards', 0) or 0
+                        rh = r.get('red_cards', 0) or 0
+                        found = True
+                    else:
+                        ya = r.get('yellow_cards', 0) or 0
+                        ra = r.get('red_cards', 0) or 0
+                        found = True
+                if found:
+                    return (yh, ya, rh, ra)
+        except Exception as e_cache:
+            print(f"⚠️ Erro ao consultar cache local para fixture #{fixture_id}: {e_cache}")
+
+    api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
+    headers = {'x-apisports-key': api_key, 'User-Agent': 'Mozilla/5.0'}
+    yh, ya, rh, ra = None, None, None, None
+    api_success = False
+
+    try:
+        url_st = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}"
+        res_st = requests.get(url_st, headers=headers, timeout=10)
+        if res_st.status_code == 200:
+            api_success = True
+            st_data = res_st.json().get("response", [])
+            for idx, team_st in enumerate(st_data):
+                t_id = team_st.get("team", {}).get("id")
+                is_home = (t_id == home_team_id) if home_team_id else (idx == 0)
+                for s in team_st.get("statistics", []):
+                    s_type = (s.get("type") or "").strip()
+                    s_val = s.get("value")
+                    if s_type == "Yellow Cards" and s_val is not None:
+                        if is_home: yh = int(s_val)
+                        else: ya = int(s_val)
+                    elif s_type == "Red Cards" and s_val is not None:
+                        if is_home: rh = int(s_val)
+                        else: ra = int(s_val)
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar estatísticas na API para fixture {fixture_id}: {e}")
+
+    try:
+        url_ev = f"https://v3.football.api-sports.io/fixtures/events?fixture={fixture_id}"
+        res_ev = requests.get(url_ev, headers=headers, timeout=10)
+        if res_ev.status_code == 200:
+            api_success = True
+            ev_data = res_ev.json().get("response", [])
+            eyh, eya, erh, era = 0, 0, 0, 0
+            has_card_events = False
+            for ev in ev_data:
+                if ev.get("type") == "Card":
+                    has_card_events = True
+                    t_id = ev.get("team", {}).get("id")
+                    is_home = (t_id == home_team_id) if home_team_id else True
+                    detail = ev.get("detail", "")
+                    if "Yellow" in detail:
+                        if is_home: eyh += 1
+                        else: eya += 1
+                    elif "Red" in detail:
+                        if is_home: erh += 1
+                        else: era += 1
+            if has_card_events or yh is None:
+                yh = max(yh if yh is not None else 0, eyh)
+                ya = max(ya if ya is not None else 0, eya)
+                rh = max(rh if rh is not None else 0, erh)
+                ra = max(ra if ra is not None else 0, era)
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar eventos na API para fixture {fixture_id}: {e}")
+
+    if not api_success and yh is None and ya is None:
+        return None
+
+    res_tuple = (
+        yh if yh is not None else 0,
+        ya if ya is not None else 0,
+        rh if rh is not None else 0,
+        ra if ra is not None else 0
+    )
+
+    if cursor is not None and fixture_id and api_success:
+        try:
+            if home_team_id:
+                cursor.execute("""
+                    INSERT INTO match_statistics_cache (fixture_id, team_id, corners, yellow_cards, red_cards)
+                    VALUES (%s, %s, 0, %s, %s)
+                    ON DUPLICATE KEY UPDATE yellow_cards = VALUES(yellow_cards), red_cards = VALUES(red_cards)
+                """, (fixture_id, home_team_id, res_tuple[0], res_tuple[2]))
+
+            total_c = (res_tuple[0] + res_tuple[1] + res_tuple[2] + res_tuple[3])
+            if total_c > 0:
+                cursor.execute("UPDATE fixtures_trends SET cards_api_checked_at = NOW(), cards_api_retry_count = 0 WHERE fixture_id = %s", (fixture_id,))
+            else:
+                cursor.execute("UPDATE fixtures_trends SET cards_api_checked_at = NOW(), cards_api_retry_count = cards_api_retry_count + 1 WHERE fixture_id = %s", (fixture_id,))
+        except Exception:
+            pass
+
+    return res_tuple
+
+def get_fixture_stats(fixture, cursor=None):
+    """
+    Extrai as estatísticas reais finais da partida (FT).
+    Retorna None se os dados de gols ou status do jogo estiverem incompletos/nulos no banco.
+    """
+    status = (fixture.get('status') or '').strip().upper()
+    finished_statuses = ['FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED']
+    if status not in finished_statuses:
+        return None
+
     goals_home = fixture.get('goals_home')
-    if goals_home is None:
-        goals_home = r.randint(1, 3)
-        
     goals_away = fixture.get('goals_away')
-    if goals_away is None:
-        goals_away = r.randint(0, 2)
-        
-    corners_home = fixture.get('corners_home') if fixture.get('corners_home') is not None else r.randint(3, 7)
-    corners_away = fixture.get('corners_away') if fixture.get('corners_away') is not None else r.randint(2, 6)
-    
-    # Atualiza fixture como Encerrada (FT) com estatísticas no banco
-    cursor.execute("""
-        UPDATE fixtures_trends
-        SET status = 'FT',
-            goals_home = %s,
-            goals_away = %s,
-            yellow_cards_home = %s,
-            yellow_cards_away = %s,
-            red_cards_home = %s,
-            red_cards_away = %s,
-            corners_home = %s,
-            corners_away = %s,
-            updated_at = NOW()
-        WHERE fixture_id = %s
-    """, (goals_home, goals_away, yellow_home, yellow_away, red_home, red_away, corners_home, corners_away, fixture_id))
+
+    if goals_home is None or goals_away is None:
+        return None
+
+    yellow_home = fixture.get('yellow_cards_home')
+    yellow_away = fixture.get('yellow_cards_away')
+    red_home = fixture.get('red_cards_home')
+    red_away = fixture.get('red_cards_away')
+
+    if (yellow_home is None or yellow_away is None or (yellow_home == 0 and yellow_away == 0 and not fixture.get('last_event'))) and fixture.get('fixture_id'):
+        fid = fixture['fixture_id']
+        htid = fixture.get('home_team_id')
+        cards_res = fetch_real_fixture_cards_api(fid, htid, cursor=cursor)
+        if cards_res is not None:
+            yh, ya, rh, ra = cards_res
+        else:
+            yh, ya, rh, ra = None, None, None, None
+
+        if yh is not None:
+            yellow_home, yellow_away, red_home, red_away = yh, ya, rh, ra
+            if cursor:
+                cursor.execute("""
+                    UPDATE fixtures_trends
+                    SET yellow_cards_home = %s,
+                        yellow_cards_away = %s,
+                        red_cards_home = %s,
+                        red_cards_away = %s,
+                        updated_at = NOW()
+                    WHERE fixture_id = %s
+                """, (yellow_home, yellow_away, red_home, red_away, fid))
+
+    yellow_home = yellow_home or 0
+    yellow_away = yellow_away or 0
+    red_home = red_home or 0
+    red_away = red_away or 0
+    corners_home = fixture.get('corners_home') or 0
+    corners_away = fixture.get('corners_away') or 0
 
     return {
-        'status': 'FT',
+        'status': status,
         'goals_home': goals_home,
         'goals_away': goals_away,
         'yellow_cards_home': yellow_home,
@@ -175,47 +371,68 @@ def evaluate_bet(aposta, stats):
         adj = diff_gols + line
 
         if adj > 0.25:
-            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta GANHA!"
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta GANHA!"
             return 'Ganha', detalhe, ganhos_originais
         elif abs(adj - 0.25) < 0.01:
             # MEIO GANHA (50% ganha na odd + 50% reembolsada)
             valor_computado = valor_aposta * ((odd_original + 1.0) / 2.0)
-            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO GANHA (Retorno R$ {valor_computado:.2f})"
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO GANHA (Retorno R$ {valor_computado:.2f})"
             return 'Meio Ganha', detalhe, valor_computado
         elif abs(adj) < 0.01:
             # ANULADA (100% Reembolsada)
-            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta ANULADA (Reembolso R$ {valor_aposta:.2f})"
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta ANULADA (Reembolso R$ {valor_aposta:.2f})"
             return 'ANULADA', detalhe, valor_aposta
         elif abs(adj - (-0.25)) < 0.01:
             # MEIO PERDIDA (50% Reembolsada + 50% Perdida)
             valor_computado = valor_aposta * 0.5
-            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO PERDIDA (Retorno R$ {valor_computado:.2f})"
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> MEIO PERDIDA (Retorno R$ {valor_computado:.2f})"
             return 'Meio Perdida', detalhe, valor_computado
         else:
             # PERDIDA (100% Perdida)
-            detalhe = f"FT 23:00 | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta PERDIDA"
+            detalhe = f"FT | Placar: {goals_home}x{goals_away} | Palpite: {team_bet} ({line:+.2f} AH) -> Aposta PERDIDA"
             return 'Perdida', detalhe, 0.0
 
-    # 1. MERCADO: TOTAL DE CARTÕES (Ex: "Menos de 6.5", "Menos de 4.5", "Mais de 5.5")
+    # 1. MERCADO: CARTÕES (Total da partida ou por time individual)
     if 'cart' in mercado_norm or 'cart' in palpite_norm:
         match_thresh = re.search(r'(\d+(?:\.\d+)?)', palpite)
-        threshold = float(match_thresh.group(1)) if match_thresh else 6.5
+        threshold = float(match_thresh.group(1)) if match_thresh else 5.5
         
+        cards_home = (stats.get('yellow_cards_home') or 0) + (stats.get('red_cards_home') or 0)
+        cards_away = (stats.get('yellow_cards_away') or 0) + (stats.get('red_cards_away') or 0)
+
+        tc_lower = (time_casa or '').lower()
+        tf_lower = (time_fora or '').lower()
+
+        is_home_target = False
+        is_away_target = False
+
+        if (tc_lower and tc_lower in palpite_norm) or (tc_lower and tc_lower in mercado_norm) or 'time casa' in palpite_norm or 'time casa' in mercado_norm:
+            is_home_target = True
+        elif (tf_lower and tf_lower in palpite_norm) or (tf_lower and tf_lower in mercado_norm) or 'time fora' in palpite_norm or 'time fora' in mercado_norm:
+            is_away_target = True
+
+        if is_home_target:
+            actual_cards = cards_home
+            target_name = f"Cartões Time Casa ({time_casa})"
+        elif is_away_target:
+            actual_cards = cards_away
+            target_name = f"Cartões Time Fora ({time_fora})"
+        else:
+            actual_cards = total_cards
+            target_name = "Total Cartões Jogo"
+
         is_under = ('menos' in palpite_norm or 'abaixo' in palpite_norm or 'under' in palpite_norm)
         is_over  = ('mais' in palpite_norm or 'acima' in palpite_norm or 'over' in palpite_norm)
         
-        if is_under:
-            won = (total_cards < threshold)
-            comp = "<"
-        elif is_over:
-            won = (total_cards > threshold)
+        if is_over:
+            won = (actual_cards > threshold)
             comp = ">"
         else:
-            won = (total_cards < threshold)
+            won = (actual_cards < threshold)
             comp = "<"
 
         status_str = 'Ganha' if won else 'Perdida'
-        detalhe = f"FT 23:00 | Total Cartões: {total_cards} ({stats['yellow_cards_home']}C+{stats['yellow_cards_away']}F) {comp} {threshold} -> Aposta {status_str.upper()}"
+        detalhe = f"FT | {target_name}: {actual_cards} {comp} Limite {threshold} -> Aposta {status_str.upper()}"
         return status_str, detalhe, (ganhos_originais if won else 0.0)
 
     # 2. MERCADO: GOLS (Ex: "Menos de 2.5", "Mais de 2.5")
@@ -310,29 +527,15 @@ def process_pending_bets():
         fixture = cursor.fetchone()
 
         if not fixture:
-            # Criar fixture sintética se não existir
-            print(f"⚠️ Fixture não encontrada no banco para {time_casa} vs {time_fora}. Criando registro encerrado para hoje...")
-            fixture_id = int(datetime.now().strftime("%Y%m%d")) + random.randint(100, 999)
-            cursor.execute("""
-                INSERT INTO fixtures_trends (fixture_id, fixture_date, league_id, league_name, home_team, away_team, status)
-                VALUES (%s, NOW(), 71, 'Brasileirão Série A', %s, %s, 'FT')
-            """, (fixture_id, time_casa, time_fora))
-            
-            cursor.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
-            fixture = cursor.fetchone()
+            print(f"⏳ Fixture não encontrada no banco para {time_casa} vs {time_fora}. Aposta #{aposta_id} permanece Pendente.")
+            continue
 
-        # Verificar se a partida já aconteceu / finalizou
-        fixture_date = fixture.get('fixture_date')
-        status = fixture.get('status')
-        now = datetime.now()
-
-        if status != 'FT':
-            if fixture_date and (fixture_date + timedelta(minutes=110)) > now:
-                print(f"⏳ Partida {time_casa} vs {time_fora} ({fixture_date}) ainda não finalizou. Aposta #{aposta_id} permanece Pendente.")
-                continue
-
-        # Atualizar/Obter estatísticas de encerramento do jogo
-        stats = ensure_fixture_stats(cursor, fixture)
+        # Obter estatísticas reais de encerramento do jogo
+        stats = get_fixture_stats(fixture, cursor)
+        if not stats:
+            status_curr = fixture.get('status', 'NS')
+            print(f"⏳ Partida {time_casa} vs {time_fora} com status '{status_curr}' ou estatísticas nulas/incompletas. Aposta #{aposta_id} permanece Pendente.")
+            continue
 
         # Avaliar Aposta
         novo_status, detalhe, valor_computado = evaluate_bet(aposta, stats)
@@ -347,6 +550,16 @@ def process_pending_bets():
                 updated_at = NOW()
             WHERE id = %s
         """, (novo_status, detalhe, valor_computado, aposta_id))
+
+        if novo_status in ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida']:
+            creditar_retorno_aposta(
+                cursor,
+                aposta.get('usuario_id'),
+                aposta_id,
+                valor_computado,
+                novo_status,
+                f"Retorno Aposta #{aposta_id} ({time_casa} x {time_fora} - {novo_status})"
+            )
 
         processadas += 1
         if novo_status == 'Ganha':
@@ -464,7 +677,7 @@ def process_palpites_gerados(cursor):
                f.corners_home, f.corners_away
         FROM palpites_gerados p
         JOIN fixtures_trends f ON p.fixture_id = f.fixture_id
-        WHERE f.status = 'FT'
+        WHERE f.status IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED')
     """)
     palpites = cursor.fetchall()
     
@@ -501,7 +714,7 @@ def process_palpites_gerados(cursor):
         FROM fixtures_trends f
         LEFT JOIN palpites_gerados p ON f.fixture_id = p.fixture_id
         WHERE p.id_palpite IS NULL
-          AND f.status = 'FT'
+          AND f.status IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED')
         LIMIT 300
     """)
     fixtures_sem_palpite = cursor.fetchall()

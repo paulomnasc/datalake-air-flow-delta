@@ -32,10 +32,10 @@ require VIEWPATH.'/header.php';
                 <form method="get" action="<?= route_to('agile.demandas') ?>" id="filter-form" class="row g-2 align-items-center">
                     <div class="col-auto">
                         <label for="id_sistema" class="col-form-label form-label-sm fw-bold text-secondary mb-0">
-                            <i class="fas fa-filter me-1"></i> Filtrar por Sistema:
+                            <i class="fas fa-filter me-1"></i> Sistema:
                         </label>
                     </div>
-                    <div class="col-auto" style="min-width: 250px;">
+                    <div class="col-auto" style="min-width: 200px;">
                         <select name="id_sistema" id="id_sistema" class="form-select form-select-sm" onchange="this.form.submit()">
                             <option value="">-- Todos os Sistemas --</option>
                             <?php if (!empty($sistemas)): ?>
@@ -47,8 +47,27 @@ require VIEWPATH.'/header.php';
                             <?php endif; ?>
                         </select>
                     </div>
-                    <?php if (!empty($sistema_selecionado)): ?>
-                        <div class="col-auto">
+
+                    <div class="col-auto ms-2">
+                        <label for="status" class="col-form-label form-label-sm fw-bold text-secondary mb-0">
+                            Status:
+                        </label>
+                    </div>
+                    <div class="col-auto" style="min-width: 200px;">
+                        <select name="status" id="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">-- Todos os Status --</option>
+                            <?php if (!empty($status_list)): ?>
+                                <?php foreach ($status_list as $st): ?>
+                                    <option value="<?= htmlspecialchars($st) ?>" <?= (isset($status_selecionado) && $status_selecionado === $st) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($st) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                    </div>
+
+                    <?php if (!empty($sistema_selecionado) || !empty($status_selecionado)): ?>
+                        <div class="col-auto ms-2">
                             <a href="<?= route_to('agile.demandas') ?>" class="btn btn-outline-secondary btn-sm" title="Limpar Filtro">
                                 <i class="fas fa-times me-1"></i> Limpar filtro
                             </a>
@@ -99,6 +118,7 @@ require VIEWPATH.'/header.php';
                                 if ($demanda->status === 'Em Execução') $badgeClass = 'bg-primary';
                                 if ($demanda->status === 'Homologação') $badgeClass = 'bg-warning text-dark';
                                 if ($demanda->status === 'Atualizado Produção' || $demanda->status === 'Atualizado Produção (Esteira SERPRO)') $badgeClass = 'bg-success';
+                                if ($demanda->status === 'Cancelada') $badgeClass = 'bg-danger';
                                 ?>
                                 <span class="badge <?= $badgeClass ?>"><?= htmlspecialchars($demanda->status) ?></span>
                             </td>

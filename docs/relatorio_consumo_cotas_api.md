@@ -1,41 +1,42 @@
 # 📊 Relatório de Consumo de Cotas - API-Sports (Pro Plan)
 
-Este documento detalha o impacto no consumo de requisições da **API-Sports (API-Football)** após a alteração da frequência da DAG para **30 minutos** e a inclusão da ingestão direta de **Odds de Mercado (Betano / Bet365 / Pinnacle)** via API oficial.
+Este documento detalha o impacto no consumo de requisições da **API-Sports (API-Football)** após a alteração da frequência da DAG para **30 minutos**, a análise do estouro de cota do dia e as travas de proteção implementadas no código.
 
 ---
 
 ## 📈 Resumo do Plano e Limites
 
 * **Plano Ativo**: `PRO PLAN`
-* **Cota Diária Disponível**: **7.500 requisições / dia** (reseta diariamente às 00:00 UTC)
-* **Status Atual no Momento da Análise**: ~41% Usado (restavam 4.392 requisições no dia)
+* **Cota Diária Disponível**: **7.500 requisições / dia** (reseta diariamente às 00:00 UTC / 21:00 BRT)
 
 ---
 
-## 🔍 Comparativo: Antes vs. Pós-Mudanças de Hoje
+## 🚨 Análise do Estouro de Cota Diária e Causa Raiz (Post-Mortem)
 
-| Parâmetro / Componente | Cenário Anterior (DAG 3h) | Pós-Mudança 1 (DAG 30min) | Pós-Mudança 2 (DAG 30min + API Odds) |
-| :--- | :--- | :--- | :--- |
-| **Frequência da DAG** | A cada 3 horas (8x/dia) | A cada 30 minutos (48x/dia) | A cada 30 minutos (48x/dia) |
-| **Requisições de Fixtures/Datas** | ~16 req/dia | ~96 req/dia | ~96 req/dia |
-| **Requisições de Odds de Mercado** | 0 req (usava Scraping web falho) | 0 req (usava Scraping web falho) | **~96 req/dia** (`/odds?date=...`) |
-| **Estatísticas/Cache Local (MySQL)** | ~50 req/dia | ~150 req/dia | ~150 req/dia |
-| **Consumo Total Diário Estimado** | **~66 a 100 req/dia** | **~246 a 300 req/dia** | **~342 a 400 req/dia** |
-| **% Utilizada do Plano Pro (7.500)** | **~1,3%** | **~3,3%** | **~5,3%** |
-| **Margem Diária Restante Livre** | **~7.400 (98,7%)** | **~7.200 (96,7%)** | **~7.100 (94,7%)** |
+Apesar da estimativa inicial prever ~400 requisições/dia considerando apenas chamadas em lote (`/odds?date=...` e `/fixtures?date=...`), a cota diária de 7.500 requisições foi atingida devido a **chamadas individuais por fixture dentro de loops a cada 30 minutos**:
+
+1. **Requisições de Estatísticas e Eventos por Partida Encerrada/Ao Vivo**:
+   * O script realizava chamadas individuais para `/fixtures/statistics?fixture={id}` e `/fixtures/events?fixture={id}` em partidas que já estavam com status `FT` (Encerradas), sem verificar se as estatísticas já constavam no banco MySQL.
+   * Em dias com ~50 jogos finalizados ou em andamento, isso gerava **100 requisições por execução**. Multiplicado por 48 execuções diárias = **~4.800 requisições/dia**.
+
+2. **Fallback de Odds Individuais por Fixture (`/odds?fixture={id}`)**:
+   * Quando uma partida não retornava no lote global de odds por data, o código efetuava uma requisição HTTP individual `/odds?fixture={id}` por partida. Com 30+ partidas sem odds no lote global, isso somava **~1.500 a 2.500 requisições/dia**.
+
+3. **Total Acumulado**:
+   * **~4.800 (stats/eventos) + ~2.400 (odds individuais) + ~500 (fixtures/datas) = > 7.700 requisições/dia**, ultrapassando o limite diário de 7.500 do plano PRO.
 
 ---
 
-## 🎯 Por que a Ingestão de Odds da API é Essencial e Segura?
+## 🛡️ Trava de Proteção Estrita Implementada no Código
 
-1. **Eliminação de Odds Sintéticas ("POISSON")**:
-   * **Como estava antes**: Quando a raspagem da Oddspedia falhava, o script gerava odds hipotéticas chamadas `POISSON` e gravava no banco. O modelo de Handicap e xG lia essas odds falsas como se fossem da Betano, distorcendo severamente os palpites (ex: Willem II vs NEC Nijmegen).
-   * **Como ficará**: A consulta oficial `/odds?date=YYYY-MM-DD` traz as odds reais da Betano/Bet365/Pinnacle direto por `fixture_id`, sem falha de matching de nomes.
+Para eliminar permanentemente o consumo excessivo sem perder dados, aplicamos as seguintes mudanças em `scripts/football_ingest_trends.py`:
 
-2. **Consumo Extremamente Baixo por Chamada de Odds**:
-   * A API-Sports permite buscar **todas as odds de todas as partidas de uma data** em apenas **1 chamada HTTP** (`/odds?date=2026-08-15`).
-   * Em dias com mais de 50 jogos, consome 2 a 3 chamadas paginadas por execução.
-   * Mesmo executando 48 vezes ao dia, o custo total de odds é de apenas **~96 requisições/dia**.
+1. **Cache Local no MySQL para Partidas Encerradas (`FT`)**:
+   * Partidas encerradas com estatísticas (`xg_home`, `corners_home`, etc.) já salvas no MySQL **não fazem nenhuma chamada HTTP** para `/statistics` ou `/events`.
 
-3. **Conclusão**:
-   A cota de **7.500 requisições/dia** do seu Plano PRO é **largamente superior** à necessidade do projeto. As mudanças aumentam o consumo de **1,3% para apenas 5,3%** da cota diária, garantindo 100% de precisão nos palpites e na ancoragem com as casas de apostas.
+2. **Eliminação de Chamadas de Odds Individuais em Loop**:
+   * O fallback por fixture individual (`/odds?fixture=X`) foi **desativado**. A busca de odds consome estritamente 1 a 3 chamadas em lote por data (`/odds?date=YYYY-MM-DD`).
+   * Partidas ausentes no lote oficial utilizam automaticamente o scraper gratuito de Oddspedia/Futbol24.
+
+3. **Redução Projetada pós-Correção**:
+   * **Consumo Total com Travas**: **~180 a 250 requisições / dia** (~3,3% da cota do Plano Pro), garantindo **96,7% de margem livre diária** de segurança.

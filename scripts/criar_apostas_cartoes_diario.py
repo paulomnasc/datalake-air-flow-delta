@@ -555,25 +555,26 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         league_id = fix.get('league_id')
         league_name = fix.get('league_name') or ''
 
-        # Helper para cancelar apostas pendentes caso a partida não passe mais no crivo do Gatekeeper
+        # Helper para remover apostas pendentes/não-confirmadas caso a partida não passe mais no crivo do Gatekeeper
         def cancelar_apostas_pendentes_existentes(motivo):
             nonlocal apostas_canceladas
             for uid in user_ids:
                 cursor.execute("""
-                    SELECT id FROM apostas 
-                    WHERE fixture_id = %s AND usuario_id = %s AND mercado = 'Total de Cartões' AND status = 'Pendente'
+                    SELECT a.id,
+                           (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
+                    FROM apostas a 
+                    WHERE a.fixture_id = %s AND a.usuario_id = %s AND a.mercado = 'Total de Cartões' AND a.status IN ('Pendente', 'Cancelada')
                 """, (fixture_id, uid))
                 rows_p = cursor.fetchall()
                 for r_p in rows_p:
-                    cursor.execute("""
-                        UPDATE apostas 
-                        SET status = 'Cancelada',
-                            resultado_detalhado = %s,
-                            updated_at = NOW()
-                        WHERE id = %s
-                    """, (f"Cancelada via Gatekeeper: {motivo}", r_p['id']))
+                    tem_deb = (int(r_p.get('tem_debito') or 0) > 0)
+                    if tem_deb:
+                        print(f"🔒 [Aposta Confirmada Mantida User #{uid}] ID #{r_p['id']} possui débito efetivado na conta corrente. Remoção via Gatekeeper ignorada.")
+                        continue
+
+                    cursor.execute("DELETE FROM apostas WHERE id = %s", (r_p['id'],))
                     apostas_canceladas += 1
-                    print(f"❌ [Aposta Cartões Cancelada User #{uid}] ID #{r_p['id']} | {home_team} vs {away_team} -> {motivo}")
+                    print(f"🗑️ [Aposta Cartões Excluída User #{uid}] ID #{r_p['id']} | {home_team} vs {away_team} -> {motivo}")
 
         # Filtro Estrito de Escopo: Brasil, CONMEBOL e Ligas de Elite Selecionadas
         if not is_allowed_league(league_id, league_name):
@@ -637,13 +638,23 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         # Inserir ou Atualizar aposta para cada usuário cadastrado
         for uid in user_ids:
             cursor.execute("""
-                SELECT id, status, odd, palpite FROM apostas 
-                WHERE fixture_id = %s AND usuario_id = %s AND mercado = 'Total de Cartões'
+                SELECT a.id, a.status, a.odd, a.palpite, a.confirmada,
+                       (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
+                FROM apostas a 
+                WHERE a.fixture_id = %s AND a.usuario_id = %s AND a.mercado = 'Total de Cartões'
             """, (fixture_id, uid))
             ja_existe = cursor.fetchone()
 
             if ja_existe:
-                if ja_existe['status'] == 'Pendente':
+                tem_deb = (int(ja_existe.get('tem_debito') or 0) > 0)
+
+                # Regra: Não reprocessar/alterar aposta confirmada (que consta débito efetivado na conta corrente)
+                if tem_deb:
+                    apostas_duplicadas += 1
+                    print(f"🔒 [Aposta Confirmada User #{uid}] ID #{ja_existe['id']} com débito efetivado na conta corrente mantida intacta.")
+                    continue
+
+                if ja_existe['status'] in ('Pendente', 'Cancelada'):
                     odd_antiga = float(ja_existe.get('odd') or 0.0)
                     cursor.execute("""
                         UPDATE apostas SET
@@ -654,6 +665,8 @@ def criar_apostas_cartoes_diario(target_date_str=None):
                             ev_percentual = %s,
                             ganhos_potenciais = %s,
                             status_gatekeeper = 'APROVADO',
+                            status = 'Pendente',
+                            resultado_detalhado = NULL,
                             updated_at = NOW()
                         WHERE id = %s
                     """, (
@@ -670,11 +683,11 @@ def criar_apostas_cartoes_diario(target_date_str=None):
                 INSERT INTO apostas (
                     usuario_id, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
                     odd_justa, probabilidade_poisson, ev_percentual, status_gatekeeper,
-                    valor_aposta, ganhos_potenciais, status, data_hora_jogo, criado_em, updated_at
+                    valor_aposta, ganhos_potenciais, status, confirmada, data_hora_jogo, criado_em, updated_at
                 ) VALUES (
                     %s, %s, %s, %s, 'Total de Cartões', %s, %s,
                     %s, %s, %s, 'APROVADO',
-                    %s, %s, 'Pendente', %s, NOW(), NOW()
+                    %s, %s, 'Pendente', 0, %s, NOW(), NOW()
                 )
             """, (
                 uid, fixture_id, home_team, away_team, palpite_str, odd_val,

@@ -471,7 +471,9 @@ def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: flo
                         b_id = bet.get('id')
                         b_name = str(bet.get('name', '')).lower()
 
-                        if b_id in [80, 81, 82, 83, 204, 299, 335] or 'cards' in b_name or 'cartões' in b_name:
+                        # Apenas mercado de Total de Cartões do Jogo (Bet ID 80 - Cards Over/Under)
+                        # Ignorar cartões individuais por time (ID 82/83) e handicap asiático de cartões (ID 81)
+                        if b_id == 80 or ('card' in b_name and ('over' in b_name or 'under' in b_name or 'total' in b_name) and not any(t in b_name for t in ['home', 'away', 'team', 'handicap', 'asian'])):
                             for val in bet.get('values', []):
                                 v_str = str(val.get('value', '')).strip().lower()
                                 try:
@@ -539,6 +541,8 @@ def criar_apostas_cartoes_diario(target_date_str=None):
     print(f"📋 Encontradas {len(fixtures)} partidas selecionadas.")
 
     apostas_criadas = 0
+    apostas_atualizadas = 0
+    apostas_canceladas = 0
     apostas_duplicadas = 0
     apostas_abstencao = 0
     novas_apostas_detalhes = []
@@ -551,9 +555,30 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         league_id = fix.get('league_id')
         league_name = fix.get('league_name') or ''
 
+        # Helper para cancelar apostas pendentes caso a partida não passe mais no crivo do Gatekeeper
+        def cancelar_apostas_pendentes_existentes(motivo):
+            nonlocal apostas_canceladas
+            for uid in user_ids:
+                cursor.execute("""
+                    SELECT id FROM apostas 
+                    WHERE fixture_id = %s AND usuario_id = %s AND mercado = 'Total de Cartões' AND status = 'Pendente'
+                """, (fixture_id, uid))
+                rows_p = cursor.fetchall()
+                for r_p in rows_p:
+                    cursor.execute("""
+                        UPDATE apostas 
+                        SET status = 'Cancelada',
+                            resultado_detalhado = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                    """, (f"Cancelada via Gatekeeper: {motivo}", r_p['id']))
+                    apostas_canceladas += 1
+                    print(f"❌ [Aposta Cartões Cancelada User #{uid}] ID #{r_p['id']} | {home_team} vs {away_team} -> {motivo}")
+
         # Filtro Estrito de Escopo: Brasil, CONMEBOL e Ligas de Elite Selecionadas
         if not is_allowed_league(league_id, league_name):
             print(f"🌍 [Fora do Escopo] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada. Liga fora do escopo permitido.")
+            cancelar_apostas_pendentes_existentes("Liga fora do escopo permitido")
             continue
 
         # Trava Obrigatória do Gatekeeper: Não criar apostas em jogos sem árbitro definido (65% de peso no modelo)
@@ -561,6 +586,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         ref_low = referee_name.lower()
         if not referee_name or any(un in ref_low for un in ['árbitro não informado', 'arbitro nao informado', 'não informado', 'nao informado', 'unassigned', 'n/a', 'tbd', 'sem arbitro']):
             print(f"🛡️ [Gatekeeper NO_BET / Sem Árbitro] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Árbitro não definido ('{referee_name or 'Nulo'}'). Entrada ignorada por segurança.")
+            cancelar_apostas_pendentes_existentes("Árbitro não definido")
             apostas_abstencao += 1
             continue
 
@@ -570,6 +596,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
         if not suggestions:
             print(f"🛡️ [Gatekeeper NO_BET / Abstenção] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Predição sem amostragem estatística suficiente.")
+            cancelar_apostas_pendentes_existentes("Predição sem amostragem suficiente")
             apostas_abstencao += 1
             continue
 
@@ -594,6 +621,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
         if not selected_suggestion:
             print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha recomendada está disponível na Betano com odd >= 1.50.")
+            cancelar_apostas_pendentes_existentes("Linha indisponível ou reprovada na Betano com odd >= 1.50")
             apostas_abstencao += 1
             continue
 
@@ -606,16 +634,36 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         valor_aposta = 10.00
         ganhos_potenciais = round(valor_aposta * odd_val, 2)
 
-        # Inserir aposta para cada usuário cadastrado (com idempotência por fixture e mercado)
+        # Inserir ou Atualizar aposta para cada usuário cadastrado
         for uid in user_ids:
             cursor.execute("""
-                SELECT id FROM apostas 
+                SELECT id, status, odd, palpite FROM apostas 
                 WHERE fixture_id = %s AND usuario_id = %s AND mercado = 'Total de Cartões'
             """, (fixture_id, uid))
             ja_existe = cursor.fetchone()
 
             if ja_existe:
-                apostas_duplicadas += 1
+                if ja_existe['status'] == 'Pendente':
+                    odd_antiga = float(ja_existe.get('odd') or 0.0)
+                    cursor.execute("""
+                        UPDATE apostas SET
+                            palpite = %s,
+                            odd = %s,
+                            odd_justa = %s,
+                            probabilidade_poisson = %s,
+                            ev_percentual = %s,
+                            ganhos_potenciais = %s,
+                            status_gatekeeper = 'APROVADO',
+                            updated_at = NOW()
+                        WHERE id = %s
+                    """, (
+                        palpite_str, odd_val, odd_justa, prob_poisson, ev_perc,
+                        ganhos_potenciais, ja_existe['id']
+                    ))
+                    apostas_atualizadas += 1
+                    print(f"🔄 [Aposta Cartões Atualizada User #{uid}] ID #{ja_existe['id']} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ Odd {odd_val:.2f} (Anterior: {odd_antiga:.2f}, EV: {ev_perc}%)")
+                else:
+                    apostas_duplicadas += 1
                 continue
 
             cursor.execute("""
@@ -654,7 +702,9 @@ def criar_apostas_cartoes_diario(target_date_str=None):
     print("\n=======================================================")
     print(f"✅ PROCESSAMENTO DE CRIAÇÃO DE APOSTAS CARTÕES UNDER CONCLUÍDO!")
     print(f"📊 Novas Apostas Criadas: {apostas_criadas}")
-    print(f"🔄 Apostas Já Existentes (Ignoradas): {apostas_duplicadas}")
+    print(f"🔄 Apostas Atualizadas (Odds em Tempo Real): {apostas_atualizadas}")
+    print(f"❌ Apostas Pendentes Canceladas (Reprovadas/Sem Odd): {apostas_canceladas}")
+    print(f"🔒 Apostas Já Liquidadas/Encerradas Mantidas: {apostas_duplicadas}")
     print(f"🛡️ Jogos com Abstenção/NO_BET: {apostas_abstencao}")
     print("=======================================================")
 

@@ -128,14 +128,15 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                 checked_at = row.get('cards_api_checked_at')
                 retry_cnt = row.get('cards_api_retry_count', 0) or 0
 
-                if (yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != ''):
-                    return (yh, ya, rh, ra)
+                if checked_at is not None:
+                    if (yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != ''):
+                        return (yh, ya, rh, ra)
 
-                if checked_at and isinstance(checked_at, datetime):
-                    hours_since_check = (datetime.now() - checked_at).total_seconds() / 3600.0
-                    if hours_since_check < 6.0:
-                        print(f"⏳ [Cooldown API] Fixture #{fixture_id} consultada há {hours_since_check:.1f}h (tentativas: {retry_cnt}). Pulando chamada HTTP para economizar cota.")
-                        return None
+                    if isinstance(checked_at, datetime):
+                        hours_since_check = (datetime.now() - checked_at).total_seconds() / 3600.0
+                        if hours_since_check < 6.0:
+                            print(f"⏳ [Cooldown API] Fixture #{fixture_id} consultada há {hours_since_check:.1f}h (tentativas: {retry_cnt}). Pulando chamada HTTP para economizar cota.")
+                            return None
             
             cursor.execute("""
                 SELECT team_id, yellow_cards, red_cards 

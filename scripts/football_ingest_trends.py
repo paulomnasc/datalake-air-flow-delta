@@ -1520,6 +1520,7 @@ def main():
             WHERE status IN ('FT', 'AET', 'PEN') 
               AND yellow_cards_home IS NOT NULL 
               AND yellow_cards_away IS NOT NULL
+              AND cards_api_checked_at IS NOT NULL
               AND (
                   (yellow_cards_home + yellow_cards_away + red_cards_home + red_cards_away) > 0 
                   OR (last_event IS NOT NULL AND last_event != '')

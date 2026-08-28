@@ -42,7 +42,7 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
     if cursor is not None and fixture_id:
         try:
             cursor.execute("""
-                SELECT yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away, last_event 
+                SELECT yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away, last_event, cards_api_checked_at 
                 FROM fixtures_trends 
                 WHERE fixture_id = %s AND yellow_cards_home IS NOT NULL AND yellow_cards_away IS NOT NULL
                 LIMIT 1
@@ -54,7 +54,8 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                 rh = row.get('red_cards_home', 0) or 0
                 ra = row.get('red_cards_away', 0) or 0
                 last_ev = row.get('last_event')
-                if (yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != ''):
+                checked_at = row.get('cards_api_checked_at')
+                if checked_at is not None and ((yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != '')):
                     return (yh, ya, rh, ra)
             
             cursor.execute("""

@@ -582,28 +582,27 @@ function updatePerformanceDashboard() {
     let palpite = (bet.palpite || '').trim();
     let finalMercadoKey = rawMercado;
 
-    const isCardMarket = /cartã|carto|card/i.test(rawMercado);
+    const isCardMarket = /cart|card/i.test(rawMercado) || /cart|card/i.test(palpite);
 
     if (isCardMarket) {
-      if (palpite) {
-        if (/mais de|menos de|over|under/i.test(rawMercado) && !/^(total de cartã|total de carto|cartã|carto)/i.test(rawMercado)) {
-          finalMercadoKey = rawMercado;
-        } else {
-          let cleanPalpite = palpite
-            .replace(/\s+(cartõ?es?|cards?)$/i, '')
-            .replace(/^under\s+/i, 'Menos de ')
-            .replace(/^over\s+/i, 'Mais de ')
-            .trim();
+      const isIndividual = /individual|time/i.test(rawMercado) || /individual|time/i.test(palpite);
+      if (!isIndividual) {
+        let isUnder = /under|menos/i.test(palpite) || /under|menos/i.test(rawMercado);
+        let isOver = /over|mais/i.test(palpite) || /over|mais/i.test(rawMercado);
+        let lineMatch = palpite.match(/(\d+(?:\.\d+)?)/) || rawMercado.match(/(\d+(?:\.\d+)?)/);
 
-          if (/^(total de cartõ?es?|cartõ?es?)$/i.test(rawMercado)) {
-            finalMercadoKey = `Total de Cartões - ${cleanPalpite}`;
-          } else {
-            finalMercadoKey = `${rawMercado} - ${cleanPalpite}`;
-          }
+        if (lineMatch && (isUnder || isOver)) {
+          let dirStr = isUnder ? 'Menos de' : 'Mais de';
+          let lineVal = lineMatch[1];
+          finalMercadoKey = `${dirStr} ${lineVal} Cartões`;
+        } else {
+          finalMercadoKey = 'Total de Cartões';
         }
       } else {
-        if (/^cartõ?es?$/i.test(rawMercado)) {
-          finalMercadoKey = 'Total de Cartões';
+        if (palpite) {
+          finalMercadoKey = `Cartões - Individual - ${palpite}`;
+        } else {
+          finalMercadoKey = rawMercado;
         }
       }
     } else {

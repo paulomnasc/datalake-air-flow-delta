@@ -148,6 +148,7 @@ class ApostaController extends BaseController
 
         // Apenas carrega apostas se o usuário possuir tokens
         if ($hasTokens) {
+            helper('league');
             $db = \Config\Database::connect();
             $apostas = $db->query("
                 SELECT 
@@ -156,6 +157,7 @@ class ApostaController extends BaseController
                     f.goals_away,
                     f.status as fixture_status,
                     f.league_name,
+                    f.league_id,
                     (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') as tem_debito
                 FROM apostas a
                 LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)
@@ -182,6 +184,11 @@ class ApostaController extends BaseController
                     $ap->data_hora_jogo_brt = date('Y-m-d H:i:s');
                     $ap->data_brt_dia = date('Y-m-d');
                 }
+
+                // Resolve o país e a bandeira emoji da liga referente ao jogo
+                $leagueInfo = \App\Helpers\LeagueHelper::resolveCountryAndFlag($ap->league_id ?? null, $ap->league_name ?? null);
+                $ap->league_country = $leagueInfo['country'];
+                $ap->league_flag    = $leagueInfo['flag'];
             }
             unset($ap);
 

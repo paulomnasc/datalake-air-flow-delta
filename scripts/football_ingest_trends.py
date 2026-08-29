@@ -1639,7 +1639,7 @@ def main():
                 if not cards_list and v_type:
                     return get_team_cards_from_db_history(cur_db, t_name, None, t_id, found_l_id, limit)
 
-                if cards_list and sum(cards_list) > 0:
+                if cards_list and len(cards_list) >= 2 and sum(cards_list) > 0:
                     return round(sum(cards_list) / len(cards_list), 2)
 
                 return 0.00
@@ -1679,8 +1679,10 @@ def main():
                 if not res_stats:
                     res_stats = generate_deterministic_team_stats(t_name, v_type)
 
-                if res_stats.get("avg_cards", 0.0) <= 0.05:
-                    res_stats["avg_cards"] = get_team_cards_from_db_history(cur_db, t_name, v_type, t_id, l_id)
+                if res_stats.get("avg_cards", 0.0) <= 1.00:
+                    hist_cards = get_team_cards_from_db_history(cur_db, t_name, v_type, t_id, l_id)
+                    if hist_cards > 1.00:
+                        res_stats["avg_cards"] = hist_cards
 
                 return res_stats
 
@@ -1787,15 +1789,14 @@ def main():
             yellows = float(ref_data["average_yellow_cards"])
             ref_fouls = float(ref_data.get("average_fouls", 24.0))
             
-            # TRAVA DE SEGURANÇA CONTRA DADOS DE CARTÕES INDISPONÍVEIS / NULOS OU AMOSTRA INSUFICIENTE
+            # TRAVA DE SEGURANÇA CONTRA DADOS DE CARTÕES INDISPONÍVEIS / NULOS OU AMOSTRA INSUFICIENTE/SUSPEITA (EX: MÉDIAS <= 1.0 POR TIME)
             has_insufficient_cards = (
-                home_c_stats.get("avg_cards", 0.0) <= 0.05 or
-                away_c_stats.get("avg_cards", 0.0) <= 0.05 or
-                (home_c_stats.get("avg_cards", 0.0) <= 1.0 and float(home_c_stats.get("avg_goals_scored", 0.0)) == 0.0) or
-                (away_c_stats.get("avg_cards", 0.0) <= 1.0 and float(away_c_stats.get("avg_goals_scored", 0.0)) == 0.0)
+                home_c_stats.get("avg_cards", 0.0) <= 1.00 or
+                away_c_stats.get("avg_cards", 0.0) <= 1.00 or
+                (home_c_stats.get("avg_cards", 0.0) + away_c_stats.get("avg_cards", 0.0)) <= 2.10
             )
             if has_insufficient_cards:
-                prediction_text = "🚫 NO_BET: Dados de cartões indisponíveis ou amostragem histórica insuficiente para análise estatística segura dos times."
+                prediction_text = "🚫 NO_BET: Média de cartões por time (1.0 ou inferior) com amostragem estatística insuficiente ou suspeita. Entrada bloqueada pelo Gatekeeper por segurança."
             else:
                 # Aplica multiplicador regional à média combinada das equipes
                 team_cards_combined_adj = team_cards_combined * league_mult

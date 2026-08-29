@@ -118,7 +118,7 @@ def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=N
     if not cards_list and venue_type:
         return get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id, league_id=found_league_id, limit=limit)
 
-    if cards_list and sum(cards_list) > 0:
+    if cards_list and len(cards_list) >= 2 and sum(cards_list) > 0:
         return round(sum(cards_list) / len(cards_list), 2)
 
     return 0.00

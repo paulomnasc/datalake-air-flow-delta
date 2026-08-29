@@ -233,7 +233,8 @@ def is_allowed_league(league_id, league_name: str) -> bool:
       - UEFA Champions League (ID 2)
     - Desconsidera jogos femininos (Women / Feminino) e jogos do Brasil Série C e Série D.
     """
-    l_name_low = (league_name or '').lower().strip()
+    # Cláusula de restrição desabilitada para analisar e processar todas as ligas de futebol
+    return True
     if 'women' in l_name_low or 'feminino' in l_name_low or 'femenina' in l_name_low:
         return False
 
@@ -598,11 +599,12 @@ def criar_apostas_cartoes_diario(target_date_str=None):
                     apostas_canceladas += 1
                     print(f"🗑️ [Aposta Cartões Excluída User #{uid}] ID #{r_p['id']} | {home_team} vs {away_team} -> {motivo}")
 
-        # Filtro Estrito de Escopo: Brasil, CONMEBOL e Ligas de Elite Selecionadas
-        if not is_allowed_league(league_id, league_name):
-            print(f"🌍 [Fora do Escopo] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada. Liga fora do escopo permitido.")
-            cancelar_apostas_pendentes_existentes("Liga fora do escopo permitido")
-            continue
+        # Filtro Estrito de Escopo: Brasil, CONMEBOL e Ligas de Elite Selecionadas (DESABILITADO - Processa todas as ligas)
+        # if not is_allowed_league(league_id, league_name):
+        #     print(f"🌍 [Fora do Escopo] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada. Liga fora do escopo permitido.")
+        #     cancelar_apostas_pendentes_existentes("Liga fora do escopo permitido")
+        #     continue
+
 
         # Trava Obrigatória do Gatekeeper: Não criar apostas em jogos sem árbitro definido (65% de peso no modelo)
         referee_name = (fix.get('referee_name') or '').strip()

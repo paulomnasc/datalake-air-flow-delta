@@ -555,6 +555,26 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         league_id = fix.get('league_id')
         league_name = fix.get('league_name') or ''
 
+        # 0. Checagem Prévia: Se o jogo já possui aposta confirmada para os usuários no banco de dados, interrompe o processamento imediatamente.
+        cursor.execute("""
+            SELECT a.id, a.usuario_id, a.confirmada, a.status,
+                   (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
+            FROM apostas a 
+            WHERE a.fixture_id = %s AND a.mercado = 'Total de Cartões'
+        """, (fixture_id,))
+        apostas_existentes_jogo = cursor.fetchall()
+
+        confirmed_uids = set()
+        for a_ex in apostas_existentes_jogo:
+            is_conf = (int(a_ex.get('confirmada') or 0) == 1) or (int(a_ex.get('tem_debito') or 0) > 0) or (a_ex.get('status') not in ('Pendente', 'Cancelada'))
+            if is_conf:
+                confirmed_uids.add(a_ex['usuario_id'])
+
+        if user_ids and all(uid in confirmed_uids for uid in user_ids):
+            print(f"🔒 [Aposta Confirmada Mantida] Partida {home_team} vs {away_team} (ID #{fixture_id}) já possui aposta confirmada no banco de dados. Processamento da partida ignorado.")
+            apostas_duplicadas += len(user_ids)
+            continue
+
         # Helper para remover apostas pendentes/não-confirmadas caso a partida não passe mais no crivo do Gatekeeper
         def cancelar_apostas_pendentes_existentes(motivo):
             nonlocal apostas_canceladas

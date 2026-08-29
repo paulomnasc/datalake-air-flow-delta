@@ -387,8 +387,10 @@ def extract_all_cards_suggestions(prediction_text: str):
         if is_over:
             prob_poisson = round(100.0 - prob_under, 2)
             odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
-            # Regra do Gatekeeper para Over (Mínimo 60.0% Poisson e exp_cards >= 5.0)
-            if prob_poisson >= 60.0 and exp_cards >= 5.0:
+            # Regra do Gatekeeper para Over: Trava de risco a partir de Over 4.5 (só aceita até Over 3.5)
+            if line_val >= 4.5:
+                status_gk = 'NO_BET'
+            elif prob_poisson >= 60.0 and exp_cards >= 5.0:
                 status_gk = 'APROVADO'
             else:
                 status_gk = 'NO_BET'

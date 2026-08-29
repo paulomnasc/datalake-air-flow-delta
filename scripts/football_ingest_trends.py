@@ -1838,11 +1838,9 @@ def main():
                 # SELEÇÃO BIDIRECIONAL PROBABILÍSTICA (TOP OVER & TOP UNDER >= 60%)
                 valid_options = []
                 
-                # Candidatos de Over
+                # Candidatos de Over (Trava de risco: assumir no máximo Over 3.5)
                 over_candidates = [
                     ("Over 3.5", o35, odd_o35),
-                    ("Over 4.5", o45, odd_o45),
-                    ("Over 5.5", o55, odd_o55),
                 ]
                 for label, prob, odd in over_candidates:
                     if prob >= 60.0:

@@ -916,9 +916,11 @@ if (!function_exists('formatBrtDate')) {
           <option value="semestre">📈 <?= lang('App.semester') ?></option>
           <option value="all" selected>♾️ <?= lang('App.all_period') ?></option>
         </select>
+        <button type="button" class="btn btn-sm btn-outline-secondary text-light px-2 py-1" onclick="shiftBetDate(-1)" title="Retroceder 1 dia"><i class="bi bi-chevron-left"></i></button>
         <input type="date" id="betStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="onManualDateChange()" title="<?= lang('App.start_date') ?>">
         <span class="text-light-50 small"><?= lang('App.to') ?></span>
         <input type="date" id="betEndDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="onManualDateChange()" title="<?= lang('App.end_date') ?>">
+        <button type="button" class="btn btn-sm btn-outline-secondary text-light px-2 py-1" onclick="shiftBetDate(1)" title="Avançar 1 dia"><i class="bi bi-chevron-right"></i></button>
         <button class="btn btn-sm btn-outline-secondary border-0 text-light-50 p-1" onclick="clearDateFilter()" title="<?= lang('App.clear') ?>"><i class="bi bi-x-circle-fill"></i></button>
       </div>
 
@@ -2094,6 +2096,45 @@ if (!function_exists('formatBrtDate')) {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  function parseBetDateString(dateStr) {
+    if (!dateStr) return null;
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return null;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+    return new Date(year, month, day);
+  }
+
+  function shiftBetDate(days) {
+    const startEl = document.getElementById('betStartDateInput');
+    const endEl = document.getElementById('betEndDateInput');
+    if (!startEl || !endEl) return;
+
+    let startDate = parseBetDateString(startEl.value);
+    let endDate = parseBetDateString(endEl.value);
+
+    if (!startDate && !endDate) {
+      const base = new Date();
+      base.setDate(base.getDate() + days);
+      const str = formatDateYYYYMMDD(base);
+      startEl.value = str;
+      endEl.value = str;
+    } else {
+      if (startDate) {
+        startDate.setDate(startDate.getDate() + days);
+        startEl.value = formatDateYYYYMMDD(startDate);
+      }
+      if (endDate) {
+        endDate.setDate(endDate.getDate() + days);
+        endEl.value = formatDateYYYYMMDD(endDate);
+      }
+    }
+
+    onManualDateChange();
   }
 
   function getPastDateByMonths(months) {

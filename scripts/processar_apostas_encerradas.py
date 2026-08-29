@@ -435,10 +435,10 @@ def evaluate_bet(aposta, stats):
         
         if is_over:
             won = (actual_cards > threshold)
-            comp = ">"
+            comp = ">" if won else "<="
         else:
             won = (actual_cards < threshold)
-            comp = "<"
+            comp = "<" if won else ">="
 
         status_str = 'Ganha' if won else 'Perdida'
         detalhe = f"FT | {target_name}: {actual_cards} {comp} Limite {threshold} -> Aposta {status_str.upper()}"

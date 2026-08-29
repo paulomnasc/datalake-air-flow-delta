@@ -552,6 +552,34 @@ if (!function_exists('formatBrtDate')) {
   .status-ANULADA, .status-Anulada, .status-Cancelada, .status-CANCELADA { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }
   .status-Cashout  { background: rgba(0, 176, 255, 0.15); color: var(--bet-accent); border: 1px solid rgba(0, 176, 255, 0.3); }
 
+  /* Processing Status Badges */
+  .proc-status-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    letter-spacing: 0.2px;
+    line-height: 1.2;
+  }
+  .proc-status-badge.proc-pending {
+    background: rgba(255, 193, 7, 0.14);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.35);
+  }
+  .proc-status-badge.proc-partial {
+    background: rgba(253, 126, 20, 0.16);
+    color: #fd7e14;
+    border: 1px solid rgba(253, 126, 20, 0.4);
+  }
+  .proc-status-badge.proc-complete {
+    background: rgba(16, 185, 129, 0.14);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+  }
+
   .bet-card-footer {
     padding: 16px 20px;
     background: #14181f;
@@ -1150,6 +1178,21 @@ if (!function_exists('formatBrtDate')) {
                 'Cashout'        => 'Cashout',
               ];
               $displayStatusLabel = mb_strtoupper($statusLabelMap[$aposta->status] ?? $aposta->status, 'UTF-8');
+
+              // Status de Processamento da Aposta
+              $betProcText = 'Processamento: ⏳ Pendente';
+              $betProcClass = 'proc-pending';
+              $betProcTooltip = 'Aposta em andamento ou aguardando fechamento da partida.';
+
+              if ($aposta->status !== 'Pendente') {
+                $betProcText = 'Processamento: ✅ Completo';
+                $betProcClass = 'proc-complete';
+                $betProcTooltip = 'Aposta devidamente liquidada com resultado oficial gravado.';
+              } elseif (!empty($placarExibir) || !empty($aposta->resultado_detalhado)) {
+                $betProcText = 'Processamento: 🌗 Parcial';
+                $betProcClass = 'proc-partial';
+                $betProcTooltip = 'Partida encerrada, aguardando apuração da DAG das 23h.';
+              }
             ?>
 
             <?php if (!empty($detalhadoExibir)): ?>
@@ -1160,7 +1203,10 @@ if (!function_exists('formatBrtDate')) {
             <?php endif; ?>
 
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <span class="status-tag status-<?= str_replace(' ', '-', $aposta->status) ?>"><?= htmlspecialchars($displayStatusLabel) ?></span>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="status-tag status-<?= str_replace(' ', '-', $aposta->status) ?>"><?= htmlspecialchars($displayStatusLabel) ?></span>
+                <span class="proc-status-badge <?= $betProcClass ?>" title="<?= htmlspecialchars($betProcTooltip, ENT_QUOTES) ?>"><?= htmlspecialchars($betProcText) ?></span>
+              </div>
               <div class="d-flex align-items-center gap-3 flex-wrap">
                 <span style="font-size: 0.8rem; color: var(--bet-text-muted); font-weight: 600; text-transform: uppercase;">
                   <?= lang('App.type') ?>: <?= htmlspecialchars($aposta->tipo) ?>

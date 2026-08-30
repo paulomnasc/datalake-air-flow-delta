@@ -965,9 +965,9 @@ def calculate_asian_handicap_suggestion(
             main_reason = f"⚠️ Alerta de Crise: Severa má fase do {home_team} ({home_last5.get('text')} em U5J). Favoritismo e vantagem de cobertura +0.5 (Dupla Chance) para o visitante {away_team}."
     elif away_in_crisis and not home_in_crisis:
         if delta_goals <= 0.20:
-            suggestion = f"{home_team} 0.0 (Empate Anula)"
+            suggestion = f"{home_team} +0.25 AH"
             confidence = 72.00
-            main_reason = f"⚠️ Alerta de Risco Visitante: {away_team} em crise de resultados ({away_last5.get('text')}). Favoritismo do mandante {home_team} com proteção de reembolso ativado."
+            main_reason = f"⚠️ Alerta de Risco Visitante: {away_team} em crise de resultados ({away_last5.get('text')}). Favoritismo do mandante {home_team} com proteção de meia estaca (+0.25 AH)."
         else:
             suggestion = f"{home_team} -0.5 AH"
             confidence = 78.00
@@ -999,9 +999,9 @@ def calculate_asian_handicap_suggestion(
                 confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
                 main_reason = f"Favoritismo do {home_team} em casa nas odds e produção (+{delta_goals:.2f} gols esperados). Proteção de meia estaca (AH -0.25).{note_str}"
             elif delta_goals >= -0.30:
-                suggestion = f"{home_team} 0.0 (Empate Anula)"
+                suggestion = f"{home_team} +0.25 AH"
                 confidence = 72.00
-                main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com cobertura conservadora de reembolso no empate (0.0 DNB).{note_str}"
+                main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com cobertura de meia estaca (+0.25 AH).{note_str}"
             else:
                 # Conflito severo de xG vs Menor Odd do Mandante -> ABSTENÇÃO POR SEGURANÇA
                 suggestion = "Sem Entrada (Abstenção)"
@@ -1021,9 +1021,9 @@ def calculate_asian_handicap_suggestion(
                 confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
                 main_reason = f"Favoritismo do visitante {away_team} nas odds de mercado. Proteção conservadora de meia estaca (AH -0.25).{note_str}"
             elif delta_goals <= 0.30:
-                suggestion = f"{away_team} 0.0 (Empate Anula)"
+                suggestion = f"{away_team} +0.25 AH"
                 confidence = 72.00
-                main_reason = f"Favoritismo de mercado do visitante {away_team} alinhado com cobertura conservadora de reembolso no empate (0.0 DNB).{note_str}"
+                main_reason = f"Favoritismo de mercado do visitante {away_team} alinhado com cobertura de meia estaca (+0.25 AH).{note_str}"
             else:
                 # Conflito severo de xG vs Menor Odd do Visitante -> ABSTENÇÃO POR SEGURANÇA
                 suggestion = "Sem Entrada (Abstenção)"
@@ -1040,9 +1040,9 @@ def calculate_asian_handicap_suggestion(
                 confidence = 70.00
                 main_reason = f"Confronto equilibrado com ligeira vantagem para o visitante {away_team}.{note_str}"
             else:
-                suggestion = f"{home_team} 0.0 (Empate Anula)"
+                suggestion = f"{home_team} +0.25 AH"
                 confidence = 68.00
-                main_reason = f"Confronto de alto equilíbrio técnico. Indicação conservadora com reembolso total no empate.{note_str}"
+                main_reason = f"Confronto de alto equilíbrio técnico. Indicação conservadora com cobertura de meia estaca em casa (+0.25 AH).{note_str}"
 
     # Cálculo das Probabilidades 1X2 (%) Plataforma (Modelo Poisson) vs Casa de Apostas (Odds)
     import math

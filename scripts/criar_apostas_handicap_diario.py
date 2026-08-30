@@ -247,9 +247,17 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=1):
 
         ah_norm = ah_suggestion.lower()
 
-        # Filtrar abstenções, bloqueios de risco e 'Sem Entrada'
+        # 1. Filtrar abstenções, bloqueios de risco e 'Sem Entrada'
         if any(term in ah_norm for term in ['sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'no_bet', 'indisponível', 'indisponivel']):
             print(f"🛡️ [Abstenção] Partida {home_team} vs {away_team} -> Sugestão: '{ah_suggestion}'. Aposta não criada.")
+            apostas_abstenção += 1
+            continue
+
+        # 2. Validação Rígida de Formato do Handicap Asiático:
+        # Rejeitar rótulos genéricos como 'Vitória [Time]' sem especificação de linha de handicap asiático (+0.25, -0.25, -0.5, +0.5, -1.0, etc.)
+        has_handicap_spec = bool(re.search(r'[+-]?\d+\.?\d*', ah_suggestion)) or '0.0' in ah_suggestion
+        if not has_handicap_spec or ah_norm.startswith('vitória') or ah_norm.startswith('vitoria'):
+            print(f"🛡️ [Formato Inválido AH] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' não possui linha de handicap válida. Aposta não criada.")
             apostas_abstenção += 1
             continue
 
@@ -262,6 +270,11 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=1):
             if '0.0' in ah_suggestion or 'empate anula' in ah_suggestion.lower() or '-0.25' in ah_suggestion:
                 ah_suggestion = f"{away_team} +0.25 AH"
 
+        # Garantir substituição de qualquer resíduo de 0.0 por +0.25 AH
+        if '0.0' in ah_suggestion or 'empate anula' in ah_suggestion.lower():
+            target_team = away_team if is_away else home_team
+            ah_suggestion = f"{target_team} +0.25 AH"
+
         raw_odd = fix.get('odd_away') if is_away else fix.get('odd_home')
         if not raw_odd or float(raw_odd) <= 1.0 or not fix.get('odd_home') or not fix.get('odd_away'):
             print(f"🛡️ [Sem Odds Reais] Partida {home_team} vs {away_team} -> Odds ausentes ou inválidas no mercado. Aposta não criada.")
@@ -269,8 +282,15 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=1):
             continue
 
         odd_val = float(raw_odd)
-        if odd_val < 1.50:
-            print(f"🛡️ [Odd Baixa < 1.50] Partida {home_team} vs {away_team} -> Odd {odd_val:.2f} é inferior ao mínimo permitido (1.50). Aposta não criada.")
+
+        # 3. Trava de Faixa de Odd ("Sweet Spot"):
+        # Dados históricos comprovam que Odds < 1.85 sangram a banca no mercado de Handicap.
+        # Exigimos Odd mínima de 1.85 (ou 1.90 para ligas voláteis como Série A, Série B e Sudamericana).
+        is_volatile_league = any(kw in league_name.lower() for kw in ['serie a', 'série a', 'serie b', 'série b', 'sudamericana', 'sul-americana'])
+        min_odd_threshold = 1.90 if is_volatile_league else 1.85
+
+        if odd_val < min_odd_threshold:
+            print(f"🛡️ [Odd Fora do Sweet Spot] Partida {home_team} vs {away_team} ({league_name}) -> Odd {odd_val:.2f} é inferior ao limiar mínimo seguro ({min_odd_threshold:.2f}). Aposta não criada.")
             apostas_abstenção += 1
             continue
 

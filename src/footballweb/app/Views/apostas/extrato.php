@@ -581,8 +581,20 @@ $transacoes = $extrato['transacoes'] ?? [];
 
   <!-- Financial Evolution Chart Section -->
   <div class="chart-card">
-    <div class="chart-card-header">
+    <div class="chart-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
       <h2><i class="fas fa-chart-area" style="color: #60a5fa;"></i> Evolução Financeira da Conta Corrente</h2>
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <label for="extratoGroupSelect" style="font-size: 0.85rem; font-weight: 600; color: var(--cc-text-secondary); margin: 0;">
+          <i class="fas fa-layer-group text-warning me-1"></i> Agrupar por:
+        </label>
+        <select id="extratoGroupSelect" class="filter-input" style="width: auto; cursor: pointer; color: #f59e0b; font-weight: 600; font-size: 0.88rem; min-width: 145px;" onchange="updateEvolucaoGroupMode(this.value)">
+          <option value="datahora" selected>⏱️ Data / Hora</option>
+          <option value="dia">📅 Por Dia</option>
+          <option value="quinzena">🗓️ Por Quinzena</option>
+          <option value="mes">📆 Por Mês</option>
+          <option value="trimestre">📊 Por Trimestre</option>
+        </select>
+      </div>
     </div>
     <div class="chart-container-box">
       <canvas id="evolucaoFinanceiraChart"></canvas>
@@ -741,8 +753,117 @@ $transacoes = $extrato['transacoes'] ?? [];
 // Inicializar Gráfico de Evolução Financeira
 const graficoRawData = <?= json_encode($grafico) ?>;
 
+function getExtratoGroupKey(dateStr, groupMode) {
+  if (!dateStr) return { key: 'Sem Data', label: 'Sem Data' };
+
+  const rawDateStr = dateStr.trim().substring(0, 10);
+  const parts = rawDateStr.split('-');
+  if (parts.length !== 3) return { key: dateStr, label: dateStr };
+
+  const year = parts[0];
+  const month = parts[1];
+  const day = parseInt(parts[2], 10);
+
+  if (groupMode === 'dia') {
+    return {
+      key: rawDateStr,
+      label: `${parts[2]}/${month}/${year}`
+    };
+  } else if (groupMode === 'quinzena') {
+    const qNum = day <= 15 ? '1ª' : '2ª';
+    return {
+      key: `${year}-${month}-${qNum}`,
+      label: `${qNum} Quinz ${month}/${year}`
+    };
+  } else if (groupMode === 'mes') {
+    return {
+      key: `${year}-${month}`,
+      label: `${month}/${year}`
+    };
+  } else if (groupMode === 'trimestre') {
+    const mInt = parseInt(month, 10);
+    const tri = Math.ceil(mInt / 3);
+    return {
+      key: `${year}-Q${tri}`,
+      label: `${tri}º Tri ${year}`
+    };
+  }
+
+  return { key: dateStr, label: dateStr };
+}
+
+function processEvolucaoGrouping(rawData, groupMode) {
+  if (!rawData) {
+    return { labels: [], saldoData: [], creditosData: [], retornosData: [] };
+  }
+
+  if (groupMode === 'datahora' || !rawData.items || rawData.items.length === 0) {
+    return {
+      labels: rawData.labels || [],
+      saldoData: rawData.saldo_evolucao || [],
+      creditosData: rawData.creditos_adicionados_acum || [],
+      retornosData: rawData.retornos_apostas_acum || []
+    };
+  }
+
+  const items = rawData.items;
+  const buckets = {};
+  const bucketKeysOrder = [];
+
+  let runningCreditos = 0;
+  let runningRetornos = 0;
+
+  items.forEach(item => {
+    const val = parseFloat(item.valor) || 0;
+    if (item.tipo === 'CREDITO_ADICIONADO') {
+      runningCreditos += val;
+    } else if (item.tipo === 'CREDITO_RETORNO_APOSTA') {
+      runningRetornos += val;
+    }
+
+    const groupInfo = getExtratoGroupKey(item.criado_em, groupMode);
+    const k = groupInfo.key;
+
+    if (!buckets[k]) {
+      buckets[k] = {
+        label: groupInfo.label,
+        lastSaldo: parseFloat(item.saldo_posterior) || 0,
+        lastCreditos: runningCreditos,
+        lastRetornos: runningRetornos
+      };
+      bucketKeysOrder.push(k);
+    } else {
+      buckets[k].lastSaldo = parseFloat(item.saldo_posterior) || 0;
+      buckets[k].lastCreditos = runningCreditos;
+      buckets[k].lastRetornos = runningRetornos;
+    }
+  });
+
+  const labels = [];
+  const saldoData = [];
+  const creditosData = [];
+  const retornosData = [];
+
+  bucketKeysOrder.forEach(k => {
+    const b = buckets[k];
+    labels.push(b.label);
+    saldoData.push(b.lastSaldo);
+    creditosData.push(Math.round(b.lastCreditos * 100) / 100);
+    retornosData.push(Math.round(b.lastRetornos * 100) / 100);
+  });
+
+  return { labels, saldoData, creditosData, retornosData };
+}
+
+function updateEvolucaoGroupMode(groupMode) {
+  const processedData = processEvolucaoGrouping(graficoRawData, groupMode);
+  renderEvolucaoChart(processedData);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-  renderEvolucaoChart(graficoRawData);
+  const groupSelect = document.getElementById('extratoGroupSelect');
+  const initialMode = groupSelect ? groupSelect.value : 'datahora';
+  updateEvolucaoGroupMode(initialMode);
 });
 
 let evolucaoChartInstance = null;
@@ -755,9 +876,9 @@ function renderEvolucaoChart(data) {
   }
 
   const labels = data.labels || [];
-  const saldoData = data.saldo_evolucao || [];
-  const creditosData = data.creditos_adicionados_acum || [];
-  const retornosData = data.retornos_apostas_acum || [];
+  const saldoData = data.saldoData || data.saldo_evolucao || [];
+  const creditosData = data.creditosData || data.creditos_adicionados_acum || [];
+  const retornosData = data.retornosData || data.retornos_apostas_acum || [];
 
   evolucaoChartInstance = new Chart(ctx, {
     type: 'line',

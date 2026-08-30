@@ -469,6 +469,7 @@ class ContaCorrenteModel extends Model
         $saldoEvolucao = [];
         $creditosAdicionadosAcum = [];
         $retornosApostasAcum = [];
+        $rawItems = [];
 
         $acumCreditos = 0.0;
         $acumRetornos = 0.0;
@@ -487,13 +488,21 @@ class ContaCorrenteModel extends Model
             $saldoEvolucao[] = (float)$r->saldo_posterior;
             $creditosAdicionadosAcum[] = round($acumCreditos, 2);
             $retornosApostasAcum[] = round($acumRetornos, 2);
+
+            $rawItems[] = [
+                'criado_em'       => $r->criado_em,
+                'tipo'            => $r->tipo,
+                'valor'           => $val,
+                'saldo_posterior' => (float)$r->saldo_posterior
+            ];
         }
 
         return [
             'labels'                      => $labels,
             'saldo_evolucao'              => $saldoEvolucao,
             'creditos_adicionados_acum'   => $creditosAdicionadosAcum,
-            'retornos_apostas_acum'       => $retornosApostasAcum
+            'retornos_apostas_acum'       => $retornosApostasAcum,
+            'items'                       => $rawItems
         ];
     }
 

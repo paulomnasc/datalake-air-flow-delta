@@ -299,6 +299,7 @@
             <td colspan="6" class="text-center text-muted py-4">Carregando dados de desempenho...</td>
           </tr>
         </tbody>
+        <tfoot id="tableBreakdownFoot"></tfoot>
       </table>
     </div>
   </div>
@@ -909,16 +910,23 @@ function renderMercadoChart(labels, data, bgColors, borderColors, metaDetails) {
 
 function renderTableBreakdown(keys, buckets, groupMode) {
   const tbody = document.getElementById('tableBreakdownBody');
+  const tfoot = document.getElementById('tableBreakdownFoot');
   if (!tbody) return;
 
   if (keys.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Nenhum dado encontrado para o período selecionado.</td></tr>';
+    if (tfoot) tfoot.innerHTML = '';
     return;
   }
 
   const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   let html = '';
+  let sumCount = 0;
+  let sumApostado = 0;
+  let sumRetorno = 0;
+  let sumLucro = 0;
+
   keys.forEach(k => {
     const b = buckets[k];
     let label = k;
@@ -929,6 +937,11 @@ function renderTableBreakdown(keys, buckets, groupMode) {
       const parts = k.split('-');
       label = `${parts[1]}/${parts[0]}`;
     }
+
+    sumCount += b.count;
+    sumApostado += b.apostado;
+    sumRetorno += b.retorno;
+    sumLucro += b.lucro;
 
     const roi = b.apostado > 0 ? (b.lucro / b.apostado) * 100 : 0;
     const lucroClass = b.lucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
@@ -947,6 +960,30 @@ function renderTableBreakdown(keys, buckets, groupMode) {
   });
 
   tbody.innerHTML = html;
+
+  if (tfoot) {
+    const n = keys.length;
+    const avgCount = sumCount / n;
+    const avgApostado = sumApostado / n;
+    const avgRetorno = sumRetorno / n;
+    const avgLucro = sumLucro / n;
+    const avgRoi = avgApostado > 0 ? (avgLucro / avgApostado) * 100 : 0;
+
+    const avgCountStr = avgCount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+    const avgLucroClass = avgLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+    const avgRoiClass = avgRoi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+
+    tfoot.innerHTML = `
+      <tr class="fw-bold border-top border-2 border-secondary" style="background-color: rgba(255, 255, 255, 0.05); font-size: 0.92rem;">
+        <td class="text-warning fw-bold"><i class="bi bi-calculator me-1"></i> Média Total</td>
+        <td class="text-center text-white">${avgCountStr}</td>
+        <td class="text-white">${formatBrl(avgApostado)}</td>
+        <td class="text-white">${formatBrl(avgRetorno)}</td>
+        <td class="${avgLucroClass}">${formatBrl(avgLucro)}</td>
+        <td class="${avgRoiClass}">${(avgRoi >= 0 ? '+' : '') + avgRoi.toFixed(1).replace('.', ',')}%</td>
+      </tr>
+    `;
+  }
 }
 
 document.addEventListener('DOMContentLoaded', function() {

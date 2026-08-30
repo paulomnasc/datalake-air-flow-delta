@@ -584,6 +584,7 @@ function updatePerformanceDashboard() {
     let finalMercadoKey = rawMercado;
 
     const isCardMarket = /cart|card/i.test(rawMercado) || /cart|card/i.test(palpite);
+    const isHandicapMarket = /handicap|empate anula|dnb/i.test(rawMercado) || /ah|handicap|empate anula|dnb/i.test(palpite);
 
     if (isCardMarket) {
       const isIndividual = /individual|time/i.test(rawMercado) || /individual|time/i.test(palpite);
@@ -605,6 +606,35 @@ function updatePerformanceDashboard() {
         } else {
           finalMercadoKey = rawMercado;
         }
+      }
+    } else if (isHandicapMarket) {
+      let lineStr = null;
+      const combinedText = (palpite + ' ' + rawMercado).toLowerCase();
+
+      if (combinedText.includes('empate anula') || combinedText.includes('dnb') || combinedText.includes('0.0')) {
+        lineStr = '0.0';
+      } else {
+        let lineMatch = palpite.match(/([+-]\d+(?:[\.,]\d+)?)/);
+        if (!lineMatch) {
+          lineMatch = palpite.match(/(\d+(?:[\.,]\d+)?)\s*ah\b/i);
+        }
+        if (lineMatch) {
+          let rawLine = lineMatch[1].replace(',', '.');
+          let val = parseFloat(rawLine);
+          if (val === 0) {
+            lineStr = '0.0';
+          } else if (val > 0) {
+            lineStr = rawLine.startsWith('+') ? rawLine : '+' + rawLine;
+          } else {
+            lineStr = rawLine;
+          }
+        }
+      }
+
+      if (lineStr) {
+        finalMercadoKey = `Handicap Asiático ${lineStr}`;
+      } else {
+        finalMercadoKey = 'Handicap Asiático';
       }
     } else {
       if (palpite && !rawMercado.toLowerCase().includes(palpite.toLowerCase())) {

@@ -112,7 +112,7 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     """
     Filtra o escopo de atuação do script de criação de apostas:
     - Campeonatos do Brasil (Série A, Série B, Copa do Brasil, Paulistão, etc. - Série C e Série D excluídas)
-    - Internacional: Apenas CONMEBOL Libertadores e CONMEBOL Sudamericana.
+    - Internacional: CONMEBOL Libertadores, CONMEBOL Sudamericana, La Liga, Superliga (#119), Pro League (#307), Serie A Itália (#135), Super League 1 (#197), etc.
     - Desconsidera jogos femininos (Women / Feminino) e jogos do Brasil Série C e Série D.
     """
     l_name_low = (league_name or '').lower().strip()
@@ -134,8 +134,8 @@ def is_allowed_league(league_id, league_name: str) -> bool:
     if l_id in {75, 76}:
         return False
 
-    # IDs Conhecidos da API-Football (Brasil, Libertadores, Sudamericana, La Liga, EFL Cup e UEFA Conference/Europa)
-    ALLOWED_LEAGUE_IDS = {71, 72, 73, 13, 11, 140, 48, 848, 3}
+    # IDs Conhecidos da API-Football (Brasil, Libertadores, Sudamericana, La Liga, EFL Cup, UEFA Conference/Europa, Superliga #119, Pro League #307, Serie A #135, Super League 1 #197)
+    ALLOWED_LEAGUE_IDS = {71, 72, 73, 13, 11, 140, 48, 848, 3, 119, 307, 135, 197}
     if l_id in ALLOWED_LEAGUE_IDS:
         return True
 
@@ -145,7 +145,8 @@ def is_allowed_league(league_id, league_name: str) -> bool:
         'la liga', 'laliga',
         'league cup', 'efl cup', 'carabao cup', 'efl',
         'conference league', 'europa conference league', 'uefa conference league', 'uefa europa conference league',
-        'europa league', 'uefa europa league'
+        'europa league', 'uefa europa league',
+        'superliga', 'pro league', 'super league'
     ]
     if any(k in l_name_low for k in allowed_int_keywords):
         return True
@@ -158,22 +159,24 @@ def is_allowed_league(league_id, league_name: str) -> bool:
         'baiano', 'pernambucano', 'cearense', 'paranaense', 'catarinense'
     ]
     if any(kw in l_name_low for kw in brazil_keywords):
-        if l_name_low in ['serie a', 'serie b'] and l_id not in {71, 72}:
+        if l_name_low in ['serie a', 'serie b'] and l_id not in {71, 72, 135}:
             return False
         return True
 
     return False
 
-def criar_apostas_handicap_diario(target_date_str=None):
+def criar_apostas_handicap_diario(target_date_str=None, confirmada=1):
     """
     Busca os jogos em aberto na janela pré-jogo iminente (30 a 45 min antes da partida)
     e cria apostas no mercado de Handicap Asiático para todos os usuários.
-    Se target_date_str for especificado (ex: '2026-08-14' ou 'all'), filtra por data específica.
+    Se target_date_str for especificado (ex: '2026-08-14', 'all' ou '2026-08-24,2026-08-25'), filtra pelas datas especificadas.
+    O parâmetro confirmada (default=1) define se a aposta é confirmada (com impacto em conta corrente) ou simulada (0).
     """
     conn = get_db_connection()
     cursor = conn.cursor()
 
     is_prematch_window = False
+    confirmada_val = int(confirmada) if confirmada is not None else 1
 
     if not target_date_str or target_date_str.lower() in ('prematch', 'pre-match'):
         is_prematch_window = True
@@ -184,10 +187,10 @@ def criar_apostas_handicap_diario(target_date_str=None):
         target_dates = [today_dt.strftime('%Y-%m-%d'), tomorrow_dt.strftime('%Y-%m-%d')]
         date_desc = f"todas as partidas em aberto das datas {target_dates[0]} e {target_dates[1]}"
     else:
-        target_dates = [target_date_str]
-        date_desc = f"data {target_date_str}"
+        target_dates = [d.strip() for d in target_date_str.split(',') if d.strip()]
+        date_desc = f"datas {', '.join(target_dates)}"
 
-    print(f"🚀 [DAG Criar Apostas AH] Iniciando verificação de jogos para {date_desc}...")
+    print(f"🚀 [DAG Criar Apostas AH] Iniciando verificação de jogos para {date_desc} (Confirmada={confirmada_val})...")
 
     user_ids = get_all_user_ids(cursor)
     print(f"👥 Usuários identificados: {user_ids}")
@@ -298,18 +301,18 @@ def criar_apostas_handicap_diario(target_date_str=None):
             cursor.execute("""
                 INSERT INTO apostas (
                     usuario_id, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
-                    valor_aposta, ganhos_potenciais, status_gatekeeper, status, data_hora_jogo, criado_em, updated_at
+                    valor_aposta, ganhos_potenciais, status_gatekeeper, status, confirmada, data_hora_jogo, criado_em, updated_at
                 ) VALUES (
                     %s, %s, %s, %s, 'Handicap Asiático', %s, %s,
-                    %s, %s, 'APROVADO', 'Pendente', %s, NOW(), NOW()
+                    %s, %s, 'APROVADO', 'Pendente', %s, %s, NOW(), NOW()
                 )
             """, (
                 uid, fixture_id, home_team, away_team, ah_suggestion, odd_val,
-                valor_aposta, ganhos_potenciais, fixture_date
+                valor_aposta, ganhos_potenciais, confirmada_val, fixture_date
             ))
 
             apostas_criadas += 1
-            print(f"🟢 [Aposta Criada User #{uid}] ID #{cursor.lastrowid} | {home_team} vs {away_team} | Palpite: '{ah_suggestion}' @ Odd {odd_val:.2f}")
+            print(f"🟢 [Aposta Criada User #{uid}] ID #{cursor.lastrowid} | {home_team} vs {away_team} | Palpite: '{ah_suggestion}' @ Odd {odd_val:.2f} | Confirmada={confirmada_val}")
 
     print("\n=======================================================")
     print(f"✅ PROCESSAMENTO DE CRIAÇÃO DE APOSTAS AH CONCLUÍDO!")
@@ -322,4 +325,5 @@ def criar_apostas_handicap_diario(target_date_str=None):
 
 if __name__ == '__main__':
     target_date = sys.argv[1] if len(sys.argv) > 1 else None
-    criar_apostas_handicap_diario(target_date)
+    confirmada_arg = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+    criar_apostas_handicap_diario(target_date, confirmada_arg)

@@ -114,7 +114,7 @@ class ContaCorrenteModel extends Model
 
         $saldoAnterior = $this->getSaldo($usuarioId);
         $saldoPosterior = round($saldoAnterior + $valor, 2);
-        $now = date('Y-m-d H:i:s');
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
@@ -167,7 +167,7 @@ class ContaCorrenteModel extends Model
         $db->transStart();
 
         $saldoPosterior = round($saldoAnterior - $valor, 2);
-        $now = date('Y-m-d H:i:s');
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
@@ -231,7 +231,7 @@ class ContaCorrenteModel extends Model
 
         $saldoAnterior = $this->getSaldo($usuarioId);
         $saldoPosterior = round($saldoAnterior - $valor, 2);
-        $now = date('Y-m-d H:i:s');
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
@@ -288,7 +288,7 @@ class ContaCorrenteModel extends Model
 
         $saldoAnterior = $this->getSaldo($usuarioId);
         $saldoPosterior = round($saldoAnterior + $valor, 2);
-        $now = date('Y-m-d H:i:s');
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
@@ -358,7 +358,7 @@ class ContaCorrenteModel extends Model
 
         $saldoAnterior = $this->getSaldo($usuarioId);
         $saldoPosterior = round($saldoAnterior + $valor, 2);
-        $now = date('Y-m-d H:i:s');
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,

@@ -431,13 +431,16 @@ def extract_cards_under_suggestion(prediction_text: str):
     return None, None, 'NO_BET', None, None, None, None
 
 _betano_cards_odds_cache = {}
+_betano_cards_api_disabled = False
 
 def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: float):
     """
     Busca na API-Sports a odd REAL do mercado de cartões oferecida exclusivamente pela Betano (Bookmaker ID 32).
     Retorna tupla: (odd_float, 'BETANO') se encontrada, ou (None, None) se o mercado não estiver à venda na Betano.
+    Possui Circuit-Breaker para interrupção imediata quando a cota diária estoura.
     """
-    if not fixture_id:
+    global _betano_cards_api_disabled
+    if not fixture_id or _betano_cards_api_disabled:
         return None, None
 
     cache_key = f"{fixture_id}_{palpite_str}_{line_val}"
@@ -453,44 +456,46 @@ def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: flo
     is_under = 'menos' in (palpite_str or '').lower() or 'under' in (palpite_str or '').lower()
     target_type = 'under' if is_under else 'over'
 
-    urls = [
-        f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32&bet=80",
-        f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bet=80",
-        f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
-    ]
+    # Otimizado: 1 única chamada HTTP por partida direcionada à Betano (bookmaker=32)
+    url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
+    try:
+        resp = requests.get(url, headers=headers, timeout=10).json()
+        errs = resp.get('errors')
+        if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+            print(f"⚠️ [API-Sports Betano Cards] Limite de requisições ou cota diária atingido: {errs}. Ativando Circuit-Breaker para evitar novas chamadas HTTP nesta execução.")
+            _betano_cards_api_disabled = True
+            _betano_cards_odds_cache[cache_key] = (None, None)
+            return None, None
 
-    for url in urls:
-        try:
-            resp = requests.get(url, headers=headers, timeout=10).json()
-            items = resp.get('response', [])
-            for item in items:
-                for bm in item.get('bookmakers', []):
-                    bm_name = str(bm.get('name', '')).strip().upper()
-                    bm_id = bm.get('id')
-                    if 'BETANO' not in bm_name and bm_id != 32:
-                        continue
+        items = resp.get('response', [])
+        for item in items:
+            for bm in item.get('bookmakers', []):
+                bm_name = str(bm.get('name', '')).strip().upper()
+                bm_id = bm.get('id')
+                if 'BETANO' not in bm_name and bm_id != 32:
+                    continue
 
-                    for bet in bm.get('bets', []):
-                        b_id = bet.get('id')
-                        b_name = str(bet.get('name', '')).lower()
+                for bet in bm.get('bets', []):
+                    b_id = bet.get('id')
+                    b_name = str(bet.get('name', '')).lower()
 
-                        # Apenas mercado de Total de Cartões do Jogo (Bet ID 80 - Cards Over/Under)
-                        # Ignorar cartões individuais por time (ID 82/83) e handicap asiático de cartões (ID 81)
-                        if b_id == 80 or ('card' in b_name and ('over' in b_name or 'under' in b_name or 'total' in b_name) and not any(t in b_name for t in ['home', 'away', 'team', 'handicap', 'asian'])):
-                            for val in bet.get('values', []):
-                                v_str = str(val.get('value', '')).strip().lower()
-                                try:
-                                    v_odd = float(val.get('odd', 0))
-                                except (ValueError, TypeError):
-                                    continue
+                    # Apenas mercado de Total de Cartões do Jogo (Bet ID 80 - Cards Over/Under)
+                    # Ignorar cartões individuais por time (ID 82/83) e handicap asiático de cartões (ID 81)
+                    if b_id == 80 or ('card' in b_name and ('over' in b_name or 'under' in b_name or 'total' in b_name) and not any(t in b_name for t in ['home', 'away', 'team', 'handicap', 'asian'])):
+                        for val in bet.get('values', []):
+                            v_str = str(val.get('value', '')).strip().lower()
+                            try:
+                                v_odd = float(val.get('odd', 0))
+                            except (ValueError, TypeError):
+                                continue
 
-                                if target_type in v_str and str(line_val) in v_str:
-                                    if v_odd > 1.0:
-                                        res = (v_odd, 'BETANO')
-                                        _betano_cards_odds_cache[cache_key] = res
-                                        return res
-        except Exception as e:
-            print(f"⚠️ [API Betano Cards] Erro ao buscar odd para fixture #{fixture_id}: {e}")
+                            if target_type in v_str and str(line_val) in v_str:
+                                if v_odd > 1.0:
+                                    res = (v_odd, 'BETANO')
+                                    _betano_cards_odds_cache[cache_key] = res
+                                    return res
+    except Exception as e:
+        print(f"⚠️ [API Betano Cards] Erro ao buscar odd para fixture #{fixture_id}: {e}")
 
     _betano_cards_odds_cache[cache_key] = (None, None)
     return None, None

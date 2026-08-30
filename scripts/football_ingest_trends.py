@@ -1999,122 +1999,134 @@ def main():
             if status not in ['NS', 'PST', 'CANCELLED', 'POSTPONED']:
                 # Se a partida já estiver encerrada e possuir estatísticas de cartões salvas no banco local, pula requisições de API para economizar cota
                 has_cached_stats = (fix_id in cached_ft_stats)
-                if not has_cached_stats:
+                if not has_cached_stats and not _api_sports_rate_limited:
                     # 1. Busca estatísticas oficiais da partida (escanteios, chutes no gol, xG, cartões)
                     try:
                         stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fix_id}"
                         st_res = requests.get(stats_url, headers=headers, timeout=10)
                         if st_res.status_code == 200:
-                            st_data = st_res.json().get("response", [])
-                            for team_st in st_data:
-                                t_id = team_st.get("team", {}).get("id")
-                                is_home = (t_id == home_team_id)
-                                stats_list = team_st.get("statistics", [])
-                                ck, sg, s_total, xg_val = 0, 0, 0, 0.0
-                                yc, rc = None, None
-                                for s in stats_list:
-                                    s_type = (s.get("type") or "").strip()
-                                    s_val = s.get("value")
-                                    if s_type == "Corner Kicks" and s_val is not None:
-                                        ck = int(s_val)
-                                    elif s_type in ["Shots on Goal", "Shots on Target"] and s_val is not None:
-                                        sg = int(s_val)
-                                    elif s_type in ["Total Shots", "Shots"] and s_val is not None:
-                                        s_total = int(s_val)
-                                    elif s_type.lower().replace("_", " ").strip() in ["expected goals", "xg", "expectedgoals"] and s_val is not None:
-                                        try:
-                                            xg_val = float(s_val)
-                                        except (ValueError, TypeError):
-                                            xg_val = 0.0
-                                    elif s_type == "Yellow Cards" and s_val is not None:
-                                        yc = int(s_val)
-                                    elif s_type == "Red Cards" and s_val is not None:
-                                        rc = int(s_val)
+                            st_json = st_res.json()
+                            st_errs = st_json.get("errors")
+                            if st_errs and isinstance(st_errs, dict) and ('rateLimit' in st_errs or 'requests' in st_errs):
+                                print(f"[API-Sports Stats] Rate limit/cota ativou Circuit-Breaker para fixture #{fix_id}: {st_errs}")
+                                _api_sports_rate_limited = True
+                            else:
+                                st_data = st_json.get("response", [])
+                                for team_st in st_data:
+                                    t_id = team_st.get("team", {}).get("id")
+                                    is_home = (t_id == home_team_id)
+                                    stats_list = team_st.get("statistics", [])
+                                    ck, sg, s_total, xg_val = 0, 0, 0, 0.0
+                                    yc, rc = None, None
+                                    for s in stats_list:
+                                        s_type = (s.get("type") or "").strip()
+                                        s_val = s.get("value")
+                                        if s_type == "Corner Kicks" and s_val is not None:
+                                            ck = int(s_val)
+                                        elif s_type in ["Shots on Goal", "Shots on Target"] and s_val is not None:
+                                            sg = int(s_val)
+                                        elif s_type in ["Total Shots", "Shots"] and s_val is not None:
+                                            s_total = int(s_val)
+                                        elif s_type.lower().replace("_", " ").strip() in ["expected goals", "xg", "expectedgoals"] and s_val is not None:
+                                            try:
+                                                xg_val = float(s_val)
+                                            except (ValueError, TypeError):
+                                                xg_val = 0.0
+                                        elif s_type == "Yellow Cards" and s_val is not None:
+                                            yc = int(s_val)
+                                        elif s_type == "Red Cards" and s_val is not None:
+                                            rc = int(s_val)
 
-                                if sg == 0 and s_total > 0:
-                                    sg = s_total
+                                    if sg == 0 and s_total > 0:
+                                        sg = s_total
 
-                                # Fallback para cálculo de xG em tempo real quando o xG oficial (Opta) não é fornecido pela API-Sports nesta liga
-                                if xg_val == 0.0:
-                                    team_goals = int(goals_home if is_home else goals_away) if (goals_home is not None and goals_away is not None) else 0
-                                    shots_off = max(0, s_total - sg)
-                                    if sg > 0 or s_total > 0 or team_goals > 0:
-                                        calc_xg = round((sg * 0.32) + (shots_off * 0.08) + (team_goals * 0.15), 2)
-                                        if calc_xg == 0.0 and team_goals > 0:
-                                            calc_xg = round(team_goals * 0.75, 2)
-                                        xg_val = max(0.0, calc_xg)
+                                    # Fallback para cálculo de xG em tempo real quando o xG oficial (Opta) não é fornecido pela API-Sports nesta liga
+                                    if xg_val == 0.0:
+                                        team_goals = int(goals_home if is_home else goals_away) if (goals_home is not None and goals_away is not None) else 0
+                                        shots_off = max(0, s_total - sg)
+                                        if sg > 0 or s_total > 0 or team_goals > 0:
+                                            calc_xg = round((sg * 0.32) + (shots_off * 0.08) + (team_goals * 0.15), 2)
+                                            if calc_xg == 0.0 and team_goals > 0:
+                                                calc_xg = round(team_goals * 0.75, 2)
+                                            xg_val = max(0.0, calc_xg)
 
-                                if is_home:
-                                    corners_home = ck
-                                    shots_home = sg if sg > 0 else s_total
-                                    xg_home = xg_val
-                                    if yc is not None: yellow_cards_home = yc
-                                    if rc is not None: red_cards_home = rc
-                                else:
-                                    corners_away = ck
-                                    shots_away = sg if sg > 0 else s_total
-                                    xg_away = xg_val
-                                    if yc is not None: yellow_cards_away = yc
-                                    if rc is not None: red_cards_away = rc
+                                    if is_home:
+                                        corners_home = ck
+                                        shots_home = sg if sg > 0 else s_total
+                                        xg_home = xg_val
+                                        if yc is not None: yellow_cards_home = yc
+                                        if rc is not None: red_cards_home = rc
+                                    else:
+                                        corners_away = ck
+                                        shots_away = sg if sg > 0 else s_total
+                                        xg_away = xg_val
+                                        if yc is not None: yellow_cards_away = yc
+                                        if rc is not None: red_cards_away = rc
                     except Exception as e:
                         print(f"Aviso ao buscar estatísticas para partida {fix_id}: {e}")
 
                     # 2. Busca eventos oficiais da partida (cartões, gols, substituições)
-                    try:
-                        events_url = f"https://v3.football.api-sports.io/fixtures/events?fixture={fix_id}"
-                        ev_res = requests.get(events_url, headers=headers, timeout=10)
-                        goals_list = []
-                        last_ev_text = None
-                        if ev_res.status_code == 200:
-                            ev_data = ev_res.json().get("response", [])
-                            yh, ya, rh, ra = 0, 0, 0, 0
-                            card_count = 0
-                            sub_count = 0
-                            for ev in ev_data:
-                                team_id = ev.get("team", {}).get("id")
-                                is_home = (team_id == home_team_id)
-                                team_name_ev = home_team if is_home else away_team
-                                ev_type = ev.get("type")
-                                detail = ev.get("detail", "")
-                                time_info = ev.get("time", {})
-                                elapsed_min = time_info.get("elapsed", 0)
-                                extra_min = time_info.get("extra")
-                                time_str = f"{elapsed_min}+{extra_min}'" if extra_min else f"{elapsed_min}'"
-                                player_name = ev.get("player", {}).get("name", "")
-                                assist_name = ev.get("assist", {}).get("name", "")
+                    if not _api_sports_rate_limited:
+                        try:
+                            events_url = f"https://v3.football.api-sports.io/fixtures/events?fixture={fix_id}"
+                            ev_res = requests.get(events_url, headers=headers, timeout=10)
+                            goals_list = []
+                            last_ev_text = None
+                            if ev_res.status_code == 200:
+                                ev_json = ev_res.json()
+                                ev_errs = ev_json.get("errors")
+                                if ev_errs and isinstance(ev_errs, dict) and ('rateLimit' in ev_errs or 'requests' in ev_errs):
+                                    print(f"[API-Sports Events] Rate limit/cota ativou Circuit-Breaker para fixture #{fix_id}: {ev_errs}")
+                                    _api_sports_rate_limited = True
+                                else:
+                                    ev_data = ev_json.get("response", [])
+                                    yh, ya, rh, ra = 0, 0, 0, 0
+                                    card_count = 0
+                                    sub_count = 0
+                                    for ev in ev_data:
+                                        team_id = ev.get("team", {}).get("id")
+                                        is_home = (team_id == home_team_id)
+                                        team_name_ev = home_team if is_home else away_team
+                                        ev_type = ev.get("type")
+                                        detail = ev.get("detail", "")
+                                        time_info = ev.get("time", {})
+                                        elapsed_min = time_info.get("elapsed", 0)
+                                        extra_min = time_info.get("extra")
+                                        time_str = f"{elapsed_min}+{extra_min}'" if extra_min else f"{elapsed_min}'"
+                                        player_name = ev.get("player", {}).get("name", "")
+                                        assist_name = ev.get("assist", {}).get("name", "")
 
-                                if ev_type == "Card":
-                                    card_count += 1
-                                    if "Yellow" in detail:
-                                        if is_home: yh += 1
-                                        else: ya += 1
-                                        last_ev_text = f"{time_str} {card_count}º Cartão amarelo: {team_name_ev} ({player_name})"
-                                    elif "Red" in detail:
-                                        if is_home: rh += 1
-                                        else: ra += 1
-                                        last_ev_text = f"{time_str} Cartão vermelho: {team_name_ev} ({player_name})"
-                                elif ev_type == "Goal":
-                                    goals_list.append(f"{time_str} {player_name}".strip())
-                                    last_ev_text = f"{time_str} Gol: {team_name_ev} ({player_name})"
-                                elif ev_type in ["subst", "Subst", "Substitution"]:
-                                    sub_count += 1
-                                    if assist_name:
-                                        last_ev_text = f"{time_str} {sub_count}ª Substituição: {assist_name} (Entra), {player_name} (Sai)"
-                                    else:
-                                        last_ev_text = f"{time_str} {sub_count}ª Substituição: {team_name_ev} ({player_name})"
-                            
-                            yellow_cards_home = max(yellow_cards_home if yellow_cards_home is not None else 0, yh)
-                            yellow_cards_away = max(yellow_cards_away if yellow_cards_away is not None else 0, ya)
-                            red_cards_home = max(red_cards_home if red_cards_home is not None else 0, rh)
-                            red_cards_away = max(red_cards_away if red_cards_away is not None else 0, ra)
+                                        if ev_type == "Card":
+                                            card_count += 1
+                                            if "Yellow" in detail:
+                                                if is_home: yh += 1
+                                                else: ya += 1
+                                                last_ev_text = f"{time_str} {card_count}º Cartão amarelo: {team_name_ev} ({player_name})"
+                                            elif "Red" in detail:
+                                                if is_home: rh += 1
+                                                else: ra += 1
+                                                last_ev_text = f"{time_str} Cartão vermelho: {team_name_ev} ({player_name})"
+                                        elif ev_type == "Goal":
+                                            goals_list.append(f"{time_str} {player_name}".strip())
+                                            last_ev_text = f"{time_str} Gol: {team_name_ev} ({player_name})"
+                                        elif ev_type in ["subst", "Subst", "Substitution"]:
+                                            sub_count += 1
+                                            if assist_name:
+                                                last_ev_text = f"{time_str} {sub_count}ª Substituição: {assist_name} (Entra), {player_name} (Sai)"
+                                            else:
+                                                last_ev_text = f"{time_str} {sub_count}ª Substituição: {team_name_ev} ({player_name})"
+                                    
+                                    yellow_cards_home = max(yellow_cards_home if yellow_cards_home is not None else 0, yh)
+                                    yellow_cards_away = max(yellow_cards_away if yellow_cards_away is not None else 0, ya)
+                                    red_cards_home = max(red_cards_home if red_cards_home is not None else 0, rh)
+                                    red_cards_away = max(red_cards_away if red_cards_away is not None else 0, ra)
 
-                            if goals_list:
-                                goal_scorers_str = ", ".join(goals_list)
-                            if last_ev_text:
-                                last_event_str = last_ev_text
-
-                    except Exception as e:
-                        print(f"Aviso ao buscar cartões/eventos para partida {fix_id}: {e}")
+                                    if goals_list:
+                                        goal_scorers_str = ", ".join(goals_list)
+                                    if last_ev_text:
+                                        last_event_str = last_ev_text
+                        except Exception as e:
+                            print(f"Aviso ao buscar cartões/eventos para partida {fix_id}: {e}")
 
                 # Mantém None caso não haja dados de cartões retornados, permitindo gravação de NULL no banco de dados
                 pass
@@ -2205,8 +2217,13 @@ _api_sports_odds_cache = {}
 _api_sports_single_odds_cache = {}
 
 def fetch_single_api_sports_odds(fix_id):
-    if not fix_id:
+    """
+    Busca odds de uma partida específica via API-Sports (Pro Plan por fixture_id).
+    """
+    global _api_sports_rate_limited
+    if not fix_id or _api_sports_rate_limited:
         return {}
+
     if fix_id in _api_sports_single_odds_cache:
         return _api_sports_single_odds_cache[fix_id]
 
@@ -2220,6 +2237,13 @@ def fetch_single_api_sports_odds(fix_id):
     bms_dict = {}
     try:
         resp = requests.get(url, headers=headers, timeout=10).json()
+        errs = resp.get('errors')
+        if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+            print(f"[API-Sports Single Odds] Cota/Rate limit atingido para fixture #{fix_id}: {errs}. Ativando Circuit-Breaker.")
+            _api_sports_rate_limited = True
+            _api_sports_single_odds_cache[fix_id] = {}
+            return {}
+
         items = resp.get('response', [])
         for item in items:
             for bm in item.get('bookmakers', []):
@@ -2255,6 +2279,10 @@ def fetch_api_sports_odds_by_date(date_list=None):
     Retorna dicionário mapeado diretamente pelo fixture_id:
     { fixture_id: { 'BETANO': {'casa': 4.70, 'empate': 4.50, 'visitante': 1.70}, ... } }
     """
+    global _api_sports_rate_limited
+    if _api_sports_rate_limited:
+        return {}
+
     if date_list is None:
         today = datetime.now().strftime('%Y-%m-%d')
         tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -2270,6 +2298,8 @@ def fetch_api_sports_odds_by_date(date_list=None):
     odds_by_fixture = {}
 
     for d in date_list:
+        if _api_sports_rate_limited:
+            break
         if d in _api_sports_odds_cache:
             for fid, bms in _api_sports_odds_cache[d].items():
                 if fid not in odds_by_fixture:

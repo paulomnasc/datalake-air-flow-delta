@@ -178,10 +178,10 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=1):
     is_prematch_window = False
     confirmada_val = int(confirmada) if confirmada is not None else 1
 
-    if not target_date_str or target_date_str.lower() in ('prematch', 'pre-match'):
+    if target_date_str and target_date_str.lower() in ('prematch', 'pre-match'):
         is_prematch_window = True
         date_desc = "janela pré-jogo (30 a 45 minutos antes do início)"
-    elif target_date_str.lower() == 'all':
+    elif not target_date_str or target_date_str.lower() in ('all', 'today'):
         today_dt = datetime.now()
         tomorrow_dt = today_dt + timedelta(days=1)
         target_dates = [today_dt.strftime('%Y-%m-%d'), tomorrow_dt.strftime('%Y-%m-%d')]
@@ -209,7 +209,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=1):
         cursor.execute(f"""
             SELECT * FROM fixtures_trends
             WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN ({placeholders})
-              AND status NOT IN ('PST', 'CANCELLED', 'POSTPONED')
+              AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """, tuple(target_dates))
     

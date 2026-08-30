@@ -64,10 +64,10 @@ default_args = {
 dag = DAG(
     'criar_apostas_handicap_dag',
     default_args=default_args,
-    schedule_interval=None,  # DAG desativada (fora do escopo de atuação do usuário)
+    schedule_interval='0 * * * *',  # Executa a cada 1 hora verificando todos os jogos em aberto das datas correntes
     catchup=False,
-    description="DAG do Airflow que verifica jogos em aberto na janela pré-jogo (30 a 45 min antes do apito inicial) e cria apostas no mercado de Handicap Asiático (Odd Mínima: 1.60)",
-    tags=['football', 'handicap', 'apostas', 'prematch_creation']
+    description="DAG do Airflow que verifica jogos em aberto e cria apostas no mercado de Handicap Asiático (Odd Mínima: 1.50)",
+    tags=['football', 'handicap', 'apostas', 'daily_creation']
 )
 
 criar_task = PythonOperator(

@@ -999,9 +999,9 @@ def calculate_asian_handicap_suggestion(
                 confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
                 main_reason = f"Favoritismo do {home_team} em casa nas odds e produção (+{delta_goals:.2f} gols esperados). Proteção de meia estaca (AH -0.25).{note_str}"
             elif delta_goals >= -0.30:
-                suggestion = f"{home_team} +0.25 AH"
+                suggestion = f"{home_team} -0.25 AH"
                 confidence = 72.00
-                main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com cobertura de meia estaca (+0.25 AH).{note_str}"
+                main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com proteção de meia estaca (-0.25 AH).{note_str}"
             else:
                 # Conflito severo de xG vs Menor Odd do Mandante -> ABSTENÇÃO POR SEGURANÇA
                 suggestion = "Sem Entrada (Abstenção)"
@@ -1021,9 +1021,9 @@ def calculate_asian_handicap_suggestion(
                 confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
                 main_reason = f"Favoritismo do visitante {away_team} nas odds de mercado. Proteção conservadora de meia estaca (AH -0.25).{note_str}"
             elif delta_goals <= 0.30:
-                suggestion = f"{away_team} +0.25 AH"
+                suggestion = f"{away_team} -0.25 AH"
                 confidence = 72.00
-                main_reason = f"Favoritismo de mercado do visitante {away_team} alinhado com cobertura de meia estaca (+0.25 AH).{note_str}"
+                main_reason = f"Favoritismo de mercado do visitante {away_team} alinhado com proteção de meia estaca (-0.25 AH).{note_str}"
             else:
                 # Conflito severo de xG vs Menor Odd do Visitante -> ABSTENÇÃO POR SEGURANÇA
                 suggestion = "Sem Entrada (Abstenção)"
@@ -1098,6 +1098,89 @@ def calculate_asian_handicap_suggestion(
 
     full_reasoning = f"{main_reason} || EXPLICACAO: {nl_explanation} || MOTIVACAO: {nl_motivation} || MEMÓRIA DE CÁLCULO || {calc_memory} || PROBABILIDADES_1X2: {prob_1x2_json} || U5J_DATA: {u5j_json}"
     return suggestion, confidence, full_reasoning
+
+def is_abstain_suggestion(sug):
+    if not sug:
+        return True
+    sug_low = str(sug).lower()
+    return any(term in sug_low for term in ['sem entrada', 'abstenção', 'abstencao', 'no_bet', 'bloqueada', 'indisponível', 'indisponivel'])
+
+def cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fixture_id, motivo):
+    """
+    Quando uma partida possui ah_suggestion classificada como abstenção (Sem Entrada, Abstenção, NO_BET, Bloqueada),
+    procura apostas pendentes no mercado Handicap Asiático para o fixture_id.
+    Altera o status para 'Cancelada' e, se a aposta tiver débito em conta corrente (DEBITO_APOSTA),
+    realiza o estorno financeiro automático (ESTORNO_APOSTA) atualizando o saldo do usuário.
+    """
+    try:
+        cursor.execute("""
+            SELECT a.id, a.usuario_id, a.time_casa, a.time_fora, a.mercado, a.palpite, a.odd,
+                   a.valor_aposta, a.confirmada, a.data_hora_jogo, a.status
+            FROM apostas a
+            WHERE a.fixture_id = %s 
+              AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
+              AND a.status = 'Pendente'
+        """, (fixture_id,))
+        apostas_pendentes = cursor.fetchall()
+        if not apostas_pendentes:
+            return
+
+        for aposta in apostas_pendentes:
+            aposta_id = aposta['id']
+            usuario_id = aposta['usuario_id']
+            valor = float(aposta['valor_aposta'] or 0.0)
+
+            cursor.execute("""
+                UPDATE apostas 
+                SET status = 'Cancelada', 
+                    resultado_detalhado = %s, 
+                    updated_at = NOW() 
+                WHERE id = %s
+            """, (f"🚫 APOSTA CANCELADA POR ABSTENÇÃO DA IA: {str(motivo)[:200]}", aposta_id))
+
+            # Verificar se houve débito em conta corrente
+            cursor.execute("""
+                SELECT id, valor FROM conta_corrente 
+                WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'DEBITO_APOSTA'
+                LIMIT 1
+            """, (usuario_id, aposta_id))
+            debito = cursor.fetchone()
+
+            if debito:
+                cursor.execute("""
+                    SELECT id FROM conta_corrente 
+                    WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'ESTORNO_APOSTA'
+                    LIMIT 1
+                """, (usuario_id, aposta_id))
+                estorno_existente = cursor.fetchone()
+
+                if not estorno_existente:
+                    cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (usuario_id,))
+                    user_row = cursor.fetchone()
+                    saldo_anterior = float(user_row['saldo_conta_corrente'] or 0.0) if user_row else 0.0
+                    saldo_posterior = round(saldo_anterior + valor, 2)
+
+                    desc_estorno = f"Estorno Aposta #{aposta_id} - Abstenção IA ({aposta['time_casa']} vs {aposta['time_fora']})"
+
+                    cursor.execute("""
+                        INSERT INTO conta_corrente (
+                            usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
+                        ) VALUES (
+                            %s, %s, 'ESTORNO_APOSTA', %s, %s, %s, %s, NOW()
+                        )
+                    """, (usuario_id, aposta_id, desc_estorno, valor, saldo_anterior, saldo_posterior))
+
+                    cursor.execute("""
+                        UPDATE usuario 
+                        SET saldo_conta_corrente = %s 
+                        WHERE id = %s
+                    """, (saldo_posterior, usuario_id))
+
+                    print(f"💰 [Ingest Trends - Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | R$ {valor:.2f} estornado (Novo Saldo: R$ {saldo_posterior:.2f})")
+            print(f"🛡️ [Ingest Trends - Aposta AH Cancelada] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} -> Motivo: {motivo}")
+    except Exception as e_canc:
+        print(f"Aviso ao cancelar/estornar aposta em abstenção para fixture {fixture_id}: {e_canc}")
+
 
 
 
@@ -2183,6 +2266,9 @@ def main():
                         goal_scorers_str, last_event_str, ah_suggestion, ah_confidence, ah_reasoning
                     ))
                     conn.commit()
+                    if is_abstain_suggestion(ah_suggestion):
+                        cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, ah_reasoning or ah_suggestion)
+                        conn.commit()
                     inserted_fixtures += 1
                     break
                 except pymysql.err.OperationalError as e_dl:
@@ -2670,6 +2756,9 @@ def update_oddspedia_odds(conn):
                             WHERE fixture_id = %s
                         """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, is_surebet, profit_pct, sug, conf, reason, fix_id))
                         conn.commit()
+                        if is_abstain_suggestion(sug):
+                            cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
+                            conn.commit()
                         updated_count += 1
                         print(f"Odds e motivação atualizadas para {fix['home_team']} vs {fix['away_team']}: 1({best_bm1}={best_c1}), X({best_bmX}={best_cX}), 2({best_bm2}={best_c2}) | Surebet: {is_surebet}")
                         break
@@ -2867,6 +2956,8 @@ def enrich_fixtures_standings(conn):
                     ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s
                 WHERE fixture_id = %s
             """, (home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, motivation_score, sug, conf, reason, fix_id))
+            if is_abstain_suggestion(sug):
+                cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
         else:
             cursor.execute("""
                 UPDATE fixtures_trends SET
@@ -2925,6 +3016,8 @@ def recalculate_inconsistent_odds_predictions(conn):
                         ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s, updated_at = NOW()
                     WHERE fixture_id = %s
                 """, (sug, conf, reason, fix_id))
+                if is_abstain_suggestion(sug):
+                    cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
             conn.commit()
             print(f"✅ Sincronização concluída: {len(inconsistent_fixtures)} partidas tiveram seus palpites de IA corrigidos!")
     except Exception as e_fix_inc:

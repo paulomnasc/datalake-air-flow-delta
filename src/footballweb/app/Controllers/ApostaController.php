@@ -999,7 +999,7 @@ class ApostaController extends BaseController
 
         $debitoExistente = $qExists ? $qExists->getRow() : null;
 
-        if ($debitoExistente || (isset($aposta->confirmada) && (int)$aposta->confirmada === 1 && $aposta->status !== 'Não Confirmada')) {
+        if ($debitoExistente) {
             $this->apostaModel->update($apostaId, ['confirmada' => 1]);
             $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
             return $this->response->setJSON([

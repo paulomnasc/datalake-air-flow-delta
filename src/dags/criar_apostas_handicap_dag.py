@@ -66,8 +66,8 @@ dag = DAG(
     default_args=default_args,
     schedule_interval='0 * * * *',  # Executa a cada 1 hora verificando todos os jogos em aberto das datas correntes
     catchup=False,
-    description="DAG do Airflow que verifica jogos em aberto e cria apostas no mercado de Handicap Asiático (Odd Mínima: 1.50)",
-    tags=['football', 'handicap', 'apostas', 'daily_creation']
+    description="DAG do Airflow que verifica jogos em aberto, cria apostas no mercado de Handicap Asiático (Odd Mínima Sweet Spot: 1.85), cancela/estorna apostas em abstenção da IA e envia e-mail com relatório de movimentações.",
+    tags=['football', 'handicap', 'apostas', 'daily_creation', 'email_notification']
 )
 
 criar_task = PythonOperator(

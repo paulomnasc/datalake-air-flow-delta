@@ -1149,6 +1149,7 @@ def sync_pending_past_fixtures(conn, headers):
               AND (
                 status NOT IN ('FT', 'AET', 'PEN', 'PST', 'CANC') 
                 OR goals_home IS NULL 
+                OR score_processed_at IS NULL
                 OR (yellow_cards_home IS NULL AND fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR))
               )
             ORDER BY fixture_date DESC
@@ -1183,9 +1184,10 @@ def sync_pending_past_fixtures(conn, headers):
                                 goals_home = %s,
                                 goals_away = %s,
                                 elapsed = %s,
+                                score_processed_at = IF(%s IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND %s IS NOT NULL AND %s IS NOT NULL, COALESCE(score_processed_at, NOW()), score_processed_at),
                                 updated_at = NOW()
                             WHERE fixture_id = %s
-                        """, (status, gh, ga, elapsed, fid))
+                        """, (status, gh, ga, elapsed, status, gh, ga, fid))
                         updated_count += 1
             except Exception as e_date:
                 print(f"Aviso ao sincronizar partidas passadas da data {d}: {e_date}")
@@ -2154,6 +2156,7 @@ def main():
                             status = VALUES(status),
                             goals_home = COALESCE(VALUES(goals_home), goals_home),
                             goals_away = COALESCE(VALUES(goals_away), goals_away),
+                            score_processed_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND (VALUES(goals_home) IS NOT NULL OR goals_home IS NOT NULL) AND (VALUES(goals_away) IS NOT NULL OR goals_away IS NOT NULL), COALESCE(score_processed_at, NOW()), score_processed_at),
                             elapsed = COALESCE(VALUES(elapsed), elapsed),
                             yellow_cards_home = COALESCE(VALUES(yellow_cards_home), yellow_cards_home),
                             yellow_cards_away = COALESCE(VALUES(yellow_cards_away), yellow_cards_away),

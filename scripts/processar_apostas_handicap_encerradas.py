@@ -103,12 +103,16 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
 
 def get_fixture_handicap_stats(fixture):
     """
-    Retorna os gols reais da partida se o status for finalizado (FT).
-    Retorna None se os gols ou o status estiverem incompletos no banco.
+    Retorna os gols reais da partida se o status for finalizado (FT) E o placar tiver sido oficialmente verificado (score_processed_at).
+    Retorna None se os gols, status ou a trava score_processed_at estiverem incompletos no banco.
     """
     status = (fixture.get('status') or '').strip().upper()
     finished_statuses = ['FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED']
     if status not in finished_statuses:
+        return None
+
+    score_processed_at = fixture.get('score_processed_at')
+    if not score_processed_at:
         return None
 
     goals_home = fixture.get('goals_home')

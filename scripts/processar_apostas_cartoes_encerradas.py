@@ -276,6 +276,7 @@ def ensure_fixture_card_stats(cursor, fixture):
                     yellow_cards_away = %s,
                     red_cards_home = %s,
                     red_cards_away = %s,
+                    score_processed_at = COALESCE(score_processed_at, NOW()),
                     updated_at = NOW()
                 WHERE fixture_id = %s
             """, (yellow_home, yellow_away, red_home, red_away, fixture_id))

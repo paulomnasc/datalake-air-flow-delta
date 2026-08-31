@@ -258,11 +258,15 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
 def get_fixture_stats(fixture, cursor=None):
     """
     Extrai as estatísticas reais finais da partida (FT).
-    Retorna None se os dados de gols ou status do jogo estiverem incompletos/nulos no banco.
+    Retorna None se os dados de gols, status ou a trava score_processed_at estiverem incompletos/nulos no banco.
     """
     status = (fixture.get('status') or '').strip().upper()
     finished_statuses = ['FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED']
     if status not in finished_statuses:
+        return None
+
+    score_processed_at = fixture.get('score_processed_at')
+    if not score_processed_at:
         return None
 
     goals_home = fixture.get('goals_home')
@@ -691,6 +695,9 @@ def process_palpites_gerados(cursor):
         FROM palpites_gerados p
         JOIN fixtures_trends f ON p.fixture_id = f.fixture_id
         WHERE f.status IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED')
+          AND f.score_processed_at IS NOT NULL
+          AND f.goals_home IS NOT NULL
+          AND f.goals_away IS NOT NULL
     """)
     palpites = cursor.fetchall()
     
@@ -728,6 +735,9 @@ def process_palpites_gerados(cursor):
         LEFT JOIN palpites_gerados p ON f.fixture_id = p.fixture_id
         WHERE p.id_palpite IS NULL
           AND f.status IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED')
+          AND f.score_processed_at IS NOT NULL
+          AND f.goals_home IS NOT NULL
+          AND f.goals_away IS NOT NULL
         LIMIT 300
     """)
     fixtures_sem_palpite = cursor.fetchall()

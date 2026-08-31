@@ -74,7 +74,7 @@ class ContaCorrenteController extends BaseController
         $tipo       = trim((string)$this->request->getGet('tipo'));
 
         $extratoData = $this->contaCorrenteModel->getExtrato($userId, $dataInicio, $dataFim, $tipo);
-        $graficoData = $this->contaCorrenteModel->getEvolucaoFinanceira($userId);
+        $graficoData = $this->contaCorrenteModel->getEvolucaoFinanceira($userId, $dataInicio, $dataFim);
 
         $data = [
             'title'        => 'Extrato da Conta Corrente & Evolução Financeira | Smart Betting',
@@ -202,7 +202,10 @@ class ContaCorrenteController extends BaseController
             ])->setStatusCode(403);
         }
 
-        $graficoData = $this->contaCorrenteModel->getEvolucaoFinanceira($access['user_id']);
+        $dataInicio = trim((string)$this->request->getGet('data_inicio'));
+        $dataFim    = trim((string)$this->request->getGet('data_fim'));
+
+        $graficoData = $this->contaCorrenteModel->getEvolucaoFinanceira($access['user_id'], $dataInicio, $dataFim);
 
         return $this->response->setJSON([
             'success' => true,

@@ -641,8 +641,9 @@ def criar_apostas_cartoes_diario(target_date_str=None):
                 print(f"ℹ️ [Linha Indisponível Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Mercado '{s_palpite_str}' indisponível na Betano. Testando próxima sugestão...")
                 continue
 
-            if real_odd_betano < 1.50:
-                print(f"ℹ️ [Odd Baixa < 1.50] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Odd Betano ({real_odd_betano:.2f}) para '{s_palpite_str}' é inferior ao mínimo (1.50). Testando próxima opção...")
+            min_odd_required = 1.65 if abs(float(s_line_val) - 5.5) < 0.01 else 1.50
+            if real_odd_betano < min_odd_required:
+                print(f"ℹ️ [Odd Baixa < {min_odd_required:.2f}] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Odd Betano ({real_odd_betano:.2f}) para '{s_palpite_str}' é inferior ao mínimo ({min_odd_required:.2f}). Testando próxima opção...")
                 continue
 
             # Opção válida encontrada na Betano e aprovada pelo Gatekeeper!
@@ -650,8 +651,8 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             break
 
         if not selected_suggestion:
-            print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha recomendada está disponível na Betano com odd >= 1.50.")
-            cancelar_apostas_pendentes_existentes("Linha indisponível ou reprovada na Betano com odd >= 1.50")
+            print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha recomendada está disponível na Betano com odd adequada.")
+            cancelar_apostas_pendentes_existentes("Linha indisponível ou reprovada na Betano com odd suficiente")
             apostas_abstencao += 1
             continue
 

@@ -275,6 +275,20 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=1):
             target_team = away_team if is_away else home_team
             ah_suggestion = f"{target_team} +0.25 AH"
 
+        # Trava de Segurança Estrita: Filtro para as Top Estratégias AH (+0.25, -0.25, -0.5, +0.5, -1.0)
+        # Descartar resíduos de 0.0 AH / Empate Anula e entradas fora do padrão fracionado seguro.
+        ah_norm_after = ah_suggestion.lower()
+        if '0.0' in ah_norm_after or 'empate anula' in ah_norm_after:
+            print(f"🛡️ [Trava 0.0 AH / Empate Anula] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' é linha 0.0 de alto risco (EV-). Aposta não criada.")
+            apostas_abstenção += 1
+            continue
+
+        allowed_lines = ['+0.25', '-0.25', '-0.5', '+0.5', '-1.0']
+        if not any(al in ah_norm_after for al in allowed_lines):
+            print(f"🛡️ [Linha Fora das Top Estratégias] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' fora das linhas fracionadas permitidas (+0.25, -0.25, -0.5, +0.5, -1.0). Aposta não criada.")
+            apostas_abstenção += 1
+            continue
+
         raw_odd = fix.get('odd_away') if is_away else fix.get('odd_home')
         if not raw_odd or float(raw_odd) <= 1.0 or not fix.get('odd_home') or not fix.get('odd_away'):
             print(f"🛡️ [Sem Odds Reais] Partida {home_team} vs {away_team} -> Odds ausentes ou inválidas no mercado. Aposta não criada.")

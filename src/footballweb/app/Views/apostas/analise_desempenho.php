@@ -1042,13 +1042,15 @@ function renderTableBreakdown(keys, buckets, groupMode) {
       label = `${parts[1]}/${parts[0]}`;
     }
 
+    const bLucro = b.retorno - b.apostado;
+
     sumCount += b.count;
     sumApostado += b.apostado;
     sumRetorno += b.retorno;
-    sumLucro += b.lucro;
+    sumLucro += bLucro;
 
-    const roi = b.apostado > 0 ? (b.lucro / b.apostado) * 100 : 0;
-    const lucroClass = b.lucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+    const roi = b.apostado > 0 ? (bLucro / b.apostado) * 100 : 0;
+    const lucroClass = bLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
     const roiClass = roi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
 
     html += `
@@ -1057,7 +1059,7 @@ function renderTableBreakdown(keys, buckets, groupMode) {
         <td class="text-center">${b.count}</td>
         <td>${formatBrl(b.apostado)}</td>
         <td>${formatBrl(b.retorno)}</td>
-        <td class="${lucroClass}">${formatBrl(b.lucro)}</td>
+        <td class="${lucroClass}">${formatBrl(bLucro)}</td>
         <td class="${roiClass}">${(roi >= 0 ? '+' : '') + roi.toFixed(1).replace('.', ',')}%</td>
       </tr>
     `;

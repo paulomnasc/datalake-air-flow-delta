@@ -449,19 +449,45 @@ def determine_bet_side(home_team: str, away_team: str, ah_suggestion: str) -> bo
         return True
     return False
 
-def is_allowed_league(league_id: int, league_name: str) -> bool:
+def is_allowed_league(league_id: int, league_name: str, fixture_date=None) -> bool:
     """
     Filtra o escopo de atuação do script de criação de apostas.
-    Permite todas as ligas elegíveis de futebol (La Liga, Premier League, Serie A, Brasil, Libertadores, etc).
-    Desconsidera apenas partidas femininas.
+    Opção 1 Ativada:
+    - Bloqueia partidas femininas.
+    - Bloqueia Copas Secundárias (EFL Trophy, Carabao Cup, League Cup, FA Trophy).
+    - Bloqueia rodadas de meio de semana (Terça, Quarta e Quinta) em divisões inferiores inglesas (League One, League Two, National League).
     """
     if not league_name:
         return False
     
     l_name_low = league_name.lower().strip()
-    if 'women' in l_name_low or 'feminino' in l_name_low or 'femenina' in l_name_low:
+
+    # 1. Bloqueia partidas femininas
+    if any(w in l_name_low for w in ['women', 'feminino', 'femenina']):
         return False
+
+    # 2. Bloqueia Copas Secundárias Inglesas (EFL Trophy, Carabao Cup, FA Trophy, League Cup)
+    secondary_cups = [
+        'efl trophy', 'fl trophy', 'johnstone', 'bristol street', 'papa john',
+        'carabao cup', 'league cup', 'fa trophy'
+    ]
+    if any(cup in l_name_low for cup in secondary_cups):
+        return False
+
+    # 3. Bloqueia rodadas de meio de semana (Terça, Quarta e Quinta) de divisões inferiores inglesas
+    is_lower_english = any(div in l_name_low for div in ['league one', 'league 1', 'league two', 'league 2', 'national league'])
     
+    if is_lower_english and fixture_date:
+        try:
+            if isinstance(fixture_date, str):
+                dt = datetime.strptime(fixture_date[:19], '%Y-%m-%d %H:%M:%S')
+            else:
+                dt = fixture_date
+            if dt.weekday() in (1, 2, 3):  # Terça (1), Quarta (2) ou Quinta (3)
+                return False
+        except Exception:
+            pass
+
     return True
 
 def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
@@ -537,9 +563,9 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
         league_id = fix.get('league_id')
         league_name = fix.get('league_name') or ''
 
-        if not is_allowed_league(league_id, league_name):
-            print(f"🌍 [Fora do Escopo] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, "Liga fora do escopo do bot")
+        if not is_allowed_league(league_id, league_name, fixture_date):
+            print(f"🌍 [Fora do Escopo / Bloqueio Meio de Semana] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
+            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, "Liga/Copa fora do escopo (Bloqueio Meio de Semana / EFL Trophy)")
             if canc_list:
                 apostas_canceladas_detalhes.extend(canc_list)
                 apostas_canceladas += len(canc_list)

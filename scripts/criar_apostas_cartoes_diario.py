@@ -214,29 +214,45 @@ def get_all_user_ids(cursor):
     """)
     return [cursor.lastrowid]
 
-def is_allowed_league(league_id, league_name: str) -> bool:
+def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
     """
     Filtra o escopo de atuação do script de criação de apostas:
-    - Campeonatos do Brasil (Série A, Série B, Copa do Brasil, Paulistão, etc. - Série C e Série D excluídas)
-    - Internacional UEFA & CONMEBOL: UEFA Champions League (ID 2), Libertadores e Sul-Americana
-    - Ligas Internacionais Permitidas:
-      - Allsvenskan (ID 113)
-      - Eredivisie (ID 88)
-      - La Liga - Espanha (ID 140)
-      - Liga MX (ID 262)
-      - Liga Profesional Argentina (ID 128)
-      - Ligue 1 - França (ID 61)
-      - Major League Soccer - MLS (ID 253)
-      - Premier League - Inglaterra (ID 39)
-      - Primeira Liga - Portugal (ID 94)
-      - Serie A Italiana (ID 135)
-      - UEFA Champions League (ID 2)
-    - Desconsidera jogos femininos (Women / Feminino) e jogos do Brasil Série C e Série D.
+    - Bloqueia partidas femininas.
+    - Bloqueia Copas Secundárias Inglesas (EFL Trophy, Carabao Cup, League Cup, FA Trophy).
+    - Bloqueia rodadas de meio de semana (Terça, Quarta e Quinta) em divisões inferiores inglesas (League One, League Two, National League).
     """
-    # Cláusula de restrição desabilitada para analisar e processar todas as ligas de futebol
-    return True
-    if 'women' in l_name_low or 'feminino' in l_name_low or 'femenina' in l_name_low:
+    if not league_name:
         return False
+    
+    l_name_low = league_name.lower().strip()
+
+    # 1. Bloqueia partidas femininas
+    if any(w in l_name_low for w in ['women', 'feminino', 'femenina']):
+        return False
+
+    # 2. Bloqueia Copas Secundárias Inglesas (EFL Trophy, Carabao Cup, FA Trophy, League Cup)
+    secondary_cups = [
+        'efl trophy', 'fl trophy', 'johnstone', 'bristol street', 'papa john',
+        'carabao cup', 'league cup', 'fa trophy'
+    ]
+    if any(cup in l_name_low for cup in secondary_cups):
+        return False
+
+    # 3. Bloqueia rodadas de meio de semana (Terça, Quarta e Quinta) de divisões inferiores inglesas
+    is_lower_english = any(div in l_name_low for div in ['league one', 'league 1', 'league two', 'league 2', 'national league'])
+    
+    if is_lower_english and fixture_date:
+        try:
+            if isinstance(fixture_date, str):
+                dt = datetime.strptime(fixture_date[:19], '%Y-%m-%d %H:%M:%S')
+            else:
+                dt = fixture_date
+            if dt.weekday() in (1, 2, 3):  # Terça (1), Quarta (2) ou Quinta (3)
+                return False
+        except Exception:
+            pass
+
+    return True
 
     # Exclusão explícita do Brasil Série C e Série D (por nome)
     if any(s in l_name_low for s in ['serie c', 'série c', 'serie d', 'série d']):
@@ -605,11 +621,10 @@ def criar_apostas_cartoes_diario(target_date_str=None):
                     apostas_canceladas += 1
                     print(f"🗑️ [Aposta Cartões Excluída User #{uid}] ID #{r_p['id']} | {home_team} vs {away_team} -> {motivo}")
 
-        # Filtro Estrito de Escopo: Brasil, CONMEBOL e Ligas de Elite Selecionadas (DESABILITADO - Processa todas as ligas)
-        # if not is_allowed_league(league_id, league_name):
-        #     print(f"🌍 [Fora do Escopo] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada. Liga fora do escopo permitido.")
-        #     cancelar_apostas_pendentes_existentes("Liga fora do escopo permitido")
-        #     continue
+        if not is_allowed_league(league_id, league_name, fixture_date):
+            print(f"🌍 [Fora do Escopo / Bloqueio Meio de Semana] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
+            cancelar_apostas_pendentes_existentes("Liga/Copa fora do escopo (Bloqueio Meio de Semana / EFL Trophy)")
+            continue
 
 
         # Trava Obrigatória do Gatekeeper: Não criar apostas em jogos sem árbitro definido (65% de peso no modelo)

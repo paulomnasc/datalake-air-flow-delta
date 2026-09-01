@@ -204,6 +204,7 @@ _api_sports_last5_cache = {}
 _futbol24_failed_teams_cache = set()
 
 _api_sports_rate_limited = False
+_api_sports_odds_rate_limited = False
 
 def fetch_api_sports_team_last5(team_id, limit=5):
     """
@@ -1403,6 +1404,7 @@ def count_real_fixtures_in_db(conn, target_date):
         return 0
 
 def main():
+    global _api_sports_rate_limited, _api_sports_odds_rate_limited
     is_live_mode = (len(sys.argv) > 1 and sys.argv[1] == '--live')
     
     # Obtém data para busca em BRT (default hoje)
@@ -1595,6 +1597,45 @@ def main():
 
     print(f"Processando {len(filtered_fixtures)} partidas...")
     
+    # Pre-insere/upsert dos metadados básicos das partidas para permitir enriquecimento inicial de Odds
+    for f in filtered_fixtures:
+        f_id = f.get("fixture", {}).get("id")
+        f_date_raw = f.get("fixture", {}).get("date", "")
+        f_date = f_date_raw.split('+')[0].replace('T', ' ') if f_date_raw else None
+        l_id = f.get("league", {}).get("id")
+        l_name = f.get("league", {}).get("name")
+        h_team = f.get("teams", {}).get("home", {}).get("name")
+        a_team = f.get("teams", {}).get("away", {}).get("name")
+        h_team_id = f.get("teams", {}).get("home", {}).get("id")
+        a_team_id = f.get("teams", {}).get("away", {}).get("id")
+        st_short = f.get("fixture", {}).get("status", {}).get("short", "NS")
+        if f_id and f_date:
+            try:
+                cursor.execute("""
+                    INSERT INTO fixtures_trends (
+                        fixture_id, fixture_date, league_id, league_name, home_team, away_team,
+                        home_team_id, away_team_id, status
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        fixture_date = VALUES(fixture_date),
+                        league_id = VALUES(league_id),
+                        league_name = VALUES(league_name),
+                        home_team = VALUES(home_team),
+                        away_team = VALUES(away_team),
+                        home_team_id = VALUES(home_team_id),
+                        away_team_id = VALUES(away_team_id),
+                        status = VALUES(status);
+                """, (f_id, f_date, l_id, l_name, h_team, a_team, h_team_id, a_team_id, st_short))
+            except Exception:
+                pass
+    conn.commit()
+
+    # Enriquecimento inicial de Odds ANTES do processamento de estatísticas pesadas por partida
+    try:
+        update_oddspedia_odds(conn)
+    except Exception as e_op_init:
+        print(f"Aviso no enriquecimento inicial de odds: {e_op_init}")
+
     inserted_referees = 0
     inserted_fixtures = 0
     
@@ -1822,6 +1863,18 @@ def main():
             home_wins = home_last5.get("v", 0)
             away_wins = away_last5.get("v", 0)
 
+            # Busca odds existentes no banco para a partida
+            cur_odd_home, cur_odd_draw, cur_odd_away = None, None, None
+            try:
+                cursor.execute("SELECT odd_home, odd_draw, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fix_id,))
+                row_odds = cursor.fetchone()
+                if row_odds:
+                    cur_odd_home = row_odds.get('odd_home')
+                    cur_odd_draw = row_odds.get('odd_draw')
+                    cur_odd_away = row_odds.get('odd_away')
+            except Exception:
+                pass
+
             # Cálculo do Handicap Asiático (xG / Mando Casa-Fora / Odds Mercado / Últimos 5 Jogos / Clean Sheets / Streak)
             ah_suggestion, ah_confidence, ah_reasoning = calculate_asian_handicap_suggestion(
                 home_c_stats["avg_goals_scored"], home_c_stats["avg_goals_conceded"],
@@ -1835,9 +1888,9 @@ def main():
                 away_recent_wins=away_wins,
                 home_last5=home_last5,
                 away_last5=away_last5,
-                odd_home=f.get("odd_home"),
-                odd_draw=f.get("odd_draw"),
-                odd_away=f.get("odd_away")
+                odd_home=cur_odd_home,
+                odd_draw=cur_odd_draw,
+                odd_away=cur_odd_away
             )
 
             if referee_raw and referee_raw.strip():
@@ -2368,8 +2421,8 @@ def fetch_api_sports_odds_by_date(date_list=None):
     Retorna dicionário mapeado diretamente pelo fixture_id:
     { fixture_id: { 'BETANO': {'casa': 4.70, 'empate': 4.50, 'visitante': 1.70}, ... } }
     """
-    global _api_sports_rate_limited
-    if _api_sports_rate_limited:
+    global _api_sports_odds_rate_limited
+    if _api_sports_odds_rate_limited:
         return {}
 
     if date_list is None:
@@ -2387,7 +2440,7 @@ def fetch_api_sports_odds_by_date(date_list=None):
     odds_by_fixture = {}
 
     for d in date_list:
-        if _api_sports_rate_limited:
+        if _api_sports_odds_rate_limited:
             break
         if d in _api_sports_odds_cache:
             for fid, bms in _api_sports_odds_cache[d].items():
@@ -2407,6 +2460,7 @@ def fetch_api_sports_odds_by_date(date_list=None):
                 errs = resp.get('errors')
                 if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
                     print(f"[API-Sports Odds] Limite de requisições por minuto atingido: {errs}. Aguardando 1s...")
+                    _api_sports_odds_rate_limited = True
                     time.sleep(1.0)
                     break
 

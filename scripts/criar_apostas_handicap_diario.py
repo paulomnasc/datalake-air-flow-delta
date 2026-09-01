@@ -346,11 +346,13 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
     """
     cursor.execute("""
         SELECT a.id, a.usuario_id, a.time_casa, a.time_fora, a.mercado, a.palpite, a.odd,
-               a.valor_aposta, a.confirmada, a.data_hora_jogo, a.status
+               a.valor_aposta, a.confirmada, a.data_hora_jogo, a.status,
+               (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
         FROM apostas a
         WHERE a.fixture_id = %s 
           AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
           AND a.status = 'Pendente'
+          AND (a.confirmada IS NULL OR a.confirmada = 0)
     """, (fixture_id,))
     apostas_pendentes = cursor.fetchall()
     
@@ -359,6 +361,12 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         aposta_id = aposta['id']
         usuario_id = aposta['usuario_id']
         valor = float(aposta['valor_aposta'] or 0.0)
+        
+        # Checagem de segurança: Aposta confirmada pelo usuário jamais é cancelada automaticamente pela DAG
+        is_confirmada = (int(aposta.get('confirmada') or 0) == 1) or (int(aposta.get('tem_debito') or 0) > 0)
+        if is_confirmada:
+            print(f"🔒 [Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Cancelamento automático ignorado.")
+            continue
         
         cursor.execute("""
             UPDATE apostas 
@@ -644,12 +652,20 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
 
         for uid in user_ids:
             cursor.execute("""
-                SELECT id FROM apostas 
-                WHERE fixture_id = %s AND usuario_id = %s AND mercado = 'Handicap Asiático'
+                SELECT a.id, a.confirmada,
+                       (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
+                FROM apostas a 
+                WHERE a.fixture_id = %s AND a.usuario_id = %s AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
             """, (fixture_id, uid))
             ja_existe = cursor.fetchone()
 
             if ja_existe:
+                is_conf = (int(ja_existe.get('confirmada') or 0) == 1) or (int(ja_existe.get('tem_debito') or 0) > 0)
+                if is_conf:
+                    print(f"🔒 [Aposta Confirmada Mantida User #{uid}] ID #{ja_existe['id']} com confirmação do usuário mantida intacta.")
+                    apostas_duplicadas += 1
+                    continue
+
                 cursor.execute("""
                     UPDATE apostas SET
                         palpite = %s,

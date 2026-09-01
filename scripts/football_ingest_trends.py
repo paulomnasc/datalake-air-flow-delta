@@ -1116,11 +1116,13 @@ def cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fixture_id, motivo
     try:
         cursor.execute("""
             SELECT a.id, a.usuario_id, a.time_casa, a.time_fora, a.mercado, a.palpite, a.odd,
-                   a.valor_aposta, a.confirmada, a.data_hora_jogo, a.status
+                   a.valor_aposta, a.confirmada, a.data_hora_jogo, a.status,
+                   (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
             FROM apostas a
             WHERE a.fixture_id = %s 
               AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
               AND a.status = 'Pendente'
+              AND (a.confirmada IS NULL OR a.confirmada = 0)
         """, (fixture_id,))
         apostas_pendentes = cursor.fetchall()
         if not apostas_pendentes:
@@ -1130,6 +1132,12 @@ def cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fixture_id, motivo
             aposta_id = aposta['id']
             usuario_id = aposta['usuario_id']
             valor = float(aposta['valor_aposta'] or 0.0)
+
+            # Checagem de segurança: Aposta confirmada pelo usuário jamais é cancelada automaticamente pela DAG
+            is_confirmada = (int(aposta.get('confirmada') or 0) == 1) or (int(aposta.get('tem_debito') or 0) > 0)
+            if is_confirmada:
+                print(f"🔒 [Ingest Trends - Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Cancelamento automático ignorado.")
+                continue
 
             cursor.execute("""
                 UPDATE apostas 

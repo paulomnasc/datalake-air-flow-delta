@@ -588,7 +588,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             nonlocal apostas_canceladas
             for uid in user_ids:
                 cursor.execute("""
-                    SELECT a.id,
+                    SELECT a.id, a.confirmada,
                            (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
                     FROM apostas a 
                     WHERE a.fixture_id = %s AND a.usuario_id = %s AND a.mercado = 'Total de Cartões' AND a.status IN ('Pendente', 'Cancelada')
@@ -596,8 +596,9 @@ def criar_apostas_cartoes_diario(target_date_str=None):
                 rows_p = cursor.fetchall()
                 for r_p in rows_p:
                     tem_deb = (int(r_p.get('tem_debito') or 0) > 0)
-                    if tem_deb:
-                        print(f"🔒 [Aposta Confirmada Mantida User #{uid}] ID #{r_p['id']} possui débito efetivado na conta corrente. Remoção via Gatekeeper ignorada.")
+                    is_conf = (int(r_p.get('confirmada') or 0) == 1) or tem_deb
+                    if is_conf:
+                        print(f"🔒 [Aposta Confirmada Mantida User #{uid}] ID #{r_p['id']} possui confirmação do usuário ou débito efetuado. Remoção via Gatekeeper ignorada.")
                         continue
 
                     cursor.execute("DELETE FROM apostas WHERE id = %s", (r_p['id'],))

@@ -1249,9 +1249,15 @@ if (!function_exists('formatBrtDate')) {
           <div class="bet-card-footer">
             <div class="actions-primary">
               <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
-                <button type="button" class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px;" onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>)">
-                  <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
-                </button>
+                <?php if (!empty($aposta->status) && strtolower($aposta->status) === 'cancelada'): ?>
+                  <button type="button" class="btn btn-sm btn-secondary fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px; opacity: 0.6; cursor: not-allowed;" disabled title="Aposta cancelada pelo sistema">
+                    <i class="bi bi-slash-circle me-1"></i> <?= lang('App.confirm_bet') ?>
+                  </button>
+                <?php else: ?>
+                  <button type="button" class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px;" onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>)">
+                    <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
+                  </button>
+                <?php endif; ?>
               <?php endif; ?>
               <button class="btn-cashout" onclick="handleCashout(<?= $aposta->id ?>, <?= $aposta->cash_out ?? $aposta->valor_aposta ?>)">
                 CASH OUT R$ <?= number_format($aposta->cash_out ?? $aposta->valor_aposta, 2, ',', '.') ?>

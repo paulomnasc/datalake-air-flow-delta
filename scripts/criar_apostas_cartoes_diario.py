@@ -214,117 +214,76 @@ def get_all_user_ids(cursor):
     """)
     return [cursor.lastrowid]
 
+ALLOWED_LEAGUE_IDS = {
+    71, 72, 73,   # Brasil Série A, Série B e Copa do Brasil
+    39, 40,       # Inglaterra Premier League e Championship
+    140, 141,     # Espanha La Liga e La Liga 2 (Segunda División)
+    135, 136,     # Itália Serie A e Serie B
+    78, 79,       # Alemanha Bundesliga e 2. Bundesliga
+    61, 62,       # França Ligue 1 e Ligue 2
+    94,           # Portugal Liga Portugal (Primeira Liga)
+    88,           # Holanda Eredivisie
+    144,          # Bélgica Pro League
+    203,          # Turquia Süper Lig
+    179,          # Escócia Premiership
+    128,          # Argentina Liga Profesional
+    197,          # Grécia Super League 1
+    2, 3, 848,    # UEFA Champions League, Europa League, Conference League
+    13, 11        # CONMEBOL Libertadores, Copa Sudamericana
+}
+
+ALLOWED_LEAGUE_NAMES = [
+    'brasileirão', 'brasileirao', 'serie a', 'série a', 'serie b', 'série b', 'copa do brasil', 'copa brasil',
+    'premier league', 'championship',
+    'la liga', 'la liga 2', 'segunda división', 'segunda division',
+    'bundesliga', '2. bundesliga',
+    'ligue 1', 'ligue 2',
+    'primeira liga', 'liga portugal',
+    'eredivisie',
+    'pro league', 'jupiler pro league',
+    'super lig', 'süper lig',
+    'premiership',
+    'liga profesional',
+    'super league 1',
+    'champions league', 'europa league', 'conference league',
+    'libertadores', 'copa sudamericana', 'sudamericana'
+]
+
 def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
     """
-    Filtra o escopo de atuação do script de criação de apostas:
-    - Bloqueia partidas femininas.
-    - Bloqueia Copas Secundárias Inglesas (EFL Trophy, Carabao Cup, League Cup, FA Trophy).
-    - Bloqueia rodadas de meio de semana (Terça, Quarta e Quinta) em divisões inferiores inglesas (League One, League Two, National League).
+    Filtra o escopo de atuação do script de criação de apostas estritamente para Ligas de Elite e Torneios Continentais.
     """
-    if not league_name:
+    if not league_name and not league_id:
         return False
     
-    l_name_low = league_name.lower().strip()
+    l_name_low = str(league_name or '').lower().strip()
 
     # 1. Bloqueia partidas femininas
     if any(w in l_name_low for w in ['women', 'feminino', 'femenina']):
         return False
 
-    # 2. Bloqueia Copas Secundárias Inglesas (EFL Trophy, Carabao Cup, FA Trophy, League Cup)
-    secondary_cups = [
+    # 2. Bloqueia Copas Secundárias e Divisões Inferiores (League One, League Two, National League, EFL Trophy, FA Trophy)
+    secondary_blocked = [
         'efl trophy', 'fl trophy', 'johnstone', 'bristol street', 'papa john',
-        'carabao cup', 'league cup', 'fa trophy'
+        'carabao cup', 'league cup', 'fa trophy',
+        'league one', 'league 1', 'league two', 'league 2', 'national league'
     ]
-    if any(cup in l_name_low for cup in secondary_cups):
+    if any(blocked in l_name_low for blocked in secondary_blocked):
         return False
 
-    # 3. Bloqueia rodadas de meio de semana (Terça, Quarta e Quinta) de divisões inferiores inglesas
-    is_lower_english = any(div in l_name_low for div in ['league one', 'league 1', 'league two', 'league 2', 'national league'])
-    
-    if is_lower_english and fixture_date:
-        try:
-            if isinstance(fixture_date, str):
-                dt = datetime.strptime(fixture_date[:19], '%Y-%m-%d %H:%M:%S')
-            else:
-                dt = fixture_date
-            if dt.weekday() in (1, 2, 3):  # Terça (1), Quarta (2) ou Quinta (3)
-                return False
-        except Exception:
-            pass
-
-    return True
-
-    # Exclusão explícita do Brasil Série C e Série D (por nome)
-    if any(s in l_name_low for s in ['serie c', 'série c', 'serie d', 'série d']):
-        return False
-
-    l_id = None
+    # 3. Validação por ID Numérico Oficial
     if league_id is not None:
         try:
-            l_id = int(league_id)
+            lid = int(league_id)
+            if lid in ALLOWED_LEAGUE_IDS:
+                return True
+            else:
+                return False
         except (ValueError, TypeError):
             pass
 
-    # Exclusão explícita por ID do Brasil Série C (ID 75) e Série D (ID 76)
-    if l_id in {75, 76}:
-        return False
-
-    # IDs Conhecidos da API-Football (Brasil, UEFA/CONMEBOL e Ligas de Elite Internacionais/Americanas)
-    ALLOWED_LEAGUE_IDS = {
-        2,    # UEFA Champions League
-        3,    # UEFA Europa League
-        848,  # UEFA Europa Conference League
-        71,   # Brasil Série A
-        72,   # Brasil Série B
-        73,   # Copa do Brasil
-        13,   # CONMEBOL Libertadores
-        11,   # CONMEBOL Sudamericana
-        39,   # Premier League (Inglaterra)
-        48,   # EFL Cup / League Cup (Inglaterra)
-        140,  # La Liga (Espanha)
-        135,  # Serie A Italiana (Itália)
-        61,   # Ligue 1 (França)
-        94,   # Primeira Liga (Portugal)
-        88,   # Eredivisie (Holanda)
-        113,  # Allsvenskan (Suécia)
-        253,  # Major League Soccer (EUA)
-        262,  # Liga MX (México)
-        128,  # Liga Profesional (Argentina)
-    }
-    if l_id in ALLOWED_LEAGUE_IDS:
-        return True
-
-    # Checagem por Nome de Liga Internacional Permitida (UEFA, CONMEBOL + ligas de elite e taças nacionais)
-    allowed_int_keywords = [
-        'champions league', 'uefa champions league',
-        'europa league', 'uefa europa league',
-        'conference league', 'europa conference league', 'uefa conference league', 'uefa europa conference league',
-        'libertadores', 'sudamericana', 'sul-americana', 'sul americana',
-        'allsvenskan',
-        'eredivisie',
-        'la liga', 'laliga',
-        'league cup', 'efl cup', 'carabao cup', 'efl',
-        'liga mx',
-        'liga profesional', 'primera division (argentina)', 'primera división (argentina)', 'liga profesional argentina',
-        'ligue 1',
-        'major league soccer', 'mls',
-        'premier league',
-        'primeira liga', 'liga portugal',
-        'serie a (italia)', 'serie a (italy)', 'serie a italia', 'serie a italiana'
-    ]
-    if any(k in l_name_low for k in allowed_int_keywords):
-        return True
-
-    # Checagem por Nome de Liga Brasileira
-    brazil_keywords = [
-        'brasil', 'brasileiro', 'brasileira', 'copa do brasil', 
-        'serie a', 'serie b', 
-        'paulista', 'carioca', 'gaúcho', 'gaucho', 'mineiro', 
-        'baiano', 'pernambucano', 'cearense', 'paranaense', 'catarinense'
-    ]
-    if any(kw in l_name_low for kw in brazil_keywords):
-        if l_name_low in ['serie a', 'serie b'] and l_id not in {71, 72}:
-            return False
+    # 4. Validação por Nome da Liga (Fallback)
+    if any(allowed in l_name_low for allowed in ALLOWED_LEAGUE_NAMES):
         return True
 
     return False

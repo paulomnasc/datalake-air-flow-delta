@@ -449,46 +449,79 @@ def determine_bet_side(home_team: str, away_team: str, ah_suggestion: str) -> bo
         return True
     return False
 
-def is_allowed_league(league_id: int, league_name: str, fixture_date=None) -> bool:
+ALLOWED_LEAGUE_IDS = {
+    71, 72, 73,   # Brasil Série A, Série B e Copa do Brasil
+    39, 40,       # Inglaterra Premier League e Championship
+    140, 141,     # Espanha La Liga e La Liga 2 (Segunda División)
+    135, 136,     # Itália Serie A e Serie B
+    78, 79,       # Alemanha Bundesliga e 2. Bundesliga
+    61, 62,       # França Ligue 1 e Ligue 2
+    94,           # Portugal Liga Portugal (Primeira Liga)
+    88,           # Holanda Eredivisie
+    144,          # Bélgica Pro League
+    203,          # Turquia Süper Lig
+    179,          # Escócia Premiership
+    128,          # Argentina Liga Profesional
+    197,          # Grécia Super League 1
+    2, 3, 848,    # UEFA Champions League, Europa League, Conference League
+    13, 11        # CONMEBOL Libertadores, Copa Sudamericana
+}
+
+ALLOWED_LEAGUE_NAMES = [
+    'brasileirão', 'brasileirao', 'serie a', 'série a', 'serie b', 'série b', 'copa do brasil', 'copa brasil',
+    'premier league', 'championship',
+    'la liga', 'la liga 2', 'segunda división', 'segunda division',
+    'bundesliga', '2. bundesliga',
+    'ligue 1', 'ligue 2',
+    'primeira liga', 'liga portugal',
+    'eredivisie',
+    'pro league', 'jupiler pro league',
+    'super lig', 'süper lig',
+    'premiership',
+    'liga profesional',
+    'super league 1',
+    'champions league', 'europa league', 'conference league',
+    'libertadores', 'copa sudamericana', 'sudamericana'
+]
+
+def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
     """
-    Filtra o escopo de atuação do script de criação de apostas.
-    Opção 1 Ativada:
-    - Bloqueia partidas femininas.
-    - Bloqueia Copas Secundárias (EFL Trophy, Carabao Cup, League Cup, FA Trophy).
-    - Bloqueia rodadas de meio de semana (Terça, Quarta e Quinta) em divisões inferiores inglesas (League One, League Two, National League).
+    Filtra o escopo de atuação do script de criação de apostas estritamente para Ligas de Elite e Torneios Continentais.
     """
-    if not league_name:
+    if not league_name and not league_id:
         return False
     
-    l_name_low = league_name.lower().strip()
+    l_name_low = str(league_name or '').lower().strip()
 
     # 1. Bloqueia partidas femininas
     if any(w in l_name_low for w in ['women', 'feminino', 'femenina']):
         return False
 
-    # 2. Bloqueia Copas Secundárias Inglesas (EFL Trophy, Carabao Cup, FA Trophy, League Cup)
-    secondary_cups = [
+    # 2. Bloqueia Copas Secundárias e Divisões Inferiores (League One, League Two, National League, EFL Trophy, FA Trophy)
+    secondary_blocked = [
         'efl trophy', 'fl trophy', 'johnstone', 'bristol street', 'papa john',
-        'carabao cup', 'league cup', 'fa trophy'
+        'carabao cup', 'league cup', 'fa trophy',
+        'league one', 'league 1', 'league two', 'league 2', 'national league'
     ]
-    if any(cup in l_name_low for cup in secondary_cups):
+    if any(blocked in l_name_low for blocked in secondary_blocked):
         return False
 
-    # 3. Bloqueia rodadas de meio de semana (Terça, Quarta e Quinta) de divisões inferiores inglesas
-    is_lower_english = any(div in l_name_low for div in ['league one', 'league 1', 'league two', 'league 2', 'national league'])
-    
-    if is_lower_english and fixture_date:
+    # 3. Validação por ID Numérico Oficial
+    if league_id is not None:
         try:
-            if isinstance(fixture_date, str):
-                dt = datetime.strptime(fixture_date[:19], '%Y-%m-%d %H:%M:%S')
+            lid = int(league_id)
+            if lid in ALLOWED_LEAGUE_IDS:
+                return True
             else:
-                dt = fixture_date
-            if dt.weekday() in (1, 2, 3):  # Terça (1), Quarta (2) ou Quinta (3)
                 return False
-        except Exception:
+        except (ValueError, TypeError):
             pass
 
-    return True
+    # 4. Validação por Nome da Liga (Fallback)
+    if any(allowed in l_name_low for allowed in ALLOWED_LEAGUE_NAMES):
+        return True
+
+    return False
 
 def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
     """

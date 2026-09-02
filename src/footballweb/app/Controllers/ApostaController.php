@@ -990,6 +990,13 @@ class ApostaController extends BaseController
             ])->setStatusCode(404);
         }
 
+        if (!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Esta simulação de aposta foi cancelada e não pode ser confirmada.'
+            ])->setStatusCode(400);
+        }
+
         $userId = (int)$access['user_id'];
         if ((int)$aposta->usuario_id !== $userId && $userId !== 146) {
             return $this->response->setJSON([

@@ -870,10 +870,10 @@ if (!function_exists('formatBrtDate')) {
   </div>
 
   <!-- Toolbar -->
-  <div class="bet-toolbar">
-    <div class="d-flex align-items-center gap-3 flex-wrap">
+  <div class="bet-toolbar w-100 overflow-hidden">
+    <div class="d-flex align-items-center gap-2 gap-md-3 flex-wrap w-100">
       <!-- Status Filters -->
-      <div class="bet-filters">
+      <div class="bet-filters w-100 d-flex flex-wrap gap-2 mb-1" style="overflow-x: auto; max-width: 100%;">
         <?php
           $totalApostasCount = count($apostas);
           $calcPctBadge = function($label, $count) use ($totalApostasCount) {
@@ -917,6 +917,17 @@ if (!function_exists('formatBrtDate')) {
           <button type="button" class="slide-btn active" data-val="all" onclick="setCardsMarketFilter('all', this)" title="Exibir todas as apostas">Todos</button>
           <button type="button" class="slide-btn" data-val="over" onclick="setCardsMarketFilter('over', this)" title="Exibir apenas apostas Cartões Mais de (Over)">Mais (Over)</button>
           <button type="button" class="slide-btn" data-val="under" onclick="setCardsMarketFilter('under', this)" title="Exibir apenas apostas Cartões Menos de (Under)">Menos (Under)</button>
+        </div>
+      </div>
+
+      <!-- Slide Button: Sem Apostas Canceladas [Sim / Não] -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;" title="Filtrar sem as apostas canceladas (Sim = Ocultar Canceladas / Não = Exibir Canceladas)">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1">
+          <i class="bi bi-slash-circle text-danger"></i> Sem Canceladas:
+        </span>
+        <div class="bet-slide-toggle" id="withoutCancelledSlideToggle">
+          <button type="button" class="slide-btn" data-val="1" onclick="setWithoutCancelledFilter('1', this)" title="Filtrar sem as apostas canceladas (Ocultar canceladas)">Sim</button>
+          <button type="button" class="slide-btn active" data-val="0" onclick="setWithoutCancelledFilter('0', this)" title="Exibir apostas canceladas normalmente">Não</button>
         </div>
       </div>
 
@@ -2298,6 +2309,7 @@ if (!function_exists('formatBrtDate')) {
 
   let currentConfirmedFilter = 'all'; // 'all', '1', '0'
   let currentCardsMarketFilter = 'all'; // 'all', 'over', 'under'
+  let currentWithoutCancelledFilter = '0'; // '0' (Exibe canceladas), '1' (Sem canceladas / Oculta canceladas)
 
   function setConfirmedFilter(val, btnEl) {
     currentConfirmedFilter = val;
@@ -2331,6 +2343,22 @@ if (!function_exists('formatBrtDate')) {
     applyBetFilters();
   }
 
+  function setWithoutCancelledFilter(val, btnEl) {
+    currentWithoutCancelledFilter = val;
+    const container = document.getElementById('withoutCancelledSlideToggle');
+    if (container) {
+      container.querySelectorAll('.slide-btn').forEach(b => {
+        b.classList.remove('active', 'active-no');
+      });
+      if (val === '1') {
+        btnEl.classList.add('active');
+      } else {
+        btnEl.classList.add('active-no');
+      }
+    }
+    applyBetFilters();
+  }
+
   function applyBetFilters() {
     const status = currentStatusFilter;
     const selectedMarket = document.getElementById('betMarketFilterSelect')?.value || 'all';
@@ -2340,6 +2368,7 @@ if (!function_exists('formatBrtDate')) {
 
     const confirmVal = currentConfirmedFilter;
     const cardsMarketVal = currentCardsMarketFilter;
+    const withoutCancelledVal = currentWithoutCancelledFilter;
 
     const cards = document.querySelectorAll('.bet-card-item');
     let visibleCount = 0;
@@ -2408,7 +2437,13 @@ if (!function_exists('formatBrtDate')) {
         cardsMarketMatch = (cardCardsDirection === 'under');
       }
 
-      if (searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch) {
+      let withoutCancelledMatch = true;
+      if (withoutCancelledVal === '1') {
+        const cardStatusUpper = cardStatus.toUpperCase();
+        withoutCancelledMatch = !cardStatusUpper.includes('CANCELAD');
+      }
+
+      if (searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch) {
         counts.all++;
         if (counts.hasOwnProperty(cardStatus)) {
           counts[cardStatus]++;
@@ -2417,7 +2452,7 @@ if (!function_exists('formatBrtDate')) {
 
       const statusMatch = (status === 'all' || cardStatus === status);
 
-      if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch) {
+      if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch) {
         card.style.display = 'flex';
         visibleCount++;
       } else {
@@ -2604,6 +2639,9 @@ if (!function_exists('formatBrtDate')) {
 
     const cardsBtnAll = document.querySelector('#cardsMarketSlideToggle .slide-btn[data-val="all"]');
     if (cardsBtnAll) setCardsMarketFilter('all', cardsBtnAll);
+
+    const withoutCancBtnNo = document.querySelector('#withoutCancelledSlideToggle .slide-btn[data-val="0"]');
+    if (withoutCancBtnNo) setWithoutCancelledFilter('0', withoutCancBtnNo);
 
     clearDateFilter();
   }

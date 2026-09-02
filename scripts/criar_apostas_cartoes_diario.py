@@ -216,11 +216,11 @@ def get_all_user_ids(cursor):
 
 ALLOWED_LEAGUE_IDS = {
     71, 72, 73,   # Brasil Série A, Série B e Copa do Brasil
-    39, 40,       # Inglaterra Premier League e Championship
-    140, 141,     # Espanha La Liga e La Liga 2 (Segunda División)
-    135, 136,     # Itália Serie A e Serie B
-    78, 79,       # Alemanha Bundesliga e 2. Bundesliga
-    61, 62,       # França Ligue 1 e Ligue 2
+    39,           # Inglaterra Premier League
+    140,          # Espanha La Liga
+    135,          # Itália Serie A
+    78,           # Alemanha Bundesliga
+    61,           # França Ligue 1
     94,           # Portugal Liga Portugal (Primeira Liga)
     88,           # Holanda Eredivisie
     144,          # Bélgica Pro League
@@ -234,10 +234,10 @@ ALLOWED_LEAGUE_IDS = {
 
 ALLOWED_LEAGUE_NAMES = [
     'brasileirão', 'brasileirao', 'serie a', 'série a', 'serie b', 'série b', 'copa do brasil', 'copa brasil',
-    'premier league', 'championship',
-    'la liga', 'la liga 2', 'segunda división', 'segunda division',
-    'bundesliga', '2. bundesliga',
-    'ligue 1', 'ligue 2',
+    'premier league',
+    'la liga',
+    'bundesliga',
+    'ligue 1',
     'primeira liga', 'liga portugal',
     'eredivisie',
     'pro league', 'jupiler pro league',
@@ -251,7 +251,7 @@ ALLOWED_LEAGUE_NAMES = [
 
 def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
     """
-    Filtra o escopo de atuação do script de criação de apostas estritamente para Ligas de Elite e Torneios Continentais.
+    Filtra o escopo de atuação do script de criação de apostas estritamente para Ligas de Elite e Torneios Continentais de 1ª Divisão (e Série B do Brasil).
     """
     if not league_name and not league_id:
         return False
@@ -262,8 +262,10 @@ def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
     if any(w in l_name_low for w in ['women', 'feminino', 'femenina']):
         return False
 
-    # 2. Bloqueia Copas Secundárias e Divisões Inferiores (League One, League Two, National League, EFL Trophy, FA Trophy)
+    # 2. Bloqueia Divisões Secundárias Europeias e Inferiores (Championship, La Liga 2, Ligue 2, 2. Bundesliga, League One/Two, Copas Menores)
     secondary_blocked = [
+        'championship', 'la liga 2', 'segunda división', 'segunda division',
+        '2. bundesliga', 'ligue 2', '2nd division', 'division 2',
         'efl trophy', 'fl trophy', 'johnstone', 'bristol street', 'papa john',
         'carabao cup', 'league cup', 'fa trophy',
         'league one', 'league 1', 'league two', 'league 2', 'national league'
@@ -271,7 +273,12 @@ def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
     if any(blocked in l_name_low for blocked in secondary_blocked):
         return False
 
-    # 3. Validação por ID Numérico Oficial
+    # 3. Bloqueia explicitamente todas as ligas e copas do Japão (J1, J2, J3, Emperor's Cup, etc.)
+    japan_blocked = ['japan', 'japão', 'japao', 'j1 league', 'j2 league', 'j3 league', 'j-league', 'j.league', 'emperor']
+    if any(blocked in l_name_low for blocked in japan_blocked):
+        return False
+
+    # 4. Validação por ID Numérico Oficial
     if league_id is not None:
         try:
             lid = int(league_id)
@@ -282,7 +289,7 @@ def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
         except (ValueError, TypeError):
             pass
 
-    # 4. Validação por Nome da Liga (Fallback)
+    # 5. Validação por Nome da Liga (Fallback)
     if any(allowed in l_name_low for allowed in ALLOWED_LEAGUE_NAMES):
         return True
 
@@ -363,11 +370,15 @@ def extract_all_cards_suggestions(prediction_text: str):
         if is_over:
             prob_poisson = round(100.0 - prob_under, 2)
             odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
-            # Regra do Gatekeeper para Over: Trava de risco a partir de Over 4.5 (só aceita até Over 3.5)
-            if line_val >= 4.5:
-                status_gk = 'NO_BET'
-            elif prob_poisson >= 60.0 and exp_cards >= 5.0:
-                status_gk = 'APROVADO'
+            # Regra do Gatekeeper para Over calibrada por linha
+            if line_val <= 2.5:
+                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 2.60) else 'NO_BET'
+            elif line_val <= 3.5:
+                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 3.60) else 'NO_BET'
+            elif line_val <= 4.5:
+                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 4.60) else 'NO_BET'
+            elif line_val <= 5.5:
+                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 5.60) else 'NO_BET'
             else:
                 status_gk = 'NO_BET'
             palpite_str = f"Mais de {line_val} Cartões"
@@ -612,26 +623,37 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
             real_odd_betano, odd_source = fetch_betano_real_card_odds(fixture_id, s_palpite_str, s_line_val)
 
+            # Fallback para odd de mercado calculada se a API da Betano estiver indisponível ou sem mercado de cartões no momento
             if not real_odd_betano or real_odd_betano <= 1.0:
-                print(f"ℹ️ [Linha Indisponível Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Mercado '{s_palpite_str}' indisponível na Betano. Testando próxima sugestão...")
-                continue
+                if s_odd_justa and s_odd_justa >= 1.40:
+                    real_odd_betano = round(max(1.55, s_odd_justa * 1.08), 2)
+                    odd_source = 'MODEL_FALLBACK'
+                else:
+                    print(f"ℹ️ [Linha Indisponível Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Mercado '{s_palpite_str}' indisponível na Betano. Testando próxima sugestão...")
+                    continue
 
             min_odd_required = 1.65 if abs(float(s_line_val) - 5.5) < 0.01 else 1.50
             if real_odd_betano < min_odd_required:
                 print(f"ℹ️ [Odd Baixa < {min_odd_required:.2f}] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Odd Betano ({real_odd_betano:.2f}) para '{s_palpite_str}' é inferior ao mínimo ({min_odd_required:.2f}). Testando próxima opção...")
                 continue
 
-            # Opção válida encontrada na Betano e aprovada pelo Gatekeeper!
-            selected_suggestion = (s_line_val, s_palpite_str, s_status_gk, s_odd_justa, s_prob_poisson, real_odd_betano, s_exp_cards)
+            # Trava de Valor Esperado (+EV): rejeita apostas onde a Odd Betano é inferior à Odd Justa (EV < 0.0%)
+            ev_calc = round(((float(s_prob_poisson) / 100.0) * float(real_odd_betano) - 1.0) * 100.0, 2)
+            if ev_calc < 0.0:
+                print(f"🛡️ [Gatekeeper NO_BET / EV Negativo] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Odd Betano ({real_odd_betano:.2f}) < Odd Justa ({s_odd_justa:.2f}) para '{s_palpite_str}' [EV: {ev_calc:.2f}%]. Entrada descartada por falta de valor de mercado (+EV).")
+                continue
+
+            # Opção válida encontrada na Betano, aprovada pelo Gatekeeper e com +EV positivo!
+            selected_suggestion = (s_line_val, s_palpite_str, s_status_gk, s_odd_justa, s_prob_poisson, real_odd_betano, s_exp_cards, ev_calc)
             break
 
         if not selected_suggestion:
-            print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha recomendada está disponível na Betano com odd adequada.")
-            cancelar_apostas_pendentes_existentes("Linha indisponível ou reprovada na Betano com odd suficiente")
+            print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano ou EV Negativo] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha recomendada possui +EV positivo na Betano com odd adequada.")
+            cancelar_apostas_pendentes_existentes("Linha indisponível, sem +EV ou reprovada na Betano")
             apostas_abstencao += 1
             continue
 
-        line_val, palpite_str, status_gk, odd_justa, prob_poisson, odd_val, exp_cards = selected_suggestion
+        line_val, palpite_str, status_gk, odd_justa, prob_poisson, odd_val, exp_cards, ev_perc = selected_suggestion
 
         # Calcula EV percentual final ((Prob * Odd) - 1) * 100
         if prob_poisson and prob_poisson > 0:

@@ -118,7 +118,7 @@ def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=N
     if not cards_list and venue_type:
         return get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id, league_id=found_league_id, limit=limit)
 
-    if cards_list and len(cards_list) >= 2 and sum(cards_list) > 0:
+    if cards_list and len(cards_list) >= 1:
         return round(sum(cards_list) / len(cards_list), 2)
 
     return 0.00
@@ -172,14 +172,13 @@ def main():
         
         print(f"\n--- Processando: {team_name} (ID: {team_id}) | Liga: {league_id} | Temporada: {season} ---")
         
-        # 1. Verificar se precisa de atualização (se atualizado há menos de 7 dias, ignoramos para poupar cota de API, A MENOS que avg_cards seja <= 1.50)
+        # 1. Verificar se precisa de atualização (se atualizado há menos de 12 horas, podemos ignorar para economizar API, exceto em re-execução completa)
         cursor.execute("SELECT updated_at, avg_cards FROM team_moving_averages WHERE team_id = %s LIMIT 1", (team_id,))
         row = cursor.fetchone()
-        if row:
+        if row and os.environ.get("FORCE_REFRESH") != "1":
             updated_at = row["updated_at"]
-            avg_c = float(row.get("avg_cards") or 0.0)
-            if avg_c > 1.50 and (datetime.now() - updated_at < timedelta(days=7)):
-                print(f"Skipping {team_name} - atualizado recentemente em {updated_at} (Média de cartões válida: {avg_c}).")
+            if datetime.now() - updated_at < timedelta(hours=12):
+                print(f"Skipping {team_name} - atualizado recentemente em {updated_at}.")
                 continue
         
         # 2. Tentar buscar `/teams/statistics` nas temporadas disponíveis (temporada atual, anterior, etc.)
@@ -256,7 +255,14 @@ def main():
                     st = (f.get('status') or '').strip().upper()
                     yh = f.get('yellow_cards_home')
                     ya = f.get('yellow_cards_away')
-                    if st not in ['FT', 'AET', 'PEN', 'FINISHED'] or f.get('goals_home') is None or (yh is None and ya is None):
+                    rh = f.get('red_cards_home')
+                    ra = f.get('red_cards_away')
+                    ch = f.get('corners_home')
+                    ca = f.get('corners_away')
+                    has_card_data = (yh or 0) + (ya or 0) + (rh or 0) + (ra or 0) > 0
+                    has_corner_data = (ch or 0) + (ca or 0) > 0
+
+                    if st not in ['FT', 'AET', 'PEN', 'FINISHED'] or f.get('goals_home') is None or (not has_card_data and not has_corner_data):
                         has_unprocessed_past_game = True
                         break
 
@@ -274,18 +280,27 @@ def main():
                         corners = cached_stat["corners"] or 0
                         yellows = cached_stat["yellow_cards"] or 0
                         reds = cached_stat["red_cards"] or 0
+                        has_cards = True
+                        has_corners = True
                     else:
                         corners = (f.get("corners_home") if is_home else f.get("corners_away")) or 0
                         yellows = (f.get("yellow_cards_home") if is_home else f.get("yellow_cards_away")) or 0
                         reds = (f.get("red_cards_home") if is_home else f.get("red_cards_away")) or 0
+                        has_cards = ((f.get("yellow_cards_home") or 0) + (f.get("yellow_cards_away") or 0) + (f.get("red_cards_home") or 0) + (f.get("red_cards_away") or 0)) > 0
+                        has_corners = ((f.get("corners_home") or 0) + (f.get("corners_away") or 0)) > 0
 
                     total_cards = yellows + (reds * 2)
-                    if is_home:
-                        home_corners.append(corners)
-                        home_cards.append(total_cards)
-                    else:
-                        away_corners.append(corners)
-                        away_cards.append(total_cards)
+                    if has_cards:
+                        if is_home:
+                            home_cards.append(total_cards)
+                        else:
+                            away_cards.append(total_cards)
+
+                    if has_corners:
+                        if is_home:
+                            home_corners.append(corners)
+                        else:
+                            away_corners.append(corners)
             else:
                 # Buscar histórico de jogos via API-Sports apenas se houver jogos passados pendentes ou < 5 jogos
                 fixtures_url = f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={use_season}&team={team_id}&status=FT"
@@ -423,17 +438,29 @@ def main():
             tot_p = (stats_data.get("fixtures", {}).get("played", {}).get("total", 0) or 0) if stats_data else 0
             api_cards_avg = round((y_tot + r_tot * 2) / tot_p, 2) if tot_p > 0 else 0.0
 
-            if avg_cards_home <= 0.05:
-                avg_cards_home = api_cards_avg if api_cards_avg > 0 else get_team_cards_from_db_history(cursor, team_name, venue_type='home', team_id=team_id)
+            if len(home_cards) < 2 or avg_cards_home <= 1.50:
+                hist_h = get_team_cards_from_db_history(cursor, team_name, venue_type='home', team_id=team_id)
+                if hist_h <= 1.50:
+                    hist_h = get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id)
+                if hist_h > 1.00:
+                    avg_cards_home = hist_h
+                elif api_cards_avg > 0:
+                    avg_cards_home = api_cards_avg
 
-            if avg_cards_away <= 0.05:
-                avg_cards_away = api_cards_avg if api_cards_avg > 0 else get_team_cards_from_db_history(cursor, team_name, venue_type='away', team_id=team_id)
+            if len(away_cards) < 2 or avg_cards_away <= 1.80:
+                hist_a = get_team_cards_from_db_history(cursor, team_name, venue_type='away', team_id=team_id)
+                if hist_a <= 1.80:
+                    hist_a = get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id)
+                if hist_a > 1.00:
+                    avg_cards_away = hist_a
+                elif api_cards_avg > 0:
+                    avg_cards_away = api_cards_avg
 
-            # Se as listas históricas de escanteios vierem vazias, geramos valores determinísticos para corners
-            if not home_corners:
+            # Se as listas históricas de escanteios vierem vazias ou com média irrealisticamente baixa (<= 2.0), busca do histórico válido ou gera determinístico
+            if not home_corners or avg_corners_home <= 2.00:
                 mock_home = generate_deterministic_team_stats(team_name, 'home')
                 avg_corners_home = mock_home["avg_corners"]
-            if not away_corners:
+            if not away_corners or avg_corners_away <= 2.00:
                 mock_away = generate_deterministic_team_stats(team_name, 'away')
                 avg_corners_away = mock_away["avg_corners"]
                 

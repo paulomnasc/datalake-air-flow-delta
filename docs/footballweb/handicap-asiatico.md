@@ -239,10 +239,13 @@ No widget visual **`🛡️ Mercado de Gols (Handicap Asiático)`** no `dashboar
 
 ---
 
-### 3. Regras de Intervenção de Risco & Gatekeeper em Crise Estrita
+### 3. Regras de Intervenção de Risco & Gatekeeper em Crise Estrita e Copas
 
 - 🛑 **Gatilho Estrito de Crise:** A Trava de Crise (com potencial inversão de palpite para o visitante) é acionada **APENAS** se a equipe mandante tiver **3 ou mais DERROTAS recentes E zero vitórias em U5J** ($D \ge 3 \text{ e } V = 0$ em U5J, ex: `0V-1E-4D`). **Empates isolados não geram crise.**
 - 🛡️ **Amortecimento para Favoritos ($xG_{\text{base}} \ge 1.50$):** Equipes com forte produção ofensiva em casa (ex: **Ceará**, **Palmeiras**, **Flamengo**) têm suas oscilações amortecidas pelo mando de campo (+10%), mantendo a indicação no mandante (`Ceará -0.5 AH` ou `Ceará -0.75 AH`) sem falsa sinalização de risco.
+- 🏆 **Trava de Segurança de Copas Eliminatórias (`Cup Tournament Guard`):**
+  - Em partidas de **Copa Mata-Mata** (ex: *Emperor Cup*, *Copa do Brasil*, *DFB Pokal*, *FA Cup*), o algoritmo aplica atenuação de $xG$ ($F_{\text{copa}} = 0.85$) devido ao risco não mapeado de **rodízio de elenco (time reserva/misto)** e assimetria de motivação.
+  - **Bloqueio de Linhas Esticadas em Favorito Visitante:** Se o modelo projetar aposta em Handicap Negativo a favor do visitante favorito em jogo de Copa (ex: `Kashima -1.0 AH`), o Gatekeeper intervém automaticamente e converte a sugestão para **`Sem Entrada (Abstenção)`** com a mensagem: *`🏆 ALERTA DE COPA: Entrada de Handicap no favorito visitante BLOQUEADA pelo Gatekeeper (Copa Mata-Mata). Risco elevado de rodízio de elenco (time reserva/misto) e imprevisibilidade de mata-mata.`*
 
 ---
 
@@ -253,17 +256,27 @@ No widget visual **`🛡️ Mercado de Gols (Handicap Asiático)`** no `dashboar
 - $-0.19 \le \Delta G \le +0.19 \rightarrow$ **Handicap 0.0 (Empate Anula)** *(sem alertas de crise)*
 - $-0.65 \le \Delta G < -0.20 \rightarrow$ **Visitante +0.25 AH**
 - $-1.30 \le \Delta G < -0.65 \rightarrow$ **Visitante +0.5 AH**
-- $\Delta G < -1.30 \rightarrow$ **Visitante -1.0 AH**
+- $\Delta G < -1.30 \rightarrow$ **Visitante -1.0 AH** *(com Trava de Copa ativada para abstenção em mata-mata)*
 
 ---
 
-### 5. Estudo de Caso & Aprendizado: *Operário-PR vs São Bernardo (1 x 3)*
+### 5. Estudos de Caso & Aprendizado:
+
+#### Caso 1: *Operário-PR vs São Bernardo (1 x 3)*
 - **O que aconteceu:** O modelo legado sugeriu `Operário-PR 0.0` por considerar apenas a média simples em casa. O Operário vinha de má fase recente e concedeu 3 gols.
 - **Como o modelo ajustado responde agora:** Com o novo algoritmo, os fatores $F_{\text{mando}}$, $F_{\text{last5}}$ (0V-1E-4D) e a baixa taxa de clean sheet ativam a trava de crise, alterando a sugestão para `São Bernardo -0.5 AH` com o aviso: *`⚠️ Alerta de Crise: Severa má fase do Operário-PR (U5J: 0V-1E-4D). Favoritismo direto para o visitante São Bernardo.`* e exibindo toda a memória de cálculo expandida.
+
+#### Caso 2: *Mito Hollyhock vs Kashima Antlers (3 x 0 em Copa Mata-Mata)*
+- **O que aconteceu:** O modelo sem filtro de tipo de liga projetou `Kashima -1.0 AH` devido ao histórico estatístico superior da J1 League. O Kashima atuou com time alternativo/reserva na Copa e o Mito Hollyhock venceu por 3 a 0.
+- **Como o modelo ajustado responde agora:** Com a introdução do `Cup Tournament Guard` e a checagem da liga `Emperor Cup / J.League Cup`, o Gatekeeper identifica o risco de rodízio de elenco e bloqueia a entrada de Handicap no visitante favorito, emitindo **`Sem Entrada (Abstenção)`** para proteger a banca.
+
+#### Caso 3: *St. Truiden vs Union St. Gilloise e Celtic vs Aberdeen (Início de Temporada)*
+- **O que aconteceu:** Nas primeiras rodadas da temporada (Agosto/Setembro na Europa e Janeiro-Março na América do Sul), a amostragem de jogos concluídos no campeonato ainda é reduzida. Projeções agressivas como `Union St. Gilloise -0.5 AH` ou `Celtic -1.0 AH` resultavam em perda total caso o jogo terminasse 0x0.
+- **Como o modelo ajustado responde agora:** Ativação da **`Early Season Guard (Trava Conservadora de Início de Temporada)`** em `scripts/football_ingest_trends.py`. Durante as rodadas iniciais do campeonato, qualquer indicação de handicap negativo (`-0.5 AH`, `-0.75 AH` ou `-1.0 AH`), tanto para **mandantes quanto para visitantes favoritos**, é ajustada conservadoramente para **`-0.25 AH`**. No empate de 0x0, isso garante **Meia Perdida (-50% estorno da stake)** para ambos os lados ao invés de perda total.
 
 ---
 
 ### 6. Componentes no Código
 - **MySQL (`fixtures_trends`):** Armazena `ah_suggestion`, `ah_confidence` e `ah_reasoning`.
-- **Ingestão (`scripts/football_ingest_trends.py`):** Executa o cálculo ponderado em `calculate_asian_handicap_suggestion()` e recupera os últimos 5 jogos com `fetch_team_last5_form()`.
+- **Ingestão (`scripts/football_ingest_trends.py`):** Executa o cálculo ponderado em `calculate_asian_handicap_suggestion()`, valida o `Cup Tournament Guard` e o `Early Season Guard`, e recupera a forma U5J via `fetch_team_last5_form()`.
 - **Interface (`app/Views/football/dashboard.php`):** Renderiza o widget visual **`🛡️ Mercado de Gols (Handicap Asiático)`** e o painel de memória de cálculo detalhada.

@@ -460,11 +460,11 @@ def determine_bet_side(home_team: str, away_team: str, ah_suggestion: str) -> bo
 
 ALLOWED_LEAGUE_IDS = {
     71, 72, 73,   # Brasil Série A, Série B e Copa do Brasil
-    39, 40,       # Inglaterra Premier League e Championship
-    140, 141,     # Espanha La Liga e La Liga 2 (Segunda División)
-    135, 136,     # Itália Serie A e Serie B
-    78, 79,       # Alemanha Bundesliga e 2. Bundesliga
-    61, 62,       # França Ligue 1 e Ligue 2
+    39,           # Inglaterra Premier League
+    140,          # Espanha La Liga
+    135,          # Itália Serie A
+    78,           # Alemanha Bundesliga
+    61,           # França Ligue 1
     94,           # Portugal Liga Portugal (Primeira Liga)
     88,           # Holanda Eredivisie
     144,          # Bélgica Pro League
@@ -472,17 +472,16 @@ ALLOWED_LEAGUE_IDS = {
     179,          # Escócia Premiership
     128,          # Argentina Liga Profesional
     197,          # Grécia Super League 1
-    98,           # Japão J1 League
     2, 3, 848,    # UEFA Champions League, Europa League, Conference League
     13, 11        # CONMEBOL Libertadores, Copa Sudamericana
 }
 
 ALLOWED_LEAGUE_NAMES = [
     'brasileirão', 'brasileirao', 'serie a', 'série a', 'serie b', 'série b', 'copa do brasil', 'copa brasil',
-    'premier league', 'championship',
-    'la liga', 'la liga 2', 'segunda división', 'segunda division',
-    'bundesliga', '2. bundesliga',
-    'ligue 1', 'ligue 2',
+    'premier league',
+    'la liga',
+    'bundesliga',
+    'ligue 1',
     'primeira liga', 'liga portugal',
     'eredivisie',
     'pro league', 'jupiler pro league',
@@ -490,14 +489,13 @@ ALLOWED_LEAGUE_NAMES = [
     'premiership',
     'liga profesional',
     'super league 1',
-    'j1 league', 'j-league', 'j. league',
     'champions league', 'europa league', 'conference league',
     'libertadores', 'copa sudamericana', 'sudamericana'
 ]
 
 def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
     """
-    Filtra o escopo de atuação do script de criação de apostas estritamente para Ligas de Elite e Torneios Continentais.
+    Filtra o escopo de atuação do script de criação de apostas estritamente para Ligas de Elite e Torneios Continentais de 1ª Divisão (e Série B do Brasil).
     """
     if not league_name and not league_id:
         return False
@@ -508,8 +506,10 @@ def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
     if any(w in l_name_low for w in ['women', 'feminino', 'femenina']):
         return False
 
-    # 2. Bloqueia Copas Secundárias e Divisões Inferiores (League One, League Two, National League, EFL Trophy, FA Trophy)
+    # 2. Bloqueia Divisões Secundárias Europeias e Inferiores (Championship, La Liga 2, Ligue 2, 2. Bundesliga, League One/Two, Copas Menores)
     secondary_blocked = [
+        'championship', 'la liga 2', 'segunda división', 'segunda division',
+        '2. bundesliga', 'ligue 2', '2nd division', 'division 2',
         'efl trophy', 'fl trophy', 'johnstone', 'bristol street', 'papa john',
         'carabao cup', 'league cup', 'fa trophy',
         'league one', 'league 1', 'league two', 'league 2', 'national league'
@@ -517,7 +517,12 @@ def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
     if any(blocked in l_name_low for blocked in secondary_blocked):
         return False
 
-    # 3. Validação por ID Numérico Oficial
+    # 3. Bloqueia explicitamente todas as ligas e copas do Japão (J1, J2, J3, Emperor's Cup, etc.)
+    japan_blocked = ['japan', 'japão', 'japao', 'j1 league', 'j2 league', 'j3 league', 'j-league', 'j.league', 'emperor']
+    if any(blocked in l_name_low for blocked in japan_blocked):
+        return False
+
+    # 4. Validação por ID Numérico Oficial
     if league_id is not None:
         try:
             lid = int(league_id)
@@ -528,7 +533,7 @@ def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
         except (ValueError, TypeError):
             pass
 
-    # 4. Validação por Nome da Liga (Fallback)
+    # 5. Validação por Nome da Liga (Fallback)
     if any(allowed in l_name_low for allowed in ALLOWED_LEAGUE_NAMES):
         return True
 
@@ -693,7 +698,15 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
         if not real_odd_betano or real_odd_betano <= 1.0:
             raw_odd = fix.get('odd_away') if is_away else fix.get('odd_home')
             if raw_odd and float(raw_odd) > 1.0:
-                real_odd_betano = float(raw_odd)
+                raw_float = float(raw_odd)
+                if '+0.25' in ah_suggestion:
+                    # Linha +0.25 para underdog: odd estimada com base na cotação seca (ex: 3.10 -> ~1.84)
+                    real_odd_betano = round(max(1.55, min(2.05, 1.0 + (raw_float - 1.0) * 0.40)), 2)
+                elif '+0.5' in ah_suggestion:
+                    # Linha +0.5 (Dupla Chance): odd estimada com base na cotação seca (ex: 3.10 -> ~1.59)
+                    real_odd_betano = round(max(1.50, min(1.85, 1.0 + (raw_float - 1.0) * 0.28)), 2)
+                else:
+                    real_odd_betano = raw_float
                 odd_source = 'TRENDS_FALLBACK'
             else:
                 print(f"ℹ️ [Linha Indisponível Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Linha '{ah_suggestion}' indisponível na Betano.")

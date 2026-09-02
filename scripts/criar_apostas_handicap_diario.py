@@ -114,6 +114,17 @@ def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str,
     m = re.search(r'(\d+(?:\.\d+)?)', palpite_str or '')
     line_val = m.group(1) if m else ''
 
+    # Na API-Sports (Bookmaker ID 32 Betano), as linhas de Handicap Asiático (Bet #4) para o time visitante (Away)
+    # possuem os sinais invertidos (+ vira -, - vira +) na rotulagem da string da API devido à perspectiva do mandante (Home).
+    expected_signs = []
+    if is_away and sign:
+        inv_sign = '-' if sign == '+' else '+'
+        expected_signs = [inv_sign, sign]
+    elif sign:
+        expected_signs = [sign]
+    else:
+        expected_signs = ['']
+
     url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
     try:
         resp = requests.get(url, headers=headers, timeout=10).json()
@@ -138,20 +149,18 @@ def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str,
 
                     # Bet ID 4 = Asian Handicap, Bet ID 1 = Match Winner (1X2)
                     if b_id == 4 or 'asian handicap' in b_name:
-                        for val in bet.get('values', []):
-                            v_str = str(val.get('value', '')).strip()
-                            v_odd_raw = val.get('odd')
-                            try:
-                                v_odd = float(v_odd_raw)
-                            except (ValueError, TypeError):
-                                continue
+                        values = bet.get('values', [])
+                        for s in expected_signs:
+                            search_target = f"{s}{line_val}" if s else line_val
+                            for val in values:
+                                v_str = str(val.get('value', '')).strip()
+                                v_odd_raw = val.get('odd')
+                                try:
+                                    v_odd = float(v_odd_raw)
+                                except (ValueError, TypeError):
+                                    continue
 
-                            if v_odd > 1.0 and target_side.lower() in v_str.lower():
-                                if sign and f"{sign}{line_val}" in v_str:
-                                    res = (v_odd, 'BETANO')
-                                    _betano_ah_odds_cache[cache_key] = res
-                                    return res
-                                elif not sign and line_val in v_str:
+                                if v_odd > 1.0 and target_side.lower() in v_str.lower() and search_target in v_str:
                                     res = (v_odd, 'BETANO')
                                     _betano_ah_odds_cache[cache_key] = res
                                     return res
@@ -463,6 +472,7 @@ ALLOWED_LEAGUE_IDS = {
     179,          # Escócia Premiership
     128,          # Argentina Liga Profesional
     197,          # Grécia Super League 1
+    98,           # Japão J1 League
     2, 3, 848,    # UEFA Champions League, Europa League, Conference League
     13, 11        # CONMEBOL Libertadores, Copa Sudamericana
 }
@@ -480,6 +490,7 @@ ALLOWED_LEAGUE_NAMES = [
     'premiership',
     'liga profesional',
     'super league 1',
+    'j1 league', 'j-league', 'j. league',
     'champions league', 'europa league', 'conference league',
     'libertadores', 'copa sudamericana', 'sudamericana'
 ]

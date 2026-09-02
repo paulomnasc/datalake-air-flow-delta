@@ -801,7 +801,7 @@ def calculate_asian_handicap_suggestion(
     if away_last5 is None:
         away_last5 = {"v": 2, "e": 1, "d": 2, "pts": 7, "text": "2V-1E-2D", "matches": []}
 
-    # 0. Trava de Bloqueio Estrito para Odds Ausentes ou xG Zerado
+    # 0. Trava de Bloqueio Estrito para Odds Ausentes ou xG Zerado sem histórico
     if not odd_home or not odd_away or float(odd_home) <= 1.0 or float(odd_away) <= 1.0:
         suggestion = "Sem Entrada (Abstenção)"
         confidence = 50.00
@@ -809,12 +809,64 @@ def calculate_asian_handicap_suggestion(
         u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
         return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por Odds Indisponíveis || MOTIVACAO: Risco excessivo sem cotações de mercado reais || MEMÓRIA DE CÁLCULO || Odds Ausentes || U5J_DATA: {u5j_json}"
 
-    if (home_goals_scored <= 0.01 and away_goals_scored <= 0.01 and home_goals_conceded <= 0.01 and away_goals_conceded <= 0.01):
+    # Se xG de jogo ao vivo não existe (pré-jogo), projeta o xG pré-jogo a partir do histórico U5J dos times
+    if (home_goals_scored <= 0.01 and away_goals_scored <= 0.01):
+        h_matches = home_last5.get("matches", []) if isinstance(home_last5, dict) else []
+        a_matches = away_last5.get("matches", []) if isinstance(away_last5, dict) else []
+        
+        if h_matches or a_matches:
+            h_scored_list, h_conceded_list = [], []
+            for m in h_matches:
+                score = m.get("score", "")
+                if "x" in score:
+                    parts = score.split("x")
+                    try:
+                        g_h, g_a = int(parts[0]), int(parts[1])
+                        if m.get("is_home"):
+                            h_scored_list.append(g_h)
+                            h_conceded_list.append(g_a)
+                        else:
+                            h_scored_list.append(g_a)
+                            h_conceded_list.append(g_h)
+                    except ValueError:
+                        pass
+
+            a_scored_list, a_conceded_list = [], []
+            for m in a_matches:
+                score = m.get("score", "")
+                if "x" in score:
+                    parts = score.split("x")
+                    try:
+                        g_h, g_a = int(parts[0]), int(parts[1])
+                        if m.get("is_home"):
+                            a_scored_list.append(g_h)
+                            a_conceded_list.append(g_a)
+                        else:
+                            a_scored_list.append(g_a)
+                            a_conceded_list.append(g_h)
+                    except ValueError:
+                        pass
+
+            if h_scored_list:
+                home_goals_scored = max(0.5, sum(h_scored_list) / len(h_scored_list))
+                home_goals_conceded = max(0.5, sum(h_conceded_list) / len(h_conceded_list))
+            else:
+                home_goals_scored = 1.20
+                home_goals_conceded = 1.00
+
+            if a_scored_list:
+                away_goals_scored = max(0.5, sum(a_scored_list) / len(a_scored_list))
+                away_goals_conceded = max(0.5, sum(a_conceded_list) / len(a_conceded_list))
+            else:
+                away_goals_scored = 1.00
+                away_goals_conceded = 1.20
+
+    if (home_goals_scored <= 0.01 and away_goals_scored <= 0.01):
         suggestion = "Sem Entrada (Abstenção)"
         confidence = 50.00
-        reasoning_text = f"🚫 APOSTA BLOQUEADA: Dados de Expectativa de Gols (xG) indisponíveis para esta partida (xG = 0.00). Entrada de Handicap bloqueada para proteger a banca."
+        reasoning_text = f"🚫 APOSTA BLOQUEADA: Histórico de partidas e estatísticas de gols indisponíveis para este confronto. Entrada de Handicap bloqueada para proteger a banca."
         u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
-        return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por xG Indisponível || MOTIVACAO: Risco excessivo sem estatísticas de xG || MEMÓRIA DE CÁLCULO || xG Base 0.00 || U5J_DATA: {u5j_json}"
+        return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por Histórico Indisponível || MOTIVACAO: Risco excessivo sem estatísticas prévias || MEMÓRIA DE CÁLCULO || Histórico Ausente || U5J_DATA: {u5j_json}"
 
     # 1. Fator Últimos 5 Jogos (Forma Recente: V-E-D)
     home_pts = home_last5.get("pts", 7)
@@ -1098,7 +1150,7 @@ def calculate_asian_handicap_suggestion(
     u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
 
     full_reasoning = f"{main_reason} || EXPLICACAO: {nl_explanation} || MOTIVACAO: {nl_motivation} || MEMÓRIA DE CÁLCULO || {calc_memory} || PROBABILIDADES_1X2: {prob_1x2_json} || U5J_DATA: {u5j_json}"
-    return suggestion, confidence, full_reasoning
+    return suggestion, confidence, full_reasoning, round(lambda_home, 2), round(lambda_away, 2)
 
 def is_abstain_suggestion(sug):
     if not sug:
@@ -2800,10 +2852,8 @@ def update_oddspedia_odds(conn):
                 row_xg = cursor.fetchone()
                 xg_h = float(row_xg.get('xg_home') or 0.0) if row_xg else 0.0
                 xg_a = float(row_xg.get('xg_away') or 0.0) if row_xg else 0.0
-                if xg_h <= 0.01: xg_h = 1.35
-                if xg_a <= 0.01: xg_a = 1.10
 
-                sug, conf, reason = calculate_asian_handicap_suggestion(
+                sug, conf, reason, proj_h, proj_a = calculate_asian_handicap_suggestion(
                     xg_h, 1.0, xg_a, 1.0, fix['home_team'], fix['away_team'], 30.0, 30.0,
                     home_losses, away_losses, home_last5.get('v', 0), away_last5.get('v', 0),
                     home_last5, away_last5, best_c1, best_cX, best_c2
@@ -2816,11 +2866,13 @@ def update_oddspedia_odds(conn):
                                 odd_home = %s, casa_odd_home = %s,
                                 odd_draw = %s, casa_odd_draw = %s,
                                 odd_away = %s, casa_odd_away = %s,
+                                xg_home = IF(xg_home <= 0, %s, xg_home),
+                                xg_away = IF(xg_away <= 0, %s, xg_away),
                                 is_surebet = %s, surebet_profit_pct = %s,
                                 ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s,
                                 updated_at = NOW()
                             WHERE fixture_id = %s
-                        """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, is_surebet, profit_pct, sug, conf, reason, fix_id))
+                        """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, proj_h, proj_a, is_surebet, profit_pct, sug, conf, reason, fix_id))
                         conn.commit()
                         if is_abstain_suggestion(sug):
                             cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
@@ -3004,10 +3056,8 @@ def enrich_fixtures_standings(conn):
             
             xg_h = float(fix_row.get('xg_home') or 0.0)
             xg_a = float(fix_row.get('xg_away') or 0.0)
-            if xg_h <= 0.01: xg_h = 1.35
-            if xg_a <= 0.01: xg_a = 1.10
 
-            sug, conf, reason = calculate_asian_handicap_suggestion(
+            sug, conf, reason, proj_h, proj_a = calculate_asian_handicap_suggestion(
                 xg_h, 1.0, xg_a, 1.0, fix['home_team'], fix['away_team'], 30.0, 30.0,
                 h_losses, a_losses, h_l5.get('v', 0), a_l5.get('v', 0),
                 h_l5, a_l5,
@@ -3019,9 +3069,11 @@ def enrich_fixtures_standings(conn):
                 UPDATE fixtures_trends SET
                     home_rank = %s, away_rank = %s, home_ppg = %s, away_ppg = %s,
                     home_zone = %s, away_zone = %s, standings_motivation_score = %s,
+                    xg_home = IF(xg_home <= 0, %s, xg_home),
+                    xg_away = IF(xg_away <= 0, %s, xg_away),
                     ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s
                 WHERE fixture_id = %s
-            """, (home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, motivation_score, sug, conf, reason, fix_id))
+            """, (home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, motivation_score, proj_h, proj_a, sug, conf, reason, fix_id))
             if is_abstain_suggestion(sug):
                 cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
         else:
@@ -3065,10 +3117,8 @@ def recalculate_inconsistent_odds_predictions(conn):
 
                 xg_h = float(fix.get('xg_home') or 0.0)
                 xg_a = float(fix.get('xg_away') or 0.0)
-                if xg_h <= 0.01: xg_h = 1.35
-                if xg_a <= 0.01: xg_a = 1.10
 
-                sug, conf, reason = calculate_asian_handicap_suggestion(
+                sug, conf, reason, proj_h, proj_a = calculate_asian_handicap_suggestion(
                     xg_h, 1.0, xg_a, 1.0, fix['home_team'], fix['away_team'], 30.0, 30.0,
                     h_losses, a_losses, h_l5.get('v', 0), a_l5.get('v', 0),
                     h_l5, a_l5,
@@ -3079,9 +3129,11 @@ def recalculate_inconsistent_odds_predictions(conn):
 
                 cursor.execute("""
                     UPDATE fixtures_trends SET
+                        xg_home = IF(xg_home <= 0, %s, xg_home),
+                        xg_away = IF(xg_away <= 0, %s, xg_away),
                         ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s, updated_at = NOW()
                     WHERE fixture_id = %s
-                """, (sug, conf, reason, fix_id))
+                """, (proj_h, proj_a, sug, conf, reason, fix_id))
                 if is_abstain_suggestion(sug):
                     cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
             conn.commit()

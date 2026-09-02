@@ -752,7 +752,8 @@ function updatePerformanceDashboard() {
   const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
-  const baseInvestida = (totalApostadoLiquidado > 0) ? totalApostadoLiquidado : totalApostado;
+  totalLucroLiquido = totalRetorno - totalApostado;
+  const baseInvestida = totalApostado > 0 ? totalApostado : 0;
   const roi = baseInvestida > 0 ? (totalLucroLiquido / baseInvestida) * 100 : 0;
   const winRate = decidedCount > 0 ? (winCount / decidedCount) * 100 : 0;
 

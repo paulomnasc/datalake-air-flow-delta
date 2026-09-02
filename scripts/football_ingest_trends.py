@@ -2493,8 +2493,12 @@ def fetch_api_sports_odds_by_date(date_list=None):
                         # Procura a aposta 1X2 / Match Winner (id=1)
                         for bet in bm.get('bets', []):
                             bet_id = bet.get('id')
-                            bet_name = str(bet.get('name', '')).lower()
-                            if bet_id == 1 or 'match winner' in bet_name or '1x2' in bet_name:
+                            bet_name = str(bet.get('name', '')).lower().strip()
+                            is_match_winner_bet = (bet_id == 1) or (
+                                ('match winner' in bet_name or bet_name == '1x2' or bet_name == 'fulltime result')
+                                and not any(kw in bet_name for kw in ['corner', 'card', 'half', 'minute', 'period', '1st', '2nd', '60', '30'])
+                            )
+                            if is_match_winner_bet:
                                 c_home, c_draw, c_away = 0.0, 0.0, 0.0
                                 for val in bet.get('values', []):
                                     v_name = str(val.get('value', '')).lower().strip()

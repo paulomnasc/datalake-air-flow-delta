@@ -130,8 +130,8 @@ def fix_zero_cards():
         UPDATE fixtures_trends f
         JOIN team_moving_averages h ON (f.home_team_id = h.team_id AND h.venue_type = 'home')
         JOIN team_moving_averages a ON (f.away_team_id = a.team_id AND a.venue_type = 'away')
-        SET f.prediction_text = '🚫 NO_BET: Média de cartões por time (1.0 ou inferior) com amostragem estatística insuficiente ou suspeita. Entrada bloqueada pelo Gatekeeper por segurança.'
-        WHERE (h.avg_cards <= 1.00 OR a.avg_cards <= 1.00 OR (h.avg_cards + a.avg_cards) <= 2.10)
+        SET f.prediction_text = '🚫 NO_BET: Início de campeonato ou amostragem insuficiente (< 5 jogos registrados). Entrada bloqueada pelo Gatekeeper por segurança.'
+        WHERE (h.matches_count < 5 OR a.matches_count < 5 OR (h.avg_cards <= 0.01 AND a.avg_cards <= 0.01))
           AND f.status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'FINISHED')
     """)
     conn.commit()

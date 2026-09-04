@@ -234,6 +234,7 @@ def main():
             home_cards = []
             away_corners = []
             away_cards = []
+            all_cards = []
 
             # 3.1. VERIFICAÇÃO DB-FIRST: Checar se o banco de dados local já possui os últimos 5 jogos do time atualizados
             cursor.execute("""
@@ -291,6 +292,7 @@ def main():
 
                     total_cards = yellows + (reds * 2)
                     if has_cards:
+                        all_cards.append(total_cards)
                         if is_home:
                             home_cards.append(total_cards)
                         else:
@@ -419,6 +421,7 @@ def main():
                         conn.commit()
                         
                     total_cards = yellows + (reds * 2)
+                    all_cards.append(total_cards)
                     if is_home:
                         home_corners.append(corners)
                         home_cards.append(total_cards)
@@ -427,34 +430,34 @@ def main():
                         away_cards.append(total_cards)
                         
             avg_corners_home = round(sum(home_corners) / len(home_corners), 2) if home_corners else 0.00
-            avg_cards_home = round(sum(home_cards) / len(home_cards), 2) if home_cards else 0.00
             avg_corners_away = round(sum(away_corners) / len(away_corners), 2) if away_corners else 0.00
-            avg_cards_away = round(sum(away_cards) / len(away_cards), 2) if away_cards else 0.00
-            
-            # Se as estatísticas de cartões dos últimos jogos vierem zeradas ou incompletas, extrai a média da temporada diretamente da API
-            cards_dict = stats_data.get("cards", {}) if stats_data else {}
-            y_tot = sum(v.get("total") or 0 for v in cards_dict.get("yellow", {}).values() if isinstance(v, dict))
-            r_tot = sum(v.get("total") or 0 for v in cards_dict.get("red", {}).values() if isinstance(v, dict))
-            tot_p = (stats_data.get("fixtures", {}).get("played", {}).get("total", 0) or 0) if stats_data else 0
-            api_cards_avg = round((y_tot + r_tot * 2) / tot_p, 2) if tot_p > 0 else 0.0
 
-            if len(home_cards) < 2 or avg_cards_home <= 1.50:
-                hist_h = get_team_cards_from_db_history(cursor, team_name, venue_type='home', team_id=team_id)
-                if hist_h <= 1.50:
-                    hist_h = get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id)
-                if hist_h > 1.00:
-                    avg_cards_home = hist_h
-                elif api_cards_avg > 0:
-                    avg_cards_home = api_cards_avg
+            avg_all_cards = round(sum(all_cards) / len(all_cards), 2) if all_cards else 0.00
 
-            if len(away_cards) < 2 or avg_cards_away <= 1.80:
-                hist_a = get_team_cards_from_db_history(cursor, team_name, venue_type='away', team_id=team_id)
-                if hist_a <= 1.80:
-                    hist_a = get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id)
-                if hist_a > 1.00:
-                    avg_cards_away = hist_a
-                elif api_cards_avg > 0:
-                    avg_cards_away = api_cards_avg
+            # Média de cartões mandante: se tiver poucas partidas no mando (<3) mas tiver amostra geral (>=3), suaviza com a média geral (U5J)
+            if len(home_cards) >= 3:
+                avg_cards_home = round(sum(home_cards) / len(home_cards), 2)
+            elif len(home_cards) > 0 and len(all_cards) >= 3:
+                raw_h = sum(home_cards) / len(home_cards)
+                avg_cards_home = round(raw_h * 0.5 + avg_all_cards * 0.5, 2)
+            elif len(all_cards) > 0:
+                avg_cards_home = avg_all_cards
+            else:
+                avg_cards_home = round(sum(home_cards) / len(home_cards), 2) if home_cards else 0.00
+
+            # Média de cartões visitante: se tiver poucas partidas no mando (<3) mas tiver amostra geral (>=3), suaviza com a média geral (U5J)
+            if len(away_cards) >= 3:
+                avg_cards_away = round(sum(away_cards) / len(away_cards), 2)
+            elif len(away_cards) > 0 and len(all_cards) >= 3:
+                raw_a = sum(away_cards) / len(away_cards)
+                avg_cards_away = round(raw_a * 0.5 + avg_all_cards * 0.5, 2)
+            elif len(all_cards) > 0:
+                avg_cards_away = avg_all_cards
+            else:
+                avg_cards_away = round(sum(away_cards) / len(away_cards), 2) if away_cards else 0.00
+
+            matches_count_home = len(all_cards)
+            matches_count_away = len(all_cards)
 
             # Se as listas históricas de escanteios vierem vazias ou com média irrealisticamente baixa (<= 2.0), busca do histórico válido ou gera determinístico
             if not home_corners or avg_corners_home <= 2.00:
@@ -481,37 +484,42 @@ def main():
             clean_sheets_pct_away = mock_away["clean_sheets_pct"]
             avg_corners_away = mock_away["avg_corners"]
             avg_cards_away = get_team_cards_from_db_history(cursor, team_name, venue_type='away', team_id=team_id)
+
+            matches_count_home = 0
+            matches_count_away = 0
             
         # Salvar no banco
         # Home
         cursor.execute("""
             INSERT INTO team_moving_averages (
                 team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
-                clean_sheets_pct, avg_corners, avg_cards
-            ) VALUES (%s, %s, 'home', %s, %s, %s, %s, %s)
+                clean_sheets_pct, avg_corners, avg_cards, matches_count
+            ) VALUES (%s, %s, 'home', %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 team_name = VALUES(team_name),
                 avg_goals_scored = VALUES(avg_goals_scored),
                 avg_goals_conceded = VALUES(avg_goals_conceded),
                 clean_sheets_pct = VALUES(clean_sheets_pct),
                 avg_corners = VALUES(avg_corners),
-                avg_cards = VALUES(avg_cards)
-        """, (team_id, team_name, avg_goals_for_home, avg_goals_against_home, clean_sheets_pct_home, avg_corners_home, avg_cards_home))
+                avg_cards = VALUES(avg_cards),
+                matches_count = VALUES(matches_count)
+        """, (team_id, team_name, avg_goals_for_home, avg_goals_against_home, clean_sheets_pct_home, avg_corners_home, avg_cards_home, matches_count_home))
         
         # Away
         cursor.execute("""
             INSERT INTO team_moving_averages (
                 team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
-                clean_sheets_pct, avg_corners, avg_cards
-            ) VALUES (%s, %s, 'away', %s, %s, %s, %s, %s)
+                clean_sheets_pct, avg_corners, avg_cards, matches_count
+            ) VALUES (%s, %s, 'away', %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 team_name = VALUES(team_name),
                 avg_goals_scored = VALUES(avg_goals_scored),
                 avg_goals_conceded = VALUES(avg_goals_conceded),
                 clean_sheets_pct = VALUES(clean_sheets_pct),
                 avg_corners = VALUES(avg_corners),
-                avg_cards = VALUES(avg_cards)
-        """, (team_id, team_name, avg_goals_for_away, avg_goals_against_away, clean_sheets_pct_away, avg_corners_away, avg_cards_away))
+                avg_cards = VALUES(avg_cards),
+                matches_count = VALUES(matches_count)
+        """, (team_id, team_name, avg_goals_for_away, avg_goals_against_away, clean_sheets_pct_away, avg_corners_away, avg_cards_away, matches_count_away))
         
         conn.commit()
         print(f"✅ Médias móveis salvas com sucesso para {team_name}!")

@@ -29,50 +29,50 @@ Além de simplificar a decisão entre duas opções (Mandante ou Visitante), o H
 | Linha de Handicap | Se o seu time Vence | Se a partida Empata | Se o seu time Perde |
 | :--- | :--- | :--- | :--- |
 | **0.0 (Empate Anula / DNB)** | 🟢 **Ganha 100%** | 🟡 **Reembolso 100%** | 🔴 **Perde 100%** |
-| **-0.25 (-0.0, -0.50)** | 🟢 **Ganha 100%** | 🟡 **Perde 50%** *(Recebe 50% da Stake de volta)* | 🔴 **Perde 100%** |
+| **-0.25 (-0.0, -0.50)** | 🟢 **Ganha 100%** | 🟡 **Perde 50%** *(Recebe 50% do Valor Apostado de volta)* | 🔴 **Perde 100%** |
 | **-0.50 (Vitória Simples)** | 🟢 **Ganha 100%** | 🔴 **Perde 100%** | 🔴 **Perde 100%** |
 | **-0.75 (-0.50, -1.00)** | 🟢 Vence por 2+ gols: **Ganha 100%**<br>🟡 Vence por 1 gol: **Ganha 50% do Lucro** | 🔴 **Perde 100%** | 🔴 **Perde 100%** |
 | **-1.00** | 🟢 Vence por 2+ gols: **Ganha 100%**<br>🟡 Vence por 1 gol: **Reembolso 100%** | 🔴 **Perde 100%** | 🔴 **Perde 100%** |
-| **-1.25 (-1.00, -1.50)** | 🟢 Vence por 2+ gols: **Ganha 100%**<br>🟡 Vence por 1 gol: **Perde 50%** *(Recebe 50% da Stake de volta)* | 🔴 **Perde 100%** | 🔴 **Perde 100%** |
+| **-1.25 (-1.00, -1.50)** | 🟢 Vence por 2+ gols: **Ganha 100%**<br>🟡 Vence por 1 gol: **Perde 50%** *(Recebe 50% do Valor Apostado de volta)* | 🔴 **Perde 100%** | 🔴 **Perde 100%** |
 | **-1.50** | 🟢 Vence por 2+ gols: **Ganha 100%** | 🔴 **Perde 100%** | 🔴 **Perde 100%** |
 | **-1.75 (-1.50, -2.00)** | 🟢 Vence por 3+ gols: **Ganha 100%**<br>🟡 Vence por 2 gols: **Ganha 50% do Lucro** | 🔴 **Perde 100%** | 🔴 **Perde 100%** |
 | **-2.00** | 🟢 Vence por 3+ gols: **Ganha 100%**<br>🟡 Vence por 2 gols: **Reembolso 100%** | 🔴 **Perde 100%** | 🔴 **Perde 100%** |
-| **+0.25 (+0.0, +0.50)** | 🟢 **Ganha 100%** | 🟢 **Ganha 50% do Lucro** + 100% Aposta | 🔴 **Perde 100%** |
+| **+0.25 (+0.0, +0.50)** | 🟢 **Ganha 100%** | 🟢 **Ganha 50% do Lucro** + 100% Valor Apostado | 🔴 **Perde 100%** |
 | **+0.50 (Dupla Chance)** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🔴 **Perde 100%** |
-| **+0.75 (+0.50, +1.00)** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🔴 Perde por 2+ gols: **Perde 100%**<br>🟡 Perde por 1 gol: **Perde 50%** *(Recebe 50% da Stake de volta)* |
+| **+0.75 (+0.50, +1.00)** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🔴 Perde por 2+ gols: **Perde 100%**<br>🟡 Perde por 1 gol: **Perde 50%** *(Recebe 50% do Valor Apostado de volta)* |
 | **+1.00** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🔴 Perde por 2+ gols: **Perde 100%**<br>🟡 Perde por 1 gol: **Reembolso 100%** |
-| **+1.25 (+1.00, +1.50)** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🔴 Perde por 2+ gols: **Perde 100%**<br>🟡 Perde por 1 gol: **Ganha 50% do Lucro** + 100% Aposta |
+| **+1.25 (+1.00, +1.50)** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🔴 Perde por 2+ gols: **Perde 100%**<br>🟡 Perde por 1 gol: **Ganha 50% do Lucro** + 100% Valor Apostado |
 | **+1.50** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🟢 Perde por 1 gol: **Ganha 100%**<br>🔴 Perde por 2+ gols: **Perde 100%** |
-| **+1.75 (+1.50, +2.00)** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🟢 Perde por 1 gol: **Ganha 100%**<br>🟡 Perde por 2 gols: **Perde 50%** *(Recebe 50% da Stake de volta)*<br>🔴 Perde por 3+ gols: **Perde 100%** |
+| **+1.75 (+1.50, +2.00)** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🟢 Perde por 1 gol: **Ganha 100%**<br>🟡 Perde por 2 gols: **Perde 50%** *(Recebe 50% do Valor Apostado de volta)*<br>🔴 Perde por 3+ gols: **Perde 100%** |
 | **+2.00** | 🟢 **Ganha 100%** | 🟢 **Ganha 100%** | 🟢 Perde por 1 gol: **Ganha 100%**<br>🟡 Perde por 2 gols: **Reembolso 100%**<br>🔴 Perde por 3+ gols: **Perde 100%** |
 
 > 💡 **Entendendo a porcentagem no Reembolso Parcial / Meio Loss:**
-> * **"Perde 50% (Recebe 50% de volta)":** Significa que você perde **50% do VALOR APOSTADO (Stake)**. A **odd não é multiplicada** na metade perdida. Exemplo: se apostar **R$ 100,00**, você perde R$ 50,00 e o saldo de **R$ 50,00 (50% da Stake)** é devolvido à sua conta.
-> * **"Ganha 50% do Lucro (Meio Win)":** Significa que você recebe **100% da sua Stake de volta + 50% do Lucro Líquido** que ganharia com a Odd. Exemplo: R$ 100,00 em Odd 2.00 $\rightarrow$ Lucro total seria R$ 100,00. No meio win você recebe **R$ 100 (Stake) + R$ 50 (50% do Lucro) = R$ 150,00 de retorno total**.
+> * **"Perde 50% (Recebe 50% de volta)":** Significa que você perde **50% do VALOR APOSTADO**. A **odd não é multiplicada** na metade perdida. Exemplo: se apostar **R$ 100,00**, você perde R$ 50,00 e o saldo de **R$ 50,00 (50% do Valor Apostado)** é devolvido à sua conta.
+> * **"Ganha 50% do Lucro (Meio Win)":** Significa que você recebe **100% do seu Valor Apostado de volta + 50% do Lucro Líquido** que ganharia com a Odd. Exemplo: R$ 100,00 em Odd 2.00 $\rightarrow$ Lucro total seria R$ 100,00. No meio win você recebe **R$ 100 (Valor Apostado) + R$ 50 (50% do Lucro) = R$ 150,00 de retorno total**.
 
 ### 💡 Diferença Fundamental entre +0.25 AH vs -0.25 AH vs No Bet no Empate
 
 Uma dúvida frequente na gestão de apostas é a distinção entre as linhas de **Quarter-Ball (+0.25 AH e -0.25 AH)**, o **Handicap 0.0 (DNB / Empate Anula)** e a opção de **No Bet (Abstenção)** em cenários onde o jogo termina empatado (ex: placar de 2 x 2).
 
 > ⚠️ **Atenção aos Sinais e Direcionamento da Aposta:**
-> * 🔴 **`-0.25 AH` (Mandante/Favorito):** Você aposta na vitória do favorito. Se a partida empatar (ex: 2x2), você sofre **Meia Perda (Half Loss)**: **50% da stake é perdoada/estornada** de volta para sua conta e **50% é perdida**.
-> * 🟢 **`+0.25 AH` (Visitante/Azarão):** Você aposta que o visitante não perde. Se a partida empatar, você obtém **Meio Green (Half Win)**: **100% da stake é devolvida + 50% do lucro da odd**.
-> * 🟡 **`0.0 AH` (Empate Anula / DNB):** Se a partida empatar, há **Reembolso Total (100% da stake estornada)**, sem lucro e sem prejuízo.
+> * 🔴 **`-0.25 AH` (Mandante/Favorito):** Você aposta na vitória do favorito. Se a partida empatar (ex: 2x2), você sofre **Meia Perda (Half Loss)**: **50% do valor apostado é perdoado/estornado** de volta para sua conta e **50% é perdido**.
+> * 🟢 **`+0.25 AH` (Visitante/Azarão):** Você aposta que o visitante não perde. Se a partida empatar, você obtém **Meio Green (Half Win)**: **100% do valor apostado é devolvido + 50% do lucro da odd**.
+> * 🟡 **`0.0 AH` (Empate Anula / DNB):** Se a partida empatar, há **Reembolso Total (100% do valor apostado estornado)**, sem lucro e sem prejuízo.
 > * ⚪ **`No Bet` (Abstenção):** Entrada não realizada devido ao alto risco ou incerteza estatística.
 
 #### 📊 Estudo Comparativo de uma aposta de R$ 100,00 em um jogo empatado em 2 a 2:
 
-| Opção de Entrada | Tese da Aposta | Comportamento no Empate (2 x 2) | Estorno da Stake | Retorno Total | Lucro / Prejuízo Líquido |
+| Opção de Entrada | Tese da Aposta | Comportamento no Empate (2 x 2) | Estorno do Valor Apostado | Retorno Total | Lucro / Prejuízo Líquido |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`-0.25 AH` (Favorito)** | Vitória do Favorito | 🟠 **Meia Perda (Half Loss)** | **R$ 50,00** (50% estornada) | **R$ 50,00** | 🔴 **- R$ 50,00** (Perde 50%) |
-| **`+0.25 AH` (Azarão)** | Não-Derrota do Azarão | 🟢 **Meio Green (Half Win)** | **R$ 100,00** (100% devolvida) | **R$ 150,00** *(odd 2.0)* | 🟢 **+ R$ 50,00** (50% do lucro) |
-| **`0.0 AH` (DNB)** | Vitória com Cobertura | 🟡 **Reembolso Total** | **R$ 100,00** (100% estornada) | **R$ 100,00** | 🟡 **R$ 0,00** (Zero Lucro/Perda) |
-| **`No Bet` (Abstenção)** | Ficar de Fora | ⚪ **Ficou de Fora** | **R$ 100,00** (Stake preservada) | **R$ 100,00** | ⚪ **R$ 0,00** (Zero Lucro/Perda) |
+| **`-0.25 AH` (Favorito)** | Vitória do Favorito | 🟠 **Meia Perda (Half Loss)** | **R$ 50,00** (50% estornado) | **R$ 50,00** | 🔴 **- R$ 50,00** (Perde 50%) |
+| **`+0.25 AH` (Azarão)** | Não-Derrota do Azarão | 🟢 **Meio Green (Half Win)** | **R$ 100,00** (100% devolvido) | **R$ 150,00** *(odd 2.0)* | 🟢 **+ R$ 50,00** (50% do lucro) |
+| **`0.0 AH` (DNB)** | Vitória com Cobertura | 🟡 **Reembolso Total** | **R$ 100,00** (100% estornado) | **R$ 100,00** | 🟡 **R$ 0,00** (Zero Lucro/Perda) |
+| **`No Bet` (Abstenção)** | Ficar de Fora | ⚪ **Ficou de Fora** | **R$ 100,00** (Valor apostado preservado) | **R$ 100,00** | ⚪ **R$ 0,00** (Zero Lucro/Perda) |
 
 #### 🎯 Por que escolher `-0.25 AH` em vez de `+0.25 AH` ou `No Bet`?
 1. **Frente ao `-0.5 AH` (Vitória Simples):** O `-0.25 AH` mantém a tese de vitória do favorito, mas reduz em 50% o prejuízo de um empate inesperado (como um 2 x 2 no final da partida).
 2. **Frente ao `+0.25 AH`:** O `+0.25 AH` é o lado oposto (da zebra). Escolhe-se o `-0.25 AH` quando o modelo projeta probabilidade consideravelmente superior de vitória do mandante do que de surpresa do visitante.
-3. **Frente ao `No Bet`:** Quando o modelo enxerga valor na vitória do mandante mas quer blindagem contra o empate, utilizar o `-0.25 AH` é matematicamente superior ao `No Bet`, pois mantém o ganho total no caso de vitória sem expor 100% da stake ao risco do empate.
+3. **Frente ao `No Bet`:** Quando o modelo enxerga valor na vitória do mandante mas quer blindagem contra o empate, utilizar o `-0.25 AH` é matematicamente superior ao `No Bet`, pois mantém o ganho total no caso de vitória sem expor 100% do valor apostado ao risco do empate.
 
 ---
 
@@ -272,7 +272,7 @@ No widget visual **`🛡️ Mercado de Gols (Handicap Asiático)`** no `dashboar
 
 #### Caso 3: *St. Truiden vs Union St. Gilloise e Celtic vs Aberdeen (Início de Temporada)*
 - **O que aconteceu:** Nas primeiras rodadas da temporada (Agosto/Setembro na Europa e Janeiro-Março na América do Sul), a amostragem de jogos concluídos no campeonato ainda é reduzida. Projeções agressivas como `Union St. Gilloise -0.5 AH` ou `Celtic -1.0 AH` resultavam em perda total caso o jogo terminasse 0x0.
-- **Como o modelo ajustado responde agora:** Ativação da **`Early Season Guard (Trava Conservadora de Início de Temporada)`** em `scripts/football_ingest_trends.py`. Durante as rodadas iniciais do campeonato, qualquer indicação de handicap negativo (`-0.5 AH`, `-0.75 AH` ou `-1.0 AH`), tanto para **mandantes quanto para visitantes favoritos**, é ajustada conservadoramente para **`-0.25 AH`**. No empate de 0x0, isso garante **Meia Perdida (-50% estorno da stake)** para ambos os lados ao invés de perda total.
+- **Como o modelo ajustado responde agora:** Ativação da **`Early Season Guard (Trava Conservadora de Início de Temporada)`** em `scripts/football_ingest_trends.py`. Durante as rodadas iniciais do campeonato, qualquer indicação de handicap negativo (`-0.5 AH`, `-0.75 AH` ou `-1.0 AH`), tanto para **mandantes quanto para visitantes favoritos**, é ajustada conservadoramente para **`-0.25 AH`**. No empate de 0x0, isso garante **Meia Perdida (-50% estorno do valor apostado)** para ambos os lados ao invés de perda total.
 
 ---
 

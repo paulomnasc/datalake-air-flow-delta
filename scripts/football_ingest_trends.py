@@ -1477,62 +1477,147 @@ def get_mysql_connection():
 
 def sync_pending_past_fixtures(conn, headers):
     """
-    Sincroniza automaticamente resultados de partidas encerradas ou passadas que continuam sem placar/status no banco.
+    Sincroniza automaticamente resultados (status/placar) e estatísticas de cartões/escanteios
+    de partidas encerradas nos últimos 7 dias que continuam pendentes no banco.
     """
     cursor = conn.cursor()
     try:
+        # 1. Sincroniza status e placar de gols para partidas pendentes nos últimos 7 dias
         cursor.execute("""
             SELECT fixture_id, fixture_date, home_team, away_team, status
             FROM fixtures_trends
             WHERE fixture_date <= UTC_TIMESTAMP() 
+              AND fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)
               AND (
-                status NOT IN ('FT', 'AET', 'PEN', 'PST', 'CANC') 
+                status NOT IN ('FT', 'AET', 'PEN', 'PST', 'CANC', 'POSTPONED') 
                 OR goals_home IS NULL 
                 OR score_processed_at IS NULL
-                OR (yellow_cards_home IS NULL AND fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR))
               )
             ORDER BY fixture_date DESC
             LIMIT 100
         """)
         pending = cursor.fetchall()
-        if not pending:
-            return
+        if pending:
+            print(f"\n🔄 Sincronizando placares de {len(pending)} partidas encerradas pendentes no banco...")
+            dates_to_sync = set(p['fixture_date'].strftime('%Y-%m-%d') for p in pending if p.get('fixture_date'))
+            updated_count = 0
+            
+            for d in sorted(list(dates_to_sync)):
+                url = f"https://v3.football.api-sports.io/fixtures?date={d}"
+                try:
+                    resp = requests.get(url, headers=headers, timeout=20).json()
+                    fixtures_api = {f['fixture']['id']: f for f in resp.get('response', [])}
+                    
+                    for p in pending:
+                        fid = p['fixture_id']
+                        if fid in fixtures_api:
+                            f_data = fixtures_api[fid]
+                            status = f_data['fixture']['status']['short']
+                            gh = f_data['goals']['home']
+                            ga = f_data['goals']['away']
+                            elapsed = f_data['fixture']['status']['elapsed']
+                            
+                            cursor.execute("""
+                                UPDATE fixtures_trends
+                                SET status = %s,
+                                    goals_home = %s,
+                                    goals_away = %s,
+                                    elapsed = %s,
+                                    score_processed_at = IF(%s IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND %s IS NOT NULL AND %s IS NOT NULL, COALESCE(score_processed_at, NOW()), score_processed_at),
+                                    updated_at = NOW()
+                                WHERE fixture_id = %s
+                            """, (status, gh, ga, elapsed, status, gh, ga, fid))
+                            updated_count += 1
+                except Exception as e_date:
+                    print(f"Aviso ao sincronizar partidas passadas da data {d}: {e_date}")
 
-        print(f"\n🔄 Sincronizando resultados de {len(pending)} partidas encerradas pendentes no banco...")
-        dates_to_sync = set(p['fixture_date'].strftime('%Y-%m-%d') for p in pending if p.get('fixture_date'))
-        updated_count = 0
-        
-        for d in sorted(list(dates_to_sync)):
-            url = f"https://v3.football.api-sports.io/fixtures?date={d}"
-            try:
-                resp = requests.get(url, headers=headers, timeout=20).json()
-                fixtures_api = {f['fixture']['id']: f for f in resp.get('response', [])}
-                
-                for p in pending:
-                    fid = p['fixture_id']
-                    if fid in fixtures_api:
-                        f_data = fixtures_api[fid]
-                        status = f_data['fixture']['status']['short']
-                        gh = f_data['goals']['home']
-                        ga = f_data['goals']['away']
-                        elapsed = f_data['fixture']['status']['elapsed']
+            conn.commit()
+            print(f"✅ Sincronizadas {updated_count} partidas passadas (status/placar) no banco com sucesso!")
+
+        # 2. Sincroniza estatísticas de cartões e escanteios para partidas FT dos últimos 7 dias com cartões NULL
+        cursor.execute("""
+            SELECT fixture_id, home_team_id, away_team_id, home_team, away_team
+            FROM fixtures_trends
+            WHERE fixture_date <= UTC_TIMESTAMP()
+              AND fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)
+              AND status IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED')
+              AND (yellow_cards_home IS NULL OR yellow_cards_away IS NULL)
+            ORDER BY fixture_date DESC
+            LIMIT 40
+        """)
+        pending_stats = cursor.fetchall()
+        if pending_stats:
+            print(f"\n🟨 Sincronizando estatísticas de cartões/escanteios de {len(pending_stats)} partidas finalizadas...")
+            stats_synced = 0
+            for ps in pending_stats:
+                fid = ps['fixture_id']
+                h_id = ps['home_team_id']
+                a_id = ps['away_team_id']
+                try:
+                    stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fid}"
+                    st_res = requests.get(stats_url, headers=headers, timeout=12)
+                    if st_res.status_code == 200:
+                        st_json = st_res.json()
+                        st_errs = st_json.get("errors")
+                        if st_errs and isinstance(st_errs, dict) and ('rateLimit' in st_errs or 'requests' in st_errs):
+                            print(f"[API-Sports Stats] Limite de requisições atingido durante sync de cartões passados.")
+                            break
+                        
+                        st_data = st_json.get("response", [])
+                        yc_h, yc_a = 0, 0
+                        rc_h, rc_a = 0, 0
+                        ck_h, ck_a = 0, 0
+                        
+                        if st_data:
+                            for team_st in st_data:
+                                tid = team_st.get("team", {}).get("id")
+                                is_home = (tid == h_id)
+                                s_list = team_st.get("statistics", [])
+                                yc, rc, ck = 0, 0, 0
+                                for s in s_list:
+                                    st_type = (s.get("type") or "").strip()
+                                    st_val = s.get("value")
+                                    if st_type == "Yellow Cards" and st_val is not None:
+                                        yc = int(st_val)
+                                    elif st_type == "Red Cards" and st_val is not None:
+                                        rc = int(st_val)
+                                    elif st_type == "Corner Kicks" and st_val is not None:
+                                        ck = int(st_val)
+                                
+                                if is_home:
+                                    yc_h, rc_h, ck_h = yc, rc, ck
+                                else:
+                                    yc_a, rc_a, ck_a = yc, rc, ck
+                                    
+                                if tid:
+                                    cursor.execute("""
+                                        INSERT INTO match_statistics_cache (fixture_id, team_id, corners, yellow_cards, red_cards)
+                                        VALUES (%s, %s, %s, %s, %s)
+                                        ON DUPLICATE KEY UPDATE 
+                                            corners = VALUES(corners),
+                                            yellow_cards = VALUES(yellow_cards),
+                                            red_cards = VALUES(red_cards)
+                                    """, (fid, tid, ck, yc, rc))
                         
                         cursor.execute("""
                             UPDATE fixtures_trends
-                            SET status = %s,
-                                goals_home = %s,
-                                goals_away = %s,
-                                elapsed = %s,
-                                score_processed_at = IF(%s IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND %s IS NOT NULL AND %s IS NOT NULL, COALESCE(score_processed_at, NOW()), score_processed_at),
+                            SET yellow_cards_home = %s,
+                                yellow_cards_away = %s,
+                                red_cards_home = %s,
+                                red_cards_away = %s,
+                                corners_home = %s,
+                                corners_away = %s,
                                 updated_at = NOW()
                             WHERE fixture_id = %s
-                        """, (status, gh, ga, elapsed, status, gh, ga, fid))
-                        updated_count += 1
-            except Exception as e_date:
-                print(f"Aviso ao sincronizar partidas passadas da data {d}: {e_date}")
+                        """, (yc_h, yc_a, rc_h, rc_a, ck_h, ck_a, fid))
+                        stats_synced += 1
+                        time.sleep(0.3)
+                except Exception as ex_st:
+                    print(f"Aviso ao coletar cartões da fixture #{fid}: {ex_st}")
 
-        conn.commit()
-        print(f"✅ Sincronizadas {updated_count} partidas passadas no banco com sucesso!")
+            conn.commit()
+            print(f"✅ Sincronizados cartões/escanteios de {stats_synced} partidas com sucesso!")
+
     except Exception as e:
         print(f"Aviso na sincronização de partidas passadas: {e}")
     finally:
@@ -2029,7 +2114,7 @@ def main():
                 res_stats = None
                 if t_id:
                     cur_db.execute("""
-                        SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards
+                        SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards, matches_count
                         FROM team_moving_averages
                         WHERE team_id = %s AND venue_type = %s
                     """, (t_id, v_type))
@@ -2040,11 +2125,12 @@ def main():
                             "avg_goals_conceded": float(r_db["avg_goals_conceded"]),
                             "clean_sheets_pct": float(r_db["clean_sheets_pct"]),
                             "avg_corners": float(r_db["avg_corners"]),
-                            "avg_cards": float(r_db["avg_cards"])
+                            "avg_cards": float(r_db["avg_cards"]),
+                            "matches_count": int(r_db.get("matches_count") or 0)
                         }
                 if not res_stats:
                     cur_db.execute("""
-                        SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards
+                        SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards, matches_count
                         FROM team_moving_averages
                         WHERE LOWER(team_name) = LOWER(%s) AND venue_type = %s
                     """, (t_name, v_type))
@@ -2055,21 +2141,46 @@ def main():
                             "avg_goals_conceded": float(r_db["avg_goals_conceded"]),
                             "clean_sheets_pct": float(r_db["clean_sheets_pct"]),
                             "avg_corners": float(r_db["avg_corners"]),
-                            "avg_cards": float(r_db["avg_cards"])
+                            "avg_cards": float(r_db["avg_cards"]),
+                            "matches_count": int(r_db.get("matches_count") or 0)
                         }
                 if not res_stats:
                     res_stats = generate_deterministic_team_stats(t_name, v_type)
-
-                if res_stats.get("avg_cards", 0.0) <= 1.50:
-                    hist_cards = get_team_cards_from_db_history(cur_db, t_name, v_type, t_id, l_id)
-                    if hist_cards <= 1.50:
-                        hist_overall = get_team_cards_from_db_history(cur_db, t_name, None, t_id, l_id)
-                        if hist_overall > 1.00:
-                            hist_cards = hist_overall
-                    if hist_cards > 1.00:
-                        res_stats["avg_cards"] = hist_cards
+                    res_stats["matches_count"] = 0
 
                 return res_stats
+
+            def count_team_historical_card_matches(cur_db, t_name, t_id):
+                t_id_num = t_id or 0
+                cnt_trends = 0
+                cnt_cache = 0
+                try:
+                    cur_db.execute("""
+                        SELECT COUNT(DISTINCT fixture_id) as total
+                        FROM fixtures_trends
+                        WHERE status = 'FT'
+                          AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0)) > 0
+                          AND (
+                            (%s > 0 AND (home_team_id = %s OR away_team_id = %s))
+                            OR (LOWER(home_team) = LOWER(%s) OR LOWER(away_team) = LOWER(%s))
+                          )
+                    """, (t_id_num, t_id_num, t_id_num, t_name, t_name))
+                    r = cur_db.fetchone()
+                    if r:
+                        cnt_trends = int(r.get('total') or 0)
+                except Exception:
+                    pass
+
+                try:
+                    if t_id_num > 0:
+                        cur_db.execute("SELECT COUNT(DISTINCT fixture_id) as total FROM match_statistics_cache WHERE team_id = %s AND (yellow_cards > 0 OR red_cards > 0 OR corners > 0)", (t_id_num,))
+                        rc = cur_db.fetchone()
+                        if rc:
+                            cnt_cache = int(rc.get('total') or 0)
+                except Exception:
+                    pass
+
+                return max(cnt_trends, cnt_cache)
 
             home_c_stats = get_real_team_stats_from_db(cursor, home_team, home_team_id, 'home', league_id)
             away_c_stats = get_real_team_stats_from_db(cursor, away_team, away_team_id, 'away', league_id)
@@ -2189,14 +2300,22 @@ def main():
             yellows = float(ref_data["average_yellow_cards"])
             ref_fouls = float(ref_data.get("average_fouls", 24.0))
             
-            # TRAVA DE SEGURANÇA CONTRA DADOS DE CARTÕES INDISPONÍVEIS / NULOS OU AMOSTRA INSUFICIENTE/SUSPEITA (EX: MÉDIAS <= 1.0 POR TIME)
-            has_insufficient_cards = (
-                home_c_stats.get("avg_cards", 0.0) <= 1.00 or
-                away_c_stats.get("avg_cards", 0.0) <= 1.00 or
-                (home_c_stats.get("avg_cards", 0.0) + away_c_stats.get("avg_cards", 0.0)) <= 2.10
-            )
-            if has_insufficient_cards:
-                prediction_text = "🚫 NO_BET: Média de cartões por time (1.0 ou inferior) com amostragem estatística insuficiente ou suspeita. Entrada bloqueada pelo Gatekeeper por segurança."
+            # Amostragem histórica de partidas com dados estatísticos de cartões
+            home_sample = max(count_team_historical_card_matches(cursor, home_team, home_team_id), home_c_stats.get("matches_count", 0))
+            away_sample = max(count_team_historical_card_matches(cursor, away_team, away_team_id), away_c_stats.get("matches_count", 0))
+
+            # TRAVA DE SEGURANÇA: Início de campeonato ou amostragem inferior a 5 jogos por equipe
+            if home_sample < 5 or away_sample < 5:
+                if home_sample < 5 and away_sample < 5:
+                    insuf_desc = f"{home_team} ({home_sample}J) e {away_team} ({away_sample}J)"
+                elif home_sample < 5:
+                    insuf_desc = f"{home_team} ({home_sample}J)"
+                else:
+                    insuf_desc = f"{away_team} ({away_sample}J)"
+
+                prediction_text = f"🚫 NO_BET: Início de campeonato ou amostragem insuficiente (< 5 jogos com dados para {insuf_desc}). Entrada bloqueada pelo Gatekeeper por segurança."
+            elif (home_c_stats.get("avg_cards", 0.0) <= 0.01 and away_c_stats.get("avg_cards", 0.0) <= 0.01):
+                prediction_text = "🚫 NO_BET: Dados de cartões zerados ou indisponíveis para as equipes. Entrada bloqueada pelo Gatekeeper por segurança."
             else:
                 # Aplica multiplicador regional à média combinada das equipes
                 team_cards_combined_adj = team_cards_combined * league_mult

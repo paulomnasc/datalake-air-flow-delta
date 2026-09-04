@@ -216,7 +216,7 @@
     <!-- Filtros de Pesquisa -->
     <div class="filter-card p-3 p-md-4 mb-4">
         <form method="GET" action="<?= base_url('apostas/relatorio-eficiencia') ?>" class="row g-3 align-items-end">
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-2">
                 <label class="form-label text-white-50 small font-weight-bold">Atalho de Período</label>
                 <select id="preset_eficiencia" class="form-select bg-dark text-info border-secondary fw-semibold" onchange="applyEficienciaPreset(this.value)">
                     <option value="custom">📅 Personalizado</option>
@@ -231,12 +231,12 @@
                 </select>
             </div>
 
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-2">
                 <label class="form-label text-white-50 small font-weight-bold">Data Início</label>
                 <input type="date" name="start_date" id="eficiencia_start_date" class="form-control bg-dark text-white border-secondary" value="<?= esc($startDate) ?>">
             </div>
             
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-2">
                 <label class="form-label text-white-50 small font-weight-bold">Data Fim</label>
                 <input type="date" name="end_date" id="eficiencia_end_date" class="form-control bg-dark text-white border-secondary" value="<?= esc($endDate) ?>">
             </div>
@@ -254,6 +254,17 @@
             </div>
 
             <div class="col-12 col-md-2">
+                <label class="form-label text-white-50 small font-weight-bold">Mercado / Palpite</label>
+                <select name="market" class="form-select bg-dark text-white border-secondary">
+                    <option value="">Todos os Mercados</option>
+                    <option value="OVER" <?= ($marketFilter === 'OVER') ? 'selected' : '' ?>>🟨/⚽ Over (Mais de)</option>
+                    <option value="UNDER" <?= ($marketFilter === 'UNDER') ? 'selected' : '' ?>>🟨/⚽ Under (Menos de)</option>
+                    <option value="AH_MINUS" <?= ($marketFilter === 'AH_MINUS' || $marketFilter === '-AH') ? 'selected' : '' ?>>📉 -AH (Handicap Negativo)</option>
+                    <option value="AH_PLUS" <?= ($marketFilter === 'AH_PLUS' || $marketFilter === '+AH') ? 'selected' : '' ?>>📈 +AH (Handicap Positivo)</option>
+                </select>
+            </div>
+
+            <div class="col-12 col-md-2">
                 <label class="form-label text-white-50 small font-weight-bold">Status do Palpite</label>
                 <select name="status" class="form-select bg-dark text-white border-secondary">
                     <option value="">Todos os Status</option>
@@ -264,12 +275,12 @@
                 </select>
             </div>
 
-            <div class="col-12 col-md-2 d-flex gap-2">
-                <button type="submit" class="btn btn-success w-100 fw-bold">
-                    <i class="bi bi-filter me-1"></i> Filtrar
+            <div class="col-12 d-flex justify-content-end gap-2 mt-2">
+                <button type="submit" class="btn btn-success fw-bold px-4">
+                    <i class="bi bi-filter me-1"></i> Aplicar Filtros
                 </button>
-                <a href="<?= base_url('apostas/relatorio-eficiencia') ?>" class="btn btn-outline-secondary" title="Limpar Filtros">
-                    <i class="bi bi-x-circle"></i>
+                <a href="<?= base_url('apostas/relatorio-eficiencia') ?>" class="btn btn-outline-secondary px-3" title="Limpar Filtros">
+                    <i class="bi bi-x-circle me-1"></i> Limpar
                 </a>
             </div>
         </form>

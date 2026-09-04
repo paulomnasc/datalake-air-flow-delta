@@ -118,7 +118,7 @@ def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=N
     if not cards_list and venue_type:
         return get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id, league_id=found_league_id, limit=limit)
 
-    if cards_list and sum(cards_list) > 0:
+    if cards_list and len(cards_list) >= 1:
         return round(sum(cards_list) / len(cards_list), 2)
 
     return 0.00
@@ -172,14 +172,13 @@ def main():
         
         print(f"\n--- Processando: {team_name} (ID: {team_id}) | Liga: {league_id} | Temporada: {season} ---")
         
-        # 1. Verificar se precisa de atualização (se atualizado há menos de 7 dias, ignoramos para poupar cota de API, A MENOS que avg_cards seja <= 1.50)
+        # 1. Verificar se precisa de atualização (se atualizado há menos de 12 horas, podemos ignorar para economizar API, exceto em re-execução completa)
         cursor.execute("SELECT updated_at, avg_cards FROM team_moving_averages WHERE team_id = %s LIMIT 1", (team_id,))
         row = cursor.fetchone()
-        if row:
+        if row and os.environ.get("FORCE_REFRESH") != "1":
             updated_at = row["updated_at"]
-            avg_c = float(row.get("avg_cards") or 0.0)
-            if avg_c > 1.50 and (datetime.now() - updated_at < timedelta(days=7)):
-                print(f"Skipping {team_name} - atualizado recentemente em {updated_at} (Média de cartões válida: {avg_c}).")
+            if datetime.now() - updated_at < timedelta(hours=12):
+                print(f"Skipping {team_name} - atualizado recentemente em {updated_at}.")
                 continue
         
         # 2. Tentar buscar `/teams/statistics` nas temporadas disponíveis (temporada atual, anterior, etc.)
@@ -235,6 +234,7 @@ def main():
             home_cards = []
             away_corners = []
             away_cards = []
+            all_cards = []
 
             # 3.1. VERIFICAÇÃO DB-FIRST: Checar se o banco de dados local já possui os últimos 5 jogos do time atualizados
             cursor.execute("""
@@ -256,7 +256,14 @@ def main():
                     st = (f.get('status') or '').strip().upper()
                     yh = f.get('yellow_cards_home')
                     ya = f.get('yellow_cards_away')
-                    if st not in ['FT', 'AET', 'PEN', 'FINISHED'] or f.get('goals_home') is None or (yh is None and ya is None):
+                    rh = f.get('red_cards_home')
+                    ra = f.get('red_cards_away')
+                    ch = f.get('corners_home')
+                    ca = f.get('corners_away')
+                    has_card_data = (yh or 0) + (ya or 0) + (rh or 0) + (ra or 0) > 0
+                    has_corner_data = (ch or 0) + (ca or 0) > 0
+
+                    if st not in ['FT', 'AET', 'PEN', 'FINISHED'] or f.get('goals_home') is None or (not has_card_data and not has_corner_data):
                         has_unprocessed_past_game = True
                         break
 
@@ -274,18 +281,28 @@ def main():
                         corners = cached_stat["corners"] or 0
                         yellows = cached_stat["yellow_cards"] or 0
                         reds = cached_stat["red_cards"] or 0
+                        has_cards = True
+                        has_corners = True
                     else:
                         corners = (f.get("corners_home") if is_home else f.get("corners_away")) or 0
                         yellows = (f.get("yellow_cards_home") if is_home else f.get("yellow_cards_away")) or 0
                         reds = (f.get("red_cards_home") if is_home else f.get("red_cards_away")) or 0
+                        has_cards = ((f.get("yellow_cards_home") or 0) + (f.get("yellow_cards_away") or 0) + (f.get("red_cards_home") or 0) + (f.get("red_cards_away") or 0)) > 0
+                        has_corners = ((f.get("corners_home") or 0) + (f.get("corners_away") or 0)) > 0
 
                     total_cards = yellows + (reds * 2)
-                    if is_home:
-                        home_corners.append(corners)
-                        home_cards.append(total_cards)
-                    else:
-                        away_corners.append(corners)
-                        away_cards.append(total_cards)
+                    if has_cards:
+                        all_cards.append(total_cards)
+                        if is_home:
+                            home_cards.append(total_cards)
+                        else:
+                            away_cards.append(total_cards)
+
+                    if has_corners:
+                        if is_home:
+                            home_corners.append(corners)
+                        else:
+                            away_corners.append(corners)
             else:
                 # Buscar histórico de jogos via API-Sports apenas se houver jogos passados pendentes ou < 5 jogos
                 fixtures_url = f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={use_season}&team={team_id}&status=FT"
@@ -404,6 +421,7 @@ def main():
                         conn.commit()
                         
                     total_cards = yellows + (reds * 2)
+                    all_cards.append(total_cards)
                     if is_home:
                         home_corners.append(corners)
                         home_cards.append(total_cards)
@@ -412,28 +430,40 @@ def main():
                         away_cards.append(total_cards)
                         
             avg_corners_home = round(sum(home_corners) / len(home_corners), 2) if home_corners else 0.00
-            avg_cards_home = round(sum(home_cards) / len(home_cards), 2) if home_cards else 0.00
             avg_corners_away = round(sum(away_corners) / len(away_corners), 2) if away_corners else 0.00
-            avg_cards_away = round(sum(away_cards) / len(away_cards), 2) if away_cards else 0.00
-            
-            # Se as estatísticas de cartões dos últimos jogos vierem zeradas ou incompletas, extrai a média da temporada diretamente da API
-            cards_dict = stats_data.get("cards", {}) if stats_data else {}
-            y_tot = sum(v.get("total") or 0 for v in cards_dict.get("yellow", {}).values() if isinstance(v, dict))
-            r_tot = sum(v.get("total") or 0 for v in cards_dict.get("red", {}).values() if isinstance(v, dict))
-            tot_p = (stats_data.get("fixtures", {}).get("played", {}).get("total", 0) or 0) if stats_data else 0
-            api_cards_avg = round((y_tot + r_tot * 2) / tot_p, 2) if tot_p > 0 else 0.0
 
-            if avg_cards_home <= 0.05:
-                avg_cards_home = api_cards_avg if api_cards_avg > 0 else get_team_cards_from_db_history(cursor, team_name, venue_type='home', team_id=team_id)
+            avg_all_cards = round(sum(all_cards) / len(all_cards), 2) if all_cards else 0.00
 
-            if avg_cards_away <= 0.05:
-                avg_cards_away = api_cards_avg if api_cards_avg > 0 else get_team_cards_from_db_history(cursor, team_name, venue_type='away', team_id=team_id)
+            # Média de cartões mandante: se tiver poucas partidas no mando (<3) mas tiver amostra geral (>=3), suaviza com a média geral (U5J)
+            if len(home_cards) >= 3:
+                avg_cards_home = round(sum(home_cards) / len(home_cards), 2)
+            elif len(home_cards) > 0 and len(all_cards) >= 3:
+                raw_h = sum(home_cards) / len(home_cards)
+                avg_cards_home = round(raw_h * 0.5 + avg_all_cards * 0.5, 2)
+            elif len(all_cards) > 0:
+                avg_cards_home = avg_all_cards
+            else:
+                avg_cards_home = round(sum(home_cards) / len(home_cards), 2) if home_cards else 0.00
 
-            # Se as listas históricas de escanteios vierem vazias, geramos valores determinísticos para corners
-            if not home_corners:
+            # Média de cartões visitante: se tiver poucas partidas no mando (<3) mas tiver amostra geral (>=3), suaviza com a média geral (U5J)
+            if len(away_cards) >= 3:
+                avg_cards_away = round(sum(away_cards) / len(away_cards), 2)
+            elif len(away_cards) > 0 and len(all_cards) >= 3:
+                raw_a = sum(away_cards) / len(away_cards)
+                avg_cards_away = round(raw_a * 0.5 + avg_all_cards * 0.5, 2)
+            elif len(all_cards) > 0:
+                avg_cards_away = avg_all_cards
+            else:
+                avg_cards_away = round(sum(away_cards) / len(away_cards), 2) if away_cards else 0.00
+
+            matches_count_home = len(all_cards)
+            matches_count_away = len(all_cards)
+
+            # Se as listas históricas de escanteios vierem vazias ou com média irrealisticamente baixa (<= 2.0), busca do histórico válido ou gera determinístico
+            if not home_corners or avg_corners_home <= 2.00:
                 mock_home = generate_deterministic_team_stats(team_name, 'home')
                 avg_corners_home = mock_home["avg_corners"]
-            if not away_corners:
+            if not away_corners or avg_corners_away <= 2.00:
                 mock_away = generate_deterministic_team_stats(team_name, 'away')
                 avg_corners_away = mock_away["avg_corners"]
                 
@@ -454,37 +484,42 @@ def main():
             clean_sheets_pct_away = mock_away["clean_sheets_pct"]
             avg_corners_away = mock_away["avg_corners"]
             avg_cards_away = get_team_cards_from_db_history(cursor, team_name, venue_type='away', team_id=team_id)
+
+            matches_count_home = 0
+            matches_count_away = 0
             
         # Salvar no banco
         # Home
         cursor.execute("""
             INSERT INTO team_moving_averages (
                 team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
-                clean_sheets_pct, avg_corners, avg_cards
-            ) VALUES (%s, %s, 'home', %s, %s, %s, %s, %s)
+                clean_sheets_pct, avg_corners, avg_cards, matches_count
+            ) VALUES (%s, %s, 'home', %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 team_name = VALUES(team_name),
                 avg_goals_scored = VALUES(avg_goals_scored),
                 avg_goals_conceded = VALUES(avg_goals_conceded),
                 clean_sheets_pct = VALUES(clean_sheets_pct),
                 avg_corners = VALUES(avg_corners),
-                avg_cards = VALUES(avg_cards)
-        """, (team_id, team_name, avg_goals_for_home, avg_goals_against_home, clean_sheets_pct_home, avg_corners_home, avg_cards_home))
+                avg_cards = VALUES(avg_cards),
+                matches_count = VALUES(matches_count)
+        """, (team_id, team_name, avg_goals_for_home, avg_goals_against_home, clean_sheets_pct_home, avg_corners_home, avg_cards_home, matches_count_home))
         
         # Away
         cursor.execute("""
             INSERT INTO team_moving_averages (
                 team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
-                clean_sheets_pct, avg_corners, avg_cards
-            ) VALUES (%s, %s, 'away', %s, %s, %s, %s, %s)
+                clean_sheets_pct, avg_corners, avg_cards, matches_count
+            ) VALUES (%s, %s, 'away', %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 team_name = VALUES(team_name),
                 avg_goals_scored = VALUES(avg_goals_scored),
                 avg_goals_conceded = VALUES(avg_goals_conceded),
                 clean_sheets_pct = VALUES(clean_sheets_pct),
                 avg_corners = VALUES(avg_corners),
-                avg_cards = VALUES(avg_cards)
-        """, (team_id, team_name, avg_goals_for_away, avg_goals_against_away, clean_sheets_pct_away, avg_corners_away, avg_cards_away))
+                avg_cards = VALUES(avg_cards),
+                matches_count = VALUES(matches_count)
+        """, (team_id, team_name, avg_goals_for_away, avg_goals_against_away, clean_sheets_pct_away, avg_corners_away, avg_cards_away, matches_count_away))
         
         conn.commit()
         print(f"✅ Médias móveis salvas com sucesso para {team_name}!")

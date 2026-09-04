@@ -109,6 +109,7 @@ No cadastro/entrada da aposta no **footballweb**, a validação avalia os crité
 | **5. Probabilidade Mínima ($P$)** | $P(\text{Under Linha}) \ge 60\%$ | Garante margem estatística suficiente de acerto via Distribuição de Poisson (exige $\ge 75\%$ para Under 4.5). |
 | **6. Exigência de Odd REAL Betano** | $\text{Odd}_{\text{Betano}} > 1.0$ (API-Sports #32) | Exige que a Betano possua o mercado de cartões realmente aberto à venda no momento da execução. Elimina odds sintéticas. |
 | **7. Piso Mínimo de Odd (Risco/Retorno)** | $\text{Odd}_{\text{Betano}} \ge 1.50$ | Rejeita apostas com odd inferior a 1.50 (ex: 1.18) para evitar risco desproporcional por retornos baixos. |
+| **8. Trava de Amostragem/Suspeição** | $\text{Média por Time} \le 1.00 \text{ ou } \text{Jogos} < 2$ | Desconfia de médias de cartões $\le 1.00$ por time ou amostra insuficiente, ativando trava de segurança `NO_BET`. |
 
 - **Status `APROVADO`:** Todos os critérios são atendidos e a Betano oferece cotação $\ge 1.50$. Aposta liberada.
 - **Status `NO_BET`:** Se qualquer um dos critérios falhar ou se o mercado da Betano não estiver disponível / odd $< 1.50$.

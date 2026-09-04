@@ -86,7 +86,7 @@ def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=N
     if not cards_list and venue_type:
         return get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id, league_id=found_league_id, limit=limit)
 
-    if cards_list and sum(cards_list) > 0:
+    if cards_list and len(cards_list) >= 2 and sum(cards_list) > 0:
         return round(sum(cards_list) / len(cards_list), 2)
 
     return 0.00
@@ -124,14 +124,14 @@ def fix_zero_cards():
     conn.commit()
     print(f"✅ Concluída atualização! {updated_count} times com histórico real e {zero_count} times sinalizados sem histórico de cartões (avg_cards = 0.00).")
 
-    # Marcar prediction_text como NO_BET para partidas agendadas envolvendo times com avg_cards <= 0.05
-    print("🛡️ Aplicando trava NO_BET em fixtures_trends para partidas com cartões indisponíveis...")
+    # Marcar prediction_text como NO_BET para partidas agendadas envolvendo times com avg_cards <= 1.00
+    print("🛡️ Aplicando trava NO_BET em fixtures_trends para partidas com cartões indisponíveis ou suspeitos (<=1.0 por time)...")
     cursor.execute("""
         UPDATE fixtures_trends f
         JOIN team_moving_averages h ON (f.home_team_id = h.team_id AND h.venue_type = 'home')
         JOIN team_moving_averages a ON (f.away_team_id = a.team_id AND a.venue_type = 'away')
-        SET f.prediction_text = '🚫 NO_BET: Dados de cartões indisponíveis ou insuficientes para análise estatística segura dos times.'
-        WHERE (h.avg_cards <= 0.05 OR a.avg_cards <= 0.05)
+        SET f.prediction_text = '🚫 NO_BET: Início de campeonato ou amostragem insuficiente (< 5 jogos registrados). Entrada bloqueada pelo Gatekeeper por segurança.'
+        WHERE (h.matches_count < 5 OR a.matches_count < 5 OR (h.avg_cards <= 0.01 AND a.avg_cards <= 0.01))
           AND f.status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'FINISHED')
     """)
     conn.commit()

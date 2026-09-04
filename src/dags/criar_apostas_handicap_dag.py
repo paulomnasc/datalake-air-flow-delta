@@ -25,15 +25,19 @@ def run_criar_apostas_handicap_script(**kwargs):
     if not script_path:
         script_path = candidate_paths[1]
 
-    # Check se target_date foi passado nas configurações da DAG Run (dag_run.conf)
+    # Check se target_date e confirmada foram passados nas configurações da DAG Run (dag_run.conf)
     dag_run = kwargs.get('dag_run')
     target_date = None
+    confirmada = None
     if dag_run and dag_run.conf:
         target_date = dag_run.conf.get('target_date')
+        confirmada = dag_run.conf.get('confirmada')
 
     cmd = ['python3', script_path]
     if target_date:
         cmd.append(str(target_date))
+        if confirmada is not None:
+            cmd.append(str(confirmada))
 
     print(f"🚀 [Airflow DAG] Executando script de criação de apostas AH: {' '.join(cmd)}")
     
@@ -60,10 +64,10 @@ default_args = {
 dag = DAG(
     'criar_apostas_handicap_dag',
     default_args=default_args,
-    schedule_interval=None,  # DAG desativada (fora do escopo de atuação do usuário)
+    schedule_interval='0 * * * *',  # Executa a cada 1 hora verificando todos os jogos em aberto das datas correntes
     catchup=False,
-    description="DAG do Airflow que verifica jogos em aberto na janela pré-jogo (30 a 45 min antes do apito inicial) e cria apostas no mercado de Handicap Asiático (Odd Mínima: 1.60)",
-    tags=['football', 'handicap', 'apostas', 'prematch_creation']
+    description="DAG do Airflow que verifica jogos em aberto, cria apostas no mercado de Handicap Asiático (Odd Mínima Sweet Spot: 1.85), cancela/estorna apostas em abstenção da IA e envia e-mail com relatório de movimentações.",
+    tags=['football', 'handicap', 'apostas', 'daily_creation', 'email_notification']
 )
 
 criar_task = PythonOperator(

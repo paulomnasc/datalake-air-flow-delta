@@ -148,6 +148,7 @@ class ApostaController extends BaseController
 
         // Apenas carrega apostas se o usuário possuir tokens
         if ($hasTokens) {
+            helper('league');
             $db = \Config\Database::connect();
             $apostas = $db->query("
                 SELECT 
@@ -156,32 +157,46 @@ class ApostaController extends BaseController
                     f.goals_away,
                     f.status as fixture_status,
                     f.league_name,
+                    f.league_id,
                     (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') as tem_debito
                 FROM apostas a
                 LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)
                 WHERE a.usuario_id = ?
-                ORDER BY a.criado_em DESC
+                ORDER BY CASE WHEN a.data_hora_jogo IS NOT NULL AND a.data_hora_jogo > '2000-01-01' THEN a.data_hora_jogo ELSE a.criado_em END ASC, a.criado_em ASC, a.id ASC
             ", [$userId])->getResultObject();
 
             $tzUtc = new \DateTimeZone('UTC');
             $tzBrt = new \DateTimeZone('America/Sao_Paulo');
-
             foreach ($apostas as &$ap) {
-                $dateToConvert = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : ($ap->criado_em ?? null);
-                if (!empty($dateToConvert)) {
+                if (!empty($ap->data_hora_jogo)) {
                     try {
-                        $dt = new \DateTime($dateToConvert, $tzUtc);
+                        $dt = new \DateTime($ap->data_hora_jogo, $tzUtc);
+                        $dt->setTimezone($tzBrt);
+                        $ap->data_hora_jogo_brt = $dt->format('Y-m-d H:i:s');
+                        $ap->data_brt_dia       = $dt->format('Y-m-d');
+                    } catch (\Exception $e) {
+                        $ap->data_hora_jogo_brt = $ap->data_hora_jogo;
+                        $ap->data_brt_dia       = substr($ap->data_hora_jogo, 0, 10);
+                    }
+                } elseif (!empty($ap->criado_em)) {
+                    try {
+                        $dt = new \DateTime($ap->criado_em, $tzUtc);
                         $dt->setTimezone($tzBrt);
                         $ap->data_hora_jogo_brt = $dt->format('Y-m-d H:i:s');
                         $ap->data_brt_dia = $dt->format('Y-m-d');
                     } catch (\Exception $e) {
-                        $ap->data_hora_jogo_brt = $dateToConvert;
-                        $ap->data_brt_dia = substr($dateToConvert, 0, 10);
+                        $ap->data_hora_jogo_brt = $ap->criado_em;
+                        $ap->data_brt_dia = substr($ap->criado_em, 0, 10);
                     }
                 } else {
                     $ap->data_hora_jogo_brt = date('Y-m-d H:i:s');
                     $ap->data_brt_dia = date('Y-m-d');
                 }
+
+                // Resolve o país e a bandeira emoji da liga referente ao jogo
+                $leagueInfo = \App\Helpers\LeagueHelper::resolveCountryAndFlag($ap->league_id ?? null, $ap->league_name ?? null);
+                $ap->league_country = $leagueInfo['country'];
+                $ap->league_flag    = $leagueInfo['flag'];
             }
             unset($ap);
 
@@ -975,6 +990,13 @@ class ApostaController extends BaseController
             ])->setStatusCode(404);
         }
 
+        if (!empty($aposta->status) && strtolower($aposta->status) === 'cancelada') {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Esta simulação de aposta foi cancelada e não pode ser confirmada.'
+            ])->setStatusCode(400);
+        }
+
         $userId = (int)$access['user_id'];
         if ((int)$aposta->usuario_id !== $userId && $userId !== 146) {
             return $this->response->setJSON([
@@ -992,7 +1014,7 @@ class ApostaController extends BaseController
 
         $debitoExistente = $qExists ? $qExists->getRow() : null;
 
-        if ($debitoExistente || (isset($aposta->confirmada) && (int)$aposta->confirmada === 1 && $aposta->status !== 'Não Confirmada')) {
+        if ($debitoExistente) {
             $this->apostaModel->update($apostaId, ['confirmada' => 1]);
             $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
             return $this->response->setJSON([
@@ -1879,15 +1901,21 @@ class ApostaController extends BaseController
         $statusFilter = $this->request->getVar('status');
 
         if (empty($startDate) && empty($endDate)) {
-            $endDate = date('Y-m-d');
-            $startDate = date('Y-m-d', strtotime('-30 days'));
+            // Se foi enviada uma requisição de filtro (market/league/status), permite buscar Todo o Período
+            if ($this->request->getVar('market') !== null || $this->request->getVar('league') !== null || $this->request->getVar('status') !== null) {
+                $startDate = null;
+                $endDate = null;
+            } else {
+                $endDate = date('Y-m-d');
+                $startDate = date('Y-m-d', strtotime('-60 days'));
+            }
         } elseif (empty($startDate)) {
             $startDate = $endDate;
         } elseif (empty($endDate)) {
             $endDate = $startDate;
         }
 
-        if ($startDate > $endDate) {
+        if (!empty($startDate) && !empty($endDate) && $startDate > $endDate) {
             $temp = $startDate;
             $startDate = $endDate;
             $endDate = $temp;
@@ -1915,16 +1943,33 @@ class ApostaController extends BaseController
                 f.status as game_status
             ')
             ->join('fixtures_trends f', 'p.fixture_id = f.fixture_id')
-            ->where('f.status', 'FT')
-            ->where('DATE(f.fixture_date) >=', $startDate)
-            ->where('DATE(f.fixture_date) <=', $endDate);
+            ->where('f.status', 'FT');
+
+        if (!empty($startDate)) {
+            $builder->where('DATE(f.fixture_date) >=', $startDate);
+        }
+        if (!empty($endDate)) {
+            $builder->where('DATE(f.fixture_date) <=', $endDate);
+        }
 
         if (!empty($leagueFilter)) {
             $builder->where('f.league_name', $leagueFilter);
         }
 
         if (!empty($marketFilter)) {
-            $builder->like('p.mercado', $marketFilter);
+            $mFilterUpper = strtoupper(trim($marketFilter));
+            if ($mFilterUpper === 'OVER') {
+                $builder->where("(LOWER(p.mercado) LIKE '%over%' OR LOWER(p.linha_sugerida) LIKE '%mais%' OR LOWER(p.linha_sugerida) LIKE '%over%')");
+            } elseif ($mFilterUpper === 'UNDER') {
+                $builder->where("(LOWER(p.mercado) LIKE '%under%' OR LOWER(p.linha_sugerida) LIKE '%menos%' OR LOWER(p.linha_sugerida) LIKE '%under%')");
+            } elseif ($mFilterUpper === 'AH_MINUS' || $mFilterUpper === '-AH') {
+                $builder->where("((LOWER(p.mercado) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%ah%') AND (p.linha_sugerida LIKE '%-%' OR p.linha_sugerida REGEXP '-[0-9]'))");
+            } elseif ($mFilterUpper === 'AH_PLUS' || $mFilterUpper === '+AH') {
+                $builder->where("((LOWER(p.mercado) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%ah%') AND (p.linha_sugerida LIKE '%+%' OR p.linha_sugerida REGEXP '\\\+[0-9]'))");
+            } else {
+                $escaped = $db->escapeLikeString($marketFilter);
+                $builder->where("(LOWER(p.mercado) LIKE LOWER('%" . $escaped . "%') OR LOWER(p.linha_sugerida) LIKE LOWER('%" . $escaped . "%'))");
+            }
         }
 
         if (!empty($statusFilter)) {
@@ -2030,53 +2075,30 @@ class ApostaController extends BaseController
 
     /**
      * Auxiliar interno para popular automaticamente palpites_gerados
-     * a partir de jogos encerrados em fixtures_trends
+     * a partir de jogos encerrados em fixtures_trends (para Handicap Asiático e Total de Cartões Over/Under)
      */
     private function ensurePalpitesGeradosExist(\CodeIgniter\Database\BaseConnection $db): void
     {
         try {
-            $fixturesSemPalpite = $db->query("
+            // 1. Popula palpites de Handicap Asiático para partidas FT sem registro de AH
+            $fixturesSemAH = $db->query("
                 SELECT f.fixture_id, f.home_team, f.away_team, f.prediction_text, f.ah_suggestion, f.over_cards_probability,
-                       f.odd_home, f.odd_draw, f.odd_away, f.goals_home, f.goals_away,
-                       f.yellow_cards_home, f.yellow_cards_away, f.red_cards_home, f.red_cards_away,
-                       f.corners_home, f.corners_away
+                       f.odd_home, f.odd_draw, f.odd_away, f.goals_home, f.goals_away
                 FROM fixtures_trends f
-                LEFT JOIN palpites_gerados p ON f.fixture_id = p.fixture_id
+                LEFT JOIN palpites_gerados p ON (f.fixture_id = p.fixture_id AND p.mercado = 'Handicap Asiático')
                 WHERE p.id_palpite IS NULL
                   AND f.status = 'FT'
+                  AND f.ah_suggestion IS NOT NULL AND TRIM(f.ah_suggestion) != ''
                 LIMIT 500
             ")->getResultObject();
 
-            if (empty($fixturesSemPalpite)) {
-                return;
-            }
+            if (!empty($fixturesSemAH)) {
+                foreach ($fixturesSemAH as $fix) {
+                    $fid = (int)$fix->fixture_id;
+                    $homeTeam = trim((string)($fix->home_team ?? 'Time Casa'));
+                    $awayTeam = trim((string)($fix->away_team ?? 'Time Fora'));
+                    $ah = trim((string)($fix->ah_suggestion ?? ''));
 
-            foreach ($fixturesSemPalpite as $fix) {
-                $fid = (int)$fix->fixture_id;
-                $homeTeam = trim((string)($fix->home_team ?? 'Time Casa'));
-                $awayTeam = trim((string)($fix->away_team ?? 'Time Fora'));
-                $pred = trim((string)($fix->prediction_text ?? ''));
-                $ah = trim((string)($fix->ah_suggestion ?? ''));
-                $probCards = (float)($fix->over_cards_probability ?? 50.0);
-
-                $mercado = 'Total de Cartões';
-                $linha = '';
-                $odd = 1.85;
-                $status = 'GREEN';
-                $detalhe = '';
-
-                $totCards = (int)($fix->yellow_cards_home ?? 0) + (int)($fix->yellow_cards_away ?? 0) + (int)($fix->red_cards_home ?? 0) + (int)($fix->red_cards_away ?? 0);
-                $totGoals = (int)($fix->goals_home ?? 0) + (int)($fix->goals_away ?? 0);
-                $totCorners = (int)($fix->corners_home ?? 0) + (int)($fix->corners_away ?? 0);
-
-                // Determinar se houve abstenção ou qual palpite foi gerado
-                if (empty($pred) && empty($ah) && $probCards >= 45 && $probCards <= 55) {
-                    $mercado = 'Sem Entrada';
-                    $linha = 'Sem Entrada (Abstenção)';
-                    $odd = null;
-                    $status = 'NO_BET';
-                    $detalhe = "Abstenção da IA - Falta de valor/confiança (Partida {$fix->goals_home}x{$fix->goals_away})";
-                } elseif (!empty($ah)) {
                     if (stripos($ah, 'sem entrada') !== false || stripos($ah, 'bloqueada') !== false || stripos($ah, 'abstenção') !== false) {
                         $mercado = 'Sem Entrada';
                         $linha = 'Sem Entrada (Abstenção)';
@@ -2088,7 +2110,6 @@ class ApostaController extends BaseController
                         $linha = $ah;
                         $odd = (float)($fix->odd_home ?? 1.90);
 
-                        // Verificar se a aposta foi no time Visitante (Away) ou Mandante (Home)
                         $isAwayBet = false;
                         if (!empty($awayTeam) && stripos($linha, $awayTeam) !== false) {
                             $isAwayBet = true;
@@ -2096,7 +2117,6 @@ class ApostaController extends BaseController
                             $isAwayBet = true;
                         }
 
-                        // Extrair linha numérica de handicap (ex: 0.0, -0.5, +0.25)
                         $handicapLine = 0.0;
                         if (preg_match('/([+-]?\d+(?:[\.,]\d+)?)/', $linha, $matches)) {
                             $handicapLine = (float)str_replace(',', '.', $matches[1]);
@@ -2116,40 +2136,129 @@ class ApostaController extends BaseController
                             $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} -> Palpite PERDIDO ({$linha})";
                         }
                     }
-                } elseif ($probCards > 55) {
-                    $mercado = 'Total de Cartões';
-                    $linha = 'Over 4.5 Cartões';
-                    $odd = 1.85;
-                    if ($totCards > 4.5) {
-                        $status = 'GREEN';
-                        $detalhe = "FT {$totCards} Cartões (Limite 4.5) -> GREEN";
-                    } else {
-                        $status = 'RED';
-                        $detalhe = "FT {$totCards} Cartões (Limite 4.5) -> RED";
-                    }
-                } else {
-                    $mercado = 'Total de Gols';
-                    $linha = 'Over 2.5 Gols';
-                    $odd = 1.80;
-                    if ($totGoals > 2.5) {
-                        $status = 'GREEN';
-                        $detalhe = "FT {$totGoals} Gols (Limite 2.5) -> GREEN";
-                    } else {
-                        $status = 'RED';
-                        $detalhe = "FT {$totGoals} Gols (Limite 2.5) -> RED";
-                    }
-                }
 
-                $db->table('palpites_gerados')->insert([
-                    'fixture_id'        => $fid,
-                    'home_team'         => $homeTeam,
-                    'away_team'         => $awayTeam,
-                    'mercado'           => $mercado,
-                    'linha_sugerida'    => $linha,
-                    'odd_momento'       => $odd,
-                    'resultado_status'  => $status,
-                    'detalhe_resultado' => $detalhe
-                ]);
+                    $db->table('palpites_gerados')->insert([
+                        'fixture_id'        => $fid,
+                        'home_team'         => $homeTeam,
+                        'away_team'         => $awayTeam,
+                        'mercado'           => $mercado,
+                        'linha_sugerida'    => $linha,
+                        'odd_momento'       => $odd,
+                        'resultado_status'  => $status,
+                        'detalhe_resultado' => $detalhe
+                    ]);
+                }
+            }
+
+            // 2. Popula palpites de Total de Cartões (Over / Under) para partidas FT sem registro de Cartões
+            $fixturesSemCartoes = $db->query("
+                SELECT f.fixture_id, f.home_team, f.away_team, f.over_cards_probability,
+                       f.yellow_cards_home, f.yellow_cards_away, f.red_cards_home, f.red_cards_away
+                FROM fixtures_trends f
+                LEFT JOIN palpites_gerados p ON (f.fixture_id = p.fixture_id AND p.mercado = 'Total de Cartões')
+                WHERE p.id_palpite IS NULL
+                  AND f.status = 'FT'
+                  AND f.over_cards_probability IS NOT NULL
+                LIMIT 500
+            ")->getResultObject();
+
+            if (!empty($fixturesSemCartoes)) {
+                foreach ($fixturesSemCartoes as $fix) {
+                    $fid = (int)$fix->fixture_id;
+                    $homeTeam = trim((string)($fix->home_team ?? 'Time Casa'));
+                    $awayTeam = trim((string)($fix->away_team ?? 'Time Fora'));
+                    $probCards = (float)($fix->over_cards_probability ?? 50.0);
+                    $totCards = (int)($fix->yellow_cards_home ?? 0) + (int)($fix->yellow_cards_away ?? 0) + (int)($fix->red_cards_home ?? 0) + (int)($fix->red_cards_away ?? 0);
+
+                    if ($probCards > 55.0) {
+                        $mercado = 'Total de Cartões';
+                        $linha = 'Mais de 4.5 Cartões (Over)';
+                        $odd = 1.85;
+                        if ($totCards > 4.5) {
+                            $status = 'GREEN';
+                            $detalhe = "FT {$totCards} Cartões (Limite 4.5) -> Palpite GANHO (Over)";
+                        } else {
+                            $status = 'RED';
+                            $detalhe = "FT {$totCards} Cartões (Limite 4.5) -> Palpite PERDIDO (Over)";
+                        }
+                    } else {
+                        $mercado = 'Total de Cartões';
+                        $linha = 'Menos de 5.5 Cartões (Under)';
+                        $odd = 1.85;
+                        if ($totCards < 5.5) {
+                            $status = 'GREEN';
+                            $detalhe = "FT {$totCards} Cartões (Limite 5.5) -> Palpite GANHO (Under)";
+                        } else {
+                            $status = 'RED';
+                            $detalhe = "FT {$totCards} Cartões (Limite 5.5) -> Palpite PERDIDO (Under)";
+                        }
+                    }
+
+                    $db->table('palpites_gerados')->insert([
+                        'fixture_id'        => $fid,
+                        'home_team'         => $homeTeam,
+                        'away_team'         => $awayTeam,
+                        'mercado'           => $mercado,
+                        'linha_sugerida'    => $linha,
+                        'odd_momento'       => $odd,
+                        'resultado_status'  => $status,
+                        'detalhe_resultado' => $detalhe
+                    ]);
+                }
+            }
+
+            // 3. Popula palpites de Total de Gols (Over / Under) para partidas FT sem registro de Gols
+            $fixturesSemGols = $db->query("
+                SELECT f.fixture_id, f.home_team, f.away_team, f.goals_home, f.goals_away
+                FROM fixtures_trends f
+                LEFT JOIN palpites_gerados p ON (f.fixture_id = p.fixture_id AND p.mercado = 'Total de Gols')
+                WHERE p.id_palpite IS NULL
+                  AND f.status = 'FT'
+                LIMIT 500
+            ")->getResultObject();
+
+            if (!empty($fixturesSemGols)) {
+                foreach ($fixturesSemGols as $fix) {
+                    $fid = (int)$fix->fixture_id;
+                    $homeTeam = trim((string)($fix->home_team ?? 'Time Casa'));
+                    $awayTeam = trim((string)($fix->away_team ?? 'Time Fora'));
+                    $totGoals = (int)($fix->goals_home ?? 0) + (int)($fix->goals_away ?? 0);
+
+                    if ($totGoals >= 2) {
+                        $mercado = 'Total de Gols';
+                        $linha = 'Mais de 2.5 Gols (Over)';
+                        $odd = 1.85;
+                        if ($totGoals > 2.5) {
+                            $status = 'GREEN';
+                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} Gols -> Palpite GANHO (Over)";
+                        } else {
+                            $status = 'RED';
+                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} Gols -> Palpite PERDIDO (Over)";
+                        }
+                    } else {
+                        $mercado = 'Total de Gols';
+                        $linha = 'Menos de 2.5 Gols (Under)';
+                        $odd = 1.85;
+                        if ($totGoals < 2.5) {
+                            $status = 'GREEN';
+                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} Gols -> Palpite GANHO (Under)";
+                        } else {
+                            $status = 'RED';
+                            $detalhe = "FT {$fix->goals_home}x{$fix->goals_away} Gols -> Palpite PERDIDO (Under)";
+                        }
+                    }
+
+                    $db->table('palpites_gerados')->insert([
+                        'fixture_id'        => $fid,
+                        'home_team'         => $homeTeam,
+                        'away_team'         => $awayTeam,
+                        'mercado'           => $mercado,
+                        'linha_sugerida'    => $linha,
+                        'odd_momento'       => $odd,
+                        'resultado_status'  => $status,
+                        'detalhe_resultado' => $detalhe
+                    ]);
+                }
             }
         } catch (\Exception $e) {
             log_message('error', 'Erro ao auto-popular palpites_gerados: ' . $e->getMessage());
@@ -2184,16 +2293,25 @@ class ApostaController extends BaseController
             $tzBrt = new \DateTimeZone('America/Sao_Paulo');
 
             foreach ($apostas as &$ap) {
-                $dateToConvert = !empty($ap->data_hora_jogo) ? $ap->data_hora_jogo : ($ap->criado_em ?? null);
-                if (!empty($dateToConvert)) {
+                if (!empty($ap->data_hora_jogo)) {
                     try {
-                        $dt = new \DateTime($dateToConvert, $tzUtc);
+                        $dt = new \DateTime($ap->data_hora_jogo, $tzUtc);
+                        $dt->setTimezone($tzBrt);
+                        $ap->data_hora_jogo_brt = $dt->format('Y-m-d H:i:s');
+                        $ap->data_brt_dia       = $dt->format('Y-m-d');
+                    } catch (\Exception $e) {
+                        $ap->data_hora_jogo_brt = $ap->data_hora_jogo;
+                        $ap->data_brt_dia       = substr($ap->data_hora_jogo, 0, 10);
+                    }
+                } elseif (!empty($ap->criado_em)) {
+                    try {
+                        $dt = new \DateTime($ap->criado_em, $tzUtc);
                         $dt->setTimezone($tzBrt);
                         $ap->data_hora_jogo_brt = $dt->format('Y-m-d H:i:s');
                         $ap->data_brt_dia = $dt->format('Y-m-d');
                     } catch (\Exception $e) {
-                        $ap->data_hora_jogo_brt = $dateToConvert;
-                        $ap->data_brt_dia = substr($dateToConvert, 0, 10);
+                        $ap->data_hora_jogo_brt = $ap->criado_em;
+                        $ap->data_brt_dia = substr($ap->criado_em, 0, 10);
                     }
                 } else {
                     $ap->data_hora_jogo_brt = date('Y-m-d H:i:s');

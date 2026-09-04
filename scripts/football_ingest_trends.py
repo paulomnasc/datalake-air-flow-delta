@@ -80,7 +80,7 @@ def calculate_poisson_under_lines(xc, phi=1.20):
     aplicando Fator de Sobredispersão (phi) para achatar a curva de variância e evitar probabilidades irreais de 99%+.
     Aplica cap máximo de 90.0% de probabilidade Under (Odd Justa Mínima = 1.11).
     """
-    lines = [3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
+    lines = [2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
     results = {}
     if xc <= 0:
         for l in lines:
@@ -171,6 +171,48 @@ def is_youth_game(home_team="", away_team="", league_name=""):
 
     return False
 
+def is_cup_game(league_name=""):
+    """
+    Identifica se a partida pertence a um torneio de Copa Eliminatória ou Mata-Mata.
+    """
+    if not league_name:
+        return False
+    leg_lower = str(league_name).lower().strip()
+    cup_keywords = [
+        "cup", "copa", "pokal", "coppa", "coupe", "trophy", "taça", "taca",
+        "emperor", "j.league cup", "dfb pokal", "copa del rey",
+        "fa cup", "efl cup", "league cup", "karabao", "carabao", "copa do brasil",
+        "copa libertadores", "copa sudamericana", "leagues cup", "champions league"
+    ]
+    for kw in cup_keywords:
+        if kw in leg_lower:
+            return True
+    return False
+
+def is_early_season_game(league_name="", fixture_date=None):
+    """
+    Verifica se a partida ocorre na janela de início de temporada (primeiras rodadas / meses iniciais).
+    Para Ligas Europeias (Premier League, La Liga, Jupiler Pro League, Bundesliga, Ligue 1, Eredivisie, etc.): Agosto e Setembro (meses 8 e 9).
+    Para Ligas Sul-Americanas (Brasileirão, Argentina, Chile, Colombia, etc.): Janeiro, Fevereiro e Março (meses 1, 2 e 3).
+    """
+    if not fixture_date:
+        from datetime import datetime
+        month = datetime.now().month
+    elif hasattr(fixture_date, 'month'):
+        month = fixture_date.month
+    else:
+        try:
+            from datetime import datetime
+            month = datetime.strptime(str(fixture_date)[:10], '%Y-%m-%d').month
+        except Exception:
+            from datetime import datetime
+            month = datetime.now().month
+
+    l_name_low = str(league_name or '').lower().strip()
+
+    # Em setembro/agosto (Europa e padrão) e janeiro/fevereiro/março (América do Sul), ou janela de início/retomada
+    return month in (1, 2, 3, 8, 9)
+
 def _normalize_team_name_for_match(n):
     if not n:
         return ""
@@ -204,6 +246,7 @@ _api_sports_last5_cache = {}
 _futbol24_failed_teams_cache = set()
 
 _api_sports_rate_limited = False
+_api_sports_odds_rate_limited = False
 
 def fetch_api_sports_team_last5(team_id, limit=5):
     """
@@ -333,12 +376,13 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
         except Exception as e_sql_id:
             print(f"Aviso na busca SQL por ID de forma para '{team_name}' (#{team_id}): {e_sql_id}")
 
-    # 2. Se retornado < 5 partidas, consulta no banco MySQL local por Nome (+ Filtro de Liga/País)
+    # 2. Se retornado < 5 partidas, consulta no banco MySQL local por Nome (+ Filtro de Liga/País com Fallback Geral)
     if cursor is not None and len(matches) < 5:
         try:
             clean_search = f"%{_normalize_team_name_for_match(team_name)}%"
+            queries_to_try = []
             if league_id and str(league_id).strip():
-                sql_name = """
+                sql_league = """
                     SELECT fixture_id, home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, fixture_date
                     FROM fixtures_trends
                     WHERE status = 'FT'
@@ -349,42 +393,46 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                     ORDER BY fixture_date DESC
                     LIMIT 30
                 """
-                cursor.execute(sql_name, (league_id, clean_search, clean_search))
-            else:
-                sql_name = """
-                    SELECT fixture_id, home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, fixture_date
-                    FROM fixtures_trends
-                    WHERE status = 'FT'
-                      AND goals_home IS NOT NULL
-                      AND goals_away IS NOT NULL
-                      AND (LOWER(home_team) LIKE %s OR LOWER(away_team) LIKE %s)
-                    ORDER BY fixture_date DESC
-                    LIMIT 30
-                """
-                cursor.execute(sql_name, (clean_search, clean_search))
+                queries_to_try.append((sql_league, (league_id, clean_search, clean_search)))
 
-            rows = cursor.fetchall()
-            for r in rows:
-                fid = r.get('fixture_id')
-                if fid in seen_fixtures:
-                    continue
-                h_match = _is_team_match(team_name, r['home_team'], team_id, r.get('home_team_id'))
-                a_match = _is_team_match(team_name, r['away_team'], team_id, r.get('away_team_id'))
-                if h_match or a_match:
-                    seen_fixtures.add(fid)
-                    gh = r['goals_home'] if r['goals_home'] is not None else 0
-                    ga = r['goals_away'] if r['goals_away'] is not None else 0
-                    is_home = h_match
-                    opp_name = r['away_team'] if is_home else r['home_team']
-                    if is_home:
-                        res = "V" if gh > ga else ("E" if gh == ga else "D")
-                        sc = f"{gh}x{ga}"
-                    else:
-                        res = "V" if ga > gh else ("E" if gh == ga else "D")
-                        sc = f"{ga}x{gh}"
-                    matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "fixture_id": fid})
-                    if len(matches) >= 5:
-                        break
+            sql_all = """
+                SELECT fixture_id, home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, fixture_date
+                FROM fixtures_trends
+                WHERE status = 'FT'
+                  AND goals_home IS NOT NULL
+                  AND goals_away IS NOT NULL
+                  AND (LOWER(home_team) LIKE %s OR LOWER(away_team) LIKE %s)
+                ORDER BY fixture_date DESC
+                LIMIT 30
+            """
+            queries_to_try.append((sql_all, (clean_search, clean_search)))
+
+            for sql_query, params in queries_to_try:
+                if len(matches) >= 5:
+                    break
+                cursor.execute(sql_query, params)
+                rows = cursor.fetchall()
+                for r in rows:
+                    fid = r.get('fixture_id')
+                    if fid in seen_fixtures:
+                        continue
+                    h_match = _is_team_match(team_name, r['home_team'], team_id, r.get('home_team_id'))
+                    a_match = _is_team_match(team_name, r['away_team'], team_id, r.get('away_team_id'))
+                    if h_match or a_match:
+                        seen_fixtures.add(fid)
+                        gh = r['goals_home'] if r['goals_home'] is not None else 0
+                        ga = r['goals_away'] if r['goals_away'] is not None else 0
+                        is_home = h_match
+                        opp_name = r['away_team'] if is_home else r['home_team']
+                        if is_home:
+                            res = "V" if gh > ga else ("E" if gh == ga else "D")
+                            sc = f"{gh}x{ga}"
+                        else:
+                            res = "V" if ga > gh else ("E" if gh == ga else "D")
+                            sc = f"{ga}x{gh}"
+                        matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "fixture_id": fid})
+                        if len(matches) >= 5:
+                            break
         except Exception as e_sql:
             print(f"Aviso na busca SQL por Nome de forma para '{team_name}': {e_sql}")
 
@@ -627,7 +675,8 @@ def build_natural_language_motivation(
     home_in_crisis, away_in_crisis,
     odd_home=None, odd_away=None,
     home_rank=None, away_rank=None, home_ppg=None, away_ppg=None, standings_motivation=None,
-    home_zone=None, away_zone=None
+    home_zone=None, away_zone=None,
+    league_name=None
 ):
     """
     Gera a motivação do palpite em linguagem natural amigável destacando em alto nível os critérios aplicados,
@@ -644,12 +693,20 @@ def build_natural_language_motivation(
 
     # Trava para Abstenção
     if "Sem Entrada" in suggestion or "Abstenção" in suggestion:
-        res_text = (
-            f"🎯 Fator Crucial: Gestão de Risco e Proteção de Banca.\n"
-            f"A indicação de abstenção fundamenta-se na priorização da segurança operacional:\n"
-            f"• ⚠️ Divergência de Mercado e Estatísticas: As cotações da casa de apostas indicam preferência por um time, mas os dados estatísticos brutos mostram incoerência ou oscilação.\n"
-            f"• 🛡️ Proteção de Banca: Entrada de Handicap bloqueada pelo Gatekeeper para evitar exposições de alto risco em cenários de incerteza."
-        )
+        if league_name and is_cup_game(league_name):
+            res_text = (
+                f"🎯 Fator Crucial: Alerta de Torneio de Copa e Proteção de Banca ({league_name}).\n"
+                f"A indicação de abstenção fundamenta-se na preservação operacional do capital:\n"
+                f"• 🏆 Risco de Rodízio em Copa Mata-Mata: Partida eliminatória onde o favorito costuma atuar com time reserva/misto, gerando imprevisibilidade técnica superior à liga nacional.\n"
+                f"• 🛡️ Proteção pelo Gatekeeper: Entrada de Handicap bloqueada para evitar exposição em cenários de assimetria motivacional."
+            )
+        else:
+            res_text = (
+                f"🎯 Fator Crucial: Gestão de Risco e Proteção de Banca.\n"
+                f"A indicação de abstenção fundamenta-se na priorização da segurança operacional:\n"
+                f"• ⚠️ Divergência de Mercado e Estatísticas: As cotações da casa de apostas indicam preferência por um time, mas os dados estatísticos brutos mostram incoerência ou oscilação.\n"
+                f"• 🛡️ Proteção de Banca: Entrada de Handicap bloqueada pelo Gatekeeper para evitar exposições de alto risco em cenários de incerteza."
+            )
     elif odd_home and float(odd_home) <= 1.50 and home_team.lower() in suggestion.lower():
         res_text = (
             f"🎯 Fator Crucial: Domínio Estatístico e Alto Favoritismo do Mandante ({home_team} {home_text}).\n"
@@ -699,12 +756,23 @@ def build_natural_language_motivation(
             odds_market_text = f"Análise combinada das estatísticas ajustadas com preferência ao visitante {away_team}{odd_str}."
             market_bullet = f"• 📊 Divergência de Valor: As odds da casa favorecem o mando do {home_team}, mas o modelo identifica valor no visitante {away_team}."
 
+        if "+0.25" in suggestion:
+            prot_patrimonio = "• 🛡️ Proteção de Patrimônio (+0.25 AH): Ganho total na vitória e meio-green (50% de lucro + devolução da stake) em caso de empate."
+        elif "+0.5" in suggestion:
+            prot_patrimonio = "• 🛡️ Proteção de Patrimônio (+0.5 AH / Dupla Chance): Ganho total tanto na vitória quanto em caso de empate."
+        elif "-0.25" in suggestion:
+            prot_patrimonio = "• 🛡️ Proteção de Patrimônio (-0.25 AH): Ganho total na vitória e perda atenuada de apenas 50% em caso de empate."
+        elif "0.0" in suggestion or "dnb" in suggestion.lower() or "empate anula" in suggestion.lower():
+            prot_patrimonio = "• 🛡️ Proteção de Patrimônio: Indicação com cobertura total de reembolso no empate (0.0 DNB)."
+        else:
+            prot_patrimonio = f"• 🛡️ Proteção de Patrimônio: Indicação conservadora no mercado de Handicap Asiático ({suggestion})."
+
         res_text = (
             f"🎯 Fator Crucial: {title_text}.\n"
             f"{intro_text}\n"
             f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
             f"{market_bullet}\n"
-            f"• 🛡️ Proteção de Patrimônio: Indicação com cobertura total de reembolso no empate (0.0 DNB)."
+            f"{prot_patrimonio}"
         )
     elif delta_goals >= 0.10 or home_team.lower() in suggestion.lower():
         if odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0:
@@ -736,12 +804,24 @@ def build_natural_language_motivation(
                     odds_market_text = f"As odds do mercado ({float(odd_home):.2f} vs {float(odd_away):.2f}) convergem com a projeção a favor do {home_team}."
             else:
                 odds_market_text = f"Análise estatística interna aplicada para {home_team} e {away_team}."
+            
+            if "+0.25" in suggestion:
+                prot_patrimonio = "• 🛡️ Proteção de Patrimônio (+0.25 AH): Ganho total na vitória e meio-green (50% de lucro + devolução da stake) em caso de empate."
+            elif "+0.5" in suggestion:
+                prot_patrimonio = "• 🛡️ Proteção de Patrimônio (+0.5 AH / Dupla Chance): Ganho total tanto na vitória quanto em caso de empate."
+            elif "-0.25" in suggestion:
+                prot_patrimonio = "• 🛡️ Proteção de Patrimônio (-0.25 AH): Ganho total na vitória e perda atenuada de apenas 50% em caso de empate."
+            elif "0.0" in suggestion or "dnb" in suggestion.lower() or "empate anula" in suggestion.lower():
+                prot_patrimonio = "• 🛡️ Proteção de Patrimônio: Indicação conservadora com cobertura total de reembolso no empate (0.0 DNB)."
+            else:
+                prot_patrimonio = f"• 🛡️ Proteção de Patrimônio: Indicação conservadora no mercado de Handicap Asiático ({suggestion})."
+
             res_text = (
                 f"🎯 Fator Crucial: Mando de Campo Ponderado pelas Odds de Mercado.\n"
                 f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
                 f"• 🏟️ Equilíbrio e Fator Casa: Confronto estatisticamente emparelhado ({home_team} xG: {home_goals_scored:.1f} / U5J: {home_text} vs {away_team} xG: {away_goals_scored:.1f} / U5J: {away_text}), onde o fator casa do {home_team} concede vantagem.\n"
                 f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
-                f"• 🛡️ Proteção de Patrimônio: Indicação conservadora com cobertura total de reembolso no empate (0.0 DNB)."
+                f"{prot_patrimonio}"
             )
         else:
             if odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0:
@@ -751,20 +831,43 @@ def build_natural_language_motivation(
                     odds_market_text = f"As odds da casa de aposta ({float(odd_home):.2f} vs {float(odd_away):.2f}) favorecem o mando do {home_team}, mas o modelo identifica valor no visitante {away_team}."
             else:
                 odds_market_text = f"Análise estatística interna aplicada para {home_team} e {away_team}."
+            
+            if "+0.25" in suggestion:
+                prot_patrimonio = "• 🛡️ Proteção de Patrimônio (+0.25 AH): Ganho total na vitória e meio-green (50% de lucro + devolução da stake) em caso de empate."
+            elif "+0.5" in suggestion:
+                prot_patrimonio = "• 🛡️ Proteção de Patrimônio (+0.5 AH / Dupla Chance): Ganho total tanto na vitória quanto em caso de empate."
+            elif "-0.25" in suggestion:
+                prot_patrimonio = "• 🛡️ Proteção de Patrimônio (-0.25 AH): Ganho total na vitória e perda atenuada de apenas 50% em caso de empate."
+            elif "0.0" in suggestion or "dnb" in suggestion.lower() or "empate anula" in suggestion.lower():
+                prot_patrimonio = "• 🛡️ Proteção de Patrimônio: Indicação de valor a favor do visitante com cobertura total de reembolso no empate (0.0 DNB)."
+            else:
+                prot_patrimonio = f"• 🛡️ Proteção de Patrimônio: Indicação conservadora no mercado de Handicap Asiático ({suggestion})."
+
             res_text = (
                 f"🎯 Fator Crucial: Superioridade do Visitante Ponderada pelas Odds de Mercado.\n"
                 f"A indicação a favor do {away_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
                 f"• ⚡ Desempenho e Momentum: Apesar do mando de campo do {home_team}, o visitante {away_team} sobressaiu-se pelo desempenho superior ajustado em campo.\n"
                 f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
-                f"• 🛡️ Proteção de Patrimônio: Indicação de valor a favor do visitante com cobertura total de reembolso no empate (0.0 DNB)."
+                f"{prot_patrimonio}"
             )
     else:
+        if "+0.25" in suggestion:
+            prot_patrimonio = "• 🛡️ Proteção de Banca (+0.25 AH): Ganho total na vitória e meio-green (50% de lucro + devolução da stake) em caso de empate."
+        elif "+0.5" in suggestion:
+            prot_patrimonio = "• 🛡️ Proteção de Banca (+0.5 AH / Dupla Chance): Ganho total tanto na vitória quanto em caso de empate."
+        elif "-0.25" in suggestion:
+            prot_patrimonio = "• 🛡️ Proteção de Banca (-0.25 AH): Ganho total na vitória e perda atenuada de apenas 50% em caso de empate."
+        elif "0.0" in suggestion or "dnb" in suggestion.lower() or "empate anula" in suggestion.lower():
+            prot_patrimonio = "• 🛡️ Proteção de Banca: Recomendação a favor do visitante com cobertura total de reembolso no empate (0.0 DNB)."
+        else:
+            prot_patrimonio = f"• 🛡️ Proteção de Banca: Recomendação estratégica no mercado de Handicap Asiático ({suggestion})."
+
         res_text = (
             f"🎯 Fator Crucial: Amplo Favoritismo do Visitante ({away_team} +{abs(delta_goals):.2f} xG).\n"
             f"A indicação a favor do visitante {away_team} fundamenta-se na priorização de 3 critérios de alta precisão:\n"
             f"• 🔥 Momentum e Produção Ofensiva: Momento superior e alta produção de gols do visitante {away_team} ({away_text} em U5J / {away_goals_scored:.1f} g/j).\n"
             f"• 📈 Precificação de Mercado: Cotação de mercado e favoritismo do {away_team}{odd_str} superando o fator casa do {home_team}.\n"
-            f"• 🛡️ Proteção de Banca: Recomendação a favor do visitante com cobertura total de reembolso no empate (0.0 DNB)."
+            f"{prot_patrimonio}"
         )
 
     if home_rank and away_rank:
@@ -785,7 +888,8 @@ def calculate_asian_handicap_suggestion(
     home_last5=None, away_last5=None,
     odd_home=None, odd_draw=None, odd_away=None,
     home_rank=None, away_rank=None, home_ppg=None, away_ppg=None, standings_motivation=None,
-    home_zone=None, away_zone=None
+    home_zone=None, away_zone=None,
+    league_name=None
 ):
     """
     Calcula a sugestão de Handicap Asiático priorizando Odds do Mercado de Apostas, Fator Mando de Campo Recalibrado (+10% / -7%),
@@ -800,20 +904,72 @@ def calculate_asian_handicap_suggestion(
     if away_last5 is None:
         away_last5 = {"v": 2, "e": 1, "d": 2, "pts": 7, "text": "2V-1E-2D", "matches": []}
 
-    # 0. Trava de Bloqueio Estrito para Odds Ausentes ou xG Zerado
+    # 0. Trava de Bloqueio Estrito para Odds Ausentes ou xG Zerado sem histórico
     if not odd_home or not odd_away or float(odd_home) <= 1.0 or float(odd_away) <= 1.0:
         suggestion = "Sem Entrada (Abstenção)"
         confidence = 50.00
         reasoning_text = f"🚫 APOSTA BLOQUEADA: Odds de mercado indisponíveis para esta partida. Entrada de Handicap bloqueada para proteger a banca."
         u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
-        return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por Odds Indisponíveis || MOTIVACAO: Risco excessivo sem cotações de mercado reais || MEMÓRIA DE CÁLCULO || Odds Ausentes || U5J_DATA: {u5j_json}"
+        return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por Odds Indisponíveis || MOTIVACAO: Risco excessivo sem cotações de mercado reais || MEMÓRIA DE CÁLCULO || Odds Ausentes || U5J_DATA: {u5j_json}", 0.0, 0.0
 
-    if (home_goals_scored <= 0.01 and away_goals_scored <= 0.01 and home_goals_conceded <= 0.01 and away_goals_conceded <= 0.01):
+    # Se xG de jogo ao vivo não existe (pré-jogo), projeta o xG pré-jogo a partir do histórico U5J dos times
+    if (home_goals_scored <= 0.01 and away_goals_scored <= 0.01):
+        h_matches = home_last5.get("matches", []) if isinstance(home_last5, dict) else []
+        a_matches = away_last5.get("matches", []) if isinstance(away_last5, dict) else []
+        
+        if h_matches or a_matches:
+            h_scored_list, h_conceded_list = [], []
+            for m in h_matches:
+                score = m.get("score", "")
+                if "x" in score:
+                    parts = score.split("x")
+                    try:
+                        g_h, g_a = int(parts[0]), int(parts[1])
+                        if m.get("is_home"):
+                            h_scored_list.append(g_h)
+                            h_conceded_list.append(g_a)
+                        else:
+                            h_scored_list.append(g_a)
+                            h_conceded_list.append(g_h)
+                    except ValueError:
+                        pass
+
+            a_scored_list, a_conceded_list = [], []
+            for m in a_matches:
+                score = m.get("score", "")
+                if "x" in score:
+                    parts = score.split("x")
+                    try:
+                        g_h, g_a = int(parts[0]), int(parts[1])
+                        if m.get("is_home"):
+                            a_scored_list.append(g_h)
+                            a_conceded_list.append(g_a)
+                        else:
+                            a_scored_list.append(g_a)
+                            a_conceded_list.append(g_h)
+                    except ValueError:
+                        pass
+
+            if h_scored_list:
+                home_goals_scored = max(0.5, sum(h_scored_list) / len(h_scored_list))
+                home_goals_conceded = max(0.5, sum(h_conceded_list) / len(h_conceded_list))
+            else:
+                home_goals_scored = 1.20
+                home_goals_conceded = 1.00
+
+            if a_scored_list:
+                away_goals_scored = max(0.5, sum(a_scored_list) / len(a_scored_list))
+                away_goals_conceded = max(0.5, sum(a_conceded_list) / len(a_conceded_list))
+            else:
+                away_goals_scored = 1.00
+                away_goals_conceded = 1.20
+
+    if (home_goals_scored <= 0.01 and away_goals_scored <= 0.01):
         suggestion = "Sem Entrada (Abstenção)"
         confidence = 50.00
-        reasoning_text = f"🚫 APOSTA BLOQUEADA: Dados de Expectativa de Gols (xG) indisponíveis para esta partida (xG = 0.00). Entrada de Handicap bloqueada para proteger a banca."
+        reasoning_text = f"🚫 APOSTA BLOQUEADA: Histórico de partidas e estatísticas de gols indisponíveis para este confronto. Entrada de Handicap bloqueada para proteger a banca."
         u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
-        return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por xG Indisponível || MOTIVACAO: Risco excessivo sem estatísticas de xG || MEMÓRIA DE CÁLCULO || xG Base 0.00 || U5J_DATA: {u5j_json}"
+        return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por Histórico Indisponível || MOTIVACAO: Risco excessivo sem estatísticas prévias || MEMÓRIA DE CÁLCULO || Histórico Ausente || U5J_DATA: {u5j_json}", 0.0, 0.0
 
     # 1. Fator Últimos 5 Jogos (Forma Recente: V-E-D)
     home_pts = home_last5.get("pts", 7)
@@ -938,14 +1094,27 @@ def calculate_asian_handicap_suggestion(
         home_last5_factor = max(0.90, home_last5_factor)
         home_streak_factor = max(0.90, home_streak_factor)
 
-    lambda_home = lambda_home_base * home_mando_factor * home_last5_factor * home_cs_factor * home_streak_factor * market_home_boost
-    lambda_away = lambda_away_base * away_mando_factor * away_last5_factor * away_cs_factor * away_streak_factor * market_away_boost
+    # 5.1 Fator Especial de Copa Mata-Mata (Atenuação de Risco em Torneios Eliminatórios)
+    is_cup = is_cup_game(league_name)
+    cup_home_factor = 1.0
+    cup_away_factor = 1.0
+    if is_cup:
+        if is_market_away_fav:
+            cup_away_factor = 0.85  # Atenuação de 15% no xG do visitante em Copa (risco de time reserva)
+        elif is_market_home_fav:
+            cup_home_factor = 0.88  # Atenuação de 12% no xG do mandante em Copa
+
+    lambda_home = lambda_home_base * home_mando_factor * home_last5_factor * home_cs_factor * home_streak_factor * market_home_boost * cup_home_factor
+    lambda_away = lambda_away_base * away_mando_factor * away_last5_factor * away_cs_factor * away_streak_factor * market_away_boost * cup_away_factor
     delta_goals = lambda_home - lambda_away
+
+    cup_str_h = f" × Copa {cup_home_factor:.2f}" if is_cup else ""
+    cup_str_a = f" × Copa {cup_away_factor:.2f}" if is_cup else ""
 
     # Memória de Cálculo formatada para a UX
     calc_memory = (
-        f"🏠 {home_team} (Em Casa): xG Base {lambda_home_base:.2f} × Mando {home_mando_factor:.2f} × U5J {home_last5_factor:.2f} ({home_last5.get('text')}) × CS {home_cs_factor:.2f} ({home_cs_pct:.1f}%) × Streak {home_streak_factor:.2f}{market_str} = xG Adj {lambda_home:.2f} | "
-        f"✈️ {away_team} (Fora): xG Base {lambda_away_base:.2f} × Mando {away_mando_factor:.2f} × U5J {away_last5_factor:.2f} ({away_last5.get('text')}) × CS {away_cs_factor:.2f} ({away_cs_pct:.1f}%) × Streak {away_streak_factor:.2f} = xG Adj {lambda_away:.2f} | "
+        f"🏠 {home_team} (Em Casa): xG Base {lambda_home_base:.2f} × Mando {home_mando_factor:.2f} × U5J {home_last5_factor:.2f} ({home_last5.get('text')}) × CS {home_cs_factor:.2f} ({home_cs_pct:.1f}%) × Streak {home_streak_factor:.2f}{cup_str_h}{market_str} = xG Adj {lambda_home:.2f} | "
+        f"✈️ {away_team} (Fora): xG Base {lambda_away_base:.2f} × Mando {away_mando_factor:.2f} × U5J {away_last5_factor:.2f} ({away_last5.get('text')}) × CS {away_cs_factor:.2f} ({away_cs_pct:.1f}%) × Streak {away_streak_factor:.2f}{cup_str_a} = xG Adj {lambda_away:.2f} | "
         f"⚖️ Saldo Esperado (ΔG): {delta_goals:+.2f} gols."
     )
 
@@ -965,9 +1134,9 @@ def calculate_asian_handicap_suggestion(
             main_reason = f"⚠️ Alerta de Crise: Severa má fase do {home_team} ({home_last5.get('text')} em U5J). Favoritismo e vantagem de cobertura +0.5 (Dupla Chance) para o visitante {away_team}."
     elif away_in_crisis and not home_in_crisis:
         if delta_goals <= 0.20:
-            suggestion = f"{home_team} 0.0 (Empate Anula)"
+            suggestion = f"{home_team} +0.25 AH"
             confidence = 72.00
-            main_reason = f"⚠️ Alerta de Risco Visitante: {away_team} em crise de resultados ({away_last5.get('text')}). Favoritismo do mandante {home_team} com proteção de reembolso ativado."
+            main_reason = f"⚠️ Alerta de Risco Visitante: {away_team} em crise de resultados ({away_last5.get('text')}). Favoritismo do mandante {home_team} com proteção de meia estaca (+0.25 AH)."
         else:
             suggestion = f"{home_team} -0.5 AH"
             confidence = 78.00
@@ -999,14 +1168,34 @@ def calculate_asian_handicap_suggestion(
                 confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
                 main_reason = f"Favoritismo do {home_team} em casa nas odds e produção (+{delta_goals:.2f} gols esperados). Proteção de meia estaca (AH -0.25).{note_str}"
             elif delta_goals >= -0.30:
-                suggestion = f"{home_team} 0.0 (Empate Anula)"
+                suggestion = f"{home_team} -0.25 AH"
                 confidence = 72.00
-                main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com cobertura conservadora de reembolso no empate (0.0 DNB).{note_str}"
+                main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com proteção de meia estaca (-0.25 AH).{note_str}"
+            elif odd_home and float(odd_home) >= 1.90:
+                # Mercado aberto / sem super favorito nominal (odd_home >= 1.90, ex: 2.30).
+                # O visitante é estatisticamente superior (delta_goals < -0.30), gerando uma Oportunidade de Valor (Value Bet)
+                # com cobertura de Handicap Positivo:
+                if delta_goals <= -0.60:
+                    suggestion = f"{away_team} +0.25 AH"
+                    confidence = round(min(80.0, 72.0 + abs(delta_goals) * 4), 2)
+                    main_reason = (
+                        f"💎 Oportunidade de Valor (Value Bet): Apesar da cotação 1X2 atribuir leve preferência ao mandante {home_team} ({float(odd_home):.2f}), "
+                        f"a modelagem estatística aponta superioridade consistente do visitante {away_team} (ΔG {delta_goals:+.2f} gols). "
+                        f"Indicação de proteção estratégica em {suggestion} (ganho total na vitória e meio-green no empate).{note_str}"
+                    )
+                else:
+                    suggestion = f"{away_team} +0.5 AH"
+                    confidence = 74.00
+                    main_reason = (
+                        f"💎 Oportunidade de Valor (Value Bet): Cotação de mercado aberta para o mandante {home_team} ({float(odd_home):.2f}) "
+                        f"contrastando com indicadores favoráveis ao visitante {away_team} (ΔG {delta_goals:+.2f} gols). "
+                        f"Entrada segura em Dupla Chance com {suggestion}.{note_str}"
+                    )
             else:
-                # Conflito severo de xG vs Menor Odd do Mandante -> ABSTENÇÃO POR SEGURANÇA
+                # Conflito severo de xG vs Menor Odd do Mandante (quando mandante tem odd < 1.90, alto favoritismo de mercado) -> ABSTENÇÃO POR SEGURANÇA
                 suggestion = "Sem Entrada (Abstenção)"
                 confidence = 50.00
-                main_reason = f"🚫 APOSTA BLOQUEADA: Divergência Crítica entre as Odds de Mercado (favoritismo do mandante {home_team}) e a estatística bruta de xG. Abstenção ativada para proteger a banca.{note_str}"
+                main_reason = f"🚫 APOSTA BLOQUEADA: Divergência Crítica entre as Odds de Mercado (alto favoritismo do mandante {home_team} @ {float(odd_home):.2f}) e a estatística bruta de xG. Abstenção ativada para proteger a banca.{note_str}"
         elif is_market_away_fav:
             if delta_goals <= -1.80:
                 suggestion = f"{away_team} -1.0 AH"
@@ -1021,14 +1210,34 @@ def calculate_asian_handicap_suggestion(
                 confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
                 main_reason = f"Favoritismo do visitante {away_team} nas odds de mercado. Proteção conservadora de meia estaca (AH -0.25).{note_str}"
             elif delta_goals <= 0.30:
-                suggestion = f"{away_team} 0.0 (Empate Anula)"
+                suggestion = f"{away_team} -0.25 AH"
                 confidence = 72.00
-                main_reason = f"Favoritismo de mercado do visitante {away_team} alinhado com cobertura conservadora de reembolso no empate (0.0 DNB).{note_str}"
+                main_reason = f"Favoritismo de mercado do visitante {away_team} alinhado com proteção de meia estaca (-0.25 AH).{note_str}"
+            elif odd_away and float(odd_away) >= 1.90:
+                # Mercado aberto / sem super favorito visitante (odd_away >= 1.90).
+                # O mandante é estatisticamente superior (delta_goals > 0.30), gerando uma Oportunidade de Valor (Value Bet)
+                # com cobertura de Handicap Positivo para o mandante:
+                if delta_goals >= 0.60:
+                    suggestion = f"{home_team} +0.25 AH"
+                    confidence = round(min(80.0, 72.0 + delta_goals * 4), 2)
+                    main_reason = (
+                        f"💎 Oportunidade de Valor (Value Bet): Apesar da cotação 1X2 atribuir leve preferência ao visitante {away_team} ({float(odd_away):.2f}), "
+                        f"o fator campo e a produção estatística sustentam o mandante {home_team} (ΔG {delta_goals:+.2f} gols). "
+                        f"Indicação de proteção estratégica em {suggestion} (ganho total na vitória e meio-green no empate).{note_str}"
+                    )
+                else:
+                    suggestion = f"{home_team} +0.5 AH"
+                    confidence = 74.00
+                    main_reason = (
+                        f"💎 Oportunidade de Valor (Value Bet): Cotação de mercado aberta para o visitante {away_team} ({float(odd_away):.2f}) "
+                        f"contrastando com indicadores favoráveis ao mandante {home_team} (ΔG {delta_goals:+.2f} gols). "
+                        f"Entrada segura em Dupla Chance com {suggestion}.{note_str}"
+                    )
             else:
-                # Conflito severo de xG vs Menor Odd do Visitante -> ABSTENÇÃO POR SEGURANÇA
+                # Conflito severo de xG vs Menor Odd do Visitante (quando visitante tem odd < 1.90, alto favoritismo de mercado) -> ABSTENÇÃO POR SEGURANÇA
                 suggestion = "Sem Entrada (Abstenção)"
                 confidence = 50.00
-                main_reason = f"🚫 APOSTA BLOQUEADA: Divergência Crítica entre as Odds de Mercado (favoritismo do visitante {away_team}) e a estatística bruta de xG. Abstenção ativada para proteger a banca.{note_str}"
+                main_reason = f"🚫 APOSTA BLOQUEADA: Divergência Crítica entre as Odds de Mercado (alto favoritismo do visitante {away_team} @ {float(odd_away):.2f}) e a estatística bruta de xG. Abstenção ativada para proteger a banca.{note_str}"
         else:
             # Caso neutro ou odds idênticas
             if delta_goals >= 0.25:
@@ -1040,9 +1249,47 @@ def calculate_asian_handicap_suggestion(
                 confidence = 70.00
                 main_reason = f"Confronto equilibrado com ligeira vantagem para o visitante {away_team}.{note_str}"
             else:
-                suggestion = f"{home_team} 0.0 (Empate Anula)"
+                suggestion = f"{home_team} +0.25 AH"
                 confidence = 68.00
-                main_reason = f"Confronto de alto equilíbrio técnico. Indicação conservadora com reembolso total no empate.{note_str}"
+                main_reason = f"Confronto de alto equilíbrio técnico. Indicação conservadora com cobertura de meia estaca em casa (+0.25 AH).{note_str}"
+
+    # TRAVA DE SEGURANÇA DE COPAS ELIMINATÓRIAS (Cup Tournament Guard):
+    # Em torneios de Copa Mata-Mata, bloqueia entradas de Handicap Negativo no visitante favorito para evitar riscos de time reserva
+    if is_cup:
+        if is_market_away_fav and away_team.lower() in suggestion.lower() and ("-" in suggestion or "0.5" in suggestion or "0.25" in suggestion or "1.0" in suggestion):
+            suggestion = "Sem Entrada (Abstenção)"
+            confidence = 50.00
+            main_reason = (
+                f"🏆 ALERTA DE COPA: Entrada de Handicap no favorito visitante {away_team} BLOQUEADA pelo Gatekeeper ({league_name or 'Copa Mata-Mata'}). "
+                f"Risco elevado de rodízio de elenco (time reserva/misto) e imprevisibilidade em confronto de mata-mata contra o {home_team}."
+            )
+        elif is_market_home_fav and home_team.lower() in suggestion.lower() and ("-1.0" in suggestion or "-0.75" in suggestion):
+            suggestion = f"{home_team} 0.0 (Empate Anula)"
+            confidence = 68.00
+            main_reason = (
+                f"🏆 ALERTA DE COPA: Favoritismo do mandante {home_team} em partida eliminatória ({league_name or 'Copa Mata-Mata'}). "
+                f"Linha de Handicap ajustada para 0.0 (Empate Anula) para proteger contra rodízio e zebras de mata-mata."
+            )
+
+    # TRAVA CONSERVADORA DE INÍCIO DE TEMPORADA (Early Season Guard):
+    # Em início de temporada (primeiras rodadas / meses iniciais de calendário europeu Ago/Set ou sul-americano Jan/Fev/Mar),
+    # ajusta conservadoramente QUALQUER linha de handicap negativo (mandante ou visitante) para -0.25 AH (meia estaca / meia perda no empate).
+    is_early_season = is_early_season_game(league_name)
+    if is_early_season and not is_cup:
+        if is_market_away_fav and away_team.lower() in suggestion.lower() and ("-0.5" in suggestion or "-0.75" in suggestion or "-1.0" in suggestion):
+            suggestion = f"{away_team} -0.25 AH"
+            confidence = round(min(76.0, confidence), 2)
+            main_reason = (
+                f"🌱 INÍCIO DE TEMPORADA: Linha de Handicap no visitante favorito {away_team} ajustada conservadoramente para -0.25 AH ({league_name or 'Liga'}). "
+                f"Proteção de meia estaca (meio-loss no empate) ativada devido à amostragem reduzida nas primeiras rodadas do campeonato."
+            )
+        elif is_market_home_fav and home_team.lower() in suggestion.lower() and ("-0.5" in suggestion or "-0.75" in suggestion or "-1.0" in suggestion):
+            suggestion = f"{home_team} -0.25 AH"
+            confidence = round(min(76.0, confidence), 2)
+            main_reason = (
+                f"🌱 INÍCIO DE TEMPORADA: Linha de Handicap no mandante favorito {home_team} ajustada conservadoramente para -0.25 AH ({league_name or 'Liga'}). "
+                f"Proteção de meia estaca (meio-loss no empate) ativada devido à amostragem reduzida nas primeiras rodadas do campeonato."
+            )
 
     # Cálculo das Probabilidades 1X2 (%) Plataforma (Modelo Poisson) vs Casa de Apostas (Odds)
     import math
@@ -1092,12 +1339,104 @@ def calculate_asian_handicap_suggestion(
         home_in_crisis, away_in_crisis,
         odd_home=odd_home, odd_away=odd_away,
         home_rank=home_rank, away_rank=away_rank, home_ppg=home_ppg, away_ppg=away_ppg, standings_motivation=standings_motivation,
-        home_zone=home_zone, away_zone=away_zone
+        home_zone=home_zone, away_zone=away_zone,
+        league_name=league_name
     )
     u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
 
     full_reasoning = f"{main_reason} || EXPLICACAO: {nl_explanation} || MOTIVACAO: {nl_motivation} || MEMÓRIA DE CÁLCULO || {calc_memory} || PROBABILIDADES_1X2: {prob_1x2_json} || U5J_DATA: {u5j_json}"
-    return suggestion, confidence, full_reasoning
+    return suggestion, confidence, full_reasoning, round(lambda_home, 2), round(lambda_away, 2)
+
+def is_abstain_suggestion(sug):
+    if not sug:
+        return True
+    sug_low = str(sug).lower()
+    return any(term in sug_low for term in ['sem entrada', 'abstenção', 'abstencao', 'no_bet', 'bloqueada', 'indisponível', 'indisponivel'])
+
+def cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fixture_id, motivo):
+    """
+    Quando uma partida possui ah_suggestion classificada como abstenção (Sem Entrada, Abstenção, NO_BET, Bloqueada),
+    procura apostas pendentes no mercado Handicap Asiático para o fixture_id.
+    Altera o status para 'Cancelada' e, se a aposta tiver débito em conta corrente (DEBITO_APOSTA),
+    realiza o estorno financeiro automático (ESTORNO_APOSTA) atualizando o saldo do usuário.
+    """
+    try:
+        cursor.execute("""
+            SELECT a.id, a.usuario_id, a.time_casa, a.time_fora, a.mercado, a.palpite, a.odd,
+                   a.valor_aposta, a.confirmada, a.data_hora_jogo, a.status,
+                   (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
+            FROM apostas a
+            WHERE a.fixture_id = %s 
+              AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
+              AND a.status = 'Pendente'
+              AND (a.confirmada IS NULL OR a.confirmada = 0)
+        """, (fixture_id,))
+        apostas_pendentes = cursor.fetchall()
+        if not apostas_pendentes:
+            return
+
+        for aposta in apostas_pendentes:
+            aposta_id = aposta['id']
+            usuario_id = aposta['usuario_id']
+            valor = float(aposta['valor_aposta'] or 0.0)
+
+            # Checagem de segurança: Aposta confirmada pelo usuário jamais é cancelada automaticamente pela DAG
+            is_confirmada = (int(aposta.get('confirmada') or 0) == 1) or (int(aposta.get('tem_debito') or 0) > 0)
+            if is_confirmada:
+                print(f"🔒 [Ingest Trends - Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Cancelamento automático ignorado.")
+                continue
+
+            cursor.execute("""
+                UPDATE apostas 
+                SET status = 'Cancelada', 
+                    resultado_detalhado = %s, 
+                    updated_at = NOW() 
+                WHERE id = %s
+            """, (f"🚫 APOSTA CANCELADA POR ABSTENÇÃO DA IA: {str(motivo)[:200]}", aposta_id))
+
+            # Verificar se houve débito em conta corrente
+            cursor.execute("""
+                SELECT id, valor FROM conta_corrente 
+                WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'DEBITO_APOSTA'
+                LIMIT 1
+            """, (usuario_id, aposta_id))
+            debito = cursor.fetchone()
+
+            if debito:
+                cursor.execute("""
+                    SELECT id FROM conta_corrente 
+                    WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'ESTORNO_APOSTA'
+                    LIMIT 1
+                """, (usuario_id, aposta_id))
+                estorno_existente = cursor.fetchone()
+
+                if not estorno_existente:
+                    cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (usuario_id,))
+                    user_row = cursor.fetchone()
+                    saldo_anterior = float(user_row['saldo_conta_corrente'] or 0.0) if user_row else 0.0
+                    saldo_posterior = round(saldo_anterior + valor, 2)
+
+                    desc_estorno = f"Estorno Aposta #{aposta_id} - Abstenção IA ({aposta['time_casa']} vs {aposta['time_fora']})"
+
+                    cursor.execute("""
+                        INSERT INTO conta_corrente (
+                            usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
+                        ) VALUES (
+                            %s, %s, 'ESTORNO_APOSTA', %s, %s, %s, %s, NOW()
+                        )
+                    """, (usuario_id, aposta_id, desc_estorno, valor, saldo_anterior, saldo_posterior))
+
+                    cursor.execute("""
+                        UPDATE usuario 
+                        SET saldo_conta_corrente = %s 
+                        WHERE id = %s
+                    """, (saldo_posterior, usuario_id))
+
+                    print(f"💰 [Ingest Trends - Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | R$ {valor:.2f} estornado (Novo Saldo: R$ {saldo_posterior:.2f})")
+            print(f"🛡️ [Ingest Trends - Aposta AH Cancelada] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} -> Motivo: {motivo}")
+    except Exception as e_canc:
+        print(f"Aviso ao cancelar/estornar aposta em abstenção para fixture {fixture_id}: {e_canc}")
+
 
 
 
@@ -1138,60 +1477,147 @@ def get_mysql_connection():
 
 def sync_pending_past_fixtures(conn, headers):
     """
-    Sincroniza automaticamente resultados de partidas encerradas ou passadas que continuam sem placar/status no banco.
+    Sincroniza automaticamente resultados (status/placar) e estatísticas de cartões/escanteios
+    de partidas encerradas nos últimos 7 dias que continuam pendentes no banco.
     """
     cursor = conn.cursor()
     try:
+        # 1. Sincroniza status e placar de gols para partidas pendentes nos últimos 7 dias
         cursor.execute("""
             SELECT fixture_id, fixture_date, home_team, away_team, status
             FROM fixtures_trends
             WHERE fixture_date <= UTC_TIMESTAMP() 
+              AND fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)
               AND (
-                status NOT IN ('FT', 'AET', 'PEN', 'PST', 'CANC') 
+                status NOT IN ('FT', 'AET', 'PEN', 'PST', 'CANC', 'POSTPONED') 
                 OR goals_home IS NULL 
-                OR (yellow_cards_home IS NULL AND fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR))
+                OR score_processed_at IS NULL
               )
             ORDER BY fixture_date DESC
             LIMIT 100
         """)
         pending = cursor.fetchall()
-        if not pending:
-            return
+        if pending:
+            print(f"\n🔄 Sincronizando placares de {len(pending)} partidas encerradas pendentes no banco...")
+            dates_to_sync = set(p['fixture_date'].strftime('%Y-%m-%d') for p in pending if p.get('fixture_date'))
+            updated_count = 0
+            
+            for d in sorted(list(dates_to_sync)):
+                url = f"https://v3.football.api-sports.io/fixtures?date={d}"
+                try:
+                    resp = requests.get(url, headers=headers, timeout=20).json()
+                    fixtures_api = {f['fixture']['id']: f for f in resp.get('response', [])}
+                    
+                    for p in pending:
+                        fid = p['fixture_id']
+                        if fid in fixtures_api:
+                            f_data = fixtures_api[fid]
+                            status = f_data['fixture']['status']['short']
+                            gh = f_data['goals']['home']
+                            ga = f_data['goals']['away']
+                            elapsed = f_data['fixture']['status']['elapsed']
+                            
+                            cursor.execute("""
+                                UPDATE fixtures_trends
+                                SET status = %s,
+                                    goals_home = %s,
+                                    goals_away = %s,
+                                    elapsed = %s,
+                                    score_processed_at = IF(%s IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND %s IS NOT NULL AND %s IS NOT NULL, COALESCE(score_processed_at, NOW()), score_processed_at),
+                                    updated_at = NOW()
+                                WHERE fixture_id = %s
+                            """, (status, gh, ga, elapsed, status, gh, ga, fid))
+                            updated_count += 1
+                except Exception as e_date:
+                    print(f"Aviso ao sincronizar partidas passadas da data {d}: {e_date}")
 
-        print(f"\n🔄 Sincronizando resultados de {len(pending)} partidas encerradas pendentes no banco...")
-        dates_to_sync = set(p['fixture_date'].strftime('%Y-%m-%d') for p in pending if p.get('fixture_date'))
-        updated_count = 0
-        
-        for d in sorted(list(dates_to_sync)):
-            url = f"https://v3.football.api-sports.io/fixtures?date={d}"
-            try:
-                resp = requests.get(url, headers=headers, timeout=20).json()
-                fixtures_api = {f['fixture']['id']: f for f in resp.get('response', [])}
-                
-                for p in pending:
-                    fid = p['fixture_id']
-                    if fid in fixtures_api:
-                        f_data = fixtures_api[fid]
-                        status = f_data['fixture']['status']['short']
-                        gh = f_data['goals']['home']
-                        ga = f_data['goals']['away']
-                        elapsed = f_data['fixture']['status']['elapsed']
+            conn.commit()
+            print(f"✅ Sincronizadas {updated_count} partidas passadas (status/placar) no banco com sucesso!")
+
+        # 2. Sincroniza estatísticas de cartões e escanteios para partidas FT dos últimos 7 dias com cartões NULL
+        cursor.execute("""
+            SELECT fixture_id, home_team_id, away_team_id, home_team, away_team
+            FROM fixtures_trends
+            WHERE fixture_date <= UTC_TIMESTAMP()
+              AND fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)
+              AND status IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED')
+              AND (yellow_cards_home IS NULL OR yellow_cards_away IS NULL)
+            ORDER BY fixture_date DESC
+            LIMIT 40
+        """)
+        pending_stats = cursor.fetchall()
+        if pending_stats:
+            print(f"\n🟨 Sincronizando estatísticas de cartões/escanteios de {len(pending_stats)} partidas finalizadas...")
+            stats_synced = 0
+            for ps in pending_stats:
+                fid = ps['fixture_id']
+                h_id = ps['home_team_id']
+                a_id = ps['away_team_id']
+                try:
+                    stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fid}"
+                    st_res = requests.get(stats_url, headers=headers, timeout=12)
+                    if st_res.status_code == 200:
+                        st_json = st_res.json()
+                        st_errs = st_json.get("errors")
+                        if st_errs and isinstance(st_errs, dict) and ('rateLimit' in st_errs or 'requests' in st_errs):
+                            print(f"[API-Sports Stats] Limite de requisições atingido durante sync de cartões passados.")
+                            break
+                        
+                        st_data = st_json.get("response", [])
+                        yc_h, yc_a = 0, 0
+                        rc_h, rc_a = 0, 0
+                        ck_h, ck_a = 0, 0
+                        
+                        if st_data:
+                            for team_st in st_data:
+                                tid = team_st.get("team", {}).get("id")
+                                is_home = (tid == h_id)
+                                s_list = team_st.get("statistics", [])
+                                yc, rc, ck = 0, 0, 0
+                                for s in s_list:
+                                    st_type = (s.get("type") or "").strip()
+                                    st_val = s.get("value")
+                                    if st_type == "Yellow Cards" and st_val is not None:
+                                        yc = int(st_val)
+                                    elif st_type == "Red Cards" and st_val is not None:
+                                        rc = int(st_val)
+                                    elif st_type == "Corner Kicks" and st_val is not None:
+                                        ck = int(st_val)
+                                
+                                if is_home:
+                                    yc_h, rc_h, ck_h = yc, rc, ck
+                                else:
+                                    yc_a, rc_a, ck_a = yc, rc, ck
+                                    
+                                if tid:
+                                    cursor.execute("""
+                                        INSERT INTO match_statistics_cache (fixture_id, team_id, corners, yellow_cards, red_cards)
+                                        VALUES (%s, %s, %s, %s, %s)
+                                        ON DUPLICATE KEY UPDATE 
+                                            corners = VALUES(corners),
+                                            yellow_cards = VALUES(yellow_cards),
+                                            red_cards = VALUES(red_cards)
+                                    """, (fid, tid, ck, yc, rc))
                         
                         cursor.execute("""
                             UPDATE fixtures_trends
-                            SET status = %s,
-                                goals_home = %s,
-                                goals_away = %s,
-                                elapsed = %s,
+                            SET yellow_cards_home = %s,
+                                yellow_cards_away = %s,
+                                red_cards_home = %s,
+                                red_cards_away = %s,
+                                corners_home = %s,
+                                corners_away = %s,
                                 updated_at = NOW()
                             WHERE fixture_id = %s
-                        """, (status, gh, ga, elapsed, fid))
-                        updated_count += 1
-            except Exception as e_date:
-                print(f"Aviso ao sincronizar partidas passadas da data {d}: {e_date}")
+                        """, (yc_h, yc_a, rc_h, rc_a, ck_h, ck_a, fid))
+                        stats_synced += 1
+                        time.sleep(0.3)
+                except Exception as ex_st:
+                    print(f"Aviso ao coletar cartões da fixture #{fid}: {ex_st}")
 
-        conn.commit()
-        print(f"✅ Sincronizadas {updated_count} partidas passadas no banco com sucesso!")
+            conn.commit()
+            print(f"✅ Sincronizados cartões/escanteios de {stats_synced} partidas com sucesso!")
+
     except Exception as e:
         print(f"Aviso na sincronização de partidas passadas: {e}")
     finally:
@@ -1318,6 +1744,7 @@ def count_real_fixtures_in_db(conn, target_date):
         return 0
 
 def main():
+    global _api_sports_rate_limited, _api_sports_odds_rate_limited
     is_live_mode = (len(sys.argv) > 1 and sys.argv[1] == '--live')
     
     # Obtém data para busca em BRT (default hoje)
@@ -1510,6 +1937,45 @@ def main():
 
     print(f"Processando {len(filtered_fixtures)} partidas...")
     
+    # Pre-insere/upsert dos metadados básicos das partidas para permitir enriquecimento inicial de Odds
+    for f in filtered_fixtures:
+        f_id = f.get("fixture", {}).get("id")
+        f_date_raw = f.get("fixture", {}).get("date", "")
+        f_date = f_date_raw.split('+')[0].replace('T', ' ') if f_date_raw else None
+        l_id = f.get("league", {}).get("id")
+        l_name = f.get("league", {}).get("name")
+        h_team = f.get("teams", {}).get("home", {}).get("name")
+        a_team = f.get("teams", {}).get("away", {}).get("name")
+        h_team_id = f.get("teams", {}).get("home", {}).get("id")
+        a_team_id = f.get("teams", {}).get("away", {}).get("id")
+        st_short = f.get("fixture", {}).get("status", {}).get("short", "NS")
+        if f_id and f_date:
+            try:
+                cursor.execute("""
+                    INSERT INTO fixtures_trends (
+                        fixture_id, fixture_date, league_id, league_name, home_team, away_team,
+                        home_team_id, away_team_id, status
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        fixture_date = VALUES(fixture_date),
+                        league_id = VALUES(league_id),
+                        league_name = VALUES(league_name),
+                        home_team = VALUES(home_team),
+                        away_team = VALUES(away_team),
+                        home_team_id = VALUES(home_team_id),
+                        away_team_id = VALUES(away_team_id),
+                        status = VALUES(status);
+                """, (f_id, f_date, l_id, l_name, h_team, a_team, h_team_id, a_team_id, st_short))
+            except Exception:
+                pass
+    conn.commit()
+
+    # Enriquecimento inicial de Odds ANTES do processamento de estatísticas pesadas por partida
+    try:
+        update_oddspedia_odds(conn)
+    except Exception as e_op_init:
+        print(f"Aviso no enriquecimento inicial de odds: {e_op_init}")
+
     inserted_referees = 0
     inserted_fixtures = 0
     
@@ -1639,7 +2105,7 @@ def main():
                 if not cards_list and v_type:
                     return get_team_cards_from_db_history(cur_db, t_name, None, t_id, found_l_id, limit)
 
-                if cards_list and sum(cards_list) > 0:
+                if cards_list and len(cards_list) >= 1:
                     return round(sum(cards_list) / len(cards_list), 2)
 
                 return 0.00
@@ -1648,7 +2114,7 @@ def main():
                 res_stats = None
                 if t_id:
                     cur_db.execute("""
-                        SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards
+                        SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards, matches_count
                         FROM team_moving_averages
                         WHERE team_id = %s AND venue_type = %s
                     """, (t_id, v_type))
@@ -1659,11 +2125,12 @@ def main():
                             "avg_goals_conceded": float(r_db["avg_goals_conceded"]),
                             "clean_sheets_pct": float(r_db["clean_sheets_pct"]),
                             "avg_corners": float(r_db["avg_corners"]),
-                            "avg_cards": float(r_db["avg_cards"])
+                            "avg_cards": float(r_db["avg_cards"]),
+                            "matches_count": int(r_db.get("matches_count") or 0)
                         }
                 if not res_stats:
                     cur_db.execute("""
-                        SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards
+                        SELECT avg_goals_scored, avg_goals_conceded, clean_sheets_pct, avg_corners, avg_cards, matches_count
                         FROM team_moving_averages
                         WHERE LOWER(team_name) = LOWER(%s) AND venue_type = %s
                     """, (t_name, v_type))
@@ -1674,15 +2141,46 @@ def main():
                             "avg_goals_conceded": float(r_db["avg_goals_conceded"]),
                             "clean_sheets_pct": float(r_db["clean_sheets_pct"]),
                             "avg_corners": float(r_db["avg_corners"]),
-                            "avg_cards": float(r_db["avg_cards"])
+                            "avg_cards": float(r_db["avg_cards"]),
+                            "matches_count": int(r_db.get("matches_count") or 0)
                         }
                 if not res_stats:
                     res_stats = generate_deterministic_team_stats(t_name, v_type)
-
-                if res_stats.get("avg_cards", 0.0) <= 0.05:
-                    res_stats["avg_cards"] = get_team_cards_from_db_history(cur_db, t_name, v_type, t_id, l_id)
+                    res_stats["matches_count"] = 0
 
                 return res_stats
+
+            def count_team_historical_card_matches(cur_db, t_name, t_id):
+                t_id_num = t_id or 0
+                cnt_trends = 0
+                cnt_cache = 0
+                try:
+                    cur_db.execute("""
+                        SELECT COUNT(DISTINCT fixture_id) as total
+                        FROM fixtures_trends
+                        WHERE status = 'FT'
+                          AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0) + COALESCE(red_cards_home, 0) + COALESCE(red_cards_away, 0)) > 0
+                          AND (
+                            (%s > 0 AND (home_team_id = %s OR away_team_id = %s))
+                            OR (LOWER(home_team) = LOWER(%s) OR LOWER(away_team) = LOWER(%s))
+                          )
+                    """, (t_id_num, t_id_num, t_id_num, t_name, t_name))
+                    r = cur_db.fetchone()
+                    if r:
+                        cnt_trends = int(r.get('total') or 0)
+                except Exception:
+                    pass
+
+                try:
+                    if t_id_num > 0:
+                        cur_db.execute("SELECT COUNT(DISTINCT fixture_id) as total FROM match_statistics_cache WHERE team_id = %s AND (yellow_cards > 0 OR red_cards > 0 OR corners > 0)", (t_id_num,))
+                        rc = cur_db.fetchone()
+                        if rc:
+                            cnt_cache = int(rc.get('total') or 0)
+                except Exception:
+                    pass
+
+                return max(cnt_trends, cnt_cache)
 
             home_c_stats = get_real_team_stats_from_db(cursor, home_team, home_team_id, 'home', league_id)
             away_c_stats = get_real_team_stats_from_db(cursor, away_team, away_team_id, 'away', league_id)
@@ -1735,8 +2233,21 @@ def main():
             home_wins = home_last5.get("v", 0)
             away_wins = away_last5.get("v", 0)
 
-            # Cálculo do Handicap Asiático (xG / Mando Casa-Fora / Odds Mercado / Últimos 5 Jogos / Clean Sheets / Streak)
-            ah_suggestion, ah_confidence, ah_reasoning = calculate_asian_handicap_suggestion(
+            # Busca odds existentes no banco para a partida
+            cur_odd_home, cur_odd_draw, cur_odd_away = None, None, None
+            try:
+                cursor.execute("SELECT odd_home, odd_draw, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fix_id,))
+                row_odds = cursor.fetchone()
+                if row_odds:
+                    cur_odd_home = row_odds.get('odd_home')
+                    cur_odd_draw = row_odds.get('odd_draw')
+                    cur_odd_away = row_odds.get('odd_away')
+            except Exception:
+                pass
+
+            # Cálculo do Handicap Asiático (xG / Mando Casa-Fora / Odds Mercado / Últimos 5 Jogos / Clean Sheets / Streak / Copa Guard)
+            l_name = f.get("league", {}).get("name", "")
+            res_ah = calculate_asian_handicap_suggestion(
                 home_c_stats["avg_goals_scored"], home_c_stats["avg_goals_conceded"],
                 away_c_stats["avg_goals_scored"], away_c_stats["avg_goals_conceded"],
                 home_team, away_team,
@@ -1748,10 +2259,12 @@ def main():
                 away_recent_wins=away_wins,
                 home_last5=home_last5,
                 away_last5=away_last5,
-                odd_home=f.get("odd_home"),
-                odd_draw=f.get("odd_draw"),
-                odd_away=f.get("odd_away")
+                odd_home=cur_odd_home,
+                odd_draw=cur_odd_draw,
+                odd_away=cur_odd_away,
+                league_name=l_name
             )
+            ah_suggestion, ah_confidence, ah_reasoning = res_ah[0], res_ah[1], res_ah[2]
 
             if referee_raw and referee_raw.strip():
                 # Trata "Anderson Daronco, Brazil" -> "Anderson Daronco"
@@ -1787,15 +2300,22 @@ def main():
             yellows = float(ref_data["average_yellow_cards"])
             ref_fouls = float(ref_data.get("average_fouls", 24.0))
             
-            # TRAVA DE SEGURANÇA CONTRA DADOS DE CARTÕES INDISPONÍVEIS / NULOS OU AMOSTRA INSUFICIENTE
-            has_insufficient_cards = (
-                home_c_stats.get("avg_cards", 0.0) <= 0.05 or
-                away_c_stats.get("avg_cards", 0.0) <= 0.05 or
-                (home_c_stats.get("avg_cards", 0.0) <= 1.0 and float(home_c_stats.get("avg_goals_scored", 0.0)) == 0.0) or
-                (away_c_stats.get("avg_cards", 0.0) <= 1.0 and float(away_c_stats.get("avg_goals_scored", 0.0)) == 0.0)
-            )
-            if has_insufficient_cards:
-                prediction_text = "🚫 NO_BET: Dados de cartões indisponíveis ou amostragem histórica insuficiente para análise estatística segura dos times."
+            # Amostragem histórica de partidas com dados estatísticos de cartões
+            home_sample = max(count_team_historical_card_matches(cursor, home_team, home_team_id), home_c_stats.get("matches_count", 0))
+            away_sample = max(count_team_historical_card_matches(cursor, away_team, away_team_id), away_c_stats.get("matches_count", 0))
+
+            # TRAVA DE SEGURANÇA: Início de campeonato ou amostragem inferior a 5 jogos por equipe
+            if home_sample < 5 or away_sample < 5:
+                if home_sample < 5 and away_sample < 5:
+                    insuf_desc = f"{home_team} ({home_sample}J) e {away_team} ({away_sample}J)"
+                elif home_sample < 5:
+                    insuf_desc = f"{home_team} ({home_sample}J)"
+                else:
+                    insuf_desc = f"{away_team} ({away_sample}J)"
+
+                prediction_text = f"🚫 NO_BET: Início de campeonato ou amostragem insuficiente (< 5 jogos com dados para {insuf_desc}). Entrada bloqueada pelo Gatekeeper por segurança."
+            elif (home_c_stats.get("avg_cards", 0.0) <= 0.01 and away_c_stats.get("avg_cards", 0.0) <= 0.01):
+                prediction_text = "🚫 NO_BET: Dados de cartões zerados ou indisponíveis para as equipes. Entrada bloqueada pelo Gatekeeper por segurança."
             else:
                 # Aplica multiplicador regional à média combinada das equipes
                 team_cards_combined_adj = team_cards_combined * league_mult
@@ -1808,6 +2328,7 @@ def main():
                 
                 # Probabilidades de Under via Distribuição de Poisson Ajustada com Sobredispersão (phi)
                 under_probs = calculate_poisson_under_lines(exp_cards, phi=phi_league)
+                u25 = under_probs.get(2.5, 0.0)
                 u35 = under_probs[3.5]
                 u45 = under_probs[4.5]
                 u55 = under_probs[5.5]
@@ -1816,6 +2337,7 @@ def main():
                 u85 = under_probs[8.5]
                 
                 # Probabilidades de Over (Complemento de Under)
+                o25 = round(100.0 - u25, 2)
                 o35 = round(100.0 - u35, 2)
                 o45 = round(100.0 - u45, 2)
                 o55 = round(100.0 - u55, 2)
@@ -1829,6 +2351,7 @@ def main():
                 odd_u75 = round(100.0 / u75, 2) if u75 > 0 else 99.00
                 odd_u85 = round(100.0 / u85, 2) if u85 > 0 else 99.00
 
+                odd_o25 = round(100.0 / o25, 2) if o25 > 0 else 99.00
                 odd_o35 = round(100.0 / o35, 2) if o35 > 0 else 99.00
                 odd_o45 = round(100.0 / o45, 2) if o45 > 0 else 99.00
                 odd_o55 = round(100.0 / o55, 2) if o55 > 0 else 99.00
@@ -1837,8 +2360,9 @@ def main():
                 # SELEÇÃO BIDIRECIONAL PROBABILÍSTICA (TOP OVER & TOP UNDER >= 60%)
                 valid_options = []
                 
-                # Candidatos de Over
+                # Candidatos de Over (Linhas Betano)
                 over_candidates = [
+                    ("Over 2.5", o25, odd_o25),
                     ("Over 3.5", o35, odd_o35),
                     ("Over 4.5", o45, odd_o45),
                     ("Over 5.5", o55, odd_o55),
@@ -1907,7 +2431,17 @@ def main():
                 home_u_probs = calculate_team_poisson_under_lines(xc_home)
                 away_u_probs = calculate_team_poisson_under_lines(xc_away)
 
-                if xc_home <= 0.95 and home_u_probs[1.5] >= 60.0:
+                home_o15 = round(100.0 - home_u_probs[1.5], 2)
+                home_o25 = round(100.0 - home_u_probs[2.5], 2)
+                away_o15 = round(100.0 - away_u_probs[1.5], 2)
+                away_o25 = round(100.0 - away_u_probs[2.5], 2)
+
+                if xc_home >= 2.20 and home_o15 >= 60.0:
+                    if home_o25 >= 60.0:
+                        h_rec = f"Mandante Over 2.5 ({home_o25}% | xC: {xc_home})"
+                    else:
+                        h_rec = f"Mandante Over 1.5 ({home_o15}% | xC: {xc_home})"
+                elif xc_home <= 0.95 and home_u_probs[1.5] >= 60.0:
                     h_rec = f"Mandante Under 1.5 ({home_u_probs[1.5]}% | xC: {xc_home})"
                 elif xc_home <= 1.85 and home_u_probs[2.5] >= 60.0:
                     h_rec = f"Mandante Under 2.5 ({home_u_probs[2.5]}% | xC: {xc_home})"
@@ -1916,7 +2450,12 @@ def main():
                 else:
                     h_rec = f"Mandante Risco Elevado (xC: {xc_home})"
 
-                if xc_away <= 0.95 and away_u_probs[1.5] >= 60.0:
+                if xc_away >= 2.20 and away_o15 >= 60.0:
+                    if away_o25 >= 60.0:
+                        a_rec = f"Visitante Over 2.5 ({away_o25}% | xC: {xc_away})"
+                    else:
+                        a_rec = f"Visitante Over 1.5 ({away_o15}% | xC: {xc_away})"
+                elif xc_away <= 0.95 and away_u_probs[1.5] >= 60.0:
                     a_rec = f"Visitante Under 1.5 ({away_u_probs[1.5]}% | xC: {xc_away})"
                 elif xc_away <= 1.85 and away_u_probs[2.5] >= 60.0:
                     a_rec = f"Visitante Under 2.5 ({away_u_probs[2.5]}% | xC: {xc_away})"
@@ -2000,122 +2539,134 @@ def main():
             if status not in ['NS', 'PST', 'CANCELLED', 'POSTPONED']:
                 # Se a partida já estiver encerrada e possuir estatísticas de cartões salvas no banco local, pula requisições de API para economizar cota
                 has_cached_stats = (fix_id in cached_ft_stats)
-                if not has_cached_stats:
+                if not has_cached_stats and not _api_sports_rate_limited:
                     # 1. Busca estatísticas oficiais da partida (escanteios, chutes no gol, xG, cartões)
                     try:
                         stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fix_id}"
                         st_res = requests.get(stats_url, headers=headers, timeout=10)
                         if st_res.status_code == 200:
-                            st_data = st_res.json().get("response", [])
-                            for team_st in st_data:
-                                t_id = team_st.get("team", {}).get("id")
-                                is_home = (t_id == home_team_id)
-                                stats_list = team_st.get("statistics", [])
-                                ck, sg, s_total, xg_val = 0, 0, 0, 0.0
-                                yc, rc = None, None
-                                for s in stats_list:
-                                    s_type = (s.get("type") or "").strip()
-                                    s_val = s.get("value")
-                                    if s_type == "Corner Kicks" and s_val is not None:
-                                        ck = int(s_val)
-                                    elif s_type in ["Shots on Goal", "Shots on Target"] and s_val is not None:
-                                        sg = int(s_val)
-                                    elif s_type in ["Total Shots", "Shots"] and s_val is not None:
-                                        s_total = int(s_val)
-                                    elif s_type.lower().replace("_", " ").strip() in ["expected goals", "xg", "expectedgoals"] and s_val is not None:
-                                        try:
-                                            xg_val = float(s_val)
-                                        except (ValueError, TypeError):
-                                            xg_val = 0.0
-                                    elif s_type == "Yellow Cards" and s_val is not None:
-                                        yc = int(s_val)
-                                    elif s_type == "Red Cards" and s_val is not None:
-                                        rc = int(s_val)
+                            st_json = st_res.json()
+                            st_errs = st_json.get("errors")
+                            if st_errs and isinstance(st_errs, dict) and ('rateLimit' in st_errs or 'requests' in st_errs):
+                                print(f"[API-Sports Stats] Rate limit/cota ativou Circuit-Breaker para fixture #{fix_id}: {st_errs}")
+                                _api_sports_rate_limited = True
+                            else:
+                                st_data = st_json.get("response", [])
+                                for team_st in st_data:
+                                    t_id = team_st.get("team", {}).get("id")
+                                    is_home = (t_id == home_team_id)
+                                    stats_list = team_st.get("statistics", [])
+                                    ck, sg, s_total, xg_val = 0, 0, 0, 0.0
+                                    yc, rc = None, None
+                                    for s in stats_list:
+                                        s_type = (s.get("type") or "").strip()
+                                        s_val = s.get("value")
+                                        if s_type == "Corner Kicks" and s_val is not None:
+                                            ck = int(s_val)
+                                        elif s_type in ["Shots on Goal", "Shots on Target"] and s_val is not None:
+                                            sg = int(s_val)
+                                        elif s_type in ["Total Shots", "Shots"] and s_val is not None:
+                                            s_total = int(s_val)
+                                        elif s_type.lower().replace("_", " ").strip() in ["expected goals", "xg", "expectedgoals"] and s_val is not None:
+                                            try:
+                                                xg_val = float(s_val)
+                                            except (ValueError, TypeError):
+                                                xg_val = 0.0
+                                        elif s_type == "Yellow Cards" and s_val is not None:
+                                            yc = int(s_val)
+                                        elif s_type == "Red Cards" and s_val is not None:
+                                            rc = int(s_val)
 
-                                if sg == 0 and s_total > 0:
-                                    sg = s_total
+                                    if sg == 0 and s_total > 0:
+                                        sg = s_total
 
-                                # Fallback para cálculo de xG em tempo real quando o xG oficial (Opta) não é fornecido pela API-Sports nesta liga
-                                if xg_val == 0.0:
-                                    team_goals = int(goals_home if is_home else goals_away) if (goals_home is not None and goals_away is not None) else 0
-                                    shots_off = max(0, s_total - sg)
-                                    if sg > 0 or s_total > 0 or team_goals > 0:
-                                        calc_xg = round((sg * 0.32) + (shots_off * 0.08) + (team_goals * 0.15), 2)
-                                        if calc_xg == 0.0 and team_goals > 0:
-                                            calc_xg = round(team_goals * 0.75, 2)
-                                        xg_val = max(0.0, calc_xg)
+                                    # Fallback para cálculo de xG em tempo real quando o xG oficial (Opta) não é fornecido pela API-Sports nesta liga
+                                    if xg_val == 0.0:
+                                        team_goals = int(goals_home if is_home else goals_away) if (goals_home is not None and goals_away is not None) else 0
+                                        shots_off = max(0, s_total - sg)
+                                        if sg > 0 or s_total > 0 or team_goals > 0:
+                                            calc_xg = round((sg * 0.32) + (shots_off * 0.08) + (team_goals * 0.15), 2)
+                                            if calc_xg == 0.0 and team_goals > 0:
+                                                calc_xg = round(team_goals * 0.75, 2)
+                                            xg_val = max(0.0, calc_xg)
 
-                                if is_home:
-                                    corners_home = ck
-                                    shots_home = sg if sg > 0 else s_total
-                                    xg_home = xg_val
-                                    if yc is not None: yellow_cards_home = yc
-                                    if rc is not None: red_cards_home = rc
-                                else:
-                                    corners_away = ck
-                                    shots_away = sg if sg > 0 else s_total
-                                    xg_away = xg_val
-                                    if yc is not None: yellow_cards_away = yc
-                                    if rc is not None: red_cards_away = rc
+                                    if is_home:
+                                        corners_home = ck
+                                        shots_home = sg if sg > 0 else s_total
+                                        xg_home = xg_val
+                                        if yc is not None: yellow_cards_home = yc
+                                        if rc is not None: red_cards_home = rc
+                                    else:
+                                        corners_away = ck
+                                        shots_away = sg if sg > 0 else s_total
+                                        xg_away = xg_val
+                                        if yc is not None: yellow_cards_away = yc
+                                        if rc is not None: red_cards_away = rc
                     except Exception as e:
                         print(f"Aviso ao buscar estatísticas para partida {fix_id}: {e}")
 
                     # 2. Busca eventos oficiais da partida (cartões, gols, substituições)
-                    try:
-                        events_url = f"https://v3.football.api-sports.io/fixtures/events?fixture={fix_id}"
-                        ev_res = requests.get(events_url, headers=headers, timeout=10)
-                        goals_list = []
-                        last_ev_text = None
-                        if ev_res.status_code == 200:
-                            ev_data = ev_res.json().get("response", [])
-                            yh, ya, rh, ra = 0, 0, 0, 0
-                            card_count = 0
-                            sub_count = 0
-                            for ev in ev_data:
-                                team_id = ev.get("team", {}).get("id")
-                                is_home = (team_id == home_team_id)
-                                team_name_ev = home_team if is_home else away_team
-                                ev_type = ev.get("type")
-                                detail = ev.get("detail", "")
-                                time_info = ev.get("time", {})
-                                elapsed_min = time_info.get("elapsed", 0)
-                                extra_min = time_info.get("extra")
-                                time_str = f"{elapsed_min}+{extra_min}'" if extra_min else f"{elapsed_min}'"
-                                player_name = ev.get("player", {}).get("name", "")
-                                assist_name = ev.get("assist", {}).get("name", "")
+                    if not _api_sports_rate_limited:
+                        try:
+                            events_url = f"https://v3.football.api-sports.io/fixtures/events?fixture={fix_id}"
+                            ev_res = requests.get(events_url, headers=headers, timeout=10)
+                            goals_list = []
+                            last_ev_text = None
+                            if ev_res.status_code == 200:
+                                ev_json = ev_res.json()
+                                ev_errs = ev_json.get("errors")
+                                if ev_errs and isinstance(ev_errs, dict) and ('rateLimit' in ev_errs or 'requests' in ev_errs):
+                                    print(f"[API-Sports Events] Rate limit/cota ativou Circuit-Breaker para fixture #{fix_id}: {ev_errs}")
+                                    _api_sports_rate_limited = True
+                                else:
+                                    ev_data = ev_json.get("response", [])
+                                    yh, ya, rh, ra = 0, 0, 0, 0
+                                    card_count = 0
+                                    sub_count = 0
+                                    for ev in ev_data:
+                                        team_id = ev.get("team", {}).get("id")
+                                        is_home = (team_id == home_team_id)
+                                        team_name_ev = home_team if is_home else away_team
+                                        ev_type = ev.get("type")
+                                        detail = ev.get("detail", "")
+                                        time_info = ev.get("time", {})
+                                        elapsed_min = time_info.get("elapsed", 0)
+                                        extra_min = time_info.get("extra")
+                                        time_str = f"{elapsed_min}+{extra_min}'" if extra_min else f"{elapsed_min}'"
+                                        player_name = ev.get("player", {}).get("name", "")
+                                        assist_name = ev.get("assist", {}).get("name", "")
 
-                                if ev_type == "Card":
-                                    card_count += 1
-                                    if "Yellow" in detail:
-                                        if is_home: yh += 1
-                                        else: ya += 1
-                                        last_ev_text = f"{time_str} {card_count}º Cartão amarelo: {team_name_ev} ({player_name})"
-                                    elif "Red" in detail:
-                                        if is_home: rh += 1
-                                        else: ra += 1
-                                        last_ev_text = f"{time_str} Cartão vermelho: {team_name_ev} ({player_name})"
-                                elif ev_type == "Goal":
-                                    goals_list.append(f"{time_str} {player_name}".strip())
-                                    last_ev_text = f"{time_str} Gol: {team_name_ev} ({player_name})"
-                                elif ev_type in ["subst", "Subst", "Substitution"]:
-                                    sub_count += 1
-                                    if assist_name:
-                                        last_ev_text = f"{time_str} {sub_count}ª Substituição: {assist_name} (Entra), {player_name} (Sai)"
-                                    else:
-                                        last_ev_text = f"{time_str} {sub_count}ª Substituição: {team_name_ev} ({player_name})"
-                            
-                            yellow_cards_home = max(yellow_cards_home if yellow_cards_home is not None else 0, yh)
-                            yellow_cards_away = max(yellow_cards_away if yellow_cards_away is not None else 0, ya)
-                            red_cards_home = max(red_cards_home if red_cards_home is not None else 0, rh)
-                            red_cards_away = max(red_cards_away if red_cards_away is not None else 0, ra)
+                                        if ev_type == "Card":
+                                            card_count += 1
+                                            if "Yellow" in detail:
+                                                if is_home: yh += 1
+                                                else: ya += 1
+                                                last_ev_text = f"{time_str} {card_count}º Cartão amarelo: {team_name_ev} ({player_name})"
+                                            elif "Red" in detail:
+                                                if is_home: rh += 1
+                                                else: ra += 1
+                                                last_ev_text = f"{time_str} Cartão vermelho: {team_name_ev} ({player_name})"
+                                        elif ev_type == "Goal":
+                                            goals_list.append(f"{time_str} {player_name}".strip())
+                                            last_ev_text = f"{time_str} Gol: {team_name_ev} ({player_name})"
+                                        elif ev_type in ["subst", "Subst", "Substitution"]:
+                                            sub_count += 1
+                                            if assist_name:
+                                                last_ev_text = f"{time_str} {sub_count}ª Substituição: {assist_name} (Entra), {player_name} (Sai)"
+                                            else:
+                                                last_ev_text = f"{time_str} {sub_count}ª Substituição: {team_name_ev} ({player_name})"
+                                    
+                                    yellow_cards_home = max(yellow_cards_home if yellow_cards_home is not None else 0, yh)
+                                    yellow_cards_away = max(yellow_cards_away if yellow_cards_away is not None else 0, ya)
+                                    red_cards_home = max(red_cards_home if red_cards_home is not None else 0, rh)
+                                    red_cards_away = max(red_cards_away if red_cards_away is not None else 0, ra)
 
-                            if goals_list:
-                                goal_scorers_str = ", ".join(goals_list)
-                            if last_ev_text:
-                                last_event_str = last_ev_text
-
-                    except Exception as e:
-                        print(f"Aviso ao buscar cartões/eventos para partida {fix_id}: {e}")
+                                    if goals_list:
+                                        goal_scorers_str = ", ".join(goals_list)
+                                    if last_ev_text:
+                                        last_event_str = last_ev_text
+                        except Exception as e:
+                            print(f"Aviso ao buscar cartões/eventos para partida {fix_id}: {e}")
 
                 # Mantém None caso não haja dados de cartões retornados, permitindo gravação de NULL no banco de dados
                 pass
@@ -2143,6 +2694,7 @@ def main():
                             status = VALUES(status),
                             goals_home = COALESCE(VALUES(goals_home), goals_home),
                             goals_away = COALESCE(VALUES(goals_away), goals_away),
+                            score_processed_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND (VALUES(goals_home) IS NOT NULL OR goals_home IS NOT NULL) AND (VALUES(goals_away) IS NOT NULL OR goals_away IS NOT NULL), COALESCE(score_processed_at, NOW()), score_processed_at),
                             elapsed = COALESCE(VALUES(elapsed), elapsed),
                             yellow_cards_home = COALESCE(VALUES(yellow_cards_home), yellow_cards_home),
                             yellow_cards_away = COALESCE(VALUES(yellow_cards_away), yellow_cards_away),
@@ -2169,6 +2721,9 @@ def main():
                         goal_scorers_str, last_event_str, ah_suggestion, ah_confidence, ah_reasoning
                     ))
                     conn.commit()
+                    if is_abstain_suggestion(ah_suggestion):
+                        cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, ah_reasoning or ah_suggestion)
+                        conn.commit()
                     inserted_fixtures += 1
                     break
                 except pymysql.err.OperationalError as e_dl:
@@ -2206,8 +2761,13 @@ _api_sports_odds_cache = {}
 _api_sports_single_odds_cache = {}
 
 def fetch_single_api_sports_odds(fix_id):
-    if not fix_id:
+    """
+    Busca odds de uma partida específica via API-Sports (Pro Plan por fixture_id).
+    """
+    global _api_sports_rate_limited
+    if not fix_id or _api_sports_rate_limited:
         return {}
+
     if fix_id in _api_sports_single_odds_cache:
         return _api_sports_single_odds_cache[fix_id]
 
@@ -2221,6 +2781,13 @@ def fetch_single_api_sports_odds(fix_id):
     bms_dict = {}
     try:
         resp = requests.get(url, headers=headers, timeout=10).json()
+        errs = resp.get('errors')
+        if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+            print(f"[API-Sports Single Odds] Cota/Rate limit atingido para fixture #{fix_id}: {errs}. Ativando Circuit-Breaker.")
+            _api_sports_rate_limited = True
+            _api_sports_single_odds_cache[fix_id] = {}
+            return {}
+
         items = resp.get('response', [])
         for item in items:
             for bm in item.get('bookmakers', []):
@@ -2256,6 +2823,10 @@ def fetch_api_sports_odds_by_date(date_list=None):
     Retorna dicionário mapeado diretamente pelo fixture_id:
     { fixture_id: { 'BETANO': {'casa': 4.70, 'empate': 4.50, 'visitante': 1.70}, ... } }
     """
+    global _api_sports_odds_rate_limited
+    if _api_sports_odds_rate_limited:
+        return {}
+
     if date_list is None:
         today = datetime.now().strftime('%Y-%m-%d')
         tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -2271,6 +2842,8 @@ def fetch_api_sports_odds_by_date(date_list=None):
     odds_by_fixture = {}
 
     for d in date_list:
+        if _api_sports_odds_rate_limited:
+            break
         if d in _api_sports_odds_cache:
             for fid, bms in _api_sports_odds_cache[d].items():
                 if fid not in odds_by_fixture:
@@ -2289,6 +2862,7 @@ def fetch_api_sports_odds_by_date(date_list=None):
                 errs = resp.get('errors')
                 if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
                     print(f"[API-Sports Odds] Limite de requisições por minuto atingido: {errs}. Aguardando 1s...")
+                    _api_sports_odds_rate_limited = True
                     time.sleep(1.0)
                     break
 
@@ -2313,8 +2887,12 @@ def fetch_api_sports_odds_by_date(date_list=None):
                         # Procura a aposta 1X2 / Match Winner (id=1)
                         for bet in bm.get('bets', []):
                             bet_id = bet.get('id')
-                            bet_name = str(bet.get('name', '')).lower()
-                            if bet_id == 1 or 'match winner' in bet_name or '1x2' in bet_name:
+                            bet_name = str(bet.get('name', '')).lower().strip()
+                            is_match_winner_bet = (bet_id == 1) or (
+                                ('match winner' in bet_name or bet_name == '1x2' or bet_name == 'fulltime result')
+                                and not any(kw in bet_name for kw in ['corner', 'card', 'half', 'minute', 'period', '1st', '2nd', '60', '30'])
+                            )
+                            if is_match_winner_bet:
                                 c_home, c_draw, c_away = 0.0, 0.0, 0.0
                                 for val in bet.get('values', []):
                                     v_name = str(val.get('value', '')).lower().strip()
@@ -2371,7 +2949,7 @@ def update_oddspedia_odds(conn):
         print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS MULTI-FONTE (API-SPORTS + FALLBACKS SEGUNDÁRIOS) ---")
         
         cursor = conn.cursor()
-        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
+        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id, fixture_date FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
         db_fixtures = cursor.fetchall()
         if not db_fixtures:
             print("ℹ️ Nenhuma partida recente encontrada no banco para enriquecimento de odds.")
@@ -2404,21 +2982,28 @@ def update_oddspedia_odds(conn):
         scraped_previews_f24 = []
         api_odds_matches = []
 
-        # 2. ACIONA WEB SCRAPING PESADO APENAS SE HOUVER PARTIDAS SEM ODDS NA API
-        if missing_count > 0 or not api_sports_odds:
-            print(f"⚠️ {missing_count} partidas sem odds na API-Sports. Acionando Web Scraping de Fallback...")
+        # 2. TRIANGULAÇÃO DE ODDS AO VIVO: Executa Web Scraping obrigatório se houver jogos acontecendo nas próximas 18h
+        # para capturar viradas de linha em tempo real (SuperOdds / movimentações do dia) ou se faltarem odds na API
+        has_near_fixtures = any(
+            isinstance(fix.get('fixture_date'), datetime) and abs((fix['fixture_date'] - datetime.now()).total_seconds()) <= 18 * 3600
+            for fix in db_fixtures
+        )
+        should_run_scraping = (missing_count > 0 or not api_sports_odds or has_near_fixtures or os.environ.get("FORCE_SCRAPING") == "1")
+
+        if should_run_scraping:
+            print(f"🕸️ Acionando Triangulação de Odds em Tempo Real (Oddspedia / Futbol24) para detectar SuperOdds e viradas de mercado...")
             
             # The Odds API desativada em favor da API-Sports oficial
             api_odds_matches = []
 
-            # Só executa web scraping se ainda faltarem odds para algumas partidas
             try:
-                print("🕸️ Acionando Fallback Web Scraping (Oddspedia / Futbol24)...")
+                print("🕸️ Acionando Scraping Oddspedia...")
                 scraped_matches_op = scrape_oddspedia_odds(leagues=None) or []
             except Exception as e_op:
                 print(f"Aviso ao consultar Oddspedia: {e_op}")
 
             try:
+                print("🕸️ Acionando Scraping Futbol24...")
                 scraped_matches_f24 = scrape_futbol24_odds(leagues=None) or []
             except Exception as e_f24:
                 print(f"Aviso ao consultar Futbol24: {e_f24}")
@@ -2428,7 +3013,7 @@ def update_oddspedia_odds(conn):
             except Exception as e_prev:
                 print(f"Aviso ao consultar Prévias Futbol24: {e_prev}")
         else:
-            print("⚡ Todas as partidas obtiveram Odds oficiais via API! Pulando Web Scraping pesado (Oddspedia/Futbol24) para alta performance.")
+            print("⚡ Todas as partidas são de longo prazo e já possuem Odds na API! Pulando Web Scraping pesado.")
         
         # Consolidação de partidas e odds secundárias (scraping/agregadoras)
         scraped_by_teams = {}
@@ -2515,77 +3100,112 @@ def update_oddspedia_odds(conn):
             b2, m2 = max(valid_c2.items(), key=lambda x: x[1])
             return b1, m1, bX, mX, b2, m2
 
+        def find_source_match_odds(matches_list, home_team, away_team):
+            if not matches_list:
+                return {}
+            db_h = normalize_team_name(home_team)
+            db_a = normalize_team_name(away_team)
+            for m in matches_list:
+                sh = normalize_team_name(m.get('time_casa', ''))
+                sa = normalize_team_name(m.get('time_visitante', ''))
+                if db_h == sh and db_a == sa:
+                    return m.get('odds', {})
+            for m in matches_list:
+                if _is_team_match(home_team, m.get('time_casa', '')) and _is_team_match(away_team, m.get('time_visitante', '')):
+                    return m.get('odds', {})
+            return {}
+
+        def triangulate_3_source_odds(api_bms: dict, op_bms: dict, f24_bms: dict, home_team: str, away_team: str) -> tuple:
+            """
+            Triangula as odds de até 3 fontes independentes:
+              1. API-Sports oficial por fixture_id (api_bms)
+              2. Web Scraping Oddspedia em tempo real (op_bms)
+              3. Web Scraping Futbol24 ao vivo (f24_bms)
+            Detecta e descarta fontes desatualizadas (divergência > 15% em relação às fontes ao vivo).
+            Aplica consenso por recorrência e hierarquia de casas oficiais (Betano/Bet365/Pinnacle).
+            """
+            sources = []
+            if api_bms:
+                sources.append(('API_SPORTS', api_bms))
+            if op_bms:
+                sources.append(('ODDSPEDIA', op_bms))
+            if f24_bms:
+                sources.append(('FUTBOL24', f24_bms))
+
+            if not sources:
+                return 0.0, "", 0.0, "", 0.0, ""
+
+            # Coletar valores das fontes ao vivo para checar se a API-Sports estática está obsoleta (stale)
+            live_c1 = []
+            for s_name, bms in [('ODDSPEDIA', op_bms), ('FUTBOL24', f24_bms)]:
+                for bm, o in (bms or {}).items():
+                    if float(o.get('casa', 0.0)) > 1.0:
+                        live_c1.append(float(o['casa']))
+
+            api_is_stale = False
+            if api_bms and live_c1:
+                api_c1_vals = [float(o['casa']) for o in api_bms.values() if float(o.get('casa', 0.0)) > 1.0]
+                if api_c1_vals:
+                    avg_api = sum(api_c1_vals) / len(api_c1_vals)
+                    avg_live = sum(live_c1) / len(live_c1)
+                    # Divergência > 15% entre API e Ao Vivo indica movimentação recente / SuperOdds
+                    if abs(avg_api - avg_live) / max(avg_api, avg_live) > 0.15:
+                        api_is_stale = True
+                        print(f"🔄 [Triangulação Odds] {home_team} vs {away_team}: API-Sports identificada como DESATUALIZADA (API: {avg_api:.2f} vs Ao Vivo: {avg_live:.2f}). Descartando API e priorizando consenso ao vivo!")
+
+            consolidated_c1 = {}
+            consolidated_cX = {}
+            consolidated_c2 = {}
+
+            for s_name, bms in sources:
+                if s_name == 'API_SPORTS' and api_is_stale:
+                    continue
+                for bm, o in (bms or {}).items():
+                    c1 = float(o.get('casa', 0.0))
+                    cX = float(o.get('empate', 0.0))
+                    c2 = float(o.get('visitante', 0.0))
+                    if c1 > 1.0 and cX > 1.0 and c2 > 1.0:
+                        consolidated_c1[bm] = c1
+                        consolidated_cX[bm] = cX
+                        consolidated_c2[bm] = c2
+
+            if not consolidated_c1 or not consolidated_cX or not consolidated_c2:
+                for s_name, bms in sources:
+                    for bm, o in (bms or {}).items():
+                        c1 = float(o.get('casa', 0.0))
+                        cX = float(o.get('empate', 0.0))
+                        c2 = float(o.get('visitante', 0.0))
+                        if c1 > 1.0 and cX > 1.0 and c2 > 1.0:
+                            consolidated_c1[bm] = c1
+                            consolidated_cX[bm] = cX
+                            consolidated_c2[bm] = c2
+
+            import statistics
+            if len(consolidated_c1) >= 3:
+                med1 = statistics.median(consolidated_c1.values())
+                medX = statistics.median(consolidated_cX.values())
+                med2 = statistics.median(consolidated_c2.values())
+                consolidated_c1 = {bm: val for bm, val in consolidated_c1.items() if abs(val - med1) / med1 <= 0.18}
+                consolidated_cX = {bm: val for bm, val in consolidated_cX.items() if abs(val - medX) / medX <= 0.18}
+                consolidated_c2 = {bm: val for bm, val in consolidated_c2.items() if abs(val - med2) / med2 <= 0.18}
+
+            return select_multi_bookmaker_odds(consolidated_c1, consolidated_cX, consolidated_c2)
+
         updated_count = 0
         for fix in db_fixtures:
             fix_id = fix['fixture_id']
-            db_home = normalize_team_name(fix['home_team'])
-            db_away = normalize_team_name(fix['away_team'])
             
-            best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = 0.0, "", 0.0, "", 0.0, ""
+            # Coleta cotações de cada uma das 3 fontes independentes
+            api_bms = (api_sports_odds.get(fix_id) or {}) if api_sports_odds else {}
+            op_bms = find_source_match_odds(scraped_matches_op, fix['home_team'], fix['away_team'])
+            f24_bms = find_source_match_odds(scraped_matches_f24, fix['home_team'], fix['away_team'])
 
-            # 1. Prioridade Absoluta: Web Scraping ao vivo da Betano / Oddspedia / Futbol24
-            matched_m = None
-            for m in scraped_matches:
-                s_home = normalize_team_name(m['time_casa'])
-                s_away = normalize_team_name(m['time_visitante'])
-                if db_home == s_home and db_away == s_away:
-                    matched_m = m
-                    break
+            # Executa a Triangulação com filtro de obsolescência e consenso de mercado
+            best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = triangulate_3_source_odds(
+                api_bms, op_bms, f24_bms, fix['home_team'], fix['away_team']
+            )
 
-            if not matched_m:
-                for m in scraped_matches:
-                    if _is_team_match(fix['home_team'], m['time_casa']) and _is_team_match(fix['away_team'], m['time_visitante']):
-                        matched_m = m
-                        break
-
-            if matched_m:
-                best_c1 = float(matched_m.get('odd_casa') or 0.0)
-                best_bm1 = matched_m.get('casa_odd') or 'BETANO'
-                best_cX = float(matched_m.get('odd_empate') or 0.0)
-                best_bmX = matched_m.get('casa_odd') or 'BETANO'
-                best_c2 = float(matched_m.get('odd_visitante') or 0.0)
-                best_bm2 = matched_m.get('casa_odd') or 'BETANO'
-
-            # 2. Fallback: API-Sports oficial por fixture_id se não houver raspagem ao vivo
-            if not best_c1 or best_c1 <= 1.0:
-                api_fixture_bms = None
-                if api_sports_odds and fix_id in api_sports_odds:
-                    api_fixture_bms = api_sports_odds[fix_id]
-
-                if api_fixture_bms:
-                    valid_c1 = {bm: float(api_fixture_bms[bm]['casa']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('casa', 0.0)) > 1.0}
-                    valid_cX = {bm: float(api_fixture_bms[bm]['empate']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('empate', 0.0)) > 1.0}
-                    valid_c2 = {bm: float(api_fixture_bms[bm]['visitante']) for bm in api_fixture_bms if float(api_fixture_bms[bm].get('visitante', 0.0)) > 1.0}
-                    if valid_c1 and valid_cX and valid_c2:
-                        best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = select_multi_bookmaker_odds(valid_c1, valid_cX, valid_c2)
-
-                if not matched_m:
-                    for m in scraped_matches:
-                        if _is_team_match(fix['home_team'], m['time_casa']) and _is_team_match(fix['away_team'], m['time_visitante']):
-                            matched_m = m
-                            break
-                
-                if matched_m:
-                    odds = matched_m.get('odds', {})
-                    if odds:
-                        import statistics
-                        valid_c1 = {bm: float(odds[bm]['casa']) for bm in odds if float(odds[bm].get('casa', 0.0)) > 1.0}
-                        valid_cX = {bm: float(odds[bm]['empate']) for bm in odds if float(odds[bm].get('empate', 0.0)) > 1.0}
-                        valid_c2 = {bm: float(odds[bm]['visitante']) for bm in odds if float(odds[bm].get('visitante', 0.0)) > 1.0}
-
-                        if len(valid_c1) >= 2:
-                            med1 = statistics.median(valid_c1.values())
-                            valid_c1 = {bm: val for bm, val in valid_c1.items() if val <= med1 * 1.12}
-                        if len(valid_cX) >= 2:
-                            medX = statistics.median(valid_cX.values())
-                            valid_cX = {bm: val for bm, val in valid_cX.items() if val <= medX * 1.12}
-                        if len(valid_c2) >= 2:
-                            med2 = statistics.median(valid_c2.values())
-                            valid_c2 = {bm: val for bm, val in valid_c2.items() if val <= med2 * 1.12}
-
-                        best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = select_multi_bookmaker_odds(valid_c1, valid_cX, valid_c2)
-
-            # 3. Fallback direto via Futbol24
+            # Fallback direto via Futbol24 se ainda não tiver odds
             if (not best_c1 or best_c1 <= 1.0) and fetch_futbol24_direct_match_odds is not None:
                 try:
                     f24_odds = fetch_futbol24_direct_match_odds(fix['home_team'], fix['away_team'])
@@ -2616,13 +3236,13 @@ def update_oddspedia_odds(conn):
                 row_xg = cursor.fetchone()
                 xg_h = float(row_xg.get('xg_home') or 0.0) if row_xg else 0.0
                 xg_a = float(row_xg.get('xg_away') or 0.0) if row_xg else 0.0
-                if xg_h <= 0.01: xg_h = 1.35
-                if xg_a <= 0.01: xg_a = 1.10
 
-                sug, conf, reason = calculate_asian_handicap_suggestion(
+                l_name = fix.get('league_name', '')
+                sug, conf, reason, proj_h, proj_a = calculate_asian_handicap_suggestion(
                     xg_h, 1.0, xg_a, 1.0, fix['home_team'], fix['away_team'], 30.0, 30.0,
                     home_losses, away_losses, home_last5.get('v', 0), away_last5.get('v', 0),
-                    home_last5, away_last5, best_c1, best_cX, best_c2
+                    home_last5, away_last5, best_c1, best_cX, best_c2,
+                    league_name=l_name
                 )
 
                 for attempt in range(3):
@@ -2632,12 +3252,17 @@ def update_oddspedia_odds(conn):
                                 odd_home = %s, casa_odd_home = %s,
                                 odd_draw = %s, casa_odd_draw = %s,
                                 odd_away = %s, casa_odd_away = %s,
+                                xg_home = IF(xg_home <= 0, %s, xg_home),
+                                xg_away = IF(xg_away <= 0, %s, xg_away),
                                 is_surebet = %s, surebet_profit_pct = %s,
                                 ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s,
                                 updated_at = NOW()
                             WHERE fixture_id = %s
-                        """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, is_surebet, profit_pct, sug, conf, reason, fix_id))
+                        """, (best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2, proj_h, proj_a, is_surebet, profit_pct, sug, conf, reason, fix_id))
                         conn.commit()
+                        if is_abstain_suggestion(sug):
+                            cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
+                            conn.commit()
                         updated_count += 1
                         print(f"Odds e motivação atualizadas para {fix['home_team']} vs {fix['away_team']}: 1({best_bm1}={best_c1}), X({best_bmX}={best_cX}), 2({best_bm2}={best_c2}) | Surebet: {is_surebet}")
                         break
@@ -2817,24 +3442,28 @@ def enrich_fixtures_standings(conn):
             
             xg_h = float(fix_row.get('xg_home') or 0.0)
             xg_a = float(fix_row.get('xg_away') or 0.0)
-            if xg_h <= 0.01: xg_h = 1.35
-            if xg_a <= 0.01: xg_a = 1.10
 
-            sug, conf, reason = calculate_asian_handicap_suggestion(
+            l_name = fix.get('league_name', '')
+            sug, conf, reason, proj_h, proj_a = calculate_asian_handicap_suggestion(
                 xg_h, 1.0, xg_a, 1.0, fix['home_team'], fix['away_team'], 30.0, 30.0,
                 h_losses, a_losses, h_l5.get('v', 0), a_l5.get('v', 0),
                 h_l5, a_l5,
                 float(fix_row['odd_home']), float(fix_row.get('odd_draw') or 3.5), float(fix_row.get('odd_away') or 2.5),
-                home_rank, away_rank, home_ppg, away_ppg, motivation_score, home_zone, away_zone
+                home_rank, away_rank, home_ppg, away_ppg, motivation_score, home_zone, away_zone,
+                league_name=l_name
             )
             
             cursor.execute("""
                 UPDATE fixtures_trends SET
                     home_rank = %s, away_rank = %s, home_ppg = %s, away_ppg = %s,
                     home_zone = %s, away_zone = %s, standings_motivation_score = %s,
+                    xg_home = IF(xg_home <= 0, %s, xg_home),
+                    xg_away = IF(xg_away <= 0, %s, xg_away),
                     ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s
                 WHERE fixture_id = %s
-            """, (home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, motivation_score, sug, conf, reason, fix_id))
+            """, (home_rank, away_rank, home_ppg, away_ppg, home_zone, away_zone, motivation_score, proj_h, proj_a, sug, conf, reason, fix_id))
+            if is_abstain_suggestion(sug):
+                cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
         else:
             cursor.execute("""
                 UPDATE fixtures_trends SET
@@ -2856,7 +3485,7 @@ def recalculate_inconsistent_odds_predictions(conn):
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id,
+            SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id, league_name,
                    odd_home, odd_draw, odd_away, xg_home, xg_away,
                    home_rank, away_rank, home_ppg, away_ppg, standings_motivation_score, home_zone, away_zone
             FROM fixtures_trends 
@@ -2876,23 +3505,27 @@ def recalculate_inconsistent_odds_predictions(conn):
 
                 xg_h = float(fix.get('xg_home') or 0.0)
                 xg_a = float(fix.get('xg_away') or 0.0)
-                if xg_h <= 0.01: xg_h = 1.35
-                if xg_a <= 0.01: xg_a = 1.10
+                l_name = fix.get('league_name', '')
 
-                sug, conf, reason = calculate_asian_handicap_suggestion(
+                sug, conf, reason, proj_h, proj_a = calculate_asian_handicap_suggestion(
                     xg_h, 1.0, xg_a, 1.0, fix['home_team'], fix['away_team'], 30.0, 30.0,
                     h_losses, a_losses, h_l5.get('v', 0), a_l5.get('v', 0),
                     h_l5, a_l5,
                     float(fix['odd_home']), float(fix['odd_draw']), float(fix['odd_away']),
                     fix.get('home_rank'), fix.get('away_rank'), fix.get('home_ppg'), fix.get('away_ppg'),
-                    fix.get('standings_motivation_score'), fix.get('home_zone'), fix.get('away_zone')
+                    fix.get('standings_motivation_score'), fix.get('home_zone'), fix.get('away_zone'),
+                    league_name=l_name
                 )
 
                 cursor.execute("""
                     UPDATE fixtures_trends SET
+                        xg_home = IF(xg_home <= 0, %s, xg_home),
+                        xg_away = IF(xg_away <= 0, %s, xg_away),
                         ah_suggestion = %s, ah_confidence = %s, ah_reasoning = %s, updated_at = NOW()
                     WHERE fixture_id = %s
-                """, (sug, conf, reason, fix_id))
+                """, (proj_h, proj_a, sug, conf, reason, fix_id))
+                if is_abstain_suggestion(sug):
+                    cancelar_e_estornar_apostas_handicap_em_abstencao(cursor, fix_id, reason or sug)
             conn.commit()
             print(f"✅ Sincronização concluída: {len(inconsistent_fixtures)} partidas tiveram seus palpites de IA corrigidos!")
     except Exception as e_fix_inc:

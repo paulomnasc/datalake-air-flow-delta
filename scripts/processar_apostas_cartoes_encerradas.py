@@ -46,11 +46,20 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
     """
     Credita o retorno de uma aposta resolvida/ganha/anulada na conta_corrente e atualiza usuario.saldo_conta_corrente.
     Possui checagem anti-duplicidade (idempotência) para evitar creditar a mesma aposta duas vezes.
+    Apenas apostas confirmadas (confirmada = 1) possuem direito a crédito na conta corrente.
     """
     try:
         valor = float(valor or 0.0)
         if valor <= 0 or not usuario_id:
             return False
+
+        # Checagem de segurança: Apenas apostas confirmadas (confirmada = 1) podem creditar retorno na conta corrente
+        if aposta_id:
+            cursor.execute("SELECT confirmada FROM apostas WHERE id = %s", (aposta_id,))
+            row_aposta = cursor.fetchone()
+            if row_aposta and row_aposta.get('confirmada') is not None and int(row_aposta['confirmada']) == 0:
+                print(f"ℹ️ [Crédito Ignorado] Aposta #{aposta_id} não é confirmada (confirmada = 0). Saldo em conta corrente não alterado.")
+                return False
 
         cursor.execute("""
             SELECT id FROM conta_corrente 
@@ -80,7 +89,7 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
 
         cursor.execute("""
             INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em)
-            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, NOW())
+            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, CONVERT_TZ(NOW(), '+00:00', '-03:00'))
         """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior))
 
         cursor.execute("""
@@ -267,6 +276,7 @@ def ensure_fixture_card_stats(cursor, fixture):
                     yellow_cards_away = %s,
                     red_cards_home = %s,
                     red_cards_away = %s,
+                    score_processed_at = COALESCE(score_processed_at, NOW()),
                     updated_at = NOW()
                 WHERE fixture_id = %s
             """, (yellow_home, yellow_away, red_home, red_away, fixture_id))
@@ -439,14 +449,18 @@ def processar_apostas_cartoes_encerradas():
         """, (novo_status, detalhe, valor_computado, aposta_id))
 
         if novo_status in ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida']:
-            creditar_retorno_aposta(
-                cursor,
-                aposta.get('usuario_id'),
-                aposta_id,
-                valor_computado,
-                novo_status,
-                f"Retorno Aposta #{aposta_id} ({time_casa} x {time_fora} - {novo_status})"
-            )
+            is_confirmada = (int(aposta.get('confirmada') or 0) == 1) if ('confirmada' in aposta and aposta.get('confirmada') is not None) else True
+            if is_confirmada:
+                creditar_retorno_aposta(
+                    cursor,
+                    aposta.get('usuario_id'),
+                    aposta_id,
+                    valor_computado,
+                    novo_status,
+                    f"Retorno Aposta #{aposta_id} ({time_casa} x {time_fora} - {novo_status})"
+                )
+            else:
+                print(f"ℹ️ [Crédito Ignorado] Aposta #{aposta_id} encerrada como '{novo_status}', mas não creditada pois não está confirmada (confirmada = 0).")
 
         processadas += 1
         if novo_status == 'Ganha':

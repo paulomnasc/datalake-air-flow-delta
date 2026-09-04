@@ -55,8 +55,8 @@ class ApostaModel extends Model
 
         $builderSelect = $db->table($this->table)
             ->select("
-                COALESCE(SUM(valor_aposta), 0) as total_apostado,
-                COALESCE(SUM(CASE WHEN status != 'Pendente' THEN valor_aposta ELSE 0 END), 0) as total_apostado_liquidado,
+                COALESCE(SUM(CASE WHEN status NOT IN ('Cancelada', 'CANCELADA') THEN valor_aposta ELSE 0 END), 0) as total_apostado,
+                COALESCE(SUM(CASE WHEN status NOT IN ('Pendente', 'Cancelada', 'CANCELADA') THEN valor_aposta ELSE 0 END), 0) as total_apostado_liquidado,
                 COALESCE(SUM(CASE 
                     WHEN status = 'Ganha' THEN COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd))
                     WHEN status = 'Meio Ganha' THEN (valor_aposta + ((COALESCE(NULLIF(ganhos_potenciais, 0), (valor_aposta * odd)) - valor_aposta) / 2))

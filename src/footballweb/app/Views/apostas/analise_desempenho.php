@@ -144,6 +144,40 @@
     padding: 24px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.3);
   }
+
+  /* Slide Buttons (Toggle Switches) */
+  .bet-slide-toggle {
+    display: inline-flex;
+    align-items: center;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 20px;
+    padding: 2px 3px;
+    gap: 2px;
+  }
+  .bet-slide-toggle .slide-btn {
+    background: transparent;
+    border: none;
+    color: var(--bet-text-muted);
+    padding: 4px 12px;
+    border-radius: 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .bet-slide-toggle .slide-btn.active {
+    background: var(--bet-primary);
+    color: #0d1117;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(0, 230, 118, 0.4);
+  }
+  .bet-slide-toggle .slide-btn.active-no {
+    background: #ff5252;
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(255, 82, 82, 0.4);
+  }
 </style>
 
 <div class="bet-container">
@@ -190,14 +224,26 @@
       <div class="d-flex align-items-center gap-2">
         <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;"><i class="bi bi-funnel-fill text-primary"></i> <?= lang('App.status') ?>:</span>
         <select id="perfStatusSelect" class="form-select form-select-sm bg-dark text-primary border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 175px;" onchange="updatePerformanceDashboard()" title="<?= lang('App.total_bets') ?>">
-          <option value="concluidas" selected>✅ <?= lang('App.status_concluded') ?></option>
-          <option value="all">♾️ <?= lang('App.status_all_pending') ?></option>
+          <option value="all" selected>♾️ <?= lang('App.status_all_pending') ?></option>
+          <option value="concluidas">✅ <?= lang('App.status_concluded') ?></option>
           <option value="Pendente">⏳ <?= lang('App.status_only_pending') ?></option>
           <option value="Ganha">🟢 <?= lang('App.won') ?> / Meio Ganhas</option>
           <option value="Perdida">🔴 <?= lang('App.lost') ?> / Meio Perdidas</option>
           <option value="Cashout">💰 Cashout</option>
           <option value="ANULADA">⚪ <?= lang('App.refunded') ?></option>
         </select>
+      </div>
+
+      <!-- Slide Button: Apostas Confirmadas -->
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;">
+          <i class="bi bi-shield-check text-success"></i> Confirmadas:
+        </span>
+        <div class="bet-slide-toggle" id="perfConfirmedSlideToggle">
+          <button type="button" class="slide-btn active" data-val="all" onclick="setPerfConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
+          <button type="button" class="slide-btn" data-val="1" onclick="setPerfConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
+          <button type="button" class="slide-btn" data-val="0" onclick="setPerfConfirmedFilter('0', this)" title="Exibir apenas apostas não confirmadas">Não</button>
+        </div>
       </div>
 
       <div class="d-flex align-items-center gap-2">
@@ -299,6 +345,7 @@
             <td colspan="6" class="text-center text-muted py-4">Carregando dados de desempenho...</td>
           </tr>
         </tbody>
+        <tfoot id="tableBreakdownFoot"></tfoot>
       </table>
     </div>
   </div>
@@ -309,6 +356,26 @@ const rawBets = <?= json_encode($apostas ?? []) ?>;
 
 let perfChart = null;
 let mercadoChart = null;
+
+let perfConfirmedFilter = 'all';
+
+function setPerfConfirmedFilter(val, btnEl) {
+  perfConfirmedFilter = val;
+  const container = document.getElementById('perfConfirmedSlideToggle');
+  if (container) {
+    container.querySelectorAll('.slide-btn').forEach(btn => {
+      btn.classList.remove('active', 'active-no');
+    });
+  }
+  if (btnEl) {
+    if (val === '0') {
+      btnEl.classList.add('active-no');
+    } else {
+      btnEl.classList.add('active');
+    }
+  }
+  updatePerformanceDashboard();
+}
 
 function formatDateYYYYMMDD(d) {
   try {
@@ -520,7 +587,15 @@ function updatePerformanceDashboard() {
     } else if (statusFilter === 'Cashout') {
       if (status !== 'Cashout') return false;
     } else if (statusFilter === 'ANULADA') {
-      if (status !== 'ANULADA') return false;
+      if (status !== 'ANULADA' && status !== 'Anulada' && status !== 'Cancelada' && status !== 'CANCELADA') return false;
+    }
+
+    if (perfConfirmedFilter === '1') {
+      const isConfirmed = (bet.confirmada !== undefined && bet.confirmada !== null) ? String(bet.confirmada) === '1' : true;
+      if (!isConfirmed) return false;
+    } else if (perfConfirmedFilter === '0') {
+      const isConfirmed = (bet.confirmada !== undefined && bet.confirmada !== null) ? String(bet.confirmada) === '1' : true;
+      if (isConfirmed) return false;
     }
 
     const betDate = getBetDateBRT(bet);
@@ -579,13 +654,81 @@ function updatePerformanceDashboard() {
     let rawMercado = (bet.mercado || 'Outros').trim();
     if (!rawMercado) rawMercado = 'Outros';
 
-    if (!mercadoBuckets[rawMercado]) {
-      mercadoBuckets[rawMercado] = { apostado: 0, retorno: 0, lucro: 0, count: 0 };
+    let palpite = (bet.palpite || '').trim();
+    let finalMercadoKey = rawMercado;
+
+    const isCardMarket = /cart|card/i.test(rawMercado) || /cart|card/i.test(palpite);
+    const isHandicapMarket = /handicap|empate anula|dnb/i.test(rawMercado) || /ah|handicap|empate anula|dnb/i.test(palpite);
+
+    if (isCardMarket) {
+      const isIndividual = /individual|time/i.test(rawMercado) || /individual|time/i.test(palpite);
+      if (!isIndividual) {
+        let isUnder = /under|menos/i.test(palpite) || /under|menos/i.test(rawMercado);
+        let isOver = /over|mais/i.test(palpite) || /over|mais/i.test(rawMercado);
+        let lineMatch = palpite.match(/(\d+(?:\.\d+)?)/) || rawMercado.match(/(\d+(?:\.\d+)?)/);
+
+        if (lineMatch && (isUnder || isOver)) {
+          let dirStr = isUnder ? 'Menos de' : 'Mais de';
+          let lineVal = lineMatch[1];
+          finalMercadoKey = `${dirStr} ${lineVal} Cartões`;
+        } else {
+          finalMercadoKey = 'Total de Cartões';
+        }
+      } else {
+        if (palpite) {
+          finalMercadoKey = `Cartões - Individual - ${palpite}`;
+        } else {
+          finalMercadoKey = rawMercado;
+        }
+      }
+    } else if (isHandicapMarket) {
+      let lineStr = null;
+      const combinedText = (palpite + ' ' + rawMercado).toLowerCase();
+
+      if (combinedText.includes('empate anula') || combinedText.includes('dnb') || combinedText.includes('0.0')) {
+        lineStr = '0.0';
+      } else {
+        let lineMatch = palpite.match(/([+-]\d+(?:[\.,]\d+)?)/);
+        if (!lineMatch) {
+          lineMatch = palpite.match(/(\d+(?:[\.,]\d+)?)\s*ah\b/i);
+        }
+        if (lineMatch) {
+          let rawLine = lineMatch[1].replace(',', '.');
+          let val = parseFloat(rawLine);
+          if (val === 0) {
+            lineStr = '0.0';
+          } else if (val > 0) {
+            lineStr = rawLine.startsWith('+') ? rawLine : '+' + rawLine;
+          } else {
+            lineStr = rawLine;
+          }
+        }
+      }
+
+      if (lineStr) {
+        finalMercadoKey = `Handicap Asiático ${lineStr}`;
+      } else {
+        finalMercadoKey = 'Handicap Asiático';
+      }
+    } else {
+      if (palpite && !rawMercado.toLowerCase().includes(palpite.toLowerCase())) {
+        if (/mais de|menos de|over|under|[+-]\d|vence|vitória|empate/i.test(palpite)) {
+          let cleanP = palpite
+            .replace(/^under\s+/i, 'Menos de ')
+            .replace(/^over\s+/i, 'Mais de ')
+            .trim();
+          finalMercadoKey = `${rawMercado} - ${cleanP}`;
+        }
+      }
     }
-    mercadoBuckets[rawMercado].apostado += valor;
-    mercadoBuckets[rawMercado].retorno += grossReturn;
-    mercadoBuckets[rawMercado].lucro += netProfit;
-    mercadoBuckets[rawMercado].count += 1;
+
+    if (!mercadoBuckets[finalMercadoKey]) {
+      mercadoBuckets[finalMercadoKey] = { apostado: 0, retorno: 0, lucro: 0, count: 0 };
+    }
+    mercadoBuckets[finalMercadoKey].apostado += valor;
+    mercadoBuckets[finalMercadoKey].retorno += grossReturn;
+    mercadoBuckets[finalMercadoKey].lucro += netProfit;
+    mercadoBuckets[finalMercadoKey].count += 1;
 
     const rawDate = getBetDateBRT(bet);
     let key = rawDate || 'Sem Data';
@@ -609,7 +752,8 @@ function updatePerformanceDashboard() {
   const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
-  const baseInvestida = (totalApostadoLiquidado > 0) ? totalApostadoLiquidado : totalApostado;
+  totalLucroLiquido = totalRetorno - totalApostado;
+  const baseInvestida = totalApostado > 0 ? totalApostado : 0;
   const roi = baseInvestida > 0 ? (totalLucroLiquido / baseInvestida) * 100 : 0;
   const winRate = decidedCount > 0 ? (winCount / decidedCount) * 100 : 0;
 
@@ -871,16 +1015,23 @@ function renderMercadoChart(labels, data, bgColors, borderColors, metaDetails) {
 
 function renderTableBreakdown(keys, buckets, groupMode) {
   const tbody = document.getElementById('tableBreakdownBody');
+  const tfoot = document.getElementById('tableBreakdownFoot');
   if (!tbody) return;
 
   if (keys.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Nenhum dado encontrado para o período selecionado.</td></tr>';
+    if (tfoot) tfoot.innerHTML = '';
     return;
   }
 
   const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   let html = '';
+  let sumCount = 0;
+  let sumApostado = 0;
+  let sumRetorno = 0;
+  let sumLucro = 0;
+
   keys.forEach(k => {
     const b = buckets[k];
     let label = k;
@@ -892,8 +1043,15 @@ function renderTableBreakdown(keys, buckets, groupMode) {
       label = `${parts[1]}/${parts[0]}`;
     }
 
-    const roi = b.apostado > 0 ? (b.lucro / b.apostado) * 100 : 0;
-    const lucroClass = b.lucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+    const bLucro = b.retorno - b.apostado;
+
+    sumCount += b.count;
+    sumApostado += b.apostado;
+    sumRetorno += b.retorno;
+    sumLucro += bLucro;
+
+    const roi = b.apostado > 0 ? (bLucro / b.apostado) * 100 : 0;
+    const lucroClass = bLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
     const roiClass = roi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
 
     html += `
@@ -902,13 +1060,37 @@ function renderTableBreakdown(keys, buckets, groupMode) {
         <td class="text-center">${b.count}</td>
         <td>${formatBrl(b.apostado)}</td>
         <td>${formatBrl(b.retorno)}</td>
-        <td class="${lucroClass}">${formatBrl(b.lucro)}</td>
+        <td class="${lucroClass}">${formatBrl(bLucro)}</td>
         <td class="${roiClass}">${(roi >= 0 ? '+' : '') + roi.toFixed(1).replace('.', ',')}%</td>
       </tr>
     `;
   });
 
   tbody.innerHTML = html;
+
+  if (tfoot) {
+    const n = keys.length;
+    const avgCount = sumCount / n;
+    const avgApostado = sumApostado / n;
+    const avgRetorno = sumRetorno / n;
+    const avgLucro = sumLucro / n;
+    const avgRoi = avgApostado > 0 ? (avgLucro / avgApostado) * 100 : 0;
+
+    const avgCountStr = avgCount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+    const avgLucroClass = avgLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+    const avgRoiClass = avgRoi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+
+    tfoot.innerHTML = `
+      <tr class="fw-bold border-top border-2 border-secondary" style="background-color: rgba(255, 255, 255, 0.05); font-size: 0.92rem;">
+        <td class="text-warning fw-bold"><i class="bi bi-calculator me-1"></i> Média Total</td>
+        <td class="text-center text-white">${avgCountStr}</td>
+        <td class="text-white">${formatBrl(avgApostado)}</td>
+        <td class="text-white">${formatBrl(avgRetorno)}</td>
+        <td class="${avgLucroClass}">${formatBrl(avgLucro)}</td>
+        <td class="${avgRoiClass}">${(avgRoi >= 0 ? '+' : '') + avgRoi.toFixed(1).replace('.', ',')}%</td>
+      </tr>
+    `;
+  }
 }
 
 document.addEventListener('DOMContentLoaded', function() {

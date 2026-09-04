@@ -1611,6 +1611,35 @@ if (!function_exists('getBetDecisionTree')) {
     .bet-status.live { background: rgba(239, 68, 68, 0.12); color: #f87171; animation: bet-blink 1.5s infinite; }
     .bet-status.ft { background: rgba(16, 185, 129, 0.08); color: #34d399; }
 
+    /* Processing Status Badges */
+    .proc-status-badge {
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 4px;
+        letter-spacing: 0.2px;
+        line-height: 1.2;
+    }
+    .proc-status-badge.proc-pending {
+        background: rgba(255, 193, 7, 0.14);
+        color: #ffc107;
+        border: 1px solid rgba(255, 193, 7, 0.35);
+    }
+    .proc-status-badge.proc-partial {
+        background: rgba(253, 126, 20, 0.16);
+        color: #fd7e14;
+        border: 1px solid rgba(253, 126, 20, 0.4);
+    }
+    .proc-status-badge.proc-complete {
+        background: rgba(16, 185, 129, 0.14);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+
     @keyframes bet-blink {
         0% { opacity: 0.6; }
         50% { opacity: 1; }
@@ -2680,6 +2709,28 @@ if (!function_exists('getBetDecisionTree')) {
 
                              $isPostponedCard = in_array($statusClean, ['PST', 'CANCELLED', 'POSTPONED', 'CANC']);
                              $isFinishedCard = in_array($statusClean, $finishedStatusesList) || ($fix->goals_home !== null && !$isLiveMatch && !$isPostponedCard) || (isset($diffMins) && $diffMins > 115 && !$isPostponedCard);
+
+                             // Status de Processamento do Card
+                             $procText = 'Processamento: ⏳ Pendente';
+                             $procClass = 'proc-pending';
+                             $procTooltip = 'Partida em andamento ou aguardando apuração da DAG/Worker pós-jogo.';
+
+                             if ($isFinishedCard) {
+                                 $hasDetailedStats = ($fix->yellow_cards_home !== null || $fix->yellow_cards_away !== null || !empty($fix->cards_api_checked_at));
+                                 if (!$hasDetailedStats) {
+                                     $procText = 'Processamento: 🌗 Parcial';
+                                     $procClass = 'proc-partial';
+                                     $procTooltip = 'Placar registrado, aguardando consolidação das estatísticas detalhadas (cartões/escanteios).';
+                                 } else {
+                                     $procText = 'Processamento: ✅ Completo';
+                                     $procClass = 'proc-complete';
+                                     $procTooltip = 'Partida finalizada, estatísticas e palpites auditados e processados.';
+                                 }
+                             } elseif ($isPostponedCard) {
+                                 $procText = 'Processamento: ⏳ Pendente';
+                                 $procClass = 'proc-pending';
+                                 $procTooltip = 'Partida adiada ou cancelada.';
+                             }
                              ?>
                              <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($displayLeague, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . $displayLeague . ' ' . ($fix->referee_name ?? '') . ' ' . ($fix->prediction_text ?? '') . ' ' . ($fix->ah_suggestion ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
@@ -2705,6 +2756,9 @@ if (!function_exists('getBetDecisionTree')) {
                                                     <span><?= lang('App.no_bet') ?></span>
                                                 </a>
                                             <?php endif; ?>
+                                            <span class="proc-status-badge <?= $procClass ?>" title="<?= htmlspecialchars($procTooltip, ENT_QUOTES) ?>">
+                                                <?= htmlspecialchars($procText) ?>
+                                            </span>
                                         </div>
                                         <div class="bet-time-container">
                                             <span class="bet-time-badge">

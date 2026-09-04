@@ -43,11 +43,20 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
     """
     Credita o retorno de uma aposta resolvida/ganha/anulada na conta_corrente e atualiza usuario.saldo_conta_corrente.
     Possui checagem anti-duplicidade (idempotência) para evitar creditar a mesma aposta duas vezes.
+    Apenas apostas confirmadas (confirmada = 1) possuem direito a crédito na conta corrente.
     """
     try:
         valor = float(valor or 0.0)
         if valor <= 0 or not usuario_id:
             return False
+
+        # Checagem de segurança: Apenas apostas confirmadas (confirmada = 1) podem creditar retorno na conta corrente
+        if aposta_id:
+            cursor.execute("SELECT confirmada FROM apostas WHERE id = %s", (aposta_id,))
+            row_aposta = cursor.fetchone()
+            if row_aposta and row_aposta.get('confirmada') is not None and int(row_aposta['confirmada']) == 0:
+                print(f"ℹ️ [Crédito Ignorado] Aposta #{aposta_id} não é confirmada (confirmada = 0). Saldo em conta corrente não alterado.")
+                return False
 
         cursor.execute("""
             SELECT id FROM conta_corrente 
@@ -77,7 +86,7 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
 
         cursor.execute("""
             INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em)
-            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, NOW())
+            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, CONVERT_TZ(NOW(), '+00:00', '-03:00'))
         """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior))
 
         cursor.execute("""
@@ -94,12 +103,16 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
 
 def get_fixture_handicap_stats(fixture):
     """
-    Retorna os gols reais da partida se o status for finalizado (FT).
-    Retorna None se os gols ou o status estiverem incompletos no banco.
+    Retorna os gols reais da partida se o status for finalizado (FT) E o placar tiver sido oficialmente verificado (score_processed_at).
+    Retorna None se os gols, status ou a trava score_processed_at estiverem incompletos no banco.
     """
     status = (fixture.get('status') or '').strip().upper()
     finished_statuses = ['FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED']
     if status not in finished_statuses:
+        return None
+
+    score_processed_at = fixture.get('score_processed_at')
+    if not score_processed_at:
         return None
 
     goals_home = fixture.get('goals_home')
@@ -278,14 +291,18 @@ def processar_apostas_handicap_encerradas():
         """, (novo_status, detalhe, valor_computado, aposta_id))
 
         if novo_status in ['Ganha', 'Meio Ganha', 'ANULADA', 'Meio Perdida']:
-            creditar_retorno_aposta(
-                cursor,
-                aposta.get('usuario_id'),
-                aposta_id,
-                valor_computado,
-                novo_status,
-                f"Retorno Aposta #{aposta_id} ({time_casa} x {time_fora} - {novo_status})"
-            )
+            is_confirmada = (int(aposta.get('confirmada') or 0) == 1) if ('confirmada' in aposta and aposta.get('confirmada') is not None) else True
+            if is_confirmada:
+                creditar_retorno_aposta(
+                    cursor,
+                    aposta.get('usuario_id'),
+                    aposta_id,
+                    valor_computado,
+                    novo_status,
+                    f"Retorno Aposta #{aposta_id} ({time_casa} x {time_fora} - {novo_status})"
+                )
+            else:
+                print(f"ℹ️ [Crédito Ignorado] Aposta #{aposta_id} encerrada como '{novo_status}', mas não creditada pois não está confirmada (confirmada = 0).")
 
         processadas += 1
         if novo_status == 'Ganha':

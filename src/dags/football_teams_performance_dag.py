@@ -8,20 +8,24 @@ def run_football_teams_performance_script(**kwargs):
     # Path inside the worker container where the scripts are mapped
     script_path = '/usr/local/bin/scripts/football_ingest_teams_performance.py'
     
-    cmd = ['python3', script_path]
-    print(f"Executing script: {' '.join(cmd)}")
+    dag_run = kwargs.get('dag_run')
+    env = os.environ.copy()
+    if dag_run and dag_run.conf and dag_run.conf.get('force_refresh'):
+        env['FORCE_REFRESH'] = '1'
+
+    import sys
+    cmd = ['python3', '-u', script_path]
+    print(f"Executing script: {' '.join(cmd)}", flush=True)
     
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    process = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    if process.stdout:
+        for line in process.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+    process.wait()
     
-    print("STDOUT:")
-    print(result.stdout)
-    
-    if result.stderr:
-        print("STDERR:")
-        print(result.stderr)
-        
-    if result.returncode != 0:
-        raise Exception(f"The football teams performance ingest script failed with exit code {result.returncode}")
+    if process.returncode != 0:
+        raise Exception(f"The football teams performance ingest script failed with exit code {process.returncode}")
 
 default_args = {
     'owner': 'paulomnasc-558',
@@ -34,9 +38,9 @@ default_args = {
 dag = DAG(
     'football_teams_performance_ingestion_dag',
     default_args=default_args,
-    schedule_interval='0 11 * * *',  # Runs daily at 08:00 AM BRT (11:00 UTC)
+    schedule_interval='0 7 * * *',  # Executa diariamente às 07:00 AM (America/São Paulo)
     catchup=False,
-    description="Ingests football team statistics and moving averages daily at 08:00 AM BRT (11:00 UTC)",
+    description="Ingests football team statistics and moving averages daily at 07:00 AM (America/São Paulo)",
     tags=['football', 'api', 'ingestion', 'performance', 'teams']
 )
 

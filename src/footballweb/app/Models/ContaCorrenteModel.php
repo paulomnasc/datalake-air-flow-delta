@@ -114,7 +114,7 @@ class ContaCorrenteModel extends Model
 
         $saldoAnterior = $this->getSaldo($usuarioId);
         $saldoPosterior = round($saldoAnterior + $valor, 2);
-        $now = date('Y-m-d H:i:s');
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
@@ -167,7 +167,7 @@ class ContaCorrenteModel extends Model
         $db->transStart();
 
         $saldoPosterior = round($saldoAnterior - $valor, 2);
-        $now = date('Y-m-d H:i:s');
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
@@ -231,7 +231,7 @@ class ContaCorrenteModel extends Model
 
         $saldoAnterior = $this->getSaldo($usuarioId);
         $saldoPosterior = round($saldoAnterior - $valor, 2);
-        $now = date('Y-m-d H:i:s');
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
@@ -288,7 +288,7 @@ class ContaCorrenteModel extends Model
 
         $saldoAnterior = $this->getSaldo($usuarioId);
         $saldoPosterior = round($saldoAnterior + $valor, 2);
-        $now = date('Y-m-d H:i:s');
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
@@ -358,7 +358,7 @@ class ContaCorrenteModel extends Model
 
         $saldoAnterior = $this->getSaldo($usuarioId);
         $saldoPosterior = round($saldoAnterior + $valor, 2);
-        $now = date('Y-m-d H:i:s');
+        $now = (new \DateTime('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
 
         $db->table($this->table)->insert([
             'usuario_id'      => $usuarioId,
@@ -411,8 +411,8 @@ class ContaCorrenteModel extends Model
         }
         unset($t);
 
-        // Métricas resumidas gerais do usuário (sempre da conta completa)
-        $qSummary = $db->table($this->table)
+        // Métricas resumidas no período filtrado (ou gerais se não houver filtro)
+        $summaryBuilder = $db->table($this->table)
             ->select("
                 COALESCE(SUM(CASE WHEN tipo = 'CREDITO_ADICIONADO' THEN valor ELSE 0 END), 0) as total_creditos_adicionados,
                 COALESCE(SUM(CASE WHEN tipo = 'DEBITO_APOSTA' THEN ABS(valor) ELSE 0 END), 0) as total_debitado_apostas,
@@ -421,8 +421,16 @@ class ContaCorrenteModel extends Model
                 COALESCE(SUM(CASE WHEN tipo = 'RESGATE_CREDITO' THEN ABS(valor) ELSE 0 END), 0) as total_resgates,
                 COUNT(*) as total_transacoes
             ")
-            ->where('usuario_id', $usuarioId)
-            ->get();
+            ->where('usuario_id', $usuarioId);
+
+        if (!empty($dataInicio)) {
+            $summaryBuilder->where('criado_em >=', $dataInicio . ' 00:00:00');
+        }
+        if (!empty($dataFim)) {
+            $summaryBuilder->where('criado_em <=', $dataFim . ' 23:59:59');
+        }
+
+        $qSummary = $summaryBuilder->get();
 
         $summary = $qSummary ? $qSummary->getRow() : null;
 
@@ -453,13 +461,39 @@ class ContaCorrenteModel extends Model
     /**
      * Dados consolidados para o Gráfico de Evolução Financeira da Conta Corrente
      */
-    public function getEvolucaoFinanceira(int $usuarioId): array
+    public function getEvolucaoFinanceira(int $usuarioId, ?string $dataInicio = null, ?string $dataFim = null): array
     {
         $db = \Config\Database::connect();
 
-        $qRows = $db->table($this->table)
-            ->where('usuario_id', $usuarioId)
-            ->orderBy('criado_em', 'ASC')
+        $saldoInicial = 0.0;
+
+        // Se houver filtro por data_inicio, recupera o saldo acumulado antes do período
+        if (!empty($dataInicio)) {
+            $qBefore = $db->table($this->table)
+                ->select('saldo_posterior')
+                ->where('usuario_id', $usuarioId)
+                ->where('criado_em <', $dataInicio . ' 00:00:00')
+                ->orderBy('criado_em', 'DESC')
+                ->orderBy('id', 'DESC')
+                ->limit(1)
+                ->get();
+
+            $rowBefore = $qBefore ? $qBefore->getRow() : null;
+            if ($rowBefore && isset($rowBefore->saldo_posterior)) {
+                $saldoInicial = (float)$rowBefore->saldo_posterior;
+            }
+        }
+
+        $builder = $db->table($this->table)->where('usuario_id', $usuarioId);
+
+        if (!empty($dataInicio)) {
+            $builder->where('criado_em >=', $dataInicio . ' 00:00:00');
+        }
+        if (!empty($dataFim)) {
+            $builder->where('criado_em <=', $dataFim . ' 23:59:59');
+        }
+
+        $qRows = $builder->orderBy('criado_em', 'ASC')
             ->orderBy('id', 'ASC')
             ->get();
 
@@ -469,9 +503,26 @@ class ContaCorrenteModel extends Model
         $saldoEvolucao = [];
         $creditosAdicionadosAcum = [];
         $retornosApostasAcum = [];
+        $rawItems = [];
 
         $acumCreditos = 0.0;
         $acumRetornos = 0.0;
+
+        // Se houver filtro de data_inicio, adiciona o ponto inicial do gráfico (Saldo Inicial do Período)
+        if (!empty($dataInicio)) {
+            $dtInicialLabel = date('d/m/Y H:i', strtotime($dataInicio . ' 00:00:00'));
+            $labels[] = $dtInicialLabel;
+            $saldoEvolucao[] = round($saldoInicial, 2);
+            $creditosAdicionadosAcum[] = 0.0;
+            $retornosApostasAcum[] = 0.0;
+
+            $rawItems[] = [
+                'criado_em'       => $dataInicio . ' 00:00:00',
+                'tipo'            => 'SALDO_INICIAL',
+                'valor'           => 0.0,
+                'saldo_posterior' => round($saldoInicial, 2)
+            ];
+        }
 
         foreach ($rows as $r) {
             $dt = date('d/m/Y H:i', strtotime($r->criado_em));
@@ -487,13 +538,22 @@ class ContaCorrenteModel extends Model
             $saldoEvolucao[] = (float)$r->saldo_posterior;
             $creditosAdicionadosAcum[] = round($acumCreditos, 2);
             $retornosApostasAcum[] = round($acumRetornos, 2);
+
+            $rawItems[] = [
+                'criado_em'       => $r->criado_em,
+                'tipo'            => $r->tipo,
+                'valor'           => $val,
+                'saldo_posterior' => (float)$r->saldo_posterior
+            ];
         }
 
         return [
             'labels'                      => $labels,
             'saldo_evolucao'              => $saldoEvolucao,
             'creditos_adicionados_acum'   => $creditosAdicionadosAcum,
-            'retornos_apostas_acum'       => $retornosApostasAcum
+            'retornos_apostas_acum'       => $retornosApostasAcum,
+            'items'                       => $rawItems,
+            'saldo_inicial'               => round($saldoInicial, 2)
         ];
     }
 

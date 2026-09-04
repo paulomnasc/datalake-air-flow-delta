@@ -251,6 +251,42 @@ $transacoes = $extrato['transacoes'] ?? [];
   text-decoration: none;
 }
 
+.btn-step-date {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--cc-border);
+  color: var(--cc-text-primary);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.btn-step-date:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.btn-clear-date {
+  background: transparent;
+  border: none;
+  color: var(--cc-text-secondary);
+  padding: 0.4rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-clear-date:hover {
+  color: #ef4444;
+}
+
 /* Chart Box */
 .chart-card {
   background: var(--cc-card-bg);
@@ -500,15 +536,30 @@ $transacoes = $extrato['transacoes'] ?? [];
 
   <!-- Filter Card -->
   <div class="filter-card">
-    <form method="GET" action="<?= site_url('/apostas/extrato') ?>" class="filter-form">
-      <div class="filter-group">
-        <label for="data_inicio">Data Início</label>
-        <input type="date" id="data_inicio" name="data_inicio" value="<?= esc($dataInicioVal) ?>" class="filter-input">
+    <form method="GET" action="<?= site_url('/apostas/extrato') ?>" id="extratoFilterForm" class="filter-form">
+      <div class="filter-group" style="flex: 2; min-width: 320px;">
+        <label><i class="fas fa-calendar-alt text-info me-1"></i> Período:</label>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <select id="extratoDatePresetSelect" class="filter-input" style="cursor: pointer; min-width: 155px; color: #38bdf8; font-weight: 600;" onchange="setExtratoDatePreset(this.value, true)" title="Atalho de Período">
+            <option value="custom">📅 Personalizado</option>
+            <option value="today">⚡ Hoje</option>
+            <option value="yesterday">⏪ Ontem</option>
+            <option value="7days">🗓️ Últimos 7 dias</option>
+            <option value="15days">🗓️ Últimos 15 dias</option>
+            <option value="1month">📅 Último mês</option>
+            <option value="trimestre">📊 Trimestre</option>
+            <option value="semestre">📈 Semestre</option>
+            <option value="all" selected>♾️ Todo o Período</option>
+          </select>
+          <button type="button" class="btn-step-date" onclick="shiftExtratoDate(-1)" title="Retroceder 1 dia"><i class="fas fa-chevron-left"></i></button>
+          <input type="date" id="data_inicio" name="data_inicio" value="<?= esc($dataInicioVal) ?>" class="filter-input" style="width: 135px;" onchange="syncExtratoPresetSelect()" title="Data Início">
+          <span style="color: var(--cc-text-secondary); font-size: 0.85rem;">até</span>
+          <input type="date" id="data_fim" name="data_fim" value="<?= esc($dataFimVal) ?>" class="filter-input" style="width: 135px;" onchange="syncExtratoPresetSelect()" title="Data Fim">
+          <button type="button" class="btn-step-date" onclick="shiftExtratoDate(1)" title="Avançar 1 dia"><i class="fas fa-chevron-right"></i></button>
+          <button type="button" class="btn-clear-date" onclick="clearExtratoDateFilter()" title="Limpar Período"><i class="fas fa-times-circle"></i></button>
+        </div>
       </div>
-      <div class="filter-group">
-        <label for="data_fim">Data Fim</label>
-        <input type="date" id="data_fim" name="data_fim" value="<?= esc($dataFimVal) ?>" class="filter-input">
-      </div>
+
       <div class="filter-group">
         <label for="tipo">Tipo de Movimentação</label>
         <select id="tipo" name="tipo" class="filter-input">
@@ -520,6 +571,7 @@ $transacoes = $extrato['transacoes'] ?? [];
           <option value="ESTORNO_APOSTA" <?= $tipoFiltroVal === 'ESTORNO_APOSTA' ? 'selected' : '' ?>>Estorno de Aposta</option>
         </select>
       </div>
+
       <div class="filter-actions">
         <button type="submit" class="btn-filter"><i class="fas fa-filter"></i> Filtrar</button>
         <a href="<?= site_url('/apostas/extrato') ?>" class="btn-clear"><i class="fas fa-redo"></i> Limpar</a>
@@ -529,8 +581,20 @@ $transacoes = $extrato['transacoes'] ?? [];
 
   <!-- Financial Evolution Chart Section -->
   <div class="chart-card">
-    <div class="chart-card-header">
+    <div class="chart-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
       <h2><i class="fas fa-chart-area" style="color: #60a5fa;"></i> Evolução Financeira da Conta Corrente</h2>
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <label for="extratoGroupSelect" style="font-size: 0.85rem; font-weight: 600; color: var(--cc-text-secondary); margin: 0;">
+          <i class="fas fa-layer-group text-warning me-1"></i> Agrupar por:
+        </label>
+        <select id="extratoGroupSelect" class="filter-input" style="width: auto; cursor: pointer; color: #f59e0b; font-weight: 600; font-size: 0.88rem; min-width: 145px;" onchange="updateEvolucaoGroupMode(this.value)">
+          <option value="datahora" selected>⏱️ Data / Hora</option>
+          <option value="dia">📅 Por Dia</option>
+          <option value="quinzena">🗓️ Por Quinzena</option>
+          <option value="mes">📆 Por Mês</option>
+          <option value="trimestre">📊 Por Trimestre</option>
+        </select>
+      </div>
     </div>
     <div class="chart-container-box">
       <canvas id="evolucaoFinanceiraChart"></canvas>
@@ -689,8 +753,117 @@ $transacoes = $extrato['transacoes'] ?? [];
 // Inicializar Gráfico de Evolução Financeira
 const graficoRawData = <?= json_encode($grafico) ?>;
 
+function getExtratoGroupKey(dateStr, groupMode) {
+  if (!dateStr) return { key: 'Sem Data', label: 'Sem Data' };
+
+  const rawDateStr = dateStr.trim().substring(0, 10);
+  const parts = rawDateStr.split('-');
+  if (parts.length !== 3) return { key: dateStr, label: dateStr };
+
+  const year = parts[0];
+  const month = parts[1];
+  const day = parseInt(parts[2], 10);
+
+  if (groupMode === 'dia') {
+    return {
+      key: rawDateStr,
+      label: `${parts[2]}/${month}/${year}`
+    };
+  } else if (groupMode === 'quinzena') {
+    const qNum = day <= 15 ? '1ª' : '2ª';
+    return {
+      key: `${year}-${month}-${qNum}`,
+      label: `${qNum} Quinz ${month}/${year}`
+    };
+  } else if (groupMode === 'mes') {
+    return {
+      key: `${year}-${month}`,
+      label: `${month}/${year}`
+    };
+  } else if (groupMode === 'trimestre') {
+    const mInt = parseInt(month, 10);
+    const tri = Math.ceil(mInt / 3);
+    return {
+      key: `${year}-Q${tri}`,
+      label: `${tri}º Tri ${year}`
+    };
+  }
+
+  return { key: dateStr, label: dateStr };
+}
+
+function processEvolucaoGrouping(rawData, groupMode) {
+  if (!rawData) {
+    return { labels: [], saldoData: [], creditosData: [], retornosData: [] };
+  }
+
+  if (groupMode === 'datahora' || !rawData.items || rawData.items.length === 0) {
+    return {
+      labels: rawData.labels || [],
+      saldoData: rawData.saldo_evolucao || [],
+      creditosData: rawData.creditos_adicionados_acum || [],
+      retornosData: rawData.retornos_apostas_acum || []
+    };
+  }
+
+  const items = rawData.items;
+  const buckets = {};
+  const bucketKeysOrder = [];
+
+  let runningCreditos = 0;
+  let runningRetornos = 0;
+
+  items.forEach(item => {
+    const val = parseFloat(item.valor) || 0;
+    if (item.tipo === 'CREDITO_ADICIONADO') {
+      runningCreditos += val;
+    } else if (item.tipo === 'CREDITO_RETORNO_APOSTA') {
+      runningRetornos += val;
+    }
+
+    const groupInfo = getExtratoGroupKey(item.criado_em, groupMode);
+    const k = groupInfo.key;
+
+    if (!buckets[k]) {
+      buckets[k] = {
+        label: groupInfo.label,
+        lastSaldo: parseFloat(item.saldo_posterior) || 0,
+        lastCreditos: runningCreditos,
+        lastRetornos: runningRetornos
+      };
+      bucketKeysOrder.push(k);
+    } else {
+      buckets[k].lastSaldo = parseFloat(item.saldo_posterior) || 0;
+      buckets[k].lastCreditos = runningCreditos;
+      buckets[k].lastRetornos = runningRetornos;
+    }
+  });
+
+  const labels = [];
+  const saldoData = [];
+  const creditosData = [];
+  const retornosData = [];
+
+  bucketKeysOrder.forEach(k => {
+    const b = buckets[k];
+    labels.push(b.label);
+    saldoData.push(b.lastSaldo);
+    creditosData.push(Math.round(b.lastCreditos * 100) / 100);
+    retornosData.push(Math.round(b.lastRetornos * 100) / 100);
+  });
+
+  return { labels, saldoData, creditosData, retornosData };
+}
+
+function updateEvolucaoGroupMode(groupMode) {
+  const processedData = processEvolucaoGrouping(graficoRawData, groupMode);
+  renderEvolucaoChart(processedData);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-  renderEvolucaoChart(graficoRawData);
+  const groupSelect = document.getElementById('extratoGroupSelect');
+  const initialMode = groupSelect ? groupSelect.value : 'datahora';
+  updateEvolucaoGroupMode(initialMode);
 });
 
 let evolucaoChartInstance = null;
@@ -703,9 +876,9 @@ function renderEvolucaoChart(data) {
   }
 
   const labels = data.labels || [];
-  const saldoData = data.saldo_evolucao || [];
-  const creditosData = data.creditos_adicionados_acum || [];
-  const retornosData = data.retornos_apostas_acum || [];
+  const saldoData = data.saldoData || data.saldo_evolucao || [];
+  const creditosData = data.creditosData || data.creditos_adicionados_acum || [];
+  const retornosData = data.retornosData || data.retornos_apostas_acum || [];
 
   evolucaoChartInstance = new Chart(ctx, {
     type: 'line',
@@ -876,4 +1049,161 @@ function submitRedeemCredit(e) {
     alert('Erro de conexão ao processar o resgate.');
   });
 }
+
+function formatDateYYYYMMDD(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getPastDateByMonths(months) {
+  const d = new Date();
+  const targetMonth = d.getMonth() - months;
+  d.setMonth(targetMonth);
+  if (d.getMonth() !== ((targetMonth % 12 + 12) % 12)) {
+    d.setDate(0);
+  }
+  return d;
+}
+
+function parseExtratoDateString(dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return null;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+  return new Date(year, month, day);
+}
+
+function setExtratoDatePreset(presetKey, autoSubmit = false) {
+  const startEl = document.getElementById('data_inicio');
+  const endEl = document.getElementById('data_fim');
+  const selectEl = document.getElementById('extratoDatePresetSelect');
+  const formEl = document.getElementById('extratoFilterForm');
+  if (!startEl || !endEl) return;
+
+  const now = new Date();
+  const todayStr = formatDateYYYYMMDD(now);
+
+  if (presetKey === 'today') {
+    startEl.value = todayStr;
+    endEl.value = todayStr;
+  } else if (presetKey === 'yesterday') {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yestStr = formatDateYYYYMMDD(yesterday);
+    startEl.value = yestStr;
+    endEl.value = yestStr;
+  } else if (presetKey === '7days') {
+    const start = new Date();
+    start.setDate(start.getDate() - 6);
+    startEl.value = formatDateYYYYMMDD(start);
+    endEl.value = todayStr;
+  } else if (presetKey === '15days') {
+    const start = new Date();
+    start.setDate(start.getDate() - 14);
+    startEl.value = formatDateYYYYMMDD(start);
+    endEl.value = todayStr;
+  } else if (presetKey === '1month') {
+    const start = getPastDateByMonths(1);
+    startEl.value = formatDateYYYYMMDD(start);
+    endEl.value = todayStr;
+  } else if (presetKey === 'trimestre') {
+    const start = getPastDateByMonths(3);
+    startEl.value = formatDateYYYYMMDD(start);
+    endEl.value = todayStr;
+  } else if (presetKey === 'semestre') {
+    const start = getPastDateByMonths(6);
+    startEl.value = formatDateYYYYMMDD(start);
+    endEl.value = todayStr;
+  } else if (presetKey === 'all') {
+    startEl.value = '';
+    endEl.value = '';
+  }
+
+  if (selectEl && selectEl.value !== presetKey) {
+    selectEl.value = presetKey;
+  }
+
+  if (autoSubmit && formEl) {
+    formEl.submit();
+  }
+}
+
+function shiftExtratoDate(days) {
+  const startEl = document.getElementById('data_inicio');
+  const endEl = document.getElementById('data_fim');
+  const formEl = document.getElementById('extratoFilterForm');
+  if (!startEl || !endEl) return;
+
+  let startDate = parseExtratoDateString(startEl.value);
+  let endDate = parseExtratoDateString(endEl.value);
+
+  if (!startDate && !endDate) {
+    const base = new Date();
+    base.setDate(base.getDate() + days);
+    const str = formatDateYYYYMMDD(base);
+    startEl.value = str;
+    endEl.value = str;
+  } else {
+    if (startDate) {
+      startDate.setDate(startDate.getDate() + days);
+      startEl.value = formatDateYYYYMMDD(startDate);
+    }
+    if (endDate) {
+      endDate.setDate(endDate.getDate() + days);
+      endEl.value = formatDateYYYYMMDD(endDate);
+    }
+  }
+
+  syncExtratoPresetSelect();
+  if (formEl) formEl.submit();
+}
+
+function syncExtratoPresetSelect() {
+  const startVal = document.getElementById('data_inicio')?.value || '';
+  const endVal = document.getElementById('data_fim')?.value || '';
+  const selectEl = document.getElementById('extratoDatePresetSelect');
+  if (!selectEl) return;
+
+  const now = new Date();
+  const todayStr = formatDateYYYYMMDD(now);
+  const yesterdayStr = formatDateYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  const d7Str = formatDateYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
+  const d15Str = formatDateYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14));
+  const m1Str = formatDateYYYYMMDD(getPastDateByMonths(1));
+  const m3Str = formatDateYYYYMMDD(getPastDateByMonths(3));
+  const m6Str = formatDateYYYYMMDD(getPastDateByMonths(6));
+
+  if (!startVal && !endVal) {
+    selectEl.value = 'all';
+  } else if (startVal === todayStr && endVal === todayStr) {
+    selectEl.value = 'today';
+  } else if (startVal === yesterdayStr && endVal === yesterdayStr) {
+    selectEl.value = 'yesterday';
+  } else if (startVal === d7Str && endVal === todayStr) {
+    selectEl.value = '7days';
+  } else if (startVal === d15Str && endVal === todayStr) {
+    selectEl.value = '15days';
+  } else if (startVal === m1Str && endVal === todayStr) {
+    selectEl.value = '1month';
+  } else if (startVal === m3Str && endVal === todayStr) {
+    selectEl.value = 'trimestre';
+  } else if (startVal === m6Str && endVal === todayStr) {
+    selectEl.value = 'semestre';
+  } else {
+    selectEl.value = 'custom';
+  }
+}
+
+function clearExtratoDateFilter() {
+  setExtratoDatePreset('all', true);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  syncExtratoPresetSelect();
+});
 </script>

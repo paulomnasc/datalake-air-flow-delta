@@ -319,6 +319,46 @@ if (!function_exists('formatBrtDate')) {
     box-shadow: 0 2px 10px rgba(0, 230, 118, 0.35);
   }
 
+  /* Slide Buttons (Toggle Switches) */
+  .bet-slide-toggle {
+    display: inline-flex;
+    align-items: center;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 20px;
+    padding: 2px 3px;
+    gap: 2px;
+  }
+  .bet-slide-toggle .slide-btn {
+    background: transparent;
+    border: none;
+    color: var(--bet-text-muted);
+    padding: 4px 12px;
+    border-radius: 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .bet-slide-toggle .slide-btn.active {
+    background: var(--bet-primary);
+    color: #0d1117;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(0, 230, 118, 0.4);
+  }
+  .bet-slide-toggle .slide-btn.active-over {
+    background: #00b0ff;
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(0, 176, 255, 0.4);
+  }
+  .bet-slide-toggle .slide-btn.active-no {
+    background: #ff5252;
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(255, 82, 82, 0.4);
+  }
+
   /* Modo Lista (List View Layout) */
   .bets-grid.list-view {
     display: flex;
@@ -511,6 +551,34 @@ if (!function_exists('formatBrtDate')) {
   .status-Perdida  { background: rgba(255, 82, 82, 0.15); color: var(--bet-danger); border: 1px solid rgba(255, 82, 82, 0.3); }
   .status-ANULADA, .status-Anulada, .status-Cancelada, .status-CANCELADA { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }
   .status-Cashout  { background: rgba(0, 176, 255, 0.15); color: var(--bet-accent); border: 1px solid rgba(0, 176, 255, 0.3); }
+
+  /* Processing Status Badges */
+  .proc-status-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    letter-spacing: 0.2px;
+    line-height: 1.2;
+  }
+  .proc-status-badge.proc-pending {
+    background: rgba(255, 193, 7, 0.14);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.35);
+  }
+  .proc-status-badge.proc-partial {
+    background: rgba(253, 126, 20, 0.16);
+    color: #fd7e14;
+    border: 1px solid rgba(253, 126, 20, 0.4);
+  }
+  .proc-status-badge.proc-complete {
+    background: rgba(16, 185, 129, 0.14);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+  }
 
   .bet-card-footer {
     padding: 16px 20px;
@@ -802,10 +870,10 @@ if (!function_exists('formatBrtDate')) {
   </div>
 
   <!-- Toolbar -->
-  <div class="bet-toolbar">
-    <div class="d-flex align-items-center gap-3 flex-wrap">
+  <div class="bet-toolbar w-100 overflow-hidden">
+    <div class="d-flex align-items-center gap-2 gap-md-3 flex-wrap w-100">
       <!-- Status Filters -->
-      <div class="bet-filters">
+      <div class="bet-filters w-100 d-flex flex-wrap gap-2 mb-1" style="overflow-x: auto; max-width: 100%;">
         <?php
           $totalApostasCount = count($apostas);
           $calcPctBadge = function($label, $count) use ($totalApostasCount) {
@@ -826,6 +894,41 @@ if (!function_exists('formatBrtDate')) {
         <button class="filter-btn" id="btnFilterMeioPerdida" onclick="filterBets('Meio Perdida', this)"><?= $calcPctBadge(lang('App.half_lost'), $resumo['meio_perdidas'] ?? 0) ?></button>
         <button class="filter-btn" id="btnFilterPerdida" onclick="filterBets('Perdida', this)"><?= $calcPctBadge(lang('App.lost'), $resumo['perdidas'] ?? 0) ?></button>
         <button class="filter-btn" id="btnFilterCashout" onclick="filterBets('Cashout', this)"><?= $calcPctBadge('Cashout', $resumo['cashouts'] ?? 0) ?></button>
+      </div>
+
+      <!-- Slide Button: Apostas Confirmadas [Sim/Não] -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;" title="Filtrar por Apostas Confirmadas [Sim / Não]">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1">
+          <i class="bi bi-shield-check text-success"></i> Apostas Confirmadas:
+        </span>
+        <div class="bet-slide-toggle" id="confirmedSlideToggle">
+          <button type="button" class="slide-btn active" data-val="all" onclick="setConfirmedFilter('all', this)" title="Exibir todas as apostas">Todos</button>
+          <button type="button" class="slide-btn" data-val="1" onclick="setConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
+          <button type="button" class="slide-btn" data-val="0" onclick="setConfirmedFilter('0', this)" title="Exibir apenas apostas não confirmadas">Não</button>
+        </div>
+      </div>
+
+      <!-- Slide Button: Mercado cartões Mais ou Menos de [Mais (Over) / Menos (Under)] -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;" title="Filtrar apostas do mercado de cartões por tipo: Mais (Over) ou Menos (Under)">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1">
+          <i class="bi bi-square-fill text-warning"></i> Mercado Cartões:
+        </span>
+        <div class="bet-slide-toggle" id="cardsMarketSlideToggle">
+          <button type="button" class="slide-btn active" data-val="all" onclick="setCardsMarketFilter('all', this)" title="Exibir todas as apostas">Todos</button>
+          <button type="button" class="slide-btn" data-val="over" onclick="setCardsMarketFilter('over', this)" title="Exibir apenas apostas Cartões Mais de (Over)">Mais (Over)</button>
+          <button type="button" class="slide-btn" data-val="under" onclick="setCardsMarketFilter('under', this)" title="Exibir apenas apostas Cartões Menos de (Under)">Menos (Under)</button>
+        </div>
+      </div>
+
+      <!-- Slide Button: Sem Apostas Canceladas [Sim / Não] -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;" title="Filtrar sem as apostas canceladas (Sim = Ocultar Canceladas / Não = Exibir Canceladas)">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1">
+          <i class="bi bi-slash-circle text-danger"></i> Sem Canceladas:
+        </span>
+        <div class="bet-slide-toggle" id="withoutCancelledSlideToggle">
+          <button type="button" class="slide-btn" data-val="1" onclick="setWithoutCancelledFilter('1', this)" title="Filtrar sem as apostas canceladas (Ocultar canceladas)">Sim</button>
+          <button type="button" class="slide-btn active" data-val="0" onclick="setWithoutCancelledFilter('0', this)" title="Exibir apostas canceladas normalmente">Não</button>
+        </div>
       </div>
 
       <!-- Filtro por Mercado de Simulações de Apostas -->
@@ -852,9 +955,11 @@ if (!function_exists('formatBrtDate')) {
           <option value="semestre">📈 <?= lang('App.semester') ?></option>
           <option value="all" selected>♾️ <?= lang('App.all_period') ?></option>
         </select>
+        <button type="button" class="btn btn-sm btn-outline-secondary text-light px-2 py-1" onclick="shiftBetDate(-1)" title="Retroceder 1 dia"><i class="bi bi-chevron-left"></i></button>
         <input type="date" id="betStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="onManualDateChange()" title="<?= lang('App.start_date') ?>">
         <span class="text-light-50 small"><?= lang('App.to') ?></span>
         <input type="date" id="betEndDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 135px;" onchange="onManualDateChange()" title="<?= lang('App.end_date') ?>">
+        <button type="button" class="btn btn-sm btn-outline-secondary text-light px-2 py-1" onclick="shiftBetDate(1)" title="Avançar 1 dia"><i class="bi bi-chevron-right"></i></button>
         <button class="btn btn-sm btn-outline-secondary border-0 text-light-50 p-1" onclick="clearDateFilter()" title="<?= lang('App.clear') ?>"><i class="bi bi-x-circle-fill"></i></button>
       </div>
 
@@ -950,8 +1055,33 @@ if (!function_exists('formatBrtDate')) {
           $itemCreatedDate = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'Y-m-d') : $itemDate;
           $displayMatchTime = !empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'd/m \à\s H:i') : 'Hoje';
           $displayCreatedTime = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'd/m/Y \à\s H:i') : null;
+
+          $temDebitoCc = !empty($aposta->tem_debito) && (int)$aposta->tem_debito > 0;
+          $isConfirmada = $temDebitoCc && (isset($aposta->confirmada) ? (int)$aposta->confirmada : 1) === 1 && $aposta->status !== 'Não Confirmada';
+
+          $cardMercadoLower = mb_strtolower($aposta->mercado ?? '', 'UTF-8');
+          $cardPalpiteLower = mb_strtolower($aposta->palpite ?? '', 'UTF-8');
+          $isCardMarket = (
+            strpos($cardMercadoLower, 'cartõ') !== false ||
+            strpos($cardMercadoLower, 'carto') !== false ||
+            strpos($cardMercadoLower, 'card') !== false ||
+            strpos($cardPalpiteLower, 'cartõ') !== false ||
+            strpos($cardPalpiteLower, 'carto') !== false
+          );
+
+          $cardsDirection = 'none';
+          if ($isCardMarket || strpos($cardPalpiteLower, 'mais') !== false || strpos($cardPalpiteLower, 'menos') !== false || strpos($cardPalpiteLower, 'over') !== false || strpos($cardPalpiteLower, 'under') !== false) {
+            if (strpos($cardPalpiteLower, 'mais') !== false || strpos($cardPalpiteLower, 'over') !== false) {
+              $cardsDirection = 'over';
+            } elseif (strpos($cardPalpiteLower, 'menos') !== false || strpos($cardPalpiteLower, 'under') !== false) {
+              $cardsDirection = 'under';
+            }
+          }
+
+          $leagueCountry = $aposta->league_country ?? '';
+          $leagueFlag    = $aposta->league_flag ?? '';
         ?>
-        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? ''))) ?>">
+        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <div class="d-flex flex-column align-items-start gap-1">
@@ -973,10 +1103,6 @@ if (!function_exists('formatBrtDate')) {
                   </span>
                 <?php endif; ?>
 
-                <?php 
-                  $temDebitoCc = !empty($aposta->tem_debito) && (int)$aposta->tem_debito > 0;
-                  $isConfirmada = $temDebitoCc && (isset($aposta->confirmada) ? (int)$aposta->confirmada : 1) === 1 && $aposta->status !== 'Não Confirmada';
-                ?>
                 <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
                   <span class="badge bg-warning bg-opacity-25 text-warning border border-warning px-2 py-1" style="font-size: 0.75rem;" title="Simulação não confirmada / Sem débito em conta">
                     ⚠️ <?= lang('App.unconfirmed_badge') ?>
@@ -996,10 +1122,21 @@ if (!function_exists('formatBrtDate')) {
                 <?php endif; ?>
               </div>
 
-              <?php if (!empty($aposta->league_name)): ?>
-                <div class="match-league" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: flex; align-items: center; gap: 5px; margin-top: 1px;">
-                  <i class="bi bi-trophy-fill" style="color: var(--bet-gold); font-size: 0.78rem;"></i>
-                  <span><?= htmlspecialchars($aposta->league_name) ?></span>
+              <?php if (!empty($aposta->league_name) || !empty($leagueCountry)): ?>
+                <div class="match-league" style="font-size: 0.81rem; color: #94a3b8; font-weight: 500; display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+                  <?php if (!empty($leagueFlag)): ?>
+                    <span style="font-size: 0.95rem; line-height: 1;"><?= $leagueFlag ?></span>
+                  <?php endif; ?>
+                  <?php if (!empty($leagueCountry)): ?>
+                    <strong style="color: #e2e8f0; font-weight: 600;"><?= htmlspecialchars($leagueCountry) ?></strong>
+                  <?php endif; ?>
+                  <?php if (!empty($leagueCountry) && !empty($aposta->league_name)): ?>
+                    <span style="color: #475569;">•</span>
+                  <?php endif; ?>
+                  <?php if (!empty($aposta->league_name)): ?>
+                    <i class="bi bi-trophy-fill" style="color: var(--bet-gold); font-size: 0.78rem;"></i>
+                    <span><?= htmlspecialchars($aposta->league_name) ?></span>
+                  <?php endif; ?>
                 </div>
               <?php endif; ?>
             </div>
@@ -1052,6 +1189,21 @@ if (!function_exists('formatBrtDate')) {
                 'Cashout'        => 'Cashout',
               ];
               $displayStatusLabel = mb_strtoupper($statusLabelMap[$aposta->status] ?? $aposta->status, 'UTF-8');
+
+              // Status de Processamento da Aposta
+              $betProcText = 'Processamento: ⏳ Pendente';
+              $betProcClass = 'proc-pending';
+              $betProcTooltip = 'Aposta em andamento ou aguardando fechamento da partida.';
+
+              if ($aposta->status !== 'Pendente') {
+                $betProcText = 'Processamento: ✅ Completo';
+                $betProcClass = 'proc-complete';
+                $betProcTooltip = 'Aposta devidamente liquidada com resultado oficial gravado.';
+              } elseif (!empty($placarExibir) || !empty($aposta->resultado_detalhado)) {
+                $betProcText = 'Processamento: 🌗 Parcial';
+                $betProcClass = 'proc-partial';
+                $betProcTooltip = 'Partida encerrada, aguardando apuração da DAG das 23h.';
+              }
             ?>
 
             <?php if (!empty($detalhadoExibir)): ?>
@@ -1062,7 +1214,10 @@ if (!function_exists('formatBrtDate')) {
             <?php endif; ?>
 
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <span class="status-tag status-<?= str_replace(' ', '-', $aposta->status) ?>"><?= htmlspecialchars($displayStatusLabel) ?></span>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="status-tag status-<?= str_replace(' ', '-', $aposta->status) ?>"><?= htmlspecialchars($displayStatusLabel) ?></span>
+                <span class="proc-status-badge <?= $betProcClass ?>" title="<?= htmlspecialchars($betProcTooltip, ENT_QUOTES) ?>"><?= htmlspecialchars($betProcText) ?></span>
+              </div>
               <div class="d-flex align-items-center gap-3 flex-wrap">
                 <span style="font-size: 0.8rem; color: var(--bet-text-muted); font-weight: 600; text-transform: uppercase;">
                   <?= lang('App.type') ?>: <?= htmlspecialchars($aposta->tipo) ?>
@@ -1105,9 +1260,15 @@ if (!function_exists('formatBrtDate')) {
           <div class="bet-card-footer">
             <div class="actions-primary">
               <?php if (!$isConfirmada || $aposta->status === 'Não Confirmada'): ?>
-                <button type="button" class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px;" onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>)">
-                  <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
-                </button>
+                <?php if (!empty($aposta->status) && strtolower($aposta->status) === 'cancelada'): ?>
+                  <button type="button" class="btn btn-sm btn-secondary fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px; opacity: 0.6; cursor: not-allowed;" disabled title="Aposta cancelada pelo sistema">
+                    <i class="bi bi-slash-circle me-1"></i> <?= lang('App.confirm_bet') ?>
+                  </button>
+                <?php else: ?>
+                  <button type="button" class="btn btn-sm btn-success fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" style="border-radius: 8px;" onclick="openConfirmBetModal(<?= $aposta->id ?>, '<?= htmlspecialchars(addslashes($aposta->time_casa), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->time_fora), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->mercado), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($aposta->palpite), ENT_QUOTES, 'UTF-8') ?>', <?= (float)$aposta->valor_aposta ?>)">
+                    <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
+                  </button>
+                <?php endif; ?>
               <?php endif; ?>
               <button class="btn-cashout" onclick="handleCashout(<?= $aposta->id ?>, <?= $aposta->cash_out ?? $aposta->valor_aposta ?>)">
                 CASH OUT R$ <?= number_format($aposta->cash_out ?? $aposta->valor_aposta, 2, ',', '.') ?>
@@ -2000,6 +2161,45 @@ if (!function_exists('formatBrtDate')) {
     return `${year}-${month}-${day}`;
   }
 
+  function parseBetDateString(dateStr) {
+    if (!dateStr) return null;
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return null;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+    return new Date(year, month, day);
+  }
+
+  function shiftBetDate(days) {
+    const startEl = document.getElementById('betStartDateInput');
+    const endEl = document.getElementById('betEndDateInput');
+    if (!startEl || !endEl) return;
+
+    let startDate = parseBetDateString(startEl.value);
+    let endDate = parseBetDateString(endEl.value);
+
+    if (!startDate && !endDate) {
+      const base = new Date();
+      base.setDate(base.getDate() + days);
+      const str = formatDateYYYYMMDD(base);
+      startEl.value = str;
+      endEl.value = str;
+    } else {
+      if (startDate) {
+        startDate.setDate(startDate.getDate() + days);
+        startEl.value = formatDateYYYYMMDD(startDate);
+      }
+      if (endDate) {
+        endDate.setDate(endDate.getDate() + days);
+        endEl.value = formatDateYYYYMMDD(endDate);
+      }
+    }
+
+    onManualDateChange();
+  }
+
   function getPastDateByMonths(months) {
     const d = new Date();
     const targetMonth = d.getMonth() - months;
@@ -2107,12 +2307,68 @@ if (!function_exists('formatBrtDate')) {
     applyBetFilters();
   }
 
+  let currentConfirmedFilter = 'all'; // 'all', '1', '0'
+  let currentCardsMarketFilter = 'all'; // 'all', 'over', 'under'
+  let currentWithoutCancelledFilter = '0'; // '0' (Exibe canceladas), '1' (Sem canceladas / Oculta canceladas)
+
+  function setConfirmedFilter(val, btnEl) {
+    currentConfirmedFilter = val;
+    const container = document.getElementById('confirmedSlideToggle');
+    if (container) {
+      container.querySelectorAll('.slide-btn').forEach(b => {
+        b.classList.remove('active', 'active-no');
+      });
+      if (val === '0') {
+        btnEl.classList.add('active-no');
+      } else {
+        btnEl.classList.add('active');
+      }
+    }
+    applyBetFilters();
+  }
+
+  function setCardsMarketFilter(val, btnEl) {
+    currentCardsMarketFilter = val;
+    const container = document.getElementById('cardsMarketSlideToggle');
+    if (container) {
+      container.querySelectorAll('.slide-btn').forEach(b => {
+        b.classList.remove('active', 'active-no', 'active-over');
+      });
+      if (val === 'over') {
+        btnEl.classList.add('active-over');
+      } else {
+        btnEl.classList.add('active');
+      }
+    }
+    applyBetFilters();
+  }
+
+  function setWithoutCancelledFilter(val, btnEl) {
+    currentWithoutCancelledFilter = val;
+    const container = document.getElementById('withoutCancelledSlideToggle');
+    if (container) {
+      container.querySelectorAll('.slide-btn').forEach(b => {
+        b.classList.remove('active', 'active-no');
+      });
+      if (val === '1') {
+        btnEl.classList.add('active');
+      } else {
+        btnEl.classList.add('active-no');
+      }
+    }
+    applyBetFilters();
+  }
+
   function applyBetFilters() {
     const status = currentStatusFilter;
     const selectedMarket = document.getElementById('betMarketFilterSelect')?.value || 'all';
     const term = (document.getElementById('betSearchInput')?.value || '').toLowerCase().trim();
     const startDate = document.getElementById('betStartDateInput')?.value || '';
     const endDate = document.getElementById('betEndDateInput')?.value || '';
+
+    const confirmVal = currentConfirmedFilter;
+    const cardsMarketVal = currentCardsMarketFilter;
+    const withoutCancelledVal = currentWithoutCancelledFilter;
 
     const cards = document.querySelectorAll('.bet-card-item');
     let visibleCount = 0;
@@ -2135,6 +2391,9 @@ if (!function_exists('formatBrtDate')) {
       const cardSearch = card.getAttribute('data-search') || '';
       const cardDate = card.getAttribute('data-date') || ''; // 'YYYY-MM-DD'
       const cardCreated = card.getAttribute('data-created-date') || cardDate;
+      const cardConfirmada = card.getAttribute('data-confirmada') || '0';
+      const cardIsCardMarket = card.getAttribute('data-card-market') || '0';
+      const cardCardsDirection = card.getAttribute('data-cards-direction') || 'none';
 
       const itemDate = cardDate || cardCreated;
 
@@ -2164,7 +2423,27 @@ if (!function_exists('formatBrtDate')) {
                       cardPalpite.includes('under');
       }
 
-      if (searchMatch && dateMatch && marketMatch) {
+      let confirmedMatch = true;
+      if (confirmVal === '1') {
+        confirmedMatch = (cardConfirmada === '1');
+      } else if (confirmVal === '0') {
+        confirmedMatch = (cardConfirmada === '0');
+      }
+
+      let cardsMarketMatch = true;
+      if (cardsMarketVal === 'over') {
+        cardsMarketMatch = (cardCardsDirection === 'over');
+      } else if (cardsMarketVal === 'under') {
+        cardsMarketMatch = (cardCardsDirection === 'under');
+      }
+
+      let withoutCancelledMatch = true;
+      if (withoutCancelledVal === '1') {
+        const cardStatusUpper = cardStatus.toUpperCase();
+        withoutCancelledMatch = !cardStatusUpper.includes('CANCELAD');
+      }
+
+      if (searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch) {
         counts.all++;
         if (counts.hasOwnProperty(cardStatus)) {
           counts[cardStatus]++;
@@ -2173,7 +2452,7 @@ if (!function_exists('formatBrtDate')) {
 
       const statusMatch = (status === 'all' || cardStatus === status);
 
-      if (statusMatch && searchMatch && dateMatch && marketMatch) {
+      if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch) {
         card.style.display = 'flex';
         visibleCount++;
       } else {
@@ -2294,8 +2573,8 @@ if (!function_exists('formatBrtDate')) {
       }
     });
 
-    // Saldo Líquido Real = Retorno Total Bruto - Total Apostado (Apostas Liquidadas)
-    const saldoLiquido = totalRetorno - totalApostadoLiquidado;
+    // Saldo Líquido Real = Retorno Total Bruto - Total Apostado (Simulado)
+    const saldoLiquido = totalRetorno - totalApostado;
 
     const formatBrl = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -2354,6 +2633,16 @@ if (!function_exists('formatBrtDate')) {
     if (marketEl) marketEl.value = 'all';
     const searchEl = document.getElementById('betSearchInput');
     if (searchEl) searchEl.value = '';
+
+    const confBtnAll = document.querySelector('#confirmedSlideToggle .slide-btn[data-val="all"]');
+    if (confBtnAll) setConfirmedFilter('all', confBtnAll);
+
+    const cardsBtnAll = document.querySelector('#cardsMarketSlideToggle .slide-btn[data-val="all"]');
+    if (cardsBtnAll) setCardsMarketFilter('all', cardsBtnAll);
+
+    const withoutCancBtnNo = document.querySelector('#withoutCancelledSlideToggle .slide-btn[data-val="0"]');
+    if (withoutCancBtnNo) setWithoutCancelledFilter('0', withoutCancBtnNo);
+
     clearDateFilter();
   }
 

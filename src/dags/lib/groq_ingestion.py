@@ -37,7 +37,7 @@ def ingest_groq_vision_to_raw(
     
     # 1. Carregar chaves e configurações
     api_key = api_key or os.environ.get("VISION_API_KEY", "")
-    api_model = api_model or os.environ.get("VISION_API_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+    api_model = api_model or os.environ.get("VISION_API_MODEL", "qwen/qwen3.8-27b")
     api_url = os.environ.get("VISION_API_URL", "https://api.groq.com/openai/v1/chat/completions")
     
     if not api_key:

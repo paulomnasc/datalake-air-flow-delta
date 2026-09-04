@@ -3046,6 +3046,17 @@ if (!function_exists('getBetDecisionTree')) {
                                             }
                                         }
 
+                                        $has_discrepancy = false;
+                                        $alt_suggestion = '';
+                                        if (!empty($raw_reasoning)) {
+                                            if (strpos($raw_reasoning, '|| HAS_DISCREPANCY: 1') !== false) {
+                                                $has_discrepancy = true;
+                                                if (preg_match('/\|\|\s*ALT_SUGGESTION:\s*([^\|]+)/', $raw_reasoning, $mAlt)) {
+                                                    $alt_suggestion = trim($mAlt[1]);
+                                                }
+                                            }
+                                        }
+
                                         if (!empty($motivation) && strpos($motivation, 'Fator Crucial') === false) {
                                             $motivation = "🎯 " . lang('App.crucial_factor') . ": " . $motivation;
                                         }
@@ -3067,6 +3078,14 @@ if (!function_exists('getBetDecisionTree')) {
                                                     $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
                                                     $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
                                                     $nl_explanation = sprintf(lang('App.nl_exp_plus025'), $teamFav, $teamOpp);
+                                                } elseif (strpos($sugText, '+1.5') !== false) {
+                                                    $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
+                                                    $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
+                                                    $nl_explanation = sprintf(lang('App.nl_exp_plus150'), $teamFav, $teamOpp);
+                                                } elseif (strpos($sugText, '-1.5') !== false) {
+                                                    $teamFav = (strpos(strtolower($sugText), strtolower($awayTeam)) !== false) ? $awayTeam : $homeTeam;
+                                                    $teamOpp = ($teamFav === $homeTeam) ? $awayTeam : $homeTeam;
+                                                    $nl_explanation = sprintf(lang('App.nl_exp_minus150'), $teamFav, $teamOpp);
                                                 } else {
                                                     $nl_explanation = lang('App.nl_exp_generic');
                                                 }
@@ -3078,6 +3097,25 @@ if (!function_exists('getBetDecisionTree')) {
                                                 'home' => ['text' => lang('App.not_found'), 'matches' => []],
                                                 'away' => ['text' => lang('App.not_found'), 'matches' => []]
                                             ];
+                                        }
+
+                                        // Detecção complementar dinâmica de discrepância caso a linha seja +1.5 ou o favorito nominal enfrente azarão em alta
+                                        if (!$has_discrepancy && !empty($fix->odd_home) && !empty($fix->odd_away)) {
+                                            $oh_f = floatval($fix->odd_home);
+                                            $oa_f = floatval($fix->odd_away);
+                                            $h_pts = (isset($u5j_data['home']['pts'])) ? intval($u5j_data['home']['pts']) : 0;
+                                            $a_pts = (isset($u5j_data['away']['pts'])) ? intval($u5j_data['away']['pts']) : 0;
+                                            if ($oh_f <= 1.55 && ($a_pts >= $h_pts + 3 || strpos($fix->ah_suggestion ?? '', '+1.5') !== false)) {
+                                                $has_discrepancy = true;
+                                                if (empty($alt_suggestion)) {
+                                                    $alt_suggestion = $fix->home_team . " -0.25 AH";
+                                                }
+                                            } elseif ($oa_f <= 1.55 && ($h_pts >= $a_pts + 3 || strpos($fix->ah_suggestion ?? '', '+1.5') !== false)) {
+                                                $has_discrepancy = true;
+                                                if (empty($alt_suggestion)) {
+                                                    $alt_suggestion = $fix->away_team . " -0.25 AH";
+                                                }
+                                            }
                                         }
 
                                         $ahSugClean = strtolower(trim($fix->ah_suggestion ?? ''));
@@ -3145,6 +3183,11 @@ if (!function_exists('getBetDecisionTree')) {
                                                     onclick="toggleCardSection('<?= $fix->fixture_id ?>', 'ah')">
                                                 <i class="bi bi-shield-shaded"></i> <?= lang('App.handicap_ah') ?>: <?= htmlspecialchars($fix->ah_suggestion) ?> <i class="bi bi-chevron-down ms-1 icon-arrow"></i>
                                             </button>
+                                            <?php if ($has_discrepancy): ?>
+                                                <span class="badge" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-size: 0.72rem; font-weight: 700; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="<?= lang('App.underdog_value_title') ?>">
+                                                    <i class="bi bi-gem"></i> <?= lang('App.underdog_value_badge') ?>
+                                                </span>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                         
                                         <?php if (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)): ?>
@@ -3319,6 +3362,27 @@ if (!function_exists('getBetDecisionTree')) {
                                     <?php elseif (!empty($fix->ah_suggestion)): ?>
                                         <div id="sec-ah-<?= $fix->fixture_id ?>" class="bet-card-section">
                                             <div class="asian-handicap-widget-box" style="padding: 8px 10px; background: rgba(15, 23, 42, 0.9); border-radius: 8px; border-left: 4px solid #38bdf8; font-size: 0.78rem; color: #cbd5e1;">
+                                                <?php if ($has_discrepancy): ?>
+                                                    <div style="margin-bottom: 10px; padding: 8px 10px; background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; border-radius: 6px;">
+                                                        <div style="font-weight: 700; color: #34d399; font-size: 0.78rem; display: flex; align-items: center; gap: 5px; margin-bottom: 4px;">
+                                                            <i class="bi bi-gem"></i> <?= lang('App.underdog_value_title') ?>
+                                                        </div>
+                                                        <div style="font-size: 0.72rem; color: #cbd5e1; line-height: 1.35; margin-bottom: 6px;">
+                                                            <?= lang('App.underdog_value_desc') ?>
+                                                        </div>
+                                                        <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.73rem;">
+                                                            <div style="background: rgba(15, 23, 42, 0.85); padding: 5px 8px; border-radius: 4px; border-left: 3px solid #10b981; color: #ffffff;">
+                                                                <span style="color: #34d399; font-weight: 700;">🎯 <?= lang('App.primary_option') ?>:</span> <strong><?= htmlspecialchars($fix->ah_suggestion) ?></strong> <span style="color: #94a3b8; font-size: 0.68rem;">(<?= lang('App.primary_option_coverage') ?>)</span>
+                                                            </div>
+                                                            <?php if (!empty($alt_suggestion)): ?>
+                                                                <div style="background: rgba(15, 23, 42, 0.85); padding: 5px 8px; border-radius: 4px; border-left: 3px solid #f59e0b; color: #cbd5e1;">
+                                                                    <span style="color: #fbbf24; font-weight: 700;">⚡ <?= lang('App.secondary_option') ?>:</span> <strong><?= htmlspecialchars($alt_suggestion) ?></strong> <span style="color: #f87171; font-size: 0.68rem;">(⚠️ <?= lang('App.secondary_option_risk') ?>)</span>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    </div>
+                                                <?php endif; ?>
+
                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
                                                     <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; font-size: 0.82rem;">
                                                         <i class="bi bi-shield-shaded"></i> <?= lang('App.goals_market_handicap') ?>:

@@ -1632,7 +1632,7 @@ class ApostaController extends BaseController
         try {
             $client = \Config\Services::curlrequest(['http_errors' => false]);
             $apiUrl = env('VISION_API_URL') ?: 'https://api.groq.com/openai/v1/chat/completions';
-            $model  = env('TEXT_API_MODEL') ?: 'llama-3.3-70b-versatile';
+            $model  = env('TEXT_API_MODEL') ?: 'openai/gpt-oss-120b';
 
             $response = $client->post($apiUrl, [
                 'headers' => [
@@ -1797,7 +1797,7 @@ class ApostaController extends BaseController
         try {
             $client = \Config\Services::curlrequest(['http_errors' => false]);
             $apiUrl = env('VISION_API_URL') ?: 'https://api.groq.com/openai/v1/chat/completions';
-            $model  = env('TEXT_API_MODEL') ?: 'llama-3.3-70b-versatile';
+            $model  = env('TEXT_API_MODEL') ?: 'openai/gpt-oss-120b';
 
             $response = $client->post($apiUrl, [
                 'headers' => [

@@ -147,8 +147,12 @@ def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str,
                     b_id = bet.get('id')
                     b_name = str(bet.get('name', '')).lower()
 
-                    # Bet ID 4 = Asian Handicap, Bet ID 1 = Match Winner (1X2)
-                    if b_id == 4 or 'asian handicap' in b_name:
+                    # Bloquear explicitamente mercados de 1º tempo, intervalo, escanteios e cartões
+                    if any(term in b_name for term in ['half', '1st', '2nd', 'corner', 'card', 'cartão', 'escanteio', 'tempo', 'intervalo']):
+                        continue
+
+                    # Bet ID 4 = Asian Handicap Full Time (Tempo Integral)
+                    if b_id == 4 or b_name == 'asian handicap' or b_name == 'handicap asiático':
                         values = bet.get('values', [])
                         for s in expected_signs:
                             search_target = f"{s}{line_val}" if s else line_val
@@ -472,6 +476,7 @@ ALLOWED_LEAGUE_IDS = {
     179,          # Escócia Premiership
     128,          # Argentina Liga Profesional
     197,          # Grécia Super League 1
+    307,          # Arábia Saudita Saudi Pro League
     2, 3, 848,    # UEFA Champions League, Europa League, Conference League
     13, 11        # CONMEBOL Libertadores, Copa Sudamericana
 }
@@ -484,7 +489,7 @@ ALLOWED_LEAGUE_NAMES = [
     'ligue 1',
     'primeira liga', 'liga portugal',
     'eredivisie',
-    'pro league', 'jupiler pro league',
+    'pro league', 'jupiler pro league', 'saudi pro league',
     'super lig', 'süper lig',
     'premiership',
     'liga profesional',
@@ -681,7 +686,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 apostas_canceladas += len(canc_list)
             continue
 
-        allowed_lines = ['+0.25', '-0.25', '-0.5', '+0.5', '-1.0']
+        allowed_lines = ['+0.25', '-0.25', '-0.5', '+0.5', '-1.0', '+1.0', '+1.25', '-1.25', '+1.5', '-1.5', '+1.75', '-1.75']
         if not any(al in ah_norm_after for al in allowed_lines):
             print(f"🛡️ [Linha Fora das Top Estratégias] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' fora das linhas permitidas.")
             apostas_abstenção += 1
@@ -705,6 +710,9 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 elif '+0.5' in ah_suggestion:
                     # Linha +0.5 (Dupla Chance): odd estimada com base na cotação seca (ex: 3.10 -> ~1.59)
                     real_odd_betano = round(max(1.50, min(1.85, 1.0 + (raw_float - 1.0) * 0.28)), 2)
+                elif '+1.5' in ah_suggestion or '+1.25' in ah_suggestion or '+1.75' in ah_suggestion:
+                    # Linha +1.5 para underdog de super-favorito: odd equilibrada de mercado ~1.85
+                    real_odd_betano = 1.85
                 else:
                     real_odd_betano = raw_float
                 odd_source = 'TRENDS_FALLBACK'

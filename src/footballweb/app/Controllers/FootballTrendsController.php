@@ -420,7 +420,7 @@ class FootballTrendsController extends BaseController
                 'http_errors' => false,
             ]);
             $apiUrl = env('VISION_API_URL') ?: 'https://api.groq.com/openai/v1/chat/completions';
-            $model = env('TEXT_API_MODEL') ?: 'llama-3.3-70b-versatile';
+            $model = env('TEXT_API_MODEL') ?: 'openai/gpt-oss-120b';
 
             $response = $client->post($apiUrl, [
                 'headers' => [
@@ -437,6 +437,7 @@ class FootballTrendsController extends BaseController
             $statusCode = $response->getStatusCode();
             if ($statusCode !== 200) {
                 $bodyText = $response->getBody();
+                log_message('error', "Erro na chamada Groq AI (HTTP {$statusCode}): {$bodyText}");
 
                 if ($statusCode === 429 || $statusCode === 402) {
                     $this->notifyAdminQuotaExceeded($statusCode, $bodyText);

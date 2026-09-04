@@ -22,7 +22,7 @@ def find_niche_websites(niche: str, limit: int = 3, api_key: Optional[str] = Non
     api_key = api_key or os.environ.get("VISION_API_KEY", "")
     api_url = os.environ.get("VISION_API_URL", "https://api.groq.com/openai/v1/chat/completions")
     # Para texto puro, o Llama 3.3 70B é excelente
-    text_model = os.environ.get("TEXT_API_MODEL", "llama-3.3-70b-versatile")
+    text_model = os.environ.get("TEXT_API_MODEL", "openai/gpt-oss-120b")
     
     if not api_key:
         raise ValueError("[CRAWLER-GROQ] VISION_API_KEY não configurada no ambiente.")

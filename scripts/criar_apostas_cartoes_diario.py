@@ -178,7 +178,8 @@ def get_db_connection():
                 database="footballweb",
                 charset="utf8mb4",
                 cursorclass=pymysql.cursors.DictCursor,
-                autocommit=True
+                autocommit=True,
+                connect_timeout=3
             )
             print(f"✅ [DAG Criar Apostas Cartões] Conectado ao MySQL ({host}:{port})")
             return conn
@@ -228,6 +229,7 @@ ALLOWED_LEAGUE_IDS = {
     179,          # Escócia Premiership
     128,          # Argentina Liga Profesional
     197,          # Grécia Super League 1
+    307,          # Arábia Saudita Saudi Pro League
     2, 3, 848,    # UEFA Champions League, Europa League, Conference League
     13, 11        # CONMEBOL Libertadores, Copa Sudamericana
 }
@@ -240,7 +242,7 @@ ALLOWED_LEAGUE_NAMES = [
     'ligue 1',
     'primeira liga', 'liga portugal',
     'eredivisie',
-    'pro league', 'jupiler pro league',
+    'pro league', 'jupiler pro league', 'saudi pro league',
     'super lig', 'süper lig',
     'premiership',
     'liga profesional',
@@ -319,7 +321,7 @@ def extract_all_cards_suggestions(prediction_text: str):
     pred_low = prediction_text.lower()
 
     # 1. Trava de Abstenção / NO_BET expressa
-    if any(term in pred_low for term in ['no_bet', 'no bet', 'sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'indisponível', 'indisponivel', 'xc: 0.0', 'xc: 0.00']):
+    if any(term in pred_low for term in ['no_bet', 'no bet', 'sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'indisponível', 'indisponivel']):
         return []
 
     # 2. Extrai expectativa matemática de cartões (xC / Expectativa)
@@ -329,35 +331,28 @@ def extract_all_cards_suggestions(prediction_text: str):
     if exp_cards is None or exp_cards <= 0:
         return []
 
-    # 3. Busca opções explícitas em prediction_text ("1ª Opção: Over 3.5 | 2ª Opção: Over 4.5", etc.)
-    raw_options = re.findall(r'(?:1ª|2ª|3ª)?\s*Opção:\s*(Over|Under)\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
+    # 3. Busca opções explícitas em prediction_text ("1ª Opção: Under 4.5 | 2ª Opção: Under 5.5", etc.)
+    raw_options = re.findall(r'(?:1ª|2ª|3ª)?\s*Opção:\s*(Under)\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
 
     candidates = []
     if raw_options:
         for op_type, line_str in raw_options:
-            is_over = (op_type.lower() == 'over')
             line_val = float(line_str)
-            if (is_over, line_val) not in candidates:
-                candidates.append((is_over, line_val))
+            if (False, line_val) not in candidates:
+                candidates.append((False, line_val))
 
-    if not candidates:
-        if 'estratégia over' in pred_low or 'over' in pred_low:
-            match_over = re.search(r'Over\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE) or re.search(r'mais\s+de\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
-            if match_over:
-                candidates.append((True, float(match_over.group(1))))
-        else:
-            match_under = re.search(r'Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE) or re.search(r'menos\s+de\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
-            if match_under:
-                candidates.append((False, float(match_under.group(1))))
+    match_under = re.search(r'Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE) or re.search(r'menos\s+de\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
+    if match_under:
+        cand_u = (False, float(match_under.group(1)))
+        if cand_u not in candidates:
+            candidates.append(cand_u)
 
-    # Adiciona sempre as linhas padrão comercializadas na Betano para garantir avaliação completa
+    # Linhas padrão de Under comercializadas na Betano para avaliação
     standard_lines = [
-        (False, 5.5),
+        (False, 3.5),
         (False, 4.5),
-        (False, 6.5),
-        (True, 3.5),
-        (True, 4.5),
-        (True, 5.5)
+        (False, 5.5),
+        (False, 6.5)
     ]
     for std in standard_lines:
         if std not in candidates:
@@ -365,44 +360,27 @@ def extract_all_cards_suggestions(prediction_text: str):
 
     suggestions = []
     for is_over, line_val in candidates:
-        prob_under = calculate_poisson_under_cdf(exp_cards, line_val)
-
         if is_over:
-            prob_poisson = round(100.0 - prob_under, 2)
-            odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
-            # Regra do Gatekeeper para Over calibrada por linha
-            if line_val <= 2.5:
-                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 2.60) else 'NO_BET'
-            elif line_val <= 3.5:
-                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 3.60) else 'NO_BET'
-            elif line_val <= 4.5:
-                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 4.60) else 'NO_BET'
-            elif line_val <= 5.5:
-                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 5.60) else 'NO_BET'
-            else:
-                status_gk = 'NO_BET'
-            palpite_str = f"Mais de {line_val} Cartões"
+            continue
+
+        prob_poisson = calculate_poisson_under_cdf(exp_cards, line_val)
+        odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
+
+        if line_val < 3.5:
+            status_gk = 'NO_BET'
+        elif line_val <= 3.5:
+            status_gk = 'APROVADO' if (exp_cards <= 2.60 and prob_poisson >= 70.0) else 'NO_BET'
+        elif line_val <= 4.5:
+            status_gk = 'APROVADO' if (exp_cards <= 3.40 and prob_poisson >= 65.0) else 'NO_BET'
+        elif line_val <= 5.5:
+            status_gk = 'APROVADO' if (exp_cards <= 4.80 and prob_poisson >= 60.0) else 'NO_BET'
+        elif line_val <= 6.5:
+            status_gk = 'APROVADO' if (exp_cards <= 6.20 and prob_poisson >= 60.0) else 'NO_BET'
         else:
-            prob_poisson = prob_under
-            odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
+            # Linhas irrealistas no pré-jogo da Betano (ex: Under 7.5, Under 8.5)
+            status_gk = 'NO_BET'
 
-            if line_val < 4.5:
-                status_gk = 'NO_BET'
-            elif line_val <= 4.5:
-                if exp_cards <= 3.30 and prob_poisson >= 75.0:
-                    status_gk = 'APROVADO'
-                else:
-                    status_gk = 'NO_BET'
-            elif line_val <= 6.5:
-                if exp_cards <= 6.50 and prob_poisson >= 60.0:
-                    status_gk = 'APROVADO'
-                else:
-                    status_gk = 'NO_BET'
-            else:
-                # Linhas irrealistas no pré-jogo da Betano (ex: Under 7.5, Under 8.5)
-                status_gk = 'NO_BET'
-            palpite_str = f"Menos de {line_val} Cartões"
-
+        palpite_str = f"Menos de {line_val} Cartões"
         suggestions.append((line_val, palpite_str, status_gk, odd_justa, prob_poisson, None, exp_cards))
 
     return suggestions

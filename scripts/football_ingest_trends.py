@@ -17,7 +17,7 @@ except Exception:
     scrape_futbol24_team_last5 = None
 
 
-def get_league_card_multiplier(league_name=""):
+def get_league_card_multiplier(league_name="", league_id=None):
     """
     Retorna o multiplicador de expectativa de cartões (lambda_league) e o fator de sobredispersão (phi)
     baseado na região geográfica e histórico disciplinar da liga.
@@ -25,14 +25,39 @@ def get_league_card_multiplier(league_name=""):
     - Europa (todas as ligas europeias): lambda_league = 0.82x, phi = 1.10
     - Outras ligas / Default: lambda_league = 1.00x, phi = 1.15
     """
+    # 1. Validação por ID Numérico Oficial da Liga
+    if league_id is not None:
+        try:
+            lid = int(league_id)
+            # Ligas Europeias Oficiais: Itália Serie A (135), Inglaterra (39), Espanha (140), Alemanha (78), França (61), etc.
+            if lid in {135, 39, 140, 78, 61, 94, 88, 144, 203, 179, 197, 2, 3, 848}:
+                return 0.82, 1.10
+            # Ligas Sul-Americanas Oficiais: Brasil Série A (71), Série B (72), Copa do Brasil (73), Argentina (128), Libertadores (13), Sul-Americana (11)
+            if lid in {71, 72, 73, 128, 13, 11}:
+                return 1.18, 1.28
+        except (ValueError, TypeError):
+            pass
+
     if not league_name:
         return 1.00, 1.15
 
     leg_lower = str(league_name).lower().strip()
 
-    # Ligas Sul-Americanas e Centro-Americanas (LATAM)
+    # 2. Ligas Europeias (Europa)
+    europe_keywords = [
+        "premier league", "championship", "la liga", "segunda división", "segunda division",
+        "serie a (italy)", "serie a italia", "bundesliga", "ligue 1", "ligue 2",
+        "liga portugal", "eredivisie", "champions league", "europa league", "conference league",
+        "scotland", "belgium", "pro league", "super lig", "turkey", "greece", "super league", "england", "spain", "italy", "germany", "france"
+    ]
+    # Se for exatamente "serie a" ou contiver termo europeu, e não mencionar explicitamente Brasil, classifica como Europa
+    if leg_lower == "serie a" or any(kw in leg_lower for kw in europe_keywords):
+        if not any(br in leg_lower for br in ["brasil", "brazil", "brasileir"]):
+            return 0.82, 1.10
+
+    # 3. Ligas Sul-Americanas e Centro-Americanas (LATAM)
     latam_keywords = [
-        "brazil", "brasil", "série a", "serie a", "série b", "serie b", "série c", "serie c",
+        "brazil", "brasil", "brasileirão", "brasileirao", "série a", "série b", "serie b", "série c", "serie c",
         "chile", "primera división", "primera division", "argentina", "liga profesional", "copa de la liga",
         "colombia", "primera a", "uruguay", "peru", "ecuador", "liga mx", "mexico", "méxico",
         "costa rica", "honduras", "copa libertadores", "copa sudamericana", "bolivia", "paraguay", "venezuela", "guatemala"
@@ -40,17 +65,6 @@ def get_league_card_multiplier(league_name=""):
     for kw in latam_keywords:
         if kw in leg_lower:
             return 1.18, 1.28
-
-    # Ligas Europeias (Europa)
-    europe_keywords = [
-        "premier league", "championship", "la liga", "segunda división", "segunda division",
-        "serie a (italy)", "serie a italia", "serie b", "bundesliga", "ligue 1", "ligue 2",
-        "liga portugal", "eredivisie", "champions league", "europa league", "conference league",
-        "scotland", "belgium", "pro league", "super lig", "turkey", "greece", "super league", "england", "spain", "italy", "germany", "france"
-    ]
-    for kw in europe_keywords:
-        if kw in leg_lower:
-            return 0.82, 1.10
 
     return 1.00, 1.15
 
@@ -595,6 +609,52 @@ def build_natural_language_explanation(suggestion, home_team, away_team):
             f"🟡 Derrota do {team_fav} por 1 gol exato: 100% de REEMBOLSO do valor apostado.\n"
             f"🔴 Derrota por 2+ gols: Aposta PERDIDA."
         )
+    elif "+1.5" in suggestion:
+        if away_team.lower() in suggestion.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav}, Empate ou Derrota por 1 gol exato: Você GANHA 100% da aposta.\n"
+            f"🔴 Derrota do {team_fav} por 2 ou mais gols: Aposta PERDIDA."
+        )
+    elif "-1.5" in suggestion:
+        if away_team.lower() in suggestion.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav} por 2+ gols de diferença: Você GANHA 100% da aposta.\n"
+            f"🔴 Vitória por apenas 1 gol, Empate ou Derrota: Aposta PERDIDA."
+        )
+    elif "+1.25" in suggestion:
+        if away_team.lower() in suggestion.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav} ou Empate: GANHA 100% da aposta.\n"
+            f"🟡 Derrota do {team_fav} por 1 gol exato: PERDE apenas 50% da aposta e recupera os outros 50%.\n"
+            f"🔴 Derrota por 2+ gols: Aposta PERDIDA."
+        )
+    elif "-1.25" in suggestion:
+        if away_team.lower() in suggestion.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav} por 2+ gols: GANHA 100% da aposta.\n"
+            f"🟡 Vitória do {team_fav} por 1 gol exato: PERDE 50% da aposta e recupera os outros 50%.\n"
+            f"🔴 Empate ou Derrota: Aposta PERDIDA."
+        )
     else:
         return (
             f"🟢 Vitória do {home_team}: Aposta Coberta.\n"
@@ -684,7 +744,10 @@ def build_natural_language_motivation(
     """
     home_text = home_last5.get("text", "2V-1E-2D") if home_last5 else "2V-1E-2D"
     away_text = away_last5.get("text", "2V-1E-2D") if away_last5 else "2V-1E-2D"
-    odd_str = f" [Odds Mercado: H:{odd_home:.2f}/A:{odd_away:.2f}]" if (odd_home and odd_away and float(odd_home) > 1.0) else ""
+    try:
+        odd_str = f" [Odds Mercado: H:{float(odd_home):.2f}/A:{float(odd_away):.2f}]" if (odd_home and odd_away and float(odd_home) > 1.0) else ""
+    except Exception:
+        odd_str = ""
 
     home_pts = home_last5.get("pts", 0) if home_last5 else 0
     away_pts = away_last5.get("pts", 0) if away_last5 else 0
@@ -1121,22 +1184,29 @@ def calculate_asian_handicap_suggestion(
     # 6. Diagnóstico de Crise Estrito & Trava Gatekeeper
     home_in_crisis = (home_d >= 3 and home_v == 0) or (home_recent_losses >= 3 and home_v == 0)
     away_in_crisis = (away_d >= 3 and away_v == 0) or (away_recent_losses >= 3 and away_v == 0)
+    has_discrepancy = False
+    alt_suggestion = ""
 
     # Regras de Intervenção para Mandante em Crise
     if home_in_crisis and not away_in_crisis:
+        is_away_fav = (odd_away and odd_home and float(odd_away) < float(odd_home))
         if delta_goals >= -0.20:
-            suggestion = f"{away_team} +0.25 AH"
+            suggestion = f"{away_team} -0.25 AH" if is_away_fav else f"{away_team} +0.25 AH"
             confidence = 74.00
-            main_reason = f"⚠️ Alerta de Risco: {home_team} em crise recente ({home_last5.get('text')} em U5J). O momento superior do visitante {away_team} ({away_last5.get('text')}) orienta aposta com cobertura em +0.25 AH (meio-green no empate)."
+            prot_txt = "proteção de meia estaca (-0.25 AH)" if is_away_fav else "cobertura em +0.25 AH (meio-green no empate)"
+            main_reason = f"⚠️ Alerta de Risco: {home_team} em crise recente ({home_last5.get('text')} em U5J). O momento superior do visitante {away_team} ({away_last5.get('text')}) orienta aposta com {prot_txt}."
         else:
-            suggestion = f"{away_team} +0.5 AH (Dupla Chance)"
+            suggestion = f"{away_team} -0.5 AH" if is_away_fav else f"{away_team} +0.5 AH (Dupla Chance)"
             confidence = 78.00
-            main_reason = f"⚠️ Alerta de Crise: Severa má fase do {home_team} ({home_last5.get('text')} em U5J). Favoritismo e vantagem de cobertura +0.5 (Dupla Chance) para o visitante {away_team}."
+            prot_txt = "favoritismo direto (-0.5 AH)" if is_away_fav else "vantagem de cobertura +0.5 (Dupla Chance)"
+            main_reason = f"⚠️ Alerta de Crise: Severa má fase do {home_team} ({home_last5.get('text')} em U5J). {prot_txt.capitalize()} para o visitante {away_team}."
     elif away_in_crisis and not home_in_crisis:
+        is_home_fav = (odd_home and odd_away and float(odd_home) < float(odd_away))
         if delta_goals <= 0.20:
-            suggestion = f"{home_team} +0.25 AH"
+            suggestion = f"{home_team} -0.25 AH" if is_home_fav else f"{home_team} +0.25 AH"
             confidence = 72.00
-            main_reason = f"⚠️ Alerta de Risco Visitante: {away_team} em crise de resultados ({away_last5.get('text')}). Favoritismo do mandante {home_team} com proteção de meia estaca (+0.25 AH)."
+            prot_txt = "proteção de meia estaca (-0.25 AH)" if is_home_fav else "proteção de meia estaca (+0.25 AH)"
+            main_reason = f"⚠️ Alerta de Risco Visitante: {away_team} em crise de resultados ({away_last5.get('text')}). Favoritismo do mandante {home_team} com {prot_txt}."
         else:
             suggestion = f"{home_team} -0.5 AH"
             confidence = 78.00
@@ -1152,10 +1222,26 @@ def calculate_asian_handicap_suggestion(
         warning_notes.append(f"{away_team} U5J: {away_last5.get('text')}")
         note_str = f" [Avisos: {', '.join(warning_notes)}]" if warning_notes else ""
 
-        # TRAVA DE CONFLITO COM FAVORITO DE MERCADO:
-        # Nunca gerar aposta contra o time com a menor odd de mercado!
+        # TRAVA DE CONFLITO COM FAVORITO DE MERCADO & DETECÇÃO DE AZARÃO EM ALTA:
         if is_market_home_fav:
-            if delta_goals >= 1.80:
+            away_u5j_pts = away_last5.get('pts', 0) if isinstance(away_last5, dict) else 0
+            home_u5j_pts = home_last5.get('pts', 0) if isinstance(home_last5, dict) else 0
+            is_away_underdog_hot = (away_u5j_pts >= home_u5j_pts + 3) or (delta_goals <= 0.15 and away_u5j_pts > home_u5j_pts)
+
+            # Caso clássico de Discrepância (ex: PSG vs Monaco): Mandante super favorito nominal (odd <= 1.55),
+            # mas visitante com forma U5J amplamente superior -> Azarão +1.5 AH é a 1ª opção de valor real!
+            if odd_home and float(odd_home) <= 1.55 and is_away_underdog_hot and not away_in_crisis:
+                has_discrepancy = True
+                alt_suggestion = f"{home_team} -0.25 AH"
+                suggestion = f"{away_team} +1.5 AH"
+                confidence = 76.00
+                main_reason = (
+                    f"💎 Oportunidade de Valor (Azarão em Alta): O mercado superestima o mandante {home_team} pelas odds ({float(odd_home):.2f}), "
+                    f"mas o momento recente (U5J) favorece amplamente o visitante {away_team} ({away_last5.get('text')} vs {home_last5.get('text')}). "
+                    f"Sugestão principal com proteção esticada em {suggestion} (cobre vitória, empate e derrota por até 1 gol). "
+                    f"Alternativa secundária: {alt_suggestion} (Risco Alto pelo momento das equipes).{note_str}"
+                )
+            elif delta_goals >= 1.80:
                 suggestion = f"{home_team} -1.0 AH"
                 confidence = round(min(88.0, 68.0 + delta_goals * 10), 2)
                 main_reason = f"Domínio estrito do mandante favorito {home_team} ({home_goals_scored:.1f} g/j) contra {away_team}. Expectativa de vitória por 2+ gols.{note_str}"
@@ -1173,8 +1259,6 @@ def calculate_asian_handicap_suggestion(
                 main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com proteção de meia estaca (-0.25 AH).{note_str}"
             elif odd_home and float(odd_home) >= 1.90:
                 # Mercado aberto / sem super favorito nominal (odd_home >= 1.90, ex: 2.30).
-                # O visitante é estatisticamente superior (delta_goals < -0.30), gerando uma Oportunidade de Valor (Value Bet)
-                # com cobertura de Handicap Positivo:
                 if delta_goals <= -0.60:
                     suggestion = f"{away_team} +0.25 AH"
                     confidence = round(min(80.0, 72.0 + abs(delta_goals) * 4), 2)
@@ -1197,7 +1281,24 @@ def calculate_asian_handicap_suggestion(
                 confidence = 50.00
                 main_reason = f"🚫 APOSTA BLOQUEADA: Divergência Crítica entre as Odds de Mercado (alto favoritismo do mandante {home_team} @ {float(odd_home):.2f}) e a estatística bruta de xG. Abstenção ativada para proteger a banca.{note_str}"
         elif is_market_away_fav:
-            if delta_goals <= -1.80:
+            away_u5j_pts = away_last5.get('pts', 0) if isinstance(away_last5, dict) else 0
+            home_u5j_pts = home_last5.get('pts', 0) if isinstance(home_last5, dict) else 0
+            is_home_underdog_hot = (home_u5j_pts >= away_u5j_pts + 3) or (delta_goals >= -0.15 and home_u5j_pts > away_u5j_pts)
+
+            # Caso clássico espelhado: Visitante super favorito nominal (odd <= 1.55),
+            # mas mandante com fator campo e forma U5J amplamente superior -> Mandante +1.5 AH é a 1ª opção!
+            if odd_away and float(odd_away) <= 1.55 and is_home_underdog_hot and not home_in_crisis:
+                has_discrepancy = True
+                alt_suggestion = f"{away_team} -0.25 AH"
+                suggestion = f"{home_team} +1.5 AH"
+                confidence = 76.00
+                main_reason = (
+                    f"💎 Oportunidade de Valor (Azarão em Alta): O mercado superestima o visitante {away_team} pelas odds ({float(odd_away):.2f}), "
+                    f"mas o fator casa e o momento recente (U5J) favorecem o mandante {home_team} ({home_last5.get('text')} vs {away_last5.get('text')}). "
+                    f"Sugestão principal com proteção esticada em {suggestion} (cobre vitória, empate e derrota por até 1 gol). "
+                    f"Alternativa secundária: {alt_suggestion} (Risco Alto pelo momento das equipes).{note_str}"
+                )
+            elif delta_goals <= -1.80:
                 suggestion = f"{away_team} -1.0 AH"
                 confidence = round(min(88.0, 68.0 + abs(delta_goals) * 10), 2)
                 main_reason = f"Domínio estrito do visitante favorito {away_team} contra o {home_team}. Expectativa de vitória por 2+ gols.{note_str}"
@@ -1214,9 +1315,6 @@ def calculate_asian_handicap_suggestion(
                 confidence = 72.00
                 main_reason = f"Favoritismo de mercado do visitante {away_team} alinhado com proteção de meia estaca (-0.25 AH).{note_str}"
             elif odd_away and float(odd_away) >= 1.90:
-                # Mercado aberto / sem super favorito visitante (odd_away >= 1.90).
-                # O mandante é estatisticamente superior (delta_goals > 0.30), gerando uma Oportunidade de Valor (Value Bet)
-                # com cobertura de Handicap Positivo para o mandante:
                 if delta_goals >= 0.60:
                     suggestion = f"{home_team} +0.25 AH"
                     confidence = round(min(80.0, 72.0 + delta_goals * 4), 2)
@@ -1234,7 +1332,6 @@ def calculate_asian_handicap_suggestion(
                         f"Entrada segura em Dupla Chance com {suggestion}.{note_str}"
                     )
             else:
-                # Conflito severo de xG vs Menor Odd do Visitante (quando visitante tem odd < 1.90, alto favoritismo de mercado) -> ABSTENÇÃO POR SEGURANÇA
                 suggestion = "Sem Entrada (Abstenção)"
                 confidence = 50.00
                 main_reason = f"🚫 APOSTA BLOQUEADA: Divergência Crítica entre as Odds de Mercado (alto favoritismo do visitante {away_team} @ {float(odd_away):.2f}) e a estatística bruta de xG. Abstenção ativada para proteger a banca.{note_str}"
@@ -1275,20 +1372,27 @@ def calculate_asian_handicap_suggestion(
     # Em início de temporada (primeiras rodadas / meses iniciais de calendário europeu Ago/Set ou sul-americano Jan/Fev/Mar),
     # ajusta conservadoramente QUALQUER linha de handicap negativo (mandante ou visitante) para -0.25 AH (meia estaca / meia perda no empate).
     is_early_season = is_early_season_game(league_name)
-    if is_early_season and not is_cup:
-        if is_market_away_fav and away_team.lower() in suggestion.lower() and ("-0.5" in suggestion or "-0.75" in suggestion or "-1.0" in suggestion):
-            suggestion = f"{away_team} -0.25 AH"
+    if is_early_season and not is_cup and not has_discrepancy:
+        if is_market_away_fav and away_team.lower() in suggestion.lower() and ("-0.5" in suggestion or "-0.75" in suggestion or "-1.0" in suggestion or "-1.5" in suggestion):
+            # Se for super-favorito nominal (odd <= 1.45), a linha comercializada no tempo integral é -1.25 / -1.50
+            if odd_away and float(odd_away) <= 1.45:
+                suggestion = f"{away_team} -1.5 AH" if abs(delta_goals) >= 1.80 else f"{away_team} -1.25 AH"
+            else:
+                suggestion = f"{away_team} -0.25 AH"
             confidence = round(min(76.0, confidence), 2)
             main_reason = (
-                f"🌱 INÍCIO DE TEMPORADA: Linha de Handicap no visitante favorito {away_team} ajustada conservadoramente para -0.25 AH ({league_name or 'Liga'}). "
-                f"Proteção de meia estaca (meio-loss no empate) ativada devido à amostragem reduzida nas primeiras rodadas do campeonato."
+                f"🌱 INÍCIO DE TEMPORADA: Linha de Handicap no visitante favorito {away_team} ajustada conservadoramente para {suggestion} ({league_name or 'Liga'}). "
+                f"Proteção ativada devido à amostragem reduzida nas primeiras rodadas do campeonato."
             )
-        elif is_market_home_fav and home_team.lower() in suggestion.lower() and ("-0.5" in suggestion or "-0.75" in suggestion or "-1.0" in suggestion):
-            suggestion = f"{home_team} -0.25 AH"
+        elif is_market_home_fav and home_team.lower() in suggestion.lower() and ("-0.5" in suggestion or "-0.75" in suggestion or "-1.0" in suggestion or "-1.5" in suggestion):
+            if odd_home and float(odd_home) <= 1.45:
+                suggestion = f"{home_team} -1.5 AH" if delta_goals >= 1.80 else f"{home_team} -1.25 AH"
+            else:
+                suggestion = f"{home_team} -0.25 AH"
             confidence = round(min(76.0, confidence), 2)
             main_reason = (
-                f"🌱 INÍCIO DE TEMPORADA: Linha de Handicap no mandante favorito {home_team} ajustada conservadoramente para -0.25 AH ({league_name or 'Liga'}). "
-                f"Proteção de meia estaca (meio-loss no empate) ativada devido à amostragem reduzida nas primeiras rodadas do campeonato."
+                f"🌱 INÍCIO DE TEMPORADA: Linha de Handicap no mandante favorito {home_team} ajustada conservadoramente para {suggestion} ({league_name or 'Liga'}). "
+                f"Proteção ativada devido à amostragem reduzida nas primeiras rodadas do campeonato."
             )
 
     # Cálculo das Probabilidades 1X2 (%) Plataforma (Modelo Poisson) vs Casa de Apostas (Odds)
@@ -1345,6 +1449,8 @@ def calculate_asian_handicap_suggestion(
     u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
 
     full_reasoning = f"{main_reason} || EXPLICACAO: {nl_explanation} || MOTIVACAO: {nl_motivation} || MEMÓRIA DE CÁLCULO || {calc_memory} || PROBABILIDADES_1X2: {prob_1x2_json} || U5J_DATA: {u5j_json}"
+    if has_discrepancy and alt_suggestion:
+        full_reasoning += f" || HAS_DISCREPANCY: 1 || ALT_SUGGESTION: {alt_suggestion}"
     return suggestion, confidence, full_reasoning, round(lambda_home, 2), round(lambda_away, 2)
 
 def is_abstain_suggestion(sug):
@@ -2146,6 +2252,7 @@ def main():
                         }
                 if not res_stats:
                     res_stats = generate_deterministic_team_stats(t_name, v_type)
+                    res_stats["avg_cards"] = 0.00
                     res_stats["matches_count"] = 0
 
                 return res_stats
@@ -2294,7 +2401,7 @@ def main():
                 ref_data = cursor.fetchone()
                 
             # Obter multiplicador regional por liga (LATAM x1.18, Europa x0.82) e fator de sobredispersão (phi)
-            league_mult, phi_league = get_league_card_multiplier(league_name)
+            league_mult, phi_league = get_league_card_multiplier(league_name, league_id)
 
             rigor = ref_data["rigor_level"]
             yellows = float(ref_data["average_yellow_cards"])
@@ -2343,82 +2450,35 @@ def main():
                 o55 = round(100.0 - u55, 2)
                 o65 = round(100.0 - u65, 2)
 
-                # POLÍTICA BIDIRECIONAL (UNDER & OVER) DA BETANO:
+                # POLÍTICA EXCLUSIVA UNDER CARTÕES DA BETANO:
                 # Calcula Odds Justas (100 / P) para cada linha
+                odd_u35 = round(100.0 / u35, 2) if u35 > 0 else 99.00
                 odd_u45 = round(100.0 / u45, 2) if u45 > 0 else 99.00
                 odd_u55 = round(100.0 / u55, 2) if u55 > 0 else 99.00
                 odd_u65 = round(100.0 / u65, 2) if u65 > 0 else 99.00
                 odd_u75 = round(100.0 / u75, 2) if u75 > 0 else 99.00
                 odd_u85 = round(100.0 / u85, 2) if u85 > 0 else 99.00
 
-                odd_o25 = round(100.0 / o25, 2) if o25 > 0 else 99.00
-                odd_o35 = round(100.0 / o35, 2) if o35 > 0 else 99.00
-                odd_o45 = round(100.0 / o45, 2) if o45 > 0 else 99.00
-                odd_o55 = round(100.0 / o55, 2) if o55 > 0 else 99.00
-                odd_o65 = round(100.0 / o65, 2) if o65 > 0 else 99.00
-
-                # SELEÇÃO BIDIRECIONAL PROBABILÍSTICA (TOP OVER & TOP UNDER >= 60%)
-                valid_options = []
-                
-                # Candidatos de Over (Linhas Betano)
-                over_candidates = [
-                    ("Over 2.5", o25, odd_o25),
-                    ("Over 3.5", o35, odd_o35),
-                    ("Over 4.5", o45, odd_o45),
-                    ("Over 5.5", o55, odd_o55),
-                ]
-                for label, prob, odd in over_candidates:
-                    if prob >= 60.0:
-                        valid_options.append({'market': 'Over', 'label': label, 'prob': prob, 'odd': odd})
-                        
-                # Candidatos de Under realizáveis no mercado pré-jogo da Betano (linha de segurança <= 6.5)
+                # SELEÇÃO EXCLUSIVA DE UNDER CARTÕES (>= 60%)
                 under_candidates = [
+                    ("Under 3.5", u35, odd_u35),
                     ("Under 4.5", u45, odd_u45),
                     ("Under 5.5", u55, odd_u55),
                     ("Under 6.5", u65, odd_u65),
                 ]
+                valid_under = []
                 for label, prob, odd in under_candidates:
                     if prob >= 60.0:
-                        valid_options.append({'market': 'Under', 'label': label, 'prob': prob, 'odd': odd})
+                        valid_under.append({'market': 'Under', 'label': label, 'prob': prob, 'odd': odd})
 
-                if valid_options:
-                    valid_options.sort(key=lambda x: x['prob'], reverse=True)
-
-                    best_over = next((opt for opt in valid_options if opt['market'] == 'Over'), None)
-                    under_opts = [opt for opt in valid_options if opt['market'] == 'Under']
-                    best_under = None
-                    if under_opts:
-                        if exp_cards <= 3.30:
-                            target_labels = ['Under 4.5', 'Under 5.5', 'Under 6.5']
-                        elif exp_cards <= 4.50:
-                            target_labels = ['Under 5.5', 'Under 4.5', 'Under 6.5']
-                        else:
-                            target_labels = ['Under 6.5', 'Under 5.5']
-                        
-                        pref_under = next((opt for opt in under_opts if opt['label'] in target_labels), None)
-                        best_under = pref_under if pref_under else under_opts[0]
-
-                    if best_over and best_under:
-                        if best_over['prob'] >= best_under['prob']:
-                            op1_str = f"1ª Opção: {best_over['label']} ({best_over['prob']}% | Odd Justa: {best_over['odd']})"
-                            op2_str = f"2ª Opção: {best_under['label']} ({best_under['prob']}% | Odd Justa: {best_under['odd']})"
-                        else:
-                            op1_str = f"1ª Opção: {best_under['label']} ({best_under['prob']}% | Odd Justa: {best_under['odd']})"
-                            op2_str = f"2ª Opção: {best_over['label']} ({best_over['prob']}% | Odd Justa: {best_over['odd']})"
-                        prediction_text = f"⚡🛡️ Estratégia Bidirecional (Expectativa: {exp_cards} cartões). Sugestões de valor: {op1_str} | {op2_str}."
-                    elif best_under:
-                        top_u = under_opts[0]
-                        sec_u = under_opts[1] if len(under_opts) > 1 else under_opts[0]
-                        prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd']})."
-                    elif best_over:
-                        over_opts = [opt for opt in valid_options if opt['market'] == 'Over']
-                        top_o = over_opts[0]
-                        sec_o = over_opts[1] if len(over_opts) > 1 else over_opts[0]
-                        prediction_text = f"⚡ Estratégia Over (Expectativa: {exp_cards} cartões | Árbitro: {yellows:.2f} cartões/jogo). Sugestões de valor: 1ª Opção: {top_o['label']} ({top_o['prob']}% | Odd Justa: {top_o['odd']}) | 2ª Opção: {sec_o['label']} ({sec_o['prob']}% | Odd Justa: {sec_o['odd']})."
-                    else:
-                        prediction_text = f"🚫 NO_BET: Partida neutra ou sem margem estatística (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
+                if valid_under:
+                    # Ordena pela maior probabilidade de Under
+                    valid_under.sort(key=lambda x: x['prob'], reverse=True)
+                    top_u = valid_under[0]
+                    sec_u = valid_under[1] if len(valid_under) > 1 else valid_under[0]
+                    prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd']})."
                 else:
-                    prediction_text = f"🚫 NO_BET: Partida neutra ou sem margem estatística (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
+                    prediction_text = f"🚫 NO_BET: Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
 
                 # CÁLCULO DE PALPITES DE UNDER CARTÕES POR TIME (MANDANTE & VISITANTE)
                 home_cards_avg = float(home_c_stats.get("avg_cards", 2.0))
@@ -2436,12 +2496,7 @@ def main():
                 away_o15 = round(100.0 - away_u_probs[1.5], 2)
                 away_o25 = round(100.0 - away_u_probs[2.5], 2)
 
-                if xc_home >= 2.20 and home_o15 >= 60.0:
-                    if home_o25 >= 60.0:
-                        h_rec = f"Mandante Over 2.5 ({home_o25}% | xC: {xc_home})"
-                    else:
-                        h_rec = f"Mandante Over 1.5 ({home_o15}% | xC: {xc_home})"
-                elif xc_home <= 0.95 and home_u_probs[1.5] >= 60.0:
+                if xc_home <= 0.95 and home_u_probs[1.5] >= 60.0:
                     h_rec = f"Mandante Under 1.5 ({home_u_probs[1.5]}% | xC: {xc_home})"
                 elif xc_home <= 1.85 and home_u_probs[2.5] >= 60.0:
                     h_rec = f"Mandante Under 2.5 ({home_u_probs[2.5]}% | xC: {xc_home})"
@@ -2450,12 +2505,7 @@ def main():
                 else:
                     h_rec = f"Mandante Risco Elevado (xC: {xc_home})"
 
-                if xc_away >= 2.20 and away_o15 >= 60.0:
-                    if away_o25 >= 60.0:
-                        a_rec = f"Visitante Over 2.5 ({away_o25}% | xC: {xc_away})"
-                    else:
-                        a_rec = f"Visitante Over 1.5 ({away_o15}% | xC: {xc_away})"
-                elif xc_away <= 0.95 and away_u_probs[1.5] >= 60.0:
+                if xc_away <= 0.95 and away_u_probs[1.5] >= 60.0:
                     a_rec = f"Visitante Under 1.5 ({away_u_probs[1.5]}% | xC: {xc_away})"
                 elif xc_away <= 1.85 and away_u_probs[2.5] >= 60.0:
                     a_rec = f"Visitante Under 2.5 ({away_u_probs[2.5]}% | xC: {xc_away})"
@@ -2470,7 +2520,7 @@ def main():
 
 
             
-            # Garante que os times possuam estatísticas na tabela team_moving_averages
+            # Garante que os times possuam registros estruturados na tabela team_moving_averages sem números sintéticos de cartões
             if home_team_id:
                 cursor.execute("SELECT team_id FROM team_moving_averages WHERE team_id = %s LIMIT 1", (home_team_id,))
                 if not cursor.fetchone():
@@ -2479,24 +2529,22 @@ def main():
                     cursor.execute("""
                         INSERT INTO team_moving_averages (
                             team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
-                            clean_sheets_pct, avg_corners, avg_cards
-                        ) VALUES (%s, %s, 'home', %s, %s, %s, %s, %s)
+                            clean_sheets_pct, avg_corners, avg_cards, matches_count
+                        ) VALUES (%s, %s, 'home', %s, %s, %s, %s, 0.00, 0)
                     """, (
                         home_team_id, home_team, 
                         mock_home["avg_goals_scored"], mock_home["avg_goals_conceded"], 
-                        mock_home["clean_sheets_pct"], mock_home["avg_corners"], 
-                        mock_home["avg_cards"]
+                        mock_home["clean_sheets_pct"], mock_home["avg_corners"]
                     ))
                     cursor.execute("""
                         INSERT INTO team_moving_averages (
                             team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
-                            clean_sheets_pct, avg_corners, avg_cards
-                        ) VALUES (%s, %s, 'away', %s, %s, %s, %s, %s)
+                            clean_sheets_pct, avg_corners, avg_cards, matches_count
+                        ) VALUES (%s, %s, 'away', %s, %s, %s, %s, 0.00, 0)
                     """, (
                         home_team_id, home_team, 
                         mock_away["avg_goals_scored"], mock_away["avg_goals_conceded"], 
-                        mock_away["clean_sheets_pct"], mock_away["avg_corners"], 
-                        mock_away["avg_cards"]
+                        mock_away["clean_sheets_pct"], mock_away["avg_corners"]
                     ))
 
             if away_team_id:
@@ -2507,24 +2555,22 @@ def main():
                     cursor.execute("""
                         INSERT INTO team_moving_averages (
                             team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
-                            clean_sheets_pct, avg_corners, avg_cards
-                        ) VALUES (%s, %s, 'home', %s, %s, %s, %s, %s)
+                            clean_sheets_pct, avg_corners, avg_cards, matches_count
+                        ) VALUES (%s, %s, 'home', %s, %s, %s, %s, 0.00, 0)
                     """, (
                         away_team_id, away_team, 
                         mock_home["avg_goals_scored"], mock_home["avg_goals_conceded"], 
-                        mock_home["clean_sheets_pct"], mock_home["avg_corners"], 
-                        mock_home["avg_cards"]
+                        mock_home["clean_sheets_pct"], mock_home["avg_corners"]
                     ))
                     cursor.execute("""
                         INSERT INTO team_moving_averages (
                             team_id, team_name, venue_type, avg_goals_scored, avg_goals_conceded, 
-                            clean_sheets_pct, avg_corners, avg_cards
-                        ) VALUES (%s, %s, 'away', %s, %s, %s, %s, %s)
+                            clean_sheets_pct, avg_corners, avg_cards, matches_count
+                        ) VALUES (%s, %s, 'away', %s, %s, %s, %s, 0.00, 0)
                     """, (
                         away_team_id, away_team, 
                         mock_away["avg_goals_scored"], mock_away["avg_goals_conceded"], 
-                        mock_away["clean_sheets_pct"], mock_away["avg_corners"], 
-                        mock_away["avg_cards"]
+                        mock_away["clean_sheets_pct"], mock_away["avg_corners"]
                     ))
 
             # Para partidas iniciadas/ao vivo/encerradas, busca estatísticas e eventos em tempo real

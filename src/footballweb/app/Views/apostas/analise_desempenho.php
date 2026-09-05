@@ -322,6 +322,123 @@
     </div>
   </div>
 
+  <!-- League Profitability & Banca Drain Analysis Section -->
+  <div class="chart-card" id="leagueProfitSection">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <div>
+        <h5 class="fw-bold mb-1 text-white d-flex align-items-center gap-2">
+          <i class="bi bi-trophy-fill text-warning"></i> <?= lang('App.net_profit_by_league') ?? 'Lucratividade por Liga de Futebol (Ranking Geral)' ?>
+        </h5>
+        <div class="small" style="color: #cbd5e1 !important;">
+          <i class="bi bi-shield-exclamation text-info"></i> <?= lang('App.league_profit_subtitle') ?? 'Identifique as ligas mais rentáveis e os ralos da sua banca para cortes estratégicos' ?>
+        </div>
+      </div>
+      
+      <!-- Controls Toolbar -->
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <!-- Segment Filter (All / Losses / Profits) -->
+        <div class="bet-slide-toggle" id="leagueSegmentToggle">
+          <button type="button" class="slide-btn active" data-seg="all" onclick="setLeagueSegmentFilter('all', this)" title="Exibir todas as ligas">Todas</button>
+          <button type="button" class="slide-btn" data-seg="loss_only" onclick="setLeagueSegmentFilter('loss_only', this)" title="Exibir apenas ligas com prejuízo acumulado (candidatas a corte)">Prejuízo 🔴</button>
+          <button type="button" class="slide-btn" data-seg="profit_only" onclick="setLeagueSegmentFilter('profit_only', this)" title="Exibir apenas ligas lucrativas">Lucrativas 🟢</button>
+        </div>
+
+        <!-- Sort Select -->
+        <select id="leagueSortSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer;" onchange="onLeagueSortChange(this.value)">
+          <option value="losses_first" selected>🚨 Maiores Prejuízos Primeiro (Cortes)</option>
+          <option value="profit_first">🏆 Mais Lucrativas Primeiro</option>
+          <option value="roi">📈 Pior ROI % Primeiro</option>
+          <option value="volume">🎫 Maior Volume de Apostas</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Mini KPI Diagnosis Cards for Leagues -->
+    <div class="row g-2 mb-3" id="leagueDiagnosticRow">
+      <div class="col-md-4 col-sm-6">
+        <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(255, 82, 82, 0.08); border-color: rgba(255, 82, 82, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-danger d-flex align-items-center gap-1">
+              <i class="bi bi-exclamation-octagon-fill"></i> <?= lang('App.league_drain_alert') ?? 'Maior Ralo da Banca' ?>
+            </span>
+            <span class="badge bg-danger text-white" id="badgeDrainAction" style="font-size: 0.65rem;">Corte Recomendado</span>
+          </div>
+          <div class="fw-bold text-white fs-6 text-truncate" id="kpiWorstLeagueName">-</div>
+          <div class="d-flex align-items-center gap-2 small">
+            <span class="text-danger fw-bold fs-6" id="kpiWorstLeagueProfit">R$ 0,00</span>
+            <span class="text-white-50" style="color: #cbd5e1 !important;" id="kpiWorstLeagueDetails">ROI: 0% | 0 apostas</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4 col-sm-6">
+        <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(0, 230, 118, 0.08); border-color: rgba(0, 230, 118, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-success d-flex align-items-center gap-1">
+              <i class="bi bi-star-fill"></i> <?= lang('App.league_best_alert') ?? 'Liga Mais Lucrativa' ?>
+            </span>
+            <span class="badge bg-success text-dark fw-bold" style="font-size: 0.65rem;">Top Performance</span>
+          </div>
+          <div class="fw-bold text-white fs-6 text-truncate" id="kpiBestLeagueName">-</div>
+          <div class="d-flex align-items-center gap-2 small">
+            <span class="text-success fw-bold fs-6" id="kpiBestLeagueProfit">+R$ 0,00</span>
+            <span class="text-white-50" style="color: #cbd5e1 !important;" id="kpiBestLeagueDetails">ROI: +0% | 0 apostas</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4 col-sm-12">
+        <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-info d-flex align-items-center gap-1">
+              <i class="bi bi-pie-chart-fill"></i> Balanço de Ligas
+            </span>
+            <span class="badge bg-dark border border-secondary text-info" id="kpiLeagueCountBadge" style="font-size: 0.65rem;">0 Ligas</span>
+          </div>
+          <div class="fw-bold text-white fs-6" id="kpiLeagueBalanceSummary">0 Positivas / 0 Negativas</div>
+          <div class="text-white-50 small" style="color: #cbd5e1 !important;" id="kpiLeagueLossTotal">Prejuízo Total Drenado: R$ 0,00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart Container -->
+    <div class="chart-container-box" id="leagueChartBox" style="height: 400px;">
+      <canvas id="leagueProfitChart"></canvas>
+    </div>
+
+    <!-- Collapsible Table: Detalhamento de Ligas e Recomendações de Corte -->
+    <div class="mt-3 text-end">
+      <button class="btn btn-sm btn-outline-secondary text-light-50 rounded-pill px-3 py-1" type="button" data-bs-toggle="collapse" data-bs-target="#leagueTableCollapse" aria-expanded="false" aria-controls="leagueTableCollapse">
+        <i class="bi bi-list-columns-reverse me-1 text-warning"></i> Alternar Tabela de Auditoria por Liga
+      </button>
+    </div>
+
+    <div class="collapse mt-3" id="leagueTableCollapse">
+      <div class="table-responsive rounded-3 border border-secondary p-2 bg-dark">
+        <table class="table table-dark table-sm table-hover align-middle mb-0" style="font-size: 0.85rem;">
+          <thead>
+            <tr class="text-white-50 border-secondary">
+              <th>Liga</th>
+              <th class="text-center">Apostas</th>
+              <th class="text-center">V / D / A</th>
+              <th class="text-center">Win Rate</th>
+              <th>Apostado</th>
+              <th>Retorno</th>
+              <th>Lucro Líquido</th>
+              <th>ROI (%)</th>
+              <th class="text-center">Diagnóstico</th>
+            </tr>
+          </thead>
+          <tbody id="leagueTableBody">
+            <tr>
+              <td colspan="9" class="text-center text-muted py-3">Carregando dados das ligas...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- Detailed Table Breakdown -->
   <div class="table-card">
     <h5 class="fw-bold mb-3 text-white d-flex align-items-center gap-2">
@@ -356,6 +473,33 @@ const rawBets = <?= json_encode($apostas ?? []) ?>;
 
 let perfChart = null;
 let mercadoChart = null;
+let leagueChart = null;
+
+let leagueSortMode = 'losses_first';
+let leagueSegmentFilter = 'all';
+
+function setLeagueSegmentFilter(val, btnEl) {
+  leagueSegmentFilter = val;
+  const container = document.getElementById('leagueSegmentToggle');
+  if (container) {
+    container.querySelectorAll('.slide-btn').forEach(btn => {
+      btn.classList.remove('active', 'active-no');
+    });
+  }
+  if (btnEl) {
+    if (val === 'loss_only') {
+      btnEl.classList.add('active-no');
+    } else {
+      btnEl.classList.add('active');
+    }
+  }
+  updatePerformanceDashboard();
+}
+
+function onLeagueSortChange(val) {
+  leagueSortMode = val;
+  updatePerformanceDashboard();
+}
 
 let perfConfirmedFilter = 'all';
 
@@ -621,12 +765,54 @@ function updatePerformanceDashboard() {
 
   const buckets = {};
   const mercadoBuckets = {};
+  const leagueBuckets = {};
 
   filteredBets.forEach(bet => {
     const status = bet.status || '';
     const valor = parseFloat(bet.valor_aposta) || 0;
     const netProfit = computeNetProfit(bet);
     const grossReturn = computeGrossReturn(bet);
+
+    // Agrupamento por Liga de Futebol
+    let leagueName = (bet.league_name || 'Outras Ligas').trim();
+    if (!leagueName) leagueName = 'Outras Ligas';
+
+    if (!leagueBuckets[leagueName]) {
+      leagueBuckets[leagueName] = {
+        apostado: 0,
+        retorno: 0,
+        lucro: 0,
+        count: 0,
+        ganhas: 0,
+        perdidas: 0,
+        anuladas: 0,
+        decided: 0
+      };
+    }
+    leagueBuckets[leagueName].apostado += valor;
+    leagueBuckets[leagueName].retorno += grossReturn;
+    leagueBuckets[leagueName].lucro += netProfit;
+    leagueBuckets[leagueName].count += 1;
+
+    if (status === 'Ganha') {
+      leagueBuckets[leagueName].ganhas += 1;
+      leagueBuckets[leagueName].decided += 1;
+    } else if (status === 'Meio Ganha') {
+      leagueBuckets[leagueName].ganhas += 0.75;
+      leagueBuckets[leagueName].decided += 1;
+    } else if (status === 'Perdida') {
+      leagueBuckets[leagueName].perdidas += 1;
+      leagueBuckets[leagueName].decided += 1;
+    } else if (status === 'Meio Perdida') {
+      leagueBuckets[leagueName].perdidas += 0.75;
+      leagueBuckets[leagueName].decided += 1;
+    } else if (status === 'Cashout') {
+      if (netProfit > 0) leagueBuckets[leagueName].ganhas += 1;
+      else if (netProfit < 0) leagueBuckets[leagueName].perdidas += 1;
+      leagueBuckets[leagueName].decided += 1;
+    } else if (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA') {
+      leagueBuckets[leagueName].anuladas += 1;
+    }
 
     totalApostado += valor;
     if (status !== 'Pendente') {
@@ -827,8 +1013,149 @@ function updatePerformanceDashboard() {
     });
   });
 
+  // ==========================================
+  // DIAGNÓSTICO E RANKING POR LIGA DE FUTEBOL
+  // ==========================================
+  const allLeagueKeys = Object.keys(leagueBuckets);
+  let worstLeague = null;
+  let bestLeague = null;
+  let totalLossDrained = 0;
+  let countProfitLeagues = 0;
+  let countLossLeagues = 0;
+
+  allLeagueKeys.forEach(k => {
+    const l = leagueBuckets[k];
+    if (l.lucro < -0.01) {
+      countLossLeagues++;
+      totalLossDrained += Math.abs(l.lucro);
+      if (!worstLeague || l.lucro < worstLeague.lucro) {
+        worstLeague = { name: k, ...l };
+      }
+    } else if (l.lucro > 0.01) {
+      countProfitLeagues++;
+      if (!bestLeague || l.lucro > bestLeague.lucro) {
+        bestLeague = { name: k, ...l };
+      }
+    }
+  });
+
+  // Atualizar Mini KPIs de Diagnóstico no topo do card de Ligas
+  const worstNameEl = document.getElementById('kpiWorstLeagueName');
+  const worstProfitEl = document.getElementById('kpiWorstLeagueProfit');
+  const worstDetailsEl = document.getElementById('kpiWorstLeagueDetails');
+  const worstBadgeEl = document.getElementById('badgeDrainAction');
+
+  if (worstLeague) {
+    const worstRoi = worstLeague.apostado > 0 ? (worstLeague.lucro / worstLeague.apostado) * 100 : 0;
+    if (worstNameEl) worstNameEl.textContent = worstLeague.name;
+    if (worstProfitEl) worstProfitEl.textContent = formatBrl(worstLeague.lucro);
+    if (worstDetailsEl) worstDetailsEl.textContent = `ROI: ${formatPct(worstRoi)} | ${Math.round(worstLeague.perdidas)}D de ${worstLeague.count} bets`;
+    if (worstBadgeEl) {
+      worstBadgeEl.textContent = 'Corte Recomendado ✂️';
+      worstBadgeEl.className = 'badge bg-danger text-white';
+    }
+  } else {
+    if (worstNameEl) worstNameEl.textContent = 'Nenhuma Liga com Prejuízo 🎉';
+    if (worstProfitEl) worstProfitEl.textContent = 'R$ 0,00';
+    if (worstDetailsEl) worstDetailsEl.textContent = 'Banca 100% protegida no período';
+    if (worstBadgeEl) {
+      worstBadgeEl.textContent = 'Sem Dreno';
+      worstBadgeEl.className = 'badge bg-secondary text-white';
+    }
+  }
+
+  const bestNameEl = document.getElementById('kpiBestLeagueName');
+  const bestProfitEl = document.getElementById('kpiBestLeagueProfit');
+  const bestDetailsEl = document.getElementById('kpiBestLeagueDetails');
+
+  if (bestLeague) {
+    const bestRoi = bestLeague.apostado > 0 ? (bestLeague.lucro / bestLeague.apostado) * 100 : 0;
+    const bestWinRate = bestLeague.decided > 0 ? (bestLeague.ganhas / bestLeague.decided) * 100 : 0;
+    if (bestNameEl) bestNameEl.textContent = bestLeague.name;
+    if (bestProfitEl) bestProfitEl.textContent = formatBrl(bestLeague.lucro);
+    if (bestDetailsEl) bestDetailsEl.textContent = `ROI: ${formatPct(bestRoi)} | Win: ${bestWinRate.toFixed(1)}% (${bestLeague.count} bets)`;
+  } else {
+    if (bestNameEl) bestNameEl.textContent = 'Sem dados suficientes';
+    if (bestProfitEl) bestProfitEl.textContent = 'R$ 0,00';
+    if (bestDetailsEl) bestDetailsEl.textContent = 'Aguardando liquidação';
+  }
+
+  const countBadgeEl = document.getElementById('kpiLeagueCountBadge');
+  if (countBadgeEl) countBadgeEl.textContent = `${allLeagueKeys.length} Ligas`;
+
+  const balanceSummaryEl = document.getElementById('kpiLeagueBalanceSummary');
+  if (balanceSummaryEl) {
+    balanceSummaryEl.innerHTML = `<span class="text-success fw-bold">${countProfitLeagues} Lucrativas</span> / <span class="text-danger fw-bold">${countLossLeagues} Deficitárias</span>`;
+  }
+
+  const lossTotalEl = document.getElementById('kpiLeagueLossTotal');
+  if (lossTotalEl) {
+    lossTotalEl.textContent = `Prejuízo Drenado: ${formatBrl(totalLossDrained)}`;
+  }
+
+  // Filtragem e Ordenação das Ligas para o Gráfico
+  let activeLeagueKeys = [...allLeagueKeys];
+  if (leagueSegmentFilter === 'loss_only') {
+    activeLeagueKeys = activeLeagueKeys.filter(k => leagueBuckets[k].lucro < -0.01);
+  } else if (leagueSegmentFilter === 'profit_only') {
+    activeLeagueKeys = activeLeagueKeys.filter(k => leagueBuckets[k].lucro > 0.01);
+  }
+
+  activeLeagueKeys.sort((a, b) => {
+    const la = leagueBuckets[a];
+    const lb = leagueBuckets[b];
+    if (leagueSortMode === 'losses_first') {
+      return la.lucro - lb.lucro; // Menor lucro (maior prejuízo) primeiro
+    } else if (leagueSortMode === 'profit_first') {
+      return lb.lucro - la.lucro; // Maior lucro primeiro
+    } else if (leagueSortMode === 'roi') {
+      const roiA = la.apostado > 0 ? (la.lucro / la.apostado) * 100 : -9999;
+      const roiB = lb.apostado > 0 ? (lb.lucro / lb.apostado) * 100 : -9999;
+      return roiA - roiB; // Pior ROI primeiro
+    } else if (leagueSortMode === 'volume') {
+      return lb.count - la.count;
+    }
+    return la.lucro - lb.lucro;
+  });
+
+  const leagueLabels = [];
+  const leagueLucroData = [];
+  const leagueBgColors = [];
+  const leagueBorderColors = [];
+  const leagueMetaDetails = [];
+
+  activeLeagueKeys.forEach(key => {
+    const b = leagueBuckets[key];
+    leagueLabels.push(key);
+    leagueLucroData.push(b.lucro);
+    if (b.lucro >= 0) {
+      leagueBgColors.push('rgba(0, 230, 118, 0.75)');
+      leagueBorderColors.push('#00e676');
+    } else {
+      leagueBgColors.push('rgba(255, 82, 82, 0.75)');
+      leagueBorderColors.push('#ff5252');
+    }
+
+    const roi = b.apostado > 0 ? (b.lucro / b.apostado) * 100 : 0;
+    const winRate = b.decided > 0 ? (b.ganhas / b.decided) * 100 : 0;
+    leagueMetaDetails.push({
+      name: key,
+      apostado: b.apostado,
+      retorno: b.retorno,
+      lucro: b.lucro,
+      count: b.count,
+      ganhas: b.ganhas,
+      perdidas: b.perdidas,
+      anuladas: b.anuladas,
+      roi: roi,
+      winRate: winRate
+    });
+  });
+
   renderChart(labels, cumulativeApostadoData, cumulativeLucroData);
   renderMercadoChart(mercadoLabels, mercadoLucroData, mercadoBgColors, mercadoBorderColors, mercadoMetaDetails);
+  renderLeagueProfitChart(leagueLabels, leagueLucroData, leagueBgColors, leagueBorderColors, leagueMetaDetails);
+  renderLeagueTableBreakdown(activeLeagueKeys, leagueBuckets);
   renderTableBreakdown(bucketKeys, buckets, groupMode);
 }
 
@@ -1011,6 +1338,167 @@ function renderMercadoChart(labels, data, bgColors, borderColors, metaDetails) {
       }
     }
   });
+}
+
+function renderLeagueProfitChart(labels, data, bgColors, borderColors, metaDetails) {
+  const canvas = document.getElementById('leagueProfitChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const containerBox = document.getElementById('leagueChartBox');
+  if (containerBox) {
+    const dynamicHeight = Math.max(340, labels.length * 38);
+    containerBox.style.height = `${dynamicHeight}px`;
+  }
+
+  if (leagueChart) {
+    leagueChart.destroy();
+  }
+
+  leagueChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Lucro Líquido Real (R$)',
+          data: data,
+          backgroundColor: bgColors,
+          borderColor: borderColors,
+          borderWidth: 1.5,
+          borderRadius: 6,
+          barThickness: labels.length > 10 ? 'flex' : 24,
+          maxBarThickness: 32
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          titleColor: '#f0f6fc',
+          bodyColor: '#cbd5e1',
+          borderColor: '#334155',
+          borderWidth: 1,
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            title: function(context) {
+              return 'Liga: ' + (context[0]?.label || '');
+            },
+            label: function(context) {
+              const idx = context.dataIndex;
+              const meta = metaDetails[idx];
+              if (!meta) return '';
+
+              const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+              const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
+
+              const lines = [
+                `Lucro Líquido: ${formatBrl(meta.lucro)}`,
+                `ROI: ${formatPct(meta.roi)}`,
+                `Taxa de Acerto (Win Rate): ${meta.winRate.toFixed(1)}%`,
+                `Total Simulado: ${formatBrl(meta.apostado)}`,
+                `Retorno Total: ${formatBrl(meta.retorno)}`,
+                `Desempenho: ${Math.round(meta.ganhas)}V / ${Math.round(meta.perdidas)}D / ${meta.anuladas}A (${meta.count} apostas)`
+              ];
+
+              if (meta.lucro < 0) {
+                lines.push('⚠️ Sugestão de Banca: Avaliar corte/pausa desta liga');
+              } else if (meta.roi > 25) {
+                lines.push('⭐ Destaque: Liga de altíssima rentabilidade');
+              }
+              return lines;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { 
+            color: function(context) {
+              if (context.tick && context.tick.value === 0) return 'rgba(255, 255, 255, 0.35)';
+              return 'rgba(255, 255, 255, 0.08)';
+            },
+            lineWidth: function(context) {
+              if (context.tick && context.tick.value === 0) return 2;
+              return 1;
+            }
+          },
+          ticks: {
+            color: '#94a3b8',
+            font: { family: 'Inter' },
+            callback: function(value) {
+              return 'R$ ' + value.toLocaleString('pt-BR');
+            }
+          }
+        },
+        y: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#f0f6fc',
+            font: { family: 'Inter', weight: '600', size: 12 }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderLeagueTableBreakdown(keys, buckets) {
+  const tbody = document.getElementById('leagueTableBody');
+  if (!tbody) return;
+
+  if (keys.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">Nenhuma liga encontrada para os filtros selecionados.</td></tr>';
+    return;
+  }
+
+  const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
+
+  let html = '';
+  keys.forEach(k => {
+    const b = buckets[k];
+    const roi = b.apostado > 0 ? (b.lucro / b.apostado) * 100 : 0;
+    const winRate = b.decided > 0 ? (b.ganhas / b.decided) * 100 : 0;
+
+    const lucroClass = b.lucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+    const roiClass = roi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+
+    let badgeHtml = '';
+    if (b.lucro < 0) {
+      badgeHtml = '<span class="badge bg-danger text-white px-2 py-1"><i class="bi bi-scissors me-1"></i> Corte Sugerido</span>';
+    } else if (roi > 20) {
+      badgeHtml = '<span class="badge bg-success text-dark fw-bold px-2 py-1"><i class="bi bi-star-fill me-1"></i> Manter Ativa</span>';
+    } else if (b.lucro > 0) {
+      badgeHtml = '<span class="badge bg-info text-dark px-2 py-1"><i class="bi bi-check-circle me-1"></i> Rentável</span>';
+    } else {
+      badgeHtml = '<span class="badge bg-secondary text-white px-2 py-1">Neutro</span>';
+    }
+
+    html += `
+      <tr>
+        <td class="fw-semibold text-white">${k}</td>
+        <td class="text-center">${b.count}</td>
+        <td class="text-center small">${Math.round(b.ganhas)}V / ${Math.round(b.perdidas)}D / ${b.anuladas}A</td>
+        <td class="text-center">${winRate.toFixed(1)}%</td>
+        <td>${formatBrl(b.apostado)}</td>
+        <td>${formatBrl(b.retorno)}</td>
+        <td class="${lucroClass}">${formatBrl(b.lucro)}</td>
+        <td class="${roiClass}">${formatPct(roi)}</td>
+        <td class="text-center">${badgeHtml}</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
 }
 
 function renderTableBreakdown(keys, buckets, groupMode) {

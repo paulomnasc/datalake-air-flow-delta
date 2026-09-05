@@ -2284,9 +2284,11 @@ class ApostaController extends BaseController
         $apostas = [];
         if ($hasTokens) {
             $apostas = $this->apostaModel
-                ->where('usuario_id', $userId)
-                ->orderBy('data_hora_jogo', 'ASC')
-                ->orderBy('criado_em', 'ASC')
+                ->select('apostas.*, COALESCE(fixtures_trends.league_name, "Outras Ligas") as league_name, fixtures_trends.league_id')
+                ->join('fixtures_trends', 'apostas.fixture_id = fixtures_trends.fixture_id', 'left')
+                ->where('apostas.usuario_id', $userId)
+                ->orderBy('apostas.data_hora_jogo', 'ASC')
+                ->orderBy('apostas.criado_em', 'ASC')
                 ->findAll();
 
             $tzUtc = new \DateTimeZone('UTC');

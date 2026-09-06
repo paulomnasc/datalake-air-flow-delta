@@ -395,13 +395,14 @@ def extract_cards_under_suggestion(prediction_text: str):
     return None, None, 'NO_BET', None, None, None, None
 
 _betano_cards_odds_cache = {}
+_betano_cards_raw_fixture_cache = {}
 _betano_cards_api_disabled = False
 
 def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: float):
     """
     Busca na API-Sports a odd REAL do mercado de cartões oferecida exclusivamente pela Betano (Bookmaker ID 32).
     Retorna tupla: (odd_float, 'BETANO') se encontrada, ou (None, None) se o mercado não estiver à venda na Betano.
-    Possui Circuit-Breaker para interrupção imediata quando a cota diária estoura.
+    Possui Circuit-Breaker para interrupção imediata quando a cota diária estoura e cache bruto por fixture_id.
     """
     global _betano_cards_api_disabled
     if not fixture_id or _betano_cards_api_disabled:
@@ -411,27 +412,36 @@ def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: flo
     if cache_key in _betano_cards_odds_cache:
         return _betano_cards_odds_cache[cache_key]
 
-    api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
-    headers = {
-        'x-apisports-key': api_key,
-        'User-Agent': 'Mozilla/5.0'
-    }
-
     is_under = 'menos' in (palpite_str or '').lower() or 'under' in (palpite_str or '').lower()
     target_type = 'under' if is_under else 'over'
 
-    # Otimizado: 1 única chamada HTTP por partida direcionada à Betano (bookmaker=32)
-    url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
-    try:
-        resp = requests.get(url, headers=headers, timeout=10).json()
-        errs = resp.get('errors')
-        if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
-            print(f"⚠️ [API-Sports Betano Cards] Limite de requisições ou cota diária atingido: {errs}. Ativando Circuit-Breaker para evitar novas chamadas HTTP nesta execução.")
-            _betano_cards_api_disabled = True
-            _betano_cards_odds_cache[cache_key] = (None, None)
-            return None, None
+    # Se a fixture já teve suas odds buscadas nesta execução, reutiliza os dados da Betano sem nova requisição HTTP
+    if fixture_id in _betano_cards_raw_fixture_cache:
+        items = _betano_cards_raw_fixture_cache[fixture_id]
+    else:
+        api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
+        headers = {
+            'x-apisports-key': api_key,
+            'User-Agent': 'Mozilla/5.0'
+        }
 
-        items = resp.get('response', [])
+        # Otimizado: 1 única chamada HTTP por partida direcionada à Betano (bookmaker=32)
+        url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
+        items = []
+        try:
+            resp = requests.get(url, headers=headers, timeout=10).json()
+            errs = resp.get('errors')
+            if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+                print(f"⚠️ [API-Sports Betano Cards] Limite de requisições ou cota diária atingido: {errs}. Ativando Circuit-Breaker para evitar novas chamadas HTTP nesta execução.")
+                _betano_cards_api_disabled = True
+                _betano_cards_odds_cache[cache_key] = (None, None)
+                return None, None
+
+            items = resp.get('response', [])
+            _betano_cards_raw_fixture_cache[fixture_id] = items
+        except Exception as e:
+            print(f"⚠️ [API Betano Cards] Erro ao buscar odd para fixture #{fixture_id}: {e}")
+            _betano_cards_raw_fixture_cache[fixture_id] = []
         for item in items:
             for bm in item.get('bookmakers', []):
                 bm_name = str(bm.get('name', '')).strip().upper()
@@ -458,8 +468,6 @@ def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: flo
                                     res = (v_odd, 'BETANO')
                                     _betano_cards_odds_cache[cache_key] = res
                                     return res
-    except Exception as e:
-        print(f"⚠️ [API Betano Cards] Erro ao buscar odd para fixture #{fixture_id}: {e}")
 
     _betano_cards_odds_cache[cache_key] = (None, None)
     return None, None

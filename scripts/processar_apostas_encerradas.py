@@ -128,25 +128,7 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                 LIMIT 1
             """, (fixture_id,))
             row = cursor.fetchone()
-            if row:
-                yh = row.get('yellow_cards_home', 0) or 0
-                ya = row.get('yellow_cards_away', 0) or 0
-                rh = row.get('red_cards_home', 0) or 0
-                ra = row.get('red_cards_away', 0) or 0
-                last_ev = row.get('last_event')
-                checked_at = row.get('cards_api_checked_at')
-                retry_cnt = row.get('cards_api_retry_count', 0) or 0
-
-                if checked_at is not None:
-                    if (yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != ''):
-                        return (yh, ya, rh, ra)
-
-                    if isinstance(checked_at, datetime):
-                        hours_since_check = (datetime.now() - checked_at).total_seconds() / 3600.0
-                        if hours_since_check < 6.0:
-                            print(f"⏳ [Cooldown API] Fixture #{fixture_id} consultada há {hours_since_check:.1f}h (tentativas: {retry_cnt}). Pulando chamada HTTP para economizar cota.")
-                            return None
-            
+            # 1. Consulta prioritária no cache dedicado de estatísticas (match_statistics_cache)
             cursor.execute("""
                 SELECT team_id, yellow_cards, red_cards 
                 FROM match_statistics_cache 
@@ -167,8 +149,27 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                         ya = r.get('yellow_cards', 0) or 0
                         ra = r.get('red_cards', 0) or 0
                         found = True
-                if found:
+                if found and (yh + ya + rh + ra > 0 or len(cache_rows) >= 2):
                     return (yh, ya, rh, ra)
+
+            if row:
+                yh = row.get('yellow_cards_home', 0) or 0
+                ya = row.get('yellow_cards_away', 0) or 0
+                rh = row.get('red_cards_home', 0) or 0
+                ra = row.get('red_cards_away', 0) or 0
+                last_ev = row.get('last_event')
+                checked_at = row.get('cards_api_checked_at')
+                retry_cnt = row.get('cards_api_retry_count', 0) or 0
+
+                if checked_at is not None:
+                    if (yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != ''):
+                        return (yh, ya, rh, ra)
+
+                    if isinstance(checked_at, datetime):
+                        hours_since_check = (datetime.now() - checked_at).total_seconds() / 3600.0
+                        if hours_since_check < 6.0:
+                            print(f"⏳ [Cooldown API] Fixture #{fixture_id} consultada há {hours_since_check:.1f}h (tentativas: {retry_cnt}). Pulando chamada HTTP para economizar cota.")
+                            return None
         except Exception as e_cache:
             print(f"⚠️ Erro ao consultar cache local para fixture #{fixture_id}: {e_cache}")
 

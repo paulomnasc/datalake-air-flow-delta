@@ -84,13 +84,14 @@ def get_all_user_ids(cursor):
     return [558]
 
 _betano_ah_odds_cache = {}
+_betano_ah_raw_fixture_cache = {}
 _betano_ah_api_disabled = False
 
 def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str, away_team: str):
     """
     Busca na API-Sports a odd REAL do mercado de Handicap Asiático oferecida exclusivamente pela Betano (Bookmaker ID 32).
     Retorna tupla: (odd_float, 'BETANO') se encontrada, ou (None, None) se a linha não estiver à venda na Betano.
-    Possui Circuit-Breaker para interrupção imediata quando a cota diária de requisições estourar.
+    Possui Circuit-Breaker para interrupção imediata quando a cota diária de requisições estourar e cache bruto por fixture_id.
     """
     global _betano_ah_api_disabled
     if not fixture_id or _betano_ah_api_disabled:
@@ -99,13 +100,6 @@ def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str,
     cache_key = f"{fixture_id}_{palpite_str}"
     if cache_key in _betano_ah_odds_cache:
         return _betano_ah_odds_cache[cache_key]
-
-    env = get_live_env_vars()
-    api_key = env.get('FOOTBALL_API_KEY') or os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
-    headers = {
-        'x-apisports-key': api_key,
-        'User-Agent': 'Mozilla/5.0'
-    }
 
     is_away = away_team.lower() in (palpite_str or '').lower() or 'visitante' in (palpite_str or '').lower() or 'fora' in (palpite_str or '').lower()
     target_side = 'Away' if is_away else 'Home'
@@ -125,23 +119,40 @@ def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str,
     else:
         expected_signs = ['']
 
-    url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
-    try:
-        resp = requests.get(url, headers=headers, timeout=10).json()
-        errs = resp.get('errors')
-        if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
-            print(f"⚠️ [API-Sports Betano AH] Limite de requisições ou cota diária atingido: {errs}. Ativando Circuit-Breaker nesta execução.")
-            _betano_ah_api_disabled = True
-            _betano_ah_odds_cache[cache_key] = (None, None)
-            return None, None
+    # Se a fixture já teve suas odds buscadas nesta execução, reutiliza os dados da Betano sem nova requisição HTTP
+    if fixture_id in _betano_ah_raw_fixture_cache:
+        items = _betano_ah_raw_fixture_cache[fixture_id]
+    else:
+        env = get_live_env_vars()
+        api_key = env.get('FOOTBALL_API_KEY') or os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
+        headers = {
+            'x-apisports-key': api_key,
+            'User-Agent': 'Mozilla/5.0'
+        }
 
-        items = resp.get('response', [])
-        for item in items:
-            for bm in item.get('bookmakers', []):
-                bm_name = str(bm.get('name', '')).strip().upper()
-                bm_id = bm.get('id')
-                if 'BETANO' not in bm_name and bm_id != 32:
-                    continue
+        url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
+        items = []
+        try:
+            resp = requests.get(url, headers=headers, timeout=10).json()
+            errs = resp.get('errors')
+            if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+                print(f"⚠️ [API-Sports Betano AH] Limite de requisições ou cota diária atingido: {errs}. Ativando Circuit-Breaker nesta execução.")
+                _betano_ah_api_disabled = True
+                _betano_ah_odds_cache[cache_key] = (None, None)
+                return None, None
+
+            items = resp.get('response', [])
+            _betano_ah_raw_fixture_cache[fixture_id] = items
+        except Exception as e:
+            print(f"⚠️ [API Betano AH] Erro ao buscar odd para fixture #{fixture_id}: {e}")
+            _betano_ah_raw_fixture_cache[fixture_id] = []
+
+    for item in items:
+        for bm in item.get('bookmakers', []):
+            bm_name = str(bm.get('name', '')).strip().upper()
+            bm_id = bm.get('id')
+            if 'BETANO' not in bm_name and bm_id != 32:
+                continue
 
                 for bet in bm.get('bets', []):
                     b_id = bet.get('id')
@@ -182,9 +193,6 @@ def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str,
                                 res = (v_odd, 'BETANO')
                                 _betano_ah_odds_cache[cache_key] = res
                                 return res
-
-    except Exception as e:
-        print(f"⚠️ [API Betano AH] Erro ao buscar odd para fixture #{fixture_id}: {e}")
 
     _betano_ah_odds_cache[cache_key] = (None, None)
     return None, None
@@ -686,9 +694,12 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 apostas_canceladas += len(canc_list)
             continue
 
-        allowed_lines = ['+0.25', '-0.25', '-0.5', '+0.5', '-1.0', '+1.0', '+1.25', '-1.25', '+1.5', '-1.5', '+1.75', '-1.75']
+        # Trava Estrita: Apenas -0.25 AH é permitido para o favorito (protege a banca em 50% no empate).
+        # Linhas negativas profundas (-0.50, -0.75, -1.0, -1.25, -1.50) causam perda total no empate e são proibidas.
+        # Linhas positivas (+0.25, +0.5, +0.75, +1.0, +1.25, +1.5, +1.75) continuam permitidas para cobertura do azarão.
+        allowed_lines = ['-0.25', '+0.25', '+0.5', '+0.75', '+1.0', '+1.25', '+1.5', '+1.75']
         if not any(al in ah_norm_after for al in allowed_lines):
-            print(f"🛡️ [Linha Fora das Top Estratégias] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' fora das linhas permitidas.")
+            print(f"🛡️ [Linha Fora das Top Estratégias] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' fora das linhas permitidas (apenas -0.25 AH para favoritos e linhas positivas para azarão).")
             apostas_abstenção += 1
             canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Linha fora das estratégias fracionadas permitidas: {ah_suggestion}")
             if canc_list:
@@ -713,6 +724,9 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 elif '+1.5' in ah_suggestion or '+1.25' in ah_suggestion or '+1.75' in ah_suggestion:
                     # Linha +1.5 para underdog de super-favorito: odd equilibrada de mercado ~1.85
                     real_odd_betano = 1.85
+                elif '-0.25' in ah_suggestion:
+                    # Linha -0.25 para favorito: odd estimada com base na cotação seca (ex: 1.90 -> ~1.65, 1.50 -> ~1.36)
+                    real_odd_betano = round(max(1.20, min(2.10, 1.0 + (raw_float - 1.0) * 0.72)), 2)
                 else:
                     real_odd_betano = raw_float
                 odd_source = 'TRENDS_FALLBACK'

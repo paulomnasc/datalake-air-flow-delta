@@ -450,21 +450,59 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
         except Exception as e_sql:
             print(f"Aviso na busca SQL por Nome de forma para '{team_name}': {e_sql}")
 
-    # 3. Consulta rápida na API-Sports por team_id se o banco local possuir menos de 5 partidas
+    # 3. Consulta rápida na tabela de cache persistente team_last5_cache ou na API-Sports por team_id se o banco local possuir menos de 5 partidas
     if len(matches) < 5 and team_id:
-        try:
-            api_m = fetch_api_sports_team_last5(team_id, limit=5)
-            if api_m:
-                existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
-                for am in api_m:
-                    key = (am.get('opponent'), am.get('score'))
-                    if key not in existing_keys:
-                        matches.append(am)
-                        existing_keys.add(key)
-                    if len(matches) >= 5:
-                        break
-        except Exception as e_api_m:
-            print(f"Aviso na busca por API-Sports para '{team_name}' (#{team_id}): {e_api_m}")
+        # 3.1 Verifica primeiro no cache persistente do MySQL (válido por 24 horas)
+        if cursor is not None:
+            try:
+                cursor.execute("""
+                    SELECT form_json FROM team_last5_cache 
+                    WHERE team_id = %s AND updated_at >= NOW() - INTERVAL 24 HOUR
+                    LIMIT 1
+                """, (team_id,))
+                c_row = cursor.fetchone()
+                if c_row and c_row.get('form_json'):
+                    c_matches = json.loads(c_row['form_json']) if isinstance(c_row['form_json'], str) else c_row['form_json']
+                    if isinstance(c_matches, list):
+                        existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
+                        for am in c_matches:
+                            key = (am.get('opponent'), am.get('score'))
+                            if key not in existing_keys:
+                                matches.append(am)
+                                existing_keys.add(key)
+                            if len(matches) >= 5:
+                                break
+            except Exception as e_c:
+                pass
+
+        # 3.2 Se ainda não tiver 5 partidas, consulta a API-Sports e persiste no MySQL
+        if len(matches) < 5:
+            try:
+                api_m = fetch_api_sports_team_last5(team_id, limit=5)
+                if api_m:
+                    existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
+                    for am in api_m:
+                        key = (am.get('opponent'), am.get('score'))
+                        if key not in existing_keys:
+                            matches.append(am)
+                            existing_keys.add(key)
+                        if len(matches) >= 5:
+                            break
+                    if cursor is not None and api_m:
+                        try:
+                            cursor.execute("""
+                                INSERT INTO team_last5_cache (team_id, team_name, league_id, form_json, updated_at)
+                                VALUES (%s, %s, %s, %s, NOW())
+                                ON DUPLICATE KEY UPDATE 
+                                    form_json = VALUES(form_json),
+                                    updated_at = NOW(),
+                                    team_name = VALUES(team_name),
+                                    league_id = VALUES(league_id)
+                            """, (team_id, team_name, league_id, json.dumps(api_m)))
+                        except Exception:
+                            pass
+            except Exception as e_api_m:
+                print(f"Aviso na busca por API-Sports para '{team_name}' (#{team_id}): {e_api_m}")
 
     # 4. Fallback na raspagem Futbol24 desativado dentro do loop para evitar I/O síncrono e lentidão
     # Os dados do histórico dos times já são obtidos do banco local e da API-Sports.
@@ -941,6 +979,80 @@ def build_natural_language_motivation(
 
     return res_text
 
+def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
+    """
+    Analisa o vetor ordenado cronologicamente das 5 partidas mais recentes (U5J).
+    m[0] é a partida mais recente; m[4] é a mais antiga.
+    Calcula:
+      - Pontuação ponderada por recência temporal (Pts_w, escala 0 a 15).
+      - Slope / Curva de Rendimento (CURVA_ASCENDENTE, CURVA_ESTAGNADA, CURVA_DESCENDENTE, CURVA_ESTAVEL).
+      - Coeficiente multiplicador de momentum (fator de aceleração/frenagem ofensiva).
+      - Descrição em linguagem natural da curva de rendimento.
+    """
+    matches = last5_dict.get("matches", []) if isinstance(last5_dict, dict) else []
+    if len(matches) < 5:
+        return {
+            "pts_w": float(last5_dict.get("pts", 7) if isinstance(last5_dict, dict) else 7),
+            "trend": "INSUFICIENTE",
+            "trend_factor": 1.0,
+            "trend_desc": "Amostragem incompleta (< 5 partidas)",
+            "delta_trend": 0.0,
+            "pts_raw": []
+        }
+
+    # Pesos temporais decrescentes: J0 (mais recente) peso 5 ... J4 (mais antigo) peso 1
+    # Soma dos pesos = 5 + 4 + 3 + 2 + 1 = 15
+    w_weights = [5, 4, 3, 2, 1]
+    pts_raw = []
+    for m in matches[:5]:
+        res = (m.get("result") or "").upper()
+        if res == "V":
+            pts_raw.append(3)
+        elif res == "E":
+            pts_raw.append(1)
+        else:
+            pts_raw.append(0)
+
+    # Pontuação ponderada: Score_w max = 15 * 3 = 45 -> Normalizado para 0 a 15
+    score_w = sum(w * pt for w, pt in zip(w_weights, pts_raw))
+    pts_w = round((score_w / 45.0) * 15.0, 2)
+
+    # Média dos últimos 2 jogos (J0, J1) vs Média dos 3 anteriores (J2, J3, J4)
+    avg_recent = (pts_raw[0] + pts_raw[1]) / 2.0  # escala 0 a 3.0
+    avg_baseline = (pts_raw[2] + pts_raw[3] + pts_raw[4]) / 3.0  # escala 0 a 3.0
+    delta_trend = avg_recent - avg_baseline
+
+    num_v = sum(1 for p in pts_raw if p == 3)
+    num_e = sum(1 for p in pts_raw if p == 1)
+    num_d = sum(1 for p in pts_raw if p == 0)
+
+    # Detecção de Curva de Rendimento
+    if (delta_trend >= 0.70 or (avg_recent >= 2.5 and avg_recent > avg_baseline)) and pts_raw[0] == 3:
+        trend = "CURVA_ASCENDENTE"
+        trend_factor = 1.20  # +20% de aceleração de momentum
+        trend_desc = f"Curva Ascendente em alta (Momentum positivo: {pts_raw[0]} e {pts_raw[1]} pts recentes vs {avg_baseline:.1f} pts de base)"
+    elif (num_e >= 3) or (pts_raw[0] == 1 and pts_raw[1] == 1) or (num_v <= 1 and num_e >= 2):
+        trend = "CURVA_ESTAGNADA"
+        trend_factor = 0.88  # -12% por platô mediano / excesso de empates
+        trend_desc = f"Tendência de Estagnação / Platô Mediano ({num_e} empates nos últimos jogos / baixa imposição de vitória)"
+    elif delta_trend <= -0.70 or (avg_recent <= 0.5 and avg_recent < avg_baseline):
+        trend = "CURVA_DESCENDENTE"
+        trend_factor = 0.80  # -20% por queda de rendimento recente
+        trend_desc = f"Curva Descendente em queda (Queda de rendimento recente: {avg_recent:.1f} pts recentes vs {avg_baseline:.1f} pts de base)"
+    else:
+        trend = "CURVA_ESTAVEL"
+        trend_factor = 1.00
+        trend_desc = f"Rendimento Estável ({num_v}V-{num_e}E-{num_d}D)"
+
+    return {
+        "pts_w": pts_w,
+        "trend": trend,
+        "trend_factor": trend_factor,
+        "trend_desc": trend_desc,
+        "delta_trend": round(delta_trend, 2),
+        "pts_raw": pts_raw
+    }
+
 def calculate_asian_handicap_suggestion(
     home_goals_scored, home_goals_conceded, 
     away_goals_scored, away_goals_conceded, 
@@ -975,11 +1087,30 @@ def calculate_asian_handicap_suggestion(
         u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
         return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por Odds Indisponíveis || MOTIVACAO: Risco excessivo sem cotações de mercado reais || MEMÓRIA DE CÁLCULO || Odds Ausentes || U5J_DATA: {u5j_json}", 0.0, 0.0
 
+    h_matches = home_last5.get("matches", []) if isinstance(home_last5, dict) else []
+    a_matches = away_last5.get("matches", []) if isinstance(away_last5, dict) else []
+
+    # 0.1 TRAVA OBRIGATÓRIA DO GATEKEEPER: Amostragem Mínima Completa de 5 Jogos
+    # Para evitar distorções graves e inferências sobre dados mutilados em início de temporada,
+    # exige que ambas as equipes possuam rigorosamente 5 jogos consolidados em seu histórico recente.
+    if len(h_matches) < 5 or len(a_matches) < 5:
+        suggestion = "Sem Entrada (Abstenção)"
+        confidence = 50.00
+        lacking = []
+        if len(h_matches) < 5:
+            lacking.append(f"{home_team} ({len(h_matches)}J)")
+        if len(a_matches) < 5:
+            lacking.append(f"{away_team} ({len(a_matches)}J)")
+        lacking_str = ", ".join(lacking)
+        reasoning_text = (
+            f"🚫 NO_BET: Histórico recente incompleto (< 5 partidas consolidadas para {lacking_str}). "
+            f"Entrada de Handicap bloqueada pelo Gatekeeper por segurança estatística e integridade amostral."
+        )
+        u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
+        return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por Amostragem Insuficiente || MOTIVACAO: Risco estatístico elevado com menos de 5 jogos consolidados || MEMÓRIA DE CÁLCULO || Amostragem Incompleta || U5J_DATA: {u5j_json}", 0.0, 0.0
+
     # Se xG de jogo ao vivo não existe (pré-jogo), projeta o xG pré-jogo a partir do histórico U5J dos times
     if (home_goals_scored <= 0.01 and away_goals_scored <= 0.01):
-        h_matches = home_last5.get("matches", []) if isinstance(home_last5, dict) else []
-        a_matches = away_last5.get("matches", []) if isinstance(away_last5, dict) else []
-        
         if h_matches or a_matches:
             h_scored_list, h_conceded_list = [], []
             for m in h_matches:
@@ -1034,7 +1165,19 @@ def calculate_asian_handicap_suggestion(
         u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
         return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por Histórico Indisponível || MOTIVACAO: Risco excessivo sem estatísticas prévias || MEMÓRIA DE CÁLCULO || Histórico Ausente || U5J_DATA: {u5j_json}", 0.0, 0.0
 
-    # 1. Fator Últimos 5 Jogos (Forma Recente: V-E-D)
+    # 1. Análise Temporal de Curva de Rendimento (Momentum / Slope) e Pontuação Ponderada
+    home_trend_info = analyze_trend_and_momentum(home_team, home_last5)
+    away_trend_info = analyze_trend_and_momentum(away_team, away_last5)
+
+    home_pts_w = home_trend_info["pts_w"]
+    away_pts_w = away_trend_info["pts_w"]
+    home_trend = home_trend_info["trend"]
+    away_trend = away_trend_info["trend"]
+    home_trend_factor = home_trend_info["trend_factor"]
+    away_trend_factor = away_trend_info["trend_factor"]
+    home_trend_desc = home_trend_info["trend_desc"]
+    away_trend_desc = away_trend_info["trend_desc"]
+
     home_pts = home_last5.get("pts", 7)
     home_d = home_last5.get("d", 0)
     home_v = home_last5.get("v", 0)
@@ -1043,9 +1186,9 @@ def calculate_asian_handicap_suggestion(
     away_d = away_last5.get("d", 0)
     away_v = away_last5.get("v", 0)
 
-    # 1. Fator Mando de Campo Recalibrado Dinâmico
+    # 1.1 Fator Mando de Campo Recalibrado Dinâmico
     if odd_home and odd_away and float(odd_away) < float(odd_home):
-        if away_pts >= home_pts or away_v >= home_v:
+        if away_pts_w >= home_pts_w or away_v >= home_v:
             home_mando_factor = 1.00  # Bônus zerado se visitante é favorito nas odds E possui momento superior/igual
         else:
             home_mando_factor = 1.05  # Mando suavizado para +5% quando o visitante é apenas favorito nas odds
@@ -1053,32 +1196,37 @@ def calculate_asian_handicap_suggestion(
         home_mando_factor = 1.10  # Bônus padrão realista de jogar em casa (+10%)
     away_mando_factor = 0.93  # Ajuste de visitante fora de casa (-7%)
 
-    # 2. Fator Últimos 5 Jogos (Forma Recente: V-E-D)
-    if home_pts >= 12 or home_v >= 4:
-        home_last5_factor = 1.25  # Excelente forma (+25%)
-    elif home_pts >= 9 or home_v >= 3:
-        home_last5_factor = 1.15  # Boa forma (+15%)
-    elif home_pts <= 2 or home_d >= 4:
+    # 2. Fator Últimos 5 Jogos Ponderado Temporalmente (Pts_w) e Curva de Rendimento
+    if home_pts_w >= 11.5 or home_v >= 4:
+        home_last5_factor = 1.25  # Excelente forma recente (+25%)
+    elif home_pts_w >= 8.5 or home_v >= 3:
+        home_last5_factor = 1.15  # Boa forma recente (+15%)
+    elif home_pts_w <= 3.0 or home_d >= 4:
         home_last5_factor = 0.65  # Penalidade severa por má fase (-35%)
-    elif home_pts <= 4 or home_d >= 3:
-        home_last5_factor = 0.78  # Penalidade forte por derrotas (-22%)
-    elif home_pts <= 7 or home_d >= 2:
+    elif home_pts_w <= 5.0 or home_d >= 3:
+        home_last5_factor = 0.78  # Penalidade forte (-22%)
+    elif home_pts_w <= 7.0 or home_d >= 2:
         home_last5_factor = 0.85  # Sequência negativa/oscilante (-15%)
     else:
         home_last5_factor = 1.00
 
-    if away_pts >= 12 or away_v >= 4:
+    # Aplica multiplicador de aceleração/frenagem da Curva de Rendimento
+    home_last5_factor *= home_trend_factor
+
+    if away_pts_w >= 11.5 or away_v >= 4:
         away_last5_factor = 1.30
-    elif away_pts >= 9 or away_v >= 3:
+    elif away_pts_w >= 8.5 or away_v >= 3:
         away_last5_factor = 1.20
-    elif away_pts <= 2 or away_d >= 4:
+    elif away_pts_w <= 3.0 or away_d >= 4:
         away_last5_factor = 0.65
-    elif away_pts <= 4 or away_d >= 3:
+    elif away_pts_w <= 5.0 or away_d >= 3:
         away_last5_factor = 0.78
-    elif away_pts <= 5:
+    elif away_pts_w <= 7.0:
         away_last5_factor = 0.88
     else:
         away_last5_factor = 1.00
+
+    away_last5_factor *= away_trend_factor
 
     # CONTRASTE DE FORMA RECENTE (Momentum Differential)
     # Dispara APENAS se o mandante estiver em má fase real (<= 5 pts em U5J) E o visitante estiver muito forte (>= 9 pts), e NÃO para super favoritos (odd_home <= 1.50)
@@ -1176,10 +1324,10 @@ def calculate_asian_handicap_suggestion(
     cup_str_h = f" × Copa {cup_home_factor:.2f}" if is_cup else ""
     cup_str_a = f" × Copa {cup_away_factor:.2f}" if is_cup else ""
 
-    # Memória de Cálculo formatada para a UX
+    # Memória de Cálculo formatada para a UX com diagnóstico de Curva de Rendimento (Momentum)
     calc_memory = (
-        f"🏠 {home_team} (Em Casa): xG Base {lambda_home_base:.2f} × Mando {home_mando_factor:.2f} × U5J {home_last5_factor:.2f} ({home_last5.get('text')}) × CS {home_cs_factor:.2f} ({home_cs_pct:.1f}%) × Streak {home_streak_factor:.2f}{cup_str_h}{market_str} = xG Adj {lambda_home:.2f} | "
-        f"✈️ {away_team} (Fora): xG Base {lambda_away_base:.2f} × Mando {away_mando_factor:.2f} × U5J {away_last5_factor:.2f} ({away_last5.get('text')}) × CS {away_cs_factor:.2f} ({away_cs_pct:.1f}%) × Streak {away_streak_factor:.2f}{cup_str_a} = xG Adj {lambda_away:.2f} | "
+        f"🏠 {home_team} (Em Casa): xG Base {lambda_home_base:.2f} × Mando {home_mando_factor:.2f} × U5J {home_last5_factor:.2f} ({home_last5.get('text')} [{home_trend}]) × CS {home_cs_factor:.2f} ({home_cs_pct:.1f}%) × Streak {home_streak_factor:.2f}{cup_str_h}{market_str} = xG Adj {lambda_home:.2f} | "
+        f"✈️ {away_team} (Fora): xG Base {lambda_away_base:.2f} × Mando {away_mando_factor:.2f} × U5J {away_last5_factor:.2f} ({away_last5.get('text')} [{away_trend}]) × CS {away_cs_factor:.2f} ({away_cs_pct:.1f}%) × Streak {away_streak_factor:.2f}{cup_str_a} = xG Adj {lambda_away:.2f} | "
         f"⚖️ Saldo Esperado (ΔG): {delta_goals:+.2f} gols."
     )
 
@@ -1198,9 +1346,9 @@ def calculate_asian_handicap_suggestion(
             prot_txt = "proteção de meia estaca (-0.25 AH)" if is_away_fav else "cobertura em +0.25 AH (meio-green no empate)"
             main_reason = f"⚠️ Alerta de Risco: {home_team} em crise recente ({home_last5.get('text')} em U5J). O momento superior do visitante {away_team} ({away_last5.get('text')}) orienta aposta com {prot_txt}."
         else:
-            suggestion = f"{away_team} -0.5 AH" if is_away_fav else f"{away_team} +0.5 AH (Dupla Chance)"
-            confidence = 78.00
-            prot_txt = "favoritismo direto (-0.5 AH)" if is_away_fav else "vantagem de cobertura +0.5 (Dupla Chance)"
+            suggestion = f"{away_team} -0.25 AH" if is_away_fav else f"{away_team} +0.5 AH (Dupla Chance)"
+            confidence = 76.00
+            prot_txt = "proteção de meia estaca (-0.25 AH)" if is_away_fav else "vantagem de cobertura +0.5 (Dupla Chance)"
             main_reason = f"⚠️ Alerta de Crise: Severa má fase do {home_team} ({home_last5.get('text')} em U5J). {prot_txt.capitalize()} para o visitante {away_team}."
     elif away_in_crisis and not home_in_crisis:
         is_home_fav = (odd_home and odd_away and float(odd_home) < float(odd_away))
@@ -1210,9 +1358,9 @@ def calculate_asian_handicap_suggestion(
             prot_txt = "proteção de meia estaca (-0.25 AH)" if is_home_fav else "proteção de meia estaca (+0.25 AH)"
             main_reason = f"⚠️ Alerta de Risco Visitante: {away_team} em crise de resultados ({away_last5.get('text')}). Favoritismo do mandante {home_team} com {prot_txt}."
         else:
-            suggestion = f"{home_team} -0.5 AH"
-            confidence = 78.00
-            main_reason = f"Favoritismo direto para o {home_team} devido à crise de resultados do {away_team} ({away_last5.get('text')})."
+            suggestion = f"{home_team} -0.25 AH" if is_home_fav else f"{home_team} +0.25 AH"
+            confidence = 76.00
+            main_reason = f"Favoritismo com proteção de meia estaca (-0.25 AH) para o {home_team} devido à crise de resultados do {away_team} ({away_last5.get('text')})."
     else:
         # Mapeamento Standard com Comparativo de Forma e Filtro de Mercado Dinâmico
         warning_notes = []
@@ -1243,53 +1391,34 @@ def calculate_asian_handicap_suggestion(
                     f"Sugestão principal com proteção esticada em {suggestion} (cobre vitória, empate e derrota por até 1 gol). "
                     f"Alternativa secundária: {alt_suggestion} (Risco Alto pelo momento das equipes).{note_str}"
                 )
-            elif delta_goals >= 1.80:
-                suggestion = f"{home_team} -1.0 AH"
-                confidence = round(min(88.0, 68.0 + delta_goals * 10), 2)
-                main_reason = f"Domínio estrito do mandante favorito {home_team} ({home_goals_scored:.1f} g/j) contra {away_team}. Expectativa de vitória por 2+ gols.{note_str}"
-            elif delta_goals >= 0.70:
-                # Mandante com superioridade clara: manter -0.50 AH (vitória simples) para colher a cotação integral (@ 1.65 - 1.95)
-                # Se odd do mandante for muito baixa (<= 1.55), calibrar para -0.75 AH para evitar odd esmagada
-                if odd_home and float(odd_home) <= 1.55:
-                    suggestion = f"{home_team} -0.75 AH"
-                    confidence = 78.00
-                    main_reason = f"Favoritismo contundente do mandante {home_team} (@ {float(odd_home):.2f}). Linha calibrada em {suggestion} para assegurar odd saudável com proteção de meio-lucro no 1x0.{note_str}"
-                else:
-                    suggestion = f"{home_team} -0.5 AH"
-                    confidence = round(min(82.0, 64.0 + delta_goals * 12), 2)
-                    main_reason = f"Vantagem sólida de mando e menor odd para o {home_team} em casa (+{delta_goals:.2f} gols esperados). Entrada em vitória simples (-0.5 AH).{note_str}"
+            elif odd_home and float(odd_home) <= 1.55:
+                # TRAVA ESTRITA DE BANCA: O mandante é super-favorito nominal (odd <= 1.55).
+                # Linhas negativas profundas (-0.50, -0.75, -1.0, -1.50) estão terminantemente desativadas (perda total no empate).
+                # A linha -0.25 AH teria odd esmagada (< 1.55), gerando EV negativo. Abstenção mandatória.
+                suggestion = "Sem Entrada (Abstenção)"
+                confidence = 50.00
+                main_reason = (
+                    f"🚫 APOSTA BLOQUEADA: Mandante {home_team} com odd nominal esmagada (@ {float(odd_home):.2f}). "
+                    f"Para proteger a banca em caso de empate, linhas agressivas (-0.50, -0.75, -1.0+) estão desativadas, "
+                    f"e a linha segura -0.25 AH não atinge odd mínima de valor (1.55). Abstenção recomendada pelo Gatekeeper.{note_str}"
+                )
             elif delta_goals >= 0.20:
-                # Mandante com vantagem moderada:
-                if is_open_market or (odd_home and float(odd_home) >= 2.15):
-                    # Em jogos com odds abertas (equilibrados), empates são frequentes.
-                    # Se delta_goals for sólido (>= 0.45), usa -0.25 AH com proteção; se for muito tímido e visitante tiver boa forma, aciona proteção
-                    if delta_goals >= 0.45:
+                if (is_open_market or (odd_home and float(odd_home) >= 2.15)) and delta_goals < 0.45:
+                    away_pts = away_last5.get('pts', 0) if isinstance(away_last5, dict) else 0
+                    if away_pts >= 7 and not away_in_crisis:
+                        suggestion = f"{away_team} +0.5 AH"
+                        confidence = 75.00
+                        main_reason = f"💎 Oportunidade de Valor (Anti-Empate): Jogo equilibrado com odds abertas (@ {float(odd_home):.2f}). Momento positivo do visitante {away_team} sustentando entrada de alta proteção em {suggestion}.{note_str}"
+                    else:
                         suggestion = f"{home_team} -0.25 AH"
-                        confidence = 74.00
+                        confidence = 72.00
                         main_reason = f"Confronto equilibrado com leve viés estatístico favorável ao mandante {home_team}, alinhado à proteção de meia estaca (-0.25 AH).{note_str} || ALERTA_VOLATILIDADE: Confronto equilibrado (Odds abertas @ {float(odd_home):.2f}). Linhas de AH sujeitas a oscilação. Utilize 'Checar Odds Agora' para auditar em tempo real."
-                    else:
-                        # Vantagem tênue com odds abertas: Dupla Chance no visitante se estiver forte, ou -0.25 conservador
-                        away_pts = away_last5.get('pts', 0) if isinstance(away_last5, dict) else 0
-                        if away_pts >= 7 and not away_in_crisis:
-                            suggestion = f"{away_team} +0.5 AH"
-                            confidence = 75.00
-                            main_reason = f"💎 Oportunidade de Valor (Anti-Empate): Jogo equilibrado com odds abertas (@ {float(odd_home):.2f}). Momento positivo do visitante {away_team} sustentando entrada de alta proteção em {suggestion}.{note_str}"
-                        else:
-                            suggestion = f"{home_team} -0.25 AH"
-                            confidence = 72.00
-                            main_reason = f"Confronto equilibrado com leve viés estatístico favorável ao mandante {home_team}, alinhado à proteção de meia estaca (-0.25 AH).{note_str} || ALERTA_VOLATILIDADE: Confronto equilibrado (Odds abertas @ {float(odd_home):.2f}). Linhas de AH sujeitas a oscilação. Utilize 'Checar Odds Agora' para auditar em tempo real."
                 else:
-                    if odd_home and float(odd_home) <= 1.55:
-                        suggestion = f"{home_team} -0.5 AH"
-                        confidence = 76.00
-                        main_reason = f"Mandante {home_team} com favoritismo acentuado de mercado (@ {float(odd_home):.2f}). Linha calibrada em vitória simples ({suggestion}) para evitar odd esmagada.{note_str}"
-                    else:
-                        suggestion = f"{home_team} -0.25 AH"
-                        confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
-                        main_reason = f"Favoritismo do {home_team} em casa nas odds e produção (+{delta_goals:.2f} gols esperados). Proteção de meia estaca (AH -0.25).{note_str}"
+                    suggestion = f"{home_team} -0.25 AH"
+                    confidence = round(min(78.0, 64.0 + abs(delta_goals) * 10), 2)
+                    main_reason = f"Favoritismo do {home_team} em casa nas odds (@ {float(odd_home):.2f}) e métricas (+{delta_goals:.2f} gols esperados). Entrada segura com proteção de meia estaca (AH -0.25).{note_str}"
             elif delta_goals >= -0.30:
                 if is_open_market or (odd_home and float(odd_home) >= 2.15):
-                    # Se o mercado é aberto e o delta é negativo (visitante ligeiramente melhor), Dupla Chance no visitante tem ROI muito maior que forçar mandante
                     suggestion = f"{away_team} +0.5 AH"
                     confidence = 75.00
                     main_reason = f"💎 Oportunidade de Valor: Confronto equilibrado com odds abertas para o mandante (@ {float(odd_home):.2f}). Métricas xG favoráveis ao visitante {away_team}. Cobertura segura em {suggestion}.{note_str}"
@@ -1298,7 +1427,6 @@ def calculate_asian_handicap_suggestion(
                     confidence = 72.00
                     main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com proteção de meia estaca (-0.25 AH).{note_str}"
             elif odd_home and float(odd_home) >= 1.90:
-                # Mercado aberto / sem super favorito nominal (odd_home >= 1.90, ex: 2.30).
                 if delta_goals <= -0.60:
                     suggestion = f"{away_team} +0.25 AH"
                     confidence = round(min(80.0, 72.0 + abs(delta_goals) * 4), 2)
@@ -1316,14 +1444,13 @@ def calculate_asian_handicap_suggestion(
                         f"Entrada segura em Dupla Chance com {suggestion}.{note_str}"
                     )
             else:
-                # Conflito severo de xG vs Menor Odd do Mandante (quando mandante tem odd < 1.90, alto favoritismo de mercado) -> ABSTENÇÃO POR SEGURANÇA
                 suggestion = "Sem Entrada (Abstenção)"
                 confidence = 50.00
                 main_reason = f"🚫 APOSTA BLOQUEADA: Divergência Crítica entre as Odds de Mercado (alto favoritismo do mandante {home_team} @ {float(odd_home):.2f}) e a estatística bruta de xG. Abstenção ativada para proteger a banca.{note_str}"
         elif is_market_away_fav:
             away_u5j_pts = away_last5.get('pts', 0) if isinstance(away_last5, dict) else 0
             home_u5j_pts = home_last5.get('pts', 0) if isinstance(home_last5, dict) else 0
-            is_home_underdog_hot = (home_u5j_pts >= away_u5j_pts + 3) or (delta_goals >= -0.15 and home_u5j_pts > away_u5j_pts)
+            is_home_underdog_hot = (away_pts_w <= home_pts_w - 3) or (delta_goals >= -0.15 and home_pts_w > away_pts_w)
 
             # Caso clássico espelhado: Visitante super favorito nominal (odd <= 1.55),
             # mas mandante com fator campo e forma U5J amplamente superior -> Mandante +1.5 AH é a 1ª opção!
@@ -1338,48 +1465,65 @@ def calculate_asian_handicap_suggestion(
                     f"Sugestão principal com proteção esticada em {suggestion} (cobre vitória, empate e derrota por até 1 gol). "
                     f"Alternativa secundária: {alt_suggestion} (Risco Alto pelo momento das equipes).{note_str}"
                 )
-            elif delta_goals <= -1.80:
-                suggestion = f"{away_team} -1.0 AH"
-                confidence = round(min(88.0, 68.0 + abs(delta_goals) * 10), 2)
-                main_reason = f"Domínio estrito do visitante favorito {away_team} contra o {home_team}. Expectativa de vitória por 2+ gols.{note_str}"
-            elif delta_goals <= -0.85:
-                # Superioridade expressiva do visitante fora de casa
-                if odd_away and float(odd_away) <= 1.55:
-                    suggestion = f"{away_team} -0.75 AH"
-                    confidence = 78.00
-                    main_reason = f"Favoritismo expressivo do visitante {away_team} fora de casa (@ {float(odd_away):.2f}). Linha calibrada em {suggestion} para evitar odd esmagada.{note_str}"
-                else:
-                    suggestion = f"{away_team} -0.5 AH"
-                    confidence = round(min(82.0, 62.0 + abs(delta_goals) * 12), 2)
-                    main_reason = f"Vantagem sólida de favoritismo de mercado e produção para o visitante {away_team}.{note_str}"
+            elif odd_away and float(odd_away) <= 1.55:
+                # TRAVA ESTRITA DE BANCA: O visitante é super-favorito nominal (odd <= 1.55).
+                # Linhas negativas profundas (-0.50, -0.75, -1.0, -1.50) estão terminantemente desativadas (perda total no empate).
+                # A linha -0.25 AH teria odd esmagada (< 1.55). Abstenção mandatória.
+                suggestion = "Sem Entrada (Abstenção)"
+                confidence = 50.00
+                main_reason = (
+                    f"🚫 APOSTA BLOQUEADA: Visitante {away_team} com odd nominal esmagada (@ {float(odd_away):.2f}). "
+                    f"Para proteger a banca em caso de empate, linhas agressivas (-0.50, -0.75, -1.0+) estão desativadas, "
+                    f"e a linha segura -0.25 AH não atinge odd mínima de valor (1.55). Abstenção recomendada pelo Gatekeeper.{note_str}"
+                )
             elif delta_goals <= -0.30:
-                # FILTRO RÍGIDO DE VISITANTE FAVORITO (Away Handicap Guard):
-                # Fora de casa, se o mandante tiver solidez em casa (não em crise e >= 5 pts em U5J),
-                # apostar em handicap negativo no visitante tem histórico de red elevado.
-                # Inverte para Dupla Chance Mandante (+0.5 AH) com ROI historicamente comprovado de 85%.
-                if not home_in_crisis and home_u5j_pts >= 5:
+                # FILTRO RÍGIDO DE VISITANTE FAVORITO (Away Handicap Guard Refinado):
+                # Só recomenda Dupla Chance no Mandante (+0.5 AH) se o mandante tiver solidez comprovada:
+                # 1) Não estar em crise
+                # 2) Pts ponderados sólidos (>= 7.0)
+                # 3) Solidez defensiva comprovada (Clean Sheets >= 25.0%)
+                # 4) NÃO estar em Curva Estagnada nem Descendente
+                if not home_in_crisis and home_pts_w >= 7.0 and home_cs_pct >= 25.0 and home_trend not in ('CURVA_ESTAGNADA', 'CURVA_DESCENDENTE'):
                     suggestion = f"{home_team} +0.5 AH"
                     confidence = 75.00
                     main_reason = (
                         f"🛡️ Trava de Mando de Campo: Apesar do mercado apontar preferência ao visitante {away_team} ({float(odd_away):.2f}), "
-                        f"o mandante {home_team} mantém boa solidez em seus domínios ({home_last5.get('text')}). "
+                        f"o mandante {home_team} mantém boa solidez defensiva e consistência em seus domínios ({home_last5.get('text')} - {home_trend_desc}). "
                         f"Proteção de alto valor em {suggestion} (Dupla Chance Mandante).{note_str}"
                     )
                 else:
                     suggestion = f"{away_team} -0.25 AH"
-                    confidence = round(min(76.0, 60.0 + abs(delta_goals) * 14), 2)
+                    confidence = round(min(78.0, 62.0 + abs(delta_goals) * 10), 2)
                     if is_open_market or (odd_away and float(odd_away) >= 2.15):
                         main_reason = f"Confronto equilibrado com leve viés estatístico favorável ao visitante {away_team}, alinhado à proteção de meia estaca (-0.25 AH).{note_str} || ALERTA_VOLATILIDADE: Confronto equilibrado (Odds abertas @ {float(odd_away):.2f}). Linhas de AH sujeitas a oscilação. Utilize 'Checar Odds Agora' para auditar em tempo real."
                     else:
-                        main_reason = f"Favoritismo do visitante {away_team} nas odds de mercado contra mandante vulnerável. Proteção de meia estaca (AH -0.25).{note_str}"
+                        main_reason = f"Favoritismo do visitante {away_team} nas odds de mercado contra mandante com vulnerabilidade ou estagnação. Proteção de meia estaca (AH -0.25).{note_str}"
             elif is_open_market or (odd_away and float(odd_away) >= 2.05):
-                # Visitante com odd aberta e sem grande vantagem de xG -> Proteção ao Mandante (+0.5 AH)
-                suggestion = f"{home_team} +0.5 AH"
-                confidence = 74.00
-                main_reason = (
-                    f"💎 Oportunidade de Valor (Fator Mando): Confronto aberto com odds elevadas no visitante ({float(odd_away):.2f}). "
-                    f"Aproveitamento da força do mando de campo com {suggestion} (Dupla Chance Casa).{note_str}"
-                )
+                # Confronto com odds abertas no visitante favorito (ex: 2.10 a 2.40):
+                if (home_cs_pct < 20.0 or home_trend in ('CURVA_ESTAGNADA', 'CURVA_DESCENDENTE')) and away_trend == 'CURVA_ASCENDENTE':
+                    suggestion = f"{away_team} -0.25 AH"
+                    confidence = 72.00
+                    main_reason = (
+                        f"📈 Oportunidade de Momentum: Visitante {away_team} em curva ascendente recente ({away_trend_desc}) "
+                        f"contra mandante {home_team} em estagnação/fragilidade defensiva (CS {home_cs_pct:.1f}%). "
+                        f"Indicação de valor alinhada ao favoritismo do visitante com proteção em {suggestion}.{note_str}"
+                    )
+                elif home_cs_pct >= 25.0 and not home_in_crisis and home_trend not in ('CURVA_ESTAGNADA', 'CURVA_DESCENDENTE'):
+                    suggestion = f"{home_team} +0.5 AH"
+                    confidence = 74.00
+                    main_reason = (
+                        f"💎 Oportunidade de Valor (Fator Mando): Confronto aberto com odds elevadas no visitante ({float(odd_away):.2f}). "
+                        f"Aproveitamento da força do mando de campo com solidez defensiva em {suggestion} (Dupla Chance Casa).{note_str}"
+                    )
+                else:
+                    # Divergência de risco sem solidez defensiva comprovada do mandante azarão
+                    suggestion = "Sem Entrada (Abstenção)"
+                    confidence = 50.00
+                    main_reason = (
+                        f"🚫 APOSTA BLOQUEADA: Confronto equilibrado de alto risco. O mandante {home_team} apresenta vulnerabilidade defensiva "
+                        f"(CS {home_cs_pct:.1f}%) e estagnação ({home_trend_desc}), enquanto o visitante {away_team} tem cotação aberta ({float(odd_away):.2f}). "
+                        f"Abstenção ativada pelo Gatekeeper para proteger a banca contra falsas vantagens de mando.{note_str}"
+                    )
             elif delta_goals <= 0.30:
                 suggestion = f"{away_team} -0.25 AH"
                 confidence = 72.00
@@ -1430,70 +1574,77 @@ def calculate_asian_handicap_suggestion(
                 f"🏆 ALERTA DE COPA: Entrada de Handicap no favorito visitante {away_team} BLOQUEADA pelo Gatekeeper ({league_name or 'Copa Mata-Mata'}). "
                 f"Risco elevado de rodízio de elenco (time reserva/misto) e imprevisibilidade em confronto de mata-mata contra o {home_team}."
             )
-        elif is_market_home_fav and home_team.lower() in suggestion.lower() and ("-1.0" in suggestion or "-0.75" in suggestion):
-            suggestion = f"{home_team} -0.5 AH"
+        elif is_market_home_fav and home_team.lower() in suggestion.lower() and ("-" in suggestion):
+            suggestion = f"{home_team} -0.25 AH"
             confidence = 68.00
             main_reason = (
                 f"🏆 ALERTA DE COPA: Favoritismo do mandante {home_team} em partida eliminatória ({league_name or 'Copa Mata-Mata'}). "
-                f"Linha de Handicap ajustada para vitória simples (-0.5 AH) para mitigar riscos de zebras esticadas em mata-mata."
+                f"Linha de Handicap ajustada estritamente para -0.25 AH para proteger a banca com meio-estorno em caso de empate."
             )
 
     # TRAVA CONSERVADORA DE INÍCIO DE TEMPORADA (Early Season Guard):
-    # Em início de temporada, mantém linhas de valor seguro (-0.50 AH e -0.75 AH) para mandantes com superioridade real
-    # e evita forçar handicap esticado ou rebaixar desnecessariamente para linhas esmagadas (< 1.50).
+    # Em início de temporada, mantém apenas linha -0.25 AH para favoritos se odd for viável, ou abstenção
     is_early_season = is_early_season_game(league_name)
     if is_early_season and not is_cup and not has_discrepancy:
-        if is_market_away_fav and away_team.lower() in suggestion.lower() and ("-0.5" in suggestion or "-0.75" in suggestion or "-1.0" in suggestion or "-1.5" in suggestion):
-            if odd_away and float(odd_away) <= 1.45:
-                suggestion = f"{away_team} -1.5 AH" if abs(delta_goals) >= 1.80 else f"{away_team} -1.25 AH"
-            elif abs(delta_goals) >= 1.10:
-                suggestion = f"{away_team} -0.5 AH"
+        if is_market_away_fav and away_team.lower() in suggestion.lower() and "-" in suggestion:
+            if odd_away and float(odd_away) <= 1.55:
+                suggestion = "Sem Entrada (Abstenção)"
+                confidence = 50.00
+                main_reason = f"🌱 INÍCIO DE TEMPORADA: Visitante {away_team} com odd nominal deprimida (@ {float(odd_away):.2f}). Abstenção preventiva ativada para proteger a banca."
             else:
                 suggestion = f"{away_team} -0.25 AH"
-            confidence = round(min(76.0, confidence), 2)
-            if is_open_market or (odd_away and float(odd_away) >= 2.15):
-                main_reason = (
-                    f"🌱 INÍCIO DE TEMPORADA: Linha no visitante {away_team} ajustada conservadoramente para {suggestion} ({league_name or 'Liga'}). "
-                    f"Confronto com odds abertas ({float(odd_away):.2f}). || ALERTA_VOLATILIDADE: Jogo equilibrado com odds abertas (@ {float(odd_away):.2f}). Utilize 'Checar Odds Agora' para auditar em tempo real."
-                )
-            else:
-                main_reason = (
-                    f"🌱 INÍCIO DE TEMPORADA: Linha de Handicap no visitante favorito {away_team} ajustada conservadoramente para {suggestion} ({league_name or 'Liga'}). "
-                    f"Proteção ativada devido à amostragem reduzida nas primeiras rodadas do campeonato."
-                )
-        elif is_market_home_fav and home_team.lower() in suggestion.lower() and ("-0.5" in suggestion or "-0.75" in suggestion or "-1.0" in suggestion or "-1.5" in suggestion):
-            if odd_home and float(odd_home) <= 1.45:
-                suggestion = f"{home_team} -1.5 AH" if delta_goals >= 1.80 else f"{home_team} -1.25 AH"
-            elif delta_goals >= 1.10 or (odd_home and float(odd_home) <= 1.65):
-                suggestion = f"{home_team} -0.75 AH"
-            elif delta_goals >= 0.60 or (odd_home and float(odd_home) <= 1.85):
-                suggestion = f"{home_team} -0.5 AH"
+                confidence = round(min(74.0, confidence), 2)
+                main_reason = f"🌱 INÍCIO DE TEMPORADA: Linha no visitante {away_team} calibrada conservadoramente em -0.25 AH para proteger a banca no empate."
+        elif is_market_home_fav and home_team.lower() in suggestion.lower() and "-" in suggestion:
+            if odd_home and float(odd_home) <= 1.55:
+                suggestion = "Sem Entrada (Abstenção)"
+                confidence = 50.00
+                main_reason = f"🌱 INÍCIO DE TEMPORADA: Mandante {home_team} com odd nominal deprimida (@ {float(odd_home):.2f}). Abstenção preventiva ativada para proteger a banca."
             else:
                 suggestion = f"{home_team} -0.25 AH"
-            confidence = round(min(76.0, confidence), 2)
-            if is_open_market or (odd_home and float(odd_home) >= 2.15):
-                main_reason = (
-                    f"🌱 INÍCIO DE TEMPORADA: Linha no mandante {home_team} ajustada conservadoramente para {suggestion} ({league_name or 'Liga'}). "
-                    f"Confronto com odds abertas ({float(odd_home):.2f}). || ALERTA_VOLATILIDADE: Jogo equilibrado com odds abertas (@ {float(odd_home):.2f}). Utilize 'Checar Odds Agora' para auditar em tempo real."
-                )
-            else:
-                main_reason = (
-                    f"🌱 INÍCIO DE TEMPORADA: Linha de Handicap no mandante favorito {home_team} calibrada para {suggestion} ({league_name or 'Liga'}). "
-                    f"Proteção com odd saudável ativada para as rodadas iniciais do campeonato."
-                )
+                confidence = round(min(74.0, confidence), 2)
+                main_reason = f"🌱 INÍCIO DE TEMPORADA: Linha no mandante {home_team} calibrada conservadoramente em -0.25 AH para proteger a banca no empate."
 
-    # TRAVA FINAL DE ODD MÍNIMA DE VALOR (Anti-Odd Esmagada < 1.55):
-    # Se a sugestão calculada for handicap negativo (-0.25 ou -0.5) mas a odd nominal do time for <= 1.55 (ex: Lens -0.25 @ 1.42):
-    # O -0.25 tem EV negativo pela odd deprimida. Eleva a linha para assegurar retorno condizente e odd >= 1.60.
-    if ("-0.25" in suggestion or "-0.5" in suggestion) and not has_discrepancy:
+    # TRAVA DE OURO DO GATEKEEPER: PROIBIÇÃO DE LINHAS NEGATIVAS PROFUNDAS (-0.50, -0.75, -1.0+)
+    # O usuário determinou que apenas a linha -0.25 AH protege a banca em caso de empate (perda de apenas 50%).
+    # Linhas como -0.50, -0.75, -1.0, -1.25, -1.50 causam 100% de perda no empate e estão terminantemente proibidas.
+    # Se uma equipe tem favoritismo expressivo mas sua cotação for <= 1.55, -0.25 AH não oferece odd de valor (1.55).
+    # Em vez de inflar a linha para -0.50/-0.75 para forçar odd maior, o sistema emite Sem Entrada (Abstenção).
+    if any(neg in suggestion for neg in ["-0.5", "-0.75", "-1.0", "-1.25", "-1.5", "-1.75", "-2.0"]):
+        team_fav = home_team if (is_market_home_fav or home_team.lower() in suggestion.lower()) else away_team
+        fav_odd = float(odd_home) if team_fav == home_team else float(odd_away)
+        if fav_odd <= 1.55:
+            suggestion = "Sem Entrada (Abstenção)"
+            confidence = 50.00
+            main_reason = (
+                f"🚫 APOSTA BLOQUEADA: Favoritismo excessivo de {team_fav} (@ {fav_odd:.2f}). "
+                f"Linhas agressivas (-0.50, -0.75, -1.0+) foram desativadas para proteger a banca em caso de empate, "
+                f"e a linha segura -0.25 AH oferece cotação deprimida (< 1.55). Abstenção mandatória."
+            )
+        else:
+            suggestion = f"{team_fav} -0.25 AH"
+            confidence = 74.00
+            main_reason = (
+                f"Favoritismo de {team_fav} calibrado estritamente em {suggestion}. "
+                f"Garante retorno com proteção de meia estaca em caso de empate."
+            )
+
+    # Verificação de odd mínima para qualquer linha -0.25 AH sugerida
+    if "-0.25" in suggestion and not has_discrepancy:
         if is_market_home_fav and home_team.lower() in suggestion.lower() and odd_home and float(odd_home) <= 1.55:
-            if "-0.25" in suggestion:
-                suggestion = f"{home_team} -0.5 AH" if float(odd_home) >= 1.48 else f"{home_team} -0.75 AH"
-                main_reason += f" [⚡ Ajuste de Valor: Linha elevada para {suggestion} para contornar odd esmagada e garantir EV positivo]."
+            suggestion = "Sem Entrada (Abstenção)"
+            confidence = 50.00
+            main_reason = (
+                f"🚫 APOSTA BLOQUEADA: {home_team} com odd nominal esmagada (@ {float(odd_home):.2f}). "
+                f"A linha -0.25 AH não atinge odd mínima de valor (1.55). Linhas agressivas (-0.50/-0.75) estão proibidas. Abstenção ativada."
+            )
         elif is_market_away_fav and away_team.lower() in suggestion.lower() and odd_away and float(odd_away) <= 1.55:
-            if "-0.25" in suggestion:
-                suggestion = f"{away_team} -0.5 AH" if float(odd_away) >= 1.48 else f"{away_team} -0.75 AH"
-                main_reason += f" [⚡ Ajuste de Valor: Linha elevada para {suggestion} para contornar odd esmagada e garantir EV positivo]."
+            suggestion = "Sem Entrada (Abstenção)"
+            confidence = 50.00
+            main_reason = (
+                f"🚫 APOSTA BLOQUEADA: {away_team} com odd nominal esmagada (@ {float(odd_away):.2f}). "
+                f"A linha -0.25 AH não atinge odd mínima de valor (1.55). Linhas agressivas (-0.50/-0.75) estão proibidas. Abstenção ativada."
+            )
 
     # Cálculo das Probabilidades 1X2 (%) Plataforma (Modelo Poisson) vs Casa de Apostas (Odds)
     import math
@@ -1760,6 +1911,49 @@ def sync_pending_past_fixtures(conn, headers):
                 h_id = ps['home_team_id']
                 a_id = ps['away_team_id']
                 try:
+                    # 1. Consulta prioritária no cache dedicado do banco (match_statistics_cache)
+                    cursor.execute("""
+                        SELECT team_id, corners, yellow_cards, red_cards 
+                        FROM match_statistics_cache 
+                        WHERE fixture_id = %s
+                    """, (fid,))
+                    cached_c_rows = cursor.fetchall()
+                    if cached_c_rows and len(cached_c_rows) > 0:
+                        yc_h, yc_a = 0, 0
+                        rc_h, rc_a = 0, 0
+                        ck_h, ck_a = 0, 0
+                        found_cache = False
+                        for cr in cached_c_rows:
+                            tid = cr.get('team_id')
+                            is_home = (tid == h_id) if h_id else True
+                            if is_home:
+                                yc_h = cr.get('yellow_cards') or 0
+                                rc_h = cr.get('red_cards') or 0
+                                ck_h = cr.get('corners') or 0
+                                found_cache = True
+                            else:
+                                yc_a = cr.get('yellow_cards') or 0
+                                rc_a = cr.get('red_cards') or 0
+                                ck_a = cr.get('corners') or 0
+                                found_cache = True
+                        if found_cache and (yc_h + yc_a + rc_h + rc_a > 0 or len(cached_c_rows) >= 2):
+                            cursor.execute("""
+                                UPDATE fixtures_trends
+                                SET yellow_cards_home = %s,
+                                    yellow_cards_away = %s,
+                                    red_cards_home = %s,
+                                    red_cards_away = %s,
+                                    corners_home = %s,
+                                    corners_away = %s,
+                                    cards_api_checked_at = COALESCE(cards_api_checked_at, NOW()),
+                                    cards_api_retry_count = 0,
+                                    updated_at = NOW()
+                                WHERE fixture_id = %s
+                            """, (yc_h, yc_a, rc_h, rc_a, ck_h, ck_a, fid))
+                            stats_synced += 1
+                            continue
+
+                    # 2. Se não existir no cache do banco, busca na API-Sports
                     stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fid}"
                     st_res = requests.get(stats_url, headers=headers, timeout=12)
                     if st_res.status_code == 200:
@@ -1971,6 +2165,9 @@ def main():
 
     fixtures_map = {}
 
+    conn = get_mysql_connection()
+    cursor = conn.cursor()
+
     if is_live_mode:
         print("⚡ Iniciando sincronização ultrarrápida de partidas AO VIVO (?live=all)...")
         url = "https://v3.football.api-sports.io/fixtures?live=all"
@@ -1987,24 +2184,90 @@ def main():
         except Exception as e:
             print(f"Erro ao chamar a API-Football para partidas ao vivo: {e}")
     else:
-        print(f"Iniciando ingestão de tendências para a data BRT: {target_date} (buscando UTC {prev_date}, {target_date} e {next_date})...")
+        print(f"Iniciando ingestão de tendências para a data BRT: {target_date} (avaliando UTC {prev_date}, {target_date} e {next_date})...")
         for d in [prev_date, target_date, next_date]:
-            url = f"https://v3.football.api-sports.io/fixtures?date={d}"
+            # 1. Verifica cache no banco de dados antes de chamar a API-Sports
+            need_api_call = True
             try:
-                response = requests.get(url, headers=headers, timeout=30)
-                response.raise_for_status()
-                data = response.json()
-                if data.get("errors"):
-                    print(f"⚠️ Erro/Aviso retornado pela API-Football (data {d}): {data.get('errors')}")
-                for fix in data.get("response", []):
-                    fix_id = fix.get("fixture", {}).get("id")
-                    if fix_id:
-                        fixtures_map[fix_id] = fix
-            except Exception as e:
-                print(f"Erro ao chamar a API-Football para a data {d}: {e}")
+                if d == next_date:
+                    # Data futura: se já existem partidas cadastradas no banco, reutiliza
+                    cursor.execute("""
+                        SELECT COUNT(*) as total 
+                        FROM fixtures_trends 
+                        WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) = %s
+                    """, (d,))
+                    r_cnt = cursor.fetchone()
+                    if r_cnt and (r_cnt.get('total') or 0) >= 3:
+                        print(f"📦 [Cache Banco] Data futura {d} já possui {r_cnt['total']} partidas cadastradas. Pulando requisição HTTP.")
+                        need_api_call = False
+                elif d == prev_date:
+                    # Data passada: se todas as partidas já estão finalizadas, não precisa de chamada da data completa
+                    cursor.execute("""
+                        SELECT COUNT(*) as total,
+                               SUM(CASE WHEN status IN ('FT', 'AET', 'PEN', 'PST', 'CANC', 'POSTPONED') THEN 1 ELSE 0 END) as finished
+                        FROM fixtures_trends 
+                        WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) = %s
+                    """, (d,))
+                    r_cnt = cursor.fetchone()
+                    if r_cnt and (r_cnt.get('total') or 0) > 0 and (r_cnt.get('total') == r_cnt.get('finished')):
+                        print(f"📦 [Cache Banco] Todas as {r_cnt['total']} partidas de {d} já estão finalizadas no banco. Pulando requisição HTTP.")
+                        need_api_call = False
+            except Exception as e_check_cache:
+                print(f"Aviso ao checar cache de partidas para data {d}: {e_check_cache}")
+
+            if need_api_call:
+                url = f"https://v3.football.api-sports.io/fixtures?date={d}"
+                try:
+                    response = requests.get(url, headers=headers, timeout=30)
+                    response.raise_for_status()
+                    data = response.json()
+                    if data.get("errors"):
+                        print(f"⚠️ Erro/Aviso retornado pela API-Football (data {d}): {data.get('errors')}")
+                    for fix in data.get("response", []):
+                        fix_id = fix.get("fixture", {}).get("id")
+                        if fix_id:
+                            fixtures_map[fix_id] = fix
+                except Exception as e:
+                    print(f"Erro ao chamar a API-Football para a data {d}: {e}")
+
+        # 2. Carrega partidas existentes no banco de dados para complementar o mapa a partir do cache local
+        try:
+            cursor.execute("""
+                SELECT fixture_id, fixture_date, league_id, league_name, home_team, away_team,
+                       home_team_id, away_team_id, status, referee_name, goals_home, goals_away, elapsed
+                FROM fixtures_trends
+                WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN (%s, %s, %s)
+            """, (prev_date, target_date, next_date))
+            db_fixtures_cached = cursor.fetchall()
+            for rf in db_fixtures_cached:
+                fid = rf['fixture_id']
+                if fid not in fixtures_map:
+                    f_date_str = rf['fixture_date'].strftime('%Y-%m-%d %H:%M:%S') if rf.get('fixture_date') else ''
+                    fixtures_map[fid] = {
+                        "fixture": {
+                            "id": fid,
+                            "date": f_date_str,
+                            "status": {"short": rf.get('status') or "NS", "elapsed": rf.get('elapsed')},
+                            "referee": rf.get('referee_name')
+                        },
+                        "league": {
+                            "id": rf.get('league_id') or 0,
+                            "name": rf.get('league_name') or ""
+                        },
+                        "teams": {
+                            "home": {"id": rf.get('home_team_id') or 0, "name": rf.get('home_team') or ""},
+                            "away": {"id": rf.get('away_team_id') or 0, "name": rf.get('away_team') or ""}
+                        },
+                        "goals": {
+                            "home": rf.get('goals_home'),
+                            "away": rf.get('goals_away')
+                        }
+                    }
+        except Exception as e_load_db_fix:
+            print(f"Aviso ao carregar partidas em cache do banco: {e_load_db_fix}")
         
     fixtures = list(fixtures_map.values())
-    print(f"Total de {len(fixtures)} partidas únicas retornadas pela API.")
+    print(f"Total de {len(fixtures)} partidas consolidadas (Cache do Banco + API).")
     
     # Ligas e Copas permitidas (inclui principais campeonatos, copas continentais/nacionais e amistosos de clubes)
     ALLOWED_LEAGUES = {
@@ -2116,9 +2379,7 @@ def main():
             except Exception:
                 filtered_fixtures.append(f)
 
-    conn = get_mysql_connection()
     sync_pending_past_fixtures(conn, headers)
-    cursor = conn.cursor()
 
     if not filtered_fixtures:
         real_in_db = count_real_fixtures_in_db(conn, target_date)
@@ -2190,12 +2451,9 @@ def main():
         cursor.execute("""
             SELECT fixture_id FROM fixtures_trends 
             WHERE status IN ('FT', 'AET', 'PEN') 
-              AND yellow_cards_home IS NOT NULL 
-              AND yellow_cards_away IS NOT NULL
-              AND cards_api_checked_at IS NOT NULL
               AND (
-                  (yellow_cards_home + yellow_cards_away + red_cards_home + red_cards_away) > 0 
-                  OR (last_event IS NOT NULL AND last_event != '')
+                  cards_api_checked_at IS NOT NULL 
+                  OR (yellow_cards_home IS NOT NULL AND yellow_cards_away IS NOT NULL)
               )
         """)
         rows_ft = cursor.fetchall()
@@ -3092,16 +3350,25 @@ def update_oddspedia_odds(conn):
         from lib.scrapers import scrape_oddspedia_odds, scrape_futbol24_odds, scrape_futbol24_previews, fetch_futbol24_direct_match_odds
         from lib.sports_arbitrage import normalize_team_name, calculate_surebet, fetch_live_odds_from_api
         
-        print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS MULTI-FONTE (API-SPORTS + FALLBACKS SEGUNDÁRIOS) ---")
+        print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS (CACHE BANCO + API-SPORTS) ---")
         
         cursor = conn.cursor()
-        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id, fixture_date FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
+        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id, fixture_date, odd_home FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
         db_fixtures = cursor.fetchall()
         if not db_fixtures:
             print("ℹ️ Nenhuma partida recente encontrada no banco para enriquecimento de odds.")
             return
 
-        # 1. Ingestão oficial de Odds via API-Sports (Pro Plan por fixture_id) - FONTE PRINCIPAL VIA API
+        # 1. Verifica no banco se as partidas já possuem Odds cadastradas
+        fixtures_with_db_odds = [f for f in db_fixtures if f.get('odd_home') and float(f['odd_home']) > 1.0]
+        missing_count = len(db_fixtures) - len(fixtures_with_db_odds)
+        if missing_count == 0:
+            print(f"📦 [Cache Banco] Todas as {len(db_fixtures)} partidas já possuem Odds no banco de dados. Pulando chamadas externas.")
+            return
+
+        print(f"📊 Status das Odds: {len(fixtures_with_db_odds)} de {len(db_fixtures)} já possuem odds em banco ({missing_count} pendentes).")
+
+        # 2. Ingestão oficial de Odds via API-Sports (Pro Plan por fixture_id) para as partidas pendentes
         api_sports_odds = {}
         try:
             api_sports_odds = fetch_api_sports_odds_by_date()
@@ -3110,31 +3377,13 @@ def update_oddspedia_odds(conn):
         except Exception as e_apis:
             print(f"Aviso ao consultar Odds oficiais da API-Sports: {e_apis}")
 
-        # Identifica partidas que já possuem odds via API-Sports
-        fixtures_with_api_odds = set()
-        if api_sports_odds:
-            for fix in db_fixtures:
-                fid = fix['fixture_id']
-                if fid in api_sports_odds and api_sports_odds[fid]:
-                    bms = api_sports_odds[fid]
-                    if any(float(bms[bm].get('casa', 0.0)) > 1.0 for bm in bms if isinstance(bms[bm], dict)):
-                        fixtures_with_api_odds.add(fid)
-
-        missing_count = len(db_fixtures) - len(fixtures_with_api_odds)
-        print(f"📊 Status das Odds da API: {len(fixtures_with_api_odds)} de {len(db_fixtures)} partidas obtiveram odds diretamente via API-Sports.")
-
         scraped_matches_op = []
         scraped_matches_f24 = []
         scraped_previews_f24 = []
         api_odds_matches = []
 
-        # 2. TRIANGULAÇÃO DE ODDS AO VIVO: Executa Web Scraping obrigatório se houver jogos acontecendo nas próximas 18h
-        # para capturar viradas de linha em tempo real (SuperOdds / movimentações do dia) ou se faltarem odds na API
-        has_near_fixtures = any(
-            isinstance(fix.get('fixture_date'), datetime) and abs((fix['fixture_date'] - datetime.now()).total_seconds()) <= 18 * 3600
-            for fix in db_fixtures
-        )
-        should_run_scraping = (missing_count > 0 or not api_sports_odds or has_near_fixtures or os.environ.get("FORCE_SCRAPING") == "1")
+        # Surebets desativadas a pedido do usuário: scraping secundário (Oddspedia/Futbol24) desativado
+        should_run_scraping = False
 
         if should_run_scraping:
             print(f"🕸️ Acionando Triangulação de Odds em Tempo Real (Oddspedia / Futbol24) para detectar SuperOdds e viradas de mercado...")
@@ -3367,10 +3616,9 @@ def update_oddspedia_odds(conn):
 
             # Grava no banco APENAS se tiver odds reais de casas de apostas (eliminado o fallback de odds sintéticas POISSON)
             if best_c1 > 1.0 and best_cX > 1.0 and best_c2 > 1.0:
-                calc = calculate_surebet(best_c1, best_cX, best_c2)
-                casas_usadas = {best_bm1.upper(), best_bmX.upper(), best_bm2.upper()} - {""}
-                is_surebet = 1 if (calc and calc['is_surebet'] and len(casas_usadas) > 1 and calc['lucro_percentual'] <= 15.0) else 0
-                profit_pct = calc['lucro_percentual'] if (calc and is_surebet) else 0.0
+                # Módulo de Surebets descontinuado a pedido do usuário
+                is_surebet = 0
+                profit_pct = 0.0
                 
                 # Recalcula palpite AH com odds reais e estatísticas de xG do banco
                 home_last5 = fetch_team_last5_form(cursor, fix['home_team'], fix.get('home_team_id'), fix.get('league_id'))
@@ -3515,10 +3763,11 @@ def enrich_fixtures_standings(conn):
         SELECT fixture_id, fixture_date, league_id, home_team, away_team, home_team_id, away_team_id
         FROM fixtures_trends
         WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY
+          AND (home_rank IS NULL OR away_rank IS NULL)
     """)
     fixtures = cursor.fetchall()
     if not fixtures:
-        print("ℹ️ Nenhuma partida recente encontrada para enriquecimento de classificação.")
+        print("📦 [Cache Banco] Todas as partidas recentes já possuem classificação (standings) preenchida no banco. Pulando chamadas externas.")
         return
 
     updated_count = 0

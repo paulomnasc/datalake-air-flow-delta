@@ -3362,6 +3362,25 @@ if (!function_exists('getBetDecisionTree')) {
                                     <?php elseif (!empty($fix->ah_suggestion)): ?>
                                         <div id="sec-ah-<?= $fix->fixture_id ?>" class="bet-card-section">
                                             <div class="asian-handicap-widget-box" style="padding: 8px 10px; background: rgba(15, 23, 42, 0.9); border-radius: 8px; border-left: 4px solid #38bdf8; font-size: 0.78rem; color: #cbd5e1;">
+                                                <?php 
+                                                  $isVolatilidadeDash = (
+                                                    strpos($raw_reasoning, 'ALERTA_VOLATILIDADE') !== false ||
+                                                    strpos($raw_reasoning, 'Confronto equilibrado') !== false ||
+                                                    (!empty($fix->odd_home) && !empty($fix->odd_away) && floatval($fix->odd_home) >= 2.10 && floatval($fix->odd_away) >= 2.10)
+                                                  );
+                                                ?>
+                                                <?php if ($isVolatilidadeDash): ?>
+                                                  <div class="alert-volatilidade-dash mb-2" style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.45); border-left: 4px solid #ef4444; border-radius: 6px; padding: 8px 10px; color: #fca5a5; font-size: 0.76rem; line-height: 1.4;">
+                                                    <div style="display: flex; align-items: flex-start; gap: 6px;">
+                                                      <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 0.95rem; margin-top: 1px;"></i>
+                                                      <div>
+                                                        <strong style="color: #ffffff; font-weight: 700;">🚨 Confronto Equilibrado / Odds Abertas:</strong>
+                                                        As cotações deste jogo estão elevadas e as linhas de AH sofrem volatilidade no mercado. <strong>Recomendamos clicar em "Checar Odds Agora"</strong> para auditar as cotações em tempo real e reavaliar o melhor palpite antes de apostar.
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                <?php endif; ?>
+
                                                 <?php if ($has_discrepancy): ?>
                                                     <div style="margin-bottom: 10px; padding: 8px 10px; background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; border-radius: 6px;">
                                                         <div style="font-weight: 700; color: #34d399; font-size: 0.78rem; display: flex; align-items: center; gap: 5px; margin-bottom: 4px;">
@@ -3387,9 +3406,14 @@ if (!function_exists('getBetDecisionTree')) {
                                                     <span style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; font-size: 0.82rem;">
                                                         <i class="bi bi-shield-shaded"></i> <?= lang('App.goals_market_handicap') ?>:
                                                     </span>
-                                                    <span class="badge" style="background: rgba(56, 189, 248, 0.18); border: 1px solid #38bdf8; color: #38bdf8; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 6px;">
-                                                        🎯 <?= htmlspecialchars($fix->ah_suggestion) ?> (<?= number_format($fix->ah_confidence ?? 65, 1) ?>%)
-                                                    </span>
+                                                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                                        <button type="button" class="btn btn-sm btn-outline-info" style="font-size: 0.7rem; padding: 2px 8px; border-color: #38bdf8; color: #38bdf8; border-radius: 6px;" onclick="checarOddsDashboard(<?= $fix->fixture_id ?>, this)">
+                                                            <i class="bi bi-arrow-repeat"></i> Checar Odds Agora
+                                                        </button>
+                                                        <span class="badge badge-ah-sug-<?= $fix->fixture_id ?>" style="background: rgba(56, 189, 248, 0.18); border: 1px solid #38bdf8; color: #38bdf8; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 6px;">
+                                                            🎯 <?= htmlspecialchars($fix->ah_suggestion) ?> (<?= number_format($fix->ah_confidence ?? 65, 1) ?>%)
+                                                        </span>
+                                                    </div>
                                                 </div>
 
                                                 <div style="margin-top: 6px; padding: 6px 10px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; font-size: 0.74rem; color: #e2e8f0; line-height: 1.4;">
@@ -4704,6 +4728,39 @@ if (!function_exists('getBetDecisionTree')) {
                 targetBtn.find('.icon-arrow').removeClass('bi-chevron-up').addClass('bi-chevron-down');
             });
         }
+    }
+
+    // Checar odds e auditar linhas de Handicap Asiático na Dashboard
+    function checarOddsDashboard(fixtureId, btnEl) {
+        if (!fixtureId) return;
+        const origText = btnEl.innerHTML;
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Checando...';
+
+        $.ajax({
+            url: '<?= base_url('apostas/checar-odds-ah') ?>',
+            type: 'POST',
+            data: { fixture_id: fixtureId },
+            dataType: 'json',
+            success: function(data) {
+                btnEl.disabled = false;
+                btnEl.innerHTML = origText;
+                if (!data.success) {
+                    alert(data.message || 'Erro ao consultar odds.');
+                    return;
+                }
+                if (data.palpite_novo) {
+                    $('.badge-ah-sug-' + fixtureId).text('🎯 ' + data.palpite_novo);
+                    $('#btn-ah-' + fixtureId).html('<i class="bi bi-shield-shaded"></i> <?= lang('App.handicap_ah') ?>: ' + data.palpite_novo + ' <i class="bi bi-chevron-down ms-1 icon-arrow"></i>');
+                }
+                alert((data.mudou ? '🔄 ' : '✅ ') + (data.explicacao_mudanca || 'Odds auditadas com sucesso!'));
+            },
+            error: function() {
+                btnEl.disabled = false;
+                btnEl.innerHTML = origText;
+                alert('Erro de comunicação com o servidor.');
+            }
+        });
     }
 </script>
 

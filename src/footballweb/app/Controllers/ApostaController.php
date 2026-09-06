@@ -2335,6 +2335,63 @@ class ApostaController extends BaseController
              . view('apostas/analise_desempenho', $data)
              . view('footer');
     }
+
+    /**
+     * Endpoint AJAX para auditar e checar odds de Handicap Asiático em tempo real via API Football.
+     */
+    public function checarOddsAh()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para auditar odds em tempo real.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = $this->request->getPost('fixture_id');
+        $apostaId  = $this->request->getPost('aposta_id');
+
+        if (empty($fixtureId)) {
+            $jsonInput = $this->request->getJSON(true);
+            if (!empty($jsonInput['fixture_id'])) {
+                $fixtureId = $jsonInput['fixture_id'];
+                $apostaId  = $jsonInput['aposta_id'] ?? null;
+            }
+        }
+
+        if (empty($fixtureId)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Identificador da partida (fixture_id) não informado.'
+            ])->setStatusCode(400);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        $scriptPath = '/datalake-root/scripts/checar_odds_ah_fixture.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/checar_odds_ah_fixture.py';
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId}";
+        if (!empty($apostaId)) {
+            $apostaId = (int)$apostaId;
+            $cmd .= " --aposta_id={$apostaId}";
+        }
+        $cmd .= " 2>&1";
+
+        $output = shell_exec($cmd);
+        $result = json_decode($output, true);
+
+        if (!$result) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao processar auditoria de odds: ' . $output
+            ]);
+        }
+
+        return $this->response->setJSON($result);
+    }
 }
 
 

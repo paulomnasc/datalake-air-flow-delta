@@ -149,6 +149,7 @@ class SubscriptionFilter implements FilterInterface
             '/subscription/renew',
             '/subscription/status',
             '/subscription/buy-grok-credits',
+            '/subscription/buyGrokCredits',
             '/subscription/confirmGrokPayment',
             '/subscription/create-mp-pix',
             '/subscription/check-mp-pix',

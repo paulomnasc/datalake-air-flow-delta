@@ -727,8 +727,8 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
 
         odd_val = real_odd_betano
 
-        # 4. Trava de Odd Mínima Segura (>= 1.50)
-        min_odd_threshold = 1.50
+        # 4. Trava de Odd Mínima Segura (>= 1.55 para garantir valor esperado positivo e evitar breakeven achatado)
+        min_odd_threshold = 1.55
         if odd_val < min_odd_threshold:
             print(f"🛡️ [Odd Baixa Betano] Partida {home_team} vs {away_team} ({league_name}) -> Odd Betano {odd_val:.2f} inferior a {min_odd_threshold:.2f}.")
             apostas_abstenção += 1
@@ -766,21 +766,22 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                         status = 'Pendente',
                         updated_at = NOW()
                     WHERE id = %s
-                """, (ah_suggestion, odd_val, ganhos_potenciais, (fix.get('ah_reasoning') or '')[:250], ja_existe['id']))
+                """, (ah_suggestion, odd_val, ganhos_potenciais, (fix.get('ah_reasoning') or '')[:2000], ja_existe['id']))
                 apostas_duplicadas += 1
                 continue
 
             cursor.execute("""
                 INSERT INTO apostas (
                     usuario_id, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
-                    valor_aposta, ganhos_potenciais, status_gatekeeper, status, confirmada, data_hora_jogo, criado_em, updated_at
+                    valor_aposta, ganhos_potenciais, status_gatekeeper, status, confirmada, data_hora_jogo, resultado_detalhado, criado_em, updated_at
                 ) VALUES (
                     %s, %s, %s, %s, 'Handicap Asiático', %s, %s,
-                    %s, %s, 'APROVADO', 'Pendente', %s, %s, NOW(), NOW()
+                    %s, %s, 'APROVADO', 'Pendente', %s, %s, %s, NOW(), NOW()
                 )
             """, (
                 uid, fixture_id, home_team, away_team, ah_suggestion, odd_val,
-                valor_aposta, ganhos_potenciais, confirmada_val, fixture_date
+                valor_aposta, ganhos_potenciais, confirmada_val, fixture_date,
+                (fix.get('ah_reasoning') or '')[:2000]
             ))
 
             aposta_id = cursor.lastrowid

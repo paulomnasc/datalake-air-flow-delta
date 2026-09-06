@@ -30,6 +30,23 @@ if (!function_exists('formatBrtDate')) {
     --bet-text-muted: #94a3b8;
   }
 
+  @keyframes pulseHighlight {
+    0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(56, 189, 248, 0.7)); }
+    50% { transform: scale(1.08); filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.9)); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(56, 189, 248, 0)); }
+  }
+  .pulse-highlight {
+    animation: pulseHighlight 1.5s ease-in-out;
+    color: #38bdf8 !important;
+  }
+  .btn-check-odds-ah {
+    transition: all 0.2s ease;
+  }
+  .btn-check-odds-ah:hover {
+    background-color: rgba(56, 189, 248, 0.15) !important;
+    transform: translateY(-1px);
+  }
+
   body {
     background-color: var(--bet-bg) !important;
     font-family: 'Inter', sans-serif;
@@ -787,9 +804,9 @@ if (!function_exists('formatBrtDate')) {
       <p>
         <?= lang('App.access_restricted_msg') ?>
         <br><br>
-        Seu saldo atual: <strong class="text-danger">0 Tokens</strong>. Recarreague agora mesmo para liberar o painel completo de palpites e acompanhamento.
+        Seu saldo atual: <strong class="text-danger">0 Tokens</strong>. Recarregue agora mesmo para liberar o painel completo de palpites e acompanhamento.
       </p>
-      <a href="<?= base_url('subscription/buyGrokCredits') ?>" class="btn-recharge">
+      <a href="<?= base_url('subscription/buy-grok-credits') ?>" class="btn-recharge">
         <i class="bi bi-lightning-charge-fill"></i> Recarregar Tokens de Consulta (R$ 10,00)
       </a>
     </div>
@@ -1206,10 +1223,33 @@ if (!function_exists('formatBrtDate')) {
               }
             ?>
 
+            <?php 
+              $isVolatilidade = (
+                strpos($detalhadoExibir, 'ALERTA_VOLATILIDADE') !== false ||
+                strpos($detalhadoExibir, 'Confronto equilibrado') !== false ||
+                strpos($detalhadoExibir, 'odds abertas') !== false ||
+                (strpos($cardMercadoLower, 'handicap') !== false && (float)($aposta->odd ?? 0) >= 2.15)
+              );
+            ?>
+
+            <?php if ($isVolatilidade): ?>
+              <div class="alert-volatilidade-box mb-3" style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.45); border-left: 4px solid #ef4444; border-radius: 8px; padding: 10px 14px; color: #fca5a5; font-size: 0.82rem; line-height: 1.45;">
+                <div class="d-flex align-items-start gap-2">
+                  <i class="bi bi-exclamation-triangle-fill text-danger flex-shrink-0" style="font-size: 1.15rem; margin-top: 1px;"></i>
+                  <div>
+                    <strong style="color: #ffffff; font-weight: 700; display: block; margin-bottom: 2px;">
+                      🚨 Atenção: Confronto Equilibrado / Odds Abertas
+                    </strong>
+                    <span>As cotações deste jogo estão elevadas e a linha de Handicap Asiático pode sofrer oscilações no mercado. <strong>Recomendamos clicar no botão "Checar Odds Agora"</strong> abaixo para auditar as cotações em tempo real e reavaliar o melhor palpite antes de apostar.</span>
+                  </div>
+                </div>
+              </div>
+            <?php endif; ?>
+
             <?php if (!empty($detalhadoExibir)): ?>
-              <div style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: center; gap: 6px;">
-                <i class="bi bi-info-circle-fill text-info"></i>
-                <span><?= htmlspecialchars($detalhadoExibir) ?></span>
+              <div style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px;">
+                <i class="bi bi-info-circle-fill text-info flex-shrink-0" style="margin-top: 2px;"></i>
+                <span class="detalhado-text-content" style="white-space: pre-line; word-break: break-word;"><?= htmlspecialchars($detalhadoExibir) ?></span>
               </div>
             <?php endif; ?>
 
@@ -1269,6 +1309,15 @@ if (!function_exists('formatBrtDate')) {
                     <i class="bi bi-lightning-charge-fill me-1"></i> <?= lang('App.confirm_bet') ?>
                   </button>
                 <?php endif; ?>
+              <?php endif; ?>
+              <?php if (!empty($aposta->fixture_id)): ?>
+                <button type="button" 
+                        class="btn btn-sm btn-outline-info fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm btn-check-odds-ah" 
+                        style="border-radius: 8px; font-size: 0.78rem; border-color: #38bdf8; color: #38bdf8;" 
+                        onclick="handleChecarOddsAgora(<?= $aposta->id ?>, <?= $aposta->fixture_id ?>, this)"
+                        title="Auditar cotações em tempo real na API Football e recalibrar palpite">
+                  <i class="bi bi-arrow-repeat"></i> Checar Odds Agora
+                </button>
               <?php endif; ?>
               <button class="btn-cashout" onclick="handleCashout(<?= $aposta->id ?>, <?= $aposta->cash_out ?? $aposta->valor_aposta ?>)">
                 CASH OUT R$ <?= number_format($aposta->cash_out ?? $aposta->valor_aposta, 2, ',', '.') ?>
@@ -3213,4 +3262,148 @@ if (!function_exists('formatBrtDate')) {
 
     applyBetFilters();
   });
+
+  // Função para Checar Odds em Tempo Real via API Football
+  function handleChecarOddsAgora(apostaId, fixtureId, btnEl) {
+    if (!fixtureId) {
+      alert('Esta aposta não possui partida vinculada para checagem.');
+      return;
+    }
+
+    const originalHtml = btnEl ? btnEl.innerHTML : '';
+    if (btnEl) {
+      btnEl.disabled = true;
+      btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Checando API...';
+    }
+
+    fetch('<?= base_url('apostas/checar-odds-ah') ?>', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: new URLSearchParams({
+        fixture_id: fixtureId,
+        aposta_id: apostaId
+      })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+
+      if (!data.success) {
+        alert(data.message || 'Não foi possível consultar as odds no momento.');
+        return;
+      }
+
+      // Atualizar dados no Card do DOM
+      const cardEl = document.getElementById('aposta-card-' + apostaId);
+      if (cardEl) {
+        // Atualizar odd badge
+        const oddBadge = cardEl.querySelector('.odd-badge');
+        if (oddBadge && data.odd_nova) {
+          oddBadge.textContent = Number(data.odd_nova).toFixed(2);
+          oddBadge.classList.add('pulse-highlight');
+          setTimeout(() => oddBadge.classList.remove('pulse-highlight'), 2500);
+        }
+
+        // Atualizar palpite name
+        const palpiteEl = cardEl.querySelector('.palpite-name');
+        if (palpiteEl && data.palpite_novo) {
+          palpiteEl.textContent = data.palpite_novo;
+          palpiteEl.classList.add('pulse-highlight');
+          setTimeout(() => palpiteEl.classList.remove('pulse-highlight'), 2500);
+        }
+
+        // Atualizar ganhos potenciais
+        const ganhoEl = cardEl.querySelector('.val-amount.primary');
+        if (ganhoEl && data.ganhos_potenciais_novos) {
+          ganhoEl.textContent = 'R$ ' + Number(data.ganhos_potenciais_novos).toFixed(2).replace('.', ',');
+          ganhoEl.classList.add('pulse-highlight');
+          setTimeout(() => ganhoEl.classList.remove('pulse-highlight'), 2500);
+        }
+
+        // Atualizar bloco explicativo
+        const detalhadoEl = cardEl.querySelector('.detalhado-text-content');
+        if (detalhadoEl && data.novo_detalhado) {
+          detalhadoEl.textContent = data.novo_detalhado;
+        }
+
+        // Se for mercado aberto, garantir exibição da caixa de alerta vermelho
+        let alertBox = cardEl.querySelector('.alert-volatilidade-box');
+        if (data.is_open_market) {
+          if (!alertBox) {
+            const bodyEl = cardEl.querySelector('.bet-card-body');
+            if (bodyEl) {
+              const newAlert = document.createElement('div');
+              newAlert.className = 'alert-volatilidade-box mb-3';
+              newAlert.style.cssText = 'background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.45); border-left: 4px solid #ef4444; border-radius: 8px; padding: 10px 14px; color: #fca5a5; font-size: 0.82rem; line-height: 1.45;';
+              newAlert.innerHTML = `
+                <div class="d-flex align-items-start gap-2">
+                  <i class="bi bi-exclamation-triangle-fill text-danger flex-shrink-0" style="font-size: 1.15rem; margin-top: 1px;"></i>
+                  <div>
+                    <strong style="color: #ffffff; font-weight: 700; display: block; margin-bottom: 2px;">
+                      🚨 Atenção: Confronto Equilibrado / Odds Abertas
+                    </strong>
+                    <span>As cotações deste jogo estão elevadas e a linha de Handicap Asiático pode sofrer oscilações no mercado. <strong>Recomendamos clicar no botão "Checar Odds Agora"</strong> para auditar as cotações em tempo real e reavaliar o melhor palpite antes de apostar.</span>
+                  </div>
+                </div>
+              `;
+              bodyEl.insertBefore(newAlert, bodyEl.firstChild);
+            }
+          }
+        }
+      }
+
+      showToastOddsCheck(data);
+    })
+    .catch(err => {
+      console.error(err);
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+      alert('Erro ao conectar com o servidor.');
+    });
+  }
+
+  function showToastOddsCheck(data) {
+    let toastContainer = document.getElementById('toastOddsContainer');
+    if (!toastContainer) {
+      toastContainer = document.createElement('div');
+      toastContainer.id = 'toastOddsContainer';
+      toastContainer.style.cssText = 'position: fixed; top: 25px; right: 25px; z-index: 999999; max-width: 440px;';
+      document.body.appendChild(toastContainer);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-odds-item shadow-lg';
+    toast.style.cssText = 'background: #0f172a; border: 1px solid #38bdf8; border-left: 4px solid #38bdf8; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; color: #ffffff; font-size: 0.85rem; box-shadow: 0 10px 30px rgba(0,0,0,0.6); transition: all 0.3s ease;';
+
+    let icon = data.mudou ? '🔄' : '✅';
+    let title = data.mudou ? 'Palpite / Odds Atualizados!' : 'Odds Confirmadas na API!';
+    
+    toast.innerHTML = `
+      <div class="d-flex align-items-start justify-content-between gap-2">
+        <div class="d-flex align-items-start gap-2">
+          <span style="font-size: 1.3rem;">${icon}</span>
+          <div>
+            <strong style="color: #38bdf8; display: block; font-size: 0.92rem; margin-bottom: 3px;">${title}</strong>
+            <p style="margin: 0; color: #cbd5e1; line-height: 1.45;">${data.explicacao_mudanca || 'Auditoria de odds finalizada.'}</p>
+          </div>
+        </div>
+        <button type="button" style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer; padding: 0 4px; line-height: 1;" onclick="this.closest('.toast-odds-item').remove()">&times;</button>
+      </div>
+    `;
+
+    toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(25px)';
+      setTimeout(() => toast.remove(), 350);
+    }, 7000);
+  }
 </script>

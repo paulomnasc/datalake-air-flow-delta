@@ -715,7 +715,7 @@ $transacoes = $extrato['transacoes'] ?? [];
       </div>
       <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
         <button type="button" class="btn-clear" onclick="closeAddCreditModal()">Cancelar</button>
-        <button type="submit" class="btn-add-credit"><i class="fas fa-check"></i> Confirmar Crédito</button>
+        <button type="submit" class="btn-add-credit" id="btnSubmitAddCredit"><i class="fas fa-check"></i> Confirmar Crédito</button>
       </div>
     </form>
   </div>
@@ -743,7 +743,7 @@ $transacoes = $extrato['transacoes'] ?? [];
       </div>
       <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
         <button type="button" class="btn-clear" onclick="closeRedeemCreditModal()">Cancelar</button>
-        <button type="submit" class="btn-redeem-credit"><i class="fas fa-check"></i> Confirmar Resgate</button>
+        <button type="submit" class="btn-redeem-credit" id="btnSubmitRedeemCredit"><i class="fas fa-check"></i> Confirmar Resgate</button>
       </div>
     </form>
   </div>
@@ -973,10 +973,20 @@ function closeAddCreditModal() {
   document.getElementById('addCreditModal').style.display = 'none';
 }
 
+let isSubmittingCredit = false;
 function submitAddCredit(e) {
   e.preventDefault();
+  if (isSubmittingCredit) return;
+
+  const btn = document.getElementById('btnSubmitAddCredit');
   const valor = document.getElementById('valor_credito').value;
   const descricao = document.getElementById('descricao_credito').value;
+
+  isSubmittingCredit = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+  }
 
   const formData = new FormData();
   formData.append('valor', valor);
@@ -993,11 +1003,21 @@ function submitAddCredit(e) {
       window.location.reload();
     } else {
       alert('❌ Erro ao adicionar crédito: ' + (data.message || 'Tente novamente.'));
+      isSubmittingCredit = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check"></i> Confirmar Crédito';
+      }
     }
   })
   .catch(err => {
     console.error(err);
     alert('Erro de conexão ao adicionar crédito.');
+    isSubmittingCredit = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check"></i> Confirmar Crédito';
+    }
   });
 }
 
@@ -1011,8 +1031,12 @@ function closeRedeemCreditModal() {
   document.getElementById('redeemCreditModal').style.display = 'none';
 }
 
+let isSubmittingRedeem = false;
 function submitRedeemCredit(e) {
   e.preventDefault();
+  if (isSubmittingRedeem) return;
+
+  const btn = document.getElementById('btnSubmitRedeemCredit');
   const valorInput = document.getElementById('valor_resgate');
   const valor = parseFloat(valorInput.value);
   const descricao = document.getElementById('descricao_resgate').value;
@@ -1025,6 +1049,12 @@ function submitRedeemCredit(e) {
   if (valor > saldoDisponivelAtual) {
     alert('⚠️ O valor do resgate (R$ ' + valor.toFixed(2) + ') excede o saldo disponível na conta corrente (R$ ' + saldoDisponivelAtual.toFixed(2) + ').');
     return;
+  }
+
+  isSubmittingRedeem = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
   }
 
   const formData = new FormData();
@@ -1042,11 +1072,21 @@ function submitRedeemCredit(e) {
       window.location.reload();
     } else {
       alert('❌ Erro ao realizar resgate: ' + (data.message || 'Tente novamente.'));
+      isSubmittingRedeem = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check"></i> Confirmar Resgate';
+      }
     }
   })
   .catch(err => {
     console.error(err);
     alert('Erro de conexão ao processar o resgate.');
+    isSubmittingRedeem = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check"></i> Confirmar Resgate';
+    }
   });
 }
 

@@ -207,7 +207,7 @@ def is_early_season_game(league_name="", fixture_date=None):
     """
     Verifica se a partida ocorre na janela de início de temporada (primeiras rodadas / meses iniciais).
     Para Ligas Europeias (Premier League, La Liga, Jupiler Pro League, Bundesliga, Ligue 1, Eredivisie, etc.): Agosto e Setembro (meses 8 e 9).
-    Para Ligas Sul-Americanas (Brasileirão, Argentina, Chile, Colombia, etc.): Janeiro, Fevereiro e Março (meses 1, 2 e 3).
+    Para Ligas Sul-Americanas (Brasileirão, Argentina, etc.): Janeiro a Abril (meses 1 a 4). Em setembro estão na 25ª+ rodada.
     """
     if not fixture_date:
         from datetime import datetime
@@ -224,8 +224,14 @@ def is_early_season_game(league_name="", fixture_date=None):
 
     l_name_low = str(league_name or '').lower().strip()
 
-    # Em setembro/agosto (Europa e padrão) e janeiro/fevereiro/março (América do Sul), ou janela de início/retomada
-    return month in (1, 2, 3, 8, 9)
+    is_south_america = any(sa in l_name_low for sa in [
+        'brasil', 'brasileir', 'serie a', 'série a', 'serie b', 'série b', 
+        'copa do brasil', 'argentin', 'liga profesional', 'libertadores', 'sudamericana'
+    ])
+    if is_south_america:
+        return month in (1, 2, 3, 4)
+
+    return month in (8, 9)
 
 def _normalize_team_name_for_match(n):
     if not n:
@@ -1332,21 +1338,52 @@ def calculate_asian_handicap_suggestion(
     )
 
     # 6. Diagnóstico de Crise Estrito & Trava Gatekeeper
-    home_in_crisis = (home_d >= 3 and home_v == 0) or (home_recent_losses >= 3 and home_v == 0)
-    away_in_crisis = (away_d >= 3 and away_v == 0) or (away_recent_losses >= 3 and away_v == 0)
+    home_pts = home_last5.get('pts', 0) if isinstance(home_last5, dict) else 0
+    away_pts = away_last5.get('pts', 0) if isinstance(away_last5, dict) else 0
+
+    home_in_crisis = (
+        (home_d >= 3 and home_v == 0) or 
+        (home_recent_losses >= 3 and home_v == 0) or
+        (home_v == 0 and home_pts <= 3) or
+        (home_v == 0 and home_rank is not None and int(home_rank) >= 16)
+    )
+    away_in_crisis = (
+        (away_d >= 3 and away_v == 0) or 
+        (away_recent_losses >= 3 and away_v == 0) or
+        (away_v == 0 and away_pts <= 3) or
+        (away_v == 0 and away_rank is not None and int(away_rank) >= 16)
+    )
     has_discrepancy = False
     alt_suggestion = ""
 
+    # Se ambas estão em crise profunda (ex: 0 vitórias no U5J):
+    if home_in_crisis and away_in_crisis:
+        suggestion = "Sem Entrada (Abstenção)"
+        confidence = 50.00
+        main_reason = (
+            f"🚫 APOSTA BLOQUEADA: Ambas as equipes em crise severa "
+            f"({home_team} {home_last5.get('text')} vs {away_team} {away_last5.get('text')}). "
+            f"Confronto de altíssima volatilidade técnica. Abstenção obrigatória do Gatekeeper."
+        )
     # Regras de Intervenção para Mandante em Crise
-    if home_in_crisis and not away_in_crisis:
+    elif home_in_crisis and not away_in_crisis:
         is_away_fav = (odd_away and odd_home and float(odd_away) < float(odd_home))
-        if delta_goals >= -0.20:
+        # Se o mandante está em crise e o visitante em momento superior/ascensão:
+        if (away_pts >= home_pts + 3) or (home_rank and away_rank and int(home_rank) > int(away_rank)):
+            suggestion = f"{away_team} -0.25 AH" if is_away_fav else f"{away_team} +0.5 AH"
+            confidence = 76.00
+            main_reason = (
+                f"⚠️ Oportunidade Contra Mandante em Crise: {home_team} em má fase/queda ({home_last5.get('text')} em U5J, {home_rank or 'Z-4'}º colocado), "
+                f"enquanto o visitante {away_team} está em momento superior/ascensão ({away_last5.get('text')} em U5J, {away_rank or 'Tabela'}º colocado). "
+                f"Entrada com máxima proteção em {suggestion} aproveitando as odds esticadas contra o mandante em crise."
+            )
+        elif delta_goals >= -0.20:
             suggestion = f"{away_team} -0.25 AH" if is_away_fav else f"{away_team} +0.25 AH"
             confidence = 74.00
             prot_txt = "proteção de meia estaca (-0.25 AH)" if is_away_fav else "cobertura em +0.25 AH (meio-green no empate)"
             main_reason = f"⚠️ Alerta de Risco: {home_team} em crise recente ({home_last5.get('text')} em U5J). O momento superior do visitante {away_team} ({away_last5.get('text')}) orienta aposta com {prot_txt}."
         else:
-            suggestion = f"{away_team} -0.25 AH" if is_away_fav else f"{away_team} +0.5 AH (Dupla Chance)"
+            suggestion = f"{away_team} -0.25 AH" if is_away_fav else f"{away_team} +0.5 AH"
             confidence = 76.00
             prot_txt = "proteção de meia estaca (-0.25 AH)" if is_away_fav else "vantagem de cobertura +0.5 (Dupla Chance)"
             main_reason = f"⚠️ Alerta de Crise: Severa má fase do {home_team} ({home_last5.get('text')} em U5J). {prot_txt.capitalize()} para o visitante {away_team}."
@@ -1605,46 +1642,30 @@ def calculate_asian_handicap_suggestion(
                 confidence = round(min(74.0, confidence), 2)
                 main_reason = f"🌱 INÍCIO DE TEMPORADA: Linha no mandante {home_team} calibrada conservadoramente em -0.25 AH para proteger a banca no empate."
 
-    # TRAVA DE OURO DO GATEKEEPER: PROIBIÇÃO DE LINHAS NEGATIVAS PROFUNDAS (-0.50, -0.75, -1.0+)
-    # O usuário determinou que apenas a linha -0.25 AH protege a banca em caso de empate (perda de apenas 50%).
-    # Linhas como -0.50, -0.75, -1.0, -1.25, -1.50 causam 100% de perda no empate e estão terminantemente proibidas.
-    # Se uma equipe tem favoritismo expressivo mas sua cotação for <= 1.55, -0.25 AH não oferece odd de valor (1.55).
-    # Em vez de inflar a linha para -0.50/-0.75 para forçar odd maior, o sistema emite Sem Entrada (Abstenção).
-    if any(neg in suggestion for neg in ["-0.5", "-0.75", "-1.0", "-1.25", "-1.5", "-1.75", "-2.0"]):
+    # TRAVA DE LINHAS AGRESSIVAS DE HANDICAP NEGATIVO (-0.50 AH e -0.75 AH):
+    # Linhas superiores a -0.75 AH (-1.0, -1.25, -1.50, -2.0) são calibradas conservadoramente em -0.75 AH
+    # para evitar exigência excessiva de goleadas, garantindo meio-green em vitória simples por 1 gol de diferença.
+    if any(neg in suggestion for neg in ["-1.0", "-1.25", "-1.5", "-1.75", "-2.0"]):
         team_fav = home_team if (is_market_home_fav or home_team.lower() in suggestion.lower()) else away_team
-        fav_odd = float(odd_home) if team_fav == home_team else float(odd_away)
-        if fav_odd <= 1.55:
-            suggestion = "Sem Entrada (Abstenção)"
-            confidence = 50.00
-            main_reason = (
-                f"🚫 APOSTA BLOQUEADA: Favoritismo excessivo de {team_fav} (@ {fav_odd:.2f}). "
-                f"Linhas agressivas (-0.50, -0.75, -1.0+) foram desativadas para proteger a banca em caso de empate, "
-                f"e a linha segura -0.25 AH oferece cotação deprimida (< 1.55). Abstenção mandatória."
-            )
-        else:
-            suggestion = f"{team_fav} -0.25 AH"
-            confidence = 74.00
-            main_reason = (
-                f"Favoritismo de {team_fav} calibrado estritamente em {suggestion}. "
-                f"Garante retorno com proteção de meia estaca em caso de empate."
-            )
+        suggestion = f"{team_fav} -0.75 AH"
+        confidence = 74.00
+        main_reason = (
+            f"Favoritismo expressivo de {team_fav} calibrado estrategicamente em {suggestion}. "
+            f"Garante rentabilidade com meio-green mesmo em vitória simples por 1 gol de diferença."
+        )
 
-    # Verificação de odd mínima para qualquer linha -0.25 AH sugerida
-    if "-0.25" in suggestion and not has_discrepancy:
+    # TRAVA FINAL DE ODD MÍNIMA DE VALOR (Anti-Odd Esmagada < 1.55):
+    # Se a sugestão calculada for handicap negativo (-0.25 ou -0.5) mas a odd nominal do time for <= 1.55 (ex: Flamengo @ 1.48):
+    # A linha -0.25 tem odd deprimida (< 1.40). Eleva a linha para -0.75 AH para assegurar retorno condizente e odd >= 1.65.
+    if ("-0.25" in suggestion or "-0.5" in suggestion) and not has_discrepancy:
         if is_market_home_fav and home_team.lower() in suggestion.lower() and odd_home and float(odd_home) <= 1.55:
-            suggestion = "Sem Entrada (Abstenção)"
-            confidence = 50.00
-            main_reason = (
-                f"🚫 APOSTA BLOQUEADA: {home_team} com odd nominal esmagada (@ {float(odd_home):.2f}). "
-                f"A linha -0.25 AH não atinge odd mínima de valor (1.55). Linhas agressivas (-0.50/-0.75) estão proibidas. Abstenção ativada."
-            )
+            suggestion = f"{home_team} -0.75 AH"
+            confidence = 74.00
+            main_reason += f" [⚡ Ajuste de Valor: Linha elevada para {suggestion} para contornar odd esmagada e garantir EV positivo]."
         elif is_market_away_fav and away_team.lower() in suggestion.lower() and odd_away and float(odd_away) <= 1.55:
-            suggestion = "Sem Entrada (Abstenção)"
-            confidence = 50.00
-            main_reason = (
-                f"🚫 APOSTA BLOQUEADA: {away_team} com odd nominal esmagada (@ {float(odd_away):.2f}). "
-                f"A linha -0.25 AH não atinge odd mínima de valor (1.55). Linhas agressivas (-0.50/-0.75) estão proibidas. Abstenção ativada."
-            )
+            suggestion = f"{away_team} -0.75 AH"
+            confidence = 74.00
+            main_reason += f" [⚡ Ajuste de Valor: Linha elevada para {suggestion} para contornar odd esmagada e garantir EV positivo]."
 
     # Cálculo das Probabilidades 1X2 (%) Plataforma (Modelo Poisson) vs Casa de Apostas (Odds)
     import math

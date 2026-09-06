@@ -694,12 +694,10 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 apostas_canceladas += len(canc_list)
             continue
 
-        # Trava Estrita: Apenas -0.25 AH é permitido para o favorito (protege a banca em 50% no empate).
-        # Linhas negativas profundas (-0.50, -0.75, -1.0, -1.25, -1.50) causam perda total no empate e são proibidas.
-        # Linhas positivas (+0.25, +0.5, +0.75, +1.0, +1.25, +1.5, +1.75) continuam permitidas para cobertura do azarão.
-        allowed_lines = ['-0.25', '+0.25', '+0.5', '+0.75', '+1.0', '+1.25', '+1.5', '+1.75']
+        # Linhas de Handicap permitidas: fracionadas seguras (-0.25, -0.5, -0.75) e positivas para azarão
+        allowed_lines = ['-0.25', '-0.5', '-0.75', '+0.25', '+0.5', '+0.75', '+1.0', '+1.25', '+1.5', '+1.75']
         if not any(al in ah_norm_after for al in allowed_lines):
-            print(f"🛡️ [Linha Fora das Top Estratégias] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' fora das linhas permitidas (apenas -0.25 AH para favoritos e linhas positivas para azarão).")
+            print(f"🛡️ [Linha Fora das Top Estratégias] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' fora das linhas permitidas.")
             apostas_abstenção += 1
             canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Linha fora das estratégias fracionadas permitidas: {ah_suggestion}")
             if canc_list:
@@ -724,6 +722,12 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 elif '+1.5' in ah_suggestion or '+1.25' in ah_suggestion or '+1.75' in ah_suggestion:
                     # Linha +1.5 para underdog de super-favorito: odd equilibrada de mercado ~1.85
                     real_odd_betano = 1.85
+                elif '-0.75' in ah_suggestion:
+                    # Linha -0.75 para favorito: odd estimada garantindo retorno de valor (ex: 1.48 -> ~1.70)
+                    real_odd_betano = round(max(1.65, min(2.15, raw_float + 0.22)), 2)
+                elif '-0.5' in ah_suggestion:
+                    # Linha -0.5 para favorito (vitória simples)
+                    real_odd_betano = round(max(1.55, raw_float), 2)
                 elif '-0.25' in ah_suggestion:
                     # Linha -0.25 para favorito: odd estimada com base na cotação seca (ex: 1.90 -> ~1.65, 1.50 -> ~1.36)
                     real_odd_betano = round(max(1.20, min(2.10, 1.0 + (raw_float - 1.0) * 0.72)), 2)

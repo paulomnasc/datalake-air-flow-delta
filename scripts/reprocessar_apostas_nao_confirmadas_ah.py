@@ -182,6 +182,12 @@ def reprocessar_apostas_nao_confirmadas():
             elif '+0.25' in new_suggestion:
                 raw_ref = new_oh if (home_team.lower() in new_suggestion.lower()) else new_oa
                 final_odd = round(max(1.60, min(2.10, 1.0 + (raw_ref - 1.0) * 0.45)), 2)
+            elif '-0.75' in new_suggestion:
+                raw_ref = new_oh if (home_team.lower() in new_suggestion.lower()) else new_oa
+                final_odd = round(max(1.65, min(2.15, raw_ref + 0.22)), 2)
+            elif '-0.5' in new_suggestion:
+                raw_ref = new_oh if (home_team.lower() in new_suggestion.lower()) else new_oa
+                final_odd = round(max(1.55, raw_ref), 2)
             elif '-0.25' in new_suggestion:
                 raw_ref = new_oh if (home_team.lower() in new_suggestion.lower()) else new_oa
                 final_odd = round(max(1.55, min(2.10, 1.0 + (raw_ref - 1.0) * 0.72)), 2)

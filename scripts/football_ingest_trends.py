@@ -267,6 +267,7 @@ _futbol24_failed_teams_cache = set()
 
 _api_sports_rate_limited = False
 _api_sports_odds_rate_limited = False
+_api_sports_quota_exceeded = False
 
 def fetch_api_sports_team_last5(team_id, limit=5):
     """
@@ -3253,8 +3254,8 @@ def fetch_api_sports_odds_by_date(date_list=None):
     Retorna dicionário mapeado diretamente pelo fixture_id:
     { fixture_id: { 'BETANO': {'casa': 4.70, 'empate': 4.50, 'visitante': 1.70}, ... } }
     """
-    global _api_sports_odds_rate_limited
-    if _api_sports_odds_rate_limited:
+    global _api_sports_odds_rate_limited, _api_sports_rate_limited, _api_sports_quota_exceeded
+    if _api_sports_odds_rate_limited or _api_sports_quota_exceeded:
         return {}
 
     if date_list is None:
@@ -3272,7 +3273,7 @@ def fetch_api_sports_odds_by_date(date_list=None):
     odds_by_fixture = {}
 
     for d in date_list:
-        if _api_sports_odds_rate_limited:
+        if _api_sports_odds_rate_limited or _api_sports_quota_exceeded:
             break
         if d in _api_sports_odds_cache:
             for fid, bms in _api_sports_odds_cache[d].items():
@@ -3291,8 +3292,10 @@ def fetch_api_sports_odds_by_date(date_list=None):
                 resp = requests.get(url, headers=headers, timeout=12).json()
                 errs = resp.get('errors')
                 if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
-                    print(f"[API-Sports Odds] Limite de requisições por minuto atingido: {errs}. Aguardando 1s...")
+                    print(f"[API-Sports Odds] Limite de requisições/cota atingido: {errs}. Interrompendo chamadas da API.")
                     _api_sports_odds_rate_limited = True
+                    if 'requests' in errs or 'request' in str(errs).lower():
+                        _api_sports_quota_exceeded = True
                     time.sleep(1.0)
                     break
 
@@ -3376,6 +3379,7 @@ def update_oddspedia_odds(conn):
         from lib.scrapers import scrape_oddspedia_odds, scrape_futbol24_odds, scrape_futbol24_previews, fetch_futbol24_direct_match_odds
         from lib.sports_arbitrage import normalize_team_name, calculate_surebet, fetch_live_odds_from_api
         
+        global _api_sports_quota_exceeded, _api_sports_odds_rate_limited, _api_sports_rate_limited
         print("\n--- INICIANDO ENRIQUECIMENTO DE ODDS (CACHE BANCO + API-SPORTS) ---")
         
         cursor = conn.cursor()
@@ -3408,33 +3412,32 @@ def update_oddspedia_odds(conn):
         scraped_previews_f24 = []
         api_odds_matches = []
 
-        # Surebets desativadas a pedido do usuário: scraping secundário (Oddspedia/Futbol24) desativado
-        should_run_scraping = False
+        # O fallback da The Odds API só roda como contingência caso a cota diária da API-Sports seja excedida
+        is_api_quota_exceeded = _api_sports_quota_exceeded or _api_sports_odds_rate_limited or _api_sports_rate_limited
+        should_run_fallback = is_api_quota_exceeded and (missing_count > 0)
 
-        if should_run_scraping:
-            print(f"🕸️ Acionando Triangulação de Odds em Tempo Real (Oddspedia / Futbol24) para detectar SuperOdds e viradas de mercado...")
+        if should_run_fallback:
+            print(f"⚠️ Cota da API-Sports esgotada! Acionando The Odds API como contingência para {missing_count} partidas pendentes...")
             
-            # The Odds API desativada em favor da API-Sports oficial
-            api_odds_matches = []
-
+            odds_api_key = os.environ.get('ODDS_API_KEY') or 'd2f79607e3832b1f4b3003c14da3d70f'
             try:
-                print("🕸️ Acionando Scraping Oddspedia...")
-                scraped_matches_op = scrape_oddspedia_odds(leagues=None) or []
-            except Exception as e_op:
-                print(f"Aviso ao consultar Oddspedia: {e_op}")
+                print("🌐 Consultando The Odds API para enriquecimento de odds de casas oficiais...")
+                api_odds_matches = fetch_live_odds_from_api(odds_api_key, min_pre_match_minutes=0) or []
+                print(f"✅ The Odds API retornou {len(api_odds_matches)} partidas com odds de casas oficiais!")
+            except Exception as e_toapi:
+                print(f"❌ Erro ao consultar The Odds API: {e_toapi}")
+                api_odds_matches = []
 
-            try:
-                print("🕸️ Acionando Scraping Futbol24...")
-                scraped_matches_f24 = scrape_futbol24_odds(leagues=None) or []
-            except Exception as e_f24:
-                print(f"Aviso ao consultar Futbol24: {e_f24}")
-
+            # Ingestão de prévias e palpites editoriais leves do Futbol24 (HTTP direto)
             try:
                 scraped_previews_f24 = scrape_futbol24_previews() or []
             except Exception as e_prev:
                 print(f"Aviso ao consultar Prévias Futbol24: {e_prev}")
         else:
-            print("⚡ Todas as partidas são de longo prazo e já possuem Odds na API! Pulando Web Scraping pesado.")
+            if not is_api_quota_exceeded:
+                print("ℹ️ API-Sports com cota disponível. Fallback da The Odds API dispensado.")
+            else:
+                print("ℹ️ Nenhuma partida pendente de Odds no banco. Fallback dispensado.")
         
         # Consolidação de partidas e odds secundárias (scraping/agregadoras)
         scraped_by_teams = {}
@@ -3536,18 +3539,19 @@ def update_oddspedia_odds(conn):
                     return m.get('odds', {})
             return {}
 
-        def triangulate_3_source_odds(api_bms: dict, op_bms: dict, f24_bms: dict, home_team: str, away_team: str) -> tuple:
+        def triangulate_3_source_odds(api_bms: dict, op_bms: dict, f24_bms: dict, home_team: str, away_team: str, toapi_bms: dict = None) -> tuple:
             """
-            Triangula as odds de até 3 fontes independentes:
+            Triangula as odds de fontes oficiais e contingências independentes:
               1. API-Sports oficial por fixture_id (api_bms)
-              2. Web Scraping Oddspedia em tempo real (op_bms)
-              3. Web Scraping Futbol24 ao vivo (f24_bms)
-            Detecta e descarta fontes desatualizadas (divergência > 15% em relação às fontes ao vivo).
-            Aplica consenso por recorrência e hierarquia de casas oficiais (Betano/Bet365/Pinnacle).
+              2. The Odds API de contingência (toapi_bms)
+              3. Fontes secundárias (op_bms, f24_bms)
+            Detecta e descarta fontes desatualizadas e aplica consenso por recorrência e hierarquia de casas oficiais (Betano/Bet365/Pinnacle).
             """
             sources = []
             if api_bms:
                 sources.append(('API_SPORTS', api_bms))
+            if toapi_bms:
+                sources.append(('THE_ODDS_API', toapi_bms))
             if op_bms:
                 sources.append(('ODDSPEDIA', op_bms))
             if f24_bms:
@@ -3616,18 +3620,19 @@ def update_oddspedia_odds(conn):
         for fix in db_fixtures:
             fix_id = fix['fixture_id']
             
-            # Coleta cotações de cada uma das 3 fontes independentes
+            # Coleta cotações de cada uma das fontes independentes
             api_bms = (api_sports_odds.get(fix_id) or {}) if api_sports_odds else {}
+            toapi_bms = find_source_match_odds(api_odds_matches, fix['home_team'], fix['away_team'])
             op_bms = find_source_match_odds(scraped_matches_op, fix['home_team'], fix['away_team'])
             f24_bms = find_source_match_odds(scraped_matches_f24, fix['home_team'], fix['away_team'])
 
             # Executa a Triangulação com filtro de obsolescência e consenso de mercado
             best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = triangulate_3_source_odds(
-                api_bms, op_bms, f24_bms, fix['home_team'], fix['away_team']
+                api_bms, op_bms, f24_bms, fix['home_team'], fix['away_team'], toapi_bms=toapi_bms
             )
 
-            # Fallback direto via Futbol24 se ainda não tiver odds
-            if (not best_c1 or best_c1 <= 1.0) and fetch_futbol24_direct_match_odds is not None:
+            # Fallback direto via Futbol24 se ainda não tiver odds (apenas no modo contingência)
+            if should_run_fallback and (not best_c1 or best_c1 <= 1.0) and fetch_futbol24_direct_match_odds is not None:
                 try:
                     f24_odds = fetch_futbol24_direct_match_odds(fix['home_team'], fix['away_team'])
                     if f24_odds:

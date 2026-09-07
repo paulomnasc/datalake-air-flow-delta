@@ -553,16 +553,28 @@ def scrape_futbol24_odds(leagues: List[str] = None) -> List[Dict[str, Any]]:
         if not url:
             continue
             
-        log.info(f"[SCRAPER-FUTBOL24] Acessando {url} via Playwright (direto)...")
-        html = _fetch_oddspedia_via_playwright(url)
-        
+        # 1. Fast-path: requisição HTTP direta (Futbol24 é estático e responde em ~0.1s sem Cloudflare)
+        html = None
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            }
+            log.info(f"[SCRAPER-FUTBOL24] Acessando {url} via HTTP direto...")
+            resp = requests.get(url, headers=headers, timeout=10)
+            if resp.status_code == 200 and resp.text:
+                html = resp.text
+        except Exception as e_req:
+            log.warning(f"[SCRAPER-FUTBOL24] Falha na requisição direta HTTP para {url}: {e_req}")
+
+        # 2. Fallback de contingência usando Playwright apenas se HTTP direto falhar
         if not html:
-            log.warning(f"[SCRAPER-FUTBOL24] Playwright não retornou HTML para {url}. Tentando fallback FlareSolverr...")
-            fs_res = fetch_via_flaresolverr(url)
-            html = fs_res.get("response") or fs_res.get("html") if fs_res else None
+            log.info(f"[SCRAPER-FUTBOL24] Tentando fallback Playwright para {url}...")
+            html = _fetch_oddspedia_via_playwright(url)
             
         if not html:
-            log.error(f"[SCRAPER-FUTBOL24] Falha ao obter HTML de {url} via Playwright e FlareSolverr.")
+            log.error(f"[SCRAPER-FUTBOL24] Falha ao obter HTML de {url} via HTTP e Playwright.")
             continue
             
         soup = BeautifulSoup(html, 'html.parser')

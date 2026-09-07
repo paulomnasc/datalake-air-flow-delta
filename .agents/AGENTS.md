@@ -19,8 +19,8 @@ Antes de realizar qualquer requisição HTTP externa para a API-Sports (`v3.foot
 ## 2. Surebets e Arbitragem Esportiva DESATIVADAS PERMANENTEMENTE
 - **Nunca reativar a busca de Surebets / Arbitragem:**
   - A DAG `sports_arbitrage_dag` deve permanecer desativada (`schedule_interval=None`).
-  - É proibido reativar chamadas para *The Odds API*.
-  - No script `scripts/football_ingest_trends.py`, o scraping de Oddspedia e Futbol24 para triangulação de Surebets está desativado (`should_run_scraping = False`). As flags devem sempre gravar `is_surebet = 0` e `surebet_profit_pct = 0.0`.
+  - O cálculo e triangulação de Surebets está permanentemente desativado: as flags em `fixtures_trends` devem sempre gravar `is_surebet = 0` e `surebet_profit_pct = 0.0`.
+  - A *The Odds API* é autorizada estritamente como contingência para enriquecimento de odds 1X2 quando a cota diária da API-Sports estiver esgotada (Regra 3, item 5), nunca para arbitragem/surebets.
 
 ---
 
@@ -35,6 +35,8 @@ Apenas os seguintes cenários têm autorização para realizar chamadas externas
    - Partidas finalizadas onde os cartões ainda não constam no banco (`cards_api_checked_at IS NULL` e `match_statistics_cache` vazio) podem consultar a API para obter a súmula oficial. Uma vez gravadas no banco, tornam-se imutáveis e nunca mais consultam a API.
 4. **Enriquecimento de Árbitro a menos de 48h:**
    - Se uma partida ocorre nas próximas 48h e o campo `referee_name` for nulo ou "Árbitro Não Informado", a API pode ser consultada uma única vez para enriquecimento.
+5. **Fallback de Odds via The Odds API APENAS com Cota Diária da API-Sports Esgotada:**
+   - No script `scripts/football_ingest_trends.py`, a **The Odds API** é acionada como contingência estritamente se a cota diária de requisições da API-Sports for excedida e ainda houver partidas sem odds no banco de dados. Se a API-Sports tiver cota disponível, a chamada para The Odds API deve ser dispensada. As flags de arbitragem continuam zeradas (`is_surebet = 0`). O Futbol24 é mantido exclusivamente para enriquecimento de textos jornalísticos e prévias editoriais (`futbol24_tip`).
 
 ---
 
@@ -43,3 +45,12 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
 1. `Processamento: ⏳ Pendente`: Partida em andamento ou não iniciada (`NS`, `LIVE`).
 2. `Processamento: 🌗 Parcial`: Partida finalizada (`FT`), com gols registrados por `football_trends_ingestion_dag`.
 3. `Processamento: ✅ Completo`: Partida finalizada (`FT`), cartões consolidados em `match_statistics_cache` e apostas/palpites liquidados por `processar_apostas_encerradas_dag`.
+
+---
+
+## 5. Proibição Estrita de Modificação de Código Sem Consentimento Prévio
+- O assistente/agente **NUNCA DEVE** criar, editar, refatorar ou deletar qualquer arquivo de código-fonte, scripts (`.py`, `.php`, `.sh`, etc.), DAGs ou arquivos de configuração sem autorização prévia e explícita do usuário.
+- **Fluxo Obrigatório**: Antes de qualquer modificação, o assistente deve:
+  1. Analisar o problema ou requisito;
+  2. Explicar a abordagem técnica e detalhar exatamente quais arquivos e trechos serão alterados (ou apresentar o plano/diff proposto);
+  3. Solicitar e aguardar a confirmação/consentimento explícito do usuário antes de invocar ferramentas de escrita ou edição de arquivos de código.

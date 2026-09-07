@@ -458,6 +458,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
 
     # 3. Consulta rápida na tabela de cache persistente team_last5_cache ou na API-Sports por team_id se o banco local possuir menos de 5 partidas
     if len(matches) < 5 and team_id:
+        has_cached_entry = False
         # 3.1 Verifica primeiro no cache persistente do MySQL (válido por 24 horas)
         if cursor is not None:
             try:
@@ -468,6 +469,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                 """, (team_id,))
                 c_row = cursor.fetchone()
                 if c_row and c_row.get('form_json'):
+                    has_cached_entry = True
                     c_matches = json.loads(c_row['form_json']) if isinstance(c_row['form_json'], str) else c_row['form_json']
                     if isinstance(c_matches, list):
                         existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
@@ -481,11 +483,11 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
             except Exception as e_c:
                 pass
 
-        # 3.2 Se ainda não tiver 5 partidas, consulta a API-Sports e persiste no MySQL
-        if len(matches) < 5:
+        # 3.2 Se NÃO encontrou no cache de 24h e ainda não tiver 5 partidas, consulta a API-Sports e persiste no MySQL
+        if not has_cached_entry and len(matches) < 5:
             try:
                 api_m = fetch_api_sports_team_last5(team_id, limit=5)
-                if api_m:
+                if api_m is not None:
                     existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
                     for am in api_m:
                         key = (am.get('opponent'), am.get('score'))
@@ -494,7 +496,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                             existing_keys.add(key)
                         if len(matches) >= 5:
                             break
-                    if cursor is not None and api_m:
+                    if cursor is not None:
                         try:
                             cursor.execute("""
                                 INSERT INTO team_last5_cache (team_id, team_name, league_id, form_json, updated_at)
@@ -505,6 +507,8 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                                     team_name = VALUES(team_name),
                                     league_id = VALUES(league_id)
                             """, (team_id, team_name, league_id, json.dumps(api_m)))
+                            if hasattr(cursor, 'connection') and cursor.connection:
+                                cursor.connection.commit()
                         except Exception:
                             pass
             except Exception as e_api_m:
@@ -3120,6 +3124,7 @@ def main():
                             goals_home = COALESCE(VALUES(goals_home), goals_home),
                             goals_away = COALESCE(VALUES(goals_away), goals_away),
                             score_processed_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND (VALUES(goals_home) IS NOT NULL OR goals_home IS NOT NULL) AND (VALUES(goals_away) IS NOT NULL OR goals_away IS NOT NULL), COALESCE(score_processed_at, NOW()), score_processed_at),
+                            cards_api_checked_at = IF(VALUES(status) IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED'), COALESCE(cards_api_checked_at, NOW()), cards_api_checked_at),
                             elapsed = COALESCE(VALUES(elapsed), elapsed),
                             yellow_cards_home = COALESCE(VALUES(yellow_cards_home), yellow_cards_home),
                             yellow_cards_away = COALESCE(VALUES(yellow_cards_away), yellow_cards_away),

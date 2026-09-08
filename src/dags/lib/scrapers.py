@@ -937,7 +937,7 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
         'rio ave': ('Portugal', 'Rio-Ave-FC'), 'rio ave fc': ('Portugal', 'Rio-Ave-FC'),
         'santa clara': ('Portugal', 'CD-Santa-Clara'), 'cd santa clara': ('Portugal', 'CD-Santa-Clara'),
         'arouca': ('Portugal', 'FC-Arouca'), 'fc arouca': ('Portugal', 'FC-Arouca'),
-        'estoril': ('Portugal', 'Estoril-Praia'), 'estoril praia': ('Portugal', 'Estoril-Praia'),
+        'estoril': ('Portugal', 'GD-Estoril'), 'estoril praia': ('Portugal', 'GD-Estoril'), 'gd estoril': ('Portugal', 'GD-Estoril'), 'gd estoril praia': ('Portugal', 'GD-Estoril'),
         'estrela': ('Portugal', 'Estrela-Amadora'), 'estrela amadora': ('Portugal', 'Estrela-Amadora'), 'estrela da amadora': ('Portugal', 'Estrela-Amadora'),
         'nacional': ('Portugal', 'CD-Nacional'), 'cd nacional': ('Portugal', 'CD-Nacional'),
         'casa pia': ('Portugal', 'Casa-Pia-AC'), 'casa pia ac': ('Portugal', 'Casa-Pia-AC'),
@@ -962,15 +962,67 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
         'newcastle': ('England', 'Newcastle-United'), 'newcastle united': ('England', 'Newcastle-United'),
         # Espanha
         'real madrid': ('Spain', 'Real-Madrid'),
-        'barcelona': ('Spain', 'FC-Barcelona'),
+        'barcelona': ('Spain', 'FC-Barcelona'), 'fc barcelona': ('Spain', 'FC-Barcelona'),
         'atletico madrid': ('Spain', 'Atletico-Madrid'), 'atlético madrid': ('Spain', 'Atletico-Madrid'),
+        'elche': ('Spain', 'Elche-CF'), 'elche cf': ('Spain', 'Elche-CF'),
+        'real sociedad': ('Spain', 'Real-Sociedad'),
+        'real betis': ('Spain', 'Real-Betis'), 'betis': ('Spain', 'Real-Betis'),
+        'sevilla': ('Spain', 'Sevilla-FC'), 'sevilla fc': ('Spain', 'Sevilla-FC'),
+        'valencia': ('Spain', 'Valencia-CF'), 'valencia cf': ('Spain', 'Valencia-CF'),
+        'villarreal': ('Spain', 'Villarreal-CF'), 'villarreal cf': ('Spain', 'Villarreal-CF'),
+        'athletic club': ('Spain', 'Athletic-Club'), 'athletic bilbao': ('Spain', 'Athletic-Club'),
+        'getafe': ('Spain', 'Getafe-CF'), 'getafe cf': ('Spain', 'Getafe-CF'),
+        'osasuna': ('Spain', 'CA-Osasuna'), 'ca osasuna': ('Spain', 'CA-Osasuna'),
+        'celta vigo': ('Spain', 'Celta-Vigo'), 'celta': ('Spain', 'Celta-Vigo'),
+        'espanyol': ('Spain', 'RCD-Espanyol'), 'rcd espanyol': ('Spain', 'RCD-Espanyol'),
+        'mallorca': ('Spain', 'RCD-Mallorca'), 'rcd mallorca': ('Spain', 'RCD-Mallorca'),
+        'rayo vallecano': ('Spain', 'Rayo-Vallecano'), 'rayo': ('Spain', 'Rayo-Vallecano'),
+        'alaves': ('Spain', 'Deportivo-Alaves'), 'deportivo alavés': ('Spain', 'Deportivo-Alaves'),
+        'las palmas': ('Spain', 'UD-Las-Palmas'), 'ud las palmas': ('Spain', 'UD-Las-Palmas'),
+        'leganes': ('Spain', 'CD-Leganes'), 'cd leganés': ('Spain', 'CD-Leganes'),
+        'valladolid': ('Spain', 'Real-Valladolid'), 'real valladolid': ('Spain', 'Real-Valladolid'),
+        'racing santander': ('Spain', 'Racing-Santander'),
+        'deportivo la coruna': ('Spain', 'Deportivo-La-Coruna'), 'deportivo la coruña': ('Spain', 'Deportivo-La-Coruna'),
         # Itália
         'inter': ('Italy', 'Inter-Milano'), 'inter milan': ('Italy', 'Inter-Milano'), 'internazionale': ('Italy', 'Inter-Milano'),
         'juventus': ('Italy', 'Juventus'),
         'milan': ('Italy', 'AC-Milan'), 'ac milan': ('Italy', 'AC-Milan'),
+        'sassuolo': ('Italy', 'Sassuolo-Calcio'), 'us sassuolo': ('Italy', 'Sassuolo-Calcio'),
+        'cagliari': ('Italy', 'Cagliari-Calcio'),
+        'lecce': ('Italy', 'US-Lecce'),
+        'udinese': ('Italy', 'Udinese-Calcio'),
+        'lazio': ('Italy', 'Lazio'),
+        'roma': ('Italy', 'AS-Roma'), 'as roma': ('Italy', 'AS-Roma'),
+        'napoli': ('Italy', 'SSC-Napoli'),
+        'atalanta': ('Italy', 'Atalanta-Bergamo'),
+        'fiorentina': ('Italy', 'ACF-Fiorentina'),
+        'torino': ('Italy', 'Torino-FC'),
+        'bologna': ('Italy', 'Bologna-FC'),
+        'monza': ('Italy', 'AC-Monza'),
+        'genoa': ('Italy', 'Genoa-CFC'),
+        'verona': ('Italy', 'Hellas-Verona'), 'hellas verona': ('Italy', 'Hellas-Verona'),
+        'parma': ('Italy', 'Parma-Calcio'),
+        'como': ('Italy', 'Como-Calcio'),
+        'venezia': ('Italy', 'Venezia-FC'),
+        'empoli': ('Italy', 'Empoli-FC'),
+        # França
+        'nantes': ('France', 'FC-Nantes'), 'fc nantes': ('France', 'FC-Nantes'),
+        'rennes': ('France', 'Stade-Rennais'), 'stade rennais': ('France', 'Stade-Rennais'),
+        'lens': ('France', 'RC-Lens'), 'rc lens': ('France', 'RC-Lens'),
+        'strasbourg': ('France', 'RC-Strasbourg'),
+        'brest': ('France', 'Stade-Brestois'),
+        'reims': ('France', 'Stade-de-Reims'),
         # Alemanha
         'bayern munich': ('Germany', 'Bayern-Munchen'), 'bayern munchen': ('Germany', 'Bayern-Munchen'), 'bayern de munique': ('Germany', 'Bayern-Munchen'),
-        'borussia dortmund': ('Germany', 'Borussia-Dortmund'), 'dortmund': ('Germany', 'Borussia-Dortmund')
+        'borussia dortmund': ('Germany', 'Borussia-Dortmund'), 'dortmund': ('Germany', 'Borussia-Dortmund'),
+        'mainz': ('Germany', '1-FSV-Mainz-05'), 'fsv mainz': ('Germany', '1-FSV-Mainz-05'), 'fsv mainz 05': ('Germany', '1-FSV-Mainz-05'),
+        'stuttgart': ('Germany', 'VfB-Stuttgart'), 'vfb stuttgart': ('Germany', 'VfB-Stuttgart'),
+        'wolfsburg': ('Germany', 'VfL-Wolfsburg'), 'vfl wolfsburg': ('Germany', 'VfL-Wolfsburg'),
+        'bochum': ('Germany', 'VfL-Bochum'), 'vfl bochum': ('Germany', 'VfL-Bochum'),
+        'hoffenheim': ('Germany', 'TSG-1899-Hoffenheim'), 'tsg hoffenheim': ('Germany', 'TSG-1899-Hoffenheim'),
+        'freiburg': ('Germany', 'SC-Freiburg'), 'sc freiburg': ('Germany', 'SC-Freiburg'),
+        'heidenheim': ('Germany', '1-FC-Heidenheim'), '1. fc heidenheim': ('Germany', '1-FC-Heidenheim'),
+        'union berlin': ('Germany', '1-FC-Union-Berlin'), '1. fc union berlin': ('Germany', '1-FC-Union-Berlin')
     }
 
     team_aliases_map = {
@@ -1014,24 +1066,87 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
             c_name, slug = known_info
             team_url = f'https://www.futbol24.com/pt/equipa/{c_name}/{slug}/'
         else:
-            candidate_countries = [country] if country else ['France', 'England', 'Spain', 'Italy', 'Germany', 'Brazil', 'Argentina', 'Colombia', 'Chile', 'Uruguay', 'Paraguay', 'Peru', 'Ecuador', 'Mexico', 'Sweden', 'Norway', 'Denmark', 'Japan', 'Korea-Republic', 'Poland', 'Czech-Republic', 'Romania', 'Portugal', 'Netherlands', 'Belgium', 'Austria', 'Turkey', 'Scotland']
-            candidate_countries = [c for c in candidate_countries if c]
-            if 'Brazil' not in candidate_countries:
-                candidate_countries.append('Brazil')
+            if country:
+                candidate_countries = [country]
+            else:
+                candidate_countries = ['France', 'England', 'Spain', 'Italy', 'Germany', 'Portugal', 'Brazil', 'Argentina', 'Colombia', 'Chile', 'Uruguay', 'Paraguay', 'Peru', 'Ecuador', 'Mexico', 'Sweden', 'Norway', 'Denmark', 'Japan', 'Korea-Republic', 'Poland', 'Czech-Republic', 'Romania', 'Netherlands', 'Belgium', 'Austria', 'Turkey', 'Scotland']
 
             clean_title = _strip_accents(clean_name).title().replace(' ', '-')
             found_url = None
             for c in candidate_countries:
-                test_url = f'https://www.futbol24.com/pt/equipa/{c}/{clean_title}/'
-                try:
-                    r = requests.get(test_url, headers=headers, timeout=3, allow_redirects=True)
-                    if r.status_code == 200 and '/equipa/' in r.url:
-                        found_url = r.url
-                        break
-                except Exception:
-                    continue
+                candidate_slugs = [clean_title]
+                if c == 'Portugal':
+                    candidate_slugs = [
+                        f"GD-{clean_title}",
+                        f"FC-{clean_title}",
+                        f"SC-{clean_title}",
+                        f"CD-{clean_title}",
+                        f"SL-{clean_title}",
+                        f"{clean_title}-FC",
+                        clean_title
+                    ]
+                elif c == 'Spain':
+                    candidate_slugs = [
+                        f"{clean_title}-CF",
+                        f"UD-{clean_title}",
+                        f"CD-{clean_title}",
+                        f"CA-{clean_title}",
+                        f"SD-{clean_title}",
+                        f"RC-{clean_title}",
+                        f"RCD-{clean_title}",
+                        f"Real-{clean_title}",
+                        clean_title
+                    ]
+                elif c == 'Italy':
+                    candidate_slugs = [
+                        clean_title,
+                        f"{clean_title}-Calcio",
+                        f"US-{clean_title}",
+                        f"AC-{clean_title}",
+                        f"FC-{clean_title}",
+                        f"AS-{clean_title}",
+                        f"SSC-{clean_title}"
+                    ]
+                elif c == 'France':
+                    candidate_slugs = [
+                        clean_title,
+                        f"FC-{clean_title}",
+                        f"AS-{clean_title}",
+                        f"RC-{clean_title}",
+                        f"LOSC-{clean_title}",
+                        f"Stade-{clean_title}"
+                    ]
+                elif c == 'Germany':
+                    candidate_slugs = [
+                        clean_title,
+                        f"1-FC-{clean_title}",
+                        f"FSV-{clean_title}",
+                        f"SpVgg-{clean_title}",
+                        f"VfB-{clean_title}",
+                        f"VfL-{clean_title}",
+                        f"SC-{clean_title}",
+                        f"SV-{clean_title}"
+                    ]
+                elif c == 'Brazil':
+                    candidate_slugs = [clean_title, f"EC-{clean_title}", f"CR-{clean_title}"]
 
-            team_url = found_url or f'https://www.futbol24.com/pt/equipa/Brazil/{clean_title}/'
+                for c_slug in candidate_slugs:
+                    test_url = f'https://www.futbol24.com/pt/equipa/{c}/{c_slug}/'
+                    try:
+                        r = requests.get(test_url, headers=headers, timeout=3, allow_redirects=True)
+                        if r.status_code == 200 and '/equipa/' in r.url:
+                            found_url = r.url
+                            break
+                    except Exception:
+                        continue
+                if found_url:
+                    break
+
+            if not found_url:
+                log.info(f"[SCRAPER-FUTBOL24-LAST] Equipe '{team_name}' não localizada no Futbol24 (país: {country or 'geral'}). Ignorando busca sem gerar erros 404.")
+                return None
+
+            team_url = found_url
 
     log.info(f"[SCRAPER-FUTBOL24-LAST] Buscando últimos {limit} jogos de '{team_name}' em {team_url}...")
 
@@ -1068,6 +1183,17 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
             if not score_part or not h_team or not a_team:
                 continue
 
+            m_date = ""
+            for p in parts:
+                m_d = re.match(r'^(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?$', p)
+                if m_d:
+                    day, month = m_d.group(1).zfill(2), m_d.group(2).zfill(2)
+                    year = m_d.group(3) or "2026"
+                    if len(year) == 2:
+                        year = f"20{year}"
+                    m_date = f"{day}/{month}/{year}"
+                    break
+
             gh, ga = map(int, score_part.split('-'))
 
             is_home = _is_team_alias_match(clean_name, h_team)
@@ -1084,7 +1210,8 @@ def scrape_futbol24_team_last5(team_name: str, team_url: Optional[str] = None, l
                 'opponent': opp_name.split('/')[0].strip(),
                 'score': sc,
                 'result': res,
-                'is_home': is_home
+                'is_home': is_home,
+                'date': m_date
             })
 
             if len(matches) == limit:

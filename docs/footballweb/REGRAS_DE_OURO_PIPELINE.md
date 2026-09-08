@@ -78,3 +78,8 @@ As regras deste documento estão espelhadas no arquivo de configuração do Anti
 * [`.agents/AGENTS.md`](file:///root/datalake-air-flow-delta/.agents/AGENTS.md)
 
 Este arquivo é lido compulsoriamente no início de **toda e qualquer sessão do agente**, possuindo precedência absoluta sobre qualquer instrução padrão.
+
+---
+
+## 📚 Documentação Complementar
+* [Fluxo de Obtenção de Dados (API-Football, The Odds API e Futbol24)](file:///root/datalake-air-flow-delta/docs/footballweb/FLUXO_OBTENCAO_DADOS_INGESTAO.md)

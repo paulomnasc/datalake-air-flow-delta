@@ -13,6 +13,7 @@ import os
 import re
 import requests
 import pymysql
+import math
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -87,39 +88,94 @@ _betano_ah_odds_cache = {}
 _betano_ah_raw_fixture_cache = {}
 _betano_ah_api_disabled = False
 
-def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str, away_team: str):
+def calculate_bivariate_poisson_matrix(lambda_h: float, lambda_a: float, max_goals: int = 10):
     """
-    Busca na API-Sports a odd REAL do mercado de Handicap Asiático oferecida exclusivamente pela Betano (Bookmaker ID 32).
-    Retorna tupla: (odd_float, 'BETANO') se encontrada, ou (None, None) se a linha não estiver à venda na Betano.
-    Possui Circuit-Breaker para interrupção imediata quando a cota diária de requisições estourar e cache bruto por fixture_id.
+    Gera a matriz de probabilidades conjuntas P(X=x, Y=y) para gols do Mandante (x) e Visitante (y).
+    """
+    matrix = {}
+    total_prob = 0.0
+    for x in range(max_goals):
+        px = (math.pow(lambda_h, x) * math.exp(-lambda_h)) / math.factorial(x)
+        for y in range(max_goals):
+            py = (math.pow(lambda_a, y) * math.exp(-lambda_a)) / math.factorial(y)
+            p = px * py
+            matrix[(x, y)] = p
+            total_prob += p
+
+    if total_prob > 0:
+        for k in matrix:
+            matrix[k] /= total_prob
+            
+    return matrix
+
+def evaluate_ah_line_poisson(matrix, is_away: bool, line: float, odd_betano: float):
+    """
+    Avalia uma linha de Handicap Asiático a partir da matriz bivariada de Poisson.
+    Calcula P(win), P(half_win), P(push), P(half_loss), P(loss), Odd Justa, Prob. Efetiva e +EV%.
+    """
+    p_win = 0.0
+    p_half_win = 0.0
+    p_push = 0.0
+    p_half_loss = 0.0
+    p_loss = 0.0
+
+    for (x, y), p in matrix.items():
+        diff = (y - x) if is_away else (x - y)
+        adj = diff + line
+
+        if adj > 0.25:
+            p_win += p
+        elif abs(adj - 0.25) < 1e-4:
+            p_half_win += p
+        elif abs(adj) < 1e-4:
+            p_push += p
+        elif abs(adj - (-0.25)) < 1e-4:
+            p_half_loss += p
+        else:
+            p_loss += p
+
+    expected_payoff = (
+        p_win * odd_betano +
+        p_half_win * ((odd_betano + 1.0) / 2.0) +
+        p_push * 1.0 +
+        p_half_loss * 0.5
+    )
+    ev_percent = (expected_payoff - 1.0) * 100.0
+
+    numerator = 1.0 - (p_half_win / 2.0 + p_push + 0.5 * p_half_loss)
+    denominator = p_win + (p_half_win / 2.0)
+
+    if denominator > 0 and numerator > 0:
+        odd_justa = round(numerator / denominator, 2)
+        prob_eff = round(min(100.0, max(0.0, 100.0 / odd_justa)), 2)
+    else:
+        odd_justa = 99.00
+        prob_eff = 1.00
+
+    return {
+        'line': line,
+        'is_away': is_away,
+        'odd_betano': odd_betano,
+        'odd_justa': odd_justa,
+        'prob_eff': prob_eff,
+        'ev_percent': round(ev_percent, 2),
+        'p_win': round(p_win * 100, 2),
+        'p_half_win': round(p_half_win * 100, 2),
+        'p_push': round(p_push * 100, 2),
+        'p_half_loss': round(p_half_loss * 100, 2),
+        'p_loss': round(p_loss * 100, 2),
+    }
+
+def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
+    """
+    Busca na API-Sports TODAS as linhas de Handicap Asiático ativas oferecidas pela Betano (Bookmaker ID 32).
+    Retorna lista de dicionários com cada linha disponível e sua cotação real.
     """
     global _betano_ah_api_disabled
     if not fixture_id or _betano_ah_api_disabled:
-        return None, None
+        return []
 
-    cache_key = f"{fixture_id}_{palpite_str}"
-    if cache_key in _betano_ah_odds_cache:
-        return _betano_ah_odds_cache[cache_key]
-
-    is_away = away_team.lower() in (palpite_str or '').lower() or 'visitante' in (palpite_str or '').lower() or 'fora' in (palpite_str or '').lower()
-    target_side = 'Away' if is_away else 'Home'
-
-    sign = '+' if '+' in (palpite_str or '') else ('-' if '-' in (palpite_str or '') else '')
-    m = re.search(r'(\d+(?:\.\d+)?)', palpite_str or '')
-    line_val = m.group(1) if m else ''
-
-    # Na API-Sports (Bookmaker ID 32 Betano), as linhas de Handicap Asiático (Bet #4) para o time visitante (Away)
-    # possuem os sinais invertidos (+ vira -, - vira +) na rotulagem da string da API devido à perspectiva do mandante (Home).
-    expected_signs = []
-    if is_away and sign:
-        inv_sign = '-' if sign == '+' else '+'
-        expected_signs = [inv_sign, sign]
-    elif sign:
-        expected_signs = [sign]
-    else:
-        expected_signs = ['']
-
-    # Se a fixture já teve suas odds buscadas nesta execução, reutiliza os dados da Betano sem nova requisição HTTP
+    # Reutiliza dados da Betano em cache de memória para a fixture
     if fixture_id in _betano_ah_raw_fixture_cache:
         items = _betano_ah_raw_fixture_cache[fixture_id]
     else:
@@ -138,14 +194,15 @@ def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str,
             if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
                 print(f"⚠️ [API-Sports Betano AH] Limite de requisições ou cota diária atingido: {errs}. Ativando Circuit-Breaker nesta execução.")
                 _betano_ah_api_disabled = True
-                _betano_ah_odds_cache[cache_key] = (None, None)
-                return None, None
+                return []
 
             items = resp.get('response', [])
             _betano_ah_raw_fixture_cache[fixture_id] = items
         except Exception as e:
-            print(f"⚠️ [API Betano AH] Erro ao buscar odd para fixture #{fixture_id}: {e}")
+            print(f"⚠️ [API Betano AH] Erro ao buscar odds para fixture #{fixture_id}: {e}")
             _betano_ah_raw_fixture_cache[fixture_id] = []
+
+    available_lines = []
 
     for item in items:
         for bm in item.get('bookmakers', []):
@@ -154,47 +211,96 @@ def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str,
             if 'BETANO' not in bm_name and bm_id != 32:
                 continue
 
-                for bet in bm.get('bets', []):
-                    b_id = bet.get('id')
-                    b_name = str(bet.get('name', '')).lower()
+            for bet in bm.get('bets', []):
+                b_id = bet.get('id')
+                b_name = str(bet.get('name', '')).lower()
 
-                    # Bloquear explicitamente mercados de 1º tempo, intervalo, escanteios e cartões
-                    if any(term in b_name for term in ['half', '1st', '2nd', 'corner', 'card', 'cartão', 'escanteio', 'tempo', 'intervalo']):
-                        continue
+                # Ignorar mercados de 1º tempo, intervalo, cartões e escanteios
+                if any(term in b_name for term in ['half', '1st', '2nd', 'corner', 'card', 'cartão', 'escanteio', 'tempo', 'intervalo']):
+                    continue
 
-                    # Bet ID 4 = Asian Handicap Full Time (Tempo Integral)
-                    if b_id == 4 or b_name == 'asian handicap' or b_name == 'handicap asiático':
-                        values = bet.get('values', [])
-                        for s in expected_signs:
-                            search_target = f"{s}{line_val}" if s else line_val
-                            for val in values:
-                                v_str = str(val.get('value', '')).strip()
-                                v_odd_raw = val.get('odd')
-                                try:
-                                    v_odd = float(v_odd_raw)
-                                except (ValueError, TypeError):
-                                    continue
+                # Bet ID 4 = Asian Handicap Full Time
+                if b_id == 4 or 'asian handicap' in b_name or 'handicap asiático' in b_name:
+                    for val in bet.get('values', []):
+                        v_str = str(val.get('value', '')).strip()
+                        v_odd_raw = val.get('odd')
+                        try:
+                            v_odd = float(v_odd_raw)
+                        except (ValueError, TypeError):
+                            continue
 
-                                if v_odd > 1.0 and target_side.lower() in v_str.lower() and search_target in v_str:
-                                    res = (v_odd, 'BETANO')
-                                    _betano_ah_odds_cache[cache_key] = res
-                                    return res
+                        if v_odd <= 1.0:
+                            continue
 
-                    # Se a linha for 0.0 ou Empate Anula, também checa Bet ID 16 (Draw No Bet)
-                    elif ('0.0' in line_val or 'empate anula' in (palpite_str or '').lower()) and (b_id == 16 or 'draw no bet' in b_name):
-                        for val in bet.get('values', []):
-                            v_str = str(val.get('value', '')).strip()
+                        is_away = ('away' in v_str.lower() or away_team.lower() in v_str.lower())
+                        m_line = re.search(r'([+-]?\d+(?:\.\d+)?)', v_str)
+                        if m_line:
                             try:
-                                v_odd = float(val.get('odd', 0))
-                            except (ValueError, TypeError):
+                                line_num = float(m_line.group(1))
+                            except Exception:
                                 continue
 
-                            if v_odd > 1.0 and target_side.lower() in v_str.lower():
-                                res = (v_odd, 'BETANO')
-                                _betano_ah_odds_cache[cache_key] = res
-                                return res
+                            target_team = away_team if is_away else home_team
+                            sign_str = f"{line_num:+.2f}".rstrip('0').rstrip('.')
+                            if line_num == 0:
+                                sign_str = "0.0"
+                            palpite_fmt = f"{target_team} {sign_str} AH"
 
-    _betano_ah_odds_cache[cache_key] = (None, None)
+                            available_lines.append({
+                                'team': 'Away' if is_away else 'Home',
+                                'target_team': target_team,
+                                'is_away': is_away,
+                                'line': line_num,
+                                'palpite_str': palpite_fmt,
+                                'odd': v_odd,
+                                'raw_value': v_str,
+                                'source': 'BETANO'
+                            })
+
+                # Bet ID 16 = Draw No Bet (Handicap 0.0)
+                elif b_id == 16 or 'draw no bet' in b_name or 'empate anula' in b_name:
+                    for val in bet.get('values', []):
+                        v_str = str(val.get('value', '')).strip()
+                        try:
+                            v_odd = float(val.get('odd', 0))
+                        except (ValueError, TypeError):
+                            continue
+
+                        if v_odd <= 1.0:
+                            continue
+
+                        is_away = ('away' in v_str.lower() or away_team.lower() in v_str.lower())
+                        target_team = away_team if is_away else home_team
+                        available_lines.append({
+                            'team': 'Away' if is_away else 'Home',
+                            'target_team': target_team,
+                            'is_away': is_away,
+                            'line': 0.0,
+                            'palpite_str': f"{target_team} 0.0 AH",
+                            'odd': v_odd,
+                            'raw_value': v_str,
+                            'source': 'BETANO'
+                        })
+
+    return available_lines
+
+def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str, away_team: str):
+    """
+    Função de compatibilidade: busca uma linha específica entre as disponíveis na Betano.
+    """
+    lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
+    if not lines:
+        return None, None
+
+    is_away = away_team.lower() in (palpite_str or '').lower()
+    m = re.search(r'([+-]?\d+(?:\.\d+)?)', palpite_str or '')
+    target_line = float(m.group(1)) if m else None
+
+    for item in lines:
+        if item['is_away'] == is_away:
+            if target_line is not None and abs(item['line'] - target_line) < 0.01:
+                return item['odd'], 'BETANO'
+
     return None, None
 
 def send_handicap_bets_email(novas_apostas, apostas_canceladas, recipient="paulomnasc@gmail.com"):
@@ -633,131 +739,138 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 apostas_canceladas += len(canc_list)
             continue
 
-        ah_suggestion = (fix.get('ah_suggestion') or '').strip()
+        # 1. Obter xG ajustado do Mandante e Visitante para a Matriz Bivariada de Poisson
+        xg_h = float(fix.get('xg_home') or 0.0)
+        xg_a = float(fix.get('xg_away') or 0.0)
+        if xg_h <= 0.1 or xg_a <= 0.1:
+            reasoning = fix.get('ah_reasoning') or ''
+            m_h = re.search(r'\(Em Casa\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
+            m_a = re.search(r'\(Fora\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
+            if m_h:
+                xg_h = float(m_h.group(1))
+            if m_a:
+                xg_a = float(m_a.group(1))
+        if xg_h <= 0.1:
+            xg_h = 1.25
+        if xg_a <= 0.1:
+            xg_a = 1.05
 
-        if not ah_suggestion:
-            print(f"⚠️ Sem ah_suggestion prévia para {home_team} vs {away_team} (ID #{fixture_id}). Ignorando...")
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, "Sem palpite prévio de IA")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
-            continue
+        # 2. Gerar Matriz de Poisson Conjunta (Gols Casa x Gols Fora)
+        poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
 
-        ah_norm = ah_suggestion.lower()
+        # 3. Buscar TODAS as linhas ativas de Handicap Asiático oferecidas pela Betano
+        betano_lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
 
-        # 1. Filtrar abstenções, bloqueios de risco e 'Sem Entrada'
-        if any(term in ah_norm for term in ['sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'no_bet', 'indisponível', 'indisponivel']):
-            print(f"🛡️ [Abstenção] Partida {home_team} vs {away_team} -> Sugestão: '{ah_suggestion}'.")
-            apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Abstenção da IA no Card: {ah_suggestion}")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
-            continue
-
-        # 2. Validação Rígida de Formato do Handicap Asiático:
-        has_handicap_spec = bool(re.search(r'[+-]?\d+\.?\d*', ah_suggestion)) or '0.0' in ah_suggestion
-        if not has_handicap_spec or ah_norm.startswith('vitória') or ah_norm.startswith('vitoria'):
-            print(f"🛡️ [Formato Inválido AH] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' não possui linha de handicap válida.")
-            apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Formato de linha inválido: {ah_suggestion}")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
-            continue
-
-        is_away = determine_bet_side(home_team, away_team, ah_suggestion)
-
-        # Validação de Segurança: Time favorito no mercado 1X2 não comercializa linhas com handicap positivo (+) na Betano
-        raw_home_odd = float(fix.get('odd_home') or 2.0)
-        raw_away_odd = float(fix.get('odd_away') or 2.0)
-        is_target_fav = (raw_away_odd < raw_home_odd) if is_away else (raw_home_odd < raw_away_odd)
-        has_positive_sign = '+' in ah_suggestion
-
-        if is_target_fav and has_positive_sign:
-            target_team_name = away_team if is_away else home_team
-            print(f"🛡️ [Handicap Invertido Betano] Partida {home_team} vs {away_team} -> Linha '{ah_suggestion}' atribui vantagem positiva ao favorito ({target_team_name}), indisponível na Betano.")
-            apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Linha '{ah_suggestion}' atribui handicap positivo ao favorito (indisponível na Betano)")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
-            continue
-
-        ah_norm_after = ah_suggestion.lower()
-        if '0.0' in ah_norm_after or 'empate anula' in ah_norm_after:
-            print(f"🛡️ [Trava 0.0 AH / Empate Anula] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' é linha 0.0 de alto risco (EV-).")
-            apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Trava 0.0 AH / Empate Anula de alto risco")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
-            continue
-
-        # Linhas de Handicap permitidas: fracionadas seguras (-0.25, -0.5, -0.75) e positivas para azarão
-        allowed_lines = ['-0.25', '-0.5', '-0.75', '+0.25', '+0.5', '+0.75', '+1.0', '+1.25', '+1.5', '+1.75']
-        if not any(al in ah_norm_after for al in allowed_lines):
-            print(f"🛡️ [Linha Fora das Top Estratégias] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' fora das linhas permitidas.")
-            apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Linha fora das estratégias fracionadas permitidas: {ah_suggestion}")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
-            continue
-
-        # 3. Consulta Obrigatória de Disponibilidade da Odd na Betano (Bookmaker ID 32)
-        real_odd_betano, odd_source = fetch_betano_real_ah_odds(fixture_id, ah_suggestion, home_team, away_team)
-
-        # Fallback para odd do banco se API da Betano estiver com cota estourada ou indisponível
-        if not real_odd_betano or real_odd_betano <= 1.0:
-            raw_odd = fix.get('odd_away') if is_away else fix.get('odd_home')
-            if raw_odd and float(raw_odd) > 1.0:
-                raw_float = float(raw_odd)
-                if '+0.25' in ah_suggestion:
-                    # Linha +0.25 para underdog: odd estimada com base na cotação seca (ex: 3.10 -> ~1.84)
-                    real_odd_betano = round(max(1.55, min(2.05, 1.0 + (raw_float - 1.0) * 0.40)), 2)
-                elif '+0.5' in ah_suggestion:
-                    # Linha +0.5 (Dupla Chance): odd estimada com base na cotação seca (ex: 3.10 -> ~1.59)
-                    real_odd_betano = round(max(1.50, min(1.85, 1.0 + (raw_float - 1.0) * 0.28)), 2)
-                elif '+1.5' in ah_suggestion or '+1.25' in ah_suggestion or '+1.75' in ah_suggestion:
-                    # Linha +1.5 para underdog de super-favorito: odd equilibrada de mercado ~1.85
-                    real_odd_betano = 1.85
-                elif '-0.75' in ah_suggestion:
-                    # Linha -0.75 para favorito: odd estimada garantindo retorno de valor (ex: 1.48 -> ~1.70)
-                    real_odd_betano = round(max(1.65, min(2.15, raw_float + 0.22)), 2)
-                elif '-0.5' in ah_suggestion:
-                    # Linha -0.5 para favorito (vitória simples)
-                    real_odd_betano = round(max(1.55, raw_float), 2)
-                elif '-0.25' in ah_suggestion:
-                    # Linha -0.25 para favorito: odd estimada com base na cotação seca (ex: 1.90 -> ~1.65, 1.50 -> ~1.36)
-                    real_odd_betano = round(max(1.20, min(2.10, 1.0 + (raw_float - 1.0) * 0.72)), 2)
+        # Fallback de contingência se a Betano estiver temporariamente sem cotação aberta
+        if not betano_lines:
+            ah_previo = (fix.get('ah_suggestion') or '').strip()
+            if ah_previo and not any(term in ah_previo.lower() for term in ['sem entrada', 'abstenção', 'no_bet', 'indisponível']):
+                is_away_p = determine_bet_side(home_team, away_team, ah_previo)
+                m_p = re.search(r'([+-]?\d+(?:\.\d+)?)', ah_previo)
+                l_p = float(m_p.group(1)) if m_p else 0.0
+                raw_ref_odd = float(fix.get('odd_away') if is_away_p else fix.get('odd_home') or 1.90)
+                if '+0.25' in ah_previo:
+                    est_odd = round(max(1.55, min(2.05, 1.0 + (raw_ref_odd - 1.0) * 0.40)), 2)
+                elif '+0.5' in ah_previo:
+                    est_odd = round(max(1.50, min(1.85, 1.0 + (raw_ref_odd - 1.0) * 0.28)), 2)
+                elif '-0.25' in ah_previo:
+                    est_odd = round(max(1.55, min(2.10, 1.0 + (raw_ref_odd - 1.0) * 0.72)), 2)
+                elif '-0.5' in ah_previo:
+                    est_odd = round(max(1.55, raw_ref_odd), 2)
+                elif '-0.75' in ah_previo:
+                    est_odd = round(max(1.65, min(2.15, raw_ref_odd + 0.22)), 2)
                 else:
-                    real_odd_betano = raw_float
-                odd_source = 'TRENDS_FALLBACK'
-            else:
-                print(f"ℹ️ [Linha Indisponível Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Linha '{ah_suggestion}' indisponível na Betano.")
-                apostas_abstenção += 1
-                canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Linha '{ah_suggestion}' indisponível na Betano")
-                if canc_list:
-                    apostas_canceladas_detalhes.extend(canc_list)
-                    apostas_canceladas += len(canc_list)
+                    est_odd = raw_ref_odd
+
+                target_t = away_team if is_away_p else home_team
+                betano_lines.append({
+                    'team': 'Away' if is_away_p else 'Home',
+                    'target_team': target_t,
+                    'is_away': is_away_p,
+                    'line': l_p,
+                    'palpite_str': f"{target_t} {l_p:+.2f} AH",
+                    'odd': est_odd,
+                    'raw_value': f"{target_t} {l_p:+.2f}",
+                    'source': 'TRENDS_FALLBACK'
+                })
+
+        if not betano_lines:
+            print(f"ℹ️ [Sem Linhas Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha de AH disponível.")
+            apostas_abstenção += 1
+            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, "Nenhuma linha de Handicap disponível na Betano")
+            if canc_list:
+                apostas_canceladas_detalhes.extend(canc_list)
+                apostas_canceladas += len(canc_list)
+            continue
+
+        # 4. Avaliar cada linha Betano com a Matriz de Poisson e aplicar Filtros do Gatekeeper
+        approved_candidates = []
+        allowed_lines = {-0.25, -0.5, -0.75, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5}
+
+        for cand in betano_lines:
+            cand_line = cand['line']
+            cand_odd = cand['odd']
+            cand_is_away = cand['is_away']
+            cand_target_team = cand['target_team']
+
+            # Filtro 1: Linhas permitidas (evita linhas de goleada -1.5, -2.0 e linha 0.0)
+            if cand_line not in allowed_lines:
                 continue
 
-        odd_val = real_odd_betano
+            # Filtro 2: Faixa de odd segura
+            if cand_odd < 1.50 or cand_odd > 2.35:
+                continue
 
-        # 4. Trava de Odd Mínima Segura (>= 1.55 para garantir valor esperado positivo e evitar breakeven achatado)
-        min_odd_threshold = 1.55
-        if odd_val < min_odd_threshold:
-            print(f"🛡️ [Odd Baixa Betano] Partida {home_team} vs {away_team} ({league_name}) -> Odd Betano {odd_val:.2f} inferior a {min_odd_threshold:.2f}.")
+            # Filtro 3: Inversão de Handicap (favorito 1X2 não recebe handicap positivo alto)
+            raw_h_odd = float(fix.get('odd_home') or 2.0)
+            raw_a_odd = float(fix.get('odd_away') or 2.0)
+            is_cand_fav = (raw_a_odd < raw_h_odd) if cand_is_away else (raw_h_odd < raw_a_odd)
+            if is_cand_fav and cand_line > 0.25:
+                continue
+
+            # Avaliação Poisson
+            res = evaluate_ah_line_poisson(poisson_matrix, cand_is_away, cand_line, cand_odd)
+            ev = res['ev_percent']
+            prob_eff = res['prob_eff']
+
+            # GATEKEEPER AH: Exige +EV% real >= 5.0% e Probabilidade Efetiva >= 48.0%
+            if ev >= 5.0 and prob_eff >= 48.0:
+                score = ev * (prob_eff / 100.0)
+                cand['eval'] = res
+                cand['score'] = score
+                approved_candidates.append(cand)
+
+        # 5. Se nenhuma linha atinge +EV% >= 5%, o Gatekeeper emite NO_BET (Abstenção Mandatória)
+        if not approved_candidates:
+            print(f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha Betano com +EV >= 5% e prob >= 48%. Abstenção mandatória.")
             apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Odd Betano ({odd_val:.2f}) abaixo do limiar seguro ({min_odd_threshold:.2f})")
+            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, "🚫 Gatekeeper AH NO_BET: Nenhuma linha Betano com +EV >= 5%")
             if canc_list:
                 apostas_canceladas_detalhes.extend(canc_list)
                 apostas_canceladas += len(canc_list)
             continue
+
+        # 6. Seleciona o melhor candidato aprovado (Maior Score de Valor: EV% x Probabilidade)
+        approved_candidates.sort(key=lambda x: x['score'], reverse=True)
+        best_cand = approved_candidates[0]
+
+        eval_res = best_cand['eval']
+        selected_palpite = best_cand['palpite_str']
+        odd_val = best_cand['odd']
+        odd_justa = eval_res['odd_justa']
+        prob_poisson = eval_res['prob_eff']
+        ev_perc = eval_res['ev_percent']
 
         valor_aposta = 10.00
         ganhos_potenciais = round(valor_aposta * odd_val, 2)
+
+        detalhe_calculo = (
+            f"🎯 GATEKEEPER AH APROVADO (+EV {ev_perc:+.1f}%) | "
+            f"Odd Betano {odd_val:.2f} vs Odd Justa {odd_justa:.2f} (Prob. Efetiva: {prob_poisson:.1f}%) | "
+            f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team} | "
+            f"Desfechos: Vitória {eval_res['p_win']:.1f}%, Meio-Green {eval_res['p_half_win']:.1f}%, "
+            f"Push {eval_res['p_push']:.1f}%, Meio-Red {eval_res['p_half_loss']:.1f}%, Red {eval_res['p_loss']:.1f}%."
+        )
 
         for uid in user_ids:
             cursor.execute("""
@@ -779,27 +892,34 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                     UPDATE apostas SET
                         palpite = %s,
                         odd = %s,
+                        odd_justa = %s,
+                        probabilidade_poisson = %s,
+                        ev_percentual = %s,
+                        status_gatekeeper = 'APROVADO',
                         ganhos_potenciais = %s,
                         resultado_detalhado = %s,
                         status = 'Pendente',
                         updated_at = NOW()
                     WHERE id = %s
-                """, (ah_suggestion, odd_val, ganhos_potenciais, (fix.get('ah_reasoning') or '')[:2000], ja_existe['id']))
+                """, (selected_palpite, odd_val, odd_justa, prob_poisson, ev_perc, ganhos_potenciais, detalhe_calculo, ja_existe['id']))
                 apostas_duplicadas += 1
                 continue
 
             cursor.execute("""
                 INSERT INTO apostas (
                     usuario_id, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
+                    odd_justa, probabilidade_poisson, ev_percentual,
                     valor_aposta, ganhos_potenciais, status_gatekeeper, status, confirmada, data_hora_jogo, resultado_detalhado, criado_em, updated_at
                 ) VALUES (
                     %s, %s, %s, %s, 'Handicap Asiático', %s, %s,
+                    %s, %s, %s,
                     %s, %s, 'APROVADO', 'Pendente', %s, %s, %s, NOW(), NOW()
                 )
             """, (
-                uid, fixture_id, home_team, away_team, ah_suggestion, odd_val,
+                uid, fixture_id, home_team, away_team, selected_palpite, odd_val,
+                odd_justa, prob_poisson, ev_perc,
                 valor_aposta, ganhos_potenciais, confirmada_val, fixture_date,
-                (fix.get('ah_reasoning') or '')[:2000]
+                detalhe_calculo
             ))
 
             aposta_id = cursor.lastrowid
@@ -810,7 +930,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 u_row = cursor.fetchone()
                 s_ant = float(u_row['saldo_conta_corrente'] or 0.0) if u_row else 0.0
                 s_post = round(s_ant - valor_aposta, 2)
-                desc_deb = f"Débito Aposta #{aposta_id} ({home_team} x {away_team} - {ah_suggestion})"
+                desc_deb = f"Débito Aposta #{aposta_id} ({home_team} x {away_team} - {selected_palpite})"
                 cursor.execute("""
                     INSERT INTO conta_corrente (
                         usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
@@ -820,14 +940,14 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 """, (uid, aposta_id, desc_deb, valor_aposta, s_ant, s_post))
                 cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid))
 
-            print(f"🟢 [Aposta Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{ah_suggestion}' @ Odd Betano {odd_val:.2f} | Confirmada={confirmada_val}")
+            print(f"🟢 [Aposta Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{selected_palpite}' @ Odd Betano {odd_val:.2f} (Odd Justa: {odd_justa:.2f} | +EV: {ev_perc:+.1f}%) | Confirmada={confirmada_val}")
 
             novas_apostas_detalhes.append({
                 'id': aposta_id,
                 'usuario_id': uid,
                 'time_casa': home_team,
                 'time_fora': away_team,
-                'palpite': ah_suggestion,
+                'palpite': selected_palpite,
                 'odd': odd_val,
                 'valor_aposta': valor_aposta,
                 'ganhos_potenciais': ganhos_potenciais,

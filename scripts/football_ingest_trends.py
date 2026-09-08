@@ -239,8 +239,10 @@ def _normalize_team_name_for_match(n):
     import re, unicodedata
     nfkd = unicodedata.normalize('NFKD', str(n))
     clean = ''.join(c for c in nfkd if not unicodedata.combining(c)).lower()
-    clean = re.sub(r'\b(fc|club|ca|cd)\b', '', clean).strip()
-    return clean.strip()
+    clean = re.sub(r'\b(fc|cf|club|clube|ca|cd|fk|sk|ff|if|aif|jrs|juniors|afc)\b', '', clean)
+    clean = re.sub(r'[\-_/]', ' ', clean)
+    clean = re.sub(r'\s+', ' ', clean).strip()
+    return clean
 
 def _is_team_match(search_name, target_team, search_id=None, target_id=None):
     if search_id and target_id and str(search_id).strip() and str(target_id).strip():
@@ -259,15 +261,37 @@ def _is_team_match(search_name, target_team, search_id=None, target_id=None):
         if 'botafogo' in s_norm and 'botafogo' in t_norm:
             if ('sp' in s_raw or 'botafogo-sp' in s_raw or 'botafogo/sp' in s_raw) != ('sp' in t_raw or 'botafogo-sp' in t_raw or 'botafogo/sp' in t_raw):
                 return False
-        return s_norm == t_norm
+        if s_norm == t_norm:
+            return True
+        # Casos onde um nome limpo contém o outro (ex: 'al hilal' em 'al hilal saudi', 'al khaleej' em 'al khaleej saihat')
+        if len(s_norm) >= 4 and len(t_norm) >= 4:
+            if s_norm in t_norm or t_norm in s_norm:
+                return True
+        # Casos com sobreposição de palavras (ex: 'aik stockholm' vs 'aik', 'caykur rizespor' vs 'rizespor')
+        s_words = set(s_norm.split())
+        t_words = set(t_norm.split())
+        if s_words and t_words and (s_words.issubset(t_words) or t_words.issubset(s_words)):
+            return True
     return False
 
 _api_sports_last5_cache = {}
 _futbol24_failed_teams_cache = set()
 
 _api_sports_rate_limited = False
-_api_sports_odds_rate_limited = False
-_api_sports_quota_exceeded = False
+def _format_match_date(fdate):
+    if not fdate:
+        return ""
+    if hasattr(fdate, 'strftime'):
+        return fdate.strftime('%d/%m/%Y')
+    s = str(fdate).strip()
+    import re
+    m = re.match(r'^(\d{4})-(\d{2})-(\d{2})', s)
+    if m:
+        return f"{m.group(3)}/{m.group(2)}/{m.group(1)}"
+    m2 = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{4})', s)
+    if m2:
+        return f"{m2.group(1).zfill(2)}/{m2.group(2).zfill(2)}/{m2.group(3)}"
+    return s[:10]
 
 def fetch_api_sports_team_last5(team_id, limit=5):
     """
@@ -320,6 +344,7 @@ def fetch_api_sports_team_last5(team_id, limit=5):
                 opp_name = teams.get('away', {}).get('name') if is_home else teams.get('home', {}).get('name')
                 gh = goals.get('home') if goals.get('home') is not None else 0
                 ga = goals.get('away') if goals.get('away') is not None else 0
+                fdate_raw = item.get('fixture', {}).get('date')
                 
                 if is_home:
                     res = "V" if gh > ga else ("E" if gh == ga else "D")
@@ -332,7 +357,8 @@ def fetch_api_sports_team_last5(team_id, limit=5):
                     "opponent": opp_name,
                     "score": sc,
                     "result": res,
-                    "is_home": is_home
+                    "is_home": is_home,
+                    "date": _format_match_date(fdate_raw)
                 })
                 if len(matches) >= limit:
                     break
@@ -348,6 +374,29 @@ def fetch_api_sports_team_last5(team_id, limit=5):
     return None
 
 _team_last5_form_cache = {}
+
+def _is_match_duplicate(cand, existing_list):
+    if not cand or not existing_list:
+        return False
+    cand_opp_norm = _normalize_team_name_for_match(cand.get('opponent', ''))
+    cand_score = str(cand.get('score', '')).strip().replace('-', 'x')
+    cand_date = str(cand.get('date', '')).strip()
+
+    for ex in existing_list:
+        ex_opp_norm = _normalize_team_name_for_match(ex.get('opponent', ''))
+        ex_score = str(ex.get('score', '')).strip().replace('-', 'x')
+        ex_date = str(ex.get('date', '')).strip()
+
+        # Se as datas coincidem exatamente (e preenchidas), é a mesma partida
+        if cand_date and ex_date and cand_date == ex_date:
+            return True
+
+        # Se o placar é o mesmo e os nomes normalizados de oponente batem
+        if cand_score and ex_score and cand_score == ex_score:
+            if cand_opp_norm == ex_opp_norm or (cand_opp_norm and cand_opp_norm in ex_opp_norm) or (ex_opp_norm and ex_opp_norm in cand_opp_norm):
+                return True
+
+    return False
 
 def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
     """
@@ -387,13 +436,14 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                 gh = r['goals_home'] if r['goals_home'] is not None else 0
                 ga = r['goals_away'] if r['goals_away'] is not None else 0
                 opp_name = r['away_team'] if is_home else r['home_team']
+                fdate = r.get('fixture_date')
                 if is_home:
                     res = "V" if gh > ga else ("E" if gh == ga else "D")
                     sc = f"{gh}x{ga}"
                 else:
                     res = "V" if ga > gh else ("E" if gh == ga else "D")
                     sc = f"{ga}x{gh}"
-                matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "fixture_id": fid})
+                matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "date": _format_match_date(fdate), "fixture_id": fid})
         except Exception as e_sql_id:
             print(f"Aviso na busca SQL por ID de forma para '{team_name}' (#{team_id}): {e_sql_id}")
 
@@ -445,17 +495,61 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                         ga = r['goals_away'] if r['goals_away'] is not None else 0
                         is_home = h_match
                         opp_name = r['away_team'] if is_home else r['home_team']
+                        fdate = r.get('fixture_date')
                         if is_home:
                             res = "V" if gh > ga else ("E" if gh == ga else "D")
                             sc = f"{gh}x{ga}"
                         else:
                             res = "V" if ga > gh else ("E" if gh == ga else "D")
                             sc = f"{ga}x{gh}"
-                        matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "fixture_id": fid})
+                        matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "date": _format_match_date(fdate), "fixture_id": fid})
                         if len(matches) >= 5:
                             break
         except Exception as e_sql:
             print(f"Aviso na busca SQL por Nome de forma para '{team_name}': {e_sql}")
+
+    # 2.5 Herança Segura de U5J_DATA de confrontos recentes no fixtures_trends (Janela máx 10 dias + Checagem Anti-Defasagem)
+    if cursor is not None and len(matches) < 5:
+        try:
+            sql_prev = """
+                SELECT fixture_id, fixture_date, ah_reasoning
+                FROM fixtures_trends
+                WHERE ah_reasoning LIKE '%|| U5J_DATA:%'
+                  AND fixture_date >= NOW() - INTERVAL 10 DAY
+                  AND (
+                      (home_team_id = %s OR away_team_id = %s)
+                      OR (LOWER(home_team) LIKE %s OR LOWER(away_team) LIKE %s)
+                  )
+                ORDER BY fixture_date DESC
+                LIMIT 3
+            """
+            c_term = f"%{_normalize_team_name_for_match(team_name)}%"
+            cursor.execute(sql_prev, (team_id or -1, team_id or -1, c_term, c_term))
+            prev_rows = cursor.fetchall()
+            for prow in prev_rows:
+                p_reason = prow.get('ah_reasoning') or ''
+                if '|| U5J_DATA:' in p_reason:
+                    try:
+                        u_str = p_reason.split('|| U5J_DATA:')[1].split('||')[0].strip()
+                        u_obj = json.loads(u_str)
+                        for side in ('home', 'away'):
+                            side_data = u_obj.get(side, {})
+                            if isinstance(side_data, dict) and side_data.get('matches'):
+                                m_list = side_data.get('matches', [])
+                                if len(m_list) >= 4:
+                                    for pm in m_list:
+                                        if not _is_match_duplicate(pm, matches):
+                                            matches.append(pm)
+                                        if len(matches) >= 5:
+                                            break
+                            if len(matches) >= 5:
+                                break
+                    except Exception:
+                        pass
+                if len(matches) >= 5:
+                    break
+        except Exception as e_prev:
+            pass
 
     # 3. Consulta rápida na tabela de cache persistente team_last5_cache ou na API-Sports por team_id se o banco local possuir menos de 5 partidas
     if len(matches) < 5 and team_id:
@@ -470,17 +564,14 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                 """, (team_id,))
                 c_row = cursor.fetchone()
                 if c_row and c_row.get('form_json'):
-                    has_cached_entry = True
                     c_matches = json.loads(c_row['form_json']) if isinstance(c_row['form_json'], str) else c_row['form_json']
                     if isinstance(c_matches, list):
-                        existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
                         for am in c_matches:
-                            key = (am.get('opponent'), am.get('score'))
-                            if key not in existing_keys:
+                            if not _is_match_duplicate(am, matches):
                                 matches.append(am)
-                                existing_keys.add(key)
                             if len(matches) >= 5:
                                 break
+                    has_cached_entry = len(matches) >= 5
             except Exception as e_c:
                 pass
 
@@ -489,12 +580,9 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
             try:
                 api_m = fetch_api_sports_team_last5(team_id, limit=5)
                 if api_m is not None:
-                    existing_keys = {(m.get('opponent'), m.get('score')) for m in matches}
                     for am in api_m:
-                        key = (am.get('opponent'), am.get('score'))
-                        if key not in existing_keys:
+                        if not _is_match_duplicate(am, matches):
                             matches.append(am)
-                            existing_keys.add(key)
                         if len(matches) >= 5:
                             break
                     if cursor is not None:
@@ -515,8 +603,79 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
             except Exception as e_api_m:
                 print(f"Aviso na busca por API-Sports para '{team_name}' (#{team_id}): {e_api_m}")
 
-    # 4. Fallback na raspagem Futbol24 desativado dentro do loop para evitar I/O síncrono e lentidão
-    # Os dados do histórico dos times já são obtidos do banco local e da API-Sports.
+    # 4. Fallback no Futbol24 se o banco e a API-Sports estiverem sem cota / < 5 jogos
+    if len(matches) < 5:
+        try:
+            from lib.scrapers import scrape_futbol24_team_last5
+            league_to_country = {
+                71: 'Brazil', 72: 'Brazil', 73: 'Brazil', 74: 'Brazil', 75: 'Brazil', 642: 'Brazil',
+                39: 'England', 40: 'England', 41: 'England', 42: 'England', 45: 'England', 48: 'England',
+                140: 'Spain', 141: 'Spain', 143: 'Spain',
+                135: 'Italy', 136: 'Italy', 137: 'Italy',
+                78: 'Germany', 79: 'Germany', 81: 'Germany',
+                61: 'France', 62: 'France', 66: 'France',
+                94: 'Portugal', 95: 'Portugal',
+                88: 'Netherlands', 89: 'Netherlands',
+                128: 'Argentina', 129: 'Argentina', 130: 'Argentina',
+                103: 'Norway', 104: 'Norway',
+                113: 'Sweden', 114: 'Sweden',
+                119: 'Denmark', 121: 'Denmark',
+                144: 'Belgium',
+                218: 'Austria',
+                179: 'Scotland',
+                106: 'Poland',
+                345: 'Czech-Republic',
+                203: 'Turkey',
+                207: 'Switzerland',
+                197: 'Greece',
+                283: 'Romania',
+                286: 'Serbia',
+                244: 'Finland',
+                281: 'Peru',
+                242: 'Ecuador', 917: 'Ecuador',
+                268: 'Uruguay',
+                265: 'Chile',
+                239: 'Colombia',
+                501: 'Paraguay',
+                262: 'Mexico', 263: 'Mexico',
+                253: 'USA', 772: 'USA',
+                98: 'Japan',
+                292: 'Korea-Republic',
+                169: 'China',
+                307: 'Saudi-Arabia'
+            }
+            country_hint = None
+            if league_id:
+                try:
+                    country_hint = league_to_country.get(int(league_id))
+                except (ValueError, TypeError):
+                    pass
+
+            f24_data = scrape_futbol24_team_last5(team_name, country=country_hint)
+            if f24_data and f24_data.get('matches'):
+                for am in f24_data['matches']:
+                    if not _is_match_duplicate(am, matches):
+                        matches.append(am)
+                    if len(matches) >= 5:
+                        break
+
+                if cursor is not None and team_id:
+                    try:
+                        cursor.execute("""
+                            INSERT INTO team_last5_cache (team_id, team_name, league_id, form_json, updated_at)
+                            VALUES (%s, %s, %s, %s, NOW())
+                            ON DUPLICATE KEY UPDATE 
+                                form_json = VALUES(form_json),
+                                updated_at = NOW(),
+                                team_name = VALUES(team_name),
+                                league_id = VALUES(league_id)
+                        """, (team_id, team_name, league_id, json.dumps(matches[:5])))
+                        if hasattr(cursor, 'connection') and cursor.connection:
+                            cursor.connection.commit()
+                    except Exception:
+                        pass
+        except Exception as e_f24_form:
+            pass
 
     # 5. Se não houver partidas encontradas no banco nem via API/scraper
     if not matches:
@@ -533,6 +692,20 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
     for m in matches[:5]:
         m_copy = {k: v for k, v in m.items() if k != "fixture_id"}
         clean_matches.append(m_copy)
+
+    def _parse_sort_key(m):
+        d_str = m.get('date', '')
+        if d_str and len(d_str) >= 10:
+            parts = d_str.split('/')
+            if len(parts) == 3:
+                return f"{parts[2]}-{parts[1]}-{parts[0]}"
+        return ""
+
+    # Ordena os 5 jogos cronologicamente (do mais antigo para o mais recente)
+    if all(m.get('date') for m in clean_matches):
+        clean_matches.sort(key=_parse_sort_key)
+    else:
+        clean_matches.reverse()
 
     # Recalcula v, e, d, pts estritamente a partir das partidas em matches
     v = sum(1 for m in clean_matches if m["result"] == "V")
@@ -1675,11 +1848,15 @@ def calculate_asian_handicap_suggestion(
     # Cálculo das Probabilidades 1X2 (%) Plataforma (Modelo Poisson) vs Casa de Apostas (Odds)
     import math
     p_h = p_d = p_a = 0.0
+    poisson_matrix_ah = {}
+    tot_p_ah = 0.0
     for hg in range(10):
         for ag in range(10):
             ph = (math.pow(lambda_home, hg) * math.exp(-lambda_home)) / math.factorial(hg)
             pa = (math.pow(lambda_away, ag) * math.exp(-lambda_away)) / math.factorial(ag)
             pj = ph * pa
+            poisson_matrix_ah[(hg, ag)] = pj
+            tot_p_ah += pj
             if hg > ag:
                 p_h += pj
             elif hg == ag:
@@ -1690,6 +1867,54 @@ def calculate_asian_handicap_suggestion(
     plat_h = round((p_h / tot) * 100, 1)
     plat_d = round((p_d / tot) * 100, 1)
     plat_a = round((p_a / tot) * 100, 1)
+
+    if tot_p_ah > 0:
+        for k in poisson_matrix_ah:
+            poisson_matrix_ah[k] /= tot_p_ah
+
+    # Validação do Gatekeeper Poisson de Handicap Asiático
+    is_abstain = any(term in suggestion.lower() for term in ['sem entrada', 'abstenção', 'abstencao', 'no_bet', 'bloqueada', 'indisponível'])
+    if not is_abstain:
+        m_line = re.search(r'([+-]?\d+(?:\.\d+)?)', suggestion)
+        line_num = float(m_line.group(1)) if m_line else 0.0
+        is_away_sug = (away_team.lower() in suggestion.lower())
+        ref_odd = float(odd_away if is_away_sug else odd_home or 1.90)
+
+        if '+0.25' in suggestion:
+            est_odd = round(max(1.55, min(2.05, 1.0 + (ref_odd - 1.0) * 0.40)), 2)
+        elif '+0.5' in suggestion:
+            est_odd = round(max(1.50, min(1.85, 1.0 + (ref_odd - 1.0) * 0.28)), 2)
+        elif '-0.25' in suggestion:
+            est_odd = round(max(1.55, min(2.10, 1.0 + (ref_odd - 1.0) * 0.72)), 2)
+        elif '-0.5' in suggestion:
+            est_odd = round(max(1.55, ref_odd), 2)
+        elif '-0.75' in suggestion:
+            est_odd = round(max(1.65, min(2.15, ref_odd + 0.22)), 2)
+        else:
+            est_odd = ref_odd
+
+        p_w = p_hw = p_psh = p_hl = p_l = 0.0
+        for (hg, ag), pj in poisson_matrix_ah.items():
+            diff_g = (ag - hg) if is_away_sug else (hg - ag)
+            adj_g = diff_g + line_num
+            if adj_g > 0.25:
+                p_w += pj
+            elif abs(adj_g - 0.25) < 1e-4:
+                p_hw += pj
+            elif abs(adj_g) < 1e-4:
+                p_psh += pj
+            elif abs(adj_g - (-0.25)) < 1e-4:
+                p_hl += pj
+            else:
+                p_l += pj
+
+        num_oj = 1.0 - (p_hw / 2.0 + p_psh + 0.5 * p_hl)
+        den_oj = p_w + (p_hw / 2.0)
+        odd_justa_sug = round(num_oj / den_oj, 2) if (den_oj > 0 and num_oj > 0) else 99.0
+        prob_eff_sug = round(min(100.0, max(0.0, 100.0 / odd_justa_sug)), 1)
+        ev_sug = round(((p_w * est_odd + p_hw * ((est_odd + 1.0) / 2.0) + p_psh * 1.0 + p_hl * 0.5) - 1.0) * 100.0, 1)
+
+        calc_memory += f" | 🎯 Gatekeeper Poisson AH: Odd Justa {odd_justa_sug:.2f} (Prob: {prob_eff_sug:.1f}%) [Est. Odd: {est_odd:.2f} | EV: {ev_sug:+.1f}%]"
 
     banca_h = 45.0
     banca_d = 30.0
@@ -3163,12 +3388,6 @@ def main():
                     else:
                         raise e_dl
         
-        # Enriquecimento com Odds, Surebets e Prévias Futbol24
-        try:
-            update_oddspedia_odds(conn)
-        except Exception as e_op:
-            print(f"Aviso ao executar update_oddspedia_odds: {e_op}")
-
         # Enriquecimento com Classificação dos Times (Standings / Motivação)
         try:
             enrich_fixtures_standings(conn)
@@ -3376,7 +3595,7 @@ def update_oddspedia_odds(conn):
             if os.path.exists(p) and p not in sys.path:
                 sys.path.insert(0, p)
 
-        from lib.scrapers import scrape_oddspedia_odds, scrape_futbol24_odds, scrape_futbol24_previews, fetch_futbol24_direct_match_odds
+        from lib.scrapers import scrape_oddspedia_odds, scrape_futbol24_odds, scrape_futbol24_previews
         from lib.sports_arbitrage import normalize_team_name, calculate_surebet, fetch_live_odds_from_api
         
         global _api_sports_quota_exceeded, _api_sports_odds_rate_limited, _api_sports_rate_limited
@@ -3630,20 +3849,6 @@ def update_oddspedia_odds(conn):
             best_c1, best_bm1, best_cX, best_bmX, best_c2, best_bm2 = triangulate_3_source_odds(
                 api_bms, op_bms, f24_bms, fix['home_team'], fix['away_team'], toapi_bms=toapi_bms
             )
-
-            # Fallback direto via Futbol24 se ainda não tiver odds (apenas no modo contingência)
-            if should_run_fallback and (not best_c1 or best_c1 <= 1.0) and fetch_futbol24_direct_match_odds is not None:
-                try:
-                    f24_odds = fetch_futbol24_direct_match_odds(fix['home_team'], fix['away_team'])
-                    if f24_odds:
-                        best_c1 = f24_odds['odd_home']
-                        best_bm1 = 'FUTBOL24'
-                        best_cX = f24_odds['odd_draw']
-                        best_bmX = 'FUTBOL24'
-                        best_c2 = f24_odds['odd_away']
-                        best_bm2 = 'FUTBOL24'
-                except Exception as e_f24_dir:
-                    print(f"Aviso ao consultar odds diretas Futbol24 para '{fix['home_team']} vs {fix['away_team']}': {e_f24_dir}")
 
             # Grava no banco APENAS se tiver odds reais de casas de apostas (eliminado o fallback de odds sintéticas POISSON)
             if best_c1 > 1.0 and best_cX > 1.0 and best_c2 > 1.0:

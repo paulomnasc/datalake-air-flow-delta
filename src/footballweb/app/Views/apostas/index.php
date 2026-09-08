@@ -1246,6 +1246,13 @@ if (!function_exists('formatBrtDate')) {
               </div>
             <?php endif; ?>
 
+            <?php 
+              if (!empty($detalhadoExibir)) {
+                $detalhadoExibir = preg_replace('/\s*\|\|\s*MEM[ÓO]RIA DE C[ÁA]LCULO.*$/isu', '', $detalhadoExibir);
+                $detalhadoExibir = rtrim(trim($detalhadoExibir), '| ');
+              }
+            ?>
+
             <?php if (!empty($detalhadoExibir)): ?>
               <div style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px;">
                 <i class="bi bi-info-circle-fill text-info flex-shrink-0" style="margin-top: 2px;"></i>
@@ -3329,7 +3336,9 @@ if (!function_exists('formatBrtDate')) {
         // Atualizar bloco explicativo
         const detalhadoEl = cardEl.querySelector('.detalhado-text-content');
         if (detalhadoEl && data.novo_detalhado) {
-          detalhadoEl.textContent = data.novo_detalhado;
+          let cleanDetalhado = data.novo_detalhado.replace(/\s*\|\|\s*MEM[ÓO]RIA DE C[ÁA]LCULO.*$/is, '').trim();
+          cleanDetalhado = cleanDetalhado.replace(/\|+$/, '').trim();
+          detalhadoEl.textContent = cleanDetalhado;
         }
 
         // Se for mercado aberto, garantir exibição da caixa de alerta vermelho

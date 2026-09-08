@@ -432,46 +432,20 @@ class ApostaController extends BaseController
 
         $isOver = (stripos($palpite, 'over') !== false || stripos($palpite, 'mais') !== false);
         $isCartoes = (stripos($mercado, 'cartõ') !== false || stripos($mercado, 'card') !== false);
+        $isHandicap = (stripos($mercado, 'handicap') !== false || stripos($palpite, 'ah') !== false);
 
-        // AVISO DE RISCO GATEKEEPER (Estratégia Exclusiva Under / Anti-Over)
-        if ($isOver || ($isCartoes && $isOver)) {
+        // AVISO DE RISCO GATEKEEPER (Estratégia Exclusiva Under / Anti-Over para Cartões)
+        if ($isCartoes && ($isOver || stripos($palpite, 'mais') !== false)) {
             $statusGatekeeper = 'AVISO_RISCO_OVER';
             $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under): Simulações de apostas no mercado 'Over / Mais de' possuem elevado risco de perda e volatilidade estatística. Apenas apostas 'Under / Menos de' são recomendadas pelo modelo. Deseja prosseguir mesmo com o risco apontado?";
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
-        if (!$isCartoes) {
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
-        }
-
-        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Trava de Segurança Linha Mínima de 1.15)
-        preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
-        $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
-
-        if ($lineCheck < 1.15) {
-            $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Simulações de apostas com linhas inferiores a 1.15 são bloqueadas pelo modelo por elevado risco.";
+        if (!$isCartoes && !$isHandicap) {
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
         }
 
         $db = \Config\Database::connect();
-
-        // 1. Média Histórica Dinâmica de Odds Vencedoras (Under Cartões) e Teto Dinâmico de Segurança
-        $rowAvg = $db->query("
-            SELECT AVG(odd) as avg_odd, COUNT(*) as total_vitorias 
-            FROM apostas 
-            WHERE status = 'Ganha' 
-              AND (mercado LIKE '%cartõ%' OR mercado LIKE '%card%') 
-              AND (palpite LIKE '%Menos%' OR palpite LIKE '%under%')
-        ")->getRow();
-
-        $avgWinningOdd = ($rowAvg && $rowAvg->avg_odd && (int)$rowAvg->total_vitorias > 0) 
-            ? round((float)$rowAvg->avg_odd, 2) 
-            : 1.50;
-
-        // Teto dinâmico flexível: Média + 0.35 com piso mínimo de 2.00 (evita auto-afunilamento e bloqueia apenas distorções irreais)
-        $maxAllowedOdd = round(max(2.00, $avgWinningOdd + 0.35), 2);
-
         $fixture = null;
 
         if ($fixtureId) {
@@ -495,6 +469,137 @@ class ApostaController extends BaseController
                 $fixtureId = (int)$fixture->fixture_id;
             }
         }
+
+        // =========================================================================
+        // RAMO 1: GATEKEEPER PARA HANDICAP ASIÁTICO (MATRIZ BIVARIADA DE POISSON)
+        // =========================================================================
+        if ($isHandicap) {
+            preg_match('/([+-]?\d+(?:\.\d+)?)/', $palpite, $matchesLine);
+            $line = !empty($matchesLine[1]) ? (float)$matchesLine[1] : 0.0;
+
+            if ($line < -0.75) {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Linhas de handicap mais profundas que -0.75 são bloqueadas pelo modelo por elevado risco de perda total no empate.";
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+            }
+
+            if ($odd < 1.45) {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Odd muito deprimida (< 1.45) para Handicap Asiático. Sem margem de valor esperado (+EV).";
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+            }
+
+            $xgHome = ($fixture && !empty($fixture->xg_home)) ? (float)$fixture->xg_home : 0.0;
+            $xgAway = ($fixture && !empty($fixture->xg_away)) ? (float)$fixture->xg_away : 0.0;
+
+            if ($xgHome <= 0.1 || $xgAway <= 0.1) {
+                if ($fixture && !empty($fixture->ah_reasoning)) {
+                    if (preg_match('/\(Em Casa\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)/i', $fixture->ah_reasoning, $mH)) {
+                        $xgHome = (float)$mH[1];
+                    }
+                    if (preg_match('/\(Fora\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)/i', $fixture->ah_reasoning, $mA)) {
+                        $xgAway = (float)$mA[1];
+                    }
+                }
+            }
+            if ($xgHome <= 0.1) $xgHome = 1.30;
+            if ($xgAway <= 0.1) $xgAway = 1.10;
+
+            $isAway = (stripos($palpite, $timeFora) !== false || stripos($palpite, 'away') !== false || stripos($palpite, 'fora') !== false || stripos($palpite, 'visitante') !== false);
+
+            $pWin = 0.0;
+            $pHalfWin = 0.0;
+            $pPush = 0.0;
+            $pHalfLoss = 0.0;
+            $pLoss = 0.0;
+            $totalP = 0.0;
+            $matrix = [];
+
+            for ($x = 0; $x <= 9; $x++) {
+                $px = (pow($xgHome, $x) * exp(-$xgHome)) / $this->factorial($x);
+                for ($y = 0; $y <= 9; $y++) {
+                    $py = (pow($xgAway, $y) * exp(-$xgAway)) / $this->factorial($y);
+                    $p = $px * $py;
+                    $matrix[] = ['x' => $x, 'y' => $y, 'p' => $p];
+                    $totalP += $p;
+                }
+            }
+
+            foreach ($matrix as $cell) {
+                $p = ($totalP > 0) ? ($cell['p'] / $totalP) : $cell['p'];
+                $diff = $isAway ? ($cell['y'] - $cell['x']) : ($cell['x'] - $cell['y']);
+                $adj = $diff + $line;
+
+                if ($adj > 0.25) {
+                    $pWin += $p;
+                } elseif (abs($adj - 0.25) < 0.0001) {
+                    $pHalfWin += $p;
+                } elseif (abs($adj) < 0.0001) {
+                    $pPush += $p;
+                } elseif (abs($adj - (-0.25)) < 0.0001) {
+                    $pHalfLoss += $p;
+                } else {
+                    $pLoss += $p;
+                }
+            }
+
+            $expectedPayoff = ($pWin * $odd) + ($pHalfWin * (($odd + 1.0) / 2.0)) + ($pPush * 1.0) + ($pHalfLoss * 0.5);
+            $evPercentual = round(($expectedPayoff - 1.0) * 100.0, 2);
+
+            $num = 1.0 - ($pHalfWin / 2.0 + $pPush + 0.5 * $pHalfLoss);
+            $den = $pWin + ($pHalfWin / 2.0);
+
+            if ($den > 0 && $num > 0) {
+                $oddJusta = round($num / $den, 2);
+                $probPoisson = round(min(100.0, max(0.0, 100.0 / $oddJusta)), 2);
+            } else {
+                $oddJusta = 99.00;
+                $probPoisson = 1.00;
+            }
+
+            if ($evPercentual >= 5.0 && $probPoisson >= 48.0) {
+                $statusGatekeeper = 'APROVADO';
+                $gatekeeperMsg = "Gatekeeper AH Green Light (+EV): Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% (Mínimo: +5.0%) | Prob. Efetiva: {$probPoisson}%.";
+            } elseif ($evPercentual >= 0.0 && $probPoisson >= 45.0) {
+                $statusGatekeeper = 'APROVADO';
+                $gatekeeperMsg = "Gatekeeper AH Aprovado (+EV Neutro/Positivo): Odd Real ({$odd}) | EV: +{$evPercentual}% | Prob. Efetiva: {$probPoisson}%.";
+            } else {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Aviso Gatekeeper AH (NO_BET): Entrada sem valor esperado positivo (EV: {$evPercentual}%, Mínimo: +5.0% | Odd Justa: {$oddJusta} vs Odd Atual: {$odd}).";
+            }
+
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+        }
+
+        // =========================================================================
+        // RAMO 2: GATEKEEPER PARA TOTAL DE CARTÕES (UNDER)
+        // =========================================================================
+
+        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Trava de Segurança Linha Mínima de 1.15)
+        preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
+        $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
+
+        if ($lineCheck < 1.15) {
+            $statusGatekeeper = 'NO_BET';
+            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Simulações de apostas com linhas inferiores a 1.15 são bloqueadas pelo modelo por elevado risco.";
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+        }
+
+        // 1. Média Histórica Dinâmica de Odds Vencedoras (Under Cartões) e Teto Dinâmico de Segurança
+        $rowAvg = $db->query("
+            SELECT AVG(odd) as avg_odd, COUNT(*) as total_vitorias 
+            FROM apostas 
+            WHERE status = 'Ganha' 
+              AND (mercado LIKE '%cartõ%' OR mercado LIKE '%card%') 
+              AND (palpite LIKE '%Menos%' OR palpite LIKE '%under%')
+        ")->getRow();
+
+        $avgWinningOdd = ($rowAvg && $rowAvg->avg_odd && (int)$rowAvg->total_vitorias > 0) 
+            ? round((float)$rowAvg->avg_odd, 2) 
+            : 1.50;
+
+        // Teto dinâmico flexível: Média + 0.35 com piso mínimo de 2.00 (evita auto-afunilamento e bloqueia apenas distorções irreais)
+        $maxAllowedOdd = round(max(2.00, $avgWinningOdd + 0.35), 2);
 
         if ($fixture && !empty($fixture->prediction_text)) {
             preg_match('/xC(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)/i', $fixture->prediction_text, $matchesXc);

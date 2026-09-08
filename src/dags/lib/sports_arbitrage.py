@@ -266,8 +266,20 @@ def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None, min_pr
         "soccer_netherlands_eredivisie",
         "soccer_uefa_champs_league_qualification",
         "soccer_argentina_primera_division",
+        "soccer_italy_serie_b",
+        "soccer_spain_segunda_division",
+        "soccer_france_ligue_two",
+        "soccer_turkey_super_league",
+        "soccer_sweden_allsvenskan",
+        "soccer_denmark_superliga",
+        "soccer_belgium_first_div",
+        "soccer_poland_ekstraklasa",
+        "soccer_greece_super_league",
+        "soccer_colombia_primera_a",
+        "soccer_chile_campeonato",
         "soccer_usa_mls",
-        "soccer_mexico_ligamx"
+        "soccer_mexico_ligamx",
+        "soccer_saudi_arabia_pro_league"
     ]
     
     sports_to_fetch = []
@@ -301,8 +313,8 @@ def fetch_live_odds_from_api(api_key: str, casas_permitidas: list = None, min_pr
             ("soccer_conmebol_copa_sudamericana", "Copa Sudamericana")
         ]
         
-    # Limita o número de ligas consultadas por execução (padrão: 10 ligas prioritárias)
-    max_leagues = int(os.environ.get('ARBITRAGE_MAX_LEAGUES', '10'))
+    # Limita o número de ligas consultadas por execução (padrão: 35 ligas prioritárias)
+    max_leagues = int(os.environ.get('ARBITRAGE_MAX_LEAGUES', '35'))
     sports_to_fetch = sports_to_fetch[:max_leagues]
     
     parsed_matches = []

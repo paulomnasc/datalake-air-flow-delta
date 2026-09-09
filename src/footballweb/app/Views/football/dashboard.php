@@ -100,6 +100,7 @@ if (!function_exists('renderU5JTimelineTable')) {
                     $tData = $tInfo['data'];
                     $matches = $tData['matches'] ?? [];
                     $formText = $tData['text'] ?? '0V-0E-0D';
+                    $cleanFormText = trim(preg_replace('/\s*\(\d+\s*pts\)$/i', '', $formText));
                     $totalMatches = count($matches);
 
                     // Ordem cronológica: se vieram com datas válidas, garante ordenação antiga -> recente
@@ -127,7 +128,7 @@ if (!function_exists('renderU5JTimelineTable')) {
                                             <?= $tInfo['icon'] ?> <?= htmlspecialchars($tInfo['name']) ?>
                                         </span>
                                         <span class="badge" style="background: rgba(251, 191, 36, 0.2); border: 1px solid #fbbf24; color: #fbbf24; font-weight: 700; font-size: 0.65rem; padding: 2px 6px;">
-                                            <?= htmlspecialchars($formText) ?> (<?= intval($tData['pts'] ?? 0) ?> pts)
+                                            <?= htmlspecialchars($cleanFormText) ?> (<?= intval($tData['pts'] ?? 0) ?> pts)
                                         </span>
                                     </div>
                                 </th>

@@ -2465,18 +2465,14 @@ if (!function_exists('formatBrtDate')) {
 
       let marketMatch = true;
       if (selectedMarket === 'handicap') {
-        marketMatch = cardMercado.includes('handicap') || 
+        marketMatch = (cardIsCardMarket !== '1') && (
+                      cardMercado.includes('handicap') || 
                       cardMercado.includes('empate anula') || 
                       cardMercado.includes('dnb') || 
                       cardPalpite.includes('ah') || 
-                      cardPalpite.includes('handicap');
+                      cardPalpite.includes('handicap'));
       } else if (selectedMarket === 'cartoes') {
-        marketMatch = cardMercado.includes('cartõ') || 
-                      cardMercado.includes('carto') || 
-                      cardMercado.includes('card') || 
-                      cardPalpite.includes('cartõ') || 
-                      cardPalpite.includes('carto') || 
-                      cardPalpite.includes('under');
+        marketMatch = (cardIsCardMarket === '1');
       }
 
       let confirmedMatch = true;

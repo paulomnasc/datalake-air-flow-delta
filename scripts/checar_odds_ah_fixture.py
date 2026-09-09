@@ -148,8 +148,10 @@ def fetch_live_fixture_odds_api(fixture_id):
                 if v_odd > 1.0:
                     ah_lines.append({"value": val_text, "odd": v_odd})
 
-        # Bet ID 16 = Draw No Bet (AH 0.0)
-        elif b_id == 16 or "draw no bet" in b_name or "empate anula" in b_name:
+        # Draw No Bet (AH 0.0) - Bet ID 2 (Home/Away) ou nome explícito
+        elif b_id == 2 or "draw no bet" in b_name or "empate anula" in b_name:
+            if b_id == 16 or "total" in b_name or any(term in b_name for term in ["half", "1st", "2nd"]):
+                continue
             for val in b.get("values", []):
                 val_text = str(val.get("value", "")).strip()
                 try:
@@ -279,79 +281,23 @@ def checar_e_atualizar_odds_fixture(fixture_id, aposta_id=None):
         ah_lines = live_odds_data["ah_lines"]
         dnb_lines = live_odds_data["dnb_lines"]
 
-    # Importar motor de decisão de AH do trends
-    from scripts.football_ingest_trends import calculate_asian_handicap_suggestion
+    # Utilizar motor centralizado Asian Handicap Engine (Single Source of Truth)
+    from asian_handicap_engine import calculate_unified_handicap_recommendation, compose_compound_ah_reasoning, cancelar_e_estornar_aposta_handicap
 
-    # Reconstruir U5J data se disponível
-    raw_reasoning = fix.get("ah_reasoning") or ""
-    home_last5 = None
-    away_last5 = None
-    if "|| U5J_DATA:" in raw_reasoning:
-        try:
-            u_part = raw_reasoning.split("|| U5J_DATA:")[1].split("||")[0].strip()
-            u_data = json.loads(u_part)
-            home_last5 = u_data.get("home")
-            away_last5 = u_data.get("away")
-        except Exception:
-            pass
-
-    home_goals_scored = float(fix.get("xg_home") or 1.2)
-    away_goals_scored = float(fix.get("xg_away") or 1.0)
-    home_goals_conceded = 1.0
-    away_goals_conceded = 1.2
-    home_cs_pct = 25.0
-    away_cs_pct = 25.0
-
-    res_ah = calculate_asian_handicap_suggestion(
-        home_goals_scored=home_goals_scored,
-        home_goals_conceded=home_goals_conceded,
-        away_goals_scored=away_goals_scored,
-        away_goals_conceded=away_goals_conceded,
-        home_team=home_team,
-        away_team=away_team,
-        home_cs_pct=home_cs_pct,
-        away_cs_pct=away_cs_pct,
-        home_last5=home_last5,
-        away_last5=away_last5,
-        odd_home=new_oh,
-        odd_away=new_oa,
-        odd_draw=new_od,
-        home_rank=fix.get("home_rank"),
-        away_rank=fix.get("away_rank"),
-        home_ppg=fix.get("home_ppg"),
-        away_ppg=fix.get("away_ppg"),
-        home_zone=fix.get("home_zone"),
-        away_zone=fix.get("away_zone"),
-        standings_motivation=fix.get("standings_motivation_score"),
-        league_name=fix.get("league_name")
+    status_gk, new_suggestion, new_confidence, new_reasoning, best_cand, approved_cands = calculate_unified_handicap_recommendation(
+        fix, betano_lines=ah_lines if ah_lines else None, allow_api_fetch=True, cursor=cursor
     )
 
-    new_suggestion = res_ah[0]
-    new_confidence = res_ah[1]
-    new_reasoning = res_ah[2]
-
-    # Obter cotação real atualizada para a linha recomendada
-    matched_odd = find_best_matching_odd_for_line(ah_lines, dnb_lines, new_suggestion, home_team, away_team)
-    if matched_odd:
-        final_odd = float(matched_odd)
-    elif old_odd and old_suggestion.lower() == new_suggestion.lower():
-        final_odd = old_odd
+    if best_cand:
+        final_odd = float(best_cand['odd'])
     else:
-        final_odd = float(new_oh) if (home_team.lower() in new_suggestion.lower()) else float(new_oa)
-
-    # Trava em tempo real de Odd Esmagada (< 1.55) para Handicap Negativo:
-    # Se a odd encontrada for inferior a 1.55 (ex: Lens -0.25 @ 1.42), busca a linha imediatamente superior (-0.5 ou -0.75) com odd >= 1.55
-    if final_odd < 1.55 and ("-0.25" in new_suggestion or "-0.5" in new_suggestion) and ah_lines:
-        is_home_sug = (home_team.lower() in new_suggestion.lower())
-        team_prefix = home_team if is_home_sug else away_team
-        candidate_lines = [f"{team_prefix} -0.5 AH", f"{team_prefix} -0.75 AH", f"{team_prefix} -1.0 AH"]
-        for cand in candidate_lines:
-            cand_odd = find_best_matching_odd_for_line(ah_lines, dnb_lines, cand, home_team, away_team)
-            if cand_odd and float(cand_odd) >= 1.55:
-                new_suggestion = cand
-                final_odd = float(cand_odd)
-                new_reasoning += f" [⚡ Reajuste Dinâmico de Linha: Elevada para {cand} (@ {final_odd:.2f}) para superar o piso mínimo de odd e garantir valor esperado positivo]."
-                break
+        matched_odd = find_best_matching_odd_for_line(ah_lines, dnb_lines, new_suggestion, home_team, away_team)
+        if matched_odd:
+            final_odd = float(matched_odd)
+        elif old_odd and old_suggestion.lower() == new_suggestion.lower():
+            final_odd = old_odd
+        else:
+            final_odd = float(new_oh) if (home_team.lower() in new_suggestion.lower()) else float(new_oa)
 
     agora_brt = datetime.now().strftime("%d/%m às %H:%M")
     is_open_market = (new_oh and new_oa and float(new_oh) >= 2.10 and float(new_oa) >= 2.10)
@@ -392,7 +338,19 @@ def checar_e_atualizar_odds_fixture(fixture_id, aposta_id=None):
     if is_open_market:
         explicacao += f" [⚠️ Confronto equilibrado com odds abertas H:{float(new_oh):.2f} / A:{float(new_oa):.2f}]"
 
-    # Atualizar fixtures_trends
+    # Atualizar fixtures_trends preservando estrutura composta e U5J
+    compound_reasoning = compose_compound_ah_reasoning(
+        cursor=cursor,
+        fixture_id=fixture_id,
+        main_calc=new_reasoning,
+        suggestion=new_suggestion,
+        home_team=home_team,
+        away_team=away_team,
+        home_team_id=fix.get("home_team_id"),
+        away_team_id=fix.get("away_team_id"),
+        existing_reasoning=fix.get("ah_reasoning")
+    )
+
     cursor.execute("""
         UPDATE fixtures_trends SET
             ah_suggestion = %s,
@@ -407,7 +365,7 @@ def checar_e_atualizar_odds_fixture(fixture_id, aposta_id=None):
             updated_at = NOW()
         WHERE fixture_id = %s
     """, (
-        new_suggestion, new_confidence, new_reasoning,
+        new_suggestion, new_confidence, compound_reasoning,
         new_oh, new_od, new_oa,
         bm_name, bm_name, bm_name,
         fixture_id
@@ -416,32 +374,51 @@ def checar_e_atualizar_odds_fixture(fixture_id, aposta_id=None):
     # Atualizar apostas pendentes
     aposta_alvo = None
     novo_ganho = round(10.00 * final_odd, 2)
+    is_no_bet = (status_gk == 'NO_BET' or 'sem entrada' in new_suggestion.lower() or 'abstenção' in new_suggestion.lower() or 'abstencao' in new_suggestion.lower())
 
-    if aposta_id:
-        cursor.execute("SELECT * FROM apostas WHERE id = %s", (aposta_id,))
+    if is_no_bet:
+        canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, new_reasoning)
+        if canc_list:
+            print(f"🚫 [Checar Odds] {len(canc_list)} aposta(s) cancelada(s)/estornada(s) devido a NO_BET para #{fixture_id}.")
+    elif aposta_id:
+        cursor.execute("""
+            SELECT a.*, 
+                   (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
+            FROM apostas a WHERE a.id = %s
+        """, (aposta_id,))
         aposta_alvo = cursor.fetchone()
         if aposta_alvo:
-            val_aposta = float(aposta_alvo.get("valor_aposta") or 10.0)
-            novo_ganho = round(val_aposta * final_odd, 2)
-            novo_detalhado = f"{explicacao} || {new_reasoning}"[:2000]
+            is_conf = (int(aposta_alvo.get("confirmada") or 0) == 1) or (int(aposta_alvo.get("tem_debito") or 0) > 0)
+            if is_conf:
+                print(f"🔒 [Checar Odds] Aposta #{aposta_id} já confirmada ou com débito financeiro. Alteração bloqueada para proteger a banca.")
+            else:
+                val_aposta = float(aposta_alvo.get("valor_aposta") or 10.0)
+                novo_ganho = round(val_aposta * final_odd, 2)
+                novo_detalhado = f"{explicacao} || {new_reasoning}"[:2000]
 
-            cursor.execute("""
-                UPDATE apostas SET
-                    palpite = %s,
-                    odd = %s,
-                    ganhos_potenciais = %s,
-                    resultado_detalhado = %s,
-                    updated_at = NOW()
-                WHERE id = %s
-            """, (new_suggestion, final_odd, novo_ganho, novo_detalhado, aposta_id))
+                cursor.execute("""
+                    UPDATE apostas SET
+                        palpite = %s,
+                        odd = %s,
+                        ganhos_potenciais = %s,
+                        resultado_detalhado = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (new_suggestion, final_odd, novo_ganho, novo_detalhado, aposta_id))
     else:
         cursor.execute("""
-            SELECT id, valor_aposta FROM apostas 
-            WHERE fixture_id = %s AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-              AND status IN ('Pendente', 'Não Confirmada')
+            SELECT a.id, a.valor_aposta, a.confirmada,
+                   (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
+            FROM apostas a 
+            WHERE a.fixture_id = %s AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
+              AND a.status IN ('Pendente', 'Não Confirmada')
         """, (fixture_id,))
         apostas_pend = cursor.fetchall()
         for ap in apostas_pend:
+            is_conf = (int(ap.get("confirmada") or 0) == 1) or (int(ap.get("tem_debito") or 0) > 0)
+            if is_conf:
+                print(f"🔒 [Checar Odds] Aposta #{ap['id']} já confirmada com débito. Mantida intacta.")
+                continue
             val_ap = float(ap.get("valor_aposta") or 10.0)
             g_pot = round(val_ap * final_odd, 2)
             det = f"{explicacao} || {new_reasoning}"[:2000]

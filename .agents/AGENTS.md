@@ -54,3 +54,12 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   1. Analisar o problema ou requisito;
   2. Explicar a abordagem técnica e detalhar exatamente quais arquivos e trechos serão alterados (ou apresentar o plano/diff proposto);
   3. Solicitar e aguardar a confirmação/consentimento explícito do usuário antes de invocar ferramentas de escrita ou edição de arquivos de código.
+
+---
+
+## 6. Soluções Estruturais e Sistêmicas Globais (Proibição de Soluções Pontuais)
+- Toda e qualquer correção de bugs, modelos preditivos, esteiras de ingestão, consolidação de estatísticas ou regras de negócio **DEVE SER ESTRUTURAL E SISTÊMICA**, válida e aplicada de forma homogênea para **todos os jogos, times e ligas** monitoradas pelo sistema.
+- **Proibição Absoluta de Patches Pontuais**:
+  - É expressamente proibido implementar soluções pontuais, gambiarras com *hardcoding* de IDs de times específicos, ou regras ad-hoc que resolvam apenas a partida mencionada pelo usuário.
+  - Toda partida ou exemplo apontado pelo usuário deve ser tratado como um **caso de teste representativo** de uma falha de arquitetura mais ampla; a solução deve obrigatoriamente consertar a causa raiz em nível de pipeline para que todos os jogos presentes e futuros sejam processados corretamente.
+

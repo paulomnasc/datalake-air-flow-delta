@@ -110,13 +110,18 @@ O script [`scripts/criar_apostas_handicap_diario.py`](file:///root/datalake-air-
 2. Filtra especificamente as apostas com `id: 4` (*Asian Handicap*).
 3. Normaliza todas as linhas (ex: `Home -0.5`, `Away +0.25`, etc.) e extrai suas cotações ativas.
 
-### 4.2. Algoritmo de Seleção da Melhor Linha
+### 4.2. Algoritmo de Seleção da Melhor Linha (Janela Anti-Empate)
+Para blindar a banca contra empates tardios aos 90 minutos (como ocorria com `-0.25` resultando em meio-red ou `-0.50` em red integral), o sistema restringe a seleção **estritamente às linhas onde o empate garante reembolso ou vitória**:
+* **Janela Permitida**: `{0.0 (DNB), +0.50, +0.75, +1.00, +1.25, +1.50}`.
+* **Linhas Negativas Banidas**: Linhas como `-0.25`, `-0.50`, `-0.75`, `-1.00` são proibidas pelo Gatekeeper.
+
 Para cada linha capturada da Betano:
-1. O modelo avalia a linha contra a matriz de Poisson da partida.
-2. Calcula a Odd Justa e o $+EV\%$.
-3. Descarta imediatamente linhas fora da faixa de segurança ($O_{\text{betano}} < 1.40$ ou $O_{\text{betano}} > 2.30$).
-4. Descarta linhas com probabilidade efetiva baixa ($P_{\text{eff}} < 48.0\%$).
-5. Dentre as linhas que satisfazem $+EV\% \ge 5.0\%$, seleciona a linha que maximiza o retorno ajustado ao risco.
+1. O modelo valida se a linha pertence estritamente à janela permitida.
+2. Descarta imediatamente linhas fora da faixa de segurança ($O_{\text{betano}} < 1.30$ ou $O_{\text{betano}} > 2.35$).
+3. Valida a coerência do favoritismo: o time favorito no 1X2 só pode concorrer à linha `0.0 (DNB)`. Linhas de cobertura positiva são reservadas ao azarão ou confrontos equilibrados.
+4. O modelo avalia a linha contra a matriz de Poisson da partida e deduz a Odd Justa e o $+EV\%$.
+5. Descarta linhas com probabilidade efetiva baixa ($P_{\text{eff}} < 48.0\%$).
+6. Dentre as linhas que satisfazem $+EV\% \ge 5.0\%$, seleciona a linha que maximiza o retorno ajustado ao risco ($EV\% \times \frac{P_{\text{eff}}}{100}$). Se nenhuma linha for aprovada, declara `NO_BET` e não cria aposta.
 
 ---
 

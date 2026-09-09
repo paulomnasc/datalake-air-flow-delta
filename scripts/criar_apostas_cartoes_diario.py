@@ -17,6 +17,17 @@ from datetime import datetime, timedelta
 import requests
 import time
 
+# Importar módulo global de ligas
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from leagues_config import ALLOWED_LEAGUES, ALLOWED_LEAGUE_IDS, ALLOWED_LEAGUE_NAMES, is_allowed_league
+except Exception:
+    ALLOWED_LEAGUE_IDS = set()
+    ALLOWED_LEAGUE_NAMES = []
+    def is_allowed_league(league_id, league_name: str = "", fixture_date=None) -> bool:
+        return True
+
+
 
 def get_live_env_vars():
     """
@@ -214,88 +225,8 @@ def get_all_user_ids(cursor):
         VALUES ('Paulo Nascimento', 'paulomnasc@gmail.com', '123456', 1, NOW())
     """)
     return [cursor.lastrowid]
+# Catálogo de ligas e validador is_allowed_league unificados globalmente em leagues_config.py
 
-ALLOWED_LEAGUE_IDS = {
-    71, 72, 73,   # Brasil Série A, Série B e Copa do Brasil
-    39,           # Inglaterra Premier League
-    140,          # Espanha La Liga
-    135,          # Itália Serie A
-    78,           # Alemanha Bundesliga
-    61,           # França Ligue 1
-    94,           # Portugal Liga Portugal (Primeira Liga)
-    88,           # Holanda Eredivisie
-    144,          # Bélgica Pro League
-    203,          # Turquia Süper Lig
-    179,          # Escócia Premiership
-    128,          # Argentina Liga Profesional
-    197,          # Grécia Super League 1
-    307,          # Arábia Saudita Saudi Pro League
-    2, 3, 848,    # UEFA Champions League, Europa League, Conference League
-    13, 11        # CONMEBOL Libertadores, Copa Sudamericana
-}
-
-ALLOWED_LEAGUE_NAMES = [
-    'brasileirão', 'brasileirao', 'serie a', 'série a', 'serie b', 'série b', 'copa do brasil', 'copa brasil',
-    'premier league',
-    'la liga',
-    'bundesliga',
-    'ligue 1',
-    'primeira liga', 'liga portugal',
-    'eredivisie',
-    'pro league', 'jupiler pro league', 'saudi pro league',
-    'super lig', 'süper lig',
-    'premiership',
-    'liga profesional',
-    'super league 1',
-    'champions league', 'europa league', 'conference league',
-    'libertadores', 'copa sudamericana', 'sudamericana'
-]
-
-def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
-    """
-    Filtra o escopo de atuação do script de criação de apostas estritamente para Ligas de Elite e Torneios Continentais de 1ª Divisão (e Série B do Brasil).
-    """
-    if not league_name and not league_id:
-        return False
-    
-    l_name_low = str(league_name or '').lower().strip()
-
-    # 1. Bloqueia partidas femininas
-    if any(w in l_name_low for w in ['women', 'feminino', 'femenina']):
-        return False
-
-    # 2. Bloqueia Divisões Secundárias Europeias e Inferiores (Championship, La Liga 2, Ligue 2, 2. Bundesliga, League One/Two, Copas Menores)
-    secondary_blocked = [
-        'championship', 'la liga 2', 'segunda división', 'segunda division',
-        '2. bundesliga', 'ligue 2', '2nd division', 'division 2',
-        'efl trophy', 'fl trophy', 'johnstone', 'bristol street', 'papa john',
-        'carabao cup', 'league cup', 'fa trophy',
-        'league one', 'league 1', 'league two', 'league 2', 'national league'
-    ]
-    if any(blocked in l_name_low for blocked in secondary_blocked):
-        return False
-
-    # 3. Bloqueia explicitamente todas as ligas e copas do Japão (J1, J2, J3, Emperor's Cup, etc.)
-    japan_blocked = ['japan', 'japão', 'japao', 'j1 league', 'j2 league', 'j3 league', 'j-league', 'j.league', 'emperor']
-    if any(blocked in l_name_low for blocked in japan_blocked):
-        return False
-
-    # 4. Validação por ID Numérico Oficial
-    if league_id is not None:
-        try:
-            lid = int(league_id)
-            if lid in ALLOWED_LEAGUE_IDS:
-                return True
-            else:
-                return False
-        except (ValueError, TypeError):
-            pass
-
-    # 5. Validação por Nome da Liga (Fallback)
-    if any(allowed in l_name_low for allowed in ALLOWED_LEAGUE_NAMES):
-        return True
-
-    return False
 
 def calculate_poisson_under_cdf(xc: float, line: float) -> float:
     """
@@ -393,84 +324,14 @@ def extract_cards_under_suggestion(prediction_text: str):
     if suggestions:
         return suggestions[0]
     return None, None, 'NO_BET', None, None, None, None
-
-_betano_cards_odds_cache = {}
-_betano_cards_raw_fixture_cache = {}
-_betano_cards_api_disabled = False
-
-def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: float):
-    """
-    Busca na API-Sports a odd REAL do mercado de cartões oferecida exclusivamente pela Betano (Bookmaker ID 32).
-    Retorna tupla: (odd_float, 'BETANO') se encontrada, ou (None, None) se o mercado não estiver à venda na Betano.
-    Possui Circuit-Breaker para interrupção imediata quando a cota diária estoura e cache bruto por fixture_id.
-    """
-    global _betano_cards_api_disabled
-    if not fixture_id or _betano_cards_api_disabled:
-        return None, None
-
-    cache_key = f"{fixture_id}_{palpite_str}_{line_val}"
-    if cache_key in _betano_cards_odds_cache:
-        return _betano_cards_odds_cache[cache_key]
-
-    is_under = 'menos' in (palpite_str or '').lower() or 'under' in (palpite_str or '').lower()
-    target_type = 'under' if is_under else 'over'
-
-    # Se a fixture já teve suas odds buscadas nesta execução, reutiliza os dados da Betano sem nova requisição HTTP
-    if fixture_id in _betano_cards_raw_fixture_cache:
-        items = _betano_cards_raw_fixture_cache[fixture_id]
-    else:
-        api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
-        headers = {
-            'x-apisports-key': api_key,
-            'User-Agent': 'Mozilla/5.0'
-        }
-
-        # Otimizado: 1 única chamada HTTP por partida direcionada à Betano (bookmaker=32)
-        url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
-        items = []
-        try:
-            resp = requests.get(url, headers=headers, timeout=10).json()
-            errs = resp.get('errors')
-            if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
-                print(f"⚠️ [API-Sports Betano Cards] Limite de requisições ou cota diária atingido: {errs}. Ativando Circuit-Breaker para evitar novas chamadas HTTP nesta execução.")
-                _betano_cards_api_disabled = True
-                _betano_cards_odds_cache[cache_key] = (None, None)
-                return None, None
-
-            items = resp.get('response', [])
-            _betano_cards_raw_fixture_cache[fixture_id] = items
-        except Exception as e:
-            print(f"⚠️ [API Betano Cards] Erro ao buscar odd para fixture #{fixture_id}: {e}")
-            _betano_cards_raw_fixture_cache[fixture_id] = []
-        for item in items:
-            for bm in item.get('bookmakers', []):
-                bm_name = str(bm.get('name', '')).strip().upper()
-                bm_id = bm.get('id')
-                if 'BETANO' not in bm_name and bm_id != 32:
-                    continue
-
-                for bet in bm.get('bets', []):
-                    b_id = bet.get('id')
-                    b_name = str(bet.get('name', '')).lower()
-
-                    # Apenas mercado de Total de Cartões do Jogo (Bet ID 80 - Cards Over/Under)
-                    # Ignorar cartões individuais por time (ID 82/83) e handicap asiático de cartões (ID 81)
-                    if b_id == 80 or ('card' in b_name and ('over' in b_name or 'under' in b_name or 'total' in b_name) and not any(t in b_name for t in ['home', 'away', 'team', 'handicap', 'asian'])):
-                        for val in bet.get('values', []):
-                            v_str = str(val.get('value', '')).strip().lower()
-                            try:
-                                v_odd = float(val.get('odd', 0))
-                            except (ValueError, TypeError):
-                                continue
-
-                            if target_type in v_str and str(line_val) in v_str:
-                                if v_odd > 1.0:
-                                    res = (v_odd, 'BETANO')
-                                    _betano_cards_odds_cache[cache_key] = res
-                                    return res
-
-    _betano_cards_odds_cache[cache_key] = (None, None)
-    return None, None
+from cards_engine import (
+    calculate_poisson_under_cdf,
+    calculate_poisson_under_lines,
+    calculate_expected_cards,
+    fetch_betano_real_card_odds,
+    evaluate_best_card_under_line,
+    sync_fixture_and_bet_cards
+)
 
 def criar_apostas_cartoes_diario(target_date_str=None):
     """
@@ -594,136 +455,51 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
         prediction_text = (fix.get('prediction_text') or '').strip()
 
-        suggestions = extract_all_cards_suggestions(prediction_text)
+        # Extrair expectativa de cartões xC do texto ou calcular baseline
+        match_xc = re.search(r'Expectativa:\s*(\d+(?:\.\d+)?)\s*cartões', prediction_text, re.IGNORECASE)
+        if match_xc:
+            exp_cards = float(match_xc.group(1))
+        else:
+            exp_cards = 4.20
 
-        if not suggestions:
-            print(f"🛡️ [Gatekeeper NO_BET / Abstenção] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Predição sem amostragem estatística suficiente.")
-            cancelar_apostas_pendentes_existentes("Predição sem amostragem suficiente")
-            apostas_abstencao += 1
-            continue
+        selected_cand, valid_cands, pred_text, over_cards_prob = evaluate_best_card_under_line(
+            exp_cards=exp_cards,
+            fixture_id=fixture_id,
+            allow_api=True
+        )
 
-        selected_suggestion = None
-        for s_line_val, s_palpite_str, s_status_gk, s_odd_justa, s_prob_poisson, s_ev, s_exp_cards in suggestions:
-            if s_status_gk == 'NO_BET' or not s_palpite_str:
-                continue
-
-            real_odd_betano, odd_source = fetch_betano_real_card_odds(fixture_id, s_palpite_str, s_line_val)
-
-            # Fallback para odd de mercado calculada se a API da Betano estiver indisponível ou sem mercado de cartões no momento
-            if not real_odd_betano or real_odd_betano <= 1.0:
-                if s_odd_justa and s_odd_justa >= 1.40:
-                    real_odd_betano = round(max(1.55, s_odd_justa * 1.08), 2)
-                    odd_source = 'MODEL_FALLBACK'
-                else:
-                    print(f"ℹ️ [Linha Indisponível Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Mercado '{s_palpite_str}' indisponível na Betano. Testando próxima sugestão...")
-                    continue
-
-            min_odd_required = 1.65 if abs(float(s_line_val) - 5.5) < 0.01 else 1.50
-            if real_odd_betano < min_odd_required:
-                print(f"ℹ️ [Odd Baixa < {min_odd_required:.2f}] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Odd Betano ({real_odd_betano:.2f}) para '{s_palpite_str}' é inferior ao mínimo ({min_odd_required:.2f}). Testando próxima opção...")
-                continue
-
-            # Trava de Valor Esperado (+EV): rejeita apostas onde a Odd Betano é inferior à Odd Justa (EV < 0.0%)
-            ev_calc = round(((float(s_prob_poisson) / 100.0) * float(real_odd_betano) - 1.0) * 100.0, 2)
-            if ev_calc < 0.0:
-                print(f"🛡️ [Gatekeeper NO_BET / EV Negativo] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Odd Betano ({real_odd_betano:.2f}) < Odd Justa ({s_odd_justa:.2f}) para '{s_palpite_str}' [EV: {ev_calc:.2f}%]. Entrada descartada por falta de valor de mercado (+EV).")
-                continue
-
-            # Opção válida encontrada na Betano, aprovada pelo Gatekeeper e com +EV positivo!
-            selected_suggestion = (s_line_val, s_palpite_str, s_status_gk, s_odd_justa, s_prob_poisson, real_odd_betano, s_exp_cards, ev_calc)
-            break
-
-        if not selected_suggestion:
+        if not selected_cand:
             print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano ou EV Negativo] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha recomendada possui +EV positivo na Betano com odd adequada.")
             cancelar_apostas_pendentes_existentes("Linha indisponível, sem +EV ou reprovada na Betano")
             apostas_abstencao += 1
             continue
 
-        line_val, palpite_str, status_gk, odd_justa, prob_poisson, odd_val, exp_cards, ev_perc = selected_suggestion
+        # Sincronização atômica Card <-> Aposta com proteção rigorosa para apostas confirmadas (com débito)
+        sync_fixture_and_bet_cards(
+            cursor=cursor,
+            fixture_id=fixture_id,
+            home_team=home_team,
+            away_team=away_team,
+            fixture_date=fixture_date,
+            selected_cand=selected_cand,
+            user_ids=user_ids,
+            prediction_text=pred_text,
+            over_cards_prob=over_cards_prob
+        )
 
-        # Calcula EV percentual final ((Prob * Odd) - 1) * 100
-        if prob_poisson and prob_poisson > 0:
-            ev_perc = round(((prob_poisson / 100.0) * odd_val - 1.0) * 100.0, 2)
-
-        valor_aposta = 10.00
-        ganhos_potenciais = round(valor_aposta * odd_val, 2)
-
-        # Inserir ou Atualizar aposta para cada usuário cadastrado
-        for uid in user_ids:
-            cursor.execute("""
-                SELECT a.id, a.status, a.odd, a.palpite, a.confirmada,
-                       (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
-                FROM apostas a 
-                WHERE a.fixture_id = %s AND a.usuario_id = %s AND a.mercado = 'Total de Cartões'
-            """, (fixture_id, uid))
-            ja_existe = cursor.fetchone()
-
-            if ja_existe:
-                tem_deb = (int(ja_existe.get('tem_debito') or 0) > 0)
-
-                # Regra: Não reprocessar/alterar aposta confirmada (que consta débito efetivado na conta corrente)
-                if tem_deb:
-                    apostas_duplicadas += 1
-                    print(f"🔒 [Aposta Confirmada User #{uid}] ID #{ja_existe['id']} com débito efetivado na conta corrente mantida intacta.")
-                    continue
-
-                if ja_existe['status'] in ('Pendente', 'Cancelada'):
-                    odd_antiga = float(ja_existe.get('odd') or 0.0)
-                    cursor.execute("""
-                        UPDATE apostas SET
-                            palpite = %s,
-                            odd = %s,
-                            odd_justa = %s,
-                            probabilidade_poisson = %s,
-                            ev_percentual = %s,
-                            ganhos_potenciais = %s,
-                            status_gatekeeper = 'APROVADO',
-                            status = 'Pendente',
-                            resultado_detalhado = NULL,
-                            updated_at = NOW()
-                        WHERE id = %s
-                    """, (
-                        palpite_str, odd_val, odd_justa, prob_poisson, ev_perc,
-                        ganhos_potenciais, ja_existe['id']
-                    ))
-                    apostas_atualizadas += 1
-                    print(f"🔄 [Aposta Cartões Atualizada User #{uid}] ID #{ja_existe['id']} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ Odd {odd_val:.2f} (Anterior: {odd_antiga:.2f}, EV: {ev_perc}%)")
-                else:
-                    apostas_duplicadas += 1
-                continue
-
-            cursor.execute("""
-                INSERT INTO apostas (
-                    usuario_id, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
-                    odd_justa, probabilidade_poisson, ev_percentual, status_gatekeeper,
-                    valor_aposta, ganhos_potenciais, status, confirmada, data_hora_jogo, criado_em, updated_at
-                ) VALUES (
-                    %s, %s, %s, %s, 'Total de Cartões', %s, %s,
-                    %s, %s, %s, 'APROVADO',
-                    %s, %s, 'Pendente', 0, %s, NOW(), NOW()
-                )
-            """, (
-                uid, fixture_id, home_team, away_team, palpite_str, odd_val,
-                odd_justa, prob_poisson, ev_perc,
-                valor_aposta, ganhos_potenciais, fixture_date
-            ))
-
-            apostas_criadas += 1
-            novas_apostas_detalhes.append({
-                'usuario_id': uid,
-                'fixture_id': fixture_id,
-                'time_casa': home_team,
-                'time_fora': away_team,
-                'palpite': palpite_str,
-                'odd': odd_val,
-                'odd_justa': odd_justa,
-                'probabilidade_poisson': prob_poisson,
-                'ev_percentual': ev_perc,
-                'valor_aposta': valor_aposta,
-                'ganhos_potenciais': ganhos_potenciais,
-                'data_hora_jogo': fixture_date
-            })
-            print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{cursor.lastrowid} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ Odd {odd_val:.2f} (Prob: {prob_poisson}%, EV: {ev_perc}%)")
+        novas_apostas_detalhes.append({
+            'usuario_id': user_ids[0] if user_ids else 558,
+            'fixture_id': fixture_id,
+            'time_casa': home_team,
+            'time_fora': away_team,
+            'palpite': selected_cand['palpite_str'],
+            'odd': selected_cand['real_odd'],
+            'odd_justa': selected_cand['odd_justa'],
+            'probabilidade_poisson': selected_cand['prob'],
+            'ev_percentual': selected_cand['ev_calc'],
+            'valor_aposta': 10.00,
+            'ganhos_potenciais': round(10.00 * selected_cand['real_odd'], 2),
+        })
 
     print("\n=======================================================")
     print(f"✅ PROCESSAMENTO DE CRIAÇÃO DE APOSTAS CARTÕES UNDER CONCLUÍDO!")

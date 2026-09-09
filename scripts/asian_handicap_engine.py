@@ -1,0 +1,1097 @@
+#!/usr/bin/env python3
+"""
+Módulo Centralizado de Handicap Asiático (Asian Handicap Engine - Single Source of Truth)
+FootballWeb Pipeline
+
+Implementa os quatro princípios matemáticos e operacionais definidos em:
+docs/footballweb/PROCESSO_CRIACAO_PALPITES_HANDICAP_ASIATICO.md:
+1. Modelagem Bivariada de Poisson (P(X=x, Y=y) para x,y in [0..9]);
+2. Varredura Completa de Linhas da Betano (Bookmaker ID 32 - Bet ID 4 e 16);
+3. Dedução Analítica da Odd Justa (Fair Odd);
+4. Gatekeeper com Abstenção Mandatória (NO_BET: +EV% >= 5.0% e Prob. Efetiva >= 48.0%);
+5. Sincronização Atômica Card (fixtures_trends) <-> Aposta (apostas), com proteção
+   estrita e imutabilidade de apostas confirmadas (com débito em conta corrente).
+"""
+
+import os
+import re
+import json
+import math
+import requests
+from datetime import datetime
+
+# Caches em memória para chamadas da API Betano durante o ciclo de execução
+_betano_ah_odds_cache = {}
+_betano_ah_raw_fixture_cache = {}
+_betano_ah_api_disabled = False
+
+
+def get_live_env_vars():
+    env_paths = [
+        "/root/datalake-air-flow-delta/src/footballweb/.env",
+        "/root/datalake-air-flow-delta/.env",
+        "/opt/airflow/.env"
+    ]
+    env_vars = {}
+    for p in env_paths:
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            env_vars[k.strip()] = v.strip().strip("'").strip('"')
+            except Exception:
+                pass
+    return env_vars
+
+
+def calculate_bivariate_poisson_matrix(lambda_h: float, lambda_a: float, max_goals: int = 10):
+    """
+    Gera a matriz de probabilidades conjuntas P(X=x, Y=y) para gols do Mandante (x) e Visitante (y).
+    """
+    matrix = {}
+    total_prob = 0.0
+    for x in range(max_goals):
+        px = (math.pow(lambda_h, x) * math.exp(-lambda_h)) / math.factorial(x)
+        for y in range(max_goals):
+            py = (math.pow(lambda_a, y) * math.exp(-lambda_a)) / math.factorial(y)
+            p = px * py
+            matrix[(x, y)] = p
+            total_prob += p
+
+    if total_prob > 0:
+        for k in matrix:
+            matrix[k] /= total_prob
+
+    return matrix
+
+
+def evaluate_ah_line_poisson(matrix, is_away: bool, line: float, odd_betano: float):
+    """
+    Avalia uma linha de Handicap Asiático a partir da matriz bivariada de Poisson.
+    Calcula P(win), P(half_win), P(push), P(half_loss), P(loss), Odd Justa, Prob. Efetiva e +EV%.
+    """
+    p_win = 0.0
+    p_half_win = 0.0
+    p_push = 0.0
+    p_half_loss = 0.0
+    p_loss = 0.0
+
+    for (x, y), p in matrix.items():
+        diff = (y - x) if is_away else (x - y)
+        adj = diff + line
+
+        if adj > 0.25:
+            p_win += p
+        elif abs(adj - 0.25) < 1e-4:
+            p_half_win += p
+        elif abs(adj) < 1e-4:
+            p_push += p
+        elif abs(adj - (-0.25)) < 1e-4:
+            p_half_loss += p
+        else:
+            p_loss += p
+
+    denom = p_win + (p_half_win / 2.0)
+    numer = 1.0 - (p_push + 0.5 * p_half_loss - 0.5 * p_half_win)
+
+    if denom > 1e-5:
+        odd_justa = numer / denom
+    else:
+        odd_justa = 99.0
+
+    odd_justa = max(1.01, min(99.0, odd_justa))
+    prob_eff = (100.0 / odd_justa) if odd_justa > 0 else 0.0
+    ev_percent = ((odd_betano / odd_justa) - 1.0) * 100.0
+
+    return {
+        'p_win': p_win * 100.0,
+        'p_half_win': p_half_win * 100.0,
+        'p_push': p_push * 100.0,
+        'p_half_loss': p_half_loss * 100.0,
+        'p_loss': p_loss * 100.0,
+        'odd_justa': round(odd_justa, 2),
+        'prob_eff': round(prob_eff, 1),
+        'ev_percent': round(ev_percent, 1)
+    }
+
+
+def determine_bet_side(home_team: str, away_team: str, ah_suggestion: str) -> bool:
+    """
+    Determina se a linha de AH pertence ao Visitante (True) ou Mandante (False).
+    """
+    if not ah_suggestion:
+        return False
+    ah_low = ah_suggestion.lower().strip()
+    h_low = (home_team or '').lower().strip()
+    a_low = (away_team or '').lower().strip()
+
+    if a_low and a_low in ah_low:
+        return True
+    if h_low and h_low in ah_low:
+        return False
+    if 'visitante' in ah_low or 'fora' in ah_low or 'away' in ah_low:
+        return True
+    return False
+
+
+def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
+    """
+    Busca TODAS as linhas ativas de Handicap Asiático (Bet ID 4) e Draw No Bet (Bet ID 16)
+    oferecidas pela Betano (Bookmaker ID 32) para a fixture.
+    """
+    global _betano_ah_api_disabled
+    if not fixture_id or _betano_ah_api_disabled:
+        return []
+
+    if fixture_id in _betano_ah_odds_cache:
+        return _betano_ah_odds_cache[fixture_id]
+
+    available_lines = []
+
+    if fixture_id in _betano_ah_raw_fixture_cache:
+        items = _betano_ah_raw_fixture_cache[fixture_id]
+    else:
+        env = get_live_env_vars()
+        api_key = env.get('FOOTBALL_API_KEY') or env.get('API_SPORTS_KEY') or os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
+        headers = {
+            'x-apisports-key': api_key,
+            'User-Agent': 'Mozilla/5.0'
+        }
+        url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
+        items = []
+        try:
+            resp = requests.get(url, headers=headers, timeout=10).json()
+            errs = resp.get('errors')
+            if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+                print(f"⚠️ [API-Sports Betano AH] Limite de requisições atingido: {errs}. Ativando Circuit-Breaker.")
+                _betano_ah_api_disabled = True
+                _betano_ah_odds_cache[fixture_id] = []
+                return []
+            items = resp.get('response', [])
+            _betano_ah_raw_fixture_cache[fixture_id] = items
+        except Exception as e:
+            print(f"⚠️ [API Betano AH] Erro ao buscar cotações para fixture #{fixture_id}: {e}")
+            _betano_ah_raw_fixture_cache[fixture_id] = []
+
+    for item in items:
+        for bm in item.get('bookmakers', []):
+            bm_name = str(bm.get('name', '')).strip().upper()
+            bm_id = bm.get('id')
+            if 'BETANO' not in bm_name and bm_id != 32:
+                continue
+
+            for bet in bm.get('bets', []):
+                b_id = bet.get('id')
+                b_name = str(bet.get('name', '')).lower()
+
+                # Ignora estritamente submercados parciais e outros tipos (escanteios, cartões, 1º/2º tempo)
+                if any(term in b_name for term in ['half', '1st', '2nd', 'corner', 'card', 'cart', 'tempo', 'intervalo']):
+                    continue
+
+                # Bet ID 4 = Asian Handicap Full Time (Gols)
+                if b_id == 4 or 'asian handicap' in b_name or 'handicap asiático' in b_name:
+                    for val in bet.get('values', []):
+                        v_str = str(val.get('value', '')).strip()
+                        try:
+                            v_odd = float(val.get('odd', 0))
+                        except (ValueError, TypeError):
+                            continue
+
+                        if v_odd <= 1.0:
+                            continue
+
+                        m_line = re.search(r'([+-]?\d+(?:\.\d+)?)', v_str)
+                        if m_line:
+                            is_away = ('away' in v_str.lower() or away_team.lower() in v_str.lower())
+                            try:
+                                line_num = float(m_line.group(1))
+                            except Exception:
+                                continue
+
+                            target_team = away_team if is_away else home_team
+                            sign_str = f"{line_num:+.2f}".rstrip('0').rstrip('.')
+                            if line_num == 0:
+                                sign_str = "0.0"
+                            palpite_fmt = f"{target_team} {sign_str} AH"
+
+                            available_lines.append({
+                                'team': 'Away' if is_away else 'Home',
+                                'target_team': target_team,
+                                'is_away': is_away,
+                                'line': line_num,
+                                'palpite_str': palpite_fmt,
+                                'odd': v_odd,
+                                'raw_value': v_str,
+                                'source': 'BETANO'
+                            })
+
+                # Draw No Bet (Handicap 0.0) - Bet ID 2 (Home/Away) ou nome explícito
+                elif b_id == 2 or 'draw no bet' in b_name or 'empate anula' in b_name:
+                    if b_id == 16 or 'total' in b_name:
+                        continue
+                    for val in bet.get('values', []):
+                        v_str = str(val.get('value', '')).strip()
+                        try:
+                            v_odd = float(val.get('odd', 0))
+                        except (ValueError, TypeError):
+                            continue
+
+                        if v_odd <= 1.0:
+                            continue
+
+                        is_away = ('away' in v_str.lower() or away_team.lower() in v_str.lower())
+                        target_team = away_team if is_away else home_team
+                        available_lines.append({
+                            'team': 'Away' if is_away else 'Home',
+                            'target_team': target_team,
+                            'is_away': is_away,
+                            'line': 0.0,
+                            'palpite_str': f"{target_team} 0.0 AH",
+                            'odd': v_odd,
+                            'raw_value': v_str,
+                            'source': 'BETANO'
+                        })
+
+    _betano_ah_odds_cache[fixture_id] = available_lines
+    return available_lines
+
+
+def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: float, odd_away: float, ah_suggestion: str = None):
+    """
+    Gera linhas simuladas estruturadas quando a API da Betano estiver momentaneamente
+    fora do ar ou sem cotações de AH abertas, permitindo avaliação consistente de Poisson.
+    Restrito exclusivamente à janela defensiva anti-empate: {0.0, 0.5, 0.75, 1.0, 1.25, 1.5}.
+    """
+    lines = []
+    oh = float(odd_home or 2.0)
+    oa = float(odd_away or 2.0)
+
+    # Linha base sugerida se existir e pertencer à janela
+    if ah_suggestion and not any(term in ah_suggestion.lower() for term in ['sem entrada', 'abstenção', 'no_bet', 'indisponível']):
+        is_away_p = determine_bet_side(home_team, away_team, ah_suggestion)
+        m_p = re.search(r'([+-]?\d+(?:\.\d+)?)', ah_suggestion)
+        l_p = float(m_p.group(1)) if m_p else 0.0
+        if l_p in {0.0, 0.5, 0.75, 1.0, 1.25, 1.5}:
+            raw_ref = oa if is_away_p else oh
+            target_t = away_team if is_away_p else home_team
+            if l_p == 0.0:
+                est_odd = round(max(1.30, min(1.90, 1.0 + (raw_ref - 1.0) * 0.65)), 2)
+            elif l_p == 0.5:
+                est_odd = round(max(1.30, min(1.85, 1.0 + (raw_ref - 1.0) * 0.35)), 2)
+            elif l_p == 0.75:
+                est_odd = round(max(1.25, min(1.70, 1.0 + (raw_ref - 1.0) * 0.28)), 2)
+            elif l_p == 1.0:
+                est_odd = round(max(1.20, min(1.60, 1.0 + (raw_ref - 1.0) * 0.22)), 2)
+            else:
+                est_odd = round(max(1.15, min(1.50, 1.0 + (raw_ref - 1.0) * 0.18)), 2)
+
+            lines.append({
+                'team': 'Away' if is_away_p else 'Home',
+                'target_team': target_t,
+                'is_away': is_away_p,
+                'line': l_p,
+                'palpite_str': f"{target_t} {l_p:+.2f} AH" if l_p > 0 else f"{target_t} 0.0 AH",
+                'odd': est_odd,
+                'raw_value': f"{target_t} {l_p:+.2f}",
+                'source': 'TRENDS_FALLBACK'
+            })
+
+    # Adicionar linhas padrão da janela defensiva anti-empate para Mandante e Visitante
+    for (is_away, t_team, ref_odd) in [(False, home_team, oh), (True, away_team, oa)]:
+        for (l_val, factor) in [(0.0, 0.65), (0.5, 0.35), (0.75, 0.28), (1.0, 0.22), (1.25, 0.18), (1.5, 0.15)]:
+            calc_odd = round(max(1.30, min(2.35, 1.0 + (ref_odd - 1.0) * factor)), 2)
+            lines.append({
+                'team': 'Away' if is_away else 'Home',
+                'target_team': t_team,
+                'is_away': is_away,
+                'line': l_val,
+                'palpite_str': f"{t_team} {l_val:+.2f} AH" if l_val > 0 else f"{t_team} 0.0 AH",
+                'odd': calc_odd,
+                'raw_value': f"{t_team} {l_val:+.2f}",
+                'source': 'POISSON_SYNTHETIC'
+            })
+
+    return lines
+
+
+def evaluate_and_select_best_ah_candidate(
+    poisson_matrix: dict,
+    candidate_lines: list,
+    home_team: str,
+    away_team: str,
+    odd_home: float,
+    odd_away: float,
+    min_ev: float = 5.0,
+    min_prob: float = 48.0
+):
+    """
+    Aplica o crivo rigoroso do Gatekeeper do Handicap Asiático em todas as linhas candidatas:
+    - Janela estrita de linhas permitidas: {0.0, 0.5, 0.75, 1.0, 1.25, 1.5} (anti-empate)
+    - Faixa de odd segura: 1.30 a 2.35
+    - Trava de coerência: favorito 1X2 só pode concorrer a 0.0 (DNB)
+    - Gatekeeper: EV% >= min_ev (5.0%) e Probabilidade Efetiva >= min_prob (48.0%)
+    - Score de Valor = EV% * (Prob / 100.0)
+    """
+    allowed_lines = {0.0, 0.5, 0.75, 1.0, 1.25, 1.5}
+    approved = []
+    raw_h_odd = float(odd_home or 2.0)
+    raw_a_odd = float(odd_away or 2.0)
+
+    for cand in candidate_lines:
+        c_line = cand['line']
+        c_odd = cand['odd']
+        c_is_away = cand['is_away']
+
+        # Filtro 1: Linhas permitidas estritamente na janela anti-empate
+        if c_line not in allowed_lines:
+            continue
+
+        # Filtro 2: Faixa de odd segura (mínimo 1.30)
+        if c_odd < 1.30 or c_odd > 2.35:
+            continue
+
+        # Filtro 3: Inversão de Handicap (favorito 1X2 não recebe handicap positivo > 0.0)
+        is_cand_fav = (raw_a_odd < raw_h_odd) if c_is_away else (raw_h_odd < raw_a_odd)
+        if is_cand_fav and c_line > 0.0:
+            continue
+
+        # Avaliação com a Matriz de Poisson
+        res = evaluate_ah_line_poisson(poisson_matrix, c_is_away, c_line, c_odd)
+        ev = res['ev_percent']
+        prob_eff = res['prob_eff']
+
+        if ev >= min_ev and prob_eff >= min_prob:
+            score = ev * (prob_eff / 100.0)
+            cand_copy = dict(cand)
+            cand_copy['eval'] = res
+            cand_copy['score'] = score
+            approved.append(cand_copy)
+
+    if not approved:
+        return None, []
+
+    approved.sort(key=lambda x: x['score'], reverse=True)
+    return approved[0], approved
+
+
+def calculate_unified_handicap_recommendation(
+    fixture_dict: dict,
+    betano_lines: list = None,
+    allow_api_fetch: bool = True,
+    cursor = None
+):
+    """
+    Função Mestre Unificada para Ingestão, Criação de Apostas e Auditoria 'Checar Odds Agora'.
+    Retorna: (status, palpite_sugerido, confianca, reasoning, best_cand, approved_list)
+    """
+    home_team = (fixture_dict.get('home_team') or '').strip()
+    away_team = (fixture_dict.get('away_team') or '').strip()
+    fixture_id = fixture_dict.get('fixture_id')
+    reasoning = fixture_dict.get('ah_reasoning') or ''
+
+    # 0. Verificação ESTRITA e MANDATÓRIA de Amostragem Completa de 5 Jogos (U5J)
+    # Exige que rigorosamente AMBAS as equipes possuam 5 partidas consolidadas em seu histórico recente.
+    h_matches_cnt = None
+    a_matches_cnt = None
+
+    u_json = {}
+    if '|| U5J_DATA:' in reasoning:
+        try:
+            u_part = reasoning.split('|| U5J_DATA:')[1].split('||')[0].strip()
+            u_json = json.loads(u_part)
+            if 'home' in u_json and isinstance(u_json['home'], dict):
+                h_matches_cnt = len(u_json['home'].get('matches', []))
+            if 'away' in u_json and isinstance(u_json['away'], dict):
+                a_matches_cnt = len(u_json['away'].get('matches', []))
+        except Exception:
+            pass
+
+    # Se a amostragem estiver ausente ou incompleta (< 5 jogos) na string anterior, tenta obter via banco/cache/API
+    if (h_matches_cnt is None or a_matches_cnt is None or h_matches_cnt < 5 or a_matches_cnt < 5) and cursor:
+        try:
+            from football_ingest_trends import fetch_team_last5_form
+            h_id = fixture_dict.get('home_team_id')
+            a_id = fixture_dict.get('away_team_id')
+            l_id = fixture_dict.get('league_id')
+            
+            if h_matches_cnt is None or h_matches_cnt < 5:
+                h_form = fetch_team_last5_form(cursor, home_team, h_id, l_id)
+                if h_form and isinstance(h_form, dict) and 'matches' in h_form:
+                    h_matches_cnt = len(h_form['matches'])
+                    if 'home' not in u_json or not isinstance(u_json.get('home'), dict):
+                        u_json['home'] = {}
+                    u_json['home'] = h_form
+
+            if a_matches_cnt is None or a_matches_cnt < 5:
+                a_form = fetch_team_last5_form(cursor, away_team, a_id, l_id)
+                if a_form and isinstance(a_form, dict) and 'matches' in a_form:
+                    a_matches_cnt = len(a_form['matches'])
+                    if 'away' not in u_json or not isinstance(u_json.get('away'), dict):
+                        u_json['away'] = {}
+                    u_json['away'] = a_form
+        except Exception:
+            pass
+
+    if h_matches_cnt is not None and a_matches_cnt is not None:
+        if h_matches_cnt < 5 or a_matches_cnt < 5:
+            lacking = []
+            if h_matches_cnt < 5:
+                lacking.append(f"{home_team} ({h_matches_cnt}J)")
+            if a_matches_cnt < 5:
+                lacking.append(f"{away_team} ({a_matches_cnt}J)")
+            lacking_str = ", ".join(lacking)
+            reason_block = (
+                f"🛡️ [Gatekeeper AH NO_BET / Amostragem Insuficiente] Histórico recente incompleto (< 5 partidas consolidadas para {lacking_str}). "
+                f"Entrada de Handicap bloqueada pelo Gatekeeper por segurança estatística e integridade amostral."
+            )
+            return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, reason_block, None, []
+
+    if (h_matches_cnt is None or a_matches_cnt is None) and any(b in reasoning.lower() for b in [
+        'amostragem insuficiente', 'histórico indisponível', 'histórico ausente', 
+        '< 5 partidas consolidadas', 'amostragem incompleta', 'dados insuficientes'
+    ]):
+        reason_block = f"🛡️ [Gatekeeper AH NO_BET / Amostragem Insuficiente] Histórico U5J insuficiente ou ausente para {home_team} vs {away_team}. Abstenção mandatória."
+        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, reason_block, None, []
+
+    # Extração de xG ajustado derivado de U5J
+    xg_h = float(fixture_dict.get('xg_home') or 0.0)
+    xg_a = float(fixture_dict.get('xg_away') or 0.0)
+    if xg_h <= 0.1 or xg_a <= 0.1:
+        m_h = re.search(r'\(Em Casa\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
+        m_a = re.search(r'\(Fora\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
+        if m_h:
+            xg_h = float(m_h.group(1))
+        if m_a:
+            xg_a = float(m_a.group(1))
+
+    # Projeção de xG diretamente a partir dos 5 jogos oficiais de U5J se xg_h ou xg_a estiverem zerados
+    if (xg_h <= 0.1 or xg_a <= 0.1) and 'home' in u_json and 'away' in u_json:
+        h_m = u_json['home'].get('matches', [])
+        a_m = u_json['away'].get('matches', [])
+        h_sc, h_con = [], []
+        a_sc, a_con = [], []
+        for m in h_m:
+            sc = m.get('score', '')
+            if 'x' in sc:
+                try:
+                    p = sc.split('x')
+                    h_sc.append(int(p[0]))
+                    h_con.append(int(p[1]))
+                except (ValueError, TypeError):
+                    pass
+        for m in a_m:
+            sc = m.get('score', '')
+            if 'x' in sc:
+                try:
+                    p = sc.split('x')
+                    a_sc.append(int(p[0]))
+                    a_con.append(int(p[1]))
+                except (ValueError, TypeError):
+                    pass
+        if h_sc and a_con:
+            xg_h = round((sum(h_sc) / len(h_sc) + sum(a_con) / len(a_con)) / 2.0, 2)
+        if a_sc and h_con:
+            xg_a = round((sum(a_sc) / len(a_sc) + sum(h_con) / len(h_con)) / 2.0, 2)
+
+    if xg_h <= 0.1 or xg_a <= 0.1:
+        reason_block = f"🛡️ [Gatekeeper AH NO_BET / Sem xG] Métricas de xG derivadas de U5J ausentes para {home_team} vs {away_team}. Abstenção mandatória."
+        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, reason_block, None, []
+
+    # 1. Matriz de Poisson
+    poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
+
+    # 2. Obtenção de linhas REAIS ativas na Betano (Bookmaker ID 32)
+    if betano_lines is None:
+        if allow_api_fetch and fixture_id:
+            betano_lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
+        else:
+            betano_lines = []
+
+    # Se a Betano não possui linhas abertas de Handicap Asiático, abstenção mandatória (sem odds sintéticas)
+    if not betano_lines:
+        reason_no_odds = f"🛡️ [Gatekeeper AH NO_BET / Sem Odd Betano] Mercado de Handicap Asiático indisponível ou fechado na Betano (Bookmaker ID 32) para {home_team} vs {away_team}. Abstenção mandatória."
+        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, reason_no_odds, None, []
+
+    odd_h = float(fixture_dict.get('odd_home') or 2.0)
+    odd_a = float(fixture_dict.get('odd_away') or 2.0)
+
+    # 3. Avaliação do Gatekeeper
+    best_cand, approved = evaluate_and_select_best_ah_candidate(
+        poisson_matrix, betano_lines, home_team, away_team, odd_h, odd_a
+    )
+
+    if not best_cand:
+        sug = "Sem Entrada (Abstenção)"
+        conf = 50.0
+        reason = (
+            f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} -> "
+            f"Nenhuma linha da Betano atingiu o limiar de +EV >= 5.0% e Prob. Efetiva >= 48.0%. "
+            f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}. Abstenção mandatória."
+        )
+        return 'NO_BET', sug, conf, reason, None, []
+
+    eval_res = best_cand['eval']
+    selected_palpite = best_cand['palpite_str']
+    odd_val = best_cand['odd']
+    odd_justa = eval_res['odd_justa']
+    prob_poisson = eval_res['prob_eff']
+    ev_perc = eval_res['ev_percent']
+    conf = round(min(88.0, 55.0 + ev_perc * 0.5), 1)
+
+    detalhe_calculo = (
+        f"🎯 GATEKEEPER AH APROVADO (+EV {ev_perc:+.1f}%) | "
+        f"Odd Betano {odd_val:.2f} vs Odd Justa {odd_justa:.2f} (Prob. Efetiva: {prob_poisson:.1f}%) | "
+        f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team} | "
+        f"Desfechos: Vitória {eval_res['p_win']:.1f}%, Meio-Green {eval_res['p_half_win']:.1f}%, "
+        f"Push {eval_res['p_push']:.1f}%, Meio-Red {eval_res['p_half_loss']:.1f}%, Red {eval_res['p_loss']:.1f}%."
+    )
+
+    compound_r = compose_compound_ah_reasoning(
+        cursor=cursor,
+        fixture_id=fixture_id,
+        main_calc=detalhe_calculo,
+        suggestion=selected_palpite,
+        home_team=home_team,
+        away_team=away_team,
+        home_team_id=fixture_dict.get('home_team_id'),
+        away_team_id=fixture_dict.get('away_team_id'),
+        existing_reasoning=reasoning
+    )
+
+    return 'APROVADO', selected_palpite, conf, compound_r, best_cand, approved
+
+
+def get_team_u5j_from_db(cursor, team_id, team_name):
+    """
+    Busca no MySQL local os últimos 5 jogos FT consolidados de uma equipe para alimentar o card U5J.
+    """
+    matches = []
+    seen = set()
+    if cursor and team_id:
+        try:
+            cursor.execute("""
+                SELECT fixture_id, fixture_date, home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, league_id, league_name
+                FROM fixtures_trends
+                WHERE status IN ('FT', 'AET', 'PEN')
+                  AND goals_home IS NOT NULL
+                  AND goals_away IS NOT NULL
+                  AND (home_team_id = %s OR away_team_id = %s)
+                  AND (league_id NOT IN (667, 10) AND (league_name IS NULL OR (LOWER(league_name) NOT LIKE '%%friendl%%' AND LOWER(league_name) NOT LIKE '%%amistoso%%')))
+                ORDER BY fixture_date DESC
+                LIMIT 15
+            """, (team_id, team_id))
+            for r in cursor.fetchall():
+                fid = r.get('fixture_id')
+                if fid in seen:
+                    continue
+                seen.add(fid)
+                is_home = (int(r['home_team_id']) == int(team_id)) if r.get('home_team_id') else (str(r.get('home_team') or '').lower() == str(team_name or '').lower())
+                gh = int(r['goals_home']) if r.get('goals_home') is not None else 0
+                ga = int(r['goals_away']) if r.get('goals_away') is not None else 0
+                opp = r.get('away_team') if is_home else r.get('home_team')
+                fdate = r.get('fixture_date')
+                dt_str = fdate.strftime("%d/%m") if hasattr(fdate, 'strftime') else (str(fdate)[:10] if fdate else "")
+                if is_home:
+                    res = "V" if gh > ga else ("E" if gh == ga else "D")
+                    sc = f"{gh}x{ga}"
+                else:
+                    res = "V" if ga > gh else ("E" if ga == gh else "D")
+                    sc = f"{ga}x{gh}"
+                matches.append({
+                    "opponent": opp,
+                    "score": sc,
+                    "result": res,
+                    "is_home": is_home,
+                    "date": dt_str,
+                    "fixture_id": fid
+                })
+                if len(matches) >= 5:
+                    break
+        except Exception as e:
+            print(f"⚠️ [U5J DB Fetch] Erro ao buscar últimos 5 jogos de '{team_name}' (#{team_id}): {e}")
+
+    # Fallback na tabela team_last5_cache se o fixtures_trends tiver menos de 5 partidas
+    if len(matches) < 5 and cursor and team_id:
+        try:
+            cursor.execute("SELECT form_json FROM team_last5_cache WHERE team_id = %s", (team_id,))
+            c_row = cursor.fetchone()
+            if c_row and c_row.get('form_json'):
+                c_matches = json.loads(c_row['form_json']) if isinstance(c_row['form_json'], str) else c_row['form_json']
+                if isinstance(c_matches, list):
+                    for cm in c_matches:
+                        c_opp = cm.get('opponent')
+                        c_dt = str(cm.get('date', '')).strip()
+                        c_sc = str(cm.get('score', '')).strip().replace('-', 'x')
+                        is_dup = False
+                        for m in matches:
+                            m_dt = str(m.get('date', '')).strip()
+                            m_sc = str(m.get('score', '')).strip().replace('-', 'x')
+                            m_opp = str(m.get('opponent', '')).strip().lower()
+                            if c_dt and m_dt and (c_dt == m_dt or c_dt.startswith(m_dt) or m_dt.startswith(c_dt)):
+                                is_dup = True
+                                break
+                            if m_opp == str(c_opp).strip().lower() and m_sc and c_sc and m_sc == c_sc:
+                                is_dup = True
+                                break
+                        if is_dup:
+                            continue
+                        dt = str(cm.get('date', ''))
+                        if '/' in dt and len(dt) > 5:
+                            dt = '/'.join(dt.split('/')[:2])
+                        matches.append({
+                            "opponent": c_opp,
+                            "score": cm.get('score'),
+                            "result": cm.get('result'),
+                            "is_home": cm.get('is_home'),
+                            "date": dt,
+                            "fixture_id": cm.get('fixture_id')
+                        })
+                        if len(matches) >= 5:
+                            break
+        except Exception:
+            pass
+
+    num_v = sum(1 for m in matches if m.get("result") == "V")
+    num_e = sum(1 for m in matches if m.get("result") == "E")
+    num_d = sum(1 for m in matches if m.get("result") == "D")
+    pts = (num_v * 3) + num_e
+    txt = f"{num_v}V-{num_e}E-{num_d}D ({pts} pts)" if matches else "Não localizado (0 pts)"
+    return {
+        "v": num_v,
+        "e": num_e,
+        "d": num_d,
+        "pts": pts,
+        "text": txt,
+        "matches": matches
+    }
+
+
+def build_natural_language_explanation(suggestion, home_team, away_team):
+    """
+    Gera a explicação detalhada em linguagem natural para o card do dashboard.
+    """
+    sug_str = str(suggestion or '')
+    if "0.0" in sug_str or "Empate Anula" in sug_str or "+00" in sug_str or "+ 00" in sug_str:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav}: Você GANHA 100% da simulação de aposta (Lucro Total).\n"
+            f"⚪ Empate: Simulação de Aposta ANULADA (100% Reembolso).\n"
+            f"🔴 Vitória do {team_opp}: Simulação de Aposta PERDIDA."
+        )
+    elif "+0.5" in sug_str:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav} ou Empate: Você GANHA 100% da aposta (Dupla Chance).\n"
+            f"🔴 Vitória do {team_opp}: Aposta PERDIDA."
+        )
+    elif "-0.5" in sug_str:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav}: Você GANHA 100% da aposta (Vitória Simples).\n"
+            f"🔴 Empate ou Vitória do {team_opp}: Aposta PERDIDA."
+        )
+    elif "+0.75" in sug_str:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav} ou Empate: GANHA 100% da Aposta.\n"
+            f"🟡 Derrota do {team_fav} por 1 gol exato: PERDE apenas 50% da aposta.\n"
+            f"🔴 Derrota por 2+ gols: Aposta PERDIDA."
+        )
+    elif "-0.75" in sug_str:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav} por 2+ gols: GANHA 100% do Lucro.\n"
+            f"🟡 Vitória do {team_fav} por 1 gol exato: GANHA 50% do Lucro + 100% da Aposta.\n"
+            f"🔴 Empate ou Vitória do {team_opp}: Aposta PERDIDA."
+        )
+    elif "+1.0" in sug_str:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav} ou Empate: GANHA 100% da Aposta.\n"
+            f"🟡 Derrota do {team_fav} por 1 gol exato: 100% de REEMBOLSO do valor apostado.\n"
+            f"🔴 Derrota por 2+ gols: Aposta PERDIDA."
+        )
+    elif "-1.0" in sug_str:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav} por 2+ gols: GANHA 100% do Lucro.\n"
+            f"🟡 Vitória do {team_fav} por 1 gol exato: 100% de REEMBOLSO do valor apostado.\n"
+            f"🔴 Empate ou Vitória do {team_opp}: Aposta PERDIDA."
+        )
+    elif "+1.25" in sug_str:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav} ou Empate: GANHA 100% da aposta.\n"
+            f"🟡 Derrota do {team_fav} por 1 gol exato: PERDE apenas 50% da aposta e recupera os outros 50%.\n"
+            f"🔴 Derrota por 2+ gols: Aposta PERDIDA."
+        )
+    elif "+1.5" in sug_str:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav}, Empate ou Derrota por 1 gol exato: Você GANHA 100% da aposta.\n"
+            f"🔴 Derrota do {team_fav} por 2 ou mais gols: Aposta PERDIDA."
+        )
+    elif "-0.25" in sug_str:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav}: Você GANHA 100% da aposta.\n"
+            f"🟡 Empate: PERDE 50% da aposta e recupera os outros 50%.\n"
+            f"🔴 Vitória do {team_opp}: Aposta PERDIDA."
+        )
+    elif "+0.25" in sug_str:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
+        return (
+            f"🟢 Vitória do {team_fav}: Você GANHA 100% da aposta.\n"
+            f"🟢 Empate: GANHA 50% do Lucro + 100% da aposta de volta.\n"
+            f"🔴 Vitória do {team_opp}: Aposta PERDIDA."
+        )
+    else:
+        return (
+            f"🟢 Vitória do {home_team}: Aposta Coberta.\n"
+            f"⚪ Empate: Devolução ou ajuste conforme a linha.\n"
+            f"🔴 Vitória do {away_team}: Aposta Perdida."
+        )
+
+
+def compose_compound_ah_reasoning(
+    cursor,
+    fixture_id: int,
+    main_calc: str,
+    suggestion: str,
+    home_team: str,
+    away_team: str,
+    home_team_id: int = None,
+    away_team_id: int = None,
+    existing_reasoning: str = None
+) -> str:
+    """
+    Constrói e garante a integridade do formato composto de fixtures_trends.ah_reasoning:
+    f"{main_calc} || EXPLICACAO: {nl_exp} || MOTIVACAO: {nl_mot} || MEMÓRIA DE CÁLCULO || {calc_details} || U5J_DATA: {u5j_json_str}"
+
+    Preserva rigorosamente a lista de jogos consolidados (U5J) e explicações em linguagem natural,
+    reconstruindo o payload JSON via MySQL caso tenha sido corrompido ou sobrescrito.
+    """
+    u5j_json_str = None
+    existing_motivation = None
+
+    if existing_reasoning:
+        if "|| U5J_DATA:" in existing_reasoning:
+            try:
+                u_part = existing_reasoning.split("|| U5J_DATA:")[1].split("||")[0].strip()
+                parsed_u = json.loads(u_part)
+                if (parsed_u.get("home", {}).get("matches") or parsed_u.get("away", {}).get("matches")):
+                    u5j_json_str = u_part
+            except Exception:
+                u5j_json_str = None
+
+        if "|| MOTIVACAO:" in existing_reasoning:
+            try:
+                existing_motivation = existing_reasoning.split("|| MOTIVACAO:")[1].split("||")[0].strip()
+            except Exception:
+                existing_motivation = None
+
+    if not u5j_json_str:
+        if cursor:
+            if not home_team_id or not away_team_id:
+                try:
+                    cursor.execute("SELECT home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+                    row_f = cursor.fetchone()
+                    if row_f:
+                        home_team_id = row_f.get("home_team_id")
+                        away_team_id = row_f.get("away_team_id")
+                except Exception:
+                    pass
+
+            h_u5j = get_team_u5j_from_db(cursor, home_team_id, home_team)
+            a_u5j = get_team_u5j_from_db(cursor, away_team_id, away_team)
+            u5j_json_str = json.dumps({"home": h_u5j, "away": a_u5j}, ensure_ascii=False)
+        else:
+            u5j_json_str = json.dumps({
+                "home": {"v": 0, "e": 0, "d": 0, "pts": 0, "text": "Aguardando", "matches": []},
+                "away": {"v": 0, "e": 0, "d": 0, "pts": 0, "text": "Aguardando", "matches": []}
+            }, ensure_ascii=False)
+
+    nl_exp = build_natural_language_explanation(suggestion, home_team, away_team)
+    nl_mot = existing_motivation or "🎯 Fator Crucial: Alinhamento estatístico da modelagem Poisson (+EV) com proteção rigorosa contra empates na Betano."
+    calc_details = main_calc
+
+    full_reasoning = f"{main_calc} || EXPLICACAO: {nl_exp} || MOTIVACAO: {nl_mot} || MEMÓRIA DE CÁLCULO || {calc_details} || U5J_DATA: {u5j_json_str}"
+    return full_reasoning
+
+
+def sync_fixture_and_bet_handicap(
+    cursor,
+    fixture_id: int,
+    home_team: str,
+    away_team: str,
+    fixture_date,
+    selected_palpite: str,
+    odd_val: float,
+    odd_justa: float,
+    prob_poisson: float,
+    ev_perc: float,
+    detalhe_calculo: str,
+    user_ids: list,
+    confirmada_val: int = 0
+):
+    """
+    Sincroniza atômica e simultaneamente o Card (fixtures_trends) e a Aposta (apostas).
+    TRAVA MANDATÓRIA DE PROTEÇÃO FINANCEIRA:
+    - Se qualquer aposta para o usuário tiver confirmada = 1 ou constar débito em conta corrente (DEBITO_APOSTA),
+      a aposta é MANTIDA INTACTA (imutável) e não é sobrescrita.
+    - Se a aposta for pendente (não confirmada e sem débito), atualiza a aposta E atualiza fixtures_trends.
+    """
+    valor_aposta = 10.00
+    ganhos_potenciais = round(valor_aposta * odd_val, 2)
+    has_confirmed_bet = False
+
+    for uid in user_ids:
+        cursor.execute("""
+            SELECT a.id, a.palpite, a.confirmada,
+                   (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
+            FROM apostas a
+            WHERE a.fixture_id = %s AND a.usuario_id = %s AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
+        """, (fixture_id, uid))
+        ja_existe = cursor.fetchone()
+
+        if ja_existe:
+            tem_debito = (int(ja_existe.get('tem_debito') or 0) > 0)
+            is_conf = (int(ja_existe.get('confirmada') or 0) == 1) or tem_debito
+            if is_conf:
+                has_confirmed_bet = True
+                print(f"🔒 [Aposta Confirmada Mantida User #{uid}] ID #{ja_existe['id']} com confirmação/débito financeiro mantida intacta.")
+                continue
+
+            # Atualizar aposta pendente não confirmada
+            cursor.execute("""
+                UPDATE apostas SET
+                    palpite = %s,
+                    odd = %s,
+                    odd_justa = %s,
+                    probabilidade_poisson = %s,
+                    ev_percentual = %s,
+                    status_gatekeeper = 'APROVADO',
+                    ganhos_potenciais = %s,
+                    resultado_detalhado = %s,
+                    status = 'Pendente',
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (selected_palpite, odd_val, odd_justa, prob_poisson, ev_perc, ganhos_potenciais, detalhe_calculo, ja_existe['id']))
+            print(f"🔄 [Aposta AH Atualizada User #{uid}] ID #{ja_existe['id']} | Palpite: '{selected_palpite}' @ {odd_val:.2f}")
+        else:
+            # Inserir nova aposta
+            cursor.execute("""
+                INSERT INTO apostas (
+                    usuario_id, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
+                    odd_justa, probabilidade_poisson, ev_percentual,
+                    valor_aposta, ganhos_potenciais, status_gatekeeper, status, confirmada, data_hora_jogo, resultado_detalhado, criado_em, updated_at
+                ) VALUES (
+                    %s, %s, %s, %s, 'Handicap Asiático', %s, %s,
+                    %s, %s, %s,
+                    %s, %s, 'APROVADO', 'Pendente', %s, %s, %s, NOW(), NOW()
+                )
+            """, (
+                uid, fixture_id, home_team, away_team, selected_palpite, odd_val,
+                odd_justa, prob_poisson, ev_perc,
+                valor_aposta, ganhos_potenciais, confirmada_val, fixture_date,
+                detalhe_calculo
+            ))
+            aposta_id = cursor.lastrowid
+            print(f"🟢 [Aposta AH Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{selected_palpite}' @ {odd_val:.2f}")
+
+            if confirmada_val == 1:
+                cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid,))
+                u_row = cursor.fetchone()
+                s_ant = float(u_row['saldo_conta_corrente'] or 0.0) if u_row else 0.0
+                s_post = round(s_ant - valor_aposta, 2)
+                desc_deb = f"Débito Aposta #{aposta_id} ({home_team} x {away_team} - {selected_palpite})"
+                cursor.execute("""
+                    INSERT INTO conta_corrente (
+                        usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
+                    ) VALUES (
+                        %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, NOW()
+                    )
+                """, (uid, aposta_id, desc_deb, valor_aposta, s_ant, s_post))
+                cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid))
+
+    # Sincroniza fixtures_trends com o palpite aprovado (se não houver aposta confirmada conflitante)
+    if not has_confirmed_bet:
+        cursor.execute("SELECT ah_reasoning, home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+        cur_f = cursor.fetchone()
+        existing_r = cur_f.get("ah_reasoning") if cur_f else None
+        h_tid = cur_f.get("home_team_id") if cur_f else None
+        a_tid = cur_f.get("away_team_id") if cur_f else None
+
+        compound_reasoning = compose_compound_ah_reasoning(
+            cursor=cursor,
+            fixture_id=fixture_id,
+            main_calc=detalhe_calculo,
+            suggestion=selected_palpite,
+            home_team=home_team,
+            away_team=away_team,
+            home_team_id=h_tid,
+            away_team_id=a_tid,
+            existing_reasoning=existing_r
+        )
+
+        cursor.execute("""
+            UPDATE fixtures_trends SET
+                ah_suggestion = %s,
+                ah_confidence = %s,
+                ah_reasoning = %s,
+                updated_at = NOW()
+            WHERE fixture_id = %s
+        """, (selected_palpite, prob_poisson, compound_reasoning, fixture_id))
+        print(f"🔗 [Sincronismo Card AH] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}'.")
+
+
+def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção da IA / Gestão de Risco"):
+    """
+    Busca apostas pendentes no mercado de Handicap Asiático para o fixture_id.
+    Altera o status para 'Cancelada' e, se a aposta tiver débito em conta corrente (DEBITO_APOSTA),
+    efetua o estorno financeiro (ESTORNO_APOSTA) atualizando o saldo do usuário.
+    Retorna lista de dicionários com detalhes das apostas canceladas/estornadas.
+    """
+    cursor.execute("""
+        SELECT a.id, a.usuario_id, a.time_casa, a.time_fora, a.mercado, a.palpite, a.odd,
+               a.valor_aposta, a.confirmada, a.data_hora_jogo, a.status,
+               (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
+        FROM apostas a
+        WHERE a.fixture_id = %s 
+          AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
+          AND a.status = 'Pendente'
+          AND (a.confirmada IS NULL OR a.confirmada = 0)
+    """, (fixture_id,))
+    apostas_pendentes = cursor.fetchall()
+
+    canceladas_detalhes = []
+    for aposta in apostas_pendentes:
+        aposta_id = aposta['id']
+        usuario_id = aposta['usuario_id']
+        valor = float(aposta['valor_aposta'] or 0.0)
+
+        # Checagem de segurança: Aposta confirmada pelo usuário jamais é cancelada automaticamente pela DAG
+        is_confirmada = (int(aposta.get('confirmada') or 0) == 1) or (int(aposta.get('tem_debito') or 0) > 0)
+        if is_confirmada:
+            print(f"🔒 [Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Cancelamento automático ignorado.")
+            continue
+
+        cursor.execute("""
+            UPDATE apostas 
+            SET status = 'Cancelada', 
+                status_gatekeeper = 'NO_BET',
+                resultado_detalhado = %s, 
+                updated_at = NOW() 
+            WHERE id = %s
+        """, (f"🚫 APOSTA CANCELADA POR ABSTENÇÃO DA IA: {str(motivo)[:200]}", aposta_id))
+
+        estornado = False
+        saldo_posterior = None
+
+        cursor.execute("""
+            SELECT id, valor FROM conta_corrente 
+            WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'DEBITO_APOSTA'
+            LIMIT 1
+        """, (usuario_id, aposta_id))
+        debito = cursor.fetchone()
+
+        if debito:
+            cursor.execute("""
+                SELECT id FROM conta_corrente 
+                WHERE usuario_id = %s AND aposta_id = %s AND tipo = 'ESTORNO_APOSTA'
+                LIMIT 1
+            """, (usuario_id, aposta_id))
+            estorno_existente = cursor.fetchone()
+
+            if not estorno_existente:
+                cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (usuario_id,))
+                user_row = cursor.fetchone()
+                saldo_anterior = float(user_row['saldo_conta_corrente'] or 0.0) if user_row else 0.0
+                saldo_posterior = round(saldo_anterior + valor, 2)
+
+                desc_estorno = f"Estorno Aposta #{aposta_id} - Abstenção IA ({aposta['time_casa']} vs {aposta['time_fora']})"
+
+                cursor.execute("""
+                    INSERT INTO conta_corrente (
+                        usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
+                    ) VALUES (
+                        %s, %s, 'ESTORNO_APOSTA', %s, %s, %s, %s, NOW()
+                    )
+                """, (usuario_id, aposta_id, desc_estorno, valor, saldo_anterior, saldo_posterior))
+
+                cursor.execute("""
+                    UPDATE usuario 
+                    SET saldo_conta_corrente = %s 
+                    WHERE id = %s
+                """, (saldo_posterior, usuario_id))
+
+                estornado = True
+                print(f"💰 [Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | R$ {valor:.2f} estornado (Novo Saldo: R$ {saldo_posterior:.2f})")
+
+        detail = dict(aposta)
+        detail['motivo'] = motivo
+        detail['estornado'] = estornado
+        detail['saldo_posterior'] = saldo_posterior
+        canceladas_detalhes.append(detail)
+
+        print(f"🚫 [Aposta Handicap Cancelada] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} -> Motivo: {motivo}")
+
+    return canceladas_detalhes

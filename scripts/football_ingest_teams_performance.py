@@ -65,9 +65,9 @@ def generate_deterministic_team_stats(team_name, venue_type):
         "avg_cards": avg_cards
     }
 
-def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=None, league_id=None, limit=10):
+def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=None, league_id=None, limit=5):
     """
-    Busca no histórico de partidas encerradas ('FT') em fixtures_trends
+    Busca no histórico de partidas encerradas ('FT', 'AET', 'PEN') em fixtures_trends
     a média real de cartões (amarelos + vermelhos*2) do time.
     Se o time não tiver histórico suficiente no mando específico ou no geral,
     busca a média das partidas da própria liga no banco.
@@ -78,7 +78,9 @@ def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=N
             fixture_id, home_team, away_team, home_team_id, away_team_id, league_id,
             yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away
         FROM fixtures_trends
-        WHERE status = 'FT'
+        WHERE status IN ('FT', 'AET', 'PEN')
+          AND league_id NOT IN (667)
+          AND (league_name IS NULL OR (league_name NOT LIKE '%Friendly%' AND league_name NOT LIKE '%Amistoso%'))
           AND (COALESCE(yellow_cards_home, 0) + COALESCE(yellow_cards_away, 0)) > 0
           AND (
             (%s > 0 AND (home_team_id = %s OR away_team_id = %s))
@@ -109,13 +111,12 @@ def get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=N
         ya = r.get('yellow_cards_away') or 0
         ra = r.get('red_cards_away') or 0
 
-        c = (yh + rh * 2) if is_home else (ya + ra * 2)
-        if (yh + rh + ya + ra) > 0:
-            cards_list.append(c)
-            if len(cards_list) >= limit:
-                break
+        c = (yh + rh) if is_home else (ya + ra)
+        cards_list.append(c)
+        if len(cards_list) >= limit:
+            break
 
-    if not cards_list and venue_type:
+    if len(cards_list) < 2 and venue_type:
         return get_team_cards_from_db_history(cursor, team_name, venue_type=None, team_id=team_id, league_id=found_league_id, limit=limit)
 
     if cards_list and len(cards_list) >= 1:
@@ -258,9 +259,9 @@ def main():
         away_cards = []
         all_cards = []
 
-        # Extração dos 5 últimos jogos via API-Sports (sem restrição de liga para cobrir início de temporada e copas)
-        # Endpoint idêntico ao já validado no Handicap Asiático: /fixtures?team={team_id}&last=5&status=FT
-        fixtures_url = f"https://v3.football.api-sports.io/fixtures?team={team_id}&last=5&status=FT"
+        # Extração dos últimos jogos via API-Sports (sem restrição de liga para cobrir início de temporada e copas)
+        # Endpoint idêntico ao já validado no Handicap Asiático: /fixtures?team={team_id}&last=8
+        fixtures_url = f"https://v3.football.api-sports.io/fixtures?team={team_id}&last=8"
         print(f"📡 Buscando últimos 5 jogos gerais na API para {team_name} (ID: {team_id})...")
         
         fixtures_list = []
@@ -273,6 +274,13 @@ def main():
         except Exception as e:
             print(f"Erro ao buscar histórico de jogos: {e}")
             
+        # Filtrar amistosos para não distorcer estatísticas disciplinares e competitivas
+        fixtures_list = [
+            f for f in fixtures_list
+            if f.get("league", {}).get("id") != 667
+            and "friendly" not in (f.get("league", {}).get("name") or "").lower()
+            and "amistoso" not in (f.get("league", {}).get("name") or "").lower()
+        ]
         fixtures_list.sort(key=lambda x: x["fixture"]["date"], reverse=True)
         recent_fixtures = fixtures_list[:5]
 
@@ -388,7 +396,7 @@ def main():
 
                 conn.commit()
                 
-            total_cards = yellows + (reds * 2)
+            total_cards = yellows + reds
             all_cards.append(total_cards)
             if is_home:
                 home_corners.append(corners)

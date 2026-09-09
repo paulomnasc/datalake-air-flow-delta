@@ -1668,10 +1668,17 @@ def calculate_asian_handicap_suggestion(
                 # Linhas profundas desativadas por risco de perda no empate, e linha -0.25 AH tem odd esmagada. Abstenção mandatória.
                 suggestion = "Sem Entrada (Abstenção)"
                 confidence = 50.00
+                is_tier1 = is_tier_1_elite_club(team_id=home_team_id, team_name=home_team)
+                tier_info = " (Tier 1 Elite)" if is_tier1 else ""
+                if is_tier1:
+                    excecao_neg_info = f"Cotação acima do teto de Super-Favorito (<= 1.22) para liberar handicap de goleada (-1.0/-1.5 AH)"
+                else:
+                    excecao_neg_info = "Linhas negativas profundas (-1.0+) reservadas exclusivamente a Super-Favoritos Tier 1"
                 main_reason = (
-                    f"🚫 APOSTA BLOQUEADA: Mandante {home_team} com odd nominal esmagada (@ {float(odd_home):.2f}). "
-                    f"Para proteger a banca em caso de empate, linhas agressivas (-0.50, -0.75, -1.0+) estão desativadas, "
-                    f"e a linha segura -0.25 AH não atinge odd mínima de valor (1.55). Abstenção recomendada pelo Gatekeeper.{note_str}"
+                    f"🚫 APOSTA BLOQUEADA: Mandante {home_team}{tier_info} com odd nominal esmagada (@ {float(odd_home):.2f}). "
+                    f"Para proteger a banca em caso de empate, linhas agressivas (-0.25 a -0.75) estão banidas. "
+                    f"{excecao_neg_info}, e a linha defensiva DNB (0.0 AH) não atinge cotação mínima rentável (+EV na Betano). "
+                    f"Abstenção recomendada pelo Gatekeeper.{note_str}"
                 )
             elif delta_goals >= 0.20:
                 if (is_open_market or (odd_home and float(odd_home) >= 2.15)) and delta_goals < 0.45:
@@ -1761,10 +1768,17 @@ def calculate_asian_handicap_suggestion(
                 # A linha -0.25 AH teria odd esmagada (< 1.55). Abstenção mandatória.
                 suggestion = "Sem Entrada (Abstenção)"
                 confidence = 50.00
+                is_tier1 = is_tier_1_elite_club(team_id=away_team_id, team_name=away_team)
+                tier_info = " (Tier 1 Elite)" if is_tier1 else ""
+                if is_tier1:
+                    excecao_neg_info = f"Cotação acima do teto de Super-Favorito (<= 1.22) para liberar handicap de goleada (-1.0/-1.5 AH)"
+                else:
+                    excecao_neg_info = "Linhas negativas profundas (-1.0+) reservadas exclusivamente a Super-Favoritos Tier 1"
                 main_reason = (
-                    f"🚫 APOSTA BLOQUEADA: Visitante {away_team} com odd nominal esmagada (@ {float(odd_away):.2f}). "
-                    f"Para proteger a banca em caso de empate, linhas agressivas (-0.50, -0.75, -1.0+) estão desativadas, "
-                    f"e a linha segura -0.25 AH não atinge odd mínima de valor (1.55). Abstenção recomendada pelo Gatekeeper.{note_str}"
+                    f"🚫 APOSTA BLOQUEADA: Visitante {away_team}{tier_info} com odd nominal esmagada (@ {float(odd_away):.2f}). "
+                    f"Para proteger a banca em caso de empate, linhas agressivas (-0.25 a -0.75) estão banidas. "
+                    f"{excecao_neg_info}, e a linha defensiva DNB (0.0 AH) não atinge cotação mínima rentável (+EV na Betano). "
+                    f"Abstenção recomendada pelo Gatekeeper.{note_str}"
                 )
             elif delta_goals <= -0.30:
                 # FILTRO RÍGIDO DE VISITANTE FAVORITO (Away Handicap Guard Refinado):
@@ -3168,15 +3182,21 @@ def main():
                 odd_u85 = round(100.0 / u85, 2) if u85 > 0 else 99.00
 
                 # SELEÇÃO EXCLUSIVA DE UNDER CARTÕES (>= 60%)
+                # Trava de Piso do Árbitro (Referee Disciplinary Ceiling Guard)
+                ref_total_cards = round(yellows + float(ref_data.get("average_red_cards", 0.0) or 0.0), 2)
+
                 under_candidates = [
-                    ("Under 3.5", u35, odd_u35),
-                    ("Under 4.5", u45, odd_u45),
-                    ("Under 5.5", u55, odd_u55),
-                    ("Under 6.5", u65, odd_u65),
+                    ("Under 3.5", u35, odd_u35, 3.5),
+                    ("Under 4.5", u45, odd_u45, 4.5),
+                    ("Under 5.5", u55, odd_u55, 5.5),
+                    ("Under 6.5", u65, odd_u65, 6.5),
                 ]
                 valid_under = []
-                for label, prob, odd in under_candidates:
+                for label, prob, odd, l_val in under_candidates:
                     if prob >= 60.0:
+                        # Veto da Trava de Piso do Árbitro: se a média de cartões do árbitro estiver a menos de 0.30 cartão da linha
+                        if ref_total_cards and ref_total_cards >= (l_val - 0.30):
+                            continue
                         valid_under.append({'market': 'Under', 'label': label, 'prob': prob, 'odd': odd})
 
                 if valid_under:
@@ -3198,7 +3218,10 @@ def main():
                     sec_u = valid_under[1] if len(valid_under) > 1 else valid_under[0]
                     prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd']})."
                 else:
-                    prediction_text = f"🚫 NO_BET: Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
+                    if ref_total_cards and ref_total_cards >= 4.20:
+                        prediction_text = f"🚫 NO_BET: Rigor do árbitro {referee_name} ({ref_total_cards:.2f} cartões/jogo) incompatível com margem de segurança para Under. Entrada bloqueada pelo Gatekeeper (Trava de Piso do Árbitro)."
+                    else:
+                        prediction_text = f"🚫 NO_BET: Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
 
                 # CÁLCULO DE PALPITES DE UNDER CARTÕES POR TIME (MANDANTE & VISITANTE)
                 home_cards_avg = float(home_c_stats.get("avg_cards", 2.0))

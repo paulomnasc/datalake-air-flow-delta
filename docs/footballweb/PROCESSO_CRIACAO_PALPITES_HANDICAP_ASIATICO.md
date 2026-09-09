@@ -110,28 +110,84 @@ O script [`scripts/criar_apostas_handicap_diario.py`](file:///root/datalake-air-
 2. Filtra especificamente as apostas com `id: 4` (*Asian Handicap*).
 3. Normaliza todas as linhas (ex: `Home -0.5`, `Away +0.25`, etc.) e extrai suas cotações ativas.
 
-### 4.2. Algoritmo de Seleção da Melhor Linha (Janela Anti-Empate)
-Para blindar a banca contra empates tardios aos 90 minutos (como ocorria com `-0.25` resultando em meio-red ou `-0.50` em red integral), o sistema restringe a seleção **estritamente às linhas onde o empate garante reembolso ou vitória**:
-* **Janela Permitida**: `{0.0 (DNB), +0.50, +0.75, +1.00, +1.25, +1.50}`.
-* **Linhas Negativas Banidas**: Linhas como `-0.25`, `-0.50`, `-0.75`, `-1.00` são proibidas pelo Gatekeeper.
+### 4.2. Janela Anti-Empate Padrão (Linhas Defensivas e de Cobertura)
+Para confrontos normais e equilibrados, para blindar a banca contra empates tardios aos 90 minutos (como ocorria com `-0.25` resultando em meio-red ou `-0.50` em red integral), o sistema restringe a seleção padrão **estritamente às linhas onde o empate garante reembolso ou vitória**:
+* **Janela Padrão Permitida**: `{0.0 (DNB), +0.50, +0.75, +1.00, +1.25, +1.50}`.
+* **Linhas Negativas Comuns Banidas**: Linhas como `-0.25`, `-0.50`, `-0.75` são proibidas pelo Gatekeeper para partidas regulares.
+* **Faixa de Odd Segura Padrão**: $1.30 \le O_{\text{betano}} \le 2.35$.
+* **Crivo Mínimo de Probabilidade**: Probabilidade efetiva de cobertura $P_{\text{eff}} \ge 48.0\%$.
+
+---
+
+### 4.3. Exceção Canônica de Super-Favoritos Tier 1 (`TIER_1_ELITE_CLUBS`)
+
+Clubes de elite mundial com abismo técnico sobre adversários frágeis tornam a linha defensiva `0.0 AH` inútil (com cotações irrisórias de 1.02 a 1.05) e possuem volume ofensivo para cumprir handicaps esticados. Para esses cenários, o pipeline implementa a **Exceção de Super-Favoritos Tier 1**.
+
+#### 1. Catálogo Canônico Global (`scripts/leagues_config.py`)
+Indexado pelo `team_id` oficial numérico da API-Sports / Banco de Dados (complexidade $O(1)$, imutável e à prova de homônimos textuais como Barcelona SC de Guayaquil vs FC Barcelona):
+* **Espanha**: Real Madrid (`541`), Barcelona (`529`), Atlético Madrid (`530`).
+* **Inglaterra**: Manchester City (`50`), Liverpool (`40`), Arsenal (`42`), Chelsea (`49`).
+* **Alemanha**: Bayern Munich (`157`), Borussia Dortmund (`165`), Bayer Leverkusen (`168`).
+* **França**: Paris Saint Germain (`85`).
+* **Itália**: Inter (`505`), AC Milan (`489`), Juventus (`496`), Napoli (`492`).
+* **Portugal**: Benfica (`211`), FC Porto (`212`), Sporting CP (`228`).
+* **Holanda**: Ajax (`194`), PSV Eindhoven (`197`).
+* **Brasil**: Flamengo (`127`), Palmeiras (`121`), Atlético Mineiro (`1062`).
+* **Argentina**: Boca Juniors (`451`), River Plate (`435`).
+
+#### 2. Gatilhos Matemáticos de Ativação da Exceção
+A exceção só é ativada se **todos** os seguintes requisitos forem satisfeitos simultaneamente:
+1. `is_tier_1_elite_club(team_id, team_name) == True`.
+2. Cotação 1X2 esmagadora do favorito: $Odd_{\text{1X2}} \le 1.22$.
+3. Assimetria extrema de mercado (Ratio de odds): $\frac{Odd_{\text{adversário}}}{Odd_{\text{favorito}}} \ge 8.0\times$.
+4. Expectativa ofensiva elevada: $\lambda_{\text{favorito}} \ge 2.10$ xG e saldo projetado $\Delta G \ge +1.10$.
+
+#### 3. Regras Específicas para Super-Favoritos Tier 1
+* **Bloqueio Mandatório da Linha `0.0 AH` (DNB)**: Cotação sem valor esperado matemático.
+* **Janela Negativa Exclusiva Autorizada**: $\{-1.0, -1.25, -1.5, -1.75, -2.0\}$ (foco prioritário em `-1.0` e `-1.5` AH).
+* **Faixa de Odd Segura Calibrada**: $1.40 \le O_{\text{betano}} \le 2.25$.
+* **Crivo Reforçado de Cobertura**: Probabilidade efetiva mínima exigida $P_{\text{eff}} \ge 52.0\%$ (contra os 48.0% padrão).
+* **Isenção da Trava de Copas**: Super-favoritos com esses critérios permanecem autorizados mesmo em partidas eliminatórias mata-mata.
+
+---
+
+### 4.4. Travas Sistêmicas de Proteção de Banca (Gatekeeper Global)
+
+Para evitar falsos positivos gerados por distorções momentâneas ou dados incompletos, o Gatekeeper impõe quatro travas estruturais globais:
+
+1. **Trava de Mando Consagrado (Anti-Zebra em Caldeirões)**:
+   * Se o mandante for favorito sólido ($Odd_{\text{Home}} \le 2.00$ e $Odd_{\text{Away}} \ge 3.80$ ou ratio de odds $\ge 2.0\times$), o sistema **bloqueia sumariamente qualquer entrada em handicap positivo ($+AH$) a favor da zebra visitante**.
+2. **Trava de Time em Crise Severa (Anti-Zebra em Queda Livre)**:
+   * Bloqueia qualquer linha a favor de equipe sem nenhuma vitória nos últimos 5 jogos ($0V$ no histórico recente U5J) em situação de desvantagem de mercado ($Odd \ge 2.20$ ou contra adversário com $Odd \le 2.10$).
+3. **Trava de Coerência de Inversão de Handicap**:
+   * A equipe favorita nas odds de mercado 1X2 nunca pode receber handicap positivo ($> 0.0$).
+4. **Trava de Copas Eliminatórias (Cup Tournament Guard)**:
+   * Em partidas eliminatórias de copas mata-mata (`is_cup`), bloqueia linhas a favor do visitante favorito para mitigar o risco imprevisível de times mistos/reservas (com isenção exclusiva para Super-Favoritos Tier 1 qualificados).
+5. **Amostragem Completa Mandatória de 5 Jogos (U5J)**:
+   * Exige rigorosamente que **ambas as equipes** tenham pelo menos 5 partidas consolidadas no histórico recente. Se qualquer uma possuir $< 5$ jogos (ex: início de temporada), o sistema decreta `NO_BET: Amostragem Insuficiente`.
+
+---
+
+### 4.5. Algoritmo de Seleção e Ranqueamento da Melhor Linha
 
 Para cada linha capturada da Betano:
-1. O modelo valida se a linha pertence estritamente à janela permitida.
-2. Descarta imediatamente linhas fora da faixa de segurança ($O_{\text{betano}} < 1.30$ ou $O_{\text{betano}} > 2.35$).
-3. Valida a coerência do favoritismo: o time favorito no 1X2 só pode concorrer à linha `0.0 (DNB)`. Linhas de cobertura positiva são reservadas ao azarão ou confrontos equilibrados.
-4. O modelo avalia a linha contra a matriz de Poisson da partida e deduz a Odd Justa e o $+EV\%$.
-5. Descarta linhas com probabilidade efetiva baixa ($P_{\text{eff}} < 48.0\%$).
-6. Dentre as linhas que satisfazem $+EV\% \ge 5.0\%$, seleciona a linha que maximiza o retorno ajustado ao risco ($EV\% \times \frac{P_{\text{eff}}}{100}$). Se nenhuma linha for aprovada, declara `NO_BET` e não cria aposta.
+1. O modelo valida se a linha pertence à janela permitida (padrão ou exceção Tier 1).
+2. Valida as travas de proteção (Mando Consagrado, Time em Crise, Trava de Copas, Amostragem U5J).
+3. Avalia a linha contra a matriz bivariada de Poisson da partida, deduzindo a Odd Justa analítica e o $+EV\%$.
+4. Descarta linhas fora da faixa de odds seguras ou abaixo do limiar de probabilidade efetiva ($48.0\%$ padrão / $52.0\%$ Tier 1).
+5. Dentre as linhas aprovadas com $+EV\% \ge 5.0\%$, calcula o **Score de Valor**:
+   $$\text{Score} = +EV\% \times \left(\frac{P_{\text{eff}}}{100.0}\right)$$
+6. Seleciona a linha de maior pontuação. Se nenhuma linha for aprovada, declara abstenção obrigatória (`NO_BET`).
 
 ---
 
 ## 5. Política de Abstenção Mandatória (`NO_BET`)
 
-Se a Betano precificar todas as linhas com margens pesadas (vig alto) de modo que nenhuma linha alcance $+EV\% \ge +5.0\%$, o pipeline adota a conduta de **Abstenção Mandatória**:
+Se a Betano precificar todas as linhas com margens pesadas (vig alto) de modo que nenhuma linha alcance $+EV\% \ge +5.0\%$ e os crivos de probabilidade e travas de segurança, o pipeline adota a conduta de **Abstenção Mandatória**:
 
 * **Nenhuma aposta é criada** para o jogo.
 * Se já existia uma aposta preliminar registrada em estado `Pendente`, o sistema atualiza seu status para `CANCELADA_GATEKEEPER`, evitando que ela permaneça aberta.
-* Um log detalhado com a tag `🛡️ [Gatekeeper NO_BET]` é gravado no console do Apache Airflow.
+* Um log detalhado com a tag `🛡️ [Gatekeeper NO_BET]` é gravado no console do Apache Airflow e registrado no campo `ah_reasoning`.
 
 ### Exemplo Real de Proteção (07/09/2026)
 * **Confronto**: Barracas Central vs Argentinos JRS
@@ -142,7 +198,7 @@ Se a Betano precificar todas as linhas com margens pesadas (vig alto) de modo qu
   * Odd Real Betano: `1.310`
   * $+EV\%$ Calculado: `+1.87%`
   * **Decisão do Gatekeeper**: **`NO_BET` (Reprovado: $EV < 5.0\%$)**
-* **Benefício**: A banca não teria realizado essa entrada, eliminando o prejuízo ocorrido.
+* **Benefício**: A banca não realizou essa entrada, eliminando o prejuízo ocorrido.
 
 ---
 
@@ -158,7 +214,7 @@ Todas as métricas analíticas calculadas são persistidas nas tabelas do banco 
 * `criterios_atendidos` (`TEXT`): Resumo técnico dos critérios (ex: `Odd Real: 1.85 | Odd Justa: 1.62 | EV: +14.2% | Prob: 61.7%`).
 
 ### Tabela `fixtures_trends`
-* `ah_pick` (`VARCHAR(100)`): Sugestão da linha (ex: `Flamengo -0.5 AH`). Nulo caso seja `NO_BET`.
+* `ah_pick` (`VARCHAR(100)`): Sugestão da linha (ex: `Flamengo -1.0 AH` ou `Palmeiras +0.5 AH`). Nulo caso seja `NO_BET`.
 * `ah_fair_odd` (`DECIMAL(5,2)`): Odd justa calculada.
 * `ah_ev_percent` (`DECIMAL(5,2)`): $+EV\%$ estimado.
 * `ah_reasoning` (`TEXT`): Memória de cálculo completa registrando os $\lambda$ de ataque/defesa, matriz e justificativa estatística.
@@ -169,8 +225,10 @@ Todas as métricas analíticas calculadas são persistidas nas tabelas do banco 
 
 | Componente | Caminho | Função |
 | :--- | :--- | :--- |
+| **Catálogo de Ligas e Elite** | [`scripts/leagues_config.py`](file:///root/datalake-air-flow-delta/scripts/leagues_config.py) | Centraliza o escopo de ligas autorizadas e o catálogo `TIER_1_ELITE_CLUBS` por `team_id`. |
+| **Engine de Handicap Asiático** | [`scripts/asian_handicap_engine.py`](file:///root/datalake-air-flow-delta/scripts/asian_handicap_engine.py) | Engine unificada: cálculo de Poisson, simulação e varredura Betano, Gatekeeper e regras de Tier 1. |
 | **DAG de Criação** | [`src/dags/criar_apostas_handicap_dag.py`](file:///root/datalake-air-flow-delta/src/dags/criar_apostas_handicap_dag.py) | Orquestra a execução da criação horária de apostas de AH. |
-| **Script de Criação** | [`scripts/criar_apostas_handicap_diario.py`](file:///root/datalake-air-flow-delta/scripts/criar_apostas_handicap_diario.py) | Realiza a varredura da API Betano, cálculo da matriz e cadastro das apostas aprovadas. |
+| **Script de Criação** | [`scripts/criar_apostas_handicap_diario.py`](file:///root/datalake-air-flow-delta/scripts/criar_apostas_handicap_diario.py) | Realiza a varredura da API Betano, chamada à engine e cadastro das apostas aprovadas. |
 | **Script de Ingestão** | [`scripts/football_ingest_trends.py`](file:///root/datalake-air-flow-delta/scripts/football_ingest_trends.py) | Atualiza tendências, xG e calcula sugestão preliminar de AH em `fixtures_trends`. |
 | **DAG de Liquidação** | [`src/dags/processar_apostas_handicap_dag.py`](file:///root/datalake-air-flow-delta/src/dags/processar_apostas_handicap_dag.py) | Audita e liquida apostas de jogos finalizados (`FT`). |
 | **Script de Liquidação** | [`scripts/processar_apostas_handicap_encerradas.py`](file:///root/datalake-air-flow-delta/scripts/processar_apostas_handicap_encerradas.py) | Avalia o placar final e liquida em: Ganha, Meio-Ganha, Anulada, Meio-Perdida ou Perdida. |

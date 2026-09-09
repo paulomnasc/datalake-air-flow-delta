@@ -607,8 +607,18 @@ def calculate_unified_handicap_recommendation(
     if not best_cand:
         sug = "Sem Entrada (Abstenção)"
         conf = 50.0
+        # Diagnóstico contextual de cobertura
+        context_extra = ""
+        is_h_fav_crushed = (odd_h <= 1.55)
+        is_a_fav_crushed = (odd_a <= 1.55)
+        if is_h_fav_crushed or is_a_fav_crushed:
+            fav_name = home_team if is_h_fav_crushed else away_team
+            fav_id = h_tid if is_h_fav_crushed else a_tid
+            is_t1 = is_tier_1_elite_club(team_id=fav_id, team_name=fav_name)
+            t1_str = " (Tier 1)" if is_t1 else ""
+            context_extra = f" Favorito {fav_name}{t1_str} com odd nominal esmagada: linha DNB (0.0 AH) sem odd mínima (+EV) e linhas positivas bloqueadas por coerência de mercado."
         reason = (
-            f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} -> "
+            f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} ->{context_extra} "
             f"Nenhuma linha da Betano atingiu o limiar de +EV >= 5.0% e Prob. Efetiva >= 48.0%. "
             f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}. Abstenção mandatória."
         )

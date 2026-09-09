@@ -462,15 +462,24 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         else:
             exp_cards = 4.20
 
+        # Consulta estatísticas do árbitro para acionamento da Trava de Piso
+        ref_cards_avg = None
+        if referee_name:
+            cursor.execute("SELECT average_yellow_cards, average_red_cards FROM referee_stats WHERE name = %s", (referee_name,))
+            r_row = cursor.fetchone()
+            if r_row:
+                ref_cards_avg = float(r_row.get('average_yellow_cards') or 0.0) + float(r_row.get('average_red_cards') or 0.0)
+
         selected_cand, valid_cands, pred_text, over_cards_prob = evaluate_best_card_under_line(
             exp_cards=exp_cards,
             fixture_id=fixture_id,
-            allow_api=True
+            allow_api=True,
+            referee_cards_avg=ref_cards_avg
         )
 
         if not selected_cand:
-            print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano ou EV Negativo] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha recomendada possui +EV positivo na Betano com odd adequada.")
-            cancelar_apostas_pendentes_existentes("Linha indisponível, sem +EV ou reprovada na Betano")
+            print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano, Trava Árbitro ou EV Negativo] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha recomendada possui +EV positivo na Betano com margem de segurança.")
+            cancelar_apostas_pendentes_existentes("Linha indisponível, reprovada na Betano ou bloqueada por Trava de Piso do Árbitro")
             apostas_abstencao += 1
             continue
 

@@ -170,13 +170,15 @@ def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: flo
 def evaluate_best_card_under_line(
     exp_cards: float,
     fixture_id: int = None,
-    allow_api: bool = True
+    allow_api: bool = True,
+    referee_cards_avg: float = None
 ):
     """
     Avalia as linhas Under (3.5, 4.5, 5.5, 6.5) contra as odds reais da Betano e aplica o Gatekeeper:
     - Probabilidade Poisson >= 60.0%
     - Odd Betano >= 1.50 (ou 1.65 para Under 5.5)
     - Valor Esperado Positivo (+EV > 0.0%)
+    - Trava de Piso do Árbitro: veta linhas Under se o árbitro tiver média >= (linha - 0.30)
     Retorna: (best_candidate, all_candidates, prediction_text, over_cards_prob)
     """
     under_probs = calculate_poisson_under_lines(exp_cards)
@@ -188,6 +190,11 @@ def evaluate_best_card_under_line(
     candidates = []
 
     for line_val in standard_lines:
+        # Trava de Piso do Árbitro (Referee Disciplinary Ceiling Guard):
+        # Bloqueia a linha Under se a média histórica de cartões do árbitro for superior ou estiver a menos de 0.30 cartão da linha.
+        if referee_cards_avg and float(referee_cards_avg) >= (line_val - 0.30):
+            continue
+
         prob = under_probs.get(line_val, 0.0)
         odd_justa = round(100.0 / prob, 2) if prob > 0 else 99.00
         palpite_str = f"Menos de {line_val} Cartões"
@@ -261,7 +268,10 @@ def evaluate_best_card_under_line(
         sec_u = valid_candidates[1] if len(valid_candidates) > 1 else valid_candidates[0]
         pred_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd_justa']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd_justa']})."
     else:
-        pred_text = f"🚫 NO_BET: Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
+        if referee_cards_avg and float(referee_cards_avg) >= 4.20:
+            pred_text = f"🚫 NO_BET: Rigor do árbitro ({float(referee_cards_avg):.2f} cartões/jogo) incompatível com margem de segurança para Under. Entrada bloqueada pelo Gatekeeper (Trava de Piso do Árbitro)."
+        else:
+            pred_text = f"🚫 NO_BET: Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
 
     return selected_cand, valid_candidates, pred_text, over_cards_prob
 

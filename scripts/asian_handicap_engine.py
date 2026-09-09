@@ -20,6 +20,12 @@ import math
 import requests
 from datetime import datetime
 
+try:
+    from leagues_config import is_tier_1_elite_club
+except Exception:
+    def is_tier_1_elite_club(team_id=None, team_name=None):
+        return False
+
 # Caches em memória para chamadas da API Betano durante o ciclo de execução
 _betano_ah_odds_cache = {}
 _betano_ah_raw_fixture_cache = {}
@@ -259,7 +265,7 @@ def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
     return available_lines
 
 
-def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: float, odd_away: float, ah_suggestion: str = None):
+def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: float, odd_away: float, ah_suggestion: str = None, home_team_id: int = None, away_team_id: int = None):
     """
     Gera linhas simuladas estruturadas quando a API da Betano estiver momentaneamente
     fora do ar ou sem cotações de AH abertas, permitindo avaliação consistente de Poisson.
@@ -278,13 +284,13 @@ def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: flo
             raw_ref = oa if is_away_p else oh
             target_t = away_team if is_away_p else home_team
             if l_p == 0.0:
-                est_odd = round(max(1.30, min(1.90, 1.0 + (raw_ref - 1.0) * 0.65)), 2)
+                est_odd = round(max(1.30, min(2.10, 1.0 + (raw_ref - 1.0) * 0.65)), 2)
             elif l_p == 0.5:
-                est_odd = round(max(1.30, min(1.85, 1.0 + (raw_ref - 1.0) * 0.35)), 2)
+                est_odd = round(max(1.22, min(1.85, 1.0 + (raw_ref - 1.0) * 0.38)), 2)
             elif l_p == 0.75:
-                est_odd = round(max(1.25, min(1.70, 1.0 + (raw_ref - 1.0) * 0.28)), 2)
+                est_odd = round(max(1.18, min(1.70, 1.0 + (raw_ref - 1.0) * 0.30)), 2)
             elif l_p == 1.0:
-                est_odd = round(max(1.20, min(1.60, 1.0 + (raw_ref - 1.0) * 0.22)), 2)
+                est_odd = round(max(1.15, min(1.60, 1.0 + (raw_ref - 1.0) * 0.24)), 2)
             else:
                 est_odd = round(max(1.15, min(1.50, 1.0 + (raw_ref - 1.0) * 0.18)), 2)
 
@@ -300,19 +306,37 @@ def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: flo
             })
 
     # Adicionar linhas padrão da janela defensiva anti-empate para Mandante e Visitante
-    for (is_away, t_team, ref_odd) in [(False, home_team, oh), (True, away_team, oa)]:
-        for (l_val, factor) in [(0.0, 0.65), (0.5, 0.35), (0.75, 0.28), (1.0, 0.22), (1.25, 0.18), (1.5, 0.15)]:
-            calc_odd = round(max(1.30, min(2.35, 1.0 + (ref_odd - 1.0) * factor)), 2)
-            lines.append({
-                'team': 'Away' if is_away else 'Home',
-                'target_team': t_team,
-                'is_away': is_away,
-                'line': l_val,
-                'palpite_str': f"{t_team} {l_val:+.2f} AH" if l_val > 0 else f"{t_team} 0.0 AH",
-                'odd': calc_odd,
-                'raw_value': f"{t_team} {l_val:+.2f}",
-                'source': 'POISSON_SYNTHETIC'
-            })
+    for (is_away, t_team, ref_odd, t_id) in [(False, home_team, oh, home_team_id), (True, away_team, oa, away_team_id)]:
+        ratio_cur = (oa / oh) if not is_away else (oh / oa)
+        is_this_super_fav = is_tier_1_elite_club(team_id=t_id, team_name=t_team) and ref_odd <= 1.22 and ratio_cur >= 8.0
+
+        if not is_this_super_fav:
+            for (l_val, factor) in [(0.0, 0.65), (0.5, 0.35), (0.75, 0.28), (1.0, 0.22), (1.25, 0.18), (1.5, 0.15)]:
+                calc_odd = round(max(1.30, min(2.35, 1.0 + (ref_odd - 1.0) * factor)), 2)
+                lines.append({
+                    'team': 'Away' if is_away else 'Home',
+                    'target_team': t_team,
+                    'is_away': is_away,
+                    'line': l_val,
+                    'palpite_str': f"{t_team} {l_val:+.2f} AH" if l_val > 0 else f"{t_team} 0.0 AH",
+                    'odd': calc_odd,
+                    'raw_value': f"{t_team} {l_val:+.2f}",
+                    'source': 'POISSON_SYNTHETIC'
+                })
+        else:
+            # Super-Favoritos Tier 1 operam EXCLUSIVAMENTE em linhas de handicap negativo (-1.0 e -1.5 AH)
+            for l_neg, factor_neg in [(-1.0, 1.45), (-1.5, 1.80)]:
+                calc_odd_neg = round(max(1.42, min(2.10, 1.0 + (ref_odd - 1.0) * factor_neg + 0.40)), 2)
+                lines.append({
+                    'team': 'Away' if is_away else 'Home',
+                    'target_team': t_team,
+                    'is_away': is_away,
+                    'line': l_neg,
+                    'palpite_str': f"{t_team} {l_neg:.1f} AH",
+                    'odd': calc_odd_neg,
+                    'raw_value': f"{t_team} {l_neg:.1f}",
+                    'source': 'POISSON_SYNTHETIC'
+                })
 
     return lines
 
@@ -325,37 +349,88 @@ def evaluate_and_select_best_ah_candidate(
     odd_home: float,
     odd_away: float,
     min_ev: float = 5.0,
-    min_prob: float = 48.0
+    min_prob: float = 48.0,
+    home_team_id: int = None,
+    away_team_id: int = None,
+    home_last5: dict = None,
+    away_last5: dict = None
 ):
     """
     Aplica o crivo rigoroso do Gatekeeper do Handicap Asiático em todas as linhas candidatas:
     - Janela estrita de linhas permitidas: {0.0, 0.5, 0.75, 1.0, 1.25, 1.5} (anti-empate)
-    - Faixa de odd segura: 1.30 a 2.35
-    - Trava de coerência: favorito 1X2 só pode concorrer a 0.0 (DNB)
-    - Gatekeeper: EV% >= min_ev (5.0%) e Probabilidade Efetiva >= min_prob (48.0%)
+    - Exceção de Super-Favoritos Tier 1 (odd <= 1.22, ratio >= 8.0x): permite linhas negativas moderadas {-1.0, -1.25, -1.5, -1.75, -2.0}
+    - Trava de Mando Consagrado: Se mandante for favorito sólido (H <= 2.00 e A >= 3.80),
+      bloqueia terminantemente entradas em +AH na zebra visitante
+    - Trava de Time em Crise: Bloqueia apostas a favor de equipes sem vitórias recentes (0V no U5J)
+      em situação de zebra contra favoritos de mercado
+    - Faixa de odd segura: 1.30 a 2.35 (1.40 a 2.25 para super-favoritos negativos)
+    - Trava de coerência: favorito 1X2 não recebe handicap positivo > 0.0
+    - Gatekeeper: EV% >= min_ev (5.0%) e Probabilidade Efetiva >= min_prob (48.0% / 52.0% para negativos)
     - Score de Valor = EV% * (Prob / 100.0)
     """
-    allowed_lines = {0.0, 0.5, 0.75, 1.0, 1.25, 1.5}
+    standard_allowed_lines = {0.0, 0.5, 0.75, 1.0, 1.25, 1.5}
+    negative_superfav_lines = {-1.0, -1.25, -1.5, -1.75, -2.0}
     approved = []
     raw_h_odd = float(odd_home or 2.0)
     raw_a_odd = float(odd_away or 2.0)
+
+    # 1. Trava de Mando Consagrado (Anti-Zebra em Caldeirões):
+    # Mandante favorito consolidado de mercado (H <= 2.00) vs Visitante zebra (A >= 3.80 ou ratio A/H >= 2.0)
+    is_strong_home_fav = (raw_h_odd <= 2.00 and (raw_a_odd >= 3.80 or (raw_h_odd > 0 and raw_a_odd / raw_h_odd >= 2.0)))
 
     for cand in candidate_lines:
         c_line = cand['line']
         c_odd = cand['odd']
         c_is_away = cand['is_away']
 
-        # Filtro 1: Linhas permitidas estritamente na janela anti-empate
-        if c_line not in allowed_lines:
+        # Filtro Trava de Mando Consagrado: Bloqueia qualquer linha a favor da zebra visitante
+        if is_strong_home_fav and c_is_away:
             continue
 
-        # Filtro 2: Faixa de odd segura (mínimo 1.30)
-        if c_odd < 1.30 or c_odd > 2.35:
-            continue
+        # Filtro Trava de Time em Crise (Anti-Zebra em Crise Severa):
+        # Bloqueia qualquer linha a favor de equipe sem vitórias recentes (0V no U5J)
+        # em situação de desvantagem de mercado (odd >= 2.20 ou contra favorito <= 2.10)
+        cand_l5 = away_last5 if c_is_away else home_last5
+        if cand_l5 and isinstance(cand_l5, dict) and cand_l5.get('v', 1) == 0:
+            cand_odd = raw_a_odd if c_is_away else raw_h_odd
+            opp_odd = raw_h_odd if c_is_away else raw_a_odd
+            if cand_odd >= 2.20 or opp_odd <= 2.10:
+                continue
 
-        # Filtro 3: Inversão de Handicap (favorito 1X2 não recebe handicap positivo > 0.0)
-        is_cand_fav = (raw_a_odd < raw_h_odd) if c_is_away else (raw_h_odd < raw_a_odd)
-        if is_cand_fav and c_line > 0.0:
+        # Verifica se o candidato é um super-favorito Tier 1 com odd esmagadora (<= 1.22) e ratio de assimetria >= 8.0x
+        ratio_h = (raw_a_odd / raw_h_odd) if raw_h_odd > 0 else 0
+        ratio_a = (raw_h_odd / raw_a_odd) if raw_a_odd > 0 else 0
+        cand_team = cand.get('target_team') or (away_team if c_is_away else home_team)
+        cand_id = cand.get('team_id') or (away_team_id if c_is_away else home_team_id)
+        is_tier1 = is_tier_1_elite_club(team_id=cand_id, team_name=cand_team)
+
+        is_super_fav_cand = (
+            is_tier1 and (
+                (not c_is_away and raw_h_odd <= 1.22 and ratio_h >= 8.0) or
+                (c_is_away and raw_a_odd <= 1.22 and ratio_a >= 8.0)
+            )
+        )
+
+        # Filtro 1: Linhas permitidas e faixas de odds seguras
+        if c_line in negative_superfav_lines:
+            # Linhas negativas são EXCLUSIVAS para super-favoritos Tier 1 com abismo de mercado
+            if not is_super_fav_cand:
+                continue
+            if c_odd < 1.40 or c_odd > 2.25:
+                continue
+            required_prob = 52.0  # Limiar calibrado de cobertura para super-favoritos
+        elif c_line in standard_allowed_lines:
+            # Super-favoritos com odd esmagada não operam na linha 0.0 AH
+            if is_super_fav_cand and c_line == 0.0:
+                continue
+            if c_odd < 1.30 or c_odd > 2.35:
+                continue
+            # Inversão de Handicap: favorito 1X2 não recebe handicap positivo > 0.0
+            is_cand_fav = (raw_a_odd < raw_h_odd) if c_is_away else (raw_h_odd < raw_a_odd)
+            if is_cand_fav and c_line > 0.0:
+                continue
+            required_prob = min_prob
+        else:
             continue
 
         # Avaliação com a Matriz de Poisson
@@ -363,7 +438,7 @@ def evaluate_and_select_best_ah_candidate(
         ev = res['ev_percent']
         prob_eff = res['prob_eff']
 
-        if ev >= min_ev and prob_eff >= min_prob:
+        if ev >= min_ev and prob_eff >= required_prob:
             score = ev * (prob_eff / 100.0)
             cand_copy = dict(cand)
             cand_copy['eval'] = res
@@ -519,8 +594,14 @@ def calculate_unified_handicap_recommendation(
     odd_a = float(fixture_dict.get('odd_away') or 2.0)
 
     # 3. Avaliação do Gatekeeper
+    h_tid = fixture_dict.get('home_team_id')
+    a_tid = fixture_dict.get('away_team_id')
+    h_l5 = u_json.get('home') if isinstance(u_json, dict) else None
+    a_l5 = u_json.get('away') if isinstance(u_json, dict) else None
     best_cand, approved = evaluate_and_select_best_ah_candidate(
-        poisson_matrix, betano_lines, home_team, away_team, odd_h, odd_a
+        poisson_matrix, betano_lines, home_team, away_team, odd_h, odd_a,
+        home_team_id=h_tid, away_team_id=a_tid,
+        home_last5=h_l5, away_last5=a_l5
     )
 
     if not best_cand:

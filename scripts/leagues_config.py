@@ -9,27 +9,19 @@ e simulação/criação de apostas diárias (criar_apostas_cartoes_diario.py e c
 ALLOWED_LEAGUES = {
     71: "Serie A (Brasil)",
     72: "Serie B (Brasil)",
-    74: "Serie C (Brasil)",
     73: "Copa do Brasil (Brasil)",
     75: "Copa do Nordeste (Brasil)",
     642: "Supercopa do Brasil (Brasil)",
     39: "Premier League (Inglaterra)",
-    40: "Championship (Inglaterra)",
-    41: "League One (Inglaterra)",
-    42: "League Two (Inglaterra)",
     45: "FA Cup (Inglaterra)",
     48: "EFL Cup (Inglaterra)",
     140: "La Liga (Espanha)",
-    141: "La Liga 2 (Espanha)",
     143: "Copa del Rey (Espanha)",
     135: "Serie A (Italia)",
-    136: "Serie B (Italia)",
     137: "Coppa Italia (Italia)",
     78: "Bundesliga (Alemanha)",
-    79: "2. Bundesliga (Alemanha)",
     81: "DFB Pokal (Alemanha)",
     61: "Ligue 1 (Franca)",
-    62: "Ligue 2 (Franca)",
     66: "Coupe de France (Franca)",
     2: "Champions League (Europa)",
     3: "Europa League (Europa)",
@@ -44,17 +36,13 @@ ALLOWED_LEAGUES = {
     253: "Major League Soccer (EUA)",
     772: "Leagues Cup (America)",
     262: "Liga MX (Mexico)",
-    263: "Liga de Expansao MX (Mexico)",
     1028: "CONCACAF Central American Cup (CONCACAF)",
     16: "CONCACAF Champions Cup (CONCACAF)",
     113: "Allsvenskan (Suecia)",
     103: "Eliteserien (Noruega)",
-    104: "1. Division (Noruega)",
     94: "Primeira Liga (Portugal)",
     88: "Eredivisie (Holanda)",
-    89: "Eerste Divisie (Holanda)",
     128: "Primera Division (Argentina)",
-    129: "Primera Nacional (Argentina)",
     130: "Copa Argentina (Argentina)",
     98: "J1 League (Japao)",
     292: "K League 1 (Coreia do Sul)",
@@ -91,24 +79,24 @@ ALLOWED_LEAGUE_IDS = set(ALLOWED_LEAGUES.keys())
 
 # Palavras-chave para validação fallback por nome textual
 ALLOWED_LEAGUE_NAMES = [
-    'brasileirão', 'brasileirao', 'serie a', 'série a', 'serie b', 'série b', 'serie c', 'série c',
+    'brasileirão', 'brasileirao', 'serie a', 'série a', 'serie b', 'série b',
     'copa do brasil', 'copa brasil', 'copa do nordeste', 'supercopa',
-    'premier league', 'championship', 'league one', 'league two', 'fa cup', 'efl cup',
-    'la liga', 'la liga 2', 'copa del rey',
-    'bundesliga', '2. bundesliga', 'dfb pokal',
-    'ligue 1', 'ligue 2', 'coupe de france',
-    'primeira liga', 'segunda liga', 'liga portugal',
-    'eredivisie', 'eerste divisie',
+    'premier league', 'fa cup', 'efl cup',
+    'la liga', 'copa del rey',
+    'bundesliga', 'dfb pokal',
+    'ligue 1', 'coupe de france',
+    'primeira liga', 'liga portugal',
+    'eredivisie',
     'pro league', 'jupiler pro league', 'saudi pro league',
     'super lig', 'süper lig',
     'premiership', 'scottish premiership',
-    'liga profesional', 'primera division', 'primera nacional', 'copa argentina',
+    'liga profesional', 'primera division', 'copa argentina',
     'super league 1', 'super league', 'superliga',
     'champions league', 'europa league', 'conference league',
     'libertadores', 'copa sudamericana', 'sudamericana', 'recopa',
     'major league soccer', 'mls', 'leagues cup',
-    'liga mx', 'liga de expansion',
-    'allsvenskan', 'superettan', 'eliteserien',
+    'liga mx',
+    'allsvenskan', 'eliteserien',
     'j1 league', 'j-league', 'j.league',
     'k league', 'k-league', 'k league 1',
     'veikkausliiga', 'ekstraklasa', 'czech first league'
@@ -149,3 +137,101 @@ def is_allowed_league(league_id, league_name: str = "", fixture_date=None) -> bo
         return True
 
     return False
+
+
+# ==============================================================================
+# CLUBES CONSAGRADOS DE ELITE MUNDIAL / CONTINENTAL (TIER 1)
+# ==============================================================================
+# Dicionário canônico indexado pelo ID numérico oficial da API-Sports / Banco de Dados.
+# Elimina 100% dos riscos de homônimos (ex: Barcelona da Espanha vs Barcelona SC Guayaquil)
+# e divergências de abreviações textuais.
+TIER_1_ELITE_CLUBS = {
+    # Espanha (La Liga)
+    529: "Barcelona",
+    541: "Real Madrid",
+    530: "Atlético Madrid",
+
+    # Inglaterra (Premier League)
+    50:  "Manchester City",
+    40:  "Liverpool",
+    42:  "Arsenal",
+    49:  "Chelsea",
+
+    # Alemanha (Bundesliga)
+    157: "Bayern Munich",
+    165: "Borussia Dortmund",
+    168: "Bayer Leverkusen",
+
+    # França (Ligue 1)
+    85:  "Paris Saint Germain",
+
+    # Itália (Serie A)
+    505: "Inter",
+    489: "AC Milan",
+    496: "Juventus",
+    492: "Napoli",
+
+    # Portugal (Primeira Liga)
+    211: "Benfica",
+    212: "FC Porto",
+    228: "Sporting CP",
+
+    # Holanda (Eredivisie)
+    194: "Ajax",
+    197: "PSV Eindhoven",
+
+    # Brasil (Brasileirão Série A)
+    127:  "Flamengo",
+    121:  "Palmeiras",
+    1062: "Atlético Mineiro",
+
+    # Argentina (Liga Profesional)
+    451: "Boca Juniors",
+    435: "River Plate",
+}
+
+
+def is_tier_1_elite_club(team_id: int = None, team_name: str = None) -> bool:
+    """
+    Verifica se a equipe informada pertence ao grupo de elite mundial (Tier 1).
+    Prioridade Absoluta: Consulta o team_id oficial no dicionário canônico TIER_1_ELITE_CLUBS.
+    Fallback Secundário: Correspondência estrita de nome canônico apenas se team_id for nulo/ausente.
+    """
+    # 1. Validação por ID oficial (100% determinística e imutável)
+    if team_id is not None:
+        try:
+            tid = int(team_id)
+            if tid in TIER_1_ELITE_CLUBS:
+                return True
+            # Se um team_id numérico válido foi fornecido e NÃO está no dicionário Tier 1,
+            # ele categoricamente NÃO é Tier 1 (evita falso positivo por homônimo em string)
+            return False
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Fallback Secundário por Nome (Apenas para registros legados onde team_id é nulo)
+    if not team_name:
+        return False
+
+    import unicodedata
+    raw = team_name.lower().strip()
+    norm = unicodedata.normalize('NFKD', raw).encode('ASCII', 'ignore').decode('utf-8')
+
+    # Desqualifica homônimos conhecidos fora do Tier 1 europeu/sul-americano
+    disqualified_homonyms = [
+        'guayaquil', 'sc', 'montevideo', 'sarandi', 'gijon', 'turku', 'limeira',
+        'kansas', 'san jose', 'khalsa', 'miami', 'bogota', 'escaldes', 'intercity'
+    ]
+    if any(dh in norm for dh in disqualified_homonyms) and 'manchester city' not in norm:
+        return False
+
+    for c_id, c_name in TIER_1_ELITE_CLUBS.items():
+        c_norm = unicodedata.normalize('NFKD', c_name.lower().strip()).encode('ASCII', 'ignore').decode('utf-8')
+        if norm == c_norm or f" {c_norm} " in f" {norm} ":
+            return True
+        if len(c_norm) >= 6 and c_norm in norm:
+            return True
+
+    return False
+
+

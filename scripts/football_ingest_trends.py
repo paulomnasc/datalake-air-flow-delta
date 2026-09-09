@@ -18,9 +18,11 @@ except Exception:
     scrape_futbol24_team_last5 = None
 
 try:
-    from leagues_config import ALLOWED_LEAGUES, is_allowed_league
+    from leagues_config import ALLOWED_LEAGUES, is_allowed_league, is_tier_1_elite_club
 except Exception:
     ALLOWED_LEAGUES = {}
+    def is_tier_1_elite_club(team_id=None, team_name=None):
+        return False
 
 try:
     from asian_handicap_engine import (
@@ -1014,7 +1016,7 @@ def build_natural_language_motivation(
     home_text = home_last5.get("text", "2V-1E-2D") if home_last5 else "2V-1E-2D"
     away_text = away_last5.get("text", "2V-1E-2D") if away_last5 else "2V-1E-2D"
     try:
-        odd_str = f" [Odds Mercado: H:{float(odd_home):.2f}/A:{float(odd_away):.2f}]" if (odd_home and odd_away and float(odd_home) > 1.0) else ""
+        odd_str = f" [Odds 1X2: {home_team} {float(odd_home):.2f} vs {away_team} {float(odd_away):.2f}]" if (odd_home and odd_away and float(odd_home) > 1.0) else ""
     except Exception:
         odd_str = ""
 
@@ -1049,7 +1051,7 @@ def build_natural_language_motivation(
         )
     elif (away_pts >= 9 or (away_last5 and away_last5.get("v", 0) >= 3)) and (home_pts <= 5 or (home_last5 and home_last5.get("d", 0) >= 3)) and away_team.lower() in suggestion.lower():
         if odd_home and odd_away and float(odd_home) < float(odd_away):
-            market_note = f"• 📈 Contraponto às Odds de Mercado: Embora as odds do mercado atribuam favoritismo ao mandante {home_team} ({odd_home:.2f} vs {odd_away:.2f}), o momento recente superior do {away_team} ({away_text} vs {home_text}) justifica a indicação de proteção (Empate Anula) a favor do visitante."
+            market_note = f"• 📈 Contraponto às Odds de Mercado: Embora as odds do mercado atribuam favoritismo ao mandante {home_team} [{home_team} {float(odd_home):.2f} vs {away_team} {float(odd_away):.2f}], o momento recente superior do {away_team} ({away_text} vs {home_text}) justifica a indicação de proteção a favor do visitante."
         else:
             market_note = f"• 📈 Precificação Ponderada do Mercado: O mercado estatístico ajustado alinha-se ao momento superior do visitante {away_team}{odd_str}."
 
@@ -1078,15 +1080,15 @@ def build_natural_language_motivation(
         )
     elif away_team.lower() in suggestion.lower():
         if odd_home and odd_away and float(odd_home) > float(odd_away):
-            title_text = "Consenso das Odds de Mercado e Desempenho do Visitante"
-            intro_text = f"A indicação a favor do visitante {away_team} fundamenta-se na priorização das probabilidades de mercado:"
-            odds_market_text = f"As odds do mercado indicam favoritismo do visitante {away_team}{odd_str}, prevalecendo no modelo sobre o fator casa do {home_team}."
-            market_bullet = f"• ⚡ Alinhamento com o Mercado: A precificação da casa de aposta sobressai-se ao bônus de mando de campo do {home_team}."
+            title_text = "Consenso das Odds e Superioridade do Visitante"
+            intro_text = f"A indicação a favor do visitante {away_team} fundamenta-se no alinhamento com a precificação de mercado:"
+            odds_market_text = f"As cotações das casas já apontam o visitante {away_team} como favorito mesmo fora de casa{odd_str}."
+            market_bullet = f"• ⚡ Alinhamento com o Mercado: A força e o momento do {away_team} superam a vantagem de jogar em casa do {home_team}."
         else:
-            title_text = "Divergência de Valor e Desempenho do Visitante"
-            intro_text = f"A indicação a favor do visitante {away_team} fundamenta-se na identificação de valor estatístico frente às odds de mercado:"
-            odds_market_text = f"Análise combinada das estatísticas ajustadas com preferência ao visitante {away_team}{odd_str}."
-            market_bullet = f"• 📊 Divergência de Valor: As odds da casa favorecem o mando do {home_team}, mas o modelo identifica valor no visitante {away_team}."
+            title_text = "Oportunidade de Valor (+EV) e Desempenho do Visitante"
+            intro_text = f"A indicação a favor do visitante {away_team} fundamenta-se na identificação de valor matemático contra a tendência das casas:"
+            odds_market_text = f"As casas apontam o mandante {home_team} como favorito pelo mando de campo{odd_str}."
+            market_bullet = f"• 📊 Oportunidade de Valor (+EV): As casas pagam uma cotação alta no {away_team} por tratá-lo como azarão, mas nosso modelo calculou que a chance real do visitante pontuar é bem superior à projetada pelo mercado, gerando uma aposta vantajosa."
 
         if "+0.25" in suggestion:
             prot_patrimonio = "• 🛡️ Proteção de Patrimônio (+0.25 AH): Ganho total na vitória e meio-green (50% de lucro + devolução da stake) em caso de empate."
@@ -1102,7 +1104,7 @@ def build_natural_language_motivation(
         res_text = (
             f"🎯 Fator Crucial: {title_text}.\n"
             f"{intro_text}\n"
-            f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
+            f"• 📈 Cenário das Casas de Apostas: {odds_market_text}\n"
             f"{market_bullet}\n"
             f"{prot_patrimonio}"
         )
@@ -1124,7 +1126,7 @@ def build_natural_language_motivation(
             f"🎯 Fator Crucial: Peso Ponderado do Mercado e Mando de Campo (+10%) ({home_team} +{delta_goals:.2f} xG Projetados Pré-Jogo).\n"
             f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
             f"• 🏟️ Reajuste Realista do Fator Mando (+10% em casa / -7% fora): A força de jogar em seus domínios impulsiona a produção ofensiva do {home_team} ({home_goals_scored:.1f} g/j).\n"
-            f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
+            f"• 📈 Leitura das Odds de Mercado: {odds_market_text}\n"
             f"{cs_note}"
         )
     elif delta_goals >= -0.60:
@@ -1152,15 +1154,15 @@ def build_natural_language_motivation(
                 f"🎯 Fator Crucial: Mando de Campo Ponderado pelas Odds de Mercado.\n"
                 f"A indicação a favor do {home_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
                 f"• 🏟️ Equilíbrio e Fator Casa: Confronto estatisticamente emparelhado ({home_team} xG: {home_goals_scored:.1f} / U5J: {home_text} vs {away_team} xG: {away_goals_scored:.1f} / U5J: {away_text}), onde o fator casa do {home_team} concede vantagem.\n"
-                f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
+                f"• 📈 Leitura das Odds de Mercado: {odds_market_text}\n"
                 f"{prot_patrimonio}"
             )
         else:
             if odd_home and odd_away and float(odd_home) > 1.0 and float(odd_away) > 1.0:
                 if float(odd_home) > float(odd_away):
-                    odds_market_text = f"As odds do mercado indicam favoritismo do visitante {away_team}{odd_str}, prevalecendo no modelo sobre a vantagem de mando de campo."
+                    odds_market_text = f"As cotações das casas apontam favoritismo do visitante {away_team}{odd_str}, alinhando-se à superioridade técnica."
                 else:
-                    odds_market_text = f"As odds da casa de aposta ({float(odd_home):.2f} vs {float(odd_away):.2f}) favorecem o mando do {home_team}, mas o modelo identifica valor no visitante {away_team}."
+                    odds_market_text = f"As casas apontam o mandante {home_team} como favorito pelo mando de campo{odd_str}, mas o modelo identificou valor com margem vantajosa no visitante {away_team}."
             else:
                 odds_market_text = f"Análise estatística interna aplicada para {home_team} e {away_team}."
             
@@ -1179,7 +1181,7 @@ def build_natural_language_motivation(
                 f"🎯 Fator Crucial: Superioridade do Visitante Ponderada pelas Odds de Mercado.\n"
                 f"A indicação a favor do {away_team} fundamenta-se na aplicação de 3 critérios de alta precisão:\n"
                 f"• ⚡ Desempenho e Momentum: Apesar do mando de campo do {home_team}, o visitante {away_team} sobressaiu-se pelo desempenho superior ajustado em campo.\n"
-                f"• 📈 Integração das Odds de Mercado: {odds_market_text}\n"
+                f"• 📈 Cenário das Casas de Apostas: {odds_market_text}\n"
                 f"{prot_patrimonio}"
             )
     else:
@@ -1295,7 +1297,8 @@ def calculate_asian_handicap_suggestion(
     odd_home=None, odd_draw=None, odd_away=None,
     home_rank=None, away_rank=None, home_ppg=None, away_ppg=None, standings_motivation=None,
     home_zone=None, away_zone=None,
-    league_name=None
+    league_name=None,
+    home_team_id=None, away_team_id=None
 ):
     """
     Calcula a sugestão de Handicap Asiático priorizando Odds do Mercado de Apostas, Fator Mando de Campo Recalibrado (+10% / -7%),
@@ -1349,14 +1352,10 @@ def calculate_asian_handicap_suggestion(
                 if "x" in score:
                     parts = score.split("x")
                     try:
-                        g_h, g_a = int(parts[0]), int(parts[1])
-                        if m.get("is_home"):
-                            h_scored_list.append(g_h)
-                            h_conceded_list.append(g_a)
-                        else:
-                            h_scored_list.append(g_a)
-                            h_conceded_list.append(g_h)
-                    except ValueError:
+                        g_sc, g_con = int(parts[0]), int(parts[1])
+                        h_scored_list.append(g_sc)
+                        h_conceded_list.append(g_con)
+                    except (ValueError, TypeError):
                         pass
 
             a_scored_list, a_conceded_list = [], []
@@ -1365,14 +1364,10 @@ def calculate_asian_handicap_suggestion(
                 if "x" in score:
                     parts = score.split("x")
                     try:
-                        g_h, g_a = int(parts[0]), int(parts[1])
-                        if m.get("is_home"):
-                            a_scored_list.append(g_h)
-                            a_conceded_list.append(g_a)
-                        else:
-                            a_scored_list.append(g_a)
-                            a_conceded_list.append(g_h)
-                    except ValueError:
+                        g_sc, g_con = int(parts[0]), int(parts[1])
+                        a_scored_list.append(g_sc)
+                        a_conceded_list.append(g_con)
+                    except (ValueError, TypeError):
                         pass
 
             if h_scored_list:
@@ -1653,10 +1648,24 @@ def calculate_asian_handicap_suggestion(
                     f"Sugestão principal com proteção esticada em {suggestion} (cobre vitória, empate e derrota por até 1 gol). "
                     f"Alternativa secundária: {alt_suggestion} (Risco Alto pelo momento das equipes).{note_str}"
                 )
+            elif (
+                odd_home and float(odd_home) <= 1.22 and 
+                (float(odd_away or 0) / float(odd_home)) >= 8.0 and
+                is_tier_1_elite_club(team_id=home_team_id, team_name=home_team) and
+                lambda_home >= 2.10 and delta_goals >= 1.10
+            ):
+                # EXCEÇÃO DE SUPER-FAVORITOS TIER 1 COM MANDO DE GOLEADA:
+                # Clube de Elite Mundial com odd esmagadora (<= 1.22), ratio >= 8.0x e alta expectativa ofensiva (xG >= 2.10, saldo >= +1.10)
+                # Permite linha negativa moderada (-1.0 AH ou -1.5 AH) com alto valor e proteção
+                suggestion = f"{home_team} -1.0 AH" if delta_goals < 2.0 else f"{home_team} -1.5 AH"
+                confidence = round(min(85.0, 75.0 + delta_goals * 3), 1)
+                main_reason = (
+                    f"🔥 Super-Favorito Tier 1 com Mando de Goleada: {home_team} com cotação dominante (@ {float(odd_home):.2f}) e alta expectativa ofensiva "
+                    f"({lambda_home:.2f} xG / saldo ΔG {delta_goals:+.2f} gols). Exceção ativada para cobertura em {suggestion}.{note_str}"
+                )
             elif odd_home and float(odd_home) <= 1.55:
-                # TRAVA ESTRITA DE BANCA: O mandante é super-favorito nominal (odd <= 1.55).
-                # Linhas negativas profundas (-0.50, -0.75, -1.0, -1.50) estão terminantemente desativadas (perda total no empate).
-                # A linha -0.25 AH teria odd esmagada (< 1.55), gerando EV negativo. Abstenção mandatória.
+                # TRAVA ESTRITA DE BANCA: O mandante é super-favorito nominal (odd <= 1.55) sem projeção de goleada (xG < 2.30).
+                # Linhas profundas desativadas por risco de perda no empate, e linha -0.25 AH tem odd esmagada. Abstenção mandatória.
                 suggestion = "Sem Entrada (Abstenção)"
                 confidence = 50.00
                 main_reason = (
@@ -1688,6 +1697,17 @@ def calculate_asian_handicap_suggestion(
                     suggestion = f"{home_team} -0.25 AH"
                     confidence = 72.00
                     main_reason = f"Favoritismo de mercado do mandante {home_team} alinhado com proteção de meia estaca (-0.25 AH).{note_str}"
+            elif odd_home and float(odd_home) <= 2.00 and (odd_away and (float(odd_away) >= 3.80 or (float(odd_home) > 0 and float(odd_away) / float(odd_home) >= 2.0))):
+                # TRAVA DE MANDO CONSAGRADO (Anti-Zebra em Caldeirões):
+                # Mandante é favorito consolidado de mercado em casa (H <= 2.00) contra zebra expressiva (A >= 3.80).
+                # Bloqueia terminantemente qualquer recomendação de +AH na zebra visitante para evitar falso +EV contra mandante de tradição.
+                suggestion = "Sem Entrada (Abstenção)"
+                confidence = 50.00
+                main_reason = (
+                    f"🛡️ Trava de Mando Consagrado: Mandante {home_team} é favorito consolidado de mercado em seus domínios "
+                    f"(@ {float(odd_home):.2f}) contra visitante zebra {away_team} (@ {float(odd_away):.2f}). "
+                    f"Entrada a favor da zebra bloqueada pelo Gatekeeper para evitar falsos positivos contra mandantes de tradição/caldeirão.{note_str}"
+                )
             elif odd_home and float(odd_home) >= 1.90:
                 if delta_goals <= -0.60:
                     suggestion = f"{away_team} +0.25 AH"
@@ -1726,6 +1746,14 @@ def calculate_asian_handicap_suggestion(
                     f"mas o fator casa e o momento recente (U5J) favorecem o mandante {home_team} ({home_last5.get('text')} vs {away_last5.get('text')}). "
                     f"Sugestão principal com proteção esticada em {suggestion} (cobre vitória, empate e derrota por até 1 gol). "
                     f"Alternativa secundária: {alt_suggestion} (Risco Alto pelo momento das equipes).{note_str}"
+                )
+            elif odd_away and float(odd_away) <= 1.35 and lambda_away >= 2.30 and delta_goals <= -1.40:
+                # EXCEÇÃO DE SUPER-FAVORITO VISITANTE COM PROJEÇÃO DE GOLEADA:
+                suggestion = f"{away_team} -1.0 AH" if abs(delta_goals) < 2.0 else f"{away_team} -1.5 AH"
+                confidence = round(min(85.0, 74.0 + abs(delta_goals) * 4), 1)
+                main_reason = (
+                    f"🔥 Super-Favorito Visitante com Poder de Goleada: {away_team} com odd dominante (@ {float(odd_away):.2f}) e alta expectativa ofensiva "
+                    f"({lambda_away:.2f} xG / saldo ΔG {delta_goals:+.2f} gols). Exceção ativada para cobertura em {suggestion}.{note_str}"
                 )
             elif odd_away and float(odd_away) <= 1.55:
                 # TRAVA ESTRITA DE BANCA: O visitante é super-favorito nominal (odd <= 1.55).
@@ -1826,9 +1854,18 @@ def calculate_asian_handicap_suggestion(
                 confidence = 68.00
                 main_reason = f"Confronto de alto equilíbrio técnico. Indicação conservadora com cobertura de meia estaca em casa (+0.25 AH).{note_str}"
 
+    # Identificação de Super-Favoritos Tier 1 com Mando de Goleada (Odd <= 1.22, Ratio >= 8.0x, xG >= 2.10)
+    ratio_h = (float(odd_away) / float(odd_home)) if (odd_home and float(odd_home) > 0 and odd_away) else 0.0
+    ratio_a = (float(odd_home) / float(odd_away)) if (odd_away and float(odd_away) > 0 and odd_home) else 0.0
+    is_super_fav_match = (
+        (is_market_home_fav and is_tier_1_elite_club(team_id=home_team_id, team_name=home_team) and odd_home and float(odd_home) <= 1.22 and ratio_h >= 8.0 and lambda_home >= 2.10) or
+        (is_market_away_fav and is_tier_1_elite_club(team_id=away_team_id, team_name=away_team) and odd_away and float(odd_away) <= 1.22 and ratio_a >= 8.0 and lambda_away >= 2.10)
+    )
+
     # TRAVA DE SEGURANÇA DE COPAS ELIMINATÓRIAS (Cup Tournament Guard):
     # Em torneios de Copa Mata-Mata, bloqueia entradas de Handicap Negativo no visitante favorito para evitar riscos de time reserva
-    if is_cup:
+    # (Super-Favoritos Tier 1 com odd esmagadora e xG >= 2.10 são isentos para preservar linhas -1.0 / -1.5 AH)
+    if is_cup and not is_super_fav_match:
         if is_market_away_fav and away_team.lower() in suggestion.lower() and ("-" in suggestion or "0.5" in suggestion or "0.25" in suggestion or "1.0" in suggestion):
             suggestion = "Sem Entrada (Abstenção)"
             confidence = 50.00
@@ -1846,8 +1883,9 @@ def calculate_asian_handicap_suggestion(
 
     # TRAVA CONSERVADORA DE INÍCIO DE TEMPORADA (Early Season Guard):
     # Em início de temporada, mantém apenas linha -0.25 AH para favoritos se odd for viável, ou abstenção
+    # (Super-Favoritos com xG >= 2.30 são isentos para permitir linhas de cobertura -1.0 / -1.5 AH)
     is_early_season = is_early_season_game(league_name)
-    if is_early_season and not is_cup and not has_discrepancy:
+    if is_early_season and not is_cup and not has_discrepancy and not is_super_fav_match:
         if is_market_away_fav and away_team.lower() in suggestion.lower() and "-" in suggestion:
             if odd_away and float(odd_away) <= 1.55:
                 suggestion = "Sem Entrada (Abstenção)"
@@ -1870,7 +1908,8 @@ def calculate_asian_handicap_suggestion(
     # TRAVA DE LINHAS AGRESSIVAS DE HANDICAP NEGATIVO (-0.50 AH e -0.75 AH):
     # Linhas superiores a -0.75 AH (-1.0, -1.25, -1.50, -2.0) são calibradas conservadoramente em -0.75 AH
     # para evitar exigência excessiva de goleadas, garantindo meio-green em vitória simples por 1 gol de diferença.
-    if any(neg in suggestion for neg in ["-1.0", "-1.25", "-1.5", "-1.75", "-2.0"]):
+    # Exceção Estrutural: Super-Favoritos (odd <= 1.35 e xG >= 2.30) mantêm linhas -1.0 / -1.5 AH.
+    if not is_super_fav_match and any(neg in suggestion for neg in ["-1.0", "-1.25", "-1.5", "-1.75", "-2.0"]):
         team_fav = home_team if (is_market_home_fav or home_team.lower() in suggestion.lower()) else away_team
         suggestion = f"{team_fav} -0.75 AH"
         confidence = 74.00
@@ -3036,7 +3075,9 @@ def main():
                     odd_home=cur_odd_home,
                     odd_draw=cur_odd_draw,
                     odd_away=cur_odd_away,
-                    league_name=l_name
+                    league_name=l_name,
+                    home_team_id=home_id,
+                    away_team_id=away_id
                 )
                 ah_suggestion, ah_confidence, ah_reasoning = res_ah[0], res_ah[1], res_ah[2]
 
@@ -3946,7 +3987,9 @@ def update_oddspedia_odds(conn):
                     xg_h, 1.0, xg_a, 1.0, fix['home_team'], fix['away_team'], 30.0, 30.0,
                     home_losses, away_losses, home_last5.get('v', 0), away_last5.get('v', 0),
                     home_last5, away_last5, best_c1, best_cX, best_c2,
-                    league_name=l_name
+                    league_name=l_name,
+                    home_team_id=fix.get('home_team_id'),
+                    away_team_id=fix.get('away_team_id')
                 )
 
                 for attempt in range(3):
@@ -4169,7 +4212,9 @@ def enrich_fixtures_standings(conn):
                 h_l5, a_l5,
                 float(fix_row['odd_home']), float(fix_row.get('odd_draw') or 3.5), float(fix_row.get('odd_away') or 2.5),
                 home_rank, away_rank, home_ppg, away_ppg, motivation_score, home_zone, away_zone,
-                league_name=l_name
+                league_name=l_name,
+                home_team_id=fix.get('home_team_id'),
+                away_team_id=fix.get('away_team_id')
             )
             
             cursor.execute("""
@@ -4233,7 +4278,9 @@ def recalculate_inconsistent_odds_predictions(conn):
                     float(fix['odd_home']), float(fix['odd_draw']), float(fix['odd_away']),
                     fix.get('home_rank'), fix.get('away_rank'), fix.get('home_ppg'), fix.get('away_ppg'),
                     fix.get('standings_motivation_score'), fix.get('home_zone'), fix.get('away_zone'),
-                    league_name=l_name
+                    league_name=l_name,
+                    home_team_id=fix.get('home_team_id'),
+                    away_team_id=fix.get('away_team_id')
                 )
 
                 cursor.execute("""

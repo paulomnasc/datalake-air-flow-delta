@@ -420,6 +420,76 @@ class ApostaController extends BaseController
     }
 
     /**
+     * Verifica se o clube pertence ao grupo Tier 1 de Elite Mundial/Continental
+     * Prioriza validação pelo ID oficial da API-Sports / Banco de Dados.
+     */
+    private function isTier1EliteClub(?int $teamId = null, ?string $teamName = null): bool
+    {
+        $tier1Clubs = [
+            529  => "Barcelona",
+            541  => "Real Madrid",
+            530  => "Atlético Madrid",
+            50   => "Manchester City",
+            40   => "Liverpool",
+            42   => "Arsenal",
+            49   => "Chelsea",
+            157  => "Bayern Munich",
+            165  => "Borussia Dortmund",
+            168  => "Bayer Leverkusen",
+            85   => "Paris Saint Germain",
+            505  => "Inter",
+            489  => "AC Milan",
+            496  => "Juventus",
+            492  => "Napoli",
+            211  => "Benfica",
+            212  => "FC Porto",
+            228  => "Sporting CP",
+            194  => "Ajax",
+            197  => "PSV Eindhoven",
+            127  => "Flamengo",
+            121  => "Palmeiras",
+            1062 => "Atlético Mineiro",
+            451  => "Boca Juniors",
+            435  => "River Plate",
+        ];
+
+        if ($teamId !== null && $teamId > 0) {
+            return isset($tier1Clubs[(int)$teamId]);
+        }
+
+        if (empty($teamName)) {
+            return false;
+        }
+
+        $raw = mb_strtolower(trim($teamName));
+        $norm = iconv('UTF-8', 'ASCII//TRANSLIT', $raw);
+        if ($norm === false) {
+            $norm = $raw;
+        }
+
+        $disqualifiedHomonyms = [
+            'guayaquil', 'sc', 'montevideo', 'sarandi', 'gijon', 'turku', 'limeira',
+            'kansas', 'san jose', 'khalsa', 'miami', 'bogota', 'escaldes', 'intercity'
+        ];
+        foreach ($disqualifiedHomonyms as $dh) {
+            if (strpos($norm, $dh) !== false && strpos($norm, 'manchester city') === false) {
+                return false;
+            }
+        }
+
+        foreach ($tier1Clubs as $id => $name) {
+            $cNorm = iconv('UTF-8', 'ASCII//TRANSLIT', mb_strtolower(trim($name)));
+            if ($norm === $cNorm || strpos($norm, " {$cNorm} ") !== false) {
+                return true;
+            }
+            if (strlen($cNorm) >= 6 && strpos($norm, $cNorm) !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Reavalia o Gatekeeper para uma aposta (+EV, Odd Justa, Poisson e Teto Dinâmico de Segurança)
      */
     private function evaluateGatekeeper(?int $fixtureId, string $timeCasa, string $timeFora, string $mercado, string $palpite, float $odd): array
@@ -477,17 +547,10 @@ class ApostaController extends BaseController
             preg_match('/([+-]?\d+(?:\.\d+)?)/', $palpite, $matchesLine);
             $line = !empty($matchesLine[1]) ? (float)$matchesLine[1] : 0.0;
 
-            if ($line < -0.75) {
-                $statusGatekeeper = 'NO_BET';
-                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Linhas de handicap mais profundas que -0.75 são bloqueadas pelo modelo por elevado risco de perda total no empate.";
-                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
-            }
+            $isAway = (stripos($palpite, $timeFora) !== false || stripos($palpite, 'away') !== false || stripos($palpite, 'fora') !== false || stripos($palpite, 'visitante') !== false);
 
-            if ($odd < 1.45) {
-                $statusGatekeeper = 'NO_BET';
-                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Odd muito deprimida (< 1.45) para Handicap Asiático. Sem margem de valor esperado (+EV).";
-                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
-            }
+            $oddHome = ($fixture && !empty($fixture->odd_home)) ? (float)$fixture->odd_home : 0.0;
+            $oddAway = ($fixture && !empty($fixture->odd_away)) ? (float)$fixture->odd_away : 0.0;
 
             $xgHome = ($fixture && !empty($fixture->xg_home)) ? (float)$fixture->xg_home : 0.0;
             $xgAway = ($fixture && !empty($fixture->xg_away)) ? (float)$fixture->xg_away : 0.0;
@@ -505,7 +568,62 @@ class ApostaController extends BaseController
             if ($xgHome <= 0.1) $xgHome = 1.30;
             if ($xgAway <= 0.1) $xgAway = 1.10;
 
-            $isAway = (stripos($palpite, $timeFora) !== false || stripos($palpite, 'away') !== false || stripos($palpite, 'fora') !== false || stripos($palpite, 'visitante') !== false);
+            // 1. Trava de Mando Consagrado (Anti-Zebra em Caldeirões):
+            // Bloqueia handicap positivo a favor do visitante quando o mandante é favorito sólido de mercado
+            if ($isAway && $line > 0.0) {
+                if ($oddHome > 1.0 && $oddHome <= 2.00 && ($oddAway >= 3.80 || ($oddAway / $oddHome) >= 2.0)) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Mando Consagrado): Entrada de handicap positivo a favor da zebra visitante bloqueada contra mandante favorito consolidado em casa (Odd Mandante: {$oddHome}).";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+                }
+            }
+
+            // 1.1 Trava de Time em Crise (Anti-Zebra em Crise Severa):
+            // Bloqueia qualquer linha a favor de equipe sem vitórias recentes (0V no U5J) em situação de zebra contra favorito
+            $u5j = null;
+            if ($fixture && !empty($fixture->ah_reasoning) && strpos($fixture->ah_reasoning, 'U5J_DATA:') !== false) {
+                $parts = explode('U5J_DATA:', $fixture->ah_reasoning);
+                $jsonStr = trim(explode('||', $parts[1])[0]);
+                $u5j = json_decode($jsonStr, true);
+            }
+            if ($u5j) {
+                $candL5 = $isAway ? ($u5j['away'] ?? null) : ($u5j['home'] ?? null);
+                if ($candL5 && isset($candL5['v']) && (int)$candL5['v'] === 0) {
+                    $candOdd = $isAway ? $oddAway : $oddHome;
+                    $oppOdd = $isAway ? $oddHome : $oddAway;
+                    if ($candOdd >= 2.20 || ($oppOdd > 1.0 && $oppOdd <= 2.10)) {
+                        $candName = $isAway ? $timeFora : $timeCasa;
+                        $statusGatekeeper = 'NO_BET';
+                        $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Time em Crise): Entrada de handicap a favor de equipe sem vitórias recentes nos últimos 5 jogos (0V para {$candName}) em situação de zebra contra favorito de mercado.";
+                        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+                    }
+                }
+            }
+
+            // 2. Trava de Linhas Negativas Profundas com Exceção Estrutural de Super-Favoritos Tier 1 (-1.0 e -1.5 AH)
+            $isSuperFavMatch = false;
+            $ratioHome = ($oddHome > 0 && $oddAway > 0) ? ($oddAway / $oddHome) : 0.0;
+            $ratioAway = ($oddAway > 0 && $oddHome > 0) ? ($oddHome / $oddAway) : 0.0;
+            $homeTeamId = ($fixture && !empty($fixture->home_team_id)) ? (int)$fixture->home_team_id : null;
+            $awayTeamId = ($fixture && !empty($fixture->away_team_id)) ? (int)$fixture->away_team_id : null;
+
+            if (!$isAway && in_array($line, [-1.0, -1.5]) && $this->isTier1EliteClub($homeTeamId, $timeCasa) && $oddHome > 1.0 && $oddHome <= 1.22 && $ratioHome >= 8.0 && $xgHome >= 2.10) {
+                $isSuperFavMatch = true;
+            } elseif ($isAway && in_array($line, [-1.0, -1.5]) && $this->isTier1EliteClub($awayTeamId, $timeFora) && $oddAway > 1.0 && $oddAway <= 1.22 && $ratioAway >= 8.0 && $xgAway >= 2.10) {
+                $isSuperFavMatch = true;
+            }
+
+            if ($line < -0.75 && !$isSuperFavMatch) {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Linhas de handicap mais profundas que -0.75 são bloqueadas pelo modelo por elevado risco de perda total no empate (Exceção: -1.0/-1.5 permitido exclusivamente para Super-Favoritos Tier 1 com Odd <= 1.22, Ratio >= 8.0x e xG >= 2.10).";
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+            }
+
+            if ($odd < 1.45) {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Odd muito deprimida (< 1.45) para Handicap Asiático. Sem margem de valor esperado (+EV).";
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+            }
 
             $pWin = 0.0;
             $pHalfWin = 0.0;
@@ -557,15 +675,17 @@ class ApostaController extends BaseController
                 $probPoisson = 1.00;
             }
 
-            if ($evPercentual >= 5.0 && $probPoisson >= 48.0) {
+            $minProbReq = $isSuperFavMatch ? 60.0 : 45.0;
+
+            if ($evPercentual >= 5.0 && $probPoisson >= max($minProbReq, 48.0)) {
                 $statusGatekeeper = 'APROVADO';
                 $gatekeeperMsg = "Gatekeeper AH Green Light (+EV): Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% (Mínimo: +5.0%) | Prob. Efetiva: {$probPoisson}%.";
-            } elseif ($evPercentual >= 0.0 && $probPoisson >= 45.0) {
+            } elseif ($evPercentual >= 0.0 && $probPoisson >= $minProbReq) {
                 $statusGatekeeper = 'APROVADO';
                 $gatekeeperMsg = "Gatekeeper AH Aprovado (+EV Neutro/Positivo): Odd Real ({$odd}) | EV: +{$evPercentual}% | Prob. Efetiva: {$probPoisson}%.";
             } else {
                 $statusGatekeeper = 'NO_BET';
-                $gatekeeperMsg = "Aviso Gatekeeper AH (NO_BET): Entrada sem valor esperado positivo (EV: {$evPercentual}%, Mínimo: +5.0% | Odd Justa: {$oddJusta} vs Odd Atual: {$odd}).";
+                $gatekeeperMsg = "Aviso Gatekeeper AH (NO_BET): Entrada sem valor esperado positivo ou probabilidade insuficiente (EV: {$evPercentual}% | Prob. Efetiva: {$probPoisson}% vs Mínimo: {$minProbReq}% | Odd Justa: {$oddJusta} vs Odd Atual: {$odd}).";
             }
 
             return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');

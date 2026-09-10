@@ -78,6 +78,7 @@ $routes->get('/conta-corrente/extrato', 'ContaCorrenteController::extrato', ['as
 $routes->post('/conta-corrente/adicionar-credito', 'ContaCorrenteController::adicionarCredito', ['as' => 'conta_corrente.adicionar_credito']);
 $routes->post('/conta-corrente/resgatar-credito', 'ContaCorrenteController::resgatarCredito', ['as' => 'conta_corrente.resgatar_credito']);
 $routes->get('/conta-corrente/grafico-dados', 'ContaCorrenteController::getGraficoDados', ['as' => 'conta_corrente.grafico_dados']);
+$routes->get('/conta-corrente/aposta-detalhes/(:num)', 'ContaCorrenteController::getApostaDetalhes/$1', ['as' => 'conta_corrente.aposta_detalhes']);
 
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);

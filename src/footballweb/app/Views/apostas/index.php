@@ -943,8 +943,8 @@ if (!function_exists('formatBrtDate')) {
           <i class="bi bi-slash-circle text-danger"></i> Sem Canceladas:
         </span>
         <div class="bet-slide-toggle" id="withoutCancelledSlideToggle">
-          <button type="button" class="slide-btn" data-val="1" onclick="setWithoutCancelledFilter('1', this)" title="Filtrar sem as apostas canceladas (Ocultar canceladas)">Sim</button>
-          <button type="button" class="slide-btn active" data-val="0" onclick="setWithoutCancelledFilter('0', this)" title="Exibir apostas canceladas normalmente">Não</button>
+          <button type="button" class="slide-btn active" data-val="1" onclick="setWithoutCancelledFilter('1', this)" title="Filtrar sem as apostas canceladas (Ocultar canceladas)">Sim</button>
+          <button type="button" class="slide-btn" data-val="0" onclick="setWithoutCancelledFilter('0', this)" title="Exibir apostas canceladas normalmente">Não</button>
         </div>
       </div>
 
@@ -1171,10 +1171,50 @@ if (!function_exists('formatBrtDate')) {
           </div>
 
           <div class="bet-card-body">
+            <?php 
+              $detalhadoExibir = $aposta->resultado_detalhado ?? '';
+              if (empty($detalhadoExibir) && !empty($placarExibir) && $aposta->status !== 'Pendente') {
+                $detalhadoExibir = "FT | Placar: {$placarExibir} | Status: {$aposta->status}";
+              }
+
+              $isAbstencaoBloqueada = (
+                $aposta->status === 'Cancelada' && (
+                  ($aposta->status_gatekeeper ?? '') === 'NO_BET' ||
+                  stripos($detalhadoExibir, 'abstenção') !== false ||
+                  stripos($detalhadoExibir, 'abstencao') !== false ||
+                  stripos($detalhadoExibir, 'gatekeeper ah no_bet') !== false ||
+                  stripos($detalhadoExibir, 'entrada impedida') !== false ||
+                  stripos($aposta->palpite ?? '', 'abstenção') !== false ||
+                  stripos($aposta->palpite ?? '', 'abstencao') !== false ||
+                  stripos($aposta->palpite ?? '', 'sem entrada') !== false
+                )
+              );
+
+              if ($isAbstencaoBloqueada) {
+                if (!empty($aposta->odd_home) && !empty($aposta->odd_draw) && !empty($aposta->odd_away)) {
+                  $abstencaoTexto = sprintf(
+                    lang('App.ai_abstain_with_odds'),
+                    htmlspecialchars($aposta->time_casa),
+                    htmlspecialchars($aposta->time_fora),
+                    lang('App.odds_home'),
+                    number_format($aposta->odd_home, 2),
+                    lang('App.odds_draw'),
+                    number_format($aposta->odd_draw, 2),
+                    lang('App.odds_away'),
+                    number_format($aposta->odd_away, 2)
+                  );
+                } elseif (stripos($detalhadoExibir, 'analisou a partida') !== false) {
+                  $abstencaoTexto = $detalhadoExibir;
+                } else {
+                  $abstencaoTexto = sprintf(lang('App.ai_abstain_desc_generic'), htmlspecialchars($aposta->time_casa), htmlspecialchars($aposta->time_fora));
+                }
+              }
+            ?>
+
             <div class="market-info">
               <div>
                 <div class="market-name"><?= htmlspecialchars($aposta->mercado) ?></div>
-                <div class="palpite-name"><?= htmlspecialchars($aposta->palpite) ?></div>
+                <div class="palpite-name"><?= $isAbstencaoBloqueada ? '⚪ Sem Entrada (Abstenção)' : htmlspecialchars($aposta->palpite) ?></div>
               </div>
               <div class="odd-badge"><?= number_format($aposta->odd, 2) ?></div>
             </div>
@@ -1191,10 +1231,6 @@ if (!function_exists('formatBrtDate')) {
             </div>
 
             <?php 
-              $detalhadoExibir = $aposta->resultado_detalhado ?? '';
-              if (empty($detalhadoExibir) && !empty($placarExibir) && $aposta->status !== 'Pendente') {
-                $detalhadoExibir = "FT | Placar: {$placarExibir} | Status: {$aposta->status}";
-              }
               $statusLabelMap = [
                 'Pendente'       => lang('App.pending'),
                 'Não Confirmada' => lang('App.unconfirmed'),
@@ -1232,7 +1268,7 @@ if (!function_exists('formatBrtDate')) {
               );
             ?>
 
-            <?php if ($isVolatilidade): ?>
+            <?php if ($isVolatilidade && !$isAbstencaoBloqueada): ?>
               <div class="alert-volatilidade-box mb-3" style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.45); border-left: 4px solid #ef4444; border-radius: 8px; padding: 10px 14px; color: #fca5a5; font-size: 0.82rem; line-height: 1.45;">
                 <div class="d-flex align-items-start gap-2">
                   <i class="bi bi-exclamation-triangle-fill text-danger flex-shrink-0" style="font-size: 1.15rem; margin-top: 1px;"></i>
@@ -1253,7 +1289,32 @@ if (!function_exists('formatBrtDate')) {
               }
             ?>
 
-            <?php if (!empty($detalhadoExibir)): ?>
+            <?php if ($isAbstencaoBloqueada): ?>
+              <div class="asian-handicap-widget-box mb-3" style="padding: 12px 14px; background: rgba(239, 68, 68, 0.08); border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.4); border-left: 5px solid #ef4444; font-size: 0.78rem; color: #fca5a5;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                  <span style="font-weight: 800; color: #f87171; display: flex; align-items: center; gap: 6px; font-size: 0.86rem; text-transform: uppercase; letter-spacing: 0.3px;">
+                    <i class="bi bi-shield-x me-1"></i> 🚫 <?= lang('App.bet_blocked_risk_management') ?>
+                  </span>
+                  <span class="badge" style="background: rgba(239, 68, 68, 0.25); border: 1px solid #ef4444; color: #fca5a5; font-weight: 700; font-size: 0.76rem; padding: 4px 8px; border-radius: 6px;">
+                    ⚪ <?= lang('App.no_entry_abstention') ?>
+                  </span>
+                </div>
+
+                <div style="margin-top: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; font-size: 0.76rem; color: #e2e8f0; line-height: 1.45;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+                    <div style="font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 5px; font-size: 0.78rem;">
+                      <i class="bi bi-exclamation-triangle-fill"></i> <?= lang('App.reason_ai_abstention') ?>:
+                    </div>
+                    <span class="badge" style="background: rgba(239, 68, 68, 0.22); border: 1px solid rgba(239, 68, 68, 0.6); color: #fca5a5; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px;">
+                      <i class="bi bi-shield-lock-fill"></i> <?= lang('App.ai_abstain_badge_generic') ?>
+                    </span>
+                  </div>
+                  <div style="white-space: pre-line; font-size: 0.75rem; color: #e2e8f0; line-height: 1.45;">
+                    <?= htmlspecialchars($abstencaoTexto) ?>
+                  </div>
+                </div>
+              </div>
+            <?php elseif (!empty($detalhadoExibir)): ?>
               <div style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px;">
                 <i class="bi bi-info-circle-fill text-info flex-shrink-0" style="margin-top: 2px;"></i>
                 <span class="detalhado-text-content" style="white-space: pre-line; word-break: break-word;"><?= htmlspecialchars($detalhadoExibir) ?></span>
@@ -2365,7 +2426,7 @@ if (!function_exists('formatBrtDate')) {
 
   let currentConfirmedFilter = 'all'; // 'all', '1', '0'
   let currentCardsMarketFilter = 'all'; // 'all', 'over', 'under'
-  let currentWithoutCancelledFilter = '0'; // '0' (Exibe canceladas), '1' (Sem canceladas / Oculta canceladas)
+  let currentWithoutCancelledFilter = '1'; // '1' (Sem canceladas / Oculta canceladas por padrão)
 
   function setConfirmedFilter(val, btnEl) {
     currentConfirmedFilter = val;
@@ -2692,8 +2753,8 @@ if (!function_exists('formatBrtDate')) {
     const cardsBtnAll = document.querySelector('#cardsMarketSlideToggle .slide-btn[data-val="all"]');
     if (cardsBtnAll) setCardsMarketFilter('all', cardsBtnAll);
 
-    const withoutCancBtnNo = document.querySelector('#withoutCancelledSlideToggle .slide-btn[data-val="0"]');
-    if (withoutCancBtnNo) setWithoutCancelledFilter('0', withoutCancBtnNo);
+    const withoutCancBtnSim = document.querySelector('#withoutCancelledSlideToggle .slide-btn[data-val="1"]');
+    if (withoutCancBtnSim) setWithoutCancelledFilter('1', withoutCancBtnSim);
 
     clearDateFilter();
   }

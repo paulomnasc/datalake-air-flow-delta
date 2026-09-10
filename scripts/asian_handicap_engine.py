@@ -23,8 +23,11 @@ from datetime import datetime
 try:
     from leagues_config import is_tier_1_elite_club
 except Exception:
-    def is_tier_1_elite_club(team_id=None, team_name=None):
-        return False
+    try:
+        from scripts.leagues_config import is_tier_1_elite_club
+    except Exception:
+        def is_tier_1_elite_club(team_id=None, team_name=None):
+            return False
 
 # Caches em memória para chamadas da API Betano durante o ciclo de execução
 _betano_ah_odds_cache = {}
@@ -166,7 +169,7 @@ def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
             'x-apisports-key': api_key,
             'User-Agent': 'Mozilla/5.0'
         }
-        url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
+        url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}"
         items = []
         try:
             resp = requests.get(url, headers=headers, timeout=10).json()
@@ -182,84 +185,104 @@ def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
             print(f"⚠️ [API Betano AH] Erro ao buscar cotações para fixture #{fixture_id}: {e}")
             _betano_ah_raw_fixture_cache[fixture_id] = []
 
-    for item in items:
-        for bm in item.get('bookmakers', []):
-            bm_name = str(bm.get('name', '')).strip().upper()
-            bm_id = bm.get('id')
-            if 'BETANO' not in bm_name and bm_id != 32:
+    # Prioridade de casas: 1º Betano (32), 2º Pinnacle (4), 3º Bet365 (8)
+    preferred_order = [(32, 'BETANO'), (4, 'PINNACLE'), (8, 'BET365')]
+    target_bm = None
+    target_source = 'BETANO'
+
+    for pref_id, pref_tag in preferred_order:
+        for item in items:
+            for bm in item.get('bookmakers', []):
+                bm_name = str(bm.get('name', '')).strip().upper()
+                bm_id = bm.get('id')
+                if bm_id == pref_id or pref_tag in bm_name:
+                    target_bm = bm
+                    target_source = pref_tag
+                    break
+            if target_bm:
+                break
+        if target_bm:
+            break
+
+    if target_bm:
+        bm_id = target_bm.get('id')
+        for bet in target_bm.get('bets', []):
+            b_id = bet.get('id')
+            b_name = str(bet.get('name', '')).lower()
+
+            # Ignora estritamente submercados parciais e outros tipos (escanteios, cartões, 1º/2º tempo)
+            if any(term in b_name for term in ['half', '1st', '2nd', 'corner', 'card', 'cart', 'tempo', 'intervalo']):
                 continue
 
-            for bet in bm.get('bets', []):
-                b_id = bet.get('id')
-                b_name = str(bet.get('name', '')).lower()
-
-                # Ignora estritamente submercados parciais e outros tipos (escanteios, cartões, 1º/2º tempo)
-                if any(term in b_name for term in ['half', '1st', '2nd', 'corner', 'card', 'cart', 'tempo', 'intervalo']):
-                    continue
-
-                # Bet ID 4 = Asian Handicap Full Time (Gols)
-                if b_id == 4 or 'asian handicap' in b_name or 'handicap asiático' in b_name:
-                    for val in bet.get('values', []):
-                        v_str = str(val.get('value', '')).strip()
-                        try:
-                            v_odd = float(val.get('odd', 0))
-                        except (ValueError, TypeError):
-                            continue
-
-                        if v_odd <= 1.0:
-                            continue
-
-                        m_line = re.search(r'([+-]?\d+(?:\.\d+)?)', v_str)
-                        if m_line:
-                            is_away = ('away' in v_str.lower() or away_team.lower() in v_str.lower())
-                            try:
-                                line_num = float(m_line.group(1))
-                            except Exception:
-                                continue
-
-                            target_team = away_team if is_away else home_team
-                            sign_str = f"{line_num:+.2f}".rstrip('0').rstrip('.')
-                            if line_num == 0:
-                                sign_str = "0.0"
-                            palpite_fmt = f"{target_team} {sign_str} AH"
-
-                            available_lines.append({
-                                'team': 'Away' if is_away else 'Home',
-                                'target_team': target_team,
-                                'is_away': is_away,
-                                'line': line_num,
-                                'palpite_str': palpite_fmt,
-                                'odd': v_odd,
-                                'raw_value': v_str,
-                                'source': 'BETANO'
-                            })
-
-                # Draw No Bet (Handicap 0.0) - Bet ID 2 (Home/Away) ou nome explícito
-                elif b_id == 2 or 'draw no bet' in b_name or 'empate anula' in b_name:
-                    if b_id == 16 or 'total' in b_name:
+            # Bet ID 4 = Asian Handicap Full Time (Gols)
+            if b_id == 4 or 'asian handicap' in b_name or 'handicap asiático' in b_name:
+                for val in bet.get('values', []):
+                    v_str = str(val.get('value', '')).strip()
+                    try:
+                        v_odd = float(val.get('odd', 0))
+                    except (ValueError, TypeError):
                         continue
-                    for val in bet.get('values', []):
-                        v_str = str(val.get('value', '')).strip()
-                        try:
-                            v_odd = float(val.get('odd', 0))
-                        except (ValueError, TypeError):
-                            continue
 
-                        if v_odd <= 1.0:
-                            continue
+                    if v_odd <= 1.0:
+                        continue
 
+                    m_line = re.search(r'([+-]?\d+(?:\.\d+)?)', v_str)
+                    if m_line:
                         is_away = ('away' in v_str.lower() or away_team.lower() in v_str.lower())
+                        try:
+                            raw_line = float(m_line.group(1))
+                        except Exception:
+                            continue
+
+                        # Em feeds da Pinnacle e Bet365, a seleção de Away reflete o espelho do spread
+                        if is_away and raw_line != 0.0 and bm_id in (4, 8):
+                            line_num = -raw_line
+                        else:
+                            line_num = raw_line
+
                         target_team = away_team if is_away else home_team
+                        sign_str = f"{line_num:+.2f}".rstrip('0').rstrip('.')
+                        if line_num == 0:
+                            sign_str = "0.0"
+                        palpite_fmt = f"{target_team} {sign_str} AH"
+
                         available_lines.append({
                             'team': 'Away' if is_away else 'Home',
                             'target_team': target_team,
                             'is_away': is_away,
-                            'line': 0.0,
-                            'palpite_str': f"{target_team} 0.0 AH",
+                            'line': line_num,
+                            'palpite_str': palpite_fmt,
                             'odd': v_odd,
                             'raw_value': v_str,
-                            'source': 'BETANO'
+                            'source': target_source
                         })
+
+            # Draw No Bet (Handicap 0.0) - Bet ID 2 (Home/Away) ou nome explícito
+            elif b_id == 2 or 'draw no bet' in b_name or 'empate anula' in b_name or b_name == 'home/away':
+                if b_id == 16 or 'total' in b_name:
+                    continue
+                for val in bet.get('values', []):
+                    v_str = str(val.get('value', '')).strip()
+                    try:
+                        v_odd = float(val.get('odd', 0))
+                    except (ValueError, TypeError):
+                        continue
+
+                    if v_odd <= 1.0:
+                        continue
+
+                    is_away = ('away' in v_str.lower() or away_team.lower() in v_str.lower())
+                    target_team = away_team if is_away else home_team
+                    available_lines.append({
+                        'team': 'Away' if is_away else 'Home',
+                        'target_team': target_team,
+                        'is_away': is_away,
+                        'line': 0.0,
+                        'palpite_str': f"{target_team} 0.0 AH",
+                        'odd': v_odd,
+                        'raw_value': v_str,
+                        'source': target_source
+                    })
 
     _betano_ah_odds_cache[fixture_id] = available_lines
     return available_lines
@@ -1125,14 +1148,35 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
             print(f"🔒 [Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Cancelamento automático ignorado.")
             continue
 
+        # Obter cotações 1X2 para descrição natural e clara
+        cursor.execute("SELECT odd_home, odd_draw, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+        f_row = cursor.fetchone() or {}
+        oh = float(f_row.get('odd_home') or 0.0)
+        od = float(f_row.get('odd_draw') or 0.0)
+        oa = float(f_row.get('odd_away') or 0.0)
+        if oh > 0 and od > 0 and oa > 0:
+            human_desc = (
+                f"A inteligência artificial analisou a partida ({aposta['time_casa']} vs {aposta['time_fora']}) "
+                f"e as cotações de mercado 1X2 (Casa: {oh:.2f}, Empate: {od:.2f}, Fora: {oa:.2f}), "
+                f"porém a gestão de risco ativou o bloqueio preventivo (Abstenção da IA) no Handicap Asiático "
+                f"por ausência de margem de segurança matemática."
+            )
+        else:
+            human_desc = (
+                f"A inteligência artificial analisou a partida ({aposta['time_casa']} vs {aposta['time_fora']}), "
+                f"porém a gestão de risco ativou o bloqueio preventivo (Abstenção da IA) no Handicap Asiático "
+                f"por ausência de margem de segurança matemática."
+            )
+
         cursor.execute("""
             UPDATE apostas 
             SET status = 'Cancelada', 
                 status_gatekeeper = 'NO_BET',
+                palpite = 'Sem Entrada (Abstenção)',
                 resultado_detalhado = %s, 
                 updated_at = NOW() 
             WHERE id = %s
-        """, (f"🚫 APOSTA CANCELADA POR ABSTENÇÃO DA IA: {str(motivo)[:200]}", aposta_id))
+        """, (human_desc, aposta_id))
 
         estornado = False
         saldo_posterior = None

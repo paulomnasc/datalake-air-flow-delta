@@ -152,6 +152,7 @@ TIER_1_ELITE_CLUBS = {
     530: "Atlético Madrid",
 
     # Inglaterra (Premier League)
+    33:  "Manchester United",
     50:  "Manchester City",
     40:  "Liverpool",
     42:  "Arsenal",
@@ -170,6 +171,7 @@ TIER_1_ELITE_CLUBS = {
     489: "AC Milan",
     496: "Juventus",
     492: "Napoli",
+    497: "AS Roma",
 
     # Portugal (Primeira Liga)
     211: "Benfica",

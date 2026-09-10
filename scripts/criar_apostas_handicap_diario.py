@@ -319,14 +319,35 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
             print(f"🔒 [Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Cancelamento automático ignorado.")
             continue
         
+        # Obter cotações 1X2 para descrição natural e clara
+        cursor.execute("SELECT odd_home, odd_draw, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+        f_row = cursor.fetchone() or {}
+        oh = float(f_row.get('odd_home') or 0.0)
+        od = float(f_row.get('odd_draw') or 0.0)
+        oa = float(f_row.get('odd_away') or 0.0)
+        if oh > 0 and od > 0 and oa > 0:
+            human_desc = (
+                f"A inteligência artificial analisou a partida ({aposta['time_casa']} vs {aposta['time_fora']}) "
+                f"e as cotações de mercado 1X2 (Casa: {oh:.2f}, Empate: {od:.2f}, Fora: {oa:.2f}), "
+                f"porém a gestão de risco ativou o bloqueio preventivo (Abstenção da IA) no Handicap Asiático "
+                f"por ausência de margem de segurança matemática."
+            )
+        else:
+            human_desc = (
+                f"A inteligência artificial analisou a partida ({aposta['time_casa']} vs {aposta['time_fora']}), "
+                f"porém a gestão de risco ativou o bloqueio preventivo (Abstenção da IA) no Handicap Asiático "
+                f"por ausência de margem de segurança matemática."
+            )
+
         cursor.execute("""
             UPDATE apostas 
             SET status = 'Cancelada', 
                 status_gatekeeper = 'NO_BET',
+                palpite = 'Sem Entrada (Abstenção)',
                 resultado_detalhado = %s, 
                 updated_at = NOW() 
             WHERE id = %s
-        """, (f"🚫 APOSTA CANCELADA POR ABSTENÇÃO DA IA: {str(motivo)[:200]}", aposta_id))
+        """, (human_desc, aposta_id))
         
         estornado = False
         saldo_posterior = None

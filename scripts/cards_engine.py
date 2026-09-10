@@ -18,7 +18,7 @@ import os
 import re
 import math
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Caches em memória para chamadas da API Betano durante o ciclo de execução
 _betano_cards_odds_cache = {}
@@ -295,6 +295,8 @@ def sync_fixture_and_bet_cards(
     - Se a aposta for pendente (não confirmada e sem débito), atualiza a aposta E atualiza fixtures_trends.
     """
     has_confirmed_bet = False
+    created_count = 0
+    updated_count = 0
 
     if selected_cand:
         palpite_str = selected_cand['palpite_str']
@@ -337,6 +339,7 @@ def sync_fixture_and_bet_cards(
                             updated_at = NOW()
                         WHERE id = %s
                     """, (palpite_str, odd_val, odd_justa, prob_poisson, ev_perc, ganhos_potenciais, ja_existe['id']))
+                    updated_count += 1
                     print(f"🔄 [Aposta Cartões Atualizada User #{uid}] ID #{ja_existe['id']} | Palpite: '{palpite_str}' @ {odd_val:.2f} (EV: +{ev_perc}%)")
             else:
                 cursor.execute("""
@@ -355,6 +358,7 @@ def sync_fixture_and_bet_cards(
                     valor_aposta, ganhos_potenciais, fixture_date
                 ))
                 aposta_id = cursor.lastrowid
+                created_count += 1
                 print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ {odd_val:.2f}")
 
     # Sincroniza fixtures_trends com o texto de predição estruturado (se não houver aposta confirmada conflitante)
@@ -367,3 +371,144 @@ def sync_fixture_and_bet_cards(
             WHERE fixture_id = %s
         """, (prediction_text, over_cards_prob, fixture_id))
         print(f"🔗 [Sincronismo Card Cartões] fixtures_trends #{fixture_id} sincronizado com prediction_text.")
+
+    return created_count, updated_count
+
+
+def enrich_missing_referees_batch(cursor, conn, target_fixtures=None):
+    """
+    Enriquece dinamicamente partidas na janela pré-jogo (< 48h) que estejam sem árbitro definido.
+    Cumpre rigorosamente a Regra de Ouro nº 3, item 4 e Regra 6 (solução sistêmica).
+    Agrupa até 20 fixture_ids por chamada HTTP (?ids=id1-id2...) para economizar cota da API.
+    Atualiza fixtures_trends.referee_name e fixtures_trends.referee_api_checked_at.
+    Registra automaticamente novos árbitros na tabela referee_stats com baseline neutro.
+    Retorna dicionário {fixture_id: referee_name}.
+    """
+    enriched = {}
+    if not target_fixtures:
+        return enriched
+
+    try:
+        from leagues_config import is_allowed_league
+    except Exception:
+        def is_allowed_league(lid, lname="", fdate=None):
+            return True
+
+    candidate_ids = []
+    for fix in target_fixtures:
+        fid = fix.get('fixture_id')
+        lid = fix.get('league_id')
+        lname = fix.get('league_name') or ''
+        fdate = fix.get('fixture_date')
+
+        # Filtra apenas ligas permitidas no escopo para não consumir cota com ligas ignoradas
+        if not is_allowed_league(lid, lname, fdate):
+            continue
+
+        ref = (fix.get('referee_name') or '').strip()
+        ref_low = ref.lower()
+        is_unassigned = (not ref) or any(un in ref_low for un in [
+            'árbitro não informado', 'arbitro nao informado', 'não informado', 
+            'nao informado', 'unassigned', 'n/a', 'tbd', 'sem arbitro'
+        ])
+
+        if fid and is_unassigned:
+            cursor.execute("""
+                SELECT referee_name, referee_api_checked_at 
+                FROM fixtures_trends 
+                WHERE fixture_id = %s
+            """, (fid,))
+            row_chk = cursor.fetchone()
+            if row_chk:
+                db_ref = (row_chk.get('referee_name') or '').strip()
+                db_ref_low = db_ref.lower()
+                if db_ref and not any(un in db_ref_low for un in [
+                    'árbitro não informado', 'arbitro nao informado', 'não informado', 
+                    'nao informado', 'unassigned', 'n/a', 'tbd', 'sem arbitro'
+                ]):
+                    enriched[fid] = db_ref
+                    continue
+
+                chk_at = row_chk.get('referee_api_checked_at')
+                # Se já foi consultado na API nas últimas 3 horas e veio vazio, respeita a janela de contingência
+                if chk_at:
+                    if isinstance(chk_at, datetime):
+                        delta = datetime.now() - chk_at
+                    else:
+                        delta = timedelta(hours=4)
+                    if delta < timedelta(hours=3):
+                        continue
+
+            candidate_ids.append(fid)
+
+    if not candidate_ids:
+        return enriched
+
+    print(f"🔍 [Enriquecimento Árbitro < 48h] Identificadas {len(candidate_ids)} partidas elegíveis para checagem na API-Sports.")
+
+    env = get_live_env_vars()
+    api_key = env.get('FOOTBALL_API_KEY') or env.get('API_SPORTS_KEY') or os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
+    headers = {
+        'x-apisports-key': api_key,
+        'User-Agent': 'Mozilla/5.0'
+    }
+
+    # API-Sports suporta até 20 IDs separados por hífen (?ids=...)
+    batch_size = 20
+    for i in range(0, len(candidate_ids), batch_size):
+        chunk = candidate_ids[i:i + batch_size]
+        ids_param = "-".join(str(cid) for cid in chunk)
+        url = f"https://v3.football.api-sports.io/fixtures?ids={ids_param}"
+        try:
+            resp = requests.get(url, headers=headers, timeout=15).json()
+            items = resp.get('response', [])
+            found_fids = set()
+            for item in items:
+                f_info = item.get('fixture', {})
+                fid = f_info.get('id')
+                if not fid:
+                    continue
+                found_fids.add(fid)
+                raw_ref = f_info.get('referee')
+                if raw_ref and raw_ref.strip():
+                    ref_name = raw_ref.split(',')[0].strip()
+                    cursor.execute("""
+                        UPDATE fixtures_trends SET
+                            referee_name = %s,
+                            referee_api_checked_at = NOW(),
+                            updated_at = NOW()
+                        WHERE fixture_id = %s
+                    """, (ref_name, fid))
+                    enriched[fid] = ref_name
+                    print(f"✅ [Árbitro Enriquecido] Fixture #{fid} -> Árbitro oficial atribuído: '{ref_name}'")
+
+                    # Sincroniza em referee_stats se não existir
+                    cursor.execute("SELECT name FROM referee_stats WHERE name = %s", (ref_name,))
+                    if not cursor.fetchone():
+                        cursor.execute("""
+                            INSERT INTO referee_stats (
+                                name, average_yellow_cards, average_red_cards, average_fouls, total_games, rigor_level, updated_at
+                            ) VALUES (%s, 4.20, 0.20, 24.00, 50, 'Moderado', NOW())
+                        """, (ref_name,))
+                        print(f"📋 [Referee Stats] Árbitro '{ref_name}' cadastrado na tabela referee_stats.")
+                else:
+                    cursor.execute("""
+                        UPDATE fixtures_trends SET
+                            referee_api_checked_at = NOW()
+                        WHERE fixture_id = %s
+                    """, (fid,))
+
+            for fid in chunk:
+                if fid not in found_fids:
+                    cursor.execute("""
+                        UPDATE fixtures_trends SET
+                            referee_api_checked_at = NOW()
+                        WHERE fixture_id = %s
+                    """, (fid,))
+
+            if conn and hasattr(conn, 'commit'):
+                conn.commit()
+        except Exception as err:
+            print(f"⚠️ [Enriquecimento Árbitro] Erro ao consultar API-Sports para lote {chunk}: {err}")
+
+    return enriched

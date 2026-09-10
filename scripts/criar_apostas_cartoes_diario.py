@@ -330,7 +330,8 @@ from cards_engine import (
     calculate_expected_cards,
     fetch_betano_real_card_odds,
     evaluate_best_card_under_line,
-    sync_fixture_and_bet_cards
+    sync_fixture_and_bet_cards,
+    enrich_missing_referees_batch
 )
 
 def criar_apostas_cartoes_diario(target_date_str=None):
@@ -381,6 +382,11 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
     print(f"📋 Encontradas {len(fixtures)} partidas selecionadas.")
 
+    # Enriquecimento Dinâmico de Árbitros (< 48h) via API-Sports (Regra de Ouro nº 3, item 4)
+    referees_enriched = enrich_missing_referees_batch(cursor, conn, fixtures)
+    if referees_enriched:
+        print(f"🪄 [Enriquecimento Dinâmico] {len(referees_enriched)} partida(s) com escala de arbitragem atualizada.")
+
     apostas_criadas = 0
     apostas_atualizadas = 0
     apostas_canceladas = 0
@@ -390,6 +396,8 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
     for fix in fixtures:
         fixture_id = fix['fixture_id']
+        if fixture_id in referees_enriched:
+            fix['referee_name'] = referees_enriched[fixture_id]
         home_team = fix['home_team'].strip()
         away_team = fix['away_team'].strip()
         fixture_date = fix['fixture_date']
@@ -484,7 +492,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             continue
 
         # Sincronização atômica Card <-> Aposta com proteção rigorosa para apostas confirmadas (com débito)
-        sync_fixture_and_bet_cards(
+        c_cnt, u_cnt = sync_fixture_and_bet_cards(
             cursor=cursor,
             fixture_id=fixture_id,
             home_team=home_team,
@@ -495,6 +503,8 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             prediction_text=pred_text,
             over_cards_prob=over_cards_prob
         )
+        apostas_criadas += c_cnt
+        apostas_atualizadas += u_cnt
 
         novas_apostas_detalhes.append({
             'usuario_id': user_ids[0] if user_ids else 558,

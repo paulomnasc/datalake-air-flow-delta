@@ -202,14 +202,14 @@
       
       <select id="perfDatePresetSelect" class="form-select form-select-sm bg-dark text-info border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 160px;" onchange="setPerfDatePreset(this.value)" title="Atalhos de Período">
         <option value="custom">📅 Personalizado</option>
-        <option value="today" selected>⚡ Hoje</option>
+        <option value="today">⚡ Hoje</option>
         <option value="yesterday">⏪ Ontem</option>
         <option value="7days">🗓️ Últimos 7 dias</option>
         <option value="15days">🗓️ Últimos 15 dias</option>
         <option value="1month">📅 Último mês</option>
         <option value="trimestre">📊 Trimestre</option>
         <option value="semestre">📈 Semestre</option>
-        <option value="all">♾️ Todo o período</option>
+        <option value="all" selected>♾️ Todo o período</option>
       </select>
 
       <input type="date" id="perfStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 138px;" onchange="onPerfManualDateChange()" title="Data Inicial (De)">
@@ -224,8 +224,8 @@
       <div class="d-flex align-items-center gap-2">
         <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;"><i class="bi bi-funnel-fill text-primary"></i> <?= lang('App.status') ?>:</span>
         <select id="perfStatusSelect" class="form-select form-select-sm bg-dark text-primary border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 175px;" onchange="updatePerformanceDashboard()" title="<?= lang('App.total_bets') ?>">
-          <option value="all" selected>♾️ <?= lang('App.status_all_pending') ?></option>
-          <option value="concluidas">✅ <?= lang('App.status_concluded') ?></option>
+          <option value="all">♾️ <?= lang('App.status_all_pending') ?></option>
+          <option value="concluidas" selected>✅ <?= lang('App.status_concluded') ?></option>
           <option value="Pendente">⏳ <?= lang('App.status_only_pending') ?></option>
           <option value="Ganha">🟢 <?= lang('App.won') ?> / Meio Ganhas</option>
           <option value="Perdida">🔴 <?= lang('App.lost') ?> / Meio Perdidas</option>
@@ -240,8 +240,8 @@
           <i class="bi bi-shield-check text-success"></i> Confirmadas:
         </span>
         <div class="bet-slide-toggle" id="perfConfirmedSlideToggle">
-          <button type="button" class="slide-btn active" data-val="all" onclick="setPerfConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
-          <button type="button" class="slide-btn" data-val="1" onclick="setPerfConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
+          <button type="button" class="slide-btn" data-val="all" onclick="setPerfConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
+          <button type="button" class="slide-btn active" data-val="1" onclick="setPerfConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
           <button type="button" class="slide-btn" data-val="0" onclick="setPerfConfirmedFilter('0', this)" title="Exibir apenas apostas não confirmadas">Não</button>
         </div>
       </div>
@@ -262,6 +262,7 @@
     <div class="kpi-card">
       <div class="kpi-label"><i class="bi bi-cash-coin text-info"></i> <?= lang('App.total_staked') ?></div>
       <div class="kpi-value text-info" id="kpiTotalApostado">R$ 0,00</div>
+      <div class="small fw-semibold mt-1" id="kpiPendenteInfo" style="display: none; color: #f59e0b; font-size: 0.76rem;"></div>
     </div>
     
     <div class="kpi-card">
@@ -272,6 +273,7 @@
     <div class="kpi-card">
       <div class="kpi-label"><i class="bi bi-piggy-bank-fill" style="color: #00e676;"></i> <?= lang('App.total_profit') ?></div>
       <div class="kpi-value text-success" id="kpiLucroLiquido">R$ 0,00</div>
+      <div class="small fw-semibold mt-1" id="kpiLucroHojeInfo" style="display: none; color: #f59e0b; font-size: 0.76rem;"></div>
     </div>
 
     <div class="kpi-card">
@@ -589,7 +591,7 @@ function onLeagueSortChange(val) {
   updatePerformanceDashboard();
 }
 
-let perfConfirmedFilter = 'all';
+let perfConfirmedFilter = '1';
 
 function setPerfConfirmedFilter(val, btnEl) {
   perfConfirmedFilter = val;
@@ -824,10 +826,12 @@ function updatePerformanceDashboard() {
 
     if (perfConfirmedFilter === '1') {
       const isConfirmed = (bet.confirmada !== undefined && bet.confirmada !== null) ? String(bet.confirmada) === '1' : true;
-      if (!isConfirmed) return false;
+      const hasDebit = (bet.tem_debito !== undefined && parseInt(bet.tem_debito) > 0);
+      if (!isConfirmed && !hasDebit) return false;
     } else if (perfConfirmedFilter === '0') {
       const isConfirmed = (bet.confirmada !== undefined && bet.confirmada !== null) ? String(bet.confirmada) === '1' : true;
-      if (isConfirmed) return false;
+      const hasDebit = (bet.tem_debito !== undefined && parseInt(bet.tem_debito) > 0);
+      if (isConfirmed || hasDebit) return false;
     }
 
     const betDate = getBetDateBRT(bet);
@@ -843,6 +847,10 @@ function updatePerformanceDashboard() {
     return da.localeCompare(db);
   });
 
+  const now = new Date();
+  const todayStr = formatDateYYYYMMDD(now);
+  const isSingleDayToday = (startDate && endDate && startDate === endDate && startDate === todayStr);
+
   let totalApostado = 0;
   let totalApostadoLiquidado = 0;
   let totalRetorno = 0;
@@ -850,6 +858,19 @@ function updatePerformanceDashboard() {
   let winCount = 0;
   let decidedCount = 0;
   let settledCount = 0;
+
+  // Rastreamento segregado: períodos concluídos (consolidados) vs em andamento
+  let closedApostadoLiquidado = 0;
+  let closedRetorno = 0;
+  let closedLucroLiquido = 0;
+  let closedWinCount = 0;
+  let closedDecidedCount = 0;
+  let closedBetsCount = 0;
+
+  let openApostado = 0;
+  let openPendingBetsCount = 0;
+  let openTotalBetsCount = 0;
+  let openPartialLucro = 0;
 
   const buckets = {};
   const mercadoBuckets = {};
@@ -866,6 +887,9 @@ function updatePerformanceDashboard() {
     const valor = parseFloat(bet.valor_aposta) || 0;
     const netProfit = computeNetProfit(bet);
     const grossReturn = computeGrossReturn(bet);
+    const rawDate = getBetDateBRT(bet);
+    const isBetToday = (rawDate === todayStr);
+    const isBetPending = (status === 'Pendente');
 
     // Agrupamento por Liga de Futebol
     let leagueName = (bet.league_name || 'Outras Ligas').trim();
@@ -930,6 +954,39 @@ function updatePerformanceDashboard() {
     }
     totalRetorno += grossReturn;
     totalLucroLiquido += netProfit;
+
+    // Segregação para fechamento consolidado
+    if (isBetToday) {
+      openApostado += valor;
+      openTotalBetsCount++;
+      openPartialLucro += netProfit;
+      if (isBetPending) {
+        openPendingBetsCount++;
+      }
+    } else if (!isBetPending) {
+      closedApostadoLiquidado += valor;
+      closedRetorno += grossReturn;
+      closedLucroLiquido += netProfit;
+      closedBetsCount++;
+      if (status === 'Ganha') {
+        closedWinCount += 1.0;
+        closedDecidedCount += 1;
+      } else if (status === 'Meio Ganha') {
+        closedWinCount += 0.75;
+        closedDecidedCount += 1;
+      } else if (status === 'Meio Perdida') {
+        closedWinCount += 0.25;
+        closedDecidedCount += 1;
+      } else if (status === 'Perdida') {
+        closedDecidedCount += 1;
+      } else if (status === 'Cashout') {
+        if (netProfit > 0) closedWinCount += 1.0;
+        closedDecidedCount += 1;
+      }
+    } else {
+      openApostado += valor;
+      openPendingBetsCount++;
+    }
 
     let rawMercado = (bet.mercado || 'Outros').trim();
     if (!rawMercado) rawMercado = 'Outros';
@@ -1010,7 +1067,6 @@ function updatePerformanceDashboard() {
     mercadoBuckets[finalMercadoKey].lucro += netProfit;
     mercadoBuckets[finalMercadoKey].count += 1;
 
-    const rawDate = getBetDateBRT(bet);
     let key = rawDate || 'Sem Data';
     if (rawDate) {
       if (groupMode === 'semana') {
@@ -1021,12 +1077,24 @@ function updatePerformanceDashboard() {
     }
 
     if (!buckets[key]) {
-      buckets[key] = { apostado: 0, retorno: 0, lucro: 0, count: 0 };
+      buckets[key] = {
+        apostado: 0,
+        retorno: 0,
+        lucro: 0,
+        count: 0,
+        pendingCount: 0,
+        hasPending: false,
+        isToday: (rawDate === todayStr)
+      };
     }
     buckets[key].apostado += valor;
     buckets[key].retorno += grossReturn;
     buckets[key].lucro += netProfit;
     buckets[key].count += 1;
+    if (status === 'Pendente') {
+      buckets[key].pendingCount += 1;
+      buckets[key].hasPending = true;
+    }
 
     let modKey = 'outros';
     if (isCardMarket) {
@@ -1077,24 +1145,61 @@ function updatePerformanceDashboard() {
   const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
-  totalLucroLiquido = totalRetorno - totalApostado;
-  const baseInvestida = totalApostado > 0 ? totalApostado : 0;
-  const roi = baseInvestida > 0 ? (totalLucroLiquido / baseInvestida) * 100 : 0;
-  const winRate = decidedCount > 0 ? (winCount / decidedCount) * 100 : 0;
+  // Se o usuário selecionou visualização geral ou multi-dias, os KPIs consolidam estritamente dias concluídos
+  const useClosedOnly = (!isSingleDayToday && closedBetsCount > 0);
+  const displayApostado = useClosedOnly ? closedApostadoLiquidado : (totalApostadoLiquidado > 0 ? totalApostadoLiquidado : totalApostado);
+  const displayRetorno = useClosedOnly ? closedRetorno : totalRetorno;
+  const displayLucro = useClosedOnly ? closedLucroLiquido : totalLucroLiquido;
+  const displayWinCount = useClosedOnly ? closedWinCount : winCount;
+  const displayDecidedCount = useClosedOnly ? closedDecidedCount : decidedCount;
+  const displayTotalApostas = useClosedOnly ? closedBetsCount : filteredBets.length;
 
-  document.getElementById('kpiTotalApostado').textContent = formatBrl(totalApostado);
-  document.getElementById('kpiTotalRetorno').textContent = formatBrl(totalRetorno);
+  const baseInvestida = displayApostado > 0 ? displayApostado : 1;
+  const roi = (displayLucro / baseInvestida) * 100;
+  const winRate = displayDecidedCount > 0 ? (displayWinCount / displayDecidedCount) * 100 : 0;
+
+  const elTotalApostado = document.getElementById('kpiTotalApostado');
+  if (elTotalApostado) {
+    elTotalApostado.textContent = formatBrl(displayApostado);
+  }
+  const elPendenteInfo = document.getElementById('kpiPendenteInfo');
+  if (elPendenteInfo) {
+    if (openApostado > 0) {
+      if (openPendingBetsCount > 0) {
+        elPendenteInfo.innerHTML = `<i class="bi bi-hourglass-split text-warning me-1"></i> + ${formatBrl(openApostado)} em andamento hoje (${openPendingBetsCount} jogos pendentes)`;
+      } else {
+        elPendenteInfo.innerHTML = `<i class="bi bi-hourglass-split text-warning me-1"></i> + ${formatBrl(openApostado)} em andamento hoje (aguardando fechamento noturno)`;
+      }
+      elPendenteInfo.style.display = 'block';
+    } else {
+      elPendenteInfo.style.display = 'none';
+    }
+  }
+  document.getElementById('kpiTotalRetorno').textContent = formatBrl(displayRetorno);
   
   const kpiLucroEl = document.getElementById('kpiLucroLiquido');
-  kpiLucroEl.textContent = formatBrl(totalLucroLiquido);
-  kpiLucroEl.className = 'kpi-value ' + (totalLucroLiquido >= 0 ? 'text-success' : 'text-danger');
+  kpiLucroEl.textContent = formatBrl(displayLucro);
+  kpiLucroEl.className = 'kpi-value ' + (displayLucro >= 0 ? 'text-success' : 'text-danger');
+
+  const elLucroHoje = document.getElementById('kpiLucroHojeInfo');
+  if (elLucroHoje) {
+    if (useClosedOnly && openTotalBetsCount > 0) {
+      elLucroHoje.innerHTML = `<i class="bi bi-hourglass-split me-1"></i>Hoje (em apuração): ${formatBrl(openPartialLucro)} parcial`;
+      elLucroHoje.style.display = 'block';
+    } else if (isSingleDayToday) {
+      elLucroHoje.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i>Dia em andamento (aguardando fechamento noturno)`;
+      elLucroHoje.style.display = 'block';
+    } else {
+      elLucroHoje.style.display = 'none';
+    }
+  }
 
   const kpiRoiEl = document.getElementById('kpiRoi');
   kpiRoiEl.textContent = formatPct(roi);
   kpiRoiEl.className = 'kpi-value ' + (roi >= 0 ? 'text-success' : 'text-danger');
 
   document.getElementById('kpiWinRate').textContent = winRate.toFixed(1).replace('.', ',') + '%';
-  document.getElementById('kpiTotalApostas').textContent = filteredBets.length;
+  document.getElementById('kpiTotalApostas').textContent = displayTotalApostas;
 
   const bucketKeys = Object.keys(buckets).sort();
   const labels = [];
@@ -1109,12 +1214,20 @@ function updatePerformanceDashboard() {
   let runningAhLucro = 0;
 
   bucketKeys.forEach(k => {
-    runningApostado += buckets[k].apostado;
-    runningLucro += buckets[k].lucro;
+    const b = buckets[k];
+    const isOpen = (k === todayStr || (groupMode === 'dia' && k >= todayStr) || b.hasPending);
+
+    runningApostado += b.apostado;
+    // O lucro acumulado fechado na curva gráfica só soma períodos concluídos
+    if (!isOpen || isSingleDayToday) {
+      runningLucro += b.lucro;
+    }
 
     const modTime = modalityTimeline[k] || { cartoesLucro: 0, ahLucro: 0 };
-    runningCartoesLucro += modTime.cartoesLucro;
-    runningAhLucro += modTime.ahLucro;
+    if (!isOpen || isSingleDayToday) {
+      runningCartoesLucro += modTime.cartoesLucro;
+      runningAhLucro += modTime.ahLucro;
+    }
     cumulativeCartoesLucro.push(runningCartoesLucro);
     cumulativeAhLucro.push(runningAhLucro);
 
@@ -1859,6 +1972,8 @@ function renderTableBreakdown(keys, buckets, groupMode) {
     return;
   }
 
+  const now = new Date();
+  const todayStr = formatDateYYYYMMDD(now);
   const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   let html = '';
@@ -1867,8 +1982,15 @@ function renderTableBreakdown(keys, buckets, groupMode) {
   let sumRetorno = 0;
   let sumLucro = 0;
 
+  const closedKeys = keys.filter(k => {
+    const b = buckets[k];
+    const isOpen = (k === todayStr || (groupMode === 'dia' && k >= todayStr) || b.hasPending);
+    return !isOpen;
+  });
+
   keys.forEach(k => {
     const b = buckets[k];
+    const isOpen = (k === todayStr || (groupMode === 'dia' && k >= todayStr) || b.hasPending);
     let label = k;
     if (groupMode === 'dia' && k.length === 10) {
       const parts = k.split('-');
@@ -1878,24 +2000,32 @@ function renderTableBreakdown(keys, buckets, groupMode) {
       label = `${parts[1]}/${parts[0]}`;
     }
 
-    const bLucro = b.retorno - b.apostado;
-
-    sumCount += b.count;
-    sumApostado += b.apostado;
-    sumRetorno += b.retorno;
-    sumLucro += bLucro;
-
+    const bLucro = b.lucro;
     const roi = b.apostado > 0 ? (bLucro / b.apostado) * 100 : 0;
     const lucroClass = bLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
     const roiClass = roi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
 
+    if (!isOpen) {
+      sumCount += b.count;
+      sumApostado += b.apostado;
+      sumRetorno += b.retorno;
+      sumLucro += bLucro;
+    }
+
+    const statusBadge = isOpen
+      ? `<span class="badge bg-warning text-dark ms-1" style="font-size:0.68rem;"><i class="bi bi-hourglass-split"></i> Em Andamento</span>`
+      : '';
+    const lucroBadge = isOpen
+      ? `<span class="badge bg-secondary text-warning ms-1" style="font-size:0.65rem;">Parcial</span>`
+      : '';
+
     html += `
-      <tr>
-        <td class="fw-semibold text-white">${label}</td>
-        <td class="text-center">${b.count}</td>
+      <tr class="${isOpen ? 'bg-opacity-10 bg-warning' : ''}">
+        <td class="fw-semibold text-white">${label} ${statusBadge}</td>
+        <td class="text-center">${b.count} ${isOpen && b.pendingCount > 0 ? `<small class="text-warning">(${b.pendingCount} pend.)</small>` : ''}</td>
         <td>${formatBrl(b.apostado)}</td>
         <td>${formatBrl(b.retorno)}</td>
-        <td class="${lucroClass}">${formatBrl(bLucro)}</td>
+        <td class="${lucroClass}">${formatBrl(bLucro)} ${lucroBadge}</td>
         <td class="${roiClass}">${(roi >= 0 ? '+' : '') + roi.toFixed(1).replace('.', ',')}%</td>
       </tr>
     `;
@@ -1904,7 +2034,7 @@ function renderTableBreakdown(keys, buckets, groupMode) {
   tbody.innerHTML = html;
 
   if (tfoot) {
-    const n = keys.length;
+    const n = closedKeys.length > 0 ? closedKeys.length : keys.length;
     const avgCount = sumCount / n;
     const avgApostado = sumApostado / n;
     const avgRetorno = sumRetorno / n;
@@ -1917,7 +2047,10 @@ function renderTableBreakdown(keys, buckets, groupMode) {
 
     tfoot.innerHTML = `
       <tr class="fw-bold border-top border-2 border-secondary" style="background-color: rgba(255, 255, 255, 0.05); font-size: 0.92rem;">
-        <td class="text-warning fw-bold"><i class="bi bi-calculator me-1"></i> Média Total</td>
+        <td class="text-warning fw-bold">
+          <i class="bi bi-calculator me-1"></i> Média Total Consolidada
+          ${closedKeys.length < keys.length ? `<div class="text-white-50 fw-normal" style="font-size:0.72rem;">(${closedKeys.length} dias fechados • dias em andamento excluídos da média)</div>` : ''}
+        </td>
         <td class="text-center text-white">${avgCountStr}</td>
         <td class="text-white">${formatBrl(avgApostado)}</td>
         <td class="text-white">${formatBrl(avgRetorno)}</td>
@@ -1929,6 +2062,6 @@ function renderTableBreakdown(keys, buckets, groupMode) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  setPerfDatePreset('today');
+  setPerfDatePreset('all');
 });
 </script>

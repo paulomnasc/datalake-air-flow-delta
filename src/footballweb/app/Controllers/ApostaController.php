@@ -2540,7 +2540,7 @@ class ApostaController extends BaseController
         $apostas = [];
         if ($hasTokens) {
             $apostas = $this->apostaModel
-                ->select('apostas.*, COALESCE(fixtures_trends.league_name, "Outras Ligas") as league_name, fixtures_trends.league_id')
+                ->select('apostas.*, COALESCE(fixtures_trends.league_name, "Outras Ligas") as league_name, fixtures_trends.league_id, (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = apostas.id AND cc.tipo = "DEBITO_APOSTA") as tem_debito')
                 ->join('fixtures_trends', 'apostas.fixture_id = fixtures_trends.fixture_id', 'left')
                 ->where('apostas.usuario_id', $userId)
                 ->orderBy('apostas.data_hora_jogo', 'ASC')

@@ -512,16 +512,21 @@ def process_pending_bets():
         time_casa = aposta['time_casa'].strip()
         time_fora = aposta['time_fora'].strip()
 
-        # Tentar buscar partida correspondente em fixtures_trends
-        cursor.execute("""
-            SELECT * FROM fixtures_trends
-            WHERE (home_team LIKE %s OR home_team LIKE %s)
-               OR (away_team LIKE %s OR away_team LIKE %s)
-            ORDER BY fixture_date DESC
-            LIMIT 1
-        """, (f"%{time_casa}%", f"%{time_fora}%", f"%{time_casa}%", f"%{time_fora}%"))
+        # Tentar buscar partida correspondente em fixtures_trends (prioriza fixture_id oficial)
+        fixture = None
+        if aposta.get('fixture_id'):
+            cursor.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s", (aposta['fixture_id'],))
+            fixture = cursor.fetchone()
 
-        fixture = cursor.fetchone()
+        if not fixture:
+            cursor.execute("""
+                SELECT * FROM fixtures_trends
+                WHERE ((home_team LIKE %s AND away_team LIKE %s)
+                   OR (home_team LIKE %s AND away_team LIKE %s))
+                ORDER BY fixture_date DESC
+                LIMIT 1
+            """, (f"%{time_casa}%", f"%{time_fora}%", f"%{time_fora}%", f"%{time_casa}%"))
+            fixture = cursor.fetchone()
 
         if not fixture:
             print(f"⏳ Fixture não encontrada no banco para {time_casa} vs {time_fora}. Aposta #{aposta_id} permanece Pendente.")

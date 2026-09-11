@@ -1240,7 +1240,7 @@ def sync_fixture_and_bet_handicap(
                     ) VALUES (
                         %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, NOW()
                     )
-                """, (uid, aposta_id, desc_deb, valor_aposta, s_ant, s_post))
+                """, (uid, aposta_id, desc_deb, -valor_aposta, s_ant, s_post))
                 cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid))
 
     # Sincroniza fixtures_trends com o palpite aprovado (card sempre alinhado com a aposta aprovada)

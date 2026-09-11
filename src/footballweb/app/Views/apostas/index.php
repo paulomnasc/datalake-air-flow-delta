@@ -2754,8 +2754,8 @@ if (!function_exists('getBookmakerUrl')) {
       }
     });
 
-    // Saldo Líquido Real = Retorno Total Bruto - Total Apostado (Simulado)
-    const saldoLiquido = totalRetorno - totalApostado;
+    // Saldo Líquido Real = Retorno Total Bruto - Total Apostado em Apostas Concluídas/Liquidadas
+    const saldoLiquido = totalRetorno - totalApostadoLiquidado;
 
     const formatBrl = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 

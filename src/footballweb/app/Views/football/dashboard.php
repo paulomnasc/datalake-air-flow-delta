@@ -117,6 +117,47 @@ if (!function_exists('renderU5JTimelineTable')) {
                             }
                         }
                     }
+                    // Pontuação de Eficiência Ponderada (Strength of Schedule & Derrotas)
+                    $ptsEff = null;
+                    $t1Keys = [
+                        'river plate', 'boca juniors', 'racing', 'independiente', 'san lorenzo', 'velez', 'estudiantes',
+                        'flamengo', 'palmeiras', 'atletico mineiro', 'sao paulo', 'corinthians', 'gremio', 'internacional', 'fluminense', 'botafogo', 'cruzeiro', 'vasco', 'santos',
+                        'penarol', 'nacional',
+                        'atletico nacional', 'millonarios', 'santa fe', 'junior', 'america de cali',
+                        'colo colo', 'universidad de chile', 'u. catolica',
+                        'ldu', 'independiente del valle', 'barcelona sc', 'emelec',
+                        'universitario', 'alianza lima', 'sporting cristal',
+                        'olimpia', 'cerro porteno', 'libertad',
+                        'america', 'tigres', 'monterrey', 'chivas', 'cruz azul', 'pumas', 'toluca', 'pachuca',
+                        'real madrid', 'barcelona', 'bayern', 'manchester city', 'liverpool', 'arsenal', 'chelsea', 'juventus', 'inter', 'milan', 'psg'
+                    ];
+
+                    if (isset($tData['pts_efficiency']) && is_numeric($tData['pts_efficiency'])) {
+                        $ptsEff = floatval($tData['pts_efficiency']);
+                    } elseif (!empty($matches)) {
+                        $effSum = 0.0;
+                        foreach ($matches as $mEff) {
+                            $mOpp = strtolower(trim($mEff['opponent'] ?? ''));
+                            $isT1 = !empty($mEff['is_tier_1']);
+                            if (!$isT1) {
+                                foreach ($t1Keys as $tk) {
+                                    if (strpos($mOpp, $tk) !== false && strpos($mOpp, 'laguna') === false) {
+                                        $isT1 = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            $r = strtoupper(trim($mEff['result'] ?? ''));
+                            if ($r === 'V') {
+                                $effSum += $isT1 ? 5.0 : 3.0;
+                            } elseif ($r === 'E') {
+                                $effSum += $isT1 ? 2.0 : 1.0;
+                            } elseif ($r === 'D') {
+                                $effSum += $isT1 ? 0.0 : -1.0;
+                            }
+                        }
+                        $ptsEff = $effSum;
+                    }
                 ?>
                 <div class="table-responsive" style="margin-bottom: <?= ($tKey === 'home') ? '8px' : '0' ?>; border-radius: 6px; border: 1px solid <?= $tInfo['border_color'] ?>;">
                     <table class="table table-sm table-bordered text-center text-white mb-0" style="font-size: 0.68rem; background: rgba(30, 41, 59, 0.4); border-collapse: collapse; min-width: 320px;">
@@ -125,10 +166,10 @@ if (!function_exists('renderU5JTimelineTable')) {
                                 <th colspan="5" style="padding: 4px 8px; text-align: left; font-size: 0.72rem;">
                                     <div style="display: flex; justify-content: space-between; align-items: center;">
                                         <span style="font-weight: 700; color: <?= $tInfo['color'] ?>;">
-                                            <?= $tInfo['icon'] ?> <?= htmlspecialchars($tInfo['name']) ?>
+                                             <?= $tInfo['icon'] ?> <?= htmlspecialchars($tInfo['name']) ?>
                                         </span>
                                         <span class="badge" style="background: rgba(251, 191, 36, 0.2); border: 1px solid #fbbf24; color: #fbbf24; font-weight: 700; font-size: 0.65rem; padding: 2px 6px;">
-                                            <?= htmlspecialchars($cleanFormText) ?> (<?= intval($tData['pts'] ?? 0) ?> pts)
+                                            <?= htmlspecialchars($cleanFormText) ?> (<?= intval($tData['pts'] ?? 0) ?> pts<?= $ptsEff !== null ? " | " . number_format($ptsEff, 1) . " Eficiência" : "" ?>)
                                         </span>
                                     </div>
                                 </th>
@@ -165,12 +206,25 @@ if (!function_exists('renderU5JTimelineTable')) {
                                                 $badgeBg = ($res === 'V') ? '#10b981' : (($res === 'E') ? '#f59e0b' : '#ef4444'); 
                                                 $venueIcon = (!empty($m['is_home'])) ? 'vs' : '@';
                                                 $opp = $m['opponent'] ?? 'N/D';
+                                                $isOppT1 = !empty($m['is_tier_1']);
+                                                if (!$isOppT1 && !empty($t1Keys)) {
+                                                    $mOppLow = strtolower(trim($opp));
+                                                    foreach ($t1Keys as $tk) {
+                                                        if (strpos($mOppLow, $tk) !== false && strpos($mOppLow, 'laguna') === false) {
+                                                            $isOppT1 = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
                                             ?>
                                             <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
                                                 <span class="badge" style="background: <?= $badgeBg ?>; font-weight: 700; font-size: 0.65rem; padding: 2px 5px; border-radius: 4px;">
                                                     <?= $res ?> (<?= htmlspecialchars($m['score'] ?? '') ?>)
                                                 </span>
-                                                <span style="font-size: 0.62rem; color: #cbd5e1; max-width: 68px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block;" title="<?= htmlspecialchars($venueIcon . ' ' . $opp) ?>">
+                                                <span style="font-size: 0.62rem; color: #cbd5e1; max-width: 72px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block;" title="<?= htmlspecialchars($venueIcon . ' ' . $opp . ($isOppT1 ? ' (Gigante Tier 1)' : '')) ?>">
+                                                    <?php if ($isOppT1): ?>
+                                                        <i class="bi bi-shield-shaded text-warning me-1" title="Adversário Tier 1 de Elite"></i>
+                                                    <?php endif; ?>
                                                     <?= htmlspecialchars($venueIcon . ' ' . $opp) ?>
                                                 </span>
                                             </div>

@@ -285,7 +285,7 @@ def checar_e_atualizar_odds_fixture(fixture_id, aposta_id=None):
     from asian_handicap_engine import calculate_unified_handicap_recommendation, compose_compound_ah_reasoning, cancelar_e_estornar_aposta_handicap
 
     status_gk, new_suggestion, new_confidence, new_reasoning, best_cand, approved_cands = calculate_unified_handicap_recommendation(
-        fix, betano_lines=ah_lines if ah_lines else None, allow_api_fetch=True, cursor=cursor
+        fix, betano_lines=None, allow_api_fetch=True, cursor=cursor
     )
 
     if best_cand:

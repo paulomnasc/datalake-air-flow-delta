@@ -371,7 +371,7 @@ def is_tier_1_elite_club(team_id: int = None, team_name: str = None) -> bool:
     # Desqualifica homônimos conhecidos fora do Tier 1 europeu/sul-americano
     disqualified_homonyms = [
         'guayaquil', 'sc', 'montevideo', 'sarandi', 'gijon', 'turku', 'limeira',
-        'kansas', 'san jose', 'khalsa', 'miami', 'bogota', 'escaldes', 'intercity'
+        'kansas', 'san jose', 'khalsa', 'miami', 'bogota', 'escaldes', 'intercity', 'laguna'
     ]
     if any(dh in norm for dh in disqualified_homonyms) and 'manchester city' not in norm:
         return False

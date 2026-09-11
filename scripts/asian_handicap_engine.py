@@ -29,6 +29,52 @@ except Exception:
         def is_tier_1_elite_club(team_id=None, team_name=None):
             return False
 
+try:
+    from football_ingest_trends import analyze_trend_and_momentum
+except Exception:
+    try:
+        from scripts.football_ingest_trends import analyze_trend_and_momentum
+    except Exception:
+        analyze_trend_and_momentum = None
+
+
+def compute_team_u5j_efficiency(last5_dict: dict) -> float:
+    """
+    Calcula a pontuação de eficiência ponderada nos últimos 5 jogos (U5J):
+    - Vitória contra Gigante Tier 1: +5.0 pts (Super-Majorada)
+    - Vitória Comum: +3.0 pts
+    - Empate contra Gigante Tier 1: +2.0 pts (Majorada)
+    - Empate Comum: +1.0 pt
+    - Derrota contra Gigante Tier 1: 0.0 pts (Atenuada)
+    - Derrota Comum: -1.0 pt (Subtraída)
+    """
+    if not last5_dict or not isinstance(last5_dict, dict):
+        return 0.0
+    if 'pts_efficiency' in last5_dict and last5_dict['pts_efficiency'] is not None:
+        return float(last5_dict['pts_efficiency'])
+    
+    matches = last5_dict.get('matches', [])
+    if not matches:
+        v = int(last5_dict.get('v', 0) or 0)
+        e = int(last5_dict.get('e', 0) or 0)
+        d = int(last5_dict.get('d', 0) or 0)
+        return float((3 * v) + (1 * e) - (1 * d))
+    
+    pts_eff = 0.0
+    for m in matches[:5]:
+        opp = m.get('opponent', '')
+        is_t1 = m.get('is_tier_1')
+        if is_t1 is None:
+            is_t1 = is_tier_1_elite_club(team_name=opp)
+        res = (m.get('result') or '').upper()
+        if res == 'V':
+            pts_eff += 5.0 if is_t1 else 3.0
+        elif res == 'E':
+            pts_eff += 2.0 if is_t1 else 1.0
+        elif res == 'D':
+            pts_eff += 0.0 if is_t1 else -1.0
+    return round(pts_eff, 1)
+
 # Caches em memória para chamadas da API Betano durante o ciclo de execução
 _betano_ah_odds_cache = {}
 _betano_ah_raw_fixture_cache = {}
@@ -434,7 +480,19 @@ def evaluate_and_select_best_ah_candidate(
         # em situação de desvantagem de mercado (odd >= 2.20 ou contra favorito <= 2.10)
         cand_l5 = away_last5 if c_is_away else home_last5
         opp_l5 = home_last5 if c_is_away else away_last5
-        if cand_l5 and isinstance(cand_l5, dict) and cand_l5.get('v', 1) == 0:
+
+        cand_pts_eff = compute_team_u5j_efficiency(cand_l5)
+        opp_pts_eff = compute_team_u5j_efficiency(opp_l5)
+
+        cand_trend_info = analyze_trend_and_momentum(cand_team, cand_l5) if analyze_trend_and_momentum else {}
+        opp_trend_info = analyze_trend_and_momentum(opp_team, opp_l5) if analyze_trend_and_momentum else {}
+        cand_trend = cand_trend_info.get("trend", "CURVA_ESTAVEL")
+        opp_trend = opp_trend_info.get("trend", "CURVA_ESTAVEL")
+
+        # Filtro Trava de Time em Crise / Baixa Eficiência (Anti-Zebra em Crise Severa):
+        # Bloqueia qualquer linha a favor de equipe sem vitórias recentes (0V no U5J ou eficiência <= 0)
+        # em situação de desvantagem de mercado (odd >= 2.20 ou contra favorito <= 2.10)
+        if cand_l5 and isinstance(cand_l5, dict) and (cand_l5.get('v', 1) == 0 or cand_pts_eff <= 0.0):
             if cand_odd >= 2.20 or opp_odd <= 2.10:
                 continue
 
@@ -448,6 +506,14 @@ def evaluate_and_select_best_ah_candidate(
         if is_cand_underdog and c_line == 0.0:
             continue
 
+        # 1.1 Trava Anti-Queda e Estagnação em Linha Seca (0.0 AH / DNB):
+        # Apoiar vitória seca DNB (0.0 AH) em equipe com curva descendente ou platô de estagnação
+        # contra adversário com maior eficiência ponderada ou momento superior é risco inaceitável de banca.
+        if c_line == 0.0:
+            if cand_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA"):
+                if (opp_pts_eff > cand_pts_eff) or (opp_trend == "CURVA_ASCENDENTE"):
+                    continue
+
         # 2. Trava Anti-Aposta Seca Contra Gigante Tier 1 Favorito:
         # Se o adversário for clube Tier 1 de Elite e tiver favoritismo de mercado (opp_odd < cand_odd e opp_odd <= 2.65),
         # e a equipe candidata NÃO for Tier 1:
@@ -460,27 +526,27 @@ def evaluate_and_select_best_ah_candidate(
             if is_opp_fav and c_line <= 0.5:
                 continue
 
-        # 3. Trava de Assimetria de Forma Recente (U5J):
-        # Se o adversário vem embalado (>= 4 vitórias no U5J / >= 12 pts) e o candidato tem desempenho
-        # inferior por >= 4 pontos no U5J em situação de desvantagem nas odds (cand_odd > opp_odd),
+        # 3. Trava de Assimetria de Eficiência e Forma Recente (U5J):
+        # Se o adversário vem embalado (>= 4 vitórias / >= 12 pts brutos ou >= 9.0 pts de eficiência) e o candidato tem desempenho
+        # inferior por >= 3.0 pontos de eficiência em situação de desvantagem nas odds (cand_odd > opp_odd),
         # bloqueia apostas curtas (0.0 AH e +0.5 AH) contra o time em momento superior.
         if cand_l5 and opp_l5 and isinstance(cand_l5, dict) and isinstance(opp_l5, dict):
             opp_pts = opp_l5.get('pts', 0)
             cand_pts = cand_l5.get('pts', 0)
-            if opp_pts >= 12 and (opp_pts - cand_pts) >= 4 and cand_odd > opp_odd:
+            if (opp_pts >= 12 or opp_pts_eff >= 9.0) and ((opp_pts_eff - cand_pts_eff) >= 3.0 or (opp_pts - cand_pts) >= 4) and cand_odd > opp_odd:
                 if c_line <= 0.5:
                     continue
 
         # 4. Trava de Confronto de Equilíbrio de Odds (Anti-Aposta contra Quase Invicto):
         # Quando as odds 1X2 apontam equilíbrio de forças (|odd_home - odd_away| <= 0.20),
-        # se o adversário for quase invicto no U5J (opp_d <= 1) e o candidato tiver mais derrotas (cand_d > opp_d),
-        # bloqueia aposta no candidato em linha seca 0.0 AH (DNB).
+        # se o adversário for quase invicto no U5J (opp_d <= 1) ou tiver maior eficiência (opp_pts_eff > cand_pts_eff)
+        # e o candidato tiver mais derrotas (cand_d > opp_d), bloqueia aposta no candidato em linha seca 0.0 AH (DNB).
         # Em jogos espelhados, não se aposta em vitória seca contra time que quase não perde.
         if cand_l5 and opp_l5 and isinstance(cand_l5, dict) and isinstance(opp_l5, dict):
             cand_d = cand_l5.get('d', 0)
             opp_d = opp_l5.get('d', 0)
             is_tight_match = abs(raw_h_odd - raw_a_odd) <= 0.20
-            if is_tight_match and opp_d <= 1 and cand_d > opp_d and c_line == 0.0:
+            if is_tight_match and (opp_d <= 1 or opp_pts_eff > cand_pts_eff) and cand_d > opp_d and c_line == 0.0:
                 continue
 
         # Identificação de Super-Favoritos Tier 1 com odd esmagadora (<= 1.22) e ratio >= 8.0x
@@ -518,6 +584,9 @@ def evaluate_and_select_best_ah_candidate(
 
         # Filtro 1: Linhas permitidas e faixas de odds seguras
         required_ev = min_ev
+        if cand_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA"):
+            required_ev += 2.0
+
         if c_line in moderate_negative_lines:
             # Linhas de handicap negativo são restritas a Super-Favoritos ou Tier 1 com Assimetria Dominante
             if not is_eligible_negative:
@@ -716,6 +785,20 @@ def calculate_unified_handicap_recommendation(
     a_tid = fixture_dict.get('away_team_id')
     h_l5 = u_json.get('home') if isinstance(u_json, dict) else None
     a_l5 = u_json.get('away') if isinstance(u_json, dict) else None
+
+    if h_l5 and isinstance(h_l5, dict):
+        h_l5['pts_efficiency'] = compute_team_u5j_efficiency(h_l5)
+        if analyze_trend_and_momentum:
+            h_tr_info = analyze_trend_and_momentum(home_team, h_l5)
+            h_l5['trend'] = h_tr_info.get('trend')
+            h_l5['trend_desc'] = h_tr_info.get('trend_desc')
+    if a_l5 and isinstance(a_l5, dict):
+        a_l5['pts_efficiency'] = compute_team_u5j_efficiency(a_l5)
+        if analyze_trend_and_momentum:
+            a_tr_info = analyze_trend_and_momentum(away_team, a_l5)
+            a_l5['trend'] = a_tr_info.get('trend')
+            a_l5['trend_desc'] = a_tr_info.get('trend_desc')
+
     best_cand, approved = evaluate_and_select_best_ah_candidate(
         poisson_matrix, betano_lines, home_team, away_team, odd_h, odd_a,
         home_team_id=h_tid, away_team_id=a_tid,
@@ -733,11 +816,28 @@ def calculate_unified_handicap_recommendation(
         is_t1 = is_tier_1_elite_club(team_id=fav_id, team_name=fav_team)
         t1_str = " (Tier 1)" if is_t1 else ""
 
-        # Verifica se a linha defensiva DNB (0.0 AH) do favorito existia na Betano mas foi reprovada por cotação deprimida (< 1.50)
+        # Verifica se a linha defensiva DNB (0.0 AH) do favorito existia na Betano mas foi reprovada por cotação deprimida ou curva/eficiência
         dnb_cand = next((c for c in betano_lines if c.get('line') == 0.0 and c.get('is_away') == (not fav_is_home)), None)
         dnb_odd = float(dnb_cand.get('odd') or 0.0) if dnb_cand else 0.0
 
-        if dnb_cand and dnb_odd < 1.50:
+        fav_l5 = h_l5 if fav_is_home else a_l5
+        dog_l5 = a_l5 if fav_is_home else h_l5
+        fav_eff = compute_team_u5j_efficiency(fav_l5)
+        dog_eff = compute_team_u5j_efficiency(dog_l5)
+        fav_tr_obj = analyze_trend_and_momentum(fav_team, fav_l5) if analyze_trend_and_momentum else {}
+        dog_tr_obj = analyze_trend_and_momentum(dog_team, dog_l5) if analyze_trend_and_momentum else {}
+        fav_trend = fav_tr_obj.get("trend", "CURVA_ESTAVEL")
+        dog_trend = dog_tr_obj.get("trend", "CURVA_ESTAVEL")
+
+        if dnb_cand and (fav_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA")) and (dog_eff > fav_eff or dog_trend == "CURVA_ASCENDENTE"):
+            reason = (
+                f"🛡️ [Gatekeeper AH NO_BET / Queda de Rendimento e Eficiência] Partida {home_team} vs {away_team} -> "
+                f"Favorito {fav_team}{t1_str} em momento desfavorável no U5J ({fav_trend}, {fav_eff:.1f} pts de eficiência ponderada) "
+                f"contra {dog_team} ({dog_eff:.1f} pts de eficiência em {dog_trend}). "
+                f"A linha seca DNB ({fav_team} 0.0 AH @ {dnb_odd:.2f}) foi terminantemente vetada pelo Gatekeeper por risco de momento/platô. "
+                f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}. Abstenção mandatória."
+            )
+        elif dnb_cand and dnb_odd < 1.50:
             reason = (
                 f"🛡️ [Gatekeeper AH NO_BET / Odd Abaixo do Piso] Partida {home_team} vs {away_team} -> "
                 f"A linha segura DNB ({fav_team}{t1_str} 0.0 AH) está cotada a apenas @ {dnb_odd:.2f} na Betano, "
@@ -752,7 +852,8 @@ def calculate_unified_handicap_recommendation(
                 context_extra = f" Favorito {fav_team}{t1_str} com odd nominal esmagada: linha DNB (0.0 AH) sem odd mínima (+EV) e linhas positivas bloqueadas por coerência de mercado."
             reason = (
                 f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} ->{context_extra} "
-                f"Nenhuma linha da Betano atingiu o limiar de +EV >= 5.0% e Prob. Efetiva >= 48.0%. "
+                f"Nenhuma linha da Betano atingiu os limiares de rentabilidade (+EV >= 5.0%, Prob. Efetiva >= 48.0% ajustada por momento). "
+                f"Eficiência U5J: {home_team} ({fav_eff if fav_is_home else dog_eff:.1f} pts) vs {away_team} ({dog_eff if fav_is_home else fav_eff:.1f} pts). "
                 f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}. Abstenção mandatória."
             )
         return 'NO_BET', sug, conf, reason, None, []
@@ -765,9 +866,12 @@ def calculate_unified_handicap_recommendation(
     ev_perc = eval_res['ev_percent']
     conf = round(min(88.0, 55.0 + ev_perc * 0.5), 1)
 
+    h_eff = compute_team_u5j_efficiency(h_l5)
+    a_eff = compute_team_u5j_efficiency(a_l5)
     detalhe_calculo = (
         f"🎯 GATEKEEPER AH APROVADO (+EV {ev_perc:+.1f}%) | "
         f"Odd Betano {odd_val:.2f} vs Odd Justa {odd_justa:.2f} (Prob. Efetiva: {prob_poisson:.1f}%) | "
+        f"Eficiência U5J: {home_team} {h_eff:.1f} pts vs {away_team} {a_eff:.1f} pts | "
         f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team} | "
         f"Desfechos: Vitória {eval_res['p_win']:.1f}%, Meio-Green {eval_res['p_half_win']:.1f}%, "
         f"Push {eval_res['p_push']:.1f}%, Meio-Red {eval_res['p_half_loss']:.1f}%, Red {eval_res['p_loss']:.1f}%."
@@ -786,14 +890,14 @@ def calculate_unified_handicap_recommendation(
     )
 
     # Avaliação de Destaque Sistêmico: Equipe Tier 1 de Elite contra Não-Tier 1 com baixo desempenho recente no U5J (<= 5 pts ou 0V)
-    cand_team_name = best_cand['team']
+    cand_team_name = best_cand.get('target_team') or best_cand.get('team') or (away_team if best_cand.get('is_away') else home_team)
     cand_team_id = fixture_dict.get('away_team_id') if cand_team_name == away_team else fixture_dict.get('home_team_id')
     opp_team_name = home_team if cand_team_name == away_team else away_team
     opp_team_id = fixture_dict.get('home_team_id') if cand_team_name == away_team else fixture_dict.get('away_team_id')
 
     is_cand_tier1 = is_tier_1_elite_club(team_id=cand_team_id, team_name=cand_team_name)
     is_opp_tier1 = is_tier_1_elite_club(team_id=opp_team_id, team_name=opp_team_name)
-    opp_l5_data = home_l5 if cand_team_name == away_team else away_l5
+    opp_l5_data = h_l5 if cand_team_name == away_team else a_l5
     opp_pts = opp_l5_data.get('pts', 0) if isinstance(opp_l5_data, dict) else 0
     opp_v = opp_l5_data.get('v', 0) if isinstance(opp_l5_data, dict) else 0
 
@@ -905,12 +1009,31 @@ def get_team_u5j_from_db(cursor, team_id, team_name):
     num_e = sum(1 for m in matches if m.get("result") == "E")
     num_d = sum(1 for m in matches if m.get("result") == "D")
     pts = (num_v * 3) + num_e
-    txt = f"{num_v}V-{num_e}E-{num_d}D ({pts} pts)" if matches else "Não localizado (0 pts)"
+
+    pts_eff = 0.0
+    tier1_cnt = 0
+    for m in matches:
+        opp_name = m.get("opponent", "")
+        is_t1 = is_tier_1_elite_club(team_name=opp_name)
+        m["is_tier_1"] = is_t1
+        if is_t1:
+            tier1_cnt += 1
+        res = (m.get("result") or "").upper()
+        if res == "V":
+            pts_eff += 5.0 if is_t1 else 3.0
+        elif res == "E":
+            pts_eff += 2.0 if is_t1 else 1.0
+        elif res == "D":
+            pts_eff += 0.0 if is_t1 else -1.0
+
+    txt = f"{num_v}V-{num_e}E-{num_d}D ({pts} pts | {pts_eff:.1f} pts ef.)" if matches else "Não localizado (0 pts)"
     return {
         "v": num_v,
         "e": num_e,
         "d": num_d,
         "pts": pts,
+        "pts_efficiency": round(pts_eff, 1),
+        "tier1_opponents": tier1_cnt,
         "text": txt,
         "matches": matches
     }

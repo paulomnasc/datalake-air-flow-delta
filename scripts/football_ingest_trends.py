@@ -768,8 +768,27 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
     d = sum(1 for m in clean_matches if m["result"] == "D")
     pts = (3 * v) + (1 * e)
 
+    # Cálculo da Pontuação de Eficiência Ponderada (Strength of Schedule & Derrotas)
+    pts_eff = 0.0
+    tier1_opp_count = 0
+    for m in clean_matches:
+        opp_name = m.get("opponent", "")
+        is_t1 = is_tier_1_elite_club(team_name=opp_name)
+        m["is_tier_1"] = is_t1
+        if is_t1:
+            tier1_opp_count += 1
+        res = (m.get("result") or "").upper()
+        if res == "V":
+            pts_eff += 5.0 if is_t1 else 3.0
+        elif res == "E":
+            pts_eff += 2.0 if is_t1 else 1.0
+        elif res == "D":
+            pts_eff += 0.0 if is_t1 else -1.0
+
     res = {
         "v": v, "e": e, "d": d, "pts": pts,
+        "pts_efficiency": round(pts_eff, 1),
+        "tier1_opponents": tier1_opp_count,
         "text": f"{v}V-{e}E-{d}D",
         "matches": clean_matches
     }
@@ -1221,9 +1240,10 @@ def build_natural_language_motivation(
 def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
     """
     Analisa o vetor ordenado cronologicamente das 5 partidas mais recentes (U5J).
-    m[0] é a partida mais recente; m[4] é a mais antiga.
+    Garante ordenação determinística decrescente: m[0] é a mais recente; m[4] é a mais antiga.
     Calcula:
       - Pontuação ponderada por recência temporal (Pts_w, escala 0 a 15).
+      - Pontuação de Eficiência (pts_efficiency) considerando adversários Tier 1 e subtração de derrotas.
       - Slope / Curva de Rendimento (CURVA_ASCENDENTE, CURVA_ESTAGNADA, CURVA_DESCENDENTE, CURVA_ESTAVEL).
       - Coeficiente multiplicador de momentum (fator de aceleração/frenagem ofensiva).
       - Descrição em linguagem natural da curva de rendimento.
@@ -1232,6 +1252,7 @@ def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
     if len(matches) < 5:
         return {
             "pts_w": float(last5_dict.get("pts", 7) if isinstance(last5_dict, dict) else 7),
+            "pts_efficiency": float(last5_dict.get("pts_efficiency", 7.0) if isinstance(last5_dict, dict) else 7.0),
             "trend": "INSUFICIENTE",
             "trend_factor": 1.0,
             "trend_desc": "Amostragem incompleta (< 5 partidas)",
@@ -1239,18 +1260,43 @@ def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
             "pts_raw": []
         }
 
+    # Ordena rigorosamente do mais recente (J0) para o mais antigo (J4)
+    def _parse_match_date_key(m):
+        d_str = m.get('date', '')
+        if d_str and len(d_str) >= 5:
+            parts = d_str.split('/')
+            if len(parts) == 3:
+                return f"{parts[2]}-{parts[1]}-{parts[0]}"
+            elif len(parts) == 2:
+                return f"2026-{parts[1]}-{parts[0]}"
+        return ""
+
+    if any(m.get('date') for m in matches):
+        sorted_matches = sorted(matches[:5], key=_parse_match_date_key, reverse=True)
+    else:
+        sorted_matches = list(matches[:5])
+
     # Pesos temporais decrescentes: J0 (mais recente) peso 5 ... J4 (mais antigo) peso 1
     # Soma dos pesos = 5 + 4 + 3 + 2 + 1 = 15
     w_weights = [5, 4, 3, 2, 1]
     pts_raw = []
-    for m in matches[:5]:
+    pts_eff_total = 0.0
+    for m in sorted_matches[:5]:
         res = (m.get("result") or "").upper()
+        opp_name = m.get("opponent", "")
+        is_t1 = m.get("is_tier_1")
+        if is_t1 is None:
+            is_t1 = is_tier_1_elite_club(team_name=opp_name)
+        
         if res == "V":
             pts_raw.append(3)
+            pts_eff_total += 5.0 if is_t1 else 3.0
         elif res == "E":
             pts_raw.append(1)
+            pts_eff_total += 2.0 if is_t1 else 1.0
         else:
             pts_raw.append(0)
+            pts_eff_total += 0.0 if is_t1 else -1.0
 
     # Pontuação ponderada: Score_w max = 15 * 3 = 45 -> Normalizado para 0 a 15
     score_w = sum(w * pt for w, pt in zip(w_weights, pts_raw))
@@ -1270,9 +1316,8 @@ def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
         trend = "CURVA_ASCENDENTE"
         trend_factor = 1.20  # +20% de aceleração de momentum
         trend_desc = f"Curva Ascendente em alta (Momentum positivo: {pts_raw[0]} e {pts_raw[1]} pts recentes vs {avg_baseline:.1f} pts de base)"
-    elif num_d <= 1:
-        # Regra Estrutural: Equipes quase invictas (<= 1 derrota nos últimos 5 jogos)
-        # NUNCA podem ser classificadas como CURVA_ESTAGNADA nem sofrer multiplicador de corte (< 1.00).
+    elif num_d <= 1 and (num_v >= 2 or (pts_raw[0] == 3 or pts_raw[1] == 3)):
+        # Regra Estrutural: Equipes quase invictas (<= 1 derrota nos últimos 5 jogos) com vitória recente
         trend = "CURVA_ESTAVEL"
         trend_factor = 1.05 if num_d == 0 else 1.00  # Bônus para invencibilidade plena (0D)
         inv_desc = "Invencibilidade sólida (0 derrotas)" if num_d == 0 else "Rendimento seguro (apenas 1 derrota)"
@@ -1292,6 +1337,7 @@ def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
 
     return {
         "pts_w": pts_w,
+        "pts_efficiency": round(pts_eff_total, 1),
         "trend": trend,
         "trend_factor": trend_factor,
         "trend_desc": trend_desc,

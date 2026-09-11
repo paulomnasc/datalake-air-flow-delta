@@ -347,17 +347,18 @@ def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: flo
                     'source': 'POISSON_SYNTHETIC'
                 })
         else:
-            # Super-Favoritos Tier 1 operam EXCLUSIVAMENTE em linhas de handicap negativo (-1.0 e -1.5 AH)
-            for l_neg, factor_neg in [(-1.0, 1.45), (-1.5, 1.80)]:
+            # Super-Favoritos Tier 1 operam em linhas conservadoras de handicap negativo (-0.75 e -1.0 AH)
+            # Linhas superiores a -1.0 AH (-1.25, -1.5, -2.0) são expressamente proibidas por exigirem goleadas de alto risco.
+            for l_neg, factor_neg in [(-0.75, 1.25), (-1.0, 1.45)]:
                 calc_odd_neg = round(max(1.42, min(2.10, 1.0 + (ref_odd - 1.0) * factor_neg + 0.40)), 2)
                 lines.append({
                     'team': 'Away' if is_away else 'Home',
                     'target_team': t_team,
                     'is_away': is_away,
                     'line': l_neg,
-                    'palpite_str': f"{t_team} {l_neg:.1f} AH",
+                    'palpite_str': f"{t_team} {l_neg:.2f} AH" if l_neg != -1.0 else f"{t_team} -1.0 AH",
                     'odd': calc_odd_neg,
-                    'raw_value': f"{t_team} {l_neg:.1f}",
+                    'raw_value': f"{t_team} {l_neg:.2f}",
                     'source': 'POISSON_SYNTHETIC'
                 })
 
@@ -380,8 +381,9 @@ def evaluate_and_select_best_ah_candidate(
 ):
     """
     Aplica o crivo rigoroso do Gatekeeper do Handicap Asiático em todas as linhas candidatas:
-    - Janela estrita de linhas permitidas: {0.0, 0.5, 0.75, 1.0, 1.25, 1.5} (anti-empate)
-    - Exceção de Super-Favoritos Tier 1 (odd <= 1.22, ratio >= 8.0x): permite linhas negativas moderadas {-1.0, -1.25, -1.5, -1.75, -2.0}
+    - Janela estrita de linhas permitidas: {0.0, 0.5, 0.75, 1.0, 1.25, 1.5} (anti-empate / colchão defensivo)
+    - Exceção de Super-Favoritos Tier 1 (odd <= 1.22, ratio >= 8.0x): permite linhas negativas moderadas {-0.75, -1.0}
+    - Proibição Absoluta: Nenhuma linha mais agressiva que -1.0 AH (-1.25, -1.5, -1.75, -2.0) é tolerada.
     - Trava de Mando Consagrado: Se mandante for favorito sólido (H <= 2.00 e A >= 3.80),
       bloqueia terminantemente entradas em +AH na zebra visitante
     - Trava de Time em Crise: Bloqueia apostas a favor de equipes sem vitórias recentes (0V no U5J)
@@ -392,7 +394,7 @@ def evaluate_and_select_best_ah_candidate(
     - Score de Valor = EV% * (Prob / 100.0)
     """
     standard_allowed_lines = {0.0, 0.5, 0.75, 1.0, 1.25, 1.5}
-    negative_superfav_lines = {-1.0, -1.25, -1.5, -1.75, -2.0}
+    negative_superfav_lines = {-0.75, -1.0}
     approved = []
     raw_h_odd = float(odd_home or 2.0)
     raw_a_odd = float(odd_away or 2.0)
@@ -405,6 +407,13 @@ def evaluate_and_select_best_ah_candidate(
         c_line = cand['line']
         c_odd = cand['odd']
         c_is_away = cand['is_away']
+
+        # Trava de Segurança Máxima Anti-Goleada:
+        # É terminantemente proibida qualquer linha de handicap negativo mais agressiva que -1.0 AH (ex: -1.25, -1.5, -1.75, -2.0).
+        # Exigir margem de 2 ou 3 gols para ter retorno financeiro é roleta-russa e contraria a gestão de banca.
+        # Na linha -1.0 AH, vitória simples por 1 gol garante reembolso total (Push), preservando integralmente o capital.
+        if c_line < -1.0:
+            continue
 
         # Filtro Trava de Mando Consagrado: Bloqueia qualquer linha a favor da zebra visitante
         if is_strong_home_fav and c_is_away:
@@ -1018,7 +1027,14 @@ def compose_compound_ah_reasoning(
 
         if "|| MOTIVACAO:" in existing_reasoning:
             try:
-                existing_motivation = existing_reasoning.split("|| MOTIVACAO:")[1].split("||")[0].strip()
+                cand_mot = existing_reasoning.split("|| MOTIVACAO:")[1].split("||")[0].strip()
+                is_sub_abstencao = any(w in str(suggestion).lower() for w in ['abstenção', 'sem entrada', 'bloquead', 'no_bet'])
+                is_mot_abstencao = any(w in cand_mot.lower() for w in ['abstenção', 'bloqueada', 'incerteza', 'proteção de banca: entrada de handicap bloqueada', 'sem entrada'])
+                # Só reaproveita a motivação se a natureza semântica for estritamente idêntica (ambas abstenção ou ambas aprovadas)
+                if is_sub_abstencao == is_mot_abstencao:
+                    existing_motivation = cand_mot
+                else:
+                    existing_motivation = None
             except Exception:
                 existing_motivation = None
 
@@ -1044,7 +1060,14 @@ def compose_compound_ah_reasoning(
             }, ensure_ascii=False)
 
     nl_exp = build_natural_language_explanation(suggestion, home_team, away_team)
-    nl_mot = existing_motivation or "🎯 Fator Crucial: Alinhamento estatístico da modelagem Poisson (+EV) com proteção rigorosa contra empates na Betano."
+    if not existing_motivation:
+        if any(w in str(suggestion).lower() for w in ['abstenção', 'sem entrada', 'bloquead', 'no_bet']):
+            nl_mot = "🛡️ Fator Crucial: Gestão de Risco e Proteção de Banca. A indicação de abstenção fundamenta-se na priorização da segurança operacional para evitar exposições de alto risco em cenários de incerteza ou odds distorcidas."
+        else:
+            nl_mot = "🎯 Fator Crucial: Alinhamento estatístico da modelagem Poisson (+EV) com proteção rigorosa da banca e consistência de mercado."
+    else:
+        nl_mot = existing_motivation
+
     calc_details = main_calc
 
     full_reasoning = f"{main_calc} || EXPLICACAO: {nl_exp} || MOTIVACAO: {nl_mot} || MEMÓRIA DE CÁLCULO || {calc_details} || U5J_DATA: {u5j_json_str}"

@@ -1930,11 +1930,18 @@ def calculate_asian_handicap_suggestion(
                 confidence = round(min(74.0, confidence), 2)
                 main_reason = f"🌱 INÍCIO DE TEMPORADA: Linha no mandante {home_team} calibrada conservadoramente em -0.25 AH para proteger a banca no empate."
 
-    # TRAVA DE LINHAS AGRESSIVAS DE HANDICAP NEGATIVO (-0.50 AH e -0.75 AH):
-    # Linhas superiores a -0.75 AH (-1.0, -1.25, -1.50, -2.0) são calibradas conservadoramente em -0.75 AH
-    # para evitar exigência excessiva de goleadas, garantindo meio-green em vitória simples por 1 gol de diferença.
-    # Exceção Estrutural: Super-Favoritos (odd <= 1.35 e xG >= 2.30) mantêm linhas -1.0 / -1.5 AH.
-    if not is_super_fav_match and any(neg in suggestion for neg in ["-1.0", "-1.25", "-1.5", "-1.75", "-2.0"]):
+    # TRAVA DE LINHAS AGRESSIVAS DE HANDICAP NEGATIVO (Teto Conservador Máximo: -1.0 AH):
+    # Linhas superiores a -1.0 AH (-1.25, -1.50, -1.75, -2.0) são calibradas conservadoramente em -1.0 AH
+    # para evitar exigência excessiva de goleadas, garantindo que qualquer vitória por 1 gol pelo menos devolva o valor (Push).
+    if any(neg in suggestion for neg in ["-1.25", "-1.5", "-1.75", "-2.0", "-2.25", "-2.5"]):
+        team_fav = home_team if (is_market_home_fav or home_team.lower() in suggestion.lower()) else away_team
+        suggestion = f"{team_fav} -1.0 AH" if is_super_fav_match else f"{team_fav} -0.75 AH"
+        confidence = 74.00
+        main_reason = (
+            f"Favoritismo expressivo de {team_fav} calibrado estrategicamente em {suggestion}. "
+            f"Garante preservação de capital da banca evitando exigência de goleadas atípicas."
+        )
+    elif not is_super_fav_match and "-1.0" in suggestion:
         team_fav = home_team if (is_market_home_fav or home_team.lower() in suggestion.lower()) else away_team
         suggestion = f"{team_fav} -0.75 AH"
         confidence = 74.00

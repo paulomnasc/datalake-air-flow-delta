@@ -386,7 +386,7 @@ def evaluate_and_select_best_ah_candidate(
       bloqueia terminantemente entradas em +AH na zebra visitante
     - Trava de Time em Crise: Bloqueia apostas a favor de equipes sem vitórias recentes (0V no U5J)
       em situação de zebra contra favoritos de mercado
-    - Faixa de odd segura: 1.30 a 2.35 (1.40 a 2.25 para super-favoritos negativos)
+    - Faixa de odd segura: 1.50 a 2.35 (1.40 a 2.25 para super-favoritos negativos)
     - Trava de coerência: favorito 1X2 não recebe handicap positivo > 0.0
     - Gatekeeper: EV% >= min_ev (5.0%) e Probabilidade Efetiva >= min_prob (48.0% / 52.0% para negativos)
     - Score de Valor = EV% * (Prob / 100.0)
@@ -412,21 +412,70 @@ def evaluate_and_select_best_ah_candidate(
 
         # Filtro Trava de Time em Crise (Anti-Zebra em Crise Severa):
         # Bloqueia qualquer linha a favor de equipe sem vitórias recentes (0V no U5J)
+        cand_odd = raw_a_odd if c_is_away else raw_h_odd
+        opp_odd = raw_h_odd if c_is_away else raw_a_odd
+        cand_team = cand.get('target_team') or (away_team if c_is_away else home_team)
+        cand_id = cand.get('team_id') or (away_team_id if c_is_away else home_team_id)
+        opp_team = home_team if c_is_away else away_team
+        opp_id = home_team_id if c_is_away else away_team_id
+
+        # Filtro Trava de Time em Crise (Anti-Zebra em Crise Severa):
+        # Bloqueia qualquer linha a favor de equipe sem vitórias recentes (0V no U5J)
         # em situação de desvantagem de mercado (odd >= 2.20 ou contra favorito <= 2.10)
         cand_l5 = away_last5 if c_is_away else home_last5
+        opp_l5 = home_last5 if c_is_away else away_last5
         if cand_l5 and isinstance(cand_l5, dict) and cand_l5.get('v', 1) == 0:
-            cand_odd = raw_a_odd if c_is_away else raw_h_odd
-            opp_odd = raw_h_odd if c_is_away else raw_a_odd
             if cand_odd >= 2.20 or opp_odd <= 2.10:
+                continue
+
+        # 1. Trava de Coerência de Mercado 1X2 (Proibição de 0.0 AH no Azarão):
+        # O mercado 1X2 precifica o consenso mais líquido e preciso das probabilidades.
+        # Se a equipe for azarão (cand_odd > opp_odd com margem >= 0.20), é proibido apostar em 0.0 AH (DNB),
+        # pois exigir vitória seca da zebra sem colchão de gols viola a precificação de mercado.
+        # O azarão de mercado só pode ser apoiado com linhas de handicap positivo (+0.5, +0.75, +1.0, etc.).
+        is_cand_fav = (cand_odd < opp_odd)
+        is_cand_underdog = (cand_odd > opp_odd and (cand_odd - opp_odd) >= 0.20)
+        if is_cand_underdog and c_line == 0.0:
+            continue
+
+        # 2. Trava Anti-Aposta Seca Contra Gigante Tier 1 Favorito:
+        # Se o adversário for clube Tier 1 de Elite e tiver favoritismo de mercado (opp_odd < cand_odd e opp_odd <= 2.65),
+        # e a equipe candidata NÃO for Tier 1:
+        # Bloqueia terminantemente apostas nas linhas curtas (0.0 AH e +0.5 AH).
+        # A zebra só pode ser apoiada com vantagem ampla (+0.75 ou superior) para proteger a banca.
+        is_tier1 = is_tier_1_elite_club(team_id=cand_id, team_name=cand_team)
+        is_opp_tier1 = is_tier_1_elite_club(team_id=opp_id, team_name=opp_team)
+        if is_opp_tier1 and not is_tier1:
+            is_opp_fav = (opp_odd < cand_odd and opp_odd <= 2.65)
+            if is_opp_fav and c_line <= 0.5:
+                continue
+
+        # 3. Trava de Assimetria de Forma Recente (U5J):
+        # Se o adversário vem embalado (>= 4 vitórias no U5J / >= 12 pts) e o candidato tem desempenho
+        # inferior por >= 4 pontos no U5J em situação de desvantagem nas odds (cand_odd > opp_odd),
+        # bloqueia apostas curtas (0.0 AH e +0.5 AH) contra o time em momento superior.
+        if cand_l5 and opp_l5 and isinstance(cand_l5, dict) and isinstance(opp_l5, dict):
+            opp_pts = opp_l5.get('pts', 0)
+            cand_pts = cand_l5.get('pts', 0)
+            if opp_pts >= 12 and (opp_pts - cand_pts) >= 4 and cand_odd > opp_odd:
+                if c_line <= 0.5:
+                    continue
+
+        # 4. Trava de Confronto de Equilíbrio de Odds (Anti-Aposta contra Quase Invicto):
+        # Quando as odds 1X2 apontam equilíbrio de forças (|odd_home - odd_away| <= 0.20),
+        # se o adversário for quase invicto no U5J (opp_d <= 1) e o candidato tiver mais derrotas (cand_d > opp_d),
+        # bloqueia aposta no candidato em linha seca 0.0 AH (DNB).
+        # Em jogos espelhados, não se aposta em vitória seca contra time que quase não perde.
+        if cand_l5 and opp_l5 and isinstance(cand_l5, dict) and isinstance(opp_l5, dict):
+            cand_d = cand_l5.get('d', 0)
+            opp_d = opp_l5.get('d', 0)
+            is_tight_match = abs(raw_h_odd - raw_a_odd) <= 0.20
+            if is_tight_match and opp_d <= 1 and cand_d > opp_d and c_line == 0.0:
                 continue
 
         # Verifica se o candidato é um super-favorito Tier 1 com odd esmagadora (<= 1.22) e ratio de assimetria >= 8.0x
         ratio_h = (raw_a_odd / raw_h_odd) if raw_h_odd > 0 else 0
         ratio_a = (raw_h_odd / raw_a_odd) if raw_a_odd > 0 else 0
-        cand_team = cand.get('target_team') or (away_team if c_is_away else home_team)
-        cand_id = cand.get('team_id') or (away_team_id if c_is_away else home_team_id)
-        is_tier1 = is_tier_1_elite_club(team_id=cand_id, team_name=cand_team)
-
         is_super_fav_cand = (
             is_tier1 and (
                 (not c_is_away and raw_h_odd <= 1.22 and ratio_h >= 8.0) or
@@ -446,10 +495,9 @@ def evaluate_and_select_best_ah_candidate(
             # Super-favoritos com odd esmagada não operam na linha 0.0 AH
             if is_super_fav_cand and c_line == 0.0:
                 continue
-            if c_odd < 1.30 or c_odd > 2.35:
+            if c_odd < 1.50 or c_odd > 2.35:
                 continue
             # Inversão de Handicap: favorito 1X2 não recebe handicap positivo > 0.0
-            is_cand_fav = (raw_a_odd < raw_h_odd) if c_is_away else (raw_h_odd < raw_a_odd)
             if is_cand_fav and c_line > 0.0:
                 continue
             required_prob = min_prob
@@ -460,6 +508,18 @@ def evaluate_and_select_best_ah_candidate(
         res = evaluate_ah_line_poisson(poisson_matrix, c_is_away, c_line, c_odd)
         ev = res['ev_percent']
         prob_eff = res['prob_eff']
+
+        # 4. Ancoragem Bayesiana (Filtro de Sanidade Poisson vs Mercado 1X2):
+        # A casa de apostas precifica o 1X2 com altíssima eficiência de mercado.
+        # Se a probabilidade pura de vitória estimada por Poisson para o azarão divergir
+        # mais de 12 pontos percentuais da probabilidade implícita justa do mercado 1X2,
+        # rejeita a entrada por distorção de Poisson (xG inflado por desnível de ligas).
+        if is_cand_underdog:
+            inv_cand = 1.0 / cand_odd if cand_odd > 0 else 0.5
+            inv_opp = 1.0 / opp_odd if opp_odd > 0 else 0.5
+            market_cand_win_prob = (inv_cand / (inv_cand + inv_opp)) * 100.0
+            if (res['p_win'] - market_cand_win_prob) > 12.0:
+                continue
 
         if ev >= min_ev and prob_eff >= required_prob:
             score = ev * (prob_eff / 100.0)

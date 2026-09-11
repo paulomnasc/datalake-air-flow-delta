@@ -33,7 +33,6 @@ ALLOWED_LEAGUES = {
     11: "Copa Sudamericana (America do Sul)",
     541: "Recopa Sudamericana (America do Sul)",
     9: "Copa America (America do Sul)",
-    253: "Major League Soccer (EUA)",
     772: "Leagues Cup (America)",
     262: "Liga MX (Mexico)",
     1028: "CONCACAF Central American Cup (CONCACAF)",
@@ -94,7 +93,7 @@ ALLOWED_LEAGUE_NAMES = [
     'super league 1', 'super league', 'superliga',
     'champions league', 'europa league', 'conference league',
     'libertadores', 'copa sudamericana', 'sudamericana', 'recopa',
-    'major league soccer', 'mls', 'leagues cup',
+    'leagues cup',
     'liga mx',
     'allsvenskan', 'eliteserien',
     'j1 league', 'j-league', 'j.league',
@@ -150,21 +149,28 @@ TIER_1_ELITE_CLUBS = {
     529: "Barcelona",
     541: "Real Madrid",
     530: "Atlético Madrid",
+    531: "Athletic Club",
+    536: "Sevilla",
 
-    # Inglaterra (Premier League)
+    # Inglaterra (Premier League - Big Six)
     33:  "Manchester United",
     50:  "Manchester City",
     40:  "Liverpool",
     42:  "Arsenal",
     49:  "Chelsea",
+    47:  "Tottenham",
 
     # Alemanha (Bundesliga)
     157: "Bayern Munich",
     165: "Borussia Dortmund",
     168: "Bayer Leverkusen",
+    173: "RB Leipzig",
 
     # França (Ligue 1)
     85:  "Paris Saint Germain",
+    91:  "Monaco",
+    80:  "Lyon",
+    81:  "Marseille",
 
     # Itália (Serie A)
     505: "Inter",
@@ -172,24 +178,165 @@ TIER_1_ELITE_CLUBS = {
     496: "Juventus",
     492: "Napoli",
     497: "AS Roma",
+    487: "Lazio",
 
-    # Portugal (Primeira Liga)
+    # Portugal (Primeira Liga - Os Três Grandes)
     211: "Benfica",
     212: "FC Porto",
     228: "Sporting CP",
 
-    # Holanda (Eredivisie)
+    # Holanda (Eredivisie - Os Três Grandes)
     194: "Ajax",
     197: "PSV Eindhoven",
+    209: "Feyenoord",
 
-    # Brasil (Brasileirão Série A)
+    # Escócia (Scottish Premiership - Old Firm)
+    247: "Celtic",
+    257: "Rangers",
+
+    # Turquia (Süper Lig - Os Três Grandes)
+    645: "Galatasaray",
+    611: "Fenerbahçe",
+    549: "Beşiktaş",
+
+    # Grécia (Super League - Big Four)
+    553: "Olympiakos Piraeus",
+    617: "Panathinaikos",
+    619: "PAOK",
+    575: "AEK Athens FC",
+
+    # Bélgica (Pro League)
+    569: "Club Brugge KV",
+    554: "Anderlecht",
+    1393: "Union St. Gilloise",
+    742: "Genk",
+
+    # Áustria (Bundesliga)
+    571: "Red Bull Salzburg",
+    637: "Sturm Graz",
+    781: "Rapid Vienna",
+
+    # Suíça (Super League)
+    565: "BSC Young Boys",
+    551: "FC Basel 1893",
+
+    # Dinamarca (Superliga)
+    400: "FC Copenhagen",
+
+    # Sérvia (Super Liga - Dérbi Eterno)
+    598: "FK Crvena Zvezda",
+    573: "FK Partizan",
+
+    # Tchéquia (Czech First League)
+    560: "Slavia Praha",
+    628: "Sparta Praha",
+    567: "Plzen",
+
+    # Romênia (Liga I)
+    559: "FCSB",
+    2246: "CFR 1907 Cluj",
+
+    # Polônia (Ekstraklasa)
+    339: "Legia Warszawa",
+    347: "Lech Poznan",
+
+    # Suécia (Allsvenskan)
+    375: "Malmo FF",
+
+    # Noruega (Eliteserien)
+    327: "Bodo/Glimt",
+    329: "Molde",
+    331: "Rosenborg",
+
+    # Finlândia (Veikkausliiga)
+    649: "HJK Helsinki",
+
+    # Arábia Saudita (Saudi Pro League - PIF Big Four)
+    2932: "Al-Hilal Saudi FC",
+    2939: "Al-Nassr",
+    2938: "Al-Ittihad FC",
+    2929: "Al-Ahli Jeddah",
+
+    # Brasil (G-12 do Futebol Brasileiro)
     127:  "Flamengo",
     121:  "Palmeiras",
     1062: "Atlético Mineiro",
+    126:  "Sao Paulo",
+    131:  "Corinthians",
+    130:  "Gremio",
+    119:  "Internacional",
+    124:  "Fluminense",
+    120:  "Botafogo",
+    135:  "Cruzeiro",
+    133:  "Vasco DA Gama",
+    128:  "Santos",
 
-    # Argentina (Liga Profesional)
+    # Argentina (Cinco Grandes + Potências)
     451: "Boca Juniors",
     435: "River Plate",
+    436: "Racing Club",
+    453: "Independiente",
+    460: "San Lorenzo",
+    450: "Estudiantes L.P.",
+    438: "Velez Sarsfield",
+
+    # Uruguai (Primera Division - Os Dois Grandes)
+    2348: "Penarol",
+    2356: "Club Nacional",
+
+    # Colômbia (Primera Division - Grandes Históricos)
+    1137: "Atletico Nacional",
+    1125: "Millonarios",
+    1139: "Santa Fe",
+    1135: "Junior",
+    1138: "America de Cali",
+
+    # Chile (Primera Division - Os Três Grandes)
+    2315: "Colo Colo",
+    2323: "Universidad de Chile",
+    2994: "U. Catolica",
+
+    # Equador (Liga Pro - Grandes & Potências Internacionais)
+    1158: "LDU de Quito",
+    1153: "Independiente del Valle",
+    1152: "Barcelona SC",
+    1148: "Emelec",
+
+    # Peru (Primera Division - Trio de Ferro de Lima)
+    2540: "Universitario",
+    2553: "Alianza Lima",
+    2546: "Sporting Cristal",
+
+    # Paraguai (Copa Paraguay - Os Três Grandes)
+    1182: "Olimpia",
+    1176: "Cerro Porteno",
+    1179: "Libertad Asuncion",
+
+    # México (Liga MX - Quatro Grandes + Potências e Campeões Internacionais)
+    2287: "Club America",
+    2279: "Tigres UANL",
+    2282: "Monterrey",
+    2278: "Guadalajara Chivas",
+    2295: "Cruz Azul",
+    2286: "U.N.A.M. - Pumas",
+    2281: "Toluca",
+    2292: "CF Pachuca",
+
+    # Japão (J1 League)
+    289: "Vissel Kobe",
+    296: "Yokohama F. Marinos",
+    294: "Kawasaki Frontale",
+    287: "Urawa",
+
+    # Coreia do Sul (K League 1)
+    2762: "Jeonbuk Motors",
+    2767: "Ulsan Hyundai FC",
+    2766: "FC Seoul",
+
+    # China (Super League)
+    836: "SHANGHAI SIPG",
+    833: "Shanghai Shenhua",
+    844: "Shandong Luneng"
 }
 
 

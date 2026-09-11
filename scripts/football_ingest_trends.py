@@ -1264,6 +1264,13 @@ def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
         trend = "CURVA_ASCENDENTE"
         trend_factor = 1.20  # +20% de aceleração de momentum
         trend_desc = f"Curva Ascendente em alta (Momentum positivo: {pts_raw[0]} e {pts_raw[1]} pts recentes vs {avg_baseline:.1f} pts de base)"
+    elif num_d <= 1:
+        # Regra Estrutural: Equipes quase invictas (<= 1 derrota nos últimos 5 jogos)
+        # NUNCA podem ser classificadas como CURVA_ESTAGNADA nem sofrer multiplicador de corte (< 1.00).
+        trend = "CURVA_ESTAVEL"
+        trend_factor = 1.05 if num_d == 0 else 1.00  # Bônus para invencibilidade plena (0D)
+        inv_desc = "Invencibilidade sólida (0 derrotas)" if num_d == 0 else "Rendimento seguro (apenas 1 derrota)"
+        trend_desc = f"Rendimento Sólido / Quase Invicto ({num_v}V-{num_e}E-{num_d}D) - {inv_desc}"
     elif (num_e >= 3) or (pts_raw[0] == 1 and pts_raw[1] == 1) or (num_v <= 1 and num_e >= 2):
         trend = "CURVA_ESTAGNADA"
         trend_factor = 0.88  # -12% por platô mediano / excesso de empates
@@ -1431,13 +1438,15 @@ def calculate_asian_handicap_suggestion(
         home_last5_factor = 0.65  # Penalidade severa por má fase (-35%)
     elif home_pts_w <= 5.0 or home_d >= 3:
         home_last5_factor = 0.78  # Penalidade forte (-22%)
-    elif home_pts_w <= 7.0 or home_d >= 2:
+    elif home_d >= 2 and home_pts_w <= 7.0:
         home_last5_factor = 0.85  # Sequência negativa/oscilante (-15%)
     else:
         home_last5_factor = 1.00
 
     # Aplica multiplicador de aceleração/frenagem da Curva de Rendimento
     home_last5_factor *= home_trend_factor
+    if home_d <= 1:
+        home_last5_factor = max(1.00, home_last5_factor)
 
     if away_pts_w >= 11.5 or away_v >= 4:
         away_last5_factor = 1.30
@@ -1447,12 +1456,14 @@ def calculate_asian_handicap_suggestion(
         away_last5_factor = 0.65
     elif away_pts_w <= 5.0 or away_d >= 3:
         away_last5_factor = 0.78
-    elif away_pts_w <= 7.0:
+    elif away_d >= 2 and away_pts_w <= 7.0:
         away_last5_factor = 0.88
     else:
         away_last5_factor = 1.00
 
     away_last5_factor *= away_trend_factor
+    if away_d <= 1:
+        away_last5_factor = max(1.00, away_last5_factor)
 
     # CONTRASTE DE FORMA RECENTE (Momentum Differential)
     # Dispara APENAS se o mandante estiver em má fase real (<= 5 pts em U5J) E o visitante estiver muito forte (>= 9 pts), e NÃO para super favoritos (odd_home <= 1.50)
@@ -1462,7 +1473,7 @@ def calculate_asian_handicap_suggestion(
         home_mando_factor = 0.95  # Neutraliza o bônus de casa devido à crise/sequência ruim
         away_streak_factor = max(1.25, away_recent_wins * 0.10 + 1.15)
     else:
-        home_last5_factor = max(0.90, home_last5_factor)
+        home_last5_factor = max(1.00 if home_d <= 1 else 0.90, home_last5_factor)
 
     # 3. Fator Proteção Defensiva (Clean Sheets)
     home_cs_factor = max(0.85, min(1.20, 1.0 + (home_cs_pct - 30.0) * 0.005))

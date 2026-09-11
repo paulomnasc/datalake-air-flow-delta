@@ -394,7 +394,7 @@ def evaluate_and_select_best_ah_candidate(
     - Score de Valor = EV% * (Prob / 100.0)
     """
     standard_allowed_lines = {0.0, 0.5, 0.75, 1.0, 1.25, 1.5}
-    negative_superfav_lines = {-0.75, -1.0}
+    moderate_negative_lines = {-0.5, -0.75, -1.0}
     approved = []
     raw_h_odd = float(odd_home or 2.0)
     raw_a_odd = float(odd_away or 2.0)
@@ -482,27 +482,52 @@ def evaluate_and_select_best_ah_candidate(
             if is_tight_match and opp_d <= 1 and cand_d > opp_d and c_line == 0.0:
                 continue
 
-        # Verifica se o candidato é um super-favorito Tier 1 com odd esmagadora (<= 1.22) e ratio de assimetria >= 8.0x
+        # Identificação de Super-Favoritos Tier 1 com odd esmagadora (<= 1.22) e ratio >= 8.0x
         ratio_h = (raw_a_odd / raw_h_odd) if raw_h_odd > 0 else 0
         ratio_a = (raw_h_odd / raw_a_odd) if raw_a_odd > 0 else 0
-        is_super_fav_cand = (
+        is_super_fav_crushed = (
             is_tier1 and (
                 (not c_is_away and raw_h_odd <= 1.22 and ratio_h >= 8.0) or
                 (c_is_away and raw_a_odd <= 1.22 and ratio_a >= 8.0)
             )
         )
 
+        # Exceção Estrita de Assimetria Técnica Dominante (Tier 1 Dominante no U5J):
+        # Permite avaliar linhas moderadas {-0.5, -0.75, -1.0 AH} SOMENTE em cenários de dominância indiscutível:
+        # 1) Clube candidato é Tier 1 Elite comprovado
+        # 2) Favorito sólido de mercado: cand_odd <= 1.65 e ratio de odds >= 2.5x contra o adversário
+        # 3) Momento de elite no U5J: candidato tem >= 12 pontos (ou invicto com >= 4V) e adversário fragilizado (<= 5 pontos)
+        # 4) Diferença de aproveitamento no U5J >= 7 pontos
+        cand_pts = cand_l5.get('pts', 0) if (cand_l5 and isinstance(cand_l5, dict)) else 0
+        opp_pts = opp_l5.get('pts', 0) if (opp_l5 and isinstance(opp_l5, dict)) else 0
+        cand_v = cand_l5.get('v', 0) if (cand_l5 and isinstance(cand_l5, dict)) else 0
+        cand_d = cand_l5.get('d', 0) if (cand_l5 and isinstance(cand_l5, dict)) else 0
+        cand_ratio = (opp_odd / cand_odd) if cand_odd > 0 else 0
+
+        is_dominant_tier1 = (
+            is_tier1 and
+            cand_odd <= 1.65 and
+            cand_ratio >= 2.5 and
+            (cand_pts >= 12 or (cand_v >= 4 and cand_d == 0)) and
+            opp_pts <= 5 and
+            (cand_pts - opp_pts) >= 7
+        )
+
+        is_eligible_negative = (is_super_fav_crushed or is_dominant_tier1)
+
         # Filtro 1: Linhas permitidas e faixas de odds seguras
-        if c_line in negative_superfav_lines:
-            # Linhas negativas são EXCLUSIVAS para super-favoritos Tier 1 com abismo de mercado
-            if not is_super_fav_cand:
+        required_ev = min_ev
+        if c_line in moderate_negative_lines:
+            # Linhas de handicap negativo são restritas a Super-Favoritos ou Tier 1 com Assimetria Dominante
+            if not is_eligible_negative:
                 continue
-            if c_odd < 1.40 or c_odd > 2.25:
+            if c_odd < 1.50 or c_odd > 2.25:
                 continue
-            required_prob = 52.0  # Limiar calibrado de cobertura para super-favoritos
+            required_prob = 52.0 if is_super_fav_crushed else 60.0
+            required_ev = min_ev if is_super_fav_crushed else 15.0
         elif c_line in standard_allowed_lines:
             # Super-favoritos com odd esmagada não operam na linha 0.0 AH
-            if is_super_fav_cand and c_line == 0.0:
+            if is_super_fav_crushed and c_line == 0.0:
                 continue
             if c_odd < 1.50 or c_odd > 2.35:
                 continue
@@ -530,7 +555,7 @@ def evaluate_and_select_best_ah_candidate(
             if (res['p_win'] - market_cand_win_prob) > 12.0:
                 continue
 
-        if ev >= min_ev and prob_eff >= required_prob:
+        if ev >= required_ev and prob_eff >= required_prob:
             score = ev * (prob_eff / 100.0)
             cand_copy = dict(cand)
             cand_copy['eval'] = res
@@ -699,21 +724,36 @@ def calculate_unified_handicap_recommendation(
     if not best_cand:
         sug = "Sem Entrada (Abstenção)"
         conf = 50.0
-        # Diagnóstico contextual de cobertura
-        context_extra = ""
-        is_h_fav_crushed = (odd_h <= 1.55)
-        is_a_fav_crushed = (odd_a <= 1.55)
-        if is_h_fav_crushed or is_a_fav_crushed:
-            fav_name = home_team if is_h_fav_crushed else away_team
-            fav_id = h_tid if is_h_fav_crushed else a_tid
-            is_t1 = is_tier_1_elite_club(team_id=fav_id, team_name=fav_name)
-            t1_str = " (Tier 1)" if is_t1 else ""
-            context_extra = f" Favorito {fav_name}{t1_str} com odd nominal esmagada: linha DNB (0.0 AH) sem odd mínima (+EV) e linhas positivas bloqueadas por coerência de mercado."
-        reason = (
-            f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} ->{context_extra} "
-            f"Nenhuma linha da Betano atingiu o limiar de +EV >= 5.0% e Prob. Efetiva >= 48.0%. "
-            f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}. Abstenção mandatória."
-        )
+        # Diagnóstico contextual de cobertura e checagem de piso mínimo de odd
+        fav_is_home = (odd_h < odd_a)
+        fav_team = home_team if fav_is_home else away_team
+        dog_team = away_team if fav_is_home else home_team
+        fav_id = h_tid if fav_is_home else a_tid
+        is_t1 = is_tier_1_elite_club(team_id=fav_id, team_name=fav_team)
+        t1_str = " (Tier 1)" if is_t1 else ""
+
+        # Verifica se a linha defensiva DNB (0.0 AH) do favorito existia na Betano mas foi reprovada por cotação deprimida (< 1.50)
+        dnb_cand = next((c for c in betano_lines if c.get('line') == 0.0 and c.get('is_away') == (not fav_is_home)), None)
+        dnb_odd = float(dnb_cand.get('odd') or 0.0) if dnb_cand else 0.0
+
+        if dnb_cand and dnb_odd < 1.50:
+            reason = (
+                f"🛡️ [Gatekeeper AH NO_BET / Odd Abaixo do Piso] Partida {home_team} vs {away_team} -> "
+                f"A linha segura DNB ({fav_team}{t1_str} 0.0 AH) está cotada a apenas @ {dnb_odd:.2f} na Betano, "
+                f"abaixo do piso mínimo aceito de rentabilidade (@ 1.50). "
+                f"Linhas de handicap negativo no favorito exigem perfil de Super-Favorito Tier 1 (odd <= 1.22) "
+                f"e as linhas na zebra foram rejeitadas por EV negativo ou gestão de risco. "
+                f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}. Abstenção mandatória."
+            )
+        else:
+            context_extra = ""
+            if (odd_h <= 1.55) or (odd_a <= 1.55):
+                context_extra = f" Favorito {fav_team}{t1_str} com odd nominal esmagada: linha DNB (0.0 AH) sem odd mínima (+EV) e linhas positivas bloqueadas por coerência de mercado."
+            reason = (
+                f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} ->{context_extra} "
+                f"Nenhuma linha da Betano atingiu o limiar de +EV >= 5.0% e Prob. Efetiva >= 48.0%. "
+                f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}. Abstenção mandatória."
+            )
         return 'NO_BET', sug, conf, reason, None, []
 
     eval_res = best_cand['eval']
@@ -743,6 +783,21 @@ def calculate_unified_handicap_recommendation(
         away_team_id=fixture_dict.get('away_team_id'),
         existing_reasoning=reasoning
     )
+
+    # Avaliação de Destaque Sistêmico: Equipe Tier 1 de Elite contra Não-Tier 1 com baixo desempenho recente no U5J (<= 5 pts ou 0V)
+    cand_team_name = best_cand['team']
+    cand_team_id = fixture_dict.get('away_team_id') if cand_team_name == away_team else fixture_dict.get('home_team_id')
+    opp_team_name = home_team if cand_team_name == away_team else away_team
+    opp_team_id = fixture_dict.get('home_team_id') if cand_team_name == away_team else fixture_dict.get('away_team_id')
+
+    is_cand_tier1 = is_tier_1_elite_club(team_id=cand_team_id, team_name=cand_team_name)
+    is_opp_tier1 = is_tier_1_elite_club(team_id=opp_team_id, team_name=opp_team_name)
+    opp_l5_data = home_l5 if cand_team_name == away_team else away_l5
+    opp_pts = opp_l5_data.get('pts', 0) if isinstance(opp_l5_data, dict) else 0
+    opp_v = opp_l5_data.get('v', 0) if isinstance(opp_l5_data, dict) else 0
+
+    is_destaque = 1 if (is_cand_tier1 and not is_opp_tier1 and (opp_pts <= 5 or opp_v == 0)) else 0
+    best_cand['destaque'] = is_destaque
 
     return 'APROVADO', selected_palpite, conf, compound_r, best_cand, approved
 
@@ -915,7 +970,7 @@ def build_natural_language_explanation(suggestion, home_team, away_team):
             f"🟡 Vitória do {team_fav} por 1 gol exato: GANHA 50% do Lucro + 100% da Aposta.\n"
             f"🔴 Empate ou Vitória do {team_opp}: Aposta PERDIDA."
         )
-    elif "+1.0" in sug_str:
+    elif "+1.0" in sug_str or "+1 " in sug_str or "+1 AH" in sug_str or "+1.00" in sug_str:
         if away_team.lower() in sug_str.lower():
             team_fav = away_team
             team_opp = home_team
@@ -927,7 +982,7 @@ def build_natural_language_explanation(suggestion, home_team, away_team):
             f"🟡 Derrota do {team_fav} por 1 gol exato: 100% de REEMBOLSO do valor apostado.\n"
             f"🔴 Derrota por 2+ gols: Aposta PERDIDA."
         )
-    elif "-1.0" in sug_str:
+    elif "-1.0" in sug_str or "-1 " in sug_str or "-1 AH" in sug_str or "-1.00" in sug_str:
         if away_team.lower() in sug_str.lower():
             team_fav = away_team
             team_opp = home_team
@@ -987,10 +1042,16 @@ def build_natural_language_explanation(suggestion, home_team, away_team):
             f"🔴 Vitória do {team_opp}: Aposta PERDIDA."
         )
     else:
+        if away_team.lower() in sug_str.lower():
+            team_fav = away_team
+            team_opp = home_team
+        else:
+            team_fav = home_team
+            team_opp = away_team
         return (
-            f"🟢 Vitória do {home_team}: Aposta Coberta.\n"
+            f"🟢 Vitória do {team_fav}: Aposta Coberta.\n"
             f"⚪ Empate: Devolução ou ajuste conforme a linha.\n"
-            f"🔴 Vitória do {away_team}: Aposta Perdida."
+            f"🔴 Vitória do {team_opp}: Aposta Perdida."
         )
 
 
@@ -1087,7 +1148,8 @@ def sync_fixture_and_bet_handicap(
     ev_perc: float,
     detalhe_calculo: str,
     user_ids: list,
-    confirmada_val: int = 0
+    confirmada_val: int = 0,
+    destaque_val: int = 0
 ):
     """
     Sincroniza atômica e simultaneamente o Card (fixtures_trends) e a Aposta (apostas).
@@ -1128,10 +1190,11 @@ def sync_fixture_and_bet_handicap(
                     status_gatekeeper = 'APROVADO',
                     ganhos_potenciais = %s,
                     resultado_detalhado = %s,
+                    destaque = %s,
                     status = 'Pendente',
                     updated_at = NOW()
                 WHERE id = %s
-            """, (selected_palpite, odd_val, odd_justa, prob_poisson, ev_perc, ganhos_potenciais, detalhe_calculo, ja_existe['id']))
+            """, (selected_palpite, odd_val, odd_justa, prob_poisson, ev_perc, ganhos_potenciais, detalhe_calculo, destaque_val, ja_existe['id']))
             print(f"🔄 [Aposta AH Atualizada User #{uid}] ID #{ja_existe['id']} | Palpite: '{selected_palpite}' @ {odd_val:.2f}")
         else:
             # Inserir nova aposta
@@ -1139,16 +1202,16 @@ def sync_fixture_and_bet_handicap(
                 INSERT INTO apostas (
                     usuario_id, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
                     odd_justa, probabilidade_poisson, ev_percentual,
-                    valor_aposta, ganhos_potenciais, status_gatekeeper, status, confirmada, data_hora_jogo, resultado_detalhado, criado_em, updated_at
+                    valor_aposta, ganhos_potenciais, status_gatekeeper, status, confirmada, destaque, data_hora_jogo, resultado_detalhado, criado_em, updated_at
                 ) VALUES (
                     %s, %s, %s, %s, 'Handicap Asiático', %s, %s,
                     %s, %s, %s,
-                    %s, %s, 'APROVADO', 'Pendente', %s, %s, %s, NOW(), NOW()
+                    %s, %s, 'APROVADO', 'Pendente', %s, %s, %s, %s, NOW(), NOW()
                 )
             """, (
                 uid, fixture_id, home_team, away_team, selected_palpite, odd_val,
                 odd_justa, prob_poisson, ev_perc,
-                valor_aposta, ganhos_potenciais, confirmada_val, fixture_date,
+                valor_aposta, ganhos_potenciais, confirmada_val, destaque_val, fixture_date,
                 detalhe_calculo
             ))
             aposta_id = cursor.lastrowid

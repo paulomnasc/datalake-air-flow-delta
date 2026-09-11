@@ -168,7 +168,7 @@ class ApostaController extends BaseController
                 FROM apostas a
                 LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)
                 WHERE a.usuario_id = ?
-                ORDER BY CASE WHEN a.data_hora_jogo IS NOT NULL AND a.data_hora_jogo > '2000-01-01' THEN a.data_hora_jogo ELSE a.criado_em END ASC, a.criado_em ASC, a.id ASC
+                ORDER BY a.destaque DESC, CASE WHEN a.data_hora_jogo IS NOT NULL AND a.data_hora_jogo > '2000-01-01' THEN a.data_hora_jogo ELSE a.criado_em END ASC, a.criado_em ASC, a.id ASC
             ", [$userId])->getResultObject();
 
             $tzUtc = new \DateTimeZone('UTC');
@@ -247,14 +247,14 @@ class ApostaController extends BaseController
         $timeFora        = trim($this->request->getPost('time_fora') ?? '');
         $mercado         = trim($this->request->getPost('mercado') ?? 'Total de Cartões');
         $palpite         = trim($this->request->getPost('palpite') ?? '');
-        $odd             = (float)$this->request->getPost('odd');
-        $valorAposta     = (float)$this->request->getPost('valor_aposta');
+        $odd             = (float)str_replace(',', '.', (string)($this->request->getPost('odd') ?? '0'));
+        $valorAposta     = (float)str_replace(',', '.', (string)($this->request->getPost('valor_aposta') ?? '0'));
         $fixtureId       = $this->request->getPost('fixture_id') ? (int)$this->request->getPost('fixture_id') : null;
         $dataHoraInput   = trim($this->request->getPost('data_hora_jogo') ?? '');
         $tipo            = trim($this->request->getPost('tipo') ?? 'Simples');
         $status          = trim($this->request->getPost('status') ?? 'Pendente');
         $cashOut         = $this->request->getPost('cash_out') !== null && $this->request->getPost('cash_out') !== '' 
-                           ? (float)$this->request->getPost('cash_out') : null;
+                           ? (float)str_replace(',', '.', (string)$this->request->getPost('cash_out')) : null;
 
         if ($mercado === 'Handicap Asiático' || stripos($mercado, 'handicap') !== false) {
             $palpite = $this->formatHandicapPalpite($palpite, $timeCasa, $timeFora);
@@ -303,12 +303,8 @@ class ApostaController extends BaseController
                 ]);
             }
             $statusGatekeeper = 'ALERTA_RISCO_OVER';
-        } elseif ($statusGatekeeper === 'NO_BET') {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => '🚫 Simulação de aposta recusada pelo Gatekeeper! ' . $gatekeeperMsg
-            ]);
         }
+
 
         // Trava anti-duplicidade de requisições em paralelo (janela de 10 segundos)
         $dbCheck = \Config\Database::connect();
@@ -383,6 +379,7 @@ class ApostaController extends BaseController
             'tipo'                  => $tipo,
             'status'                => $status,
             'confirmada'            => $confirmarDebitar ? 1 : 0,
+            'destaque'              => !empty($eval['destaque']) ? 1 : 0,
             'criado_em'             => $nowBr
         ]);
 
@@ -457,6 +454,28 @@ class ApostaController extends BaseController
             1062 => "Atlético Mineiro",
             451  => "Boca Juniors",
             435  => "River Plate",
+            571  => "Red Bull Salzburg",
+            637  => "Sturm Graz",
+            781  => "Rapid Vienna",
+            173  => "RB Leipzig",
+            47   => "Tottenham",
+            33   => "Manchester United",
+            91   => "Monaco",
+            80   => "Lyon",
+            81   => "Marseille",
+            497  => "AS Roma",
+            487  => "Lazio",
+            209  => "Feyenoord",
+            247  => "Celtic",
+            257  => "Rangers",
+            645  => "Galatasaray",
+            611  => "Fenerbahçe",
+            549  => "Beşiktaş",
+            553  => "Olympiakos Piraeus",
+            569  => "Club Brugge KV",
+            554  => "Anderlecht",
+            565  => "BSC Young Boys",
+            400  => "FC Copenhagen",
         ];
 
         if ($teamId !== null && $teamId > 0) {
@@ -505,6 +524,7 @@ class ApostaController extends BaseController
         $evPercentual = null;
         $statusGatekeeper = 'NAO_ANALISADO';
         $gatekeeperMsg = 'Simulação de aposta sem análise de estatísticas.';
+        $destaque = 0;
 
         $isOver = (stripos($palpite, 'over') !== false || stripos($palpite, 'mais') !== false);
         $isCartoes = (stripos($mercado, 'cartõ') !== false || stripos($mercado, 'card') !== false);
@@ -514,11 +534,11 @@ class ApostaController extends BaseController
         if ($isCartoes && ($isOver || stripos($palpite, 'mais') !== false)) {
             $statusGatekeeper = 'AVISO_RISCO_OVER';
             $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under): Simulações de apostas no mercado 'Over / Mais de' possuem elevado risco de perda e volatilidade estatística. Apenas apostas 'Under / Menos de' são recomendadas pelo modelo. Deseja prosseguir mesmo com o risco apontado?";
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
         }
 
         if (!$isCartoes && !$isHandicap) {
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
         }
 
         $db = \Config\Database::connect();
@@ -543,6 +563,36 @@ class ApostaController extends BaseController
                 ->getRow();
             if ($fixture) {
                 $fixtureId = (int)$fixture->fixture_id;
+            }
+        }
+
+        if ($fixture) {
+            $hId = !empty($fixture->home_team_id) ? (int)$fixture->home_team_id : null;
+            $aId = !empty($fixture->away_team_id) ? (int)$fixture->away_team_id : null;
+            $hName = $fixture->home_team ?? $timeCasa;
+            $aName = $fixture->away_team ?? $timeFora;
+
+            $isAwayFav = (stripos($palpite, $aName) !== false || stripos($palpite, 'away') !== false || stripos($palpite, 'fora') !== false || stripos($palpite, 'visitante') !== false);
+            $candId = $isAwayFav ? $aId : $hId;
+            $candName = $isAwayFav ? $aName : $hName;
+            $oppId = $isAwayFav ? $hId : $aId;
+            $oppName = $isAwayFav ? $hName : $aName;
+
+            $isCandT1 = $this->isTier1EliteClub($candId, $candName);
+            $isOppT1 = $this->isTier1EliteClub($oppId, $oppName);
+
+            if ($isCandT1 && !$isOppT1) {
+                $oppKey = $isAwayFav ? 'home' : 'away';
+                if (!empty($fixture->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)/s', $fixture->ah_reasoning, $mU5)) {
+                    $u5Arr = json_decode($mU5[1], true);
+                    if (!empty($u5Arr[$oppKey])) {
+                        $oppPts = (int)($u5Arr[$oppKey]['pts'] ?? 0);
+                        $oppV = (int)($u5Arr[$oppKey]['v'] ?? 0);
+                        if ($oppPts <= 5 || $oppV === 0) {
+                            $destaque = 1;
+                        }
+                    }
+                }
             }
         }
 
@@ -580,7 +630,7 @@ class ApostaController extends BaseController
                 if ($oddHome > 1.0 && $oddHome <= 2.00 && ($oddAway >= 3.80 || ($oddAway / $oddHome) >= 2.0)) {
                     $statusGatekeeper = 'NO_BET';
                     $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Mando Consagrado): Entrada de handicap positivo a favor da zebra visitante bloqueada contra mandante favorito consolidado em casa (Odd Mandante: {$oddHome}).";
-                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
                 }
             }
 
@@ -601,34 +651,17 @@ class ApostaController extends BaseController
                         $candName = $isAway ? $timeFora : $timeCasa;
                         $statusGatekeeper = 'NO_BET';
                         $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Time em Crise): Entrada de handicap a favor de equipe sem vitórias recentes nos últimos 5 jogos (0V para {$candName}) em situação de zebra contra favorito de mercado.";
-                        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+                        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
                     }
                 }
             }
 
-            // 2. Trava de Linhas Negativas Profundas com Exceção Estrutural de Super-Favoritos Tier 1 (-1.0 e -1.5 AH)
-            $isSuperFavMatch = false;
-            $ratioHome = ($oddHome > 0 && $oddAway > 0) ? ($oddAway / $oddHome) : 0.0;
-            $ratioAway = ($oddAway > 0 && $oddHome > 0) ? ($oddHome / $oddAway) : 0.0;
-            $homeTeamId = ($fixture && !empty($fixture->home_team_id)) ? (int)$fixture->home_team_id : null;
-            $awayTeamId = ($fixture && !empty($fixture->away_team_id)) ? (int)$fixture->away_team_id : null;
 
-            if (!$isAway && in_array($line, [-1.0, -1.5]) && $this->isTier1EliteClub($homeTeamId, $timeCasa) && $oddHome > 1.0 && $oddHome <= 1.22 && $ratioHome >= 8.0 && $xgHome >= 2.10) {
-                $isSuperFavMatch = true;
-            } elseif ($isAway && in_array($line, [-1.0, -1.5]) && $this->isTier1EliteClub($awayTeamId, $timeFora) && $oddAway > 1.0 && $oddAway <= 1.22 && $ratioAway >= 8.0 && $xgAway >= 2.10) {
-                $isSuperFavMatch = true;
-            }
-
-            if ($line < -0.75 && !$isSuperFavMatch) {
-                $statusGatekeeper = 'NO_BET';
-                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Linhas de handicap mais profundas que -0.75 são bloqueadas pelo modelo por elevado risco de perda total no empate (Exceção: -1.0/-1.5 permitido exclusivamente para Super-Favoritos Tier 1 com Odd <= 1.22, Ratio >= 8.0x e xG >= 2.10).";
-                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
-            }
 
             if ($odd < 1.45) {
                 $statusGatekeeper = 'NO_BET';
                 $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Odd muito deprimida (< 1.45) para Handicap Asiático. Sem margem de valor esperado (+EV).";
-                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
             }
 
             $pWin = 0.0;
@@ -681,7 +714,7 @@ class ApostaController extends BaseController
                 $probPoisson = 1.00;
             }
 
-            $minProbReq = $isSuperFavMatch ? 60.0 : 45.0;
+            $minProbReq = 45.0;
 
             if ($evPercentual >= 5.0 && $probPoisson >= max($minProbReq, 48.0)) {
                 $statusGatekeeper = 'APROVADO';
@@ -694,7 +727,7 @@ class ApostaController extends BaseController
                 $gatekeeperMsg = "Aviso Gatekeeper AH (NO_BET): Entrada sem valor esperado positivo ou probabilidade insuficiente (EV: {$evPercentual}% | Prob. Efetiva: {$probPoisson}% vs Mínimo: {$minProbReq}% | Odd Justa: {$oddJusta} vs Odd Atual: {$odd}).";
             }
 
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
         }
 
         // =========================================================================
@@ -708,7 +741,7 @@ class ApostaController extends BaseController
         if ($lineCheck < 1.15) {
             $statusGatekeeper = 'NO_BET';
             $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Simulações de apostas com linhas inferiores a 1.15 são bloqueadas pelo modelo por elevado risco.";
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
         }
 
         // 1. Média Histórica Dinâmica de Odds Vencedoras (Under Cartões) e Teto Dinâmico de Segurança
@@ -815,7 +848,7 @@ class ApostaController extends BaseController
             }
         }
 
-        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
     }
 
     /**
@@ -871,12 +904,12 @@ class ApostaController extends BaseController
         $timeFora  = ($postTimeFora !== null && trim($postTimeFora) !== '') ? trim($postTimeFora) : $aposta->time_fora;
         $mercado   = ($postMercado  !== null && trim($postMercado) !== '')  ? trim($postMercado)  : $aposta->mercado;
         $palpite   = ($postPalpite  !== null && trim($postPalpite) !== '')  ? trim($postPalpite)  : $aposta->palpite;
-        $odd       = ($postOdd !== null && $postOdd !== '') ? (float)$postOdd : (float)$aposta->odd;
-        $valorAposta = ($postValor !== null && $postValor !== '') ? (float)$postValor : (float)$aposta->valor_aposta;
+        $odd       = ($postOdd !== null && $postOdd !== '') ? (float)str_replace(',', '.', (string)$postOdd) : (float)$aposta->odd;
+        $valorAposta = ($postValor !== null && $postValor !== '') ? (float)str_replace(',', '.', (string)$postValor) : (float)$aposta->valor_aposta;
         $status    = ($postStatus   !== null && trim($postStatus) !== '')   ? trim($postStatus)   : $aposta->status;
         $tipo      = ($postTipo     !== null && trim($postTipo) !== '')     ? trim($postTipo)     : $aposta->tipo;
 
-        $cashOut   = ($postCashOut !== null && trim((string)$postCashOut) !== '') ? (float)$postCashOut : $aposta->cash_out;
+        $cashOut   = ($postCashOut !== null && trim((string)$postCashOut) !== '') ? (float)str_replace(',', '.', (string)$postCashOut) : $aposta->cash_out;
 
         if ($mercado === 'Handicap Asiático' || stripos($mercado, 'handicap') !== false) {
             $palpite = $this->formatHandicapPalpite($palpite, $timeCasa, $timeFora);
@@ -920,12 +953,8 @@ class ApostaController extends BaseController
                 ]);
             }
             $eval['statusGatekeeper'] = 'ALERTA_RISCO_OVER';
-        } elseif ($eval['statusGatekeeper'] === 'NO_BET') {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => '🚫 Simulação de aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
-            ]);
         }
+
 
         $dataUpdate = [
             'fixture_id'            => $eval['fixtureId'],
@@ -1072,12 +1101,8 @@ class ApostaController extends BaseController
                 ]);
             }
             $eval['statusGatekeeper'] = 'ALERTA_RISCO_OVER';
-        } elseif ($eval['statusGatekeeper'] === 'NO_BET') {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => '🚫 Resimulação de aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
-            ]);
         }
+
 
         // Trava anti-duplicidade de reapostas em paralelo (janela de 10 segundos)
         $dbCheck = \Config\Database::connect();

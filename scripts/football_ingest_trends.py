@@ -2031,7 +2031,12 @@ def calculate_asian_handicap_suggestion(
         else:
             suggestion = "Sem Entrada (Abstenção)"
             confidence = 50.00
-            main_reason = f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Nenhuma linha atendeu aos critérios mínimos de +EV >= 5.0% e Prob. Efetiva >= 48.0%. Abstenção mandatória."
+            fav_team = home_team if (odd_home and odd_away and float(odd_home) < float(odd_away)) else away_team
+            dnb_fb = next((l for l in fb_lines if l.get('line') == 0.0 and fav_team in l.get('palpite_str', '')), None)
+            if dnb_fb and float(dnb_fb.get('odd') or 0.0) < 1.50:
+                main_reason = f"🛡️ [Gatekeeper AH NO_BET / Odd Abaixo do Piso] A linha defensiva DNB ({fav_team} 0.0 AH) está cotada a apenas @ {float(dnb_fb.get('odd')):.2f}, abaixo do piso mínimo aceito (@ 1.50). Abstenção mandatória para proteção da banca."
+            else:
+                main_reason = f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Nenhuma linha atendeu aos critérios mínimos de +EV >= 5.0% e Prob. Efetiva >= 48.0%. Abstenção mandatória."
 
     banca_h = 45.0
     banca_d = 30.0

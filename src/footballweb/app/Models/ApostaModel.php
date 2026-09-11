@@ -31,6 +31,7 @@ class ApostaModel extends Model
         'tipo',
         'status',
         'confirmada',
+        'destaque',
         'resultado_detalhado',
         'analise_ia_perda',
         'analise_ia_data',

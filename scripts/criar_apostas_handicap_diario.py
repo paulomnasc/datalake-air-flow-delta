@@ -568,7 +568,8 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             ev_perc=ev_perc,
             detalhe_calculo=detalhe_calculo,
             user_ids=user_ids,
-            confirmada_val=confirmada_val
+            confirmada_val=confirmada_val,
+            destaque_val=int(best_cand.get('destaque', 0))
         )
 
         novas_apostas_detalhes.append({

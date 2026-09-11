@@ -255,6 +255,12 @@ if (!function_exists('formatBrtDate')) {
     transition: transform 0.2s ease, border-color 0.2s ease;
   }
 
+  .bet-card-item.bet-card-destaque {
+    border-left: 5px solid #facc15 !important;
+    background: linear-gradient(90deg, rgba(250, 204, 21, 0.06) 0%, var(--bet-card-bg) 30%) !important;
+    box-shadow: 0 4px 20px rgba(250, 204, 21, 0.12), 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+  }
+
   /* Custom Searchable Dropdown Combobox */
   .custom-combobox-wrapper {
     position: relative;
@@ -1098,12 +1104,20 @@ if (!function_exists('formatBrtDate')) {
           $leagueCountry = $aposta->league_country ?? '';
           $leagueFlag    = $aposta->league_flag ?? '';
         ?>
-        <div class="bet-card-item" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <div class="d-flex flex-column align-items-start gap-1">
               <div class="match-teams d-flex align-items-center gap-2 flex-wrap">
                 <span><?= htmlspecialchars($aposta->time_casa) ?> <span style="color: var(--bet-primary); margin: 0 4px;">vs</span> <?= htmlspecialchars($aposta->time_fora) ?></span>
+                
+                <?php if (!empty($aposta->destaque)): ?>
+                  <span class="badge border px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
+                        style="font-size: 0.78rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px; box-shadow: 0 0 12px rgba(250, 204, 21, 0.25) !important;" 
+                        title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J">
+                    <span style="font-size: 0.95rem; line-height: 1;">⭐</span> Tier 1 Dominante
+                  </span>
+                <?php endif; ?>
                 
                 <?php 
                   $placarExibir = null;
@@ -2968,7 +2982,8 @@ if (!function_exists('formatBrtDate')) {
     if (e && e.preventDefault) e.preventDefault();
     if (isSubmittingEditBet && !confirmRisco) return;
 
-    const oddVal = parseFloat(document.getElementById('editOddInput').value) || 0;
+    const rawOddStr = (document.getElementById('editOddInput').value || '').replace(',', '.');
+    const oddVal = parseFloat(rawOddStr) || 0;
     if (oddVal <= 1.0) {
       alert('❌ A Odd informada é inválida. Informe um valor maior que 1.00.');
       return;
@@ -2997,9 +3012,9 @@ if (!function_exists('formatBrtDate')) {
     formData.append('time_fora', document.getElementById('editTimeForaInput').value);
     formData.append('mercado', document.getElementById('editMercadoInput').value);
     formData.append('palpite', document.getElementById('editPalpiteInput').value);
-    formData.append('odd', document.getElementById('editOddInput').value);
-    formData.append('valor_aposta', document.getElementById('editValorInput').value);
-    formData.append('cash_out', document.getElementById('editCashoutInput').value);
+    formData.append('odd', rawOddStr);
+    formData.append('valor_aposta', (document.getElementById('editValorInput').value || '').replace(',', '.'));
+    formData.append('cash_out', (document.getElementById('editCashoutInput').value || '').replace(',', '.'));
     formData.append('tipo', document.getElementById('editTipoSelect').value);
     formData.append('status', document.getElementById('editStatusSelect').value);
     if (confirmRisco) {
@@ -3014,7 +3029,7 @@ if (!function_exists('formatBrtDate')) {
     .then(data => {
       if (data.success) {
         hideModalSafely(document.getElementById('editBetModal'));
-        alert('✓ ' + data.message);
+        alert('✓ ' + (data.message || 'Atualizado com sucesso!'));
         window.location.replace('/apostas');
       } else if (data.require_confirmation || data.is_warning) {
         resetEditState();
@@ -3026,7 +3041,7 @@ if (!function_exists('formatBrtDate')) {
         }, 50);
       } else {
         resetEditState();
-        alert('❌ ' + data.message);
+        alert('❌ ' + (data.message || 'Erro ao processar atualização.'));
       }
     })
     .catch(err => {

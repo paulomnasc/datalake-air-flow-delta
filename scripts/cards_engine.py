@@ -20,10 +20,13 @@ import math
 import requests
 from datetime import datetime, timedelta
 
-# Caches em memória para chamadas da API Betano durante o ciclo de execução
-_betano_cards_odds_cache = {}
-_betano_cards_raw_fixture_cache = {}
-_betano_cards_api_disabled = False
+# Caches em memória para chamadas da API de Cartões (Betano e multi-bookmaker fallback) durante o ciclo de execução
+_cards_odds_cache = {}
+_cards_raw_fixture_cache = {}
+_cards_api_disabled = False
+_betano_cards_odds_cache = _cards_odds_cache
+_betano_cards_raw_fixture_cache = _cards_raw_fixture_cache
+_betano_cards_api_disabled = _cards_api_disabled
 
 
 def get_live_env_vars():
@@ -94,25 +97,41 @@ def calculate_expected_cards(team_cards_combined: float, yellows: float, ref_fou
     return exp_cards
 
 
-def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: float):
+# Lista ordenada de prioridade de casas de apostas para mercado de cartões
+PREFERRED_BOOKMAKERS_PRIORITY = [
+    (32, 'BETANO', 'Betano'),
+    (8, 'BET365', 'Bet365'),
+    (4, 'PINNACLE', 'Pinnacle'),
+    (11, '1XBET', '1xBet'),
+    (3, 'BETFAIR', 'Betfair'),
+    (7, 'WILLIAM HILL', 'William Hill'),
+    (16, 'BETSSON', 'Betsson'),
+    (2, 'MARATHON', 'Marathonbet'),
+    (36, 'BETVICTOR', 'BetVictor')
+]
+
+
+def fetch_real_card_odds(fixture_id: int, palpite_str: str, line_val: float):
     """
-    Busca na API-Sports a odd REAL do mercado de cartões oferecida exclusivamente pela Betano (Bookmaker ID 32).
+    Busca na API-Sports a odd REAL do mercado de cartões pré-jogo.
+    Prioridade Absoluta: Betano (Bookmaker ID 32).
+    Fallback Ordenado de Liquidez: Bet365 (ID 8), Pinnacle (ID 4), 1xBet (ID 11), Betfair (ID 3), etc.
     Apenas Bet ID 80 (Cards Over/Under).
-    Retorna tupla: (odd_float, 'BETANO') se encontrada, ou (None, None).
+    Retorna tupla: (odd_float, bookmaker_display_name) se encontrada, ou (None, None).
     """
-    global _betano_cards_api_disabled
-    if not fixture_id or _betano_cards_api_disabled:
+    global _cards_api_disabled
+    if not fixture_id or _cards_api_disabled:
         return None, None
 
     cache_key = f"{fixture_id}_{palpite_str}_{line_val}"
-    if cache_key in _betano_cards_odds_cache:
-        return _betano_cards_odds_cache[cache_key]
+    if cache_key in _cards_odds_cache:
+        return _cards_odds_cache[cache_key]
 
     is_under = 'menos' in (palpite_str or '').lower() or 'under' in (palpite_str or '').lower()
     target_type = 'under' if is_under else 'over'
 
-    if fixture_id in _betano_cards_raw_fixture_cache:
-        items = _betano_cards_raw_fixture_cache[fixture_id]
+    if fixture_id in _cards_raw_fixture_cache:
+        items = _cards_raw_fixture_cache[fixture_id]
     else:
         env = get_live_env_vars()
         api_key = env.get('FOOTBALL_API_KEY') or env.get('API_SPORTS_KEY') or os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
@@ -120,29 +139,33 @@ def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: flo
             'x-apisports-key': api_key,
             'User-Agent': 'Mozilla/5.0'
         }
-        url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
+        # Consulta todas as casas de aposta para a partida em uma única requisição HTTP
+        url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}"
         items = []
         try:
             resp = requests.get(url, headers=headers, timeout=10).json()
             errs = resp.get('errors')
             if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
-                print(f"⚠️ [API-Sports Betano Cards] Limite de requisições atingido: {errs}. Ativando Circuit-Breaker.")
-                _betano_cards_api_disabled = True
-                _betano_cards_odds_cache[cache_key] = (None, None)
+                print(f"⚠️ [API-Sports Cards Odds] Limite de requisições atingido: {errs}. Ativando Circuit-Breaker.")
+                _cards_api_disabled = True
+                _cards_odds_cache[cache_key] = (None, None)
                 return None, None
 
             items = resp.get('response', [])
-            _betano_cards_raw_fixture_cache[fixture_id] = items
+            _cards_raw_fixture_cache[fixture_id] = items
         except Exception as e:
-            print(f"⚠️ [API Betano Cards] Erro ao buscar cotação para fixture #{fixture_id}: {e}")
-            _betano_cards_raw_fixture_cache[fixture_id] = []
+            print(f"⚠️ [API Cards Odds] Erro ao buscar cotação para fixture #{fixture_id}: {e}")
+            _cards_raw_fixture_cache[fixture_id] = []
+
+    # Dicionário de cotações encontradas por casa: {bm_id: (odd, bm_name)}
+    found_bm_odds = {}
+    other_found_odds = []
 
     for item in items:
         for bm in item.get('bookmakers', []):
-            bm_name = str(bm.get('name', '')).strip().upper()
+            bm_name = str(bm.get('name', '')).strip()
+            bm_name_upper = bm_name.upper()
             bm_id = bm.get('id')
-            if 'BETANO' not in bm_name and bm_id != 32:
-                continue
 
             for bet in bm.get('bets', []):
                 b_id = bet.get('id')
@@ -159,12 +182,34 @@ def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: flo
 
                         if target_type in v_str and str(line_val) in v_str:
                             if v_odd > 1.0:
-                                res = (v_odd, 'BETANO')
-                                _betano_cards_odds_cache[cache_key] = res
-                                return res
+                                found_bm_odds[bm_id] = (v_odd, bm_name)
+                                other_found_odds.append((v_odd, bm_name, bm_id, bm_name_upper))
 
-    _betano_cards_odds_cache[cache_key] = (None, None)
+    # Selecionar de acordo com a ordem estrita de preferência
+    for p_id, p_key, p_display in PREFERRED_BOOKMAKERS_PRIORITY:
+        if p_id in found_bm_odds:
+            res = (found_bm_odds[p_id][0], p_display)
+            _cards_odds_cache[cache_key] = res
+            return res
+        for v_odd, b_name, b_id, b_upper in other_found_odds:
+            if p_key in b_upper:
+                res = (v_odd, p_display)
+                _cards_odds_cache[cache_key] = res
+                return res
+
+    # Se nenhuma das casas preferenciais possuir a linha, mas alguma outra de mercado possuir
+    if other_found_odds:
+        v_odd, b_name, _, _ = other_found_odds[0]
+        res = (v_odd, b_name)
+        _cards_odds_cache[cache_key] = res
+        return res
+
+    _cards_odds_cache[cache_key] = (None, None)
     return None, None
+
+
+# Alias para retrocompatibilidade
+fetch_betano_real_card_odds = fetch_real_card_odds
 
 
 def evaluate_best_card_under_line(
@@ -236,7 +281,7 @@ def evaluate_best_card_under_line(
         odd_source = None
 
         if allow_api and fixture_id:
-            real_odd, odd_source = fetch_betano_real_card_odds(fixture_id, palpite_str, line_val)
+            real_odd, odd_source = fetch_real_card_odds(fixture_id, palpite_str, line_val)
 
         # Fallback de mercado estruturado
         if not real_odd or real_odd <= 1.0:
@@ -257,6 +302,7 @@ def evaluate_best_card_under_line(
         cand_copy = dict(cand)
         cand_copy['real_odd'] = real_odd
         cand_copy['odd_source'] = odd_source
+        cand_copy['bookmaker'] = odd_source if odd_source and odd_source != 'MODEL_FALLBACK' else 'Betano'
         cand_copy['ev_calc'] = ev_calc
         cand_copy['exp_cards'] = exp_cards
         selected_cand = cand_copy
@@ -306,6 +352,9 @@ def sync_fixture_and_bet_cards(
         ev_perc = selected_cand['ev_calc']
         valor_aposta = 10.00
         ganhos_potenciais = round(valor_aposta * odd_val, 2)
+        bookmaker_name = selected_cand.get('bookmaker') or selected_cand.get('odd_source') or 'Betano'
+        if bookmaker_name == 'MODEL_FALLBACK':
+            bookmaker_name = 'Betano'
 
         for uid in user_ids:
             cursor.execute("""
@@ -333,33 +382,34 @@ def sync_fixture_and_bet_cards(
                             probabilidade_poisson = %s,
                             ev_percentual = %s,
                             ganhos_potenciais = %s,
+                            casa_de_aposta = %s,
                             status_gatekeeper = 'APROVADO',
                             status = 'Pendente',
                             resultado_detalhado = NULL,
                             updated_at = NOW()
                         WHERE id = %s
-                    """, (palpite_str, odd_val, odd_justa, prob_poisson, ev_perc, ganhos_potenciais, ja_existe['id']))
+                    """, (palpite_str, odd_val, odd_justa, prob_poisson, ev_perc, ganhos_potenciais, bookmaker_name, ja_existe['id']))
                     updated_count += 1
-                    print(f"🔄 [Aposta Cartões Atualizada User #{uid}] ID #{ja_existe['id']} | Palpite: '{palpite_str}' @ {odd_val:.2f} (EV: +{ev_perc}%)")
+                    print(f"🔄 [Aposta Cartões Atualizada User #{uid}] ID #{ja_existe['id']} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name}) (EV: +{ev_perc}%)")
             else:
                 cursor.execute("""
                     INSERT INTO apostas (
-                        usuario_id, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
+                        usuario_id, fixture_id, time_casa, time_fora, mercado, casa_de_aposta, palpite, odd, 
                         odd_justa, probabilidade_poisson, ev_percentual, status_gatekeeper,
                         valor_aposta, ganhos_potenciais, status, confirmada, data_hora_jogo, criado_em, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, 'Total de Cartões', %s, %s,
+                        %s, %s, %s, %s, 'Total de Cartões', %s, %s, %s,
                         %s, %s, %s, 'APROVADO',
                         %s, %s, 'Pendente', 0, %s, NOW(), NOW()
                     )
                 """, (
-                    uid, fixture_id, home_team, away_team, palpite_str, odd_val,
+                    uid, fixture_id, home_team, away_team, bookmaker_name, palpite_str, odd_val,
                     odd_justa, prob_poisson, ev_perc,
                     valor_aposta, ganhos_potenciais, fixture_date
                 ))
                 aposta_id = cursor.lastrowid
                 created_count += 1
-                print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ {odd_val:.2f}")
+                print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name})")
 
     # Sincroniza fixtures_trends com o texto de predição estruturado (se não houver aposta confirmada conflitante)
     if not has_confirmed_bet and prediction_text:

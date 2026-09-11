@@ -303,26 +303,27 @@ def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: flo
         is_away_p = determine_bet_side(home_team, away_team, ah_suggestion)
         m_p = re.search(r'([+-]?\d+(?:\.\d+)?)', ah_suggestion)
         l_p = float(m_p.group(1)) if m_p else 0.0
-        if l_p in {0.0, 0.5, 0.75, 1.0, 1.25, 1.5}:
+        if l_p in {-1.5, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5}:
             raw_ref = oa if is_away_p else oh
             target_t = away_team if is_away_p else home_team
-            if l_p == 0.0:
+            if l_p < 0.0:
+                est_odd = round(max(1.35, min(2.25, 1.0 + (raw_ref - 1.0) * 1.30 + abs(l_p) * 0.35)), 2)
+            elif l_p == 0.0:
                 est_odd = round(max(1.30, min(2.10, 1.0 + (raw_ref - 1.0) * 0.65)), 2)
-            elif l_p == 0.5:
+            elif l_p <= 0.5:
                 est_odd = round(max(1.22, min(1.85, 1.0 + (raw_ref - 1.0) * 0.38)), 2)
-            elif l_p == 0.75:
-                est_odd = round(max(1.18, min(1.70, 1.0 + (raw_ref - 1.0) * 0.30)), 2)
-            elif l_p == 1.0:
+            elif l_p <= 1.0:
                 est_odd = round(max(1.15, min(1.60, 1.0 + (raw_ref - 1.0) * 0.24)), 2)
             else:
                 est_odd = round(max(1.15, min(1.50, 1.0 + (raw_ref - 1.0) * 0.18)), 2)
 
+            palpite_formatado = f"{target_t} {l_p:+.2f} AH" if l_p not in (0.0, -1.0, 1.0) else (f"{target_t} -1.0 AH" if l_p == -1.0 else (f"{target_t} +1.0 AH" if l_p == 1.0 else f"{target_t} 0.0 AH"))
             lines.append({
                 'team': 'Away' if is_away_p else 'Home',
                 'target_team': target_t,
                 'is_away': is_away_p,
                 'line': l_p,
-                'palpite_str': f"{target_t} {l_p:+.2f} AH" if l_p > 0 else f"{target_t} 0.0 AH",
+                'palpite_str': palpite_formatado,
                 'odd': est_odd,
                 'raw_value': f"{target_t} {l_p:+.2f}",
                 'source': 'TRENDS_FALLBACK'
@@ -331,7 +332,7 @@ def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: flo
     # Adicionar linhas padrão da janela defensiva anti-empate para Mandante e Visitante
     for (is_away, t_team, ref_odd, t_id) in [(False, home_team, oh, home_team_id), (True, away_team, oa, away_team_id)]:
         ratio_cur = (oa / oh) if not is_away else (oh / oa)
-        is_this_super_fav = is_tier_1_elite_club(team_id=t_id, team_name=t_team) and ref_odd <= 1.22 and ratio_cur >= 8.0
+        is_this_super_fav = is_tier_1_elite_club(team_id=t_id, team_name=t_team) and (ref_odd <= 1.55 or (ref_odd <= 1.65 and ratio_cur >= 3.0))
 
         if not is_this_super_fav:
             for (l_val, factor) in [(0.0, 0.65), (0.5, 0.35), (0.75, 0.28), (1.0, 0.22), (1.25, 0.18), (1.5, 0.15)]:
@@ -350,7 +351,7 @@ def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: flo
             # Super-Favoritos Tier 1 operam em linhas conservadoras de handicap negativo (-0.75 e -1.0 AH)
             # Linhas superiores a -1.0 AH (-1.25, -1.5, -2.0) são expressamente proibidas por exigirem goleadas de alto risco.
             for l_neg, factor_neg in [(-0.75, 1.25), (-1.0, 1.45)]:
-                calc_odd_neg = round(max(1.42, min(2.10, 1.0 + (ref_odd - 1.0) * factor_neg + 0.40)), 2)
+                calc_odd_neg = round(max(1.42, min(2.10, 1.0 + (ref_odd - 1.0) * factor_neg + 0.35)), 2)
                 lines.append({
                     'team': 'Away' if is_away else 'Home',
                     'target_team': t_team,
@@ -805,10 +806,45 @@ def calculate_unified_handicap_recommendation(
 def get_team_u5j_from_db(cursor, team_id, team_name):
     """
     Busca no MySQL local os últimos 5 jogos FT consolidados de uma equipe para alimentar o card U5J.
+    Prioridade Absoluta (Regra 1): Cache-First na tabela team_last5_cache (TTL 72 horas).
+    Fallback seguro na tabela fixtures_trends se o cache estiver ausente ou incompleto.
     """
     matches = []
     seen = set()
+
+    # 1. Prioridade Absoluta: team_last5_cache com TTL de 72 horas (Regra 1)
     if cursor and team_id:
+        try:
+            cursor.execute("""
+                SELECT form_json FROM team_last5_cache 
+                WHERE team_id = %s AND updated_at >= NOW() - INTERVAL 72 HOUR
+                LIMIT 1
+            """, (team_id,))
+            c_row = cursor.fetchone()
+            if c_row and c_row.get('form_json'):
+                c_matches = json.loads(c_row['form_json']) if isinstance(c_row['form_json'], str) else c_row['form_json']
+                if isinstance(c_matches, list) and len(c_matches) > 0:
+                    for cm in c_matches:
+                        c_opp = cm.get('opponent')
+                        c_sc = str(cm.get('score', '')).strip().replace('-', 'x')
+                        c_dt = str(cm.get('date', '')).strip()
+                        if '/' in c_dt and len(c_dt) > 5:
+                            c_dt = '/'.join(c_dt.split('/')[:2])
+                        matches.append({
+                            "opponent": c_opp,
+                            "score": c_sc,
+                            "result": cm.get('result'),
+                            "is_home": cm.get('is_home'),
+                            "date": c_dt,
+                            "fixture_id": cm.get('fixture_id')
+                        })
+                        if len(matches) >= 5:
+                            break
+        except Exception as e_cache:
+            print(f"⚠️ [U5J Cache Fetch] Erro ao consultar team_last5_cache para '{team_name}' (#{team_id}): {e_cache}")
+
+    # 2. Fallback na tabela fixtures_trends se o cache tiver menos de 5 partidas
+    if len(matches) < 5 and cursor and team_id:
         try:
             cursor.execute("""
                 SELECT fixture_id, fixture_date, home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, league_id, league_name
@@ -838,59 +874,32 @@ def get_team_u5j_from_db(cursor, team_id, team_name):
                 else:
                     res = "V" if ga > gh else ("E" if ga == gh else "D")
                     sc = f"{ga}x{gh}"
-                matches.append({
-                    "opponent": opp,
-                    "score": sc,
-                    "result": res,
-                    "is_home": is_home,
-                    "date": dt_str,
-                    "fixture_id": fid
-                })
+
+                # Checagem anti-duplicidade com itens já em matches
+                is_dup = False
+                for m in matches:
+                    m_dt = str(m.get('date', '')).strip()
+                    m_sc = str(m.get('score', '')).strip().replace('-', 'x')
+                    m_opp = str(m.get('opponent', '')).strip().lower()
+                    if dt_str and m_dt and (dt_str == m_dt or dt_str.startswith(m_dt) or m_dt.startswith(dt_str)):
+                        is_dup = True
+                        break
+                    if m_opp == str(opp).strip().lower() and m_sc and sc and m_sc == sc:
+                        is_dup = True
+                        break
+                if not is_dup:
+                    matches.append({
+                        "opponent": opp,
+                        "score": sc,
+                        "result": res,
+                        "is_home": is_home,
+                        "date": dt_str,
+                        "fixture_id": fid
+                    })
                 if len(matches) >= 5:
                     break
         except Exception as e:
             print(f"⚠️ [U5J DB Fetch] Erro ao buscar últimos 5 jogos de '{team_name}' (#{team_id}): {e}")
-
-    # Fallback na tabela team_last5_cache se o fixtures_trends tiver menos de 5 partidas
-    if len(matches) < 5 and cursor and team_id:
-        try:
-            cursor.execute("SELECT form_json FROM team_last5_cache WHERE team_id = %s", (team_id,))
-            c_row = cursor.fetchone()
-            if c_row and c_row.get('form_json'):
-                c_matches = json.loads(c_row['form_json']) if isinstance(c_row['form_json'], str) else c_row['form_json']
-                if isinstance(c_matches, list):
-                    for cm in c_matches:
-                        c_opp = cm.get('opponent')
-                        c_dt = str(cm.get('date', '')).strip()
-                        c_sc = str(cm.get('score', '')).strip().replace('-', 'x')
-                        is_dup = False
-                        for m in matches:
-                            m_dt = str(m.get('date', '')).strip()
-                            m_sc = str(m.get('score', '')).strip().replace('-', 'x')
-                            m_opp = str(m.get('opponent', '')).strip().lower()
-                            if c_dt and m_dt and (c_dt == m_dt or c_dt.startswith(m_dt) or m_dt.startswith(c_dt)):
-                                is_dup = True
-                                break
-                            if m_opp == str(c_opp).strip().lower() and m_sc and c_sc and m_sc == c_sc:
-                                is_dup = True
-                                break
-                        if is_dup:
-                            continue
-                        dt = str(cm.get('date', ''))
-                        if '/' in dt and len(dt) > 5:
-                            dt = '/'.join(dt.split('/')[:2])
-                        matches.append({
-                            "opponent": c_opp,
-                            "score": cm.get('score'),
-                            "result": cm.get('result'),
-                            "is_home": cm.get('is_home'),
-                            "date": dt,
-                            "fixture_id": cm.get('fixture_id')
-                        })
-                        if len(matches) >= 5:
-                            break
-        except Exception:
-            pass
 
     num_v = sum(1 for m in matches if m.get("result") == "V")
     num_e = sum(1 for m in matches if m.get("result") == "E")
@@ -1076,16 +1085,33 @@ def compose_compound_ah_reasoning(
     u5j_json_str = None
     existing_motivation = None
 
-    if existing_reasoning:
-        if "|| U5J_DATA:" in existing_reasoning:
+    # Prioridade Absoluta (Regra 1): Sempre consulta a fonte mais atualizada via get_team_u5j_from_db (Cache-First MySQL)
+    if cursor:
+        if not home_team_id or not away_team_id:
             try:
-                u_part = existing_reasoning.split("|| U5J_DATA:")[1].split("||")[0].strip()
-                parsed_u = json.loads(u_part)
-                if (parsed_u.get("home", {}).get("matches") or parsed_u.get("away", {}).get("matches")):
-                    u5j_json_str = u_part
+                cursor.execute("SELECT home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+                row_f = cursor.fetchone()
+                if row_f:
+                    home_team_id = home_team_id or row_f.get("home_team_id")
+                    away_team_id = away_team_id or row_f.get("away_team_id")
             except Exception:
-                u5j_json_str = None
+                pass
 
+        h_u5j = get_team_u5j_from_db(cursor, home_team_id, home_team)
+        a_u5j = get_team_u5j_from_db(cursor, away_team_id, away_team)
+        if h_u5j.get("matches") or a_u5j.get("matches"):
+            u5j_json_str = json.dumps({"home": h_u5j, "away": a_u5j}, ensure_ascii=False)
+
+    if not u5j_json_str and existing_reasoning and "|| U5J_DATA:" in existing_reasoning:
+        try:
+            u_part = existing_reasoning.split("|| U5J_DATA:")[1].split("||")[0].strip()
+            parsed_u = json.loads(u_part)
+            if (parsed_u.get("home", {}).get("matches") or parsed_u.get("away", {}).get("matches")):
+                u5j_json_str = u_part
+        except Exception:
+            u5j_json_str = None
+
+    if existing_reasoning:
         if "|| MOTIVACAO:" in existing_reasoning:
             try:
                 cand_mot = existing_reasoning.split("|| MOTIVACAO:")[1].split("||")[0].strip()
@@ -1100,25 +1126,10 @@ def compose_compound_ah_reasoning(
                 existing_motivation = None
 
     if not u5j_json_str:
-        if cursor:
-            if not home_team_id or not away_team_id:
-                try:
-                    cursor.execute("SELECT home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
-                    row_f = cursor.fetchone()
-                    if row_f:
-                        home_team_id = row_f.get("home_team_id")
-                        away_team_id = row_f.get("away_team_id")
-                except Exception:
-                    pass
-
-            h_u5j = get_team_u5j_from_db(cursor, home_team_id, home_team)
-            a_u5j = get_team_u5j_from_db(cursor, away_team_id, away_team)
-            u5j_json_str = json.dumps({"home": h_u5j, "away": a_u5j}, ensure_ascii=False)
-        else:
-            u5j_json_str = json.dumps({
-                "home": {"v": 0, "e": 0, "d": 0, "pts": 0, "text": "Aguardando", "matches": []},
-                "away": {"v": 0, "e": 0, "d": 0, "pts": 0, "text": "Aguardando", "matches": []}
-            }, ensure_ascii=False)
+        u5j_json_str = json.dumps({
+            "home": {"v": 0, "e": 0, "d": 0, "pts": 0, "text": "Aguardando", "matches": []},
+            "away": {"v": 0, "e": 0, "d": 0, "pts": 0, "text": "Aguardando", "matches": []}
+        }, ensure_ascii=False)
 
     nl_exp = build_natural_language_explanation(suggestion, home_team, away_team)
     if not existing_motivation:
@@ -1232,35 +1243,34 @@ def sync_fixture_and_bet_handicap(
                 """, (uid, aposta_id, desc_deb, valor_aposta, s_ant, s_post))
                 cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid))
 
-    # Sincroniza fixtures_trends com o palpite aprovado (se não houver aposta confirmada conflitante)
-    if not has_confirmed_bet:
-        cursor.execute("SELECT ah_reasoning, home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
-        cur_f = cursor.fetchone()
-        existing_r = cur_f.get("ah_reasoning") if cur_f else None
-        h_tid = cur_f.get("home_team_id") if cur_f else None
-        a_tid = cur_f.get("away_team_id") if cur_f else None
+    # Sincroniza fixtures_trends com o palpite aprovado (card sempre alinhado com a aposta aprovada)
+    cursor.execute("SELECT ah_reasoning, home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+    cur_f = cursor.fetchone()
+    existing_r = cur_f.get("ah_reasoning") if cur_f else None
+    h_tid = cur_f.get("home_team_id") if cur_f else None
+    a_tid = cur_f.get("away_team_id") if cur_f else None
 
-        compound_reasoning = compose_compound_ah_reasoning(
-            cursor=cursor,
-            fixture_id=fixture_id,
-            main_calc=detalhe_calculo,
-            suggestion=selected_palpite,
-            home_team=home_team,
-            away_team=away_team,
-            home_team_id=h_tid,
-            away_team_id=a_tid,
-            existing_reasoning=existing_r
-        )
+    compound_reasoning = compose_compound_ah_reasoning(
+        cursor=cursor,
+        fixture_id=fixture_id,
+        main_calc=detalhe_calculo,
+        suggestion=selected_palpite,
+        home_team=home_team,
+        away_team=away_team,
+        home_team_id=h_tid,
+        away_team_id=a_tid,
+        existing_reasoning=existing_r
+    )
 
-        cursor.execute("""
-            UPDATE fixtures_trends SET
-                ah_suggestion = %s,
-                ah_confidence = %s,
-                ah_reasoning = %s,
-                updated_at = NOW()
-            WHERE fixture_id = %s
-        """, (selected_palpite, prob_poisson, compound_reasoning, fixture_id))
-        print(f"🔗 [Sincronismo Card AH] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}'.")
+    cursor.execute("""
+        UPDATE fixtures_trends SET
+            ah_suggestion = %s,
+            ah_confidence = %s,
+            ah_reasoning = %s,
+            updated_at = NOW()
+        WHERE fixture_id = %s
+    """, (selected_palpite, prob_poisson, compound_reasoning, fixture_id))
+    print(f"🔗 [Sincronismo Card AH] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}'.")
 
 
 def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção da IA / Gestão de Risco"):

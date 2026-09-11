@@ -456,8 +456,62 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
     matches = []
     seen_fixtures = set()
 
-    # 1. Consulta no banco MySQL local por ID estrito
+    # 1. Prioridade Absoluta (Regra 1): Cache-First no MySQL (team_last5_cache com TTL de 72 horas)
+    has_cached_entry = False
     if cursor is not None and team_id and str(team_id).strip():
+        try:
+            cursor.execute("""
+                SELECT form_json, updated_at FROM team_last5_cache 
+                WHERE team_id = %s AND updated_at >= NOW() - INTERVAL 72 HOUR
+                LIMIT 1
+            """, (team_id,))
+            c_row = cursor.fetchone()
+            if c_row and c_row.get('form_json'):
+                c_matches = json.loads(c_row['form_json']) if isinstance(c_row['form_json'], str) else c_row['form_json']
+                if isinstance(c_matches, list) and len(c_matches) > 0:
+                    for am in c_matches:
+                        if not _is_match_duplicate(am, matches):
+                            matches.append(am)
+                        if len(matches) >= 5:
+                            break
+                    if len(matches) >= 5:
+                        has_cached_entry = True
+        except Exception as e_c:
+            pass
+
+    # 2. Se NÃO encontrou no cache de 72h e team_id estiver disponível, consulta a API-Sports oficial (multi-competições) e persiste no MySQL
+    if not has_cached_entry and team_id and str(team_id).strip():
+        try:
+            api_m = fetch_api_sports_team_last5(team_id, limit=5)
+            if api_m is not None and len(api_m) > 0:
+                matches = []
+                for am in api_m:
+                    if not _is_match_duplicate(am, matches):
+                        matches.append(am)
+                    if len(matches) >= 5:
+                        break
+                if cursor is not None and len(matches) > 0:
+                    try:
+                        cursor.execute("""
+                            INSERT INTO team_last5_cache (team_id, team_name, league_id, form_json, updated_at)
+                            VALUES (%s, %s, %s, %s, NOW())
+                            ON DUPLICATE KEY UPDATE 
+                                form_json = VALUES(form_json),
+                                updated_at = NOW(),
+                                team_name = VALUES(team_name),
+                                league_id = VALUES(league_id)
+                        """, (team_id, team_name, league_id, json.dumps(matches[:5])))
+                        if hasattr(cursor, 'connection') and cursor.connection:
+                            cursor.connection.commit()
+                    except Exception:
+                        pass
+                if len(matches) >= 5:
+                    has_cached_entry = True
+        except Exception as e_api_m:
+            print(f"Aviso na busca por API-Sports para '{team_name}' (#{team_id}): {e_api_m}")
+
+    # 3. Fallback Seguro: Se API-Sports estiver offline / rate-limited ou < 5 jogos, busca no fixtures_trends local por ID estrito
+    if len(matches) < 5 and cursor is not None and team_id and str(team_id).strip():
         try:
             sql_id = """
                 SELECT fixture_id, home_team, away_team, goals_home, goals_away, home_team_id, away_team_id, fixture_date
@@ -488,13 +542,15 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                 else:
                     res = "V" if ga > gh else ("E" if gh == ga else "D")
                     sc = f"{ga}x{gh}"
-                matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "date": _format_match_date(fdate), "fixture_id": fid})
+                cand = {"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "date": _format_match_date(fdate), "fixture_id": fid}
+                if not _is_match_duplicate(cand, matches):
+                    matches.append(cand)
                 if len(matches) >= 5:
                     break
         except Exception as e_sql_id:
             print(f"Aviso na busca SQL por ID de forma para '{team_name}' (#{team_id}): {e_sql_id}")
 
-    # 2. Se retornado < 5 partidas, consulta no banco MySQL local por Nome (+ Filtro de Liga/País com Fallback Geral)
+    # 4. Fallback no banco MySQL local por Nome (+ Filtro de Liga/País) se ainda < 5 partidas
     if cursor is not None and len(matches) < 5:
         try:
             clean_search = f"%{_normalize_team_name_for_match(team_name)}%"
@@ -551,13 +607,15 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                         else:
                             res = "V" if ga > gh else ("E" if gh == ga else "D")
                             sc = f"{ga}x{gh}"
-                        matches.append({"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "date": _format_match_date(fdate), "fixture_id": fid})
+                        cand = {"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "date": _format_match_date(fdate), "fixture_id": fid}
+                        if not _is_match_duplicate(cand, matches):
+                            matches.append(cand)
                         if len(matches) >= 5:
                             break
         except Exception as e_sql:
             print(f"Aviso na busca SQL por Nome de forma para '{team_name}': {e_sql}")
 
-    # 2.5 Herança Segura de U5J_DATA de confrontos recentes no fixtures_trends (Janela máx 10 dias + Checagem Anti-Defasagem)
+    # 4.5 Herança Segura de U5J_DATA de confrontos recentes no fixtures_trends (Janela máx 10 dias + Checagem Anti-Defasagem)
     if cursor is not None and len(matches) < 5:
         try:
             sql_prev = """
@@ -600,58 +658,6 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
         except Exception as e_prev:
             pass
 
-    # 3. Consulta rápida na tabela de cache persistente team_last5_cache ou na API-Sports por team_id se o banco local possuir menos de 5 partidas
-    if len(matches) < 5 and team_id:
-        has_cached_entry = False
-        # 3.1 Verifica primeiro no cache persistente do MySQL (válido por 24 horas)
-        if cursor is not None:
-            try:
-                cursor.execute("""
-                    SELECT form_json FROM team_last5_cache 
-                    WHERE team_id = %s AND updated_at >= NOW() - INTERVAL 24 HOUR
-                    LIMIT 1
-                """, (team_id,))
-                c_row = cursor.fetchone()
-                if c_row and c_row.get('form_json'):
-                    c_matches = json.loads(c_row['form_json']) if isinstance(c_row['form_json'], str) else c_row['form_json']
-                    if isinstance(c_matches, list):
-                        for am in c_matches:
-                            if not _is_match_duplicate(am, matches):
-                                matches.append(am)
-                            if len(matches) >= 5:
-                                break
-                    has_cached_entry = len(matches) >= 5
-            except Exception as e_c:
-                pass
-
-        # 3.2 Se NÃO encontrou no cache de 24h e ainda não tiver 5 partidas, consulta a API-Sports e persiste no MySQL
-        if not has_cached_entry and len(matches) < 5:
-            try:
-                api_m = fetch_api_sports_team_last5(team_id, limit=5)
-                if api_m is not None:
-                    for am in api_m:
-                        if not _is_match_duplicate(am, matches):
-                            matches.append(am)
-                        if len(matches) >= 5:
-                            break
-                    if cursor is not None:
-                        try:
-                            cursor.execute("""
-                                INSERT INTO team_last5_cache (team_id, team_name, league_id, form_json, updated_at)
-                                VALUES (%s, %s, %s, %s, NOW())
-                                ON DUPLICATE KEY UPDATE 
-                                    form_json = VALUES(form_json),
-                                    updated_at = NOW(),
-                                    team_name = VALUES(team_name),
-                                    league_id = VALUES(league_id)
-                            """, (team_id, team_name, league_id, json.dumps(matches[:5])))
-                            if hasattr(cursor, 'connection') and cursor.connection:
-                                cursor.connection.commit()
-                        except Exception:
-                            pass
-            except Exception as e_api_m:
-                print(f"Aviso na busca por API-Sports para '{team_name}' (#{team_id}): {e_api_m}")
-
     # 4. Fallback no Futbol24 se o banco e a API-Sports estiverem sem cota / < 5 jogos
     if len(matches) < 5:
         try:
@@ -670,7 +676,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                 113: 'Sweden',
                 119: 'Denmark',
                 144: 'Belgium',
-                218: 'Austria',
+                218: 'Austria', 219: 'Austria',
                 179: 'Scotland',
                 106: 'Poland',
                 345: 'Czech-Republic',
@@ -1676,18 +1682,17 @@ def calculate_asian_handicap_suggestion(
                     f"Alternativa secundária: {alt_suggestion} (Risco Alto pelo momento das equipes).{note_str}"
                 )
             elif (
-                odd_home and float(odd_home) <= 1.22 and 
-                (float(odd_away or 0) / float(odd_home)) >= 8.0 and
-                is_tier_1_elite_club(team_id=home_team_id, team_name=home_team) and
-                lambda_home >= 2.10 and delta_goals >= 1.10
+                odd_home and float(odd_home) <= 1.55 and (
+                    (is_tier_1_elite_club(team_id=home_team_id, team_name=home_team) and not is_tier_1_elite_club(team_id=away_team_id, team_name=away_team) and ((away_last5.get('pts', 0) if isinstance(away_last5, dict) else 0) <= 5 or (away_last5.get('v', 0) if isinstance(away_last5, dict) else 0) == 0)) or
+                    (is_tier_1_elite_club(team_id=home_team_id, team_name=home_team) and lambda_home >= 2.10 and delta_goals >= 1.0) or
+                    (float(odd_home) <= 1.22 and (float(odd_away or 0) / float(odd_home)) >= 8.0 and lambda_home >= 2.10 and delta_goals >= 1.10)
+                )
             ):
-                # EXCEÇÃO DE SUPER-FAVORITOS TIER 1 COM MANDO DE GOLEADA:
-                # Clube de Elite Mundial com odd esmagadora (<= 1.22), ratio >= 8.0x e alta expectativa ofensiva (xG >= 2.10, saldo >= +1.10)
-                # Permite linha negativa moderada (-1.0 AH ou -1.5 AH) com alto valor e proteção
+                # EXCEÇÃO DE SUPER-FAVORITOS TIER 1 COM MANDO DE GOLEADA / DOMINANTE:
                 suggestion = f"{home_team} -1.0 AH" if delta_goals < 2.0 else f"{home_team} -1.5 AH"
-                confidence = round(min(85.0, 75.0 + delta_goals * 3), 1)
+                confidence = round(min(88.0, 75.0 + delta_goals * 3), 1)
                 main_reason = (
-                    f"🔥 Super-Favorito Tier 1 com Mando de Goleada: {home_team} com cotação dominante (@ {float(odd_home):.2f}) e alta expectativa ofensiva "
+                    f"🔥 Super-Favorito Tier 1 Dominante: {home_team} (Tier 1 Elite) com cotação dominante (@ {float(odd_home):.2f}) e alta expectativa ofensiva "
                     f"({lambda_home:.2f} xG / saldo ΔG {delta_goals:+.2f} gols). Exceção ativada para cobertura em {suggestion}.{note_str}"
                 )
             elif odd_home and float(odd_home) <= 1.55:
@@ -1781,12 +1786,18 @@ def calculate_asian_handicap_suggestion(
                     f"Sugestão principal com proteção esticada em {suggestion} (cobre vitória, empate e derrota por até 1 gol). "
                     f"Alternativa secundária: {alt_suggestion} (Risco Alto pelo momento das equipes).{note_str}"
                 )
-            elif odd_away and float(odd_away) <= 1.35 and lambda_away >= 2.30 and delta_goals <= -1.40:
-                # EXCEÇÃO DE SUPER-FAVORITO VISITANTE COM PROJEÇÃO DE GOLEADA:
+            elif (
+                odd_away and float(odd_away) <= 1.55 and (
+                    (is_tier_1_elite_club(team_id=away_team_id, team_name=away_team) and not is_tier_1_elite_club(team_id=home_team_id, team_name=home_team) and ((home_last5.get('pts', 0) if isinstance(home_last5, dict) else 0) <= 5 or (home_last5.get('v', 0) if isinstance(home_last5, dict) else 0) == 0)) or
+                    (is_tier_1_elite_club(team_id=away_team_id, team_name=away_team) and lambda_away >= 2.10 and delta_goals <= -1.0) or
+                    (float(odd_away) <= 1.35 and lambda_away >= 2.30 and delta_goals <= -1.40)
+                )
+            ):
+                # EXCEÇÃO DE SUPER-FAVORITO VISITANTE TIER 1 COM PROJEÇÃO DE GOLEADA / DOMINANTE:
                 suggestion = f"{away_team} -1.0 AH" if abs(delta_goals) < 2.0 else f"{away_team} -1.5 AH"
-                confidence = round(min(85.0, 74.0 + abs(delta_goals) * 4), 1)
+                confidence = round(min(88.0, 74.0 + abs(delta_goals) * 4), 1)
                 main_reason = (
-                    f"🔥 Super-Favorito Visitante com Poder de Goleada: {away_team} com odd dominante (@ {float(odd_away):.2f}) e alta expectativa ofensiva "
+                    f"🔥 Super-Favorito Tier 1 Dominante Visitante: {away_team} com odd dominante (@ {float(odd_away):.2f}) e alta expectativa ofensiva "
                     f"({lambda_away:.2f} xG / saldo ΔG {delta_goals:+.2f} gols). Exceção ativada para cobertura em {suggestion}.{note_str}"
                 )
             elif odd_away and float(odd_away) <= 1.55:
@@ -2017,11 +2028,13 @@ def calculate_asian_handicap_suggestion(
             poisson_matrix_ah[k] /= tot_p_ah
 
     # Validação do Gatekeeper Poisson de Handicap Asiático via asian_handicap_engine (Single Source of Truth)
-    is_abstain = any(term in suggestion.lower() for term in ['sem entrada', 'abstenção', 'abstencao', 'no_bet', 'bloqueada', 'indisponível'])
-    if not is_abstain and ah_evaluate_and_select_best_candidate and ah_build_fallback_lines:
-        fb_lines = ah_build_fallback_lines(home_team, away_team, odd_home, odd_away, suggestion)
+    is_hard_block = any(term in suggestion.lower() for term in ['amostragem insuficiente', 'histórico incompleto', 'odds ausentes'])
+    if not is_hard_block and ah_evaluate_and_select_best_candidate and ah_build_fallback_lines:
+        fb_lines = ah_build_fallback_lines(home_team, away_team, odd_home, odd_away, suggestion, home_team_id=home_team_id, away_team_id=away_team_id)
         best_cand, approved_cands = ah_evaluate_and_select_best_candidate(
-            poisson_matrix_ah, fb_lines, home_team, away_team, odd_home, odd_away
+            poisson_matrix_ah, fb_lines, home_team, away_team, odd_home, odd_away,
+            home_team_id=home_team_id, away_team_id=away_team_id,
+            home_last5=home_last5, away_last5=away_last5
         )
         if best_cand:
             suggestion = best_cand['palpite_str']
@@ -2265,6 +2278,14 @@ def sync_pending_past_fixtures(conn, headers):
                                     updated_at = NOW()
                                 WHERE fixture_id = %s
                             """, (status, gh, ga, elapsed, status, gh, ga, fid))
+                            if status in ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED'):
+                                h_tid = p.get('home_team_id') or f_data.get('teams', {}).get('home', {}).get('id')
+                                a_tid = p.get('away_team_id') or f_data.get('teams', {}).get('away', {}).get('id')
+                                if h_tid or a_tid:
+                                    try:
+                                        cursor.execute("DELETE FROM team_last5_cache WHERE team_id IN (%s, %s)", (h_tid or -1, a_tid or -1))
+                                    except Exception:
+                                        pass
                             updated_count += 1
                 except Exception as e_date:
                     print(f"Aviso ao sincronizar partidas passadas da data {d}: {e_date}")
@@ -4064,6 +4085,37 @@ def update_oddspedia_odds(conn):
                     away_team_id=fix.get('away_team_id')
                 )
 
+                # Prioridade Absoluta: Se já existe aposta ativa aprovada pelo Gatekeeper para o jogo, preserva para evitar divergência Card vs Aposta
+                cursor.execute("""
+                    SELECT palpite, probabilidade_poisson, resultado_detalhado 
+                    FROM apostas 
+                    WHERE fixture_id = %s 
+                      AND status = 'Pendente' 
+                      AND status_gatekeeper = 'APROVADO' 
+                      AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+                    ORDER BY confirmada DESC, id DESC LIMIT 1
+                """, (fix_id,))
+                existing_ah_aposta = cursor.fetchone()
+
+                if existing_ah_aposta and existing_ah_aposta.get('palpite'):
+                    sug = existing_ah_aposta['palpite']
+                    conf = float(existing_ah_aposta.get('probabilidade_poisson') or conf or 74.0)
+                    from asian_handicap_engine import compose_compound_ah_reasoning
+                    cursor.execute("SELECT ah_reasoning FROM fixtures_trends WHERE fixture_id = %s", (fix_id,))
+                    row_cur_r = cursor.fetchone()
+                    existing_f_reasoning = row_cur_r.get('ah_reasoning') if row_cur_r else None
+                    reason = compose_compound_ah_reasoning(
+                        cursor=cursor,
+                        fixture_id=fix_id,
+                        main_calc=existing_ah_aposta.get('resultado_detalhado') or f"Palpite alinhado com aposta ativa ({sug})",
+                        suggestion=sug,
+                        home_team=fix['home_team'],
+                        away_team=fix['away_team'],
+                        home_team_id=fix.get('home_team_id'),
+                        away_team_id=fix.get('away_team_id'),
+                        existing_reasoning=existing_f_reasoning
+                    )
+
                 for attempt in range(3):
                     try:
                         cursor.execute("""
@@ -4289,6 +4341,36 @@ def enrich_fixtures_standings(conn):
                 away_team_id=fix.get('away_team_id')
             )
             
+            # Prioridade Absoluta: Se já existe aposta ativa aprovada pelo Gatekeeper para o jogo, preserva
+            cursor.execute("""
+                SELECT palpite, probabilidade_poisson, resultado_detalhado 
+                FROM apostas 
+                WHERE fixture_id = %s 
+                  AND status = 'Pendente' 
+                  AND status_gatekeeper = 'APROVADO' 
+                  AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+                ORDER BY confirmada DESC, id DESC LIMIT 1
+            """, (fix_id,))
+            existing_ah_aposta = cursor.fetchone()
+            if existing_ah_aposta and existing_ah_aposta.get('palpite'):
+                sug = existing_ah_aposta['palpite']
+                conf = float(existing_ah_aposta.get('probabilidade_poisson') or conf or 74.0)
+                from asian_handicap_engine import compose_compound_ah_reasoning
+                cursor.execute("SELECT ah_reasoning FROM fixtures_trends WHERE fixture_id = %s", (fix_id,))
+                row_cur_r = cursor.fetchone()
+                existing_f_reasoning = row_cur_r.get('ah_reasoning') if row_cur_r else None
+                reason = compose_compound_ah_reasoning(
+                    cursor=cursor,
+                    fixture_id=fix_id,
+                    main_calc=existing_ah_aposta.get('resultado_detalhado') or f"Palpite alinhado com aposta ativa ({sug})",
+                    suggestion=sug,
+                    home_team=fix['home_team'],
+                    away_team=fix['away_team'],
+                    home_team_id=fix.get('home_team_id'),
+                    away_team_id=fix.get('away_team_id'),
+                    existing_reasoning=existing_f_reasoning
+                )
+
             cursor.execute("""
                 UPDATE fixtures_trends SET
                     home_rank = %s, away_rank = %s, home_ppg = %s, away_ppg = %s,
@@ -4354,6 +4436,36 @@ def recalculate_inconsistent_odds_predictions(conn):
                     home_team_id=fix.get('home_team_id'),
                     away_team_id=fix.get('away_team_id')
                 )
+
+                # Prioridade Absoluta: Se já existe aposta ativa aprovada pelo Gatekeeper para o jogo, preserva
+                cursor.execute("""
+                    SELECT palpite, probabilidade_poisson, resultado_detalhado 
+                    FROM apostas 
+                    WHERE fixture_id = %s 
+                      AND status = 'Pendente' 
+                      AND status_gatekeeper = 'APROVADO' 
+                      AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+                    ORDER BY confirmada DESC, id DESC LIMIT 1
+                """, (fix_id,))
+                existing_ah_aposta = cursor.fetchone()
+                if existing_ah_aposta and existing_ah_aposta.get('palpite'):
+                    sug = existing_ah_aposta['palpite']
+                    conf = float(existing_ah_aposta.get('probabilidade_poisson') or conf or 74.0)
+                    from asian_handicap_engine import compose_compound_ah_reasoning
+                    cursor.execute("SELECT ah_reasoning FROM fixtures_trends WHERE fixture_id = %s", (fix_id,))
+                    row_cur_r = cursor.fetchone()
+                    existing_f_reasoning = row_cur_r.get('ah_reasoning') if row_cur_r else None
+                    reason = compose_compound_ah_reasoning(
+                        cursor=cursor,
+                        fixture_id=fix_id,
+                        main_calc=existing_ah_aposta.get('resultado_detalhado') or f"Palpite alinhado com aposta ativa ({sug})",
+                        suggestion=sug,
+                        home_team=fix['home_team'],
+                        away_team=fix['away_team'],
+                        home_team_id=fix.get('home_team_id'),
+                        away_team_id=fix.get('away_team_id'),
+                        existing_reasoning=existing_f_reasoning
+                    )
 
                 cursor.execute("""
                     UPDATE fixtures_trends SET

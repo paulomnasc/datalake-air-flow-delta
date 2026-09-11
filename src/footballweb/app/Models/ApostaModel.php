@@ -18,6 +18,7 @@ class ApostaModel extends Model
         'time_casa',
         'time_fora',
         'mercado',
+        'casa_de_aposta',
         'palpite',
         'odd',
         'odd_justa',

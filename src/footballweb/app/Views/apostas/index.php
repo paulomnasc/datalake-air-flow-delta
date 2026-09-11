@@ -11,6 +11,9 @@ if (!function_exists('formatBrtDate')) {
         }
     }
 }
+if (!function_exists('getBookmakerUrl')) {
+    require_once APPPATH . 'Helpers/BookmakerHelper.php';
+}
 ?>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -519,6 +522,44 @@ if (!function_exists('formatBrtDate')) {
     padding: 6px 14px;
     border-radius: 8px;
     font-family: 'Outfit', sans-serif;
+  }
+
+  .bookmaker-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.38);
+    color: #38bdf8;
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+  .bookmaker-pill-badge:hover {
+    background: rgba(56, 189, 248, 0.25);
+    border-color: #38bdf8;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3);
+  }
+  .bookmaker-pill-badge .bm-label {
+    color: var(--bet-text-muted);
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .bookmaker-pill-badge .bm-name {
+    color: #f0f6fc;
+    font-weight: 700;
+  }
+  .bookmaker-pill-badge i {
+    font-size: 0.72rem;
+    opacity: 0.85;
   }
 
   .values-grid {
@@ -1230,7 +1271,20 @@ if (!function_exists('formatBrtDate')) {
                 <div class="market-name"><?= htmlspecialchars($aposta->mercado) ?></div>
                 <div class="palpite-name"><?= $isAbstencaoBloqueada ? '⚪ Sem Entrada (Abstenção)' : htmlspecialchars($aposta->palpite) ?></div>
               </div>
-              <div class="odd-badge"><?= number_format($aposta->odd, 2) ?></div>
+              <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                <?php 
+                  $bmName = !empty($aposta->casa_de_aposta) ? $aposta->casa_de_aposta : 'Betano';
+                  $bmUrl  = getBookmakerUrl($bmName);
+                ?>
+                <a href="<?= htmlspecialchars($bmUrl) ?>" target="_blank" rel="noopener noreferrer" 
+                   class="bookmaker-pill-badge" 
+                   title="Odd gerada por <?= htmlspecialchars($bmName) ?>. Clique para abrir o site oficial da casa em nova aba.">
+                  <span class="bm-label">Casa:</span>
+                  <strong class="bm-name"><?= htmlspecialchars($bmName) ?></strong>
+                  <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+                <div class="odd-badge"><?= number_format($aposta->odd, 2) ?></div>
+              </div>
             </div>
 
             <div class="values-grid">

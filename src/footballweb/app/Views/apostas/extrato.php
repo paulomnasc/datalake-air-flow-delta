@@ -1015,9 +1015,18 @@ $transacoes = $extrato['transacoes'] ?? [];
           <div style="font-size: 1rem; font-weight: 700; color: #f8fafc;" id="modalApostaMercado">-</div>
           <div style="font-size: 0.92rem; font-weight: 600; color: #38bdf8;" id="modalApostaPalpite">-</div>
         </div>
-        <div class="modal-odd-badge">
-          <span style="font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; display: block; font-weight: 600;">Odd</span>
-          <span style="font-size: 1.25rem; font-weight: 800; color: #facc15;" id="modalApostaOdd">1.00</span>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+          <a id="modalApostaCasaLink" href="https://br.betano.com/" target="_blank" rel="noopener noreferrer" 
+             style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 6px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.78rem; text-decoration: none; font-weight: 600;" 
+             title="Clique para abrir o site oficial da casa em nova aba">
+             <span style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">Casa:</span>
+             <strong id="modalApostaCasaNome" style="color: #f8fafc;">Betano</strong>
+             <i class="fas fa-external-link-alt" style="font-size: 0.68rem;"></i>
+          </a>
+          <div class="modal-odd-badge">
+            <span style="font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; display: block; font-weight: 600;">Odd</span>
+            <span style="font-size: 1.25rem; font-weight: 800; color: #facc15;" id="modalApostaOdd">1.00</span>
+          </div>
         </div>
       </div>
 
@@ -1639,6 +1648,37 @@ function abrirModalAposta(apostaId) {
       document.getElementById('modalApostaMercado').textContent = ap.mercado || '-';
       document.getElementById('modalApostaPalpite').textContent = ap.palpite || '-';
       document.getElementById('modalApostaOdd').textContent = ap.odd || '1.00';
+
+      // Casa de Aposta
+      const casaNome = ap.casa_de_aposta || 'Betano';
+      const elCasaNome = document.getElementById('modalApostaCasaNome');
+      const elCasaLink = document.getElementById('modalApostaCasaLink');
+      if (elCasaNome) elCasaNome.textContent = casaNome;
+      if (elCasaLink) {
+        const urlsMap = {
+          'BETANO': 'https://br.betano.com/',
+          'BET365': 'https://www.bet365.com/',
+          'PINNACLE': 'https://www.pinnacle.com/',
+          '1XBET': 'https://1xbet.com/',
+          'BETFAIR': 'https://www.betfair.com/br',
+          'SPORTINGBET': 'https://www.sportingbet.com/pt-br',
+          'SUPERBET': 'https://superbet.com/pt-br/',
+          'KTO': 'https://www.kto.com/pt/',
+          'WILLIAM HILL': 'https://sports.williamhill.com/',
+          'BETSSON': 'https://www.betsson.com/',
+          'MARATHON': 'https://www.marathonbet.com/'
+        };
+        const cUpper = casaNome.toUpperCase();
+        let foundUrl = '';
+        for (const [k, u] of Object.entries(urlsMap)) {
+          if (cUpper.includes(k)) { foundUrl = u; break; }
+        }
+        if (!foundUrl) {
+          const clean = casaNome.toLowerCase().replace(/[^a-z0-9]/g, '');
+          foundUrl = clean ? 'https://www.' + clean + '.com' : 'https://br.betano.com/';
+        }
+        elCasaLink.href = foundUrl;
+      }
 
       // Valores
       document.getElementById('modalApostaValor').textContent = 'R$ ' + ap.valor_aposta;

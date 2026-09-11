@@ -5,6 +5,10 @@ if (!in_array($userTz, \DateTimeZone::listIdentifiers())) {
     $userTz = 'America/Sao_Paulo';
 }
 date_default_timezone_set($userTz);
+
+if (!function_exists('getBookmakerUrl')) {
+    require_once APPPATH . 'Helpers/BookmakerHelper.php';
+}
 ?>
 <!-- Modal de Termos de Uso -->
 <div id="termsModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">

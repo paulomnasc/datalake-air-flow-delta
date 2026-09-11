@@ -518,6 +518,19 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 apostas_canceladas_detalhes.extend(canc_list)
                 apostas_canceladas += len(canc_list)
             # Atualiza fixtures_trends para abstenção se não houver aposta confirmada
+            cursor.execute("""
+                SELECT id, palpite FROM apostas 
+                WHERE fixture_id = %s 
+                  AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+                  AND status = 'Pendente'
+                  AND (confirmada = 1 OR (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = apostas.id AND cc.tipo = 'DEBITO_APOSTA') > 0)
+                LIMIT 1
+            """, (fixture_id,))
+            has_conf_bet = cursor.fetchone()
+            if has_conf_bet:
+                print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta confirmada ativa ({has_conf_bet.get('palpite')}). fixtures_trends mantido.")
+                continue
+
             cursor.execute("SELECT ah_reasoning, home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
             cur_f = cursor.fetchone()
             existing_r = cur_f.get("ah_reasoning") if cur_f else None

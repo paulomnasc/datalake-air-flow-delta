@@ -62,6 +62,7 @@ ALLOWED_LEAGUES = {
     144: "Pro League (Belgica)",
     119: "Superliga (Dinamarca)",
     218: "Bundesliga (Austria)",
+    219: "ÖFB Cup (Austria)",
     197: "Super League (Grecia)",
     179: "Scottish Premiership (Escocia)",
     106: "Ekstraklasa (Polonia)",
@@ -98,7 +99,8 @@ ALLOWED_LEAGUE_NAMES = [
     'allsvenskan', 'eliteserien',
     'j1 league', 'j-league', 'j.league',
     'k league', 'k-league', 'k league 1',
-    'veikkausliiga', 'ekstraklasa', 'czech first league'
+    'veikkausliiga', 'ekstraklasa', 'czech first league',
+    'öfb cup', 'oefb cup', 'ofb cup', 'austria cup', 'copa da austria'
 ]
 
 

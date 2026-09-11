@@ -84,6 +84,7 @@ def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
         elif not data_j:
             data_j = '-'
         
+        casa = aposta.get('casa_de_aposta', 'Betano')
         palpite = aposta.get('palpite', '-')
         odd = aposta.get('odd', 0.0)
         odd_justa = aposta.get('odd_justa')
@@ -97,7 +98,7 @@ def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
         <tr style="border-bottom: 1px solid #e0e0e0;">
             <td style="padding: 10px; font-size: 13px; font-weight: bold;">{tc} <span style="color: #888;">vs</span> {tv}<br><span style="color: #666; font-weight: normal; font-size: 11px;">{data_j}</span></td>
             <td style="padding: 10px; font-size: 13px; color: #856404; font-weight: bold; background-color: #fff3cd; text-align: center;">{palpite}</td>
-            <td style="padding: 10px; font-size: 13px; text-align: center;"><strong>{odd:.2f}</strong> <span style="font-size: 11px; color: #666;">(Justa: {odd_justa_str})</span></td>
+            <td style="padding: 10px; font-size: 13px; text-align: center;"><strong>{odd:.2f}</strong> <span style="font-size: 11px; color: #007bff; font-weight: bold; display: block;">{casa}</span><span style="font-size: 11px; color: #666;">(Justa: {odd_justa_str})</span></td>
             <td style="padding: 10px; font-size: 13px; color: #28a745; font-weight: bold; text-align: center;">{prob}% <br><span style="font-size: 11px; color: #17a2b8;">EV: +{ev}%</span></td>
             <td style="padding: 10px; font-size: 13px; text-align: center;">R$ {valor:.2f}</td>
             <td style="padding: 10px; font-size: 13px; color: #28a745; font-weight: bold; text-align: center;">R$ {ganhos:.2f}</td>
@@ -512,6 +513,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             'time_casa': home_team,
             'time_fora': away_team,
             'palpite': selected_cand['palpite_str'],
+            'casa_de_aposta': selected_cand.get('bookmaker', 'Betano'),
             'odd': selected_cand['real_odd'],
             'odd_justa': selected_cand['odd_justa'],
             'probabilidade_poisson': selected_cand['prob'],

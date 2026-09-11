@@ -250,6 +250,7 @@ class ContaCorrenteController extends BaseController
                 a.time_casa,
                 a.time_fora,
                 a.mercado,
+                a.casa_de_aposta,
                 a.palpite,
                 a.odd,
                 a.data_hora_jogo,

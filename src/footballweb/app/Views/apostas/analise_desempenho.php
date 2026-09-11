@@ -306,6 +306,93 @@
     </div>
   </div>
 
+  <!-- Modalities Comparison Chart Section (Cartões vs Handicap Asiático) -->
+  <div class="chart-card" id="modalitiesComparisonSection">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <div>
+        <h5 class="fw-bold mb-1 text-white d-flex align-items-center gap-2">
+          <i class="bi bi-intersect text-warning"></i> <?= lang('App.modalities_profit_comparison') ?? 'Comparativo de Lucratividade: Cartões vs Handicap Asiático' ?>
+        </h5>
+        <div class="small" style="color: #cbd5e1 !important;">
+          <i class="bi bi-info-circle text-info"></i> <?= lang('App.modalities_profit_subtitle') ?? 'Acompanhe a curva de evolução e lucratividade separada por modalidade no período' ?>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="badge bg-dark border border-success text-success px-3 py-1.5" style="font-size: 0.8rem;" id="badgeCardsSummary">
+          <i class="bi bi-square-fill me-1" style="color: #00e676;"></i> <?= lang('App.modality_cards') ?? 'Cartões (Under)' ?>
+        </span>
+        <span class="badge bg-dark border border-warning text-warning px-3 py-1.5" style="font-size: 0.8rem;" id="badgeAhSummary">
+          <i class="bi bi-square-fill me-1" style="color: #ff9100;"></i> <?= lang('App.modality_asian_handicap') ?? 'Handicap Asiático (AH)' ?>
+        </span>
+      </div>
+    </div>
+
+    <!-- Mini KPI Diagnosis Cards for Modalities -->
+    <div class="row g-3 mb-3">
+      <!-- Card Cartões -->
+      <div class="col-md-4 col-sm-6">
+        <div class="p-3 rounded-3 border h-100" style="background: rgba(0, 230, 118, 0.06); border-color: rgba(0, 230, 118, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-success d-flex align-items-center gap-1">
+              <i class="bi bi-shield-check"></i> <?= lang('App.modality_cards') ?? 'Cartões (Under)' ?>
+            </span>
+            <span class="badge bg-success text-dark fw-bold" id="kpiCardsBadge" style="font-size: 0.7rem;">Estável 🟢</span>
+          </div>
+          <div class="d-flex align-items-baseline gap-2">
+            <div class="fw-bold fs-5 text-white" id="kpiCardsLucro">R$ 0,00</div>
+            <span class="small fw-semibold" id="kpiCardsRoi">ROI: 0%</span>
+          </div>
+          <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiCardsDetails">
+            0 bets | Win Rate: 0,0%
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Handicap Asiático -->
+      <div class="col-md-4 col-sm-6">
+        <div class="p-3 rounded-3 border h-100" id="kpiAhCardBox" style="background: rgba(255, 145, 0, 0.06); border-color: rgba(255, 145, 0, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-warning d-flex align-items-center gap-1">
+              <i class="bi bi-sliders"></i> <?= lang('App.modality_asian_handicap') ?? 'Handicap Asiático (AH)' ?>
+            </span>
+            <span class="badge bg-warning text-dark fw-bold" id="kpiAhBadge" style="font-size: 0.7rem;">Volátil ⚡</span>
+          </div>
+          <div class="d-flex align-items-baseline gap-2">
+            <div class="fw-bold fs-5 text-white" id="kpiAhLucro">R$ 0,00</div>
+            <span class="small fw-semibold" id="kpiAhRoi">ROI: 0%</span>
+          </div>
+          <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiAhDetails">
+            0 bets | Win Rate: 0,0%
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Comparativo Diferencial -->
+      <div class="col-md-4 col-sm-12">
+        <div class="p-3 rounded-3 border h-100" style="background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-info d-flex align-items-center gap-1">
+              <i class="bi bi-arrow-left-right"></i> Balanço Diferencial (Impacto)
+            </span>
+            <span class="badge bg-dark border border-info text-info" id="kpiDeltaBadge" style="font-size: 0.7rem;">Diagnóstico</span>
+          </div>
+          <div class="d-flex align-items-baseline gap-2">
+            <div class="fw-bold fs-5 text-white" id="kpiDeltaLucro">R$ 0,00</div>
+            <span class="small text-info fw-semibold" id="kpiDeltaStatus">Vantagem Cartões</span>
+          </div>
+          <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiDeltaDetails">
+            Impacto líquido comparativo no período selecionado
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart Container -->
+    <div class="chart-container-box">
+      <canvas id="modalidadesProfitChart"></canvas>
+    </div>
+  </div>
+
   <!-- Mercado Profit Chart Section -->
   <div class="chart-card">
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -472,6 +559,7 @@
 const rawBets = <?= json_encode($apostas ?? []) ?>;
 
 let perfChart = null;
+let modalidadesChart = null;
 let mercadoChart = null;
 let leagueChart = null;
 
@@ -766,6 +854,12 @@ function updatePerformanceDashboard() {
   const buckets = {};
   const mercadoBuckets = {};
   const leagueBuckets = {};
+  const modalityBuckets = {
+    cartoes: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 },
+    ah: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 },
+    outros: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 }
+  };
+  const modalityTimeline = {};
 
   filteredBets.forEach(bet => {
     const status = bet.status || '';
@@ -933,6 +1027,51 @@ function updatePerformanceDashboard() {
     buckets[key].retorno += grossReturn;
     buckets[key].lucro += netProfit;
     buckets[key].count += 1;
+
+    let modKey = 'outros';
+    if (isCardMarket) {
+      modKey = 'cartoes';
+    } else if (isHandicapMarket) {
+      modKey = 'ah';
+    }
+
+    modalityBuckets[modKey].apostado += valor;
+    modalityBuckets[modKey].retorno += grossReturn;
+    modalityBuckets[modKey].lucro += netProfit;
+    modalityBuckets[modKey].count += 1;
+
+    if (status === 'Ganha') {
+      modalityBuckets[modKey].ganhas += 1;
+      modalityBuckets[modKey].decided += 1;
+    } else if (status === 'Meio Ganha') {
+      modalityBuckets[modKey].ganhas += 0.75;
+      modalityBuckets[modKey].decided += 1;
+    } else if (status === 'Meio Perdida') {
+      modalityBuckets[modKey].perdidas += 0.75;
+      modalityBuckets[modKey].decided += 1;
+    } else if (status === 'Perdida') {
+      modalityBuckets[modKey].perdidas += 1;
+      modalityBuckets[modKey].decided += 1;
+    } else if (status === 'Cashout') {
+      if (netProfit > 0) modalityBuckets[modKey].ganhas += 1;
+      else if (netProfit < 0) modalityBuckets[modKey].perdidas += 1;
+      modalityBuckets[modKey].decided += 1;
+    } else if (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA') {
+      modalityBuckets[modKey].anuladas += 1;
+    }
+
+    if (!modalityTimeline[key]) {
+      modalityTimeline[key] = { cartoesLucro: 0, ahLucro: 0, outrosLucro: 0, cartoesCount: 0, ahCount: 0 };
+    }
+    if (modKey === 'cartoes') {
+      modalityTimeline[key].cartoesLucro += netProfit;
+      modalityTimeline[key].cartoesCount += 1;
+    } else if (modKey === 'ah') {
+      modalityTimeline[key].ahLucro += netProfit;
+      modalityTimeline[key].ahCount += 1;
+    } else {
+      modalityTimeline[key].outrosLucro += netProfit;
+    }
   });
 
   const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -961,13 +1100,23 @@ function updatePerformanceDashboard() {
   const labels = [];
   const cumulativeApostadoData = [];
   const cumulativeLucroData = [];
+  const cumulativeCartoesLucro = [];
+  const cumulativeAhLucro = [];
 
   let runningApostado = 0;
   let runningLucro = 0;
+  let runningCartoesLucro = 0;
+  let runningAhLucro = 0;
 
   bucketKeys.forEach(k => {
     runningApostado += buckets[k].apostado;
     runningLucro += buckets[k].lucro;
+
+    const modTime = modalityTimeline[k] || { cartoesLucro: 0, ahLucro: 0 };
+    runningCartoesLucro += modTime.cartoesLucro;
+    runningAhLucro += modTime.ahLucro;
+    cumulativeCartoesLucro.push(runningCartoesLucro);
+    cumulativeAhLucro.push(runningAhLucro);
 
     let label = k;
     if (groupMode === 'dia' && k.length === 10) {
@@ -982,6 +1131,103 @@ function updatePerformanceDashboard() {
     cumulativeApostadoData.push(runningApostado);
     cumulativeLucroData.push(runningLucro);
   });
+
+  // Atualização dos Mini KPIs de Diagnóstico por Modalidade
+  const cartoesLucro = modalityBuckets.cartoes.lucro;
+  const cartoesApostado = modalityBuckets.cartoes.apostado;
+  const cartoesRoi = cartoesApostado > 0 ? (cartoesLucro / cartoesApostado) * 100 : 0;
+  const cartoesWinRate = modalityBuckets.cartoes.decided > 0 ? (modalityBuckets.cartoes.ganhas / modalityBuckets.cartoes.decided) * 100 : 0;
+
+  const ahLucro = modalityBuckets.ah.lucro;
+  const ahApostado = modalityBuckets.ah.apostado;
+  const ahRoi = ahApostado > 0 ? (ahLucro / ahApostado) * 100 : 0;
+  const ahWinRate = modalityBuckets.ah.decided > 0 ? (modalityBuckets.ah.ganhas / modalityBuckets.ah.decided) * 100 : 0;
+
+  const deltaLucro = cartoesLucro - ahLucro;
+
+  const elCardsLucro = document.getElementById('kpiCardsLucro');
+  const elCardsRoi = document.getElementById('kpiCardsRoi');
+  const elCardsDetails = document.getElementById('kpiCardsDetails');
+  const elBadgeCards = document.getElementById('badgeCardsSummary');
+  if (elCardsLucro) {
+    elCardsLucro.textContent = formatBrl(cartoesLucro);
+    elCardsLucro.className = 'fw-bold fs-5 ' + (cartoesLucro >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elCardsRoi) {
+    elCardsRoi.textContent = 'ROI: ' + formatPct(cartoesRoi);
+    elCardsRoi.className = 'small fw-semibold ' + (cartoesRoi >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elCardsDetails) {
+    elCardsDetails.textContent = `${modalityBuckets.cartoes.count} bets | Win: ${cartoesWinRate.toFixed(1).replace('.', ',')}%`;
+  }
+  if (elBadgeCards) {
+    elBadgeCards.innerHTML = `<i class="bi bi-square-fill me-1" style="color: #00e676;"></i> Cartões: ${formatBrl(cartoesLucro)}`;
+  }
+
+  const elAhLucro = document.getElementById('kpiAhLucro');
+  const elAhRoi = document.getElementById('kpiAhRoi');
+  const elAhDetails = document.getElementById('kpiAhDetails');
+  const elAhBadge = document.getElementById('kpiAhBadge');
+  const elBadgeAh = document.getElementById('badgeAhSummary');
+  const elAhCardBox = document.getElementById('kpiAhCardBox');
+
+  if (elAhLucro) {
+    elAhLucro.textContent = formatBrl(ahLucro);
+    elAhLucro.className = 'fw-bold fs-5 ' + (ahLucro >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elAhRoi) {
+    elAhRoi.textContent = 'ROI: ' + formatPct(ahRoi);
+    elAhRoi.className = 'small fw-semibold ' + (ahRoi >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elAhDetails) {
+    elAhDetails.textContent = `${modalityBuckets.ah.count} bets | Win: ${ahWinRate.toFixed(1).replace('.', ',')}%`;
+  }
+  if (elAhBadge) {
+    if (ahLucro < 0) {
+      elAhBadge.textContent = 'Dreno de Lucro 🔴';
+      elAhBadge.className = 'badge bg-danger text-white fw-bold';
+    } else {
+      elAhBadge.textContent = 'Lucrativo 🟢';
+      elAhBadge.className = 'badge bg-success text-dark fw-bold';
+    }
+  }
+  if (elAhCardBox) {
+    if (ahLucro < 0) {
+      elAhCardBox.style.background = 'rgba(255, 82, 82, 0.08)';
+      elAhCardBox.style.borderColor = 'rgba(255, 82, 82, 0.3)';
+    } else {
+      elAhCardBox.style.background = 'rgba(255, 145, 0, 0.06)';
+      elAhCardBox.style.borderColor = 'rgba(255, 145, 0, 0.3)';
+    }
+  }
+  if (elBadgeAh) {
+    elBadgeAh.innerHTML = `<i class="bi bi-square-fill me-1" style="color: #ff9100;"></i> AH: ${formatBrl(ahLucro)}`;
+  }
+
+  const elDeltaLucro = document.getElementById('kpiDeltaLucro');
+  const elDeltaStatus = document.getElementById('kpiDeltaStatus');
+  const elDeltaDetails = document.getElementById('kpiDeltaDetails');
+  if (elDeltaLucro) {
+    elDeltaLucro.textContent = (deltaLucro >= 0 ? '+' : '') + formatBrl(deltaLucro);
+    elDeltaLucro.className = 'fw-bold fs-5 ' + (deltaLucro >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elDeltaStatus) {
+    if (deltaLucro > 0) {
+      elDeltaStatus.textContent = 'Vantagem Cartões 🛡️';
+      elDeltaStatus.className = 'small text-success fw-semibold';
+    } else if (deltaLucro < 0) {
+      elDeltaStatus.textContent = 'Vantagem AH ⚡';
+      elDeltaStatus.className = 'small text-warning fw-semibold';
+    } else {
+      elDeltaStatus.textContent = 'Equilíbrio ⚖️';
+      elDeltaStatus.className = 'small text-info fw-semibold';
+    }
+  }
+  if (elDeltaDetails) {
+    elDeltaDetails.textContent = deltaLucro > 0
+      ? `Cartões superou AH em ${formatBrl(Math.abs(deltaLucro))} no saldo real`
+      : (deltaLucro < 0 ? `AH superou Cartões em ${formatBrl(Math.abs(deltaLucro))} no saldo real` : 'Ambas modalidades com resultado idêntico');
+  }
 
   const mercadoKeys = Object.keys(mercadoBuckets).sort((a, b) => mercadoBuckets[b].lucro - mercadoBuckets[a].lucro);
 
@@ -1153,6 +1399,7 @@ function updatePerformanceDashboard() {
   });
 
   renderChart(labels, cumulativeApostadoData, cumulativeLucroData);
+  renderModalidadesChart(labels, cumulativeCartoesLucro, cumulativeAhLucro, modalityTimeline, bucketKeys);
   renderMercadoChart(mercadoLabels, mercadoLucroData, mercadoBgColors, mercadoBorderColors, mercadoMetaDetails);
   renderLeagueProfitChart(leagueLabels, leagueLucroData, leagueBgColors, leagueBorderColors, leagueMetaDetails);
   renderLeagueTableBreakdown(activeLeagueKeys, leagueBuckets);
@@ -1222,6 +1469,106 @@ function renderChart(labels, apostadoData, lucroData) {
                 label += context.parsed.y.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
               }
               return label;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: '#94a3b8', font: { family: 'Inter' } }
+        },
+        y: {
+          grid: { color: 'rgba(255, 255, 255, 0.08)' },
+          ticks: {
+            color: '#94a3b8',
+            font: { family: 'Inter' },
+            callback: function(value) {
+              return 'R$ ' + value.toLocaleString('pt-BR');
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderModalidadesChart(labels, cartoesData, ahData, modalityTimeline, rawKeys) {
+  const canvas = document.getElementById('modalidadesProfitChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  if (modalidadesChart) {
+    modalidadesChart.destroy();
+  }
+
+  modalidadesChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Cartões (Under) - Lucro Acumulado (R$)',
+          data: cartoesData,
+          borderColor: '#00e676',
+          backgroundColor: 'rgba(0, 230, 118, 0.12)',
+          borderWidth: 3,
+          pointRadius: 4,
+          pointBackgroundColor: '#00e676',
+          pointHoverRadius: 6,
+          tension: 0.3,
+          fill: true
+        },
+        {
+          label: 'Handicap Asiático (AH) - Lucro Acumulado (R$)',
+          data: ahData,
+          borderColor: '#ff9100',
+          backgroundColor: 'rgba(255, 145, 0, 0.10)',
+          borderWidth: 3,
+          pointRadius: 4,
+          pointBackgroundColor: '#ff9100',
+          pointHoverRadius: 6,
+          tension: 0.3,
+          fill: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#f0f6fc',
+            font: { family: 'Inter', size: 13, weight: 'bold' }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              let label = context.dataset.label || '';
+              if (label) label += ': ';
+              if (context.parsed.y !== null) {
+                label += context.parsed.y.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+              }
+              return label;
+            },
+            afterBody: function(tooltipItems) {
+              if (!tooltipItems || tooltipItems.length === 0) return [];
+              const dataIdx = tooltipItems[0].dataIndex;
+              const dateKey = rawKeys ? rawKeys[dataIdx] : null;
+              const t = (modalityTimeline && dateKey) ? modalityTimeline[dateKey] : null;
+              if (!t) return [];
+              const lines = [];
+              lines.push('──────────────────────');
+              lines.push(`Resultado no Ponto (${tooltipItems[0].label}):`);
+              lines.push(`• Cartões: ${t.cartoesLucro >= 0 ? '+' : ''}${t.cartoesLucro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.cartoesCount} bets)`);
+              lines.push(`• Handicap Asiático: ${t.ahLucro >= 0 ? '+' : ''}${t.ahLucro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.ahCount} bets)`);
+              return lines;
             }
           }
         }

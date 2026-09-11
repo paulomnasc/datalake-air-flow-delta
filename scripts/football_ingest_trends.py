@@ -1546,16 +1546,32 @@ def calculate_asian_handicap_suggestion(
 
     # 5.1 Fator Especial de Copa Mata-Mata (Atenuação de Risco em Torneios Eliminatórios)
     is_cup = is_cup_game(league_name)
+    is_continental = any(c in str(league_name or '').lower() for c in ['libertadores', 'sudamericana', 'champions league', 'europa league', 'conference league', 'recopa'])
     cup_home_factor = 1.0
     cup_away_factor = 1.0
-    if is_cup:
-        if is_market_away_fav:
-            cup_away_factor = 0.85  # Atenuação de 15% no xG do visitante em Copa (risco de time reserva)
-        elif is_market_home_fav:
-            cup_home_factor = 0.88  # Atenuação de 12% no xG do mandante em Copa
+    if is_cup and not is_continental:
+        # Apenas em copas nacionais secundárias onde há risco real de rodízio/time misto
+        if is_market_away_fav and not is_tier_1_elite_club(team_id=away_team_id, team_name=away_team):
+            cup_away_factor = 0.90
+        elif is_market_home_fav and not is_tier_1_elite_club(team_id=home_team_id, team_name=home_team):
+            cup_home_factor = 0.92
 
     lambda_home = lambda_home_base * home_mando_factor * home_last5_factor * home_cs_factor * home_streak_factor * market_home_boost * cup_home_factor
     lambda_away = lambda_away_base * away_mando_factor * away_last5_factor * away_cs_factor * away_streak_factor * market_away_boost * cup_away_factor
+
+    # 5.2 Ancoragem Bayesiana de Consenso de Mercado 1X2 (Alinhamento de xG com as Odds):
+    # O mercado de apostas precifica com altíssima eficiência a disparidade técnica entre ligas.
+    # Se o mercado estabelece um favorito claro (diferença de odds >= 0.20):
+    # O xG projetado (lambda) do favorito NUNCA pode ser inferior ao do azarão por distorção de médias locais.
+    if is_market_away_fav and odd_home and odd_away and (float(odd_home) - float(odd_away)) >= 0.20:
+        ratio_market = prob_a / prob_h if prob_h > 0 else 1.25
+        if lambda_home >= lambda_away:
+            lambda_away = round(lambda_home * max(1.10, min(1.40, ratio_market)), 2)
+    elif is_market_home_fav and odd_home and odd_away and (float(odd_away) - float(odd_home)) >= 0.20:
+        ratio_market = prob_h / prob_a if prob_a > 0 else 1.25
+        if lambda_away >= lambda_home:
+            lambda_home = round(lambda_away * max(1.10, min(1.40, ratio_market)), 2)
+
     delta_goals = lambda_home - lambda_away
 
     cup_str_h = f" × Copa {cup_home_factor:.2f}" if is_cup else ""
@@ -1793,12 +1809,14 @@ def calculate_asian_handicap_suggestion(
                 )
             elif delta_goals <= -0.30:
                 # FILTRO RÍGIDO DE VISITANTE FAVORITO (Away Handicap Guard Refinado):
-                # Só recomenda Dupla Chance no Mandante (+0.5 AH) se o mandante tiver solidez comprovada:
-                # 1) Não estar em crise
-                # 2) Pts ponderados sólidos (>= 7.0)
-                # 3) Solidez defensiva comprovada (Clean Sheets >= 25.0%)
-                # 4) NÃO estar em Curva Estagnada nem Descendente
-                if not home_in_crisis and home_pts_w >= 7.0 and home_cs_pct >= 25.0 and home_trend not in ('CURVA_ESTAGNADA', 'CURVA_DESCENDENTE'):
+                # Só recomenda Dupla Chance no Mandante (+0.5 AH) se o mandante tiver solidez comprovada E o visitante não for Tier 1:
+                # 1) Visitante não ser clube Tier 1 Elite
+                # 2) Mandante não estar em crise
+                # 3) Pts ponderados sólidos (>= 7.0)
+                # 4) Solidez defensiva comprovada (Clean Sheets >= 25.0%)
+                # 5) NÃO estar em Curva Estagnada nem Descendente
+                is_away_tier1 = is_tier_1_elite_club(team_id=away_team_id, team_name=away_team)
+                if not is_away_tier1 and not home_in_crisis and home_pts_w >= 7.0 and home_cs_pct >= 25.0 and home_trend not in ('CURVA_ESTAGNADA', 'CURVA_DESCENDENTE'):
                     suggestion = f"{home_team} +0.5 AH"
                     confidence = 75.00
                     main_reason = (
@@ -1807,14 +1825,15 @@ def calculate_asian_handicap_suggestion(
                         f"Proteção de alto valor em {suggestion} (Dupla Chance Mandante).{note_str}"
                     )
                 else:
-                    suggestion = f"{away_team} -0.25 AH"
+                    suggestion = f"{away_team} 0.0 AH" if (odd_away and float(odd_away) >= 2.20) else f"{away_team} -0.25 AH"
                     confidence = round(min(78.0, 62.0 + abs(delta_goals) * 10), 2)
                     if is_open_market or (odd_away and float(odd_away) >= 2.15):
-                        main_reason = f"Confronto equilibrado com leve viés estatístico favorável ao visitante {away_team}, alinhado à proteção de meia estaca (-0.25 AH).{note_str} || ALERTA_VOLATILIDADE: Confronto equilibrado (Odds abertas @ {float(odd_away):.2f}). Linhas de AH sujeitas a oscilação. Utilize 'Checar Odds Agora' para auditar em tempo real."
+                        main_reason = f"Confronto equilibrado com viés estatístico e de mercado favorável ao visitante {away_team}, alinhado à proteção ({suggestion}).{note_str}"
                     else:
-                        main_reason = f"Favoritismo do visitante {away_team} nas odds de mercado contra mandante com vulnerabilidade ou estagnação. Proteção de meia estaca (AH -0.25).{note_str}"
+                        main_reason = f"Favoritismo do visitante {away_team} nas odds de mercado contra mandante com vulnerabilidade ou estagnação. Proteção com {suggestion}.{note_str}"
             elif is_open_market or (odd_away and float(odd_away) >= 2.05):
                 # Confronto com odds abertas no visitante favorito (ex: 2.10 a 2.40):
+                is_away_tier1 = is_tier_1_elite_club(team_id=away_team_id, team_name=away_team)
                 if (home_cs_pct < 20.0 or home_trend in ('CURVA_ESTAGNADA', 'CURVA_DESCENDENTE')) and away_trend == 'CURVA_ASCENDENTE':
                     suggestion = f"{away_team} -0.25 AH"
                     confidence = 72.00
@@ -1823,12 +1842,19 @@ def calculate_asian_handicap_suggestion(
                         f"contra mandante {home_team} em estagnação/fragilidade defensiva (CS {home_cs_pct:.1f}%). "
                         f"Indicação de valor alinhada ao favoritismo do visitante com proteção em {suggestion}.{note_str}"
                     )
-                elif home_cs_pct >= 25.0 and not home_in_crisis and home_trend not in ('CURVA_ESTAGNADA', 'CURVA_DESCENDENTE'):
+                elif not is_away_tier1 and home_cs_pct >= 25.0 and not home_in_crisis and home_trend not in ('CURVA_ESTAGNADA', 'CURVA_DESCENDENTE'):
                     suggestion = f"{home_team} +0.5 AH"
                     confidence = 74.00
                     main_reason = (
                         f"💎 Oportunidade de Valor (Fator Mando): Confronto aberto com odds elevadas no visitante ({float(odd_away):.2f}). "
                         f"Aproveitamento da força do mando de campo com solidez defensiva em {suggestion} (Dupla Chance Casa).{note_str}"
+                    )
+                elif is_away_tier1 or abs(delta_goals) >= 0.20:
+                    suggestion = f"{away_team} 0.0 AH"
+                    confidence = 70.00
+                    main_reason = (
+                        f"🎯 Favoritismo Qualificado: Visitante {away_team} com superioridade técnica comprovada "
+                        f"e mercado favorável ({float(odd_away):.2f}). Proteção total no empate com {suggestion}.{note_str}"
                     )
                 else:
                     # Divergência de risco sem solidez defensiva comprovada do mandante azarão
@@ -1889,8 +1915,8 @@ def calculate_asian_handicap_suggestion(
 
     # TRAVA DE SEGURANÇA DE COPAS ELIMINATÓRIAS (Cup Tournament Guard):
     # Em torneios de Copa Mata-Mata, bloqueia entradas de Handicap Negativo no visitante favorito para evitar riscos de time reserva
-    # (Super-Favoritos Tier 1 com odd esmagadora e xG >= 2.10 são isentos para preservar linhas -1.0 / -1.5 AH)
-    if is_cup and not is_super_fav_match:
+    # (Torneios Continentais e Super-Favoritos Tier 1 são isentos pois jogam com força máxima)
+    if is_cup and not is_continental and not is_super_fav_match and not is_tier_1_elite_club(team_id=away_team_id, team_name=away_team):
         if is_market_away_fav and away_team.lower() in suggestion.lower() and ("-" in suggestion or "0.5" in suggestion or "0.25" in suggestion or "1.0" in suggestion):
             suggestion = "Sem Entrada (Abstenção)"
             confidence = 50.00

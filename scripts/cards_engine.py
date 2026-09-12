@@ -353,6 +353,31 @@ def evaluate_best_card_under_line(
     a_eff = u5j_friction_info.get('a_eff') if u5j_friction_info else None
 
     is_severe_u5j_risk = (h_eff is not None and a_eff is not None and (h_eff <= 3.0 and a_eff <= 3.0)) or (friction_mult >= 1.20)
+    has_elevated_friction = is_severe_u5j_risk or (friction_mult >= 1.15 and exp_cards >= 4.50)
+
+    # 1. Trava Sistêmica Mandatória de Atrito Disciplinar U5J:
+    # Se houver atrito disciplinar severo (ambos U5J <= 3 pts ou atrito >= 1.15 com xC >= 4.50),
+    # o jogo possui elevadíssimo risco de explosão de cartões por faltas táticas/crise.
+    # A estratégia Under inteira é vetada pelo Gatekeeper (abstenção mandatória).
+    if has_elevated_friction:
+        h_str = f"{h_eff:.1f} pts" if h_eff is not None else "crise"
+        a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
+        reason = (
+            f"🛡️ [Gatekeeper Cartões NO_BET / Risco de Atrito Disciplinar] {home_team} ({h_str}) vs {away_team} ({a_str}) -> "
+            f"Equipes sob forte pressão ou colapso disciplinar ({friction_desc}), elevando a expectativa disciplinar para {exp_cards} cartões. "
+            f"Risco de estouro de cartões incompatível com margem de segurança para estratégia Under. Abstenção mandatória."
+        )
+        pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
+        return None, [], pred_text, over_cards_prob
+
+    # 2. Trava Sistêmica de Mata-Mata Oitavas+ com Expectativa Elevada:
+    if is_knockout and exp_cards >= 4.50:
+        reason = (
+            f"🛡️ [Gatekeeper Cartões NO_BET / Mata-Mata Oitavas+] Partida eliminatória com alta tensão e cartões projetados em {exp_cards}. "
+            f"Risco de catimba e faltas eliminatórias incompatível com margem de segurança para estratégia Under. Abstenção mandatória."
+        )
+        pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
+        return None, [], pred_text, over_cards_prob
 
     for line_val in standard_lines:
         # Trava de Piso do Árbitro (Referee Disciplinary Ceiling Guard):
@@ -360,24 +385,23 @@ def evaluate_best_card_under_line(
         if referee_cards_avg and float(referee_cards_avg) >= (line_val - 0.30):
             continue
 
-        # Trava de Atrito Disciplinar U5J e Mata-Mata Oitavas+:
-        # Bloqueia linhas agressivas de Under (Under 3.5 e Under 4.5) onde a volatilidade e probabilidade de atrito são extremas
-        if (is_knockout or is_severe_u5j_risk) and line_val <= 4.5:
+        # Trava de Mata-Mata Oitavas+: bloqueia linhas agressivas (Under 3.5 e 4.5)
+        if is_knockout and line_val <= 4.5:
             continue
 
         prob = under_probs.get(line_val, 0.0)
         odd_justa = round(100.0 / prob, 2) if prob > 0 else 99.00
         palpite_str = f"Menos de {line_val} Cartões"
 
-        # Crivo de status inicial
+        # Crivo de status estrito do Gatekeeper por linha
         if line_val <= 3.5:
             status_gk = 'APROVADO' if (exp_cards <= 2.60 and prob >= 70.0) else 'NO_BET'
         elif line_val <= 4.5:
             status_gk = 'APROVADO' if (exp_cards <= 3.40 and prob >= 65.0) else 'NO_BET'
         elif line_val <= 5.5:
-            status_gk = 'APROVADO' if (exp_cards <= 4.80 and prob >= 60.0) else 'NO_BET'
+            status_gk = 'APROVADO' if (exp_cards <= 4.50 and prob >= 60.0) else 'NO_BET'
         elif line_val <= 6.5:
-            status_gk = 'APROVADO' if (exp_cards <= 6.20 and prob >= 60.0) else 'NO_BET'
+            status_gk = 'APROVADO' if (exp_cards <= 5.50 and prob >= 60.0) else 'NO_BET'
         else:
             status_gk = 'NO_BET'
 
@@ -390,8 +414,8 @@ def evaluate_best_card_under_line(
             'status_gk': status_gk
         })
 
-    # Filtrar candidatos aprovados preliminarmente
-    valid_candidates = [c for c in candidates if c['prob'] >= 60.0]
+    # Filtrar candidatos rigorosamente aprovados pelo Gatekeeper
+    valid_candidates = [c for c in candidates if c['status_gk'] == 'APROVADO' and c['prob'] >= 60.0]
     valid_candidates.sort(key=lambda x: x['prob'], reverse=True)
 
     selected_cand = None
@@ -408,8 +432,10 @@ def evaluate_best_card_under_line(
         if allow_api and fixture_id:
             real_odd, odd_source = fetch_real_card_odds(fixture_id, palpite_str, line_val)
 
-        # Fallback de mercado estruturado
+        # Fallback de mercado estruturado: na criação de apostas reais (allow_api=True), NUNCA aceita odd sintética
         if not real_odd or real_odd <= 1.0:
+            if allow_api:
+                continue
             if odd_justa and odd_justa >= 1.40:
                 real_odd = round(max(1.55, odd_justa * 1.08), 2)
                 odd_source = 'MODEL_FALLBACK'
@@ -494,9 +520,12 @@ def sync_fixture_and_bet_cards(
         ev_perc = selected_cand['ev_calc']
         valor_aposta = 10.00
         ganhos_potenciais = round(valor_aposta * odd_val, 2)
+        odd_src = selected_cand.get('odd_source')
+        if odd_src == 'MODEL_FALLBACK':
+            # Proteção estrita: jamais grava aposta com cotação sintética
+            return False, 0, 0
+
         bookmaker_name = selected_cand.get('bookmaker') or selected_cand.get('odd_source') or 'Betano'
-        if bookmaker_name == 'MODEL_FALLBACK':
-            bookmaker_name = 'Betano'
         gk_detalhado = selected_cand.get('gatekeeper_reason')
 
         for uid in user_ids:

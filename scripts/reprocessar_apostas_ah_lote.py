@@ -23,7 +23,8 @@ sys.path.insert(0, '/root/datalake-air-flow-delta')
 
 from asian_handicap_engine import (
     calculate_unified_handicap_recommendation,
-    compose_compound_ah_reasoning
+    compose_compound_ah_reasoning,
+    cancelar_e_estornar_aposta_handicap
 )
 
 
@@ -57,15 +58,14 @@ def reprocessar():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Selecionar apostas de AH criadas no lote de 12/09/2026 às 19:00 UTC (16:00 BRT) que estão pendentes
+    # Selecionar todas as apostas de AH pendentes
     cursor.execute("""
         SELECT a.id as aposta_id, a.fixture_id, a.palpite as palpite_antigo, a.odd as odd_antiga, 
                a.data_hora_jogo, a.criado_em, a.confirmada,
                f.*
         FROM apostas a
         JOIN fixtures_trends f ON a.fixture_id = f.fixture_id
-        WHERE a.criado_em BETWEEN '2026-09-12 18:50:00' AND '2026-09-12 19:15:00'
-          AND a.mercado LIKE '%Handicap%'
+        WHERE a.mercado LIKE '%Handicap%'
           AND a.status = 'Pendente'
         ORDER BY a.data_hora_jogo ASC
     """)
@@ -112,16 +112,8 @@ def reprocessar():
         )
 
         if status_gk == 'NO_BET' or not best_cand:
-            # Vetado pelo Gatekeeper calibrado (Piso de Odd / SOS / Mando)
-            motivo_veto = f"🛡️ [Gatekeeper AH - Abstenção pós-reprocessamento SOS/Odds]: {detalhe_calc}"
-            cursor.execute("""
-                UPDATE apostas SET
-                    status = 'Cancelada',
-                    status_gatekeeper = 'NO_BET',
-                    resultado_detalhado = %s,
-                    updated_at = NOW()
-                WHERE id = %s
-            """, (motivo_veto, aposta_id))
+            # Vetado pelo Gatekeeper calibrado
+            cancelar_e_estornar_aposta_handicap(cursor, fix_id, motivo=detalhe_calc)
 
             # Atualiza o Card em fixtures_trends
             compound_r = compose_compound_ah_reasoning(
@@ -133,7 +125,7 @@ def reprocessar():
                 away_team=away_team,
                 home_team_id=b.get('home_team_id'),
                 away_team_id=b.get('away_team_id'),
-                existing_reasoning=b.get('ah_reasoning')
+                existing_reasoning=None
             )
             cursor.execute("""
                 UPDATE fixtures_trends SET
@@ -181,7 +173,7 @@ def reprocessar():
             away_team=away_team,
             home_team_id=b.get('home_team_id'),
             away_team_id=b.get('away_team_id'),
-            existing_reasoning=b.get('ah_reasoning')
+            existing_reasoning=None
         )
         cursor.execute("""
             UPDATE fixtures_trends SET

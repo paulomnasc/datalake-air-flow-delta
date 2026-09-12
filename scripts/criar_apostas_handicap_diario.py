@@ -307,6 +307,15 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
     """, (fixture_id,))
     apostas_pendentes = cursor.fetchall()
     
+    # Se a abstenção for decorrente de indisponibilidade de odds da API ou cota esgotada,
+    # NUNCA cancela apostas pendentes já criadas anteriormente com +EV
+    is_api_odds_missing = any(k.lower() in (motivo or '').lower() for k in [
+        'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker', 'ausência de odds'
+    ])
+    if is_api_odds_missing:
+        print(f"🔒 [Apostas Preservadas / Indisponibilidade de Odds API] Partida #{fixture_id} possui aposta(s) pendente(s). Cancelamento abortado pois a ausência de odds da Betano via API é temporária/cota.")
+        return []
+
     canceladas_detalhes = []
     for aposta in apostas_pendentes:
         aposta_id = aposta['id']
@@ -343,7 +352,6 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
             UPDATE apostas 
             SET status = 'Cancelada', 
                 status_gatekeeper = 'NO_BET',
-                palpite = 'Sem Entrada (Abstenção)',
                 resultado_detalhado = %s, 
                 updated_at = NOW() 
             WHERE id = %s
@@ -517,19 +525,22 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             if canc_list:
                 apostas_canceladas_detalhes.extend(canc_list)
                 apostas_canceladas += len(canc_list)
-            # Atualiza fixtures_trends para abstenção se não houver aposta confirmada
+            # Atualiza fixtures_trends para abstenção se não houver aposta confirmada ou pendente preservada por falha de API
+            is_api_missing = any(k.lower() in (detalhe_calculo or '').lower() for k in [
+                'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker'
+            ])
             cursor.execute("""
-                SELECT id, palpite FROM apostas 
+                SELECT id, palpite, confirmada FROM apostas 
                 WHERE fixture_id = %s 
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
                   AND status = 'Pendente'
-                  AND (confirmada = 1 OR (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = apostas.id AND cc.tipo = 'DEBITO_APOSTA') > 0)
                 LIMIT 1
             """, (fixture_id,))
-            has_conf_bet = cursor.fetchone()
-            if has_conf_bet:
-                print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta confirmada ativa ({has_conf_bet.get('palpite')}). fixtures_trends mantido.")
-                continue
+            has_pending_bet = cursor.fetchone()
+            if has_pending_bet:
+                if int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing:
+                    print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta ativa ({has_pending_bet.get('palpite')}). fixtures_trends mantido.")
+                    continue
 
             cursor.execute("SELECT ah_reasoning, home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
             cur_f = cursor.fetchone()

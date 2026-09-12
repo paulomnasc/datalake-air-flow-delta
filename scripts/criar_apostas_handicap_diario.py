@@ -310,8 +310,8 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
     # Se a abstenção for decorrente de indisponibilidade de odds da API ou cota esgotada,
     # NUNCA cancela apostas pendentes já criadas anteriormente com +EV
     is_api_odds_missing = any(k.lower() in (motivo or '').lower() for k in [
-        'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker', 'ausência de odds'
-    ])
+        'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker'
+    ]) and 'odds 1x2 ausentes' not in (motivo or '').lower()
     if is_api_odds_missing:
         print(f"🔒 [Apostas Preservadas / Indisponibilidade de Odds API] Partida #{fixture_id} possui aposta(s) pendente(s). Cancelamento abortado pois a ausência de odds da Betano via API é temporária/cota.")
         return []
@@ -528,7 +528,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
             # Atualiza fixtures_trends para abstenção se não houver aposta confirmada ou pendente preservada por falha de API
             is_api_missing = any(k.lower() in (detalhe_calculo or '').lower() for k in [
                 'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker'
-            ])
+            ]) and 'odds 1x2 ausentes' not in (detalhe_calculo or '').lower()
             cursor.execute("""
                 SELECT id, palpite, confirmada FROM apostas 
                 WHERE fixture_id = %s 

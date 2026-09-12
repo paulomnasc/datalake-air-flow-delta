@@ -302,8 +302,9 @@ def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
                         except Exception:
                             continue
 
-                        # Em feeds da Pinnacle e Bet365, a seleção de Away reflete o espelho do spread
-                        if is_away and raw_line != 0.0 and bm_id in (4, 8):
+                        # No mercado de Asian Handicap (Bet ID 4) da API-Sports, a linha numérica expressa o spread a partir do mandante (Home).
+                        # Portanto, a seleção de Away reflete invariavelmente o espelho simétrico (-raw_line) em todas as casas (Betano, Pinnacle, Bet365, etc.).
+                        if is_away and raw_line != 0.0:
                             line_num = -raw_line
                         else:
                             line_num = raw_line
@@ -471,7 +472,9 @@ def evaluate_and_select_best_ah_candidate(
     home_team_id: int = None,
     away_team_id: int = None,
     home_last5: dict = None,
-    away_last5: dict = None
+    away_last5: dict = None,
+    xg_home: float = None,
+    xg_away: float = None
 ):
     """
     Aplica o crivo rigoroso do Gatekeeper do Handicap Asiático em todas as linhas candidatas:
@@ -479,7 +482,8 @@ def evaluate_and_select_best_ah_candidate(
     - Exceção de Super-Favoritos Tier 1 (odd <= 1.22, ratio >= 8.0x): permite linhas negativas moderadas {-0.75, -1.0}
     - Proibição Absoluta: Nenhuma linha mais agressiva que -1.0 AH (-1.25, -1.5, -1.75, -2.0) é tolerada.
     - Trava de Mando Consagrado: Se mandante for favorito sólido (H <= 2.00 e A >= 3.80),
-      bloqueia terminantemente entradas em +AH na zebra visitante
+      bloqueia terminantemente entradas em +AH na zebra visitante, EXCETO quando o visitante estiver
+      invicto no U5J (0D), em Curva Ascendente e com xG superior (Distorção de Mercado), onde prevalece o +0.75 AH.
     - Trava de Time em Crise: Bloqueia apostas a favor de equipes sem vitórias recentes (0V no U5J)
       em situação de zebra contra favoritos de mercado
     - Faixa de odd segura: 1.50 a 2.35 (1.40 a 2.25 para super-favoritos negativos)
@@ -490,8 +494,10 @@ def evaluate_and_select_best_ah_candidate(
     standard_allowed_lines = {0.0, 0.5, 0.75, 1.0, 1.25, 1.5}
     moderate_negative_lines = {-0.5, -0.75, -1.0}
     approved = []
-    raw_h_odd = float(odd_home or 2.0)
-    raw_a_odd = float(odd_away or 2.0)
+    raw_h_odd = float(odd_home or 0.0)
+    raw_a_odd = float(odd_away or 0.0)
+    if raw_h_odd <= 1.0 or raw_a_odd <= 1.0:
+        return None, []
 
     # 1. Trava de Mando Consagrado (Anti-Zebra em Caldeirões):
     # Mandante favorito consolidado de mercado (H <= 2.00) vs Visitante zebra (A >= 3.80 ou ratio A/H >= 2.0)
@@ -503,18 +509,9 @@ def evaluate_and_select_best_ah_candidate(
         c_is_away = cand['is_away']
 
         # Trava de Segurança Máxima Anti-Goleada:
-        # É terminantemente proibida qualquer linha de handicap negativo mais agressiva que -1.0 AH (ex: -1.25, -1.5, -1.75, -2.0).
-        # Exigir margem de 2 ou 3 gols para ter retorno financeiro é roleta-russa e contraria a gestão de banca.
-        # Na linha -1.0 AH, vitória simples por 1 gol garante reembolso total (Push), preservando integralmente o capital.
         if c_line < -1.0:
             continue
 
-        # Filtro Trava de Mando Consagrado: Bloqueia qualquer linha a favor da zebra visitante
-        if is_strong_home_fav and c_is_away:
-            continue
-
-        # Filtro Trava de Time em Crise (Anti-Zebra em Crise Severa):
-        # Bloqueia qualquer linha a favor de equipe sem vitórias recentes (0V no U5J)
         cand_odd = raw_a_odd if c_is_away else raw_h_odd
         opp_odd = raw_h_odd if c_is_away else raw_a_odd
         cand_team = cand.get('target_team') or (away_team if c_is_away else home_team)
@@ -522,11 +519,15 @@ def evaluate_and_select_best_ah_candidate(
         opp_team = home_team if c_is_away else away_team
         opp_id = home_team_id if c_is_away else away_team_id
 
-        # Filtro Trava de Time em Crise (Anti-Zebra em Crise Severa):
-        # Bloqueia qualquer linha a favor de equipe sem vitórias recentes (0V no U5J)
-        # em situação de desvantagem de mercado (odd >= 2.20 ou contra favorito <= 2.10)
         cand_l5 = away_last5 if c_is_away else home_last5
         opp_l5 = home_last5 if c_is_away else away_last5
+
+        cand_pts = cand_l5.get('pts', 0) if (cand_l5 and isinstance(cand_l5, dict)) else 0
+        opp_pts = opp_l5.get('pts', 0) if (opp_l5 and isinstance(opp_l5, dict)) else 0
+        cand_v = cand_l5.get('v', 0) if (cand_l5 and isinstance(cand_l5, dict)) else 0
+        opp_v = opp_l5.get('v', 0) if (opp_l5 and isinstance(opp_l5, dict)) else 0
+        cand_d = cand_l5.get('d', 0) if (cand_l5 and isinstance(cand_l5, dict)) else 0
+        opp_d = opp_l5.get('d', 0) if (opp_l5 and isinstance(opp_l5, dict)) else 0
 
         cand_pts_eff = compute_team_u5j_efficiency(cand_l5)
         opp_pts_eff = compute_team_u5j_efficiency(opp_l5)
@@ -536,21 +537,63 @@ def evaluate_and_select_best_ah_candidate(
         cand_trend = cand_trend_info.get("trend", "CURVA_ESTAVEL")
         opp_trend = opp_trend_info.get("trend", "CURVA_ESTAVEL")
 
-        # Filtro Trava de Time em Crise / Baixa Eficiência (Anti-Zebra em Crise Severa):
-        # Bloqueia qualquer linha a favor de equipe sem vitórias recentes (0V no U5J ou eficiência <= 0)
-        # em situação de desvantagem de mercado (odd >= 2.20 ou contra favorito <= 2.10)
-        if cand_l5 and isinstance(cand_l5, dict) and (cand_l5.get('v', 1) == 0 or cand_pts_eff <= 0.0):
-            if cand_odd >= 2.20 or opp_odd <= 2.10:
+        # =========================================================================
+        # CRITÉRIO PRIMÁRIO MANDATÓRIO: SOBERANIA DA PERFORMANCE REAL (U5J) SOBRE AS ODDS
+        # A equipe com melhor performance recente (total de pontos + em ascensão ou invicta)
+        # prevalece soberanamente sobre as odds das bancas. As odds 1X2 caem para critério secundário.
+        # =========================================================================
+        cand_is_better_performance = (
+            (cand_pts > opp_pts) or
+            (cand_pts == opp_pts and cand_pts_eff > opp_pts_eff and (cand_pts_eff - opp_pts_eff) >= 1.0) or
+            (cand_trend == "CURVA_ASCENDENTE" and opp_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA") and cand_pts >= opp_pts) or
+            (cand_d == 0 and opp_d >= 2)
+        )
+        opp_is_better_performance = (
+            (opp_pts > cand_pts) or
+            (opp_pts == cand_pts and opp_pts_eff > cand_pts_eff and (opp_pts_eff - cand_pts_eff) >= 1.0) or
+            (opp_trend == "CURVA_ASCENDENTE" and cand_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA") and opp_pts >= cand_pts) or
+            (opp_d == 0 and cand_d >= 2)
+        )
+
+        # 1. PROIBIÇÃO SOBERANA DE APOIAR TIME COM PIOR PERFORMANCE EM LINHA SECA OU FAVORÁVEL:
+        # Se o adversário possui melhor performance no U5J (mais pontos, em ascensão ou invicto),
+        # é expressamente PROIBIDO apostar na equipe candidata em qualquer linha que exija vitória ou DNB (c_line <= 0.0),
+        # mesmo que as odds 1X2 da banca a coloquem como favorita por mero mando de campo.
+        if opp_is_better_performance and c_line <= 0.0:
+            continue
+
+        # 2. TRAVA DE TIME EM CRISE OU FORMA NEGATIVA:
+        # Equipes com 4+ derrotas no U5J, sem vitórias (0V) ou com eficiência negativa (<= 0.0)
+        # NUNCA podem ser apoiadas em c_line <= 0.0, independentemente de odds de mercado.
+        if cand_l5 and isinstance(cand_l5, dict) and (cand_d >= 4 or cand_v == 0 or cand_pts_eff <= 0.0):
+            if c_line <= 0.0:
                 continue
 
-        # 1. Trava de Coerência de Mercado 1X2 (Proibição de 0.0 AH no Azarão):
-        # O mercado 1X2 precifica o consenso mais líquido e preciso das probabilidades.
-        # Se a equipe for azarão (cand_odd > opp_odd com margem >= 0.20), é proibido apostar em 0.0 AH (DNB),
-        # pois exigir vitória seca da zebra sem colchão de gols viola a precificação de mercado.
-        # O azarão de mercado só pode ser apoiado com linhas de handicap positivo (+0.5, +0.75, +1.0, etc.).
+        # Identificação de Exceção por Distorção de Mercado (Visitante com Melhor Performance):
+        is_away_momentum_surge = (
+            c_is_away and
+            cand_is_better_performance and
+            cand_l5 and isinstance(cand_l5, dict) and
+            (cand_l5.get('d', 1) <= 1 or cand_trend == "CURVA_ASCENDENTE")
+        )
+
+        # Filtro Trava de Mando Consagrado: Bloqueia qualquer linha a favor de zebra fraca em caldeirão
+        if is_strong_home_fav and c_is_away:
+            # Se o visitante for a equipe com MELHOR PERFORMANCE (Soberania U5J),
+            # permite linhas de proteção (+0.5 AH, +0.75 AH, +1.0 AH) para punir a distorção da banca!
+            if (cand_is_better_performance or is_away_momentum_surge) and c_line in (0.5, 0.75, 1.0):
+                pass
+            else:
+                continue
+
+        # 1. Trava de Coerência de Mercado 1X2:
+        # Se a equipe for azarão de mercado (cand_odd > opp_odd com margem >= 0.20):
+        # Se a equipe NÃO tiver melhor performance, proíbe 0.0 AH seco.
+        # Mas se a equipe TIVER melhor performance (mais pontos/ascensão), a odd alta é distorção da banca:
+        # permite 0.0 AH (DNB com odd alta) ou colchão positivo!
         is_cand_fav = (cand_odd < opp_odd)
         is_cand_underdog = (cand_odd > opp_odd and (cand_odd - opp_odd) >= 0.20)
-        if is_cand_underdog and c_line == 0.0:
+        if is_cand_underdog and c_line == 0.0 and not cand_is_better_performance:
             continue
 
         # 1.1 Trava Anti-Queda e Estagnação em Linha Seca (0.0 AH / DNB):
@@ -651,6 +694,13 @@ def evaluate_and_select_best_ah_candidate(
             # Inversão de Handicap: favorito 1X2 não recebe handicap positivo > 0.0
             if is_cand_fav and c_line > 0.0:
                 continue
+            # Trava Anti-Inversão de Mercado: Linha positiva alta (>= 0.5 AH) com odd alta (>= 2.05)
+            # só é aceitável se a equipe for comprovadamente zebra nas odds 1X2 (cand_odd > opp_odd + 0.20)
+            if c_line >= 0.5 and c_odd >= 2.05 and not is_cand_underdog:
+                continue
+            # Trava de Proteção Tier 1: Clube Tier 1 Elite não recebe vantagem excessiva (>= 0.75 AH) contra não-Tier 1
+            if is_tier1 and not is_opp_tier1 and c_line >= 0.75 and cand_odd <= 2.50:
+                continue
             required_prob = min_prob
         else:
             continue
@@ -665,11 +715,14 @@ def evaluate_and_select_best_ah_candidate(
         # Se a probabilidade pura de vitória estimada por Poisson para o azarão divergir
         # mais de 12 pontos percentuais da probabilidade implícita justa do mercado 1X2,
         # rejeita a entrada por distorção de Poisson (xG inflado por desnível de ligas).
+        # Em cenários de Distorção de Banca / Momentum Surge comprovada, expande tolerância para até 22.0 pp.
         if is_cand_underdog:
             inv_cand = 1.0 / cand_odd if cand_odd > 0 else 0.5
             inv_opp = 1.0 / opp_odd if opp_odd > 0 else 0.5
             market_cand_win_prob = (inv_cand / (inv_cand + inv_opp)) * 100.0
-            if (res['p_win'] - market_cand_win_prob) > 12.0:
+            p_pure_win = sum(p for (x, y), p in poisson_matrix.items() if (y > x if c_is_away else x > y)) * 100.0
+            max_divergence = 25.0 if (cand_is_better_performance or is_away_momentum_surge) else 12.0
+            if (p_pure_win - market_cand_win_prob) > max_divergence:
                 continue
 
         if ev >= required_ev and prob_eff >= required_prob:
@@ -677,10 +730,18 @@ def evaluate_and_select_best_ah_candidate(
             cand_copy = dict(cand)
             cand_copy['eval'] = res
             cand_copy['score'] = score
+            cand_copy['is_momentum_surge'] = (cand_is_better_performance and is_cand_underdog) or is_away_momentum_surge
             approved.append(cand_copy)
 
     if not approved:
         return None, []
+
+    # Em situações de Distorção de Banca / Soberania da Performance, prevalece a linha de maior proteção (+0.75 AH ou +0.5 AH)
+    surge_cushion = [c for c in approved if c.get('is_momentum_surge') and c['line'] in (0.75, 0.5)]
+    if surge_cushion:
+        surge_cushion.sort(key=lambda x: (x['line'] == 0.75, x['score']), reverse=True)
+        approved = surge_cushion + [c for c in approved if c not in surge_cushion]
+        return approved[0], approved
 
     approved.sort(key=lambda x: x['score'], reverse=True)
     return approved[0], approved
@@ -807,7 +868,9 @@ def calculate_unified_handicap_recommendation(
 
     if xg_h <= 0.1 or xg_a <= 0.1:
         reason_block = f"🛡️ [Gatekeeper AH NO_BET / Sem xG] Métricas de xG derivadas de U5J ausentes para {home_team} vs {away_team}. Abstenção mandatória."
-        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_block), None, []
+        clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_block)
+        compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção)', home_team, away_team, fixture_dict.get('home_team_id'), fixture_dict.get('away_team_id'), reasoning)
+        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, compound_r, None, []
 
     # 1. Matriz de Poisson
     poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
@@ -822,10 +885,92 @@ def calculate_unified_handicap_recommendation(
     # Se a Betano não possui linhas abertas de Handicap Asiático, abstenção mandatória (sem odds sintéticas)
     if not betano_lines:
         reason_no_odds = f"🛡️ [Gatekeeper AH NO_BET / Sem Odd Betano] Mercado de Handicap Asiático indisponível ou fechado na Betano (Bookmaker ID 32) para {home_team} vs {away_team}. Abstenção mandatória."
-        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_no_odds), None, []
+        clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_no_odds)
+        compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção)', home_team, away_team, fixture_dict.get('home_team_id'), fixture_dict.get('away_team_id'), reasoning)
+        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, compound_r, None, []
 
-    odd_h = float(fixture_dict.get('odd_home') or 2.0)
-    odd_a = float(fixture_dict.get('odd_away') or 2.0)
+    # 3. Resolução de Odds 1X2 de Mercado (Esteira de Fallbacks Multi-Camadas):
+    # Camada 1: Banco de Dados (fixtures_trends)
+    odd_h = float(fixture_dict.get('odd_home') or 0.0)
+    odd_a = float(fixture_dict.get('odd_away') or 0.0)
+    odd_d = float(fixture_dict.get('odd_draw') or 0.0)
+
+    # Camada 2: Payload da Casa Selecionada (Betano/Pinnacle/Bet365 via Bet ID 1)
+    if (odd_h <= 1.0 or odd_a <= 1.0) and fixture_id:
+        b1x2 = _betano_ah_1x2_cache.get(fixture_id)
+        if b1x2 and float(b1x2.get('casa', 0)) > 1.0 and float(b1x2.get('visitante', 0)) > 1.0:
+            odd_h = float(b1x2['casa'])
+            odd_a = float(b1x2['visitante'])
+            odd_d = float(b1x2.get('empate', 0.0))
+            if cursor:
+                try:
+                    bm_lbl = b1x2.get('bookmaker', 'Betano').capitalize()
+                    cursor.execute("""
+                        UPDATE fixtures_trends SET
+                            odd_home = %s, casa_odd_home = %s,
+                            odd_draw = %s, casa_odd_draw = %s,
+                            odd_away = %s, casa_odd_away = %s,
+                            updated_at = NOW()
+                        WHERE fixture_id = %s AND (odd_home IS NULL OR odd_home <= 1.0)
+                    """, (odd_h, bm_lbl, odd_d, bm_lbl, odd_a, bm_lbl, fixture_id))
+                except Exception:
+                    pass
+
+    # Camada 3: Contingência The Odds API (quando API-Sports quota excedida ou sem 1X2)
+    if (odd_h <= 1.0 or odd_a <= 1.0):
+        try:
+            from sports_arbitrage import fetch_live_odds_from_api
+            from football_ingest_trends import normalize_team_name, _is_team_match
+            odds_api_key = os.environ.get('ODDS_API_KEY') or 'd2f79607e3832b1f4b3003c14da3d70f'
+            toapi_matches = fetch_live_odds_from_api(odds_api_key, min_pre_match_minutes=0) or []
+            h_norm = normalize_team_name(home_team)
+            a_norm = normalize_team_name(away_team)
+            matched_toapi = None
+            for m in toapi_matches:
+                sh = normalize_team_name(m.get('time_casa', ''))
+                sa = normalize_team_name(m.get('time_visitante', ''))
+                if (h_norm == sh and a_norm == sa) or (_is_team_match(home_team, m.get('time_casa', '')) and _is_team_match(away_team, m.get('time_visitante', ''))):
+                    matched_toapi = m.get('odds', {})
+                    break
+            if matched_toapi:
+                for pref in ['BETANO', 'PINNACLE', 'BET365', 'SPORTINGBET', 'BETFAIR']:
+                    for bm_name, cota in matched_toapi.items():
+                        if pref in bm_name.upper() and float(cota.get('casa', 0)) > 1.0 and float(cota.get('visitante', 0)) > 1.0:
+                            odd_h = float(cota['casa'])
+                            odd_a = float(cota['visitante'])
+                            odd_d = float(cota.get('empate', 0.0))
+                            break
+                    if odd_h > 1.0 and odd_a > 1.0:
+                        break
+                if (odd_h <= 1.0 or odd_a <= 1.0) and matched_toapi:
+                    first_bm = list(matched_toapi.keys())[0]
+                    odd_h = float(matched_toapi[first_bm].get('casa', 0))
+                    odd_a = float(matched_toapi[first_bm].get('visitante', 0))
+                    odd_d = float(matched_toapi[first_bm].get('empate', 0))
+                if odd_h > 1.0 and odd_a > 1.0 and cursor:
+                    try:
+                        cursor.execute("""
+                            UPDATE fixtures_trends SET
+                               odd_home = %s, casa_odd_home = 'TheOddsAPI',
+                               odd_draw = %s, casa_odd_draw = 'TheOddsAPI',
+                               odd_away = %s, casa_odd_away = 'TheOddsAPI',
+                               updated_at = NOW()
+                            WHERE fixture_id = %s AND (odd_home IS NULL OR odd_home <= 1.0)
+                        """, (odd_h, odd_d, odd_a, fixture_id))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    # Camada 4: Barreira Mandatória do Gatekeeper - Se TODOS os fallbacks falharem
+    if odd_h <= 1.0 or odd_a <= 1.0:
+        reason_no_1x2 = (
+            f"🛡️ [Gatekeeper AH NO_BET / Odds 1X2 Ausentes] Ausência de cotações 1X2 de mercado no banco, na Betano/Pinnacle e na The Odds API para {home_team} vs {away_team}. "
+            f"Abstenção mandatória: impossível determinar o favorito e calibrar a ancoragem da modelagem Poisson."
+        )
+        clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_no_1x2)
+        compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção)', home_team, away_team, fixture_dict.get('home_team_id'), fixture_dict.get('away_team_id'), reasoning)
+        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, compound_r, None, []
 
     # 3. Avaliação do Gatekeeper
     h_tid = fixture_dict.get('home_team_id')
@@ -849,7 +994,8 @@ def calculate_unified_handicap_recommendation(
     best_cand, approved = evaluate_and_select_best_ah_candidate(
         poisson_matrix, betano_lines, home_team, away_team, odd_h, odd_a,
         home_team_id=h_tid, away_team_id=a_tid,
-        home_last5=h_l5, away_last5=a_l5
+        home_last5=h_l5, away_last5=a_l5,
+        xg_home=xg_h, xg_away=xg_a
     )
 
     if not best_cand:
@@ -903,7 +1049,9 @@ def calculate_unified_handicap_recommendation(
                 f"Eficiência U5J: {home_team} ({fav_eff if fav_is_home else dog_eff:.1f} pts) vs {away_team} ({dog_eff if fav_is_home else fav_eff:.1f} pts). "
                 f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}. Abstenção mandatória."
             )
-        return 'NO_BET', sug, conf, format_gatekeeper_result('NO_BET', sug, reason), None, []
+        clean_gk = format_gatekeeper_result('NO_BET', sug, reason)
+        compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, sug, home_team, away_team, h_tid, a_tid, reasoning)
+        return 'NO_BET', sug, conf, compound_r, None, []
 
     eval_res = best_cand['eval']
     selected_palpite = best_cand['palpite_str']

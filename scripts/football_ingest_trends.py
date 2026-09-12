@@ -7,6 +7,9 @@ import pymysql
 import hashlib
 import random
 import math
+import json
+import urllib.request
+import urllib.error
 from datetime import datetime, timedelta
 
 # Permitir importação de módulos de scrapers em src/dags/lib e configs em scripts
@@ -1600,7 +1603,13 @@ def calculate_asian_handicap_suggestion(
         except Exception:
             pass
 
-    if lambda_home_base >= 1.40:
+    # 5. Soberania da Performance U5J sobre as Odds da Banca:
+    home_pts = home_last5.get('pts', 0) if isinstance(home_last5, dict) else 0
+    away_pts = away_last5.get('pts', 0) if isinstance(away_last5, dict) else 0
+    home_d = home_last5.get('d', 0) if isinstance(home_last5, dict) else 0
+    away_d = away_last5.get('d', 0) if isinstance(away_last5, dict) else 0
+
+    if lambda_home_base >= 1.40 and (home_pts >= away_pts and home_d < 3):
         home_last5_factor = max(0.90, home_last5_factor)
         home_streak_factor = max(0.90, home_streak_factor)
 
@@ -1619,18 +1628,20 @@ def calculate_asian_handicap_suggestion(
     lambda_home = lambda_home_base * home_mando_factor * home_last5_factor * home_cs_factor * home_streak_factor * market_home_boost * cup_home_factor
     lambda_away = lambda_away_base * away_mando_factor * away_last5_factor * away_cs_factor * away_streak_factor * market_away_boost * cup_away_factor
 
-    # 5.2 Ancoragem Bayesiana de Consenso de Mercado 1X2 (Alinhamento de xG com as Odds):
-    # O mercado de apostas precifica com altíssima eficiência a disparidade técnica entre ligas.
-    # Se o mercado estabelece um favorito claro (diferença de odds >= 0.20):
-    # O xG projetado (lambda) do favorito NUNCA pode ser inferior ao do azarão por distorção de médias locais.
+    # 5.2 Calibração Suave de Consenso de Mercado 1X2 (Critério Secundário):
+    # A performance real recente (pontos U5J + momentum) é SOBERANA sobre as odds da banca.
+    # O consenso de odds NUNCA pode inflar o xG do time favorito da banca se ele estiver
+    # em desvantagem técnica/pontos no U5J em relação ao adversário.
     if is_market_away_fav and odd_home and odd_away and (float(odd_home) - float(odd_away)) >= 0.20:
-        ratio_market = prob_a / prob_h if prob_h > 0 else 1.25
-        if lambda_home >= lambda_away:
-            lambda_away = round(lambda_home * max(1.10, min(1.40, ratio_market)), 2)
+        if away_pts >= home_pts and away_trend != "CURVA_DESCENDENTE":
+            ratio_market = prob_a / prob_h if prob_h > 0 else 1.25
+            if lambda_home >= lambda_away:
+                lambda_away = round(lambda_home * max(1.10, min(1.40, ratio_market)), 2)
     elif is_market_home_fav and odd_home and odd_away and (float(odd_away) - float(odd_home)) >= 0.20:
-        ratio_market = prob_h / prob_a if prob_a > 0 else 1.25
-        if lambda_away >= lambda_home:
-            lambda_home = round(lambda_away * max(1.10, min(1.40, ratio_market)), 2)
+        if home_pts >= away_pts and home_trend != "CURVA_DESCENDENTE":
+            ratio_market = prob_h / prob_a if prob_a > 0 else 1.25
+            if lambda_away >= lambda_home:
+                lambda_home = round(lambda_away * max(1.10, min(1.40, ratio_market)), 2)
 
     delta_goals = lambda_home - lambda_away
 
@@ -2280,6 +2291,164 @@ def get_mysql_connection():
         print(f"ERRO CRÍTICO: Não foi possível conectar ao banco MySQL: {e}")
         sys.exit(1)
 
+API_SPORTS_TO_ODDS_API_SPORT = {
+    71: "soccer_brazil_campeonato",
+    72: "soccer_brazil_serie_b",
+    73: "soccer_brazil_copa_do_brasil",
+    13: "soccer_conmebol_copa_libertadores",
+    11: "soccer_conmebol_copa_sudamericana",
+    39: "soccer_epl",
+    40: "soccer_efl_champ",
+    48: "soccer_england_efl_cup",
+    140: "soccer_spain_la_liga",
+    141: "soccer_spain_segunda_division",
+    135: "soccer_italy_serie_a",
+    136: "soccer_italy_serie_b",
+    78: "soccer_germany_bundesliga",
+    79: "soccer_germany_bundesliga2",
+    81: "soccer_germany_dfb_pokal",
+    61: "soccer_france_ligue_one",
+    62: "soccer_france_ligue_two",
+    2: "soccer_uefa_champs_league",
+    3: "soccer_uefa_europa_league",
+    848: "soccer_uefa_europa_conference_league",
+    5: "soccer_uefa_nations_league",
+    94: "soccer_portugal_primeira_liga",
+    88: "soccer_netherlands_eredivisie",
+    203: "soccer_turkey_super_league",
+    144: "soccer_belgium_first_div",
+    119: "soccer_denmark_superliga",
+    113: "soccer_sweden_allsvenskan",
+    103: "soccer_norway_eliteserien",
+    106: "soccer_poland_ekstraklasa",
+    128: "soccer_argentina_primera_division",
+    265: "soccer_chile_campeonato",
+    262: "soccer_mexico_ligamx",
+    253: "soccer_usa_mls",
+    307: "soccer_saudi_arabia_pro_league",
+    218: "soccer_austria_bundesliga",
+    207: "soccer_switzerland_superleague",
+    179: "soccer_spl",
+    197: "soccer_greece_super_league",
+    98: "soccer_japan_j_league",
+    292: "soccer_korea_kleague1",
+    169: "soccer_china_superleague",
+    244: "soccer_finland_veikkausliiga",
+}
+
+def sync_scores_from_the_odds_api_fallback(cursor, pending_fixtures, conn=None):
+    """
+    Fallback contingencial via The Odds API (/v4/sports/{sport_key}/scores/?daysFrom=3)
+    quando a API-Sports atinge rate limit, cota esgotada ou não retorna placares de jogos finalizados.
+    Atualiza status para 'FT', registra gols e carimba score_processed_at para viabilizar a liquidação.
+    """
+    if not pending_fixtures:
+        return 0
+
+    raw_keys = os.environ.get('ODDS_API_KEY') or "a8ecbfad087c4db80a9517e4e4a9965f,19034934454fd9bd0a06735a67cd8f1b,d2f79607e3832b1f4b3003c14da3d70f"
+    api_keys = [k.strip() for k in raw_keys.split(',') if k.strip()]
+    current_key_idx = 0
+    
+    # Agrupa partidas pendentes por sport_key
+    pending_by_sport = {}
+    for p in pending_fixtures:
+        lid = p.get('league_id')
+        sport_key = API_SPORTS_TO_ODDS_API_SPORT.get(lid)
+        if sport_key:
+            if sport_key not in pending_by_sport:
+                pending_by_sport[sport_key] = []
+            pending_by_sport[sport_key].append(p)
+
+    if not pending_by_sport:
+        print("  ℹ️ [The Odds API Fallback] Nenhuma partida pendente pertence às ligas mapeadas na The Odds API.")
+        return 0
+
+    total_updated = 0
+    headers = {'User-Agent': 'Mozilla/5.0'}
+
+    for sport_key, fixtures in pending_by_sport.items():
+        success = False
+        while current_key_idx < len(api_keys) and not success:
+            active_key = api_keys[current_key_idx]
+            url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/scores/?daysFrom=3&apiKey={active_key}"
+            try:
+                req = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(req, timeout=12) as resp:
+                    events = json.loads(resp.read().decode('utf-8'))
+                    success = True
+                    if not isinstance(events, list):
+                        continue
+
+                    for ev in events:
+                        if not ev.get('completed'):
+                            continue
+
+                        ev_home = ev.get('home_team', '')
+                        ev_away = ev.get('away_team', '')
+                        ev_scores = ev.get('scores') or []
+
+                        for p in fixtures:
+                            if not _is_team_match(p['home_team'], ev_home) or not _is_team_match(p['away_team'], ev_away):
+                                continue
+
+                            gh, ga = None, None
+                            for sc in ev_scores:
+                                sc_name = sc.get('name', '')
+                                sc_score = sc.get('score')
+                                if sc_score is not None and str(sc_score).strip() != '':
+                                    try:
+                                        s_val = int(sc_score)
+                                        if _is_team_match(p['home_team'], sc_name) or _is_team_match(ev_home, sc_name):
+                                            gh = s_val
+                                        elif _is_team_match(p['away_team'], sc_name) or _is_team_match(ev_away, sc_name):
+                                            ga = s_val
+                                    except (ValueError, TypeError):
+                                        pass
+
+                            if gh is not None and ga is not None:
+                                fid = p['fixture_id']
+                                cursor.execute("""
+                                    UPDATE fixtures_trends
+                                    SET status = 'FT',
+                                        goals_home = %s,
+                                        goals_away = %s,
+                                        elapsed = 90,
+                                        score_processed_at = COALESCE(score_processed_at, NOW()),
+                                        updated_at = NOW()
+                                WHERE fixture_id = %s
+                            """, (gh, ga, fid))
+
+                                h_tid = p.get('home_team_id')
+                                a_tid = p.get('away_team_id')
+                                if h_tid or a_tid:
+                                    try:
+                                        cursor.execute("DELETE FROM team_last5_cache WHERE team_id IN (%s, %s)", (h_tid or -1, a_tid or -1))
+                                    except Exception:
+                                        pass
+
+                                print(f"  ⚽ [The Odds API Fallback] Placar consolidado: {p['home_team']} {gh} x {ga} {p['away_team']} (fixture_id={fid}) -> FT")
+                                total_updated += 1
+            except urllib.error.HTTPError as e_http:
+                print(f"  ❌ [The Odds API Fallback] Erro HTTP {e_http.code} em {sport_key} com chave {current_key_idx+1}/{len(api_keys)}: {e_http}")
+                if e_http.code in (401, 429):
+                    current_key_idx += 1
+                    if current_key_idx < len(api_keys):
+                        print(f"  🔄 [The Odds API Fallback] Alternando para próxima chave ({current_key_idx+1}/{len(api_keys)})...")
+                    else:
+                        print("  ⚠️ [The Odds API Fallback] Todas as chaves da The Odds API esgotadas.")
+                        break
+                else:
+                    break
+            except Exception as e_sport:
+                print(f"  ⚠️ [The Odds API Fallback] Erro ao processar {sport_key}: {e_sport}")
+                break
+
+    if conn and total_updated > 0:
+        conn.commit()
+        print(f"✅ [The Odds API Fallback] Total de {total_updated} partidas atualizadas com sucesso para FT no banco!")
+
+    return total_updated
+
 def sync_pending_past_fixtures(conn, headers):
     """
     Sincroniza automaticamente resultados (status/placar) e estatísticas de cartões/escanteios
@@ -2289,7 +2458,7 @@ def sync_pending_past_fixtures(conn, headers):
     try:
         # 1. Sincroniza status e placar de gols para partidas pendentes nos últimos 7 dias
         cursor.execute("""
-            SELECT fixture_id, fixture_date, home_team, away_team, status
+            SELECT fixture_id, fixture_date, home_team, away_team, status, home_team_id, away_team_id, league_id
             FROM fixtures_trends
             WHERE fixture_date <= UTC_TIMESTAMP() 
               AND fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)
@@ -2306,46 +2475,70 @@ def sync_pending_past_fixtures(conn, headers):
             print(f"\n🔄 Sincronizando placares de {len(pending)} partidas encerradas pendentes no banco...")
             dates_to_sync = set(p['fixture_date'].strftime('%Y-%m-%d') for p in pending if p.get('fixture_date'))
             updated_count = 0
+            updated_fixture_ids = set()
             
-            for d in sorted(list(dates_to_sync)):
-                url = f"https://v3.football.api-sports.io/fixtures?date={d}"
-                try:
-                    resp = requests.get(url, headers=headers, timeout=20).json()
-                    fixtures_api = {f['fixture']['id']: f for f in resp.get('response', [])}
-                    
-                    for p in pending:
-                        fid = p['fixture_id']
-                        if fid in fixtures_api:
-                            f_data = fixtures_api[fid]
-                            status = f_data['fixture']['status']['short']
-                            gh = f_data['goals']['home']
-                            ga = f_data['goals']['away']
-                            elapsed = f_data['fixture']['status']['elapsed']
-                            
-                            cursor.execute("""
-                                UPDATE fixtures_trends
-                                SET status = %s,
-                                    goals_home = %s,
-                                    goals_away = %s,
-                                    elapsed = %s,
-                                    score_processed_at = IF(%s IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND %s IS NOT NULL AND %s IS NOT NULL, COALESCE(score_processed_at, NOW()), score_processed_at),
-                                    updated_at = NOW()
-                                WHERE fixture_id = %s
-                            """, (status, gh, ga, elapsed, status, gh, ga, fid))
-                            if status in ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED'):
-                                h_tid = p.get('home_team_id') or f_data.get('teams', {}).get('home', {}).get('id')
-                                a_tid = p.get('away_team_id') or f_data.get('teams', {}).get('away', {}).get('id')
-                                if h_tid or a_tid:
-                                    try:
-                                        cursor.execute("DELETE FROM team_last5_cache WHERE team_id IN (%s, %s)", (h_tid or -1, a_tid or -1))
-                                    except Exception:
-                                        pass
-                            updated_count += 1
-                except Exception as e_date:
-                    print(f"Aviso ao sincronizar partidas passadas da data {d}: {e_date}")
+            global _api_sports_rate_limited, _api_sports_quota_exceeded
+            if not (_api_sports_rate_limited or _api_sports_quota_exceeded):
+                for d in sorted(list(dates_to_sync)):
+                    if _api_sports_rate_limited or _api_sports_quota_exceeded:
+                        print("⚠️ Cota da API-Sports esgotada/rate-limited. Pulando datas restantes na API-Sports.")
+                        break
+                    url = f"https://v3.football.api-sports.io/fixtures?date={d}"
+                    try:
+                        resp = requests.get(url, headers=headers, timeout=20).json()
+                        errs = resp.get('errors')
+                        if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
+                            print(f"[API-Sports Fixtures] Cota/Rate limit atingido: {errs}")
+                            _api_sports_rate_limited = True
+                            if 'requests' in errs or 'request' in str(errs).lower():
+                                _api_sports_quota_exceeded = True
+                            break
 
-            conn.commit()
-            print(f"✅ Sincronizadas {updated_count} partidas passadas (status/placar) no banco com sucesso!")
+                        fixtures_api = {f['fixture']['id']: f for f in resp.get('response', [])}
+                        
+                        for p in pending:
+                            fid = p['fixture_id']
+                            if fid in fixtures_api:
+                                f_data = fixtures_api[fid]
+                                status = f_data['fixture']['status']['short']
+                                gh = f_data['goals']['home']
+                                ga = f_data['goals']['away']
+                                elapsed = f_data['fixture']['status']['elapsed']
+                                
+                                cursor.execute("""
+                                    UPDATE fixtures_trends
+                                    SET status = %s,
+                                        goals_home = %s,
+                                        goals_away = %s,
+                                        elapsed = %s,
+                                        score_processed_at = IF(%s IN ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED') AND %s IS NOT NULL AND %s IS NOT NULL, COALESCE(score_processed_at, NOW()), score_processed_at),
+                                        updated_at = NOW()
+                                    WHERE fixture_id = %s
+                                """, (status, gh, ga, elapsed, status, gh, ga, fid))
+                                if status in ('FT', 'AET', 'PEN', 'FINISHED', 'MATCH FINISHED'):
+                                    h_tid = p.get('home_team_id') or f_data.get('teams', {}).get('home', {}).get('id')
+                                    a_tid = p.get('away_team_id') or f_data.get('teams', {}).get('away', {}).get('id')
+                                    if h_tid or a_tid:
+                                        try:
+                                            cursor.execute("DELETE FROM team_last5_cache WHERE team_id IN (%s, %s)", (h_tid or -1, a_tid or -1))
+                                        except Exception:
+                                            pass
+                                updated_count += 1
+                                updated_fixture_ids.add(fid)
+                    except Exception as e_date:
+                        print(f"Aviso ao sincronizar partidas passadas da data {d} via API-Sports: {e_date}")
+
+                conn.commit()
+                print(f"✅ Sincronizadas {updated_count} partidas passadas via API-Sports (status/placar) no banco com sucesso!")
+            else:
+                print("⚠️ API-Sports com cota esgotada ou rate-limit. Pulando chamadas diretas de fixtures na API-Sports.")
+
+            # Contingência The Odds API para partidas que continuam pendentes
+            still_pending = [p for p in pending if p['fixture_id'] not in updated_fixture_ids]
+            if still_pending:
+                print(f"\n🌐 [The Odds API Fallback] Acionando contingência de placares para {len(still_pending)} partidas pendentes...")
+                fallback_updated = sync_scores_from_the_odds_api_fallback(cursor, still_pending, conn)
+                updated_count += fallback_updated
 
         # 2. Sincroniza estatísticas de cartões e escanteios para partidas FT dos últimos 7 dias com cartões NULL
         cursor.execute("""

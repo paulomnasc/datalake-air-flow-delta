@@ -350,47 +350,93 @@ TIER_1_ELITE_CLUBS = {
 }
 
 
+# Dicionário Canônico de Aliases para Resolução Determinística de team_id (quando id for nulo)
+TIER_1_NAME_TO_ID = {
+    # Brasil (G-12)
+    "flamengo": 127, "cr flamengo": 127,
+    "palmeiras": 121, "se palmeiras": 121,
+    "atletico mineiro": 1062, "atletico-mg": 1062, "atletico mg": 1062, "galo": 1062, "atlético mineiro": 1062, "atlético-mg": 1062,
+    "sao paulo": 126, "spfc": 126, "são paulo": 126,
+    "corinthians": 131, "sc corinthians": 131, "sc corinthians paulista": 131,
+    "gremio": 130, "grêmio": 130, "gremio fbpa": 130,
+    "internacional": 119, "sc internacional": 119, "inter": 119,
+    "fluminense": 124, "fluminense fc": 124,
+    "botafogo": 120, "botafogo fr": 120, "botafogo rj": 120,
+    "cruzeiro": 135, "cruzeiro ec": 135,
+    "vasco da gama": 133, "vasco": 133, "cr vasco da gama": 133,
+    "santos": 128, "santos fc": 128,
+    # Europa & Outros
+    "manchester city": 50, "man city": 50,
+    "manchester united": 33, "man united": 33, "man utd": 33,
+    "arsenal": 42, "arsenal fc": 42,
+    "liverpool": 40, "liverpool fc": 40,
+    "chelsea": 49, "chelsea fc": 49,
+    "tottenham": 47, "tottenham hotspur": 47,
+    "real madrid": 541,
+    "barcelona": 529, "fc barcelona": 529,
+    "atletico madrid": 530, "atlético madrid": 530, "atlético de madrid": 530, "atletico de madrid": 530,
+    "bayern munich": 157, "bayern munchen": 157, "bayern de munique": 157,
+    "borussia dortmund": 165, "bvb": 165,
+    "bayer leverkusen": 168,
+    "paris saint germain": 85, "psg": 85,
+    "juventus": 496,
+    "inter milan": 505, "internazionale": 505,
+    "ac milan": 489, "milan": 489,
+    "benfica": 211, "sl benfica": 211,
+    "porto": 212, "fc porto": 212,
+    "sporting cp": 228, "sporting": 228, "sporting lisbon": 228,
+    "ajax": 194, "afc ajax": 194,
+    "psv": 197, "psv eindhoven": 197,
+    "feyenoord": 209,
+    "boca juniors": 451, "boca": 451,
+    "river plate": 435, "river": 435,
+    "racing club": 436,
+    "independiente": 453,
+    "san lorenzo": 460,
+    "penarol": 2348, "peñarol": 2348,
+    "club nacional": 2356, "nacional montevideo": 2356,
+}
+
+
 def is_tier_1_elite_club(team_id: int = None, team_name: str = None) -> bool:
     """
     Verifica se a equipe informada pertence ao grupo de elite mundial (Tier 1).
     Prioridade Absoluta: Consulta o team_id oficial no dicionário canônico TIER_1_ELITE_CLUBS.
-    Fallback Secundário: Correspondência estrita de nome canônico apenas se team_id for nulo/ausente.
+    Fallback Secundário: Resolução determinística por nome canônico/alias para team_id se team_id for nulo.
     """
     # 1. Validação por ID oficial (100% determinística e imutável)
     if team_id is not None:
         try:
             tid = int(team_id)
-            if tid in TIER_1_ELITE_CLUBS:
-                return True
-            # Se um team_id numérico válido foi fornecido e NÃO está no dicionário Tier 1,
-            # ele categoricamente NÃO é Tier 1 (evita falso positivo por homônimo em string)
-            return False
+            return tid in TIER_1_ELITE_CLUBS
         except (ValueError, TypeError):
             pass
 
-    # 2. Fallback Secundário por Nome (Apenas para registros legados onde team_id é nulo)
+    # 2. Fallback Secundário por Nome (Apenas quando team_id não for informado)
     if not team_name:
         return False
 
     import unicodedata
-    raw = team_name.lower().strip()
+    raw = str(team_name).lower().strip()
     norm = unicodedata.normalize('NFKD', raw).encode('ASCII', 'ignore').decode('utf-8')
+    clean_norm = norm.replace('-', ' ').replace('.', ' ').strip()
+    clean_norm = ' '.join(clean_norm.split())
 
-    # Desqualifica homônimos conhecidos fora do Tier 1 europeu/sul-americano
-    disqualified_homonyms = [
-        'guayaquil', 'sc', 'montevideo', 'sarandi', 'gijon', 'turku', 'limeira',
-        'kansas', 'san jose', 'khalsa', 'miami', 'bogota', 'escaldes', 'intercity', 'laguna'
-    ]
-    if any(dh in norm for dh in disqualified_homonyms) and 'manchester city' not in norm:
-        return False
+    # Checagem direta por alias normalizado
+    if norm in TIER_1_NAME_TO_ID:
+        return TIER_1_NAME_TO_ID[norm] in TIER_1_ELITE_CLUBS
+    if clean_norm in TIER_1_NAME_TO_ID:
+        return TIER_1_NAME_TO_ID[clean_norm] in TIER_1_ELITE_CLUBS
 
+    # Checagem exata normalizada com os nomes oficiais de TIER_1_ELITE_CLUBS
     for c_id, c_name in TIER_1_ELITE_CLUBS.items():
         c_norm = unicodedata.normalize('NFKD', c_name.lower().strip()).encode('ASCII', 'ignore').decode('utf-8')
-        if norm == c_norm or f" {c_norm} " in f" {norm} ":
-            return True
-        if len(c_norm) >= 6 and c_norm in norm:
+        c_clean = c_norm.replace('-', ' ').replace('.', ' ').strip()
+        c_clean = ' '.join(c_clean.split())
+        if clean_norm == c_clean or norm == c_norm:
             return True
 
     return False
+
 
 

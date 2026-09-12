@@ -40,40 +40,58 @@ except Exception:
 
 def compute_team_u5j_efficiency(last5_dict: dict) -> float:
     """
-    Calcula a pontuação de eficiência ponderada nos últimos 5 jogos (U5J):
+    Calcula a pontuação de eficiência ponderada nos últimos 5 jogos (U5J) com Strength of Schedule (SOS):
     - Vitória contra Gigante Tier 1: +5.0 pts (Super-Majorada)
     - Vitória Comum: +3.0 pts
-    - Empate contra Gigante Tier 1: +2.0 pts (Majorada)
+    - Empate contra Gigante Tier 1: +2.5 pts (Majorada)
     - Empate Comum: +1.0 pt
-    - Derrota contra Gigante Tier 1: 0.0 pts (Atenuada)
+    - Derrota Fora contra Gigante Tier 1: +0.5 pt (Atenuada por resiliência competitiva)
+    - Derrota em Casa contra Gigante Tier 1: 0.0 pts
     - Derrota Comum: -1.0 pt (Subtraída)
+    - Multiplicador SOS: 1.0 + (tier1_count * 0.12)
+    - Teto de Invencibilidade sem Tier 1: máx 11.0 pts
     """
     if not last5_dict or not isinstance(last5_dict, dict):
         return 0.0
+
+    matches = last5_dict.get('matches', [])
+    if matches:
+        pts_eff = 0.0
+        tier1_count = 0
+        for m in matches[:5]:
+            opp = m.get('opponent', '')
+            opp_id = m.get('opponent_id')
+            is_t1 = m.get('is_tier_1')
+            if is_t1 is None or opp_id is not None:
+                is_t1 = is_tier_1_elite_club(team_id=opp_id, team_name=opp)
+                m['is_tier_1'] = is_t1
+            if is_t1:
+                tier1_count += 1
+            res = (m.get('result') or '').upper()
+            is_home = m.get('is_home', True)
+            if res == 'V':
+                pts_eff += 5.0 if is_t1 else 3.0
+            elif res == 'E':
+                pts_eff += 2.5 if is_t1 else 1.0
+            elif res == 'D':
+                if is_t1:
+                    pts_eff += 0.5 if not is_home else 0.0
+                else:
+                    pts_eff -= 1.0
+
+        sos_mult = 1.0 + (tier1_count * 0.12)
+        pts_eff_total = round(pts_eff * sos_mult, 1)
+        if tier1_count == 0 and pts_eff_total > 11.0:
+            pts_eff_total = 11.0
+        return pts_eff_total
+
     if 'pts_efficiency' in last5_dict and last5_dict['pts_efficiency'] is not None:
         return float(last5_dict['pts_efficiency'])
-    
-    matches = last5_dict.get('matches', [])
-    if not matches:
-        v = int(last5_dict.get('v', 0) or 0)
-        e = int(last5_dict.get('e', 0) or 0)
-        d = int(last5_dict.get('d', 0) or 0)
-        return float((3 * v) + (1 * e) - (1 * d))
-    
-    pts_eff = 0.0
-    for m in matches[:5]:
-        opp = m.get('opponent', '')
-        is_t1 = m.get('is_tier_1')
-        if is_t1 is None:
-            is_t1 = is_tier_1_elite_club(team_name=opp)
-        res = (m.get('result') or '').upper()
-        if res == 'V':
-            pts_eff += 5.0 if is_t1 else 3.0
-        elif res == 'E':
-            pts_eff += 2.0 if is_t1 else 1.0
-        elif res == 'D':
-            pts_eff += 0.0 if is_t1 else -1.0
-    return round(pts_eff, 1)
+
+    v = int(last5_dict.get('v', 0) or 0)
+    e = int(last5_dict.get('e', 0) or 0)
+    d = int(last5_dict.get('d', 0) or 0)
+    return float((3 * v) + (1 * e) - (1 * d))
 
 # Caches em memória para chamadas da API Betano durante o ciclo de execução
 _betano_ah_odds_cache = {}
@@ -543,16 +561,16 @@ def evaluate_and_select_best_ah_candidate(
         # prevalece soberanamente sobre as odds das bancas. As odds 1X2 caem para critério secundário.
         # =========================================================================
         cand_is_better_performance = (
-            (cand_pts > opp_pts) or
-            (cand_pts == opp_pts and cand_pts_eff > opp_pts_eff and (cand_pts_eff - opp_pts_eff) >= 1.0) or
-            (cand_trend == "CURVA_ASCENDENTE" and opp_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA") and cand_pts >= opp_pts) or
-            (cand_d == 0 and opp_d >= 2)
+            (cand_pts_eff > opp_pts_eff and (cand_pts_eff - opp_pts_eff) >= 1.5) or
+            (cand_pts_eff >= opp_pts_eff and cand_pts > opp_pts) or
+            (cand_trend == "CURVA_ASCENDENTE" and opp_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA") and cand_pts_eff >= opp_pts_eff) or
+            (cand_d == 0 and opp_d >= 2 and cand_pts_eff >= opp_pts_eff)
         )
         opp_is_better_performance = (
-            (opp_pts > cand_pts) or
-            (opp_pts == cand_pts and opp_pts_eff > cand_pts_eff and (opp_pts_eff - cand_pts_eff) >= 1.0) or
-            (opp_trend == "CURVA_ASCENDENTE" and cand_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA") and opp_pts >= cand_pts) or
-            (opp_d == 0 and cand_d >= 2)
+            (opp_pts_eff > cand_pts_eff and (opp_pts_eff - cand_pts_eff) >= 1.5) or
+            (opp_pts_eff >= cand_pts_eff and opp_pts > cand_pts) or
+            (opp_trend == "CURVA_ASCENDENTE" and cand_trend in ("CURVA_DESCENDENTE", "CURVA_ESTAGNADA") and opp_pts_eff >= cand_pts_eff) or
+            (opp_d == 0 and cand_d >= 2 and opp_pts_eff >= cand_pts_eff)
         )
 
         # 1. PROIBIÇÃO SOBERANA DE APOIAR TIME COM PIOR PERFORMANCE EM LINHA SECA OU FAVORÁVEL:
@@ -637,6 +655,18 @@ def evaluate_and_select_best_ah_candidate(
             opp_d = opp_l5.get('d', 0)
             is_tight_match = abs(raw_h_odd - raw_a_odd) <= 0.20
             if is_tight_match and (opp_d <= 1 or opp_pts_eff > cand_pts_eff) and cand_d > opp_d and c_line == 0.0:
+                continue
+
+        # 4.1 Trava de Piso de Odd para Handicap Positivo de Visitante (+0.75 AH e +0.5 AH):
+        # Linhas defensivas de visitante pagando cotação deprimida embutem assimetria de risco inaceitável:
+        # Se o mandante vencer por 2+ gols, o apostador amarga Red integral sem ter recebido prêmio adequado.
+        # Bloqueia terminantemente:
+        # - Visitante +0.75 AH com odd < 1.75
+        # - Visitante +0.5 AH com odd < 1.65
+        if c_is_away:
+            if c_line == 0.75 and c_odd < 1.75:
+                continue
+            if c_line == 0.50 and c_odd < 1.65:
                 continue
 
         # Identificação de Super-Favoritos Tier 1 com odd esmagadora (<= 1.22) e ratio >= 8.0x
@@ -826,19 +856,10 @@ def calculate_unified_handicap_recommendation(
         reason_block = f"🛡️ [Gatekeeper AH NO_BET / Amostragem Insuficiente] Histórico U5J insuficiente ou ausente para {home_team} vs {away_team}. Abstenção mandatória."
         return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_block), None, []
 
-    # Extração de xG ajustado derivado de U5J
-    xg_h = float(fixture_dict.get('xg_home') or 0.0)
-    xg_a = float(fixture_dict.get('xg_away') or 0.0)
-    if xg_h <= 0.1 or xg_a <= 0.1:
-        m_h = re.search(r'\(Em Casa\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
-        m_a = re.search(r'\(Fora\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
-        if m_h:
-            xg_h = float(m_h.group(1))
-        if m_a:
-            xg_a = float(m_a.group(1))
-
-    # Projeção de xG diretamente a partir dos 5 jogos oficiais de U5J se xg_h ou xg_a estiverem zerados
-    if (xg_h <= 0.1 or xg_a <= 0.1) and 'home' in u_json and 'away' in u_json:
+    # Projeção de xG diretamente a partir dos 5 jogos consolidados de U5J (Fonte Primária da Verdade):
+    xg_h = 0.0
+    xg_a = 0.0
+    if 'home' in u_json and 'away' in u_json:
         h_m = u_json['home'].get('matches', [])
         a_m = u_json['away'].get('matches', [])
         h_sc, h_con = [], []
@@ -862,9 +883,23 @@ def calculate_unified_handicap_recommendation(
                 except (ValueError, TypeError):
                     pass
         if h_sc and a_con:
-            xg_h = round((sum(h_sc) / len(h_sc) + sum(a_con) / len(a_con)) / 2.0, 2)
+            raw_xg_h = (sum(h_sc) / len(h_sc) + sum(a_con) / len(a_con)) / 2.0
+            xg_h = round(raw_xg_h * 1.08, 2)
         if a_sc and h_con:
-            xg_a = round((sum(a_sc) / len(a_sc) + sum(h_con) / len(h_con)) / 2.0, 2)
+            raw_xg_a = (sum(a_sc) / len(a_sc) + sum(h_con) / len(h_con)) / 2.0
+            xg_a = round(raw_xg_a * 0.92, 2)
+
+    # Fallback Secundário: Extração de xG do fixture_dict ou reasoning apenas se U5J não fornecer placares
+    if xg_h <= 0.1 or xg_a <= 0.1:
+        xg_h = float(fixture_dict.get('xg_home') or 0.0)
+        xg_a = float(fixture_dict.get('xg_away') or 0.0)
+    if xg_h <= 0.1 or xg_a <= 0.1:
+        m_h = re.search(r'\(Em Casa\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
+        m_a = re.search(r'\(Fora\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)', reasoning)
+        if m_h:
+            xg_h = float(m_h.group(1))
+        if m_a:
+            xg_a = float(m_a.group(1))
 
     if xg_h <= 0.1 or xg_a <= 0.1:
         reason_block = f"🛡️ [Gatekeeper AH NO_BET / Sem xG] Métricas de xG derivadas de U5J ausentes para {home_team} vs {away_team}. Abstenção mandatória."
@@ -875,27 +910,12 @@ def calculate_unified_handicap_recommendation(
     # 1. Matriz de Poisson
     poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
 
-    # 2. Obtenção de linhas REAIS ativas na Betano (Bookmaker ID 32)
-    if betano_lines is None:
-        if allow_api_fetch and fixture_id:
-            betano_lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
-        else:
-            betano_lines = []
-
-    # Se a Betano não possui linhas abertas de Handicap Asiático, abstenção mandatória (sem odds sintéticas)
-    if not betano_lines:
-        reason_no_odds = f"🛡️ [Gatekeeper AH NO_BET / Sem Odd Betano] Mercado de Handicap Asiático indisponível ou fechado na Betano (Bookmaker ID 32) para {home_team} vs {away_team}. Abstenção mandatória."
-        clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_no_odds)
-        compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção)', home_team, away_team, fixture_dict.get('home_team_id'), fixture_dict.get('away_team_id'), reasoning)
-        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, compound_r, None, []
-
-    # 3. Resolução de Odds 1X2 de Mercado (Esteira de Fallbacks Multi-Camadas):
-    # Camada 1: Banco de Dados (fixtures_trends)
+    # 2. Resolução de Odds 1X2 de Mercado (Prioridade: Banco de Dados -> Cache -> The Odds API):
     odd_h = float(fixture_dict.get('odd_home') or 0.0)
     odd_a = float(fixture_dict.get('odd_away') or 0.0)
     odd_d = float(fixture_dict.get('odd_draw') or 0.0)
 
-    # Camada 2: Payload da Casa Selecionada (Betano/Pinnacle/Bet365 via Bet ID 1)
+    # Camada 2: Payload da Casa Selecionada (Betano/Pinnacle/Bet365 via Bet ID 1) se banco estiver zerado
     if (odd_h <= 1.0 or odd_a <= 1.0) and fixture_id:
         b1x2 = _betano_ah_1x2_cache.get(fixture_id)
         if b1x2 and float(b1x2.get('casa', 0)) > 1.0 and float(b1x2.get('visitante', 0)) > 1.0:
@@ -916,7 +936,7 @@ def calculate_unified_handicap_recommendation(
                 except Exception:
                     pass
 
-    # Camada 3: Contingência The Odds API (quando API-Sports quota excedida ou sem 1X2)
+    # Camada 3: Contingência The Odds API (quando API-Sports quota excedida e odds 1X2 ausentes no banco)
     if (odd_h <= 1.0 or odd_a <= 1.0):
         try:
             from sports_arbitrage import fetch_live_odds_from_api
@@ -962,13 +982,49 @@ def calculate_unified_handicap_recommendation(
         except Exception:
             pass
 
-    # Camada 4: Barreira Mandatória do Gatekeeper - Se TODOS os fallbacks falharem
+    # NO_BET mandatário: apenas se as odds 1X2 estiverem nulas/zeradas
     if odd_h <= 1.0 or odd_a <= 1.0:
         reason_no_1x2 = (
             f"🛡️ [Gatekeeper AH NO_BET / Odds 1X2 Ausentes] Ausência de cotações 1X2 de mercado no banco, na Betano/Pinnacle e na The Odds API para {home_team} vs {away_team}. "
-            f"Abstenção mandatória: impossível determinar o favorito e calibrar a ancoragem da modelagem Poisson."
+            f"Abstenção mandatória: odds nulas."
         )
         clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_no_1x2)
+        compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção)', home_team, away_team, fixture_dict.get('home_team_id'), fixture_dict.get('away_team_id'), reasoning)
+        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, compound_r, None, []
+
+    # Calibração Estrutural de Paridade de Eficiência U5J e Mando de Campo:
+    # Se a diferença de eficiência ponderada entre as duas equipes for estreita (|h_eff - a_eff| <= 2.0)
+    # e o mandante for o favorito nas odds de mercado da Betano/1X2 (odd_h < odd_a),
+    # o visitante NÃO pode ter xG de Poisson desproporcionalmente superior ao mandante.
+    h_eff_calib = compute_team_u5j_efficiency(u_json.get('home') if isinstance(u_json, dict) else None)
+    a_eff_calib = compute_team_u5j_efficiency(u_json.get('away') if isinstance(u_json, dict) else None)
+    if abs(h_eff_calib - a_eff_calib) <= 2.0 and odd_h > 1.0 and odd_a > 1.0 and odd_h < odd_a:
+        if xg_a > xg_h:
+            xg_a = round(min(xg_a, xg_h * 0.95), 2)
+            poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
+
+    # 3. Obtenção de linhas ativas na Betano (Bookmaker ID 32):
+    if betano_lines is None:
+        if allow_api_fetch and fixture_id:
+            betano_lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
+        else:
+            betano_lines = []
+
+    # Se a API da Betano estiver sem cota ou indisponível, mantém os dados do banco e gera as linhas a partir das odds do banco:
+    if not betano_lines:
+        betano_lines = build_fallback_lines_from_odds(
+            home_team=home_team,
+            away_team=away_team,
+            odd_home=odd_h,
+            odd_away=odd_a,
+            ah_suggestion=fixture_dict.get('ah_suggestion'),
+            home_team_id=fixture_dict.get('home_team_id'),
+            away_team_id=fixture_dict.get('away_team_id')
+        )
+
+    if not betano_lines:
+        reason_no_odds = f"🛡️ [Gatekeeper AH NO_BET / Sem Linhas Disponíveis] Linhas de Handicap Asiático indisponíveis para {home_team} vs {away_team}. Abstenção mandatória."
+        clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_no_odds)
         compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção)', home_team, away_team, fixture_dict.get('home_team_id'), fixture_dict.get('away_team_id'), reasoning)
         return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, compound_r, None, []
 
@@ -1383,6 +1439,142 @@ def build_natural_language_explanation(suggestion, home_team, away_team):
         )
 
 
+def generate_high_level_ah_narrative(
+    suggestion: str,
+    home_team: str,
+    away_team: str,
+    main_calc: str = "",
+    h_u5j: dict = None,
+    a_u5j: dict = None,
+    odd_home: float = None,
+    odd_away: float = None
+) -> str:
+    """
+    Gera uma descrição objetiva e de alto nível para a saída do Gatekeeper.
+    Explica a relação entre as odds 1X2 da casa, a pontuação dos últimos 5 jogos (U5J)
+    e a razão estratégica pela qual a linha de handicap foi indicada com sua respectiva cobertura.
+    """
+    sug_clean = (suggestion or "").strip()
+    is_abstencao = any(w in sug_clean.lower() for w in ['abstenção', 'abstencao', 'sem entrada', 'bloquead', 'no_bet'])
+
+    # 1. Caso Abstenção / NO_BET
+    if is_abstencao:
+        if "Gatekeeper AH NO_BET" in main_calc:
+            return main_calc.strip()
+        h_eff = (h_u5j or {}).get("pts_efficiency") or (h_u5j or {}).get("pts", 0.0)
+        a_eff = (a_u5j or {}).get("pts_efficiency") or (a_u5j or {}).get("pts", 0.0)
+        return (
+            f"STATUS GK: NO_BET\n"
+            f"SUGGESTION: Sem Entrada (Abstenção)\n"
+            f"REASON: 🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} -> "
+            f"Nenhuma linha da Betano atingiu os limiares de rentabilidade (+EV >= 5.0%, Prob. Efetiva >= 48.0% ajustada por momento). "
+            f"Eficiência U5J: {home_team} ({h_eff:.1f} pts) vs {away_team} ({a_eff:.1f} pts). Abstenção mandatória."
+        )
+
+    # 2. Caso APROVADO (Palpite com Linha)
+    prob_eff = 50.0
+    m_prob = re.search(r'Prob\.\s*Efetiva:\s*([\d\.]+)%', main_calc)
+    if m_prob:
+        prob_eff = float(m_prob.group(1))
+
+    # Eficiência U5J
+    h_eff = (h_u5j or {}).get("pts_efficiency") or (h_u5j or {}).get("pts", 0.0)
+    a_eff = (a_u5j or {}).get("pts_efficiency") or (a_u5j or {}).get("pts", 0.0)
+    if h_eff == 0.0 and a_eff == 0.0:
+        m_u5j = re.search(r'Eficiência U5J:\s*[^0-9]+([\d\.]+)\s*pts\s*vs\s*[^0-9]+([\d\.]+)\s*pts', main_calc)
+        if m_u5j:
+            h_eff = float(m_u5j.group(1))
+            a_eff = float(m_u5j.group(2))
+
+    # Identifica time apostado
+    is_home_bet = home_team.lower() in sug_clean.lower()
+    backed_team = home_team if is_home_bet else away_team
+    opp_team = away_team if is_home_bet else home_team
+    backed_eff = h_eff if is_home_bet else a_eff
+    opp_eff = a_eff if is_home_bet else h_eff
+
+    # Identifica favorito pelas odds 1X2 da casa
+    fav_team = None
+    und_team = None
+    try:
+        oh = float(odd_home) if odd_home else None
+        oa = float(odd_away) if odd_away else None
+        if oh and oa:
+            if oh < oa:
+                fav_team = home_team
+                und_team = away_team
+            elif oa < oh:
+                fav_team = away_team
+                und_team = home_team
+    except Exception:
+        pass
+
+    if not fav_team:
+        if "-" in sug_clean:
+            fav_team = backed_team
+            und_team = opp_team
+        elif "+" in sug_clean:
+            fav_team = opp_team
+            und_team = backed_team
+        else:
+            fav_team = home_team
+            und_team = away_team
+
+    # Cobertura descritiva da linha de handicap
+    if "+0.75" in sug_clean:
+        cov_text = f"possui uma cobertura de {prob_eff:.0f}% sobre as demais, cobrindo vitória, empate e garantindo meio-reembolso em caso de derrota mínima por 1 gol"
+    elif "+0.5" in sug_clean or "+0.50" in sug_clean:
+        cov_text = f"possui uma cobertura de {prob_eff:.0f}% sobre as demais, garantindo 100% de retorno tanto na vitória quanto no empate (Dupla Chance)"
+    elif "+0.25" in sug_clean:
+        cov_text = f"possui uma cobertura de {prob_eff:.0f}% sobre as demais, com ganho total na vitória e meio-green (50% de lucro + devolução da stake) em caso de empate"
+    elif "0.0" in sug_clean or "dnb" in sug_clean.lower():
+        cov_text = f"oferece {prob_eff:.0f}% de cobertura efetiva, garantindo lucro na vitória e reembolso integral de 100% da banca em caso de empate"
+    elif "-0.25" in sug_clean:
+        cov_text = f"oferece {prob_eff:.0f}% de probabilidade efetiva de vitória com proteção de retorno parcial (apenas meio-red) em caso de empate"
+    elif "-0.5" in sug_clean or "-0.50" in sug_clean:
+        cov_text = f"oferece {prob_eff:.0f}% de probabilidade efetiva de vitória direta"
+    elif "-0.75" in sug_clean:
+        cov_text = f"garante retorno integral na vitória por 2+ gols e meio-green na vitória simples, com {prob_eff:.0f}% de cobertura calculada"
+    elif "+1.0" in sug_clean or "+1.00" in sug_clean:
+        cov_text = f"possui uma cobertura de {prob_eff:.0f}% sobre as demais, cobrindo vitória e empate com 100% de ganho e reembolso total em caso de derrota por 1 gol"
+    else:
+        cov_text = f"possui uma cobertura de {prob_eff:.0f}% sobre as demais opções de mercado"
+
+    diff_eff = abs(h_eff - a_eff)
+
+    # Cenário 1: Casa dá favoritismo a um time, mas pontuações U5J são muito aproximadas (Exemplo Palestino)
+    if fav_team and fav_team != backed_team and diff_eff <= 2.5:
+        role_label = "o azarão " if und_team == backed_team else ""
+        narrative = (
+            f"As odds 1x2 da casa de aposta dão favoritismo ao {fav_team}, porém com base na análise "
+            f"dos resultados dos últimos 5 jogos os 2 times têm pontuação muito aproximada ({home_team} {h_eff:.1f} pts vs {away_team} {a_eff:.1f} pts). "
+            f"Para estes casos, entende-se que a linha de proteção com cobertura para {role_label}{sug_clean} {cov_text}."
+        )
+    # Cenário 2: Time apostado é o favorito convergente (odds + U5J superior, ex: Sporting Cristal)
+    elif fav_team == backed_team and backed_eff >= opp_eff:
+        narrative = (
+            f"As odds 1x2 da casa de aposta e o momento recente convergem no favoritismo do {backed_team}, "
+            f"que registra desempenho superior nos últimos 5 jogos ({backed_eff:.1f} pts vs {opp_eff:.1f} pts do {opp_team}). "
+            f"A linha de proteção {sug_clean} {cov_text}."
+        )
+    # Cenário 3: Casa aponta o adversário, mas time apostado tem momento U5J nitidamente superior (Valor no azarão)
+    elif fav_team != backed_team and backed_eff > opp_eff:
+        narrative = (
+            f"Embora as odds 1x2 da casa de aposta apontem o {fav_team} como favorito, a análise "
+            f"dos últimos 5 jogos revela momento superior do {backed_team} ({backed_eff:.1f} pts vs {opp_eff:.1f} pts). "
+            f"Para este cenário de distorção, a linha de proteção {sug_clean} {cov_text}."
+        )
+    # Cenário 4: Confronto parelho ou time apostado com ligeira vantagem
+    else:
+        narrative = (
+            f"Confronto com forças equilibradas nas cotações 1x2 e na pontuação dos últimos 5 jogos "
+            f"({home_team} {h_eff:.1f} pts vs {away_team} {a_eff:.1f} pts). Diante do equilíbrio técnico, "
+            f"a indicação estratégica {sug_clean} {cov_text}."
+        )
+
+    return narrative
+
+
 def compose_compound_ah_reasoning(
     cursor,
     fixture_id: int,
@@ -1403,6 +1595,8 @@ def compose_compound_ah_reasoning(
     """
     u5j_json_str = None
     existing_motivation = None
+    h_u5j = None
+    a_u5j = None
 
     # Prioridade Absoluta (Regra 1): Sempre consulta a fonte mais atualizada via get_team_u5j_from_db (Cache-First MySQL)
     if cursor:
@@ -1427,6 +1621,8 @@ def compose_compound_ah_reasoning(
             parsed_u = json.loads(u_part)
             if (parsed_u.get("home", {}).get("matches") or parsed_u.get("away", {}).get("matches")):
                 u5j_json_str = u_part
+                h_u5j = h_u5j or parsed_u.get("home", {})
+                a_u5j = a_u5j or parsed_u.get("away", {})
         except Exception:
             u5j_json_str = None
 
@@ -1434,7 +1630,7 @@ def compose_compound_ah_reasoning(
         if "|| MOTIVACAO:" in existing_reasoning:
             try:
                 cand_mot = existing_reasoning.split("|| MOTIVACAO:")[1].split("||")[0].strip()
-                is_sub_abstencao = any(w in str(suggestion).lower() for w in ['abstenção', 'sem entrada', 'bloquead', 'no_bet'])
+                is_sub_abstencao = any(w in str(suggestion).lower() for w in ['abstenção', 'abstencao', 'sem entrada', 'bloquead', 'no_bet'])
                 is_mot_abstencao = any(w in cand_mot.lower() for w in ['abstenção', 'bloqueada', 'incerteza', 'proteção de banca: entrada de handicap bloqueada', 'sem entrada'])
                 # Só reaproveita a motivação se a natureza semântica for estritamente idêntica (ambas abstenção ou ambas aprovadas)
                 if is_sub_abstencao == is_mot_abstencao:
@@ -1444,6 +1640,15 @@ def compose_compound_ah_reasoning(
             except Exception:
                 existing_motivation = None
 
+    # Descarta descrições genéricas antigas que não explicam o motivo do palpite
+    generic_phrases = [
+        "alinhamento estatístico da modelagem poisson",
+        "alinhamento estatistico da modelagem poisson",
+        "alinhamento de eficiência ponderada (sos)"
+    ]
+    if existing_motivation and any(gp in existing_motivation.lower() for gp in generic_phrases):
+        existing_motivation = None
+
     if not u5j_json_str:
         u5j_json_str = json.dumps({
             "home": {"v": 0, "e": 0, "d": 0, "pts": 0, "text": "Aguardando", "matches": []},
@@ -1452,10 +1657,26 @@ def compose_compound_ah_reasoning(
 
     nl_exp = build_natural_language_explanation(suggestion, home_team, away_team)
     if not existing_motivation:
-        if any(w in str(suggestion).lower() for w in ['abstenção', 'sem entrada', 'bloquead', 'no_bet']):
-            nl_mot = "🛡️ Fator Crucial: Gestão de Risco e Proteção de Banca. A indicação de abstenção fundamenta-se na priorização da segurança operacional para evitar exposições de alto risco em cenários de incerteza ou odds distorcidas."
-        else:
-            nl_mot = "🎯 Fator Crucial: Alinhamento estatístico da modelagem Poisson (+EV) com proteção rigorosa da banca e consistência de mercado."
+        odd_home, odd_away = None, None
+        if cursor and fixture_id:
+            try:
+                cursor.execute("SELECT odd_home, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+                r_odds = cursor.fetchone()
+                if r_odds:
+                    odd_home = r_odds.get("odd_home")
+                    odd_away = r_odds.get("odd_away")
+            except Exception:
+                pass
+        nl_mot = generate_high_level_ah_narrative(
+            suggestion=suggestion,
+            home_team=home_team,
+            away_team=away_team,
+            main_calc=main_calc,
+            h_u5j=h_u5j,
+            a_u5j=a_u5j,
+            odd_home=odd_home,
+            odd_away=odd_away
+        )
     else:
         nl_mot = existing_motivation
 

@@ -463,6 +463,21 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
     user_ids = get_all_user_ids(cursor)
     print(f"👥 Usuários identificados: {user_ids}")
 
+    # Sincronização sistêmica de remarcações: reconcilia datas de apostas pendentes com fixtures_trends
+    try:
+        cursor.execute("""
+            UPDATE apostas a
+            INNER JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
+            SET a.data_hora_jogo = ft.fixture_date
+            WHERE a.status = 'Pendente'
+              AND a.data_hora_jogo != ft.fixture_date
+        """)
+        reconciled_cnt = cursor.rowcount
+        if reconciled_cnt > 0:
+            print(f"🔄 [Sincronização Sistêmica] Reconciliada a data de {reconciled_cnt} aposta(s) pendente(s) com fixtures_trends.")
+    except Exception as e_reconcile:
+        print(f"Aviso ao reconciliar datas de apostas pendentes: {e_reconcile}")
+
     if is_prematch_window:
         cursor.execute("""
             SELECT * FROM fixtures_trends
@@ -476,6 +491,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
         cursor.execute(f"""
             SELECT * FROM fixtures_trends
             WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN ({placeholders})
+              AND fixture_date >= DATE_ADD(NOW(), INTERVAL 5 MINUTE)
               AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """, tuple(target_dates))

@@ -395,7 +395,9 @@ def fetch_api_sports_team_last5(team_id, limit=5):
                 teams = item.get('teams', {})
                 goals = item.get('goals', {})
                 home_id = teams.get('home', {}).get('id')
+                away_id = teams.get('away', {}).get('id')
                 is_home = (int(home_id) == tid) if home_id else True
+                opp_id = int(away_id) if is_home and away_id else (int(home_id) if not is_home and home_id else None)
                 opp_name = teams.get('away', {}).get('name') if is_home else teams.get('home', {}).get('name')
                 gh = goals.get('home') if goals.get('home') is not None else 0
                 ga = goals.get('away') if goals.get('away') is not None else 0
@@ -409,6 +411,7 @@ def fetch_api_sports_team_last5(team_id, limit=5):
                     sc = f"{ga}x{gh}"
 
                 matches.append({
+                    "opponent_id": opp_id,
                     "opponent": opp_name,
                     "score": sc,
                     "result": res,
@@ -543,6 +546,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                     continue
                 seen_fixtures.add(fid)
                 is_home = (int(r['home_team_id']) == int(team_id)) if r.get('home_team_id') else (r['home_team'].lower() == team_name.lower())
+                opp_id = int(r['away_team_id']) if is_home and r.get('away_team_id') else (int(r['home_team_id']) if not is_home and r.get('home_team_id') else None)
                 gh = r['goals_home'] if r['goals_home'] is not None else 0
                 ga = r['goals_away'] if r['goals_away'] is not None else 0
                 opp_name = r['away_team'] if is_home else r['home_team']
@@ -553,7 +557,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                 else:
                     res = "V" if ga > gh else ("E" if gh == ga else "D")
                     sc = f"{ga}x{gh}"
-                cand = {"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "date": _format_match_date(fdate), "fixture_id": fid}
+                cand = {"opponent_id": opp_id, "opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "date": _format_match_date(fdate), "fixture_id": fid}
                 if not _is_match_duplicate(cand, matches):
                     matches.append(cand)
                 if len(matches) >= 5:
@@ -610,6 +614,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                         gh = r['goals_home'] if r['goals_home'] is not None else 0
                         ga = r['goals_away'] if r['goals_away'] is not None else 0
                         is_home = h_match
+                        opp_id = int(r['away_team_id']) if is_home and r.get('away_team_id') else (int(r['home_team_id']) if not is_home and r.get('home_team_id') else None)
                         opp_name = r['away_team'] if is_home else r['home_team']
                         fdate = r.get('fixture_date')
                         if is_home:
@@ -618,7 +623,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                         else:
                             res = "V" if ga > gh else ("E" if gh == ga else "D")
                             sc = f"{ga}x{gh}"
-                        cand = {"opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "date": _format_match_date(fdate), "fixture_id": fid}
+                        cand = {"opponent_id": opp_id, "opponent": opp_name, "score": sc, "result": res, "is_home": is_home, "date": _format_match_date(fdate), "fixture_id": fid}
                         if not _is_match_duplicate(cand, matches):
                             matches.append(cand)
                         if len(matches) >= 5:
@@ -784,21 +789,31 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
     tier1_opp_count = 0
     for m in clean_matches:
         opp_name = m.get("opponent", "")
-        is_t1 = is_tier_1_elite_club(team_name=opp_name)
+        opp_id = m.get("opponent_id")
+        is_t1 = is_tier_1_elite_club(team_id=opp_id, team_name=opp_name)
         m["is_tier_1"] = is_t1
         if is_t1:
             tier1_opp_count += 1
         res = (m.get("result") or "").upper()
+        is_home = m.get("is_home", True)
         if res == "V":
             pts_eff += 5.0 if is_t1 else 3.0
         elif res == "E":
-            pts_eff += 2.0 if is_t1 else 1.0
+            pts_eff += 2.5 if is_t1 else 1.0
         elif res == "D":
-            pts_eff += 0.0 if is_t1 else -1.0
+            if is_t1:
+                pts_eff += 0.5 if not is_home else 0.0
+            else:
+                pts_eff -= 1.0
+
+    sos_mult = 1.0 + (tier1_opp_count * 0.12)
+    pts_eff_total = round(pts_eff * sos_mult, 1)
+    if tier1_opp_count == 0 and pts_eff_total > 11.0:
+        pts_eff_total = 11.0
 
     res = {
         "v": v, "e": e, "d": d, "pts": pts,
-        "pts_efficiency": round(pts_eff, 1),
+        "pts_efficiency": pts_eff_total,
         "tier1_opponents": tier1_opp_count,
         "text": f"{v}V-{e}E-{d}D",
         "matches": clean_matches
@@ -1292,22 +1307,35 @@ def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
     w_weights = [5, 4, 3, 2, 1]
     pts_raw = []
     pts_eff_total = 0.0
+    tier1_cnt = 0
     for m in sorted_matches[:5]:
         res = (m.get("result") or "").upper()
         opp_name = m.get("opponent", "")
+        opp_id = m.get("opponent_id")
         is_t1 = m.get("is_tier_1")
-        if is_t1 is None:
-            is_t1 = is_tier_1_elite_club(team_name=opp_name)
+        if is_t1 is None or opp_id is not None:
+            is_t1 = is_tier_1_elite_club(team_id=opp_id, team_name=opp_name)
+        if is_t1:
+            tier1_cnt += 1
+        is_home = m.get("is_home", True)
         
         if res == "V":
             pts_raw.append(3)
             pts_eff_total += 5.0 if is_t1 else 3.0
         elif res == "E":
             pts_raw.append(1)
-            pts_eff_total += 2.0 if is_t1 else 1.0
+            pts_eff_total += 2.5 if is_t1 else 1.0
         else:
             pts_raw.append(0)
-            pts_eff_total += 0.0 if is_t1 else -1.0
+            if is_t1:
+                pts_eff_total += 0.5 if not is_home else 0.0
+            else:
+                pts_eff_total -= 1.0
+
+    sos_mult = 1.0 + (tier1_cnt * 0.12)
+    pts_eff_total = round(pts_eff_total * sos_mult, 1)
+    if tier1_cnt == 0 and pts_eff_total > 11.0:
+        pts_eff_total = 11.0
 
     # Pontuação ponderada: Score_w max = 15 * 3 = 45 -> Normalizado para 0 a 15
     score_w = sum(w * pt for w, pt in zip(w_weights, pts_raw))
@@ -1413,8 +1441,8 @@ def calculate_asian_handicap_suggestion(
         u5j_json = json.dumps({"home": home_last5, "away": away_last5}, ensure_ascii=False)
         return suggestion, confidence, f"{reasoning_text} || EXPLICACAO: 🚫 Bloqueio por Amostragem Insuficiente || MOTIVACAO: Risco estatístico elevado com menos de 5 jogos consolidados || MEMÓRIA DE CÁLCULO || Amostragem Incompleta || U5J_DATA: {u5j_json}", 0.0, 0.0
 
-    # Se xG de jogo ao vivo não existe (pré-jogo), projeta o xG pré-jogo a partir do histórico U5J dos times
-    if (home_goals_scored <= 0.01 and away_goals_scored <= 0.01):
+    # Se xG de jogo ao vivo não existe (pré-jogo) ou se histórico U5J existe, projeta o xG pré-jogo a partir do histórico U5J dos times
+    if (home_goals_scored <= 0.01 and away_goals_scored <= 0.01) or (h_matches and a_matches):
         if h_matches or a_matches:
             h_scored_list, h_conceded_list = [], []
             for m in h_matches:

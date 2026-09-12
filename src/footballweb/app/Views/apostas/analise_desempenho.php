@@ -1084,7 +1084,9 @@ function updatePerformanceDashboard() {
         count: 0,
         pendingCount: 0,
         hasPending: false,
-        isToday: (rawDate === todayStr)
+        isToday: (rawDate === todayStr),
+        ganhas: 0,
+        decided: 0
       };
     }
     buckets[key].apostado += valor;
@@ -1094,6 +1096,22 @@ function updatePerformanceDashboard() {
     if (status === 'Pendente') {
       buckets[key].pendingCount += 1;
       buckets[key].hasPending = true;
+    }
+
+    if (status === 'Ganha') {
+      buckets[key].ganhas += 1.0;
+      buckets[key].decided += 1;
+    } else if (status === 'Meio Ganha') {
+      buckets[key].ganhas += 0.75;
+      buckets[key].decided += 1;
+    } else if (status === 'Meio Perdida') {
+      buckets[key].ganhas += 0.25;
+      buckets[key].decided += 1;
+    } else if (status === 'Perdida') {
+      buckets[key].decided += 1;
+    } else if (status === 'Cashout') {
+      if (netProfit > 0) buckets[key].ganhas += 1.0;
+      buckets[key].decided += 1;
     }
 
     let modKey = 'outros';
@@ -1207,11 +1225,14 @@ function updatePerformanceDashboard() {
   const cumulativeLucroData = [];
   const cumulativeCartoesLucro = [];
   const cumulativeAhLucro = [];
+  const cumulativeWinRateData = [];
 
   let runningApostado = 0;
   let runningLucro = 0;
   let runningCartoesLucro = 0;
   let runningAhLucro = 0;
+  let runningGanhas = 0;
+  let runningDecided = 0;
 
   bucketKeys.forEach(k => {
     const b = buckets[k];
@@ -1230,6 +1251,13 @@ function updatePerformanceDashboard() {
     }
     cumulativeCartoesLucro.push(runningCartoesLucro);
     cumulativeAhLucro.push(runningAhLucro);
+
+    if (!isOpen || isSingleDayToday) {
+      runningGanhas += (b.ganhas || 0);
+      runningDecided += (b.decided || 0);
+    }
+    const curWinRate = runningDecided > 0 ? (runningGanhas / runningDecided) * 100 : 0;
+    cumulativeWinRateData.push(parseFloat(curWinRate.toFixed(1)));
 
     let label = k;
     if (groupMode === 'dia' && k.length === 10) {
@@ -1511,7 +1539,7 @@ function updatePerformanceDashboard() {
     });
   });
 
-  renderChart(labels, cumulativeApostadoData, cumulativeLucroData);
+  renderChart(labels, cumulativeApostadoData, cumulativeLucroData, cumulativeWinRateData);
   renderModalidadesChart(labels, cumulativeCartoesLucro, cumulativeAhLucro, modalityTimeline, bucketKeys);
   renderMercadoChart(mercadoLabels, mercadoLucroData, mercadoBgColors, mercadoBorderColors, mercadoMetaDetails);
   renderLeagueProfitChart(leagueLabels, leagueLucroData, leagueBgColors, leagueBorderColors, leagueMetaDetails);
@@ -1519,7 +1547,7 @@ function updatePerformanceDashboard() {
   renderTableBreakdown(bucketKeys, buckets, groupMode);
 }
 
-function renderChart(labels, apostadoData, lucroData) {
+function renderChart(labels, apostadoData, lucroData, winRateData) {
   const canvas = document.getElementById('performanceChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -1542,7 +1570,8 @@ function renderChart(labels, apostadoData, lucroData) {
           pointRadius: 4,
           pointBackgroundColor: '#00b0ff',
           tension: 0.3,
-          fill: true
+          fill: true,
+          yAxisID: 'y'
         },
         {
           label: 'Lucro Líquido Real Acumulado (R$)',
@@ -1553,7 +1582,24 @@ function renderChart(labels, apostadoData, lucroData) {
           pointRadius: 5,
           pointBackgroundColor: '#00e676',
           tension: 0.3,
-          fill: true
+          fill: true,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Taxa de Acerto Acumulada (%)',
+          data: winRateData,
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245, 158, 11, 0.08)',
+          borderWidth: 2.5,
+          borderDash: [5, 4],
+          pointRadius: 4,
+          pointBackgroundColor: '#f59e0b',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 1.5,
+          pointHoverRadius: 6,
+          tension: 0.3,
+          fill: false,
+          yAxisID: 'y1'
         }
       ]
     },
@@ -1579,7 +1625,11 @@ function renderChart(labels, apostadoData, lucroData) {
                 label += ': ';
               }
               if (context.parsed.y !== null) {
-                label += context.parsed.y.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                if (context.dataset.yAxisID === 'y1' || (context.dataset.label && context.dataset.label.includes('%'))) {
+                  label += context.parsed.y.toFixed(1).replace('.', ',') + '%';
+                } else {
+                  label += context.parsed.y.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                }
               }
               return label;
             }
@@ -1592,12 +1642,30 @@ function renderChart(labels, apostadoData, lucroData) {
           ticks: { color: '#94a3b8', font: { family: 'Inter' } }
         },
         y: {
+          type: 'linear',
+          display: true,
+          position: 'left',
           grid: { color: 'rgba(255, 255, 255, 0.08)' },
           ticks: {
             color: '#94a3b8',
             font: { family: 'Inter' },
             callback: function(value) {
               return 'R$ ' + value.toLocaleString('pt-BR');
+            }
+          }
+        },
+        y1: {
+          type: 'linear',
+          display: true,
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          min: 0,
+          max: 100,
+          ticks: {
+            color: '#f59e0b',
+            font: { family: 'Inter', weight: 'bold' },
+            callback: function(value) {
+              return value + '%';
             }
           }
         }

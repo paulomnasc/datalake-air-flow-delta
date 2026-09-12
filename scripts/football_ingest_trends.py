@@ -676,7 +676,7 @@ def fetch_team_last5_form(cursor, team_name, team_id=None, league_id=None):
                 113: 'Sweden',
                 119: 'Denmark',
                 144: 'Belgium',
-                218: 'Austria', 219: 'Austria',
+                218: 'Austria',
                 179: 'Scotland',
                 106: 'Poland',
                 345: 'Czech-Republic',

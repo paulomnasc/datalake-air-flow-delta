@@ -78,7 +78,16 @@ def compute_team_u5j_efficiency(last5_dict: dict) -> float:
 # Caches em memória para chamadas da API Betano durante o ciclo de execução
 _betano_ah_odds_cache = {}
 _betano_ah_raw_fixture_cache = {}
+_betano_ah_1x2_cache = {}
 _betano_ah_api_disabled = False
+
+
+def get_cached_betano_1x2(fixture_id: int):
+    """
+    Retorna as odds 1X2 obtidas da Betano durante a varredura de pré-jogo:
+    {'casa': float, 'empate': float, 'visitante': float, 'bookmaker': str} ou None.
+    """
+    return _betano_ah_1x2_cache.get(fixture_id)
 
 
 def get_live_env_vars():
@@ -329,6 +338,31 @@ def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
                         'raw_value': v_str,
                         'source': target_source
                     })
+
+            # Bet ID 1 = Match Winner (1X2 / Vencedor do Encontro)
+            elif b_id == 1 or 'match winner' in b_name or b_name == '1x2' or 'resultado final' in b_name:
+                c_home, c_draw, c_away = 0.0, 0.0, 0.0
+                for val in bet.get('values', []):
+                    v_str = str(val.get('value', '')).strip().lower()
+                    try:
+                        odd_val = float(val.get('odd', 0))
+                    except (ValueError, TypeError):
+                        odd_val = 0.0
+                    if odd_val <= 1.0:
+                        continue
+                    if v_str in ['home', '1', 'casa', 'mandante'] or (home_team and home_team.lower() in v_str):
+                        c_home = odd_val
+                    elif v_str in ['draw', 'x', 'empate']:
+                        c_draw = odd_val
+                    elif v_str in ['away', '2', 'fora', 'visitante'] or (away_team and away_team.lower() in v_str):
+                        c_away = odd_val
+                if c_home > 1.0 and c_draw > 1.0 and c_away > 1.0:
+                    _betano_ah_1x2_cache[fixture_id] = {
+                        'casa': c_home,
+                        'empate': c_draw,
+                        'visitante': c_away,
+                        'bookmaker': target_source
+                    }
 
     _betano_ah_odds_cache[fixture_id] = available_lines
     return available_lines
@@ -1385,15 +1419,40 @@ def sync_fixture_and_bet_handicap(
         existing_reasoning=existing_r
     )
 
-    cursor.execute("""
-        UPDATE fixtures_trends SET
-            ah_suggestion = %s,
-            ah_confidence = %s,
-            ah_reasoning = %s,
-            updated_at = NOW()
-        WHERE fixture_id = %s
-    """, (selected_palpite, prob_poisson, compound_reasoning, fixture_id))
-    print(f"🔗 [Sincronismo Card AH] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}'.")
+    b1x2 = _betano_ah_1x2_cache.get(fixture_id)
+    if b1x2 and b1x2.get('casa') and b1x2.get('empate') and b1x2.get('visitante'):
+        bm_label = b1x2.get('bookmaker', 'Betano').capitalize()
+        cursor.execute("""
+            UPDATE fixtures_trends SET
+                ah_suggestion = %s,
+                ah_confidence = %s,
+                ah_reasoning = %s,
+                odd_home = %s,
+                casa_odd_home = %s,
+                odd_draw = %s,
+                casa_odd_draw = %s,
+                odd_away = %s,
+                casa_odd_away = %s,
+                updated_at = NOW()
+            WHERE fixture_id = %s
+        """, (
+            selected_palpite, prob_poisson, compound_reasoning,
+            b1x2['casa'], bm_label,
+            b1x2['empate'], bm_label,
+            b1x2['visitante'], bm_label,
+            fixture_id
+        ))
+        print(f"🔗 [Sincronismo Card AH & 1X2] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}' e Odds 1X2 {bm_label} ({b1x2['casa']}/{b1x2['empate']}/{b1x2['visitante']}).")
+    else:
+        cursor.execute("""
+            UPDATE fixtures_trends SET
+                ah_suggestion = %s,
+                ah_confidence = %s,
+                ah_reasoning = %s,
+                updated_at = NOW()
+            WHERE fixture_id = %s
+        """, (selected_palpite, prob_poisson, compound_reasoning, fixture_id))
+        print(f"🔗 [Sincronismo Card AH] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}'.")
 
 
 def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção da IA / Gestão de Risco"):

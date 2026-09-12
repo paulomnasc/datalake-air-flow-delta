@@ -3320,8 +3320,13 @@ if (!function_exists('getBetDecisionTree')) {
                                             $awayName = $fix->away_team ?? 'Fora';
                                             $rText = ($raw_reasoning ?? '') . ' ' . ($main_analysis ?? '') . ' ' . ($motivation ?? '');
 
+                                            // 0. Detalhamento Estruturado do Gatekeeper (Prioridade Máxima)
+                                            if (stripos($main_analysis, 'STATUS GK:') !== false || stripos($raw_reasoning, 'STATUS GK:') !== false || stripos($rText, 'Gatekeeper AH NO_BET') !== false || stripos($rText, '🛡️ [Gatekeeper') !== false) {
+                                                $ah_block_badge = 'Gatekeeper NO_BET';
+                                                $ah_block_desc = !empty($main_analysis) ? $main_analysis : $raw_reasoning;
+                                            }
                                             // 1. Odds Indisponíveis / Cotações Ausentes
-                                            if (
+                                            elseif (
                                                 stripos($rText, 'Odds de mercado indisponíveis') !== false ||
                                                 stripos($rText, 'Odds Indisponíveis') !== false ||
                                                 stripos($rText, 'Odds Ausentes') !== false ||

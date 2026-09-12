@@ -1246,7 +1246,9 @@ if (!function_exists('getBookmakerUrl')) {
               );
 
               if ($isAbstencaoBloqueada) {
-                if (!empty($aposta->odd_home) && !empty($aposta->odd_draw) && !empty($aposta->odd_away)) {
+                if (stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false || stripos($detalhadoExibir, 'analisou a partida') !== false) {
+                  $abstencaoTexto = $detalhadoExibir;
+                } elseif (!empty($aposta->odd_home) && !empty($aposta->odd_draw) && !empty($aposta->odd_away)) {
                   $abstencaoTexto = sprintf(
                     lang('App.ai_abstain_with_odds'),
                     htmlspecialchars($aposta->time_casa),
@@ -1258,8 +1260,6 @@ if (!function_exists('getBookmakerUrl')) {
                     lang('App.odds_away'),
                     number_format($aposta->odd_away, 2)
                   );
-                } elseif (stripos($detalhadoExibir, 'analisou a partida') !== false) {
-                  $abstencaoTexto = $detalhadoExibir;
                 } else {
                   $abstencaoTexto = sprintf(lang('App.ai_abstain_desc_generic'), htmlspecialchars($aposta->time_casa), htmlspecialchars($aposta->time_fora));
                 }
@@ -1374,7 +1374,7 @@ if (!function_exists('getBookmakerUrl')) {
                       <i class="bi bi-exclamation-triangle-fill"></i> <?= lang('App.reason_ai_abstention') ?>:
                     </div>
                     <span class="badge" style="background: rgba(239, 68, 68, 0.22); border: 1px solid rgba(239, 68, 68, 0.6); color: #fca5a5; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px;">
-                      <i class="bi bi-shield-lock-fill"></i> <?= lang('App.ai_abstain_badge_generic') ?>
+                      <i class="bi bi-shield-lock-fill"></i> <?= (stripos($detalhadoExibir, 'STATUS GK:') !== false || stripos($detalhadoExibir, 'Gatekeeper') !== false) ? 'Gatekeeper NO_BET' : lang('App.ai_abstain_badge_generic') ?>
                     </span>
                   </div>
                   <div style="white-space: pre-line; font-size: 0.75rem; color: #e2e8f0; line-height: 1.45;">

@@ -332,7 +332,11 @@ from cards_engine import (
     fetch_betano_real_card_odds,
     evaluate_best_card_under_line,
     sync_fixture_and_bet_cards,
-    enrich_missing_referees_batch
+    enrich_missing_referees_batch,
+    format_gatekeeper_result,
+    is_knockout_round_advanced,
+    calculate_u5j_card_friction,
+    get_team_u5j_efficiency_cards
 )
 
 def criar_apostas_cartoes_diario(target_date_str=None):
@@ -463,13 +467,24 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             continue
 
         prediction_text = (fix.get('prediction_text') or '').strip()
+        league_round = (fix.get('league_round') or '').strip()
+        is_knockout = is_knockout_round_advanced(league_round, league_name)
 
-        # Extrair expectativa de cartões xC do texto ou calcular baseline
+        # Cálculo de Atrito Disciplinar U5J e Mata-Mata Oitavas+
+        h_tid = fix.get('home_team_id')
+        a_tid = fix.get('away_team_id')
+        _, h_eff = get_team_u5j_efficiency_cards(cursor, h_tid, home_team)
+        _, a_eff = get_team_u5j_efficiency_cards(cursor, a_tid, away_team)
+        friction_mult, friction_desc = calculate_u5j_card_friction(h_eff, a_eff)
+        knockout_mult = 1.18 if is_knockout else 1.00
+
+        # Extrair expectativa de cartões xC do texto e calibrar com multiplicadores
         match_xc = re.search(r'Expectativa:\s*(\d+(?:\.\d+)?)\s*cartões', prediction_text, re.IGNORECASE)
         if match_xc:
-            exp_cards = float(match_xc.group(1))
+            base_xc = float(match_xc.group(1))
+            exp_cards = round(base_xc * friction_mult * knockout_mult, 2)
         else:
-            exp_cards = 4.20
+            exp_cards = round(4.20 * friction_mult * knockout_mult, 2)
 
         # Consulta estatísticas do árbitro para acionamento da Trava de Piso
         ref_cards_avg = None
@@ -479,16 +494,34 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             if r_row:
                 ref_cards_avg = float(r_row.get('average_yellow_cards') or 0.0) + float(r_row.get('average_red_cards') or 0.0)
 
+        u5j_info = {
+            'h_eff': h_eff,
+            'a_eff': a_eff,
+            'friction_mult': friction_mult,
+            'desc': friction_desc
+        }
+
         selected_cand, valid_cands, pred_text, over_cards_prob = evaluate_best_card_under_line(
             exp_cards=exp_cards,
             fixture_id=fixture_id,
             allow_api=True,
-            referee_cards_avg=ref_cards_avg
+            referee_cards_avg=ref_cards_avg,
+            u5j_friction_info=u5j_info,
+            is_knockout=is_knockout,
+            home_team=home_team,
+            away_team=away_team
         )
 
         if not selected_cand:
-            print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano, Trava Árbitro ou EV Negativo] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha recomendada possui +EV positivo na Betano com margem de segurança.")
-            cancelar_apostas_pendentes_existentes("Linha indisponível, reprovada na Betano ou bloqueada por Trava de Piso do Árbitro")
+            print(f"🛡️ [Gatekeeper NO_BET / Cartões] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> {pred_text}")
+            cancelar_apostas_pendentes_existentes(pred_text)
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    prediction_text = %s,
+                    over_cards_probability = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (pred_text, over_cards_prob, fixture_id))
             apostas_abstencao += 1
             continue
 

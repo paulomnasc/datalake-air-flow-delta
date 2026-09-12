@@ -90,6 +90,19 @@ def get_cached_betano_1x2(fixture_id: int):
     return _betano_ah_1x2_cache.get(fixture_id)
 
 
+def format_gatekeeper_result(status_gk: str, suggestion: str, reason: str) -> str:
+    """
+    Padroniza rigorosamente o resultado do Gatekeeper no formato oficial:
+    STATUS GK: {status_gk}
+    SUGGESTION: {suggestion}
+    REASON: {reason}
+    """
+    clean_reason = str(reason or '').strip()
+    if clean_reason.startswith("STATUS GK:"):
+        return clean_reason
+    return f"STATUS GK: {status_gk}\nSUGGESTION: {suggestion}\nREASON: {clean_reason}"
+
+
 def get_live_env_vars():
     env_paths = [
         "/root/datalake-air-flow-delta/src/footballweb/.env",
@@ -743,14 +756,14 @@ def calculate_unified_handicap_recommendation(
                 f"🛡️ [Gatekeeper AH NO_BET / Amostragem Insuficiente] Histórico recente incompleto (< 5 partidas consolidadas para {lacking_str}). "
                 f"Entrada de Handicap bloqueada pelo Gatekeeper por segurança estatística e integridade amostral."
             )
-            return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, reason_block, None, []
+            return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_block), None, []
 
     if (h_matches_cnt is None or a_matches_cnt is None) and any(b in reasoning.lower() for b in [
         'amostragem insuficiente', 'histórico indisponível', 'histórico ausente', 
         '< 5 partidas consolidadas', 'amostragem incompleta', 'dados insuficientes'
     ]):
         reason_block = f"🛡️ [Gatekeeper AH NO_BET / Amostragem Insuficiente] Histórico U5J insuficiente ou ausente para {home_team} vs {away_team}. Abstenção mandatória."
-        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, reason_block, None, []
+        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_block), None, []
 
     # Extração de xG ajustado derivado de U5J
     xg_h = float(fixture_dict.get('xg_home') or 0.0)
@@ -794,7 +807,7 @@ def calculate_unified_handicap_recommendation(
 
     if xg_h <= 0.1 or xg_a <= 0.1:
         reason_block = f"🛡️ [Gatekeeper AH NO_BET / Sem xG] Métricas de xG derivadas de U5J ausentes para {home_team} vs {away_team}. Abstenção mandatória."
-        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, reason_block, None, []
+        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_block), None, []
 
     # 1. Matriz de Poisson
     poisson_matrix = calculate_bivariate_poisson_matrix(xg_h, xg_a)
@@ -809,7 +822,7 @@ def calculate_unified_handicap_recommendation(
     # Se a Betano não possui linhas abertas de Handicap Asiático, abstenção mandatória (sem odds sintéticas)
     if not betano_lines:
         reason_no_odds = f"🛡️ [Gatekeeper AH NO_BET / Sem Odd Betano] Mercado de Handicap Asiático indisponível ou fechado na Betano (Bookmaker ID 32) para {home_team} vs {away_team}. Abstenção mandatória."
-        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, reason_no_odds, None, []
+        return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_no_odds), None, []
 
     odd_h = float(fixture_dict.get('odd_home') or 2.0)
     odd_a = float(fixture_dict.get('odd_away') or 2.0)
@@ -890,7 +903,7 @@ def calculate_unified_handicap_recommendation(
                 f"Eficiência U5J: {home_team} ({fav_eff if fav_is_home else dog_eff:.1f} pts) vs {away_team} ({dog_eff if fav_is_home else fav_eff:.1f} pts). "
                 f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}. Abstenção mandatória."
             )
-        return 'NO_BET', sug, conf, reason, None, []
+        return 'NO_BET', sug, conf, format_gatekeeper_result('NO_BET', sug, reason), None, []
 
     eval_res = best_cand['eval']
     selected_palpite = best_cand['palpite_str']
@@ -902,7 +915,7 @@ def calculate_unified_handicap_recommendation(
 
     h_eff = compute_team_u5j_efficiency(h_l5)
     a_eff = compute_team_u5j_efficiency(a_l5)
-    detalhe_calculo = (
+    raw_calc = (
         f"🎯 GATEKEEPER AH APROVADO (+EV {ev_perc:+.1f}%) | "
         f"Odd Betano {odd_val:.2f} vs Odd Justa {odd_justa:.2f} (Prob. Efetiva: {prob_poisson:.1f}%) | "
         f"Eficiência U5J: {home_team} {h_eff:.1f} pts vs {away_team} {a_eff:.1f} pts | "
@@ -910,6 +923,7 @@ def calculate_unified_handicap_recommendation(
         f"Desfechos: Vitória {eval_res['p_win']:.1f}%, Meio-Green {eval_res['p_half_win']:.1f}%, "
         f"Push {eval_res['p_push']:.1f}%, Meio-Red {eval_res['p_half_loss']:.1f}%, Red {eval_res['p_loss']:.1f}%."
     )
+    detalhe_calculo = format_gatekeeper_result('APROVADO', selected_palpite, raw_calc)
 
     compound_r = compose_compound_ah_reasoning(
         cursor=cursor,

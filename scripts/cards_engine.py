@@ -85,15 +85,120 @@ def calculate_team_poisson_under_lines(exp_team_cards: float) -> dict:
     }
 
 
-def calculate_expected_cards(team_cards_combined: float, yellows: float, ref_fouls: float, league_mult: float = 1.0) -> float:
+def format_gatekeeper_result(status_gk: str, suggestion: str, reason: str) -> str:
+    """
+    Padroniza rigorosamente o resultado do Gatekeeper no formato oficial:
+    STATUS GK: {status_gk}
+    SUGGESTION: {suggestion}
+    REASON: {reason}
+    """
+    clean_reason = str(reason or '').strip()
+    if clean_reason.startswith("STATUS GK:"):
+        return clean_reason
+    return f"STATUS GK: {status_gk}\nSUGGESTION: {suggestion}\nREASON: {clean_reason}"
+
+
+def is_knockout_round_advanced(round_name: str, league_name: str = "") -> bool:
+    """
+    Identifica se a partida pertence a fase de Mata-Mata a partir das Oitavas de Final:
+    - Oitavas de Final (Round of 16, 8th Finals, 1/8)
+    - Quartas de Final (Quarter-finals, 1/4)
+    - Semifinais (Semi-finals, 1/2)
+    - Final / 3º Lugar (Final, 3rd Place)
+    """
+    if not round_name:
+        return False
+    r_low = str(round_name).lower().strip()
+
+    knockout_keywords = [
+        'round of 16', 'oitavas', '8th finals', '8th final', '1/8', 'octavos',
+        'huitiemes', 'huitièmes',
+        'quarter-final', 'quarter final', 'quarter-finals', 'quarterfinals', 'quartas', 'cuartos', '1/4',
+        'semi-final', 'semi final', 'semi-finals', 'semifinals', 'semifinais', 'semifinal', '1/2',
+        'grand final', '3rd place', 'terceiro lugar', 'disputa do 3'
+    ]
+    if any(k in r_low for k in knockout_keywords):
+        return True
+
+    if 'final' in r_low and not any(ign in r_low for ign in ['group', 'regular', 'round of 32', 'round of 64', '1/16', '1/32']):
+        if r_low in ('final', 'the final', 'a final') or 'final' in r_low.split():
+            return True
+
+    return False
+
+
+def calculate_u5j_card_friction(h_eff: float, a_eff: float) -> tuple:
+    """
+    Calcula o multiplicador de atrito disciplinar com base na eficiência ponderada U5J:
+    - Times em má fase (pts <= 3.0 ou negativos) sofrem pressão e frustração, chegando atrasados
+      nas disputas e cometendo mais faltas táticas -> mais faltosos -> maior risco de cartões.
+    - Times em alta fase (pts >= 7.0) têm maior controle do jogo e fluidez -> menos faltosos.
+    
+    Retorna: (friction_mult: float, friction_desc: str)
+    """
+    h_is_crit = (h_eff <= 0.0)
+    a_is_crit = (a_eff <= 0.0)
+    h_is_low = (h_eff <= 3.0)
+    a_is_low = (a_eff <= 3.0)
+
+    h_is_high = (h_eff >= 7.0)
+    a_is_high = (a_eff >= 7.0)
+
+    if (h_is_crit and a_is_crit):
+        mult = 1.25
+        desc = f"Crise mútua e colapso disciplinar U5J (Mandante: {h_eff:.1f} pts, Visitante: {a_eff:.1f} pts) -> atrito máximo (+25% cartões esperados)"
+    elif (h_is_low and a_is_low):
+        mult = 1.20
+        desc = f"Ambas as equipes sob forte pressão U5J <= 3 pts (Mandante: {h_eff:.1f} pts, Visitante: {a_eff:.1f} pts) -> atrito elevado (+20% cartões esperados)"
+    elif (h_is_crit or a_is_crit):
+        mult = 1.15
+        desc = f"Uma equipe em colapso disciplinar U5J <= 0 pts (Mandante: {h_eff:.1f} pts, Visitante: {a_eff:.1f} pts) -> atrito acentuado (+15% cartões esperados)"
+    elif (h_is_low or a_is_low):
+        mult = 1.10
+        desc = f"Uma equipe em baixa eficiência U5J <= 3 pts (Mandante: {h_eff:.1f} pts, Visitante: {a_eff:.1f} pts) -> atrito moderado (+10% cartões esperados)"
+    elif (h_is_high and a_is_high):
+        mult = 0.94
+        desc = f"Ambas as equipes em alta eficiência U5J >= 7 pts (Mandante: {h_eff:.1f} pts, Visitante: {a_eff:.1f} pts) -> jogo fluido (-6% cartões esperados)"
+    else:
+        mult = 1.00
+        desc = f"Eficiência U5J padrão (Mandante: {h_eff:.1f} pts, Visitante: {a_eff:.1f} pts)"
+
+    return mult, desc
+
+
+def get_team_u5j_efficiency_cards(cursor, team_id, team_name):
+    """
+    Busca U5J da equipe e calcula pontuação de eficiência ponderada (Regra 1: Cache-First MySQL).
+    """
+    try:
+        from asian_handicap_engine import get_team_u5j_from_db, compute_team_u5j_efficiency
+        u5j_data = get_team_u5j_from_db(cursor, team_id, team_name)
+        eff = compute_team_u5j_efficiency(u5j_data)
+        return u5j_data, eff
+    except Exception:
+        return {}, 0.0
+
+
+def calculate_expected_cards(
+    team_cards_combined: float,
+    yellows: float,
+    ref_fouls: float,
+    league_mult: float = 1.0,
+    u5j_friction_mult: float = 1.0,
+    knockout_mult: float = 1.0
+) -> float:
     """
     xC: Expected Cards
     Ponderação Calibrada: 35% Times + 50% Árbitro + 15% Faltas
+    Ajustada por:
+    - Fator de Atrito Disciplinar U5J (equipes com baixa pontuação <= 3 ou negativa são mais faltosas)
+    - Multiplicador de Mata-Mata a partir das Oitavas de Final (maior tensão, catimba e faltas táticas)
     """
     team_cards_combined_adj = team_cards_combined * league_mult
     ref_f = ref_fouls if ref_fouls and ref_fouls > 0 else 24.0
     foul_conversion_context = team_cards_combined_adj * (ref_f / 24.0)
-    exp_cards = round((team_cards_combined_adj * 0.35) + (yellows * 0.50) + (foul_conversion_context * 0.15), 2)
+    base_cards = (team_cards_combined_adj * 0.35) + (yellows * 0.50) + (foul_conversion_context * 0.15)
+    exp_cards = round(base_cards * u5j_friction_mult * knockout_mult, 2)
     return exp_cards
 
 
@@ -216,7 +321,11 @@ def evaluate_best_card_under_line(
     exp_cards: float,
     fixture_id: int = None,
     allow_api: bool = True,
-    referee_cards_avg: float = None
+    referee_cards_avg: float = None,
+    u5j_friction_info: dict = None,
+    is_knockout: bool = False,
+    home_team: str = "",
+    away_team: str = ""
 ):
     """
     Avalia as linhas Under (3.5, 4.5, 5.5, 6.5) contra as odds reais da Betano e aplica o Gatekeeper:
@@ -224,6 +333,10 @@ def evaluate_best_card_under_line(
     - Odd Betano >= 1.50 (ou 1.65 para Under 5.5)
     - Valor Esperado Positivo (+EV > 0.0%)
     - Trava de Piso do Árbitro: veta linhas Under se o árbitro tiver média >= (linha - 0.30)
+    - Trava de Atrito Disciplinar U5J: se ambas as equipes tiverem pontuação U5J <= 3.0 (ou negativa),
+      bloqueia linhas secas de Under 3.5 e 4.5 por risco de estouro de cartões decorrente de faltas táticas/frustração.
+    - Trava de Mata-Mata Oitavas+: se for partida eliminatória a partir das oitavas, bloqueia Under 3.5 e 4.5
+      devido à catimba, tensão e faltas táticas eliminatórias.
     Retorna: (best_candidate, all_candidates, prediction_text, over_cards_prob)
     """
     under_probs = calculate_poisson_under_lines(exp_cards)
@@ -234,10 +347,22 @@ def evaluate_best_card_under_line(
     standard_lines = [3.5, 4.5, 5.5, 6.5]
     candidates = []
 
+    friction_mult = u5j_friction_info.get('friction_mult', 1.0) if u5j_friction_info else 1.0
+    friction_desc = u5j_friction_info.get('desc', '') if u5j_friction_info else ''
+    h_eff = u5j_friction_info.get('h_eff') if u5j_friction_info else None
+    a_eff = u5j_friction_info.get('a_eff') if u5j_friction_info else None
+
+    is_severe_u5j_risk = (h_eff is not None and a_eff is not None and (h_eff <= 3.0 and a_eff <= 3.0)) or (friction_mult >= 1.20)
+
     for line_val in standard_lines:
         # Trava de Piso do Árbitro (Referee Disciplinary Ceiling Guard):
         # Bloqueia a linha Under se a média histórica de cartões do árbitro for superior ou estiver a menos de 0.30 cartão da linha.
         if referee_cards_avg and float(referee_cards_avg) >= (line_val - 0.30):
+            continue
+
+        # Trava de Atrito Disciplinar U5J e Mata-Mata Oitavas+:
+        # Bloqueia linhas agressivas de Under (Under 3.5 e Under 4.5) onde a volatilidade e probabilidade de atrito são extremas
+        if (is_knockout or is_severe_u5j_risk) and line_val <= 4.5:
             continue
 
         prob = under_probs.get(line_val, 0.0)
@@ -305,19 +430,36 @@ def evaluate_best_card_under_line(
         cand_copy['bookmaker'] = odd_source if odd_source and odd_source != 'MODEL_FALLBACK' else 'Betano'
         cand_copy['ev_calc'] = ev_calc
         cand_copy['exp_cards'] = exp_cards
+        cand_copy['gatekeeper_reason'] = format_gatekeeper_result(
+            'APROVADO',
+            palpite_str,
+            f"🎯 GATEKEEPER CARTÕES APROVADO (+EV {ev_calc:+.1f}%) | "
+            f"Linha {palpite_str} @ {real_odd:.2f} ({cand_copy['bookmaker']}) vs Odd Justa {odd_justa:.2f} (Prob: {prob:.1f}%) | "
+            f"xC Ajustado: {exp_cards} cartões | {friction_desc}"
+        )
         selected_cand = cand_copy
         break
 
     # Monta texto estruturado de prediction_text
-    if valid_candidates:
+    if valid_candidates and selected_cand:
         top_u = valid_candidates[0]
         sec_u = valid_candidates[1] if len(valid_candidates) > 1 else valid_candidates[0]
-        pred_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd_justa']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd_justa']})."
+        extra_note = f" [{friction_desc}]" if friction_desc and friction_mult != 1.0 else ""
+        if is_knockout:
+            extra_note += " [Mata-Mata Oitavas+]"
+        pred_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões{extra_note}). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd_justa']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd_justa']})."
     else:
-        if referee_cards_avg and float(referee_cards_avg) >= 4.20:
-            pred_text = f"🚫 NO_BET: Rigor do árbitro ({float(referee_cards_avg):.2f} cartões/jogo) incompatível com margem de segurança para Under. Entrada bloqueada pelo Gatekeeper (Trava de Piso do Árbitro)."
+        if is_knockout and referee_cards_avg and float(referee_cards_avg) >= 3.80:
+            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Mata-Mata Oitavas+] Confronto eliminatório com alta tensão e árbitro rigoroso ({float(referee_cards_avg):.2f} cartões/jogo). Linhas Under 3.5 e 4.5 bloqueadas por risco disciplinar. Abstenção mandatória."
+        elif is_severe_u5j_risk:
+            h_str = f"{h_eff:.1f} pts" if h_eff is not None else "crise"
+            a_str = f"{a_eff:.1f} pts" if a_eff is not None else "crise"
+            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Atrito Disciplinar U5J] {home_team} ({h_str}) vs {away_team} ({a_str}) -> Ambas as equipes em momento adverso (U5J <= 3 pts), com elevada propensão a faltas táticas e de atrito. Linhas baixas de Under bloqueadas. Abstenção mandatória."
+        elif referee_cards_avg and float(referee_cards_avg) >= 4.20:
+            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Trava de Árbitro] Rigor do árbitro ({float(referee_cards_avg):.2f} cartões/jogo) incompatível com margem de segurança para Under. Entrada bloqueada."
         else:
-            pred_text = f"🚫 NO_BET: Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
+            reason = f"🛡️ [Gatekeeper Cartões NO_BET / Sem Margem] Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper. Abstenção mandatória."
+        pred_text = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason)
 
     return selected_cand, valid_candidates, pred_text, over_cards_prob
 
@@ -355,6 +497,7 @@ def sync_fixture_and_bet_cards(
         bookmaker_name = selected_cand.get('bookmaker') or selected_cand.get('odd_source') or 'Betano'
         if bookmaker_name == 'MODEL_FALLBACK':
             bookmaker_name = 'Betano'
+        gk_detalhado = selected_cand.get('gatekeeper_reason')
 
         for uid in user_ids:
             cursor.execute("""
@@ -385,10 +528,10 @@ def sync_fixture_and_bet_cards(
                             casa_de_aposta = %s,
                             status_gatekeeper = 'APROVADO',
                             status = 'Pendente',
-                            resultado_detalhado = NULL,
+                            resultado_detalhado = %s,
                             updated_at = NOW()
                         WHERE id = %s
-                    """, (palpite_str, odd_val, odd_justa, prob_poisson, ev_perc, ganhos_potenciais, bookmaker_name, ja_existe['id']))
+                    """, (palpite_str, odd_val, odd_justa, prob_poisson, ev_perc, ganhos_potenciais, bookmaker_name, gk_detalhado, ja_existe['id']))
                     updated_count += 1
                     print(f"🔄 [Aposta Cartões Atualizada User #{uid}] ID #{ja_existe['id']} | Palpite: '{palpite_str}' @ {odd_val:.2f} ({bookmaker_name}) (EV: +{ev_perc}%)")
             else:
@@ -396,16 +539,16 @@ def sync_fixture_and_bet_cards(
                     INSERT INTO apostas (
                         usuario_id, fixture_id, time_casa, time_fora, mercado, casa_de_aposta, palpite, odd, 
                         odd_justa, probabilidade_poisson, ev_percentual, status_gatekeeper,
-                        valor_aposta, ganhos_potenciais, status, confirmada, data_hora_jogo, criado_em, updated_at
+                        valor_aposta, ganhos_potenciais, status, confirmada, resultado_detalhado, data_hora_jogo, criado_em, updated_at
                     ) VALUES (
                         %s, %s, %s, %s, 'Total de Cartões', %s, %s, %s,
                         %s, %s, %s, 'APROVADO',
-                        %s, %s, 'Pendente', 0, %s, NOW(), NOW()
+                        %s, %s, 'Pendente', 0, %s, %s, NOW(), NOW()
                     )
                 """, (
                     uid, fixture_id, home_team, away_team, bookmaker_name, palpite_str, odd_val,
                     odd_justa, prob_poisson, ev_perc,
-                    valor_aposta, ganhos_potenciais, fixture_date
+                    valor_aposta, ganhos_potenciais, gk_detalhado, fixture_date
                 ))
                 aposta_id = cursor.lastrowid
                 created_count += 1

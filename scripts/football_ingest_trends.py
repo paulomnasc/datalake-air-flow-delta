@@ -41,12 +41,20 @@ try:
     from cards_engine import (
         calculate_expected_cards as cards_calculate_expected,
         calculate_poisson_under_lines as cards_calculate_poisson_under_lines,
-        calculate_team_poisson_under_lines as cards_calculate_team_poisson_under_lines
+        calculate_team_poisson_under_lines as cards_calculate_team_poisson_under_lines,
+        format_gatekeeper_result as cards_format_gatekeeper_result,
+        is_knockout_round_advanced as cards_is_knockout_round_advanced,
+        calculate_u5j_card_friction as cards_calculate_u5j_card_friction,
+        get_team_u5j_efficiency_cards as cards_get_team_u5j_efficiency
     )
 except Exception:
     cards_calculate_expected = None
     cards_calculate_poisson_under_lines = None
     cards_calculate_team_poisson_under_lines = None
+    cards_format_gatekeeper_result = None
+    cards_is_knockout_round_advanced = None
+    cards_calculate_u5j_card_friction = None
+    cards_get_team_u5j_efficiency = None
 
 
 
@@ -2681,7 +2689,7 @@ def main():
         # 2. Carrega partidas existentes no banco de dados para complementar o mapa a partir do cache local
         try:
             cursor.execute("""
-                SELECT fixture_id, fixture_date, league_id, league_name, home_team, away_team,
+                SELECT fixture_id, fixture_date, league_id, league_name, league_round, home_team, away_team,
                        home_team_id, away_team_id, status, referee_name, goals_home, goals_away, elapsed
                 FROM fixtures_trends
                 WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN (%s, %s, %s)
@@ -2700,7 +2708,8 @@ def main():
                         },
                         "league": {
                             "id": rf.get('league_id') or 0,
-                            "name": rf.get('league_name') or ""
+                            "name": rf.get('league_name') or "",
+                            "round": rf.get('league_round') or ""
                         },
                         "teams": {
                             "home": {"id": rf.get('home_team_id') or 0, "name": rf.get('home_team') or ""},
@@ -2781,6 +2790,7 @@ def main():
         f_date = f_date_raw.split('+')[0].replace('T', ' ') if f_date_raw else None
         l_id = f.get("league", {}).get("id")
         l_name = f.get("league", {}).get("name")
+        l_round = f.get("league", {}).get("round")
         h_team = f.get("teams", {}).get("home", {}).get("name")
         a_team = f.get("teams", {}).get("away", {}).get("name")
         h_team_id = f.get("teams", {}).get("home", {}).get("id")
@@ -2790,19 +2800,20 @@ def main():
             try:
                 cursor.execute("""
                     INSERT INTO fixtures_trends (
-                        fixture_id, fixture_date, league_id, league_name, home_team, away_team,
+                        fixture_id, fixture_date, league_id, league_name, league_round, home_team, away_team,
                         home_team_id, away_team_id, status
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
                         fixture_date = VALUES(fixture_date),
                         league_id = VALUES(league_id),
                         league_name = VALUES(league_name),
+                        league_round = COALESCE(VALUES(league_round), league_round),
                         home_team = VALUES(home_team),
                         away_team = VALUES(away_team),
                         home_team_id = VALUES(home_team_id),
                         away_team_id = VALUES(away_team_id),
                         status = VALUES(status);
-                """, (f_id, f_date, l_id, l_name, h_team, a_team, h_team_id, a_team_id, st_short))
+                """, (f_id, f_date, l_id, l_name, l_round, h_team, a_team, h_team_id, a_team_id, st_short))
             except Exception:
                 pass
     conn.commit()
@@ -3262,14 +3273,23 @@ def main():
             elif (home_c_stats.get("avg_cards", 0.0) <= 0.01 or away_c_stats.get("avg_cards", 0.0) <= 0.01):
                 prediction_text = "🚫 NO_BET: Dados de cartões zerados ou indisponíveis para uma das equipes. Entrada bloqueada pelo Gatekeeper por segurança."
             else:
+                # Cálculo de Atrito Disciplinar U5J e Mata-Mata Oitavas+
+                h_eff = compute_team_u5j_efficiency(h_l5) if h_l5 else 0.0
+                a_eff = compute_team_u5j_efficiency(a_l5) if a_l5 else 0.0
+                friction_mult, friction_desc = cards_calculate_u5j_card_friction(h_eff, a_eff) if cards_calculate_u5j_card_friction else (1.0, "")
+                l_round_val = f.get("league", {}).get("round", "")
+                is_knockout = cards_is_knockout_round_advanced(l_round_val, league_name) if cards_is_knockout_round_advanced else False
+                knockout_mult = 1.18 if is_knockout else 1.00
+
                 # Aplica multiplicador regional à média combinada das equipes
                 team_cards_combined_adj = team_cards_combined * league_mult
 
                 # Fator de conversão e intensidade de faltas
                 foul_conversion_context = team_cards_combined_adj * (ref_fouls / 24.0)
                 
-                # xC: Expected Cards (Ponderação Calibrada: 65% Árbitro [50% direto + 15% faltas] x 35% Times)
-                exp_cards = round((team_cards_combined_adj * 0.35) + (yellows * 0.50) + (foul_conversion_context * 0.15), 2)
+                # xC: Expected Cards (Ponderação Calibrada: 65% Árbitro [50% direto + 15% faltas] x 35% Times) ajustada por U5J e Mata-Mata
+                base_cards = (team_cards_combined_adj * 0.35) + (yellows * 0.50) + (foul_conversion_context * 0.15)
+                exp_cards = round(base_cards * friction_mult * knockout_mult, 2)
                 
                 # Probabilidades de Under via Distribuição de Poisson Ajustada com Sobredispersão (phi)
                 under_probs = calculate_poisson_under_lines(exp_cards, phi=phi_league)
@@ -3300,6 +3320,7 @@ def main():
                 # SELEÇÃO EXCLUSIVA DE UNDER CARTÕES (>= 60%)
                 # Trava de Piso do Árbitro (Referee Disciplinary Ceiling Guard)
                 ref_total_cards = round(yellows + float(ref_data.get("average_red_cards", 0.0) or 0.0), 2)
+                is_severe_u5j_risk = (h_eff <= 3.0 and a_eff <= 3.0) or (friction_mult >= 1.20)
 
                 under_candidates = [
                     ("Under 3.5", u35, odd_u35, 3.5),
@@ -3312,6 +3333,9 @@ def main():
                     if prob >= 60.0:
                         # Veto da Trava de Piso do Árbitro: se a média de cartões do árbitro estiver a menos de 0.30 cartão da linha
                         if ref_total_cards and ref_total_cards >= (l_val - 0.30):
+                            continue
+                        # Trava de Atrito Disciplinar U5J e Mata-Mata Oitavas+: bloqueia Under 3.5 e Under 4.5
+                        if (is_knockout or is_severe_u5j_risk) and l_val <= 4.5:
                             continue
                         valid_under.append({'market': 'Under', 'label': label, 'prob': prob, 'odd': odd})
 
@@ -3332,12 +3356,20 @@ def main():
                     # Ordena pela maior probabilidade de Under mantendo a opção prioritária
                     top_u = valid_under[0]
                     sec_u = valid_under[1] if len(valid_under) > 1 else valid_under[0]
-                    prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd']})."
+                    extra_note = f" [{friction_desc}]" if friction_desc and friction_mult != 1.0 else ""
+                    if is_knockout:
+                        extra_note += " [Mata-Mata Oitavas+]"
+                    prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões{extra_note}). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd']})."
                 else:
-                    if ref_total_cards and ref_total_cards >= 4.20:
-                        prediction_text = f"🚫 NO_BET: Rigor do árbitro {referee_name} ({ref_total_cards:.2f} cartões/jogo) incompatível com margem de segurança para Under. Entrada bloqueada pelo Gatekeeper (Trava de Piso do Árbitro)."
+                    if is_knockout and ref_total_cards and ref_total_cards >= 3.80:
+                        reason = f"🛡️ [Gatekeeper Cartões NO_BET / Mata-Mata Oitavas+] Confronto eliminatório com alta tensão e árbitro rigoroso ({ref_total_cards:.2f} cartões/jogo). Linhas Under 3.5 e 4.5 bloqueadas por risco disciplinar. Abstenção mandatória."
+                    elif is_severe_u5j_risk:
+                        reason = f"🛡️ [Gatekeeper Cartões NO_BET / Atrito Disciplinar U5J] {home_team} ({h_eff:.1f} pts) vs {away_team} ({a_eff:.1f} pts) -> Ambas as equipes em momento adverso (U5J <= 3 pts), com elevada propensão a faltas táticas e de atrito. Linhas baixas de Under bloqueadas. Abstenção mandatória."
+                    elif ref_total_cards and ref_total_cards >= 4.20:
+                        reason = f"🛡️ [Gatekeeper Cartões NO_BET / Trava de Árbitro] Rigor do árbitro {referee_name} ({ref_total_cards:.2f} cartões/jogo) incompatível com margem de segurança para Under. Entrada bloqueada."
                     else:
-                        prediction_text = f"🚫 NO_BET: Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper."
+                        reason = f"🛡️ [Gatekeeper Cartões NO_BET / Sem Margem] Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper. Abstenção mandatória."
+                    prediction_text = cards_format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason) if cards_format_gatekeeper_result else reason
 
                 # CÁLCULO DE PALPITES DE UNDER CARTÕES POR TIME (MANDANTE & VISITANTE)
                 home_cards_avg = float(home_c_stats.get("avg_cards", 2.0))
@@ -3581,18 +3613,19 @@ def main():
                 try:
                     cursor.execute("""
                         INSERT INTO fixtures_trends (
-                            fixture_id, fixture_date, league_id, league_name, home_team, away_team, 
+                            fixture_id, fixture_date, league_id, league_name, league_round, home_team, away_team, 
                             home_team_id, away_team_id,
                             referee_name, prediction_text, over_cards_probability, status,
                             goals_home, goals_away, elapsed,
                             yellow_cards_home, yellow_cards_away, red_cards_home, red_cards_away,
                             corners_home, corners_away, shots_home, shots_away, xg_home, xg_away,
                             goal_scorers, last_event, ah_suggestion, ah_confidence, ah_reasoning
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON DUPLICATE KEY UPDATE
                             fixture_date = VALUES(fixture_date),
                             home_team_id = VALUES(home_team_id),
                             away_team_id = VALUES(away_team_id),
+                            league_round = COALESCE(VALUES(league_round), league_round),
                             referee_name = IF(VALUES(referee_name) IS NOT NULL AND VALUES(referee_name) != 'Árbitro Não Informado', VALUES(referee_name), referee_name),
                             prediction_text = COALESCE(VALUES(prediction_text), prediction_text),
                             over_cards_probability = VALUES(over_cards_probability),
@@ -3618,7 +3651,7 @@ def main():
                             ah_confidence = VALUES(ah_confidence),
                             ah_reasoning = VALUES(ah_reasoning);
                     """, (
-                        fix_id, fix_date, league_id, league_name, home_team, away_team,
+                        fix_id, fix_date, league_id, league_name, l_round_val, home_team, away_team,
                         home_team_id, away_team_id,
                         referee_name, prediction_text, over_cards_prob, status,
                         goals_home, goals_away, elapsed,

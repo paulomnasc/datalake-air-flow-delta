@@ -19,7 +19,7 @@ except ImportError:
 # Configurações via Variáveis de Ambiente com fallbacks padrão para o Groq Cloud
 API_URL = os.environ.get("VISION_API_URL", "https://api.groq.com/openai/v1/chat/completions")
 API_KEY = os.environ.get("VISION_API_KEY", "")
-API_MODEL = os.environ.get("VISION_API_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+API_MODEL = os.environ.get("VISION_API_MODEL", "qwen/qwen3.8-27b")
 API_TIMEOUT = int(os.environ.get("VISION_API_TIMEOUT", "60"))
 
 # Prompt padrão para extração de preços

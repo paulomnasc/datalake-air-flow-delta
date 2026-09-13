@@ -158,11 +158,17 @@ class ApostaController extends BaseController
                     f.status as fixture_status,
                     f.league_name,
                     f.league_id,
+                    f.odd_home,
+                    f.odd_draw,
+                    f.odd_away,
+                    f.ah_suggestion,
+                    f.ah_confidence,
+                    f.ah_reasoning,
                     (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') as tem_debito
                 FROM apostas a
                 LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)
                 WHERE a.usuario_id = ?
-                ORDER BY CASE WHEN a.data_hora_jogo IS NOT NULL AND a.data_hora_jogo > '2000-01-01' THEN a.data_hora_jogo ELSE a.criado_em END ASC, a.criado_em ASC, a.id ASC
+                ORDER BY a.destaque DESC, CASE WHEN a.data_hora_jogo IS NOT NULL AND a.data_hora_jogo > '2000-01-01' THEN a.data_hora_jogo ELSE a.criado_em END ASC, a.criado_em ASC, a.id ASC
             ", [$userId])->getResultObject();
 
             $tzUtc = new \DateTimeZone('UTC');
@@ -241,14 +247,14 @@ class ApostaController extends BaseController
         $timeFora        = trim($this->request->getPost('time_fora') ?? '');
         $mercado         = trim($this->request->getPost('mercado') ?? 'Total de Cartões');
         $palpite         = trim($this->request->getPost('palpite') ?? '');
-        $odd             = (float)$this->request->getPost('odd');
-        $valorAposta     = (float)$this->request->getPost('valor_aposta');
+        $odd             = (float)str_replace(',', '.', (string)($this->request->getPost('odd') ?? '0'));
+        $valorAposta     = (float)str_replace(',', '.', (string)($this->request->getPost('valor_aposta') ?? '0'));
         $fixtureId       = $this->request->getPost('fixture_id') ? (int)$this->request->getPost('fixture_id') : null;
         $dataHoraInput   = trim($this->request->getPost('data_hora_jogo') ?? '');
         $tipo            = trim($this->request->getPost('tipo') ?? 'Simples');
         $status          = trim($this->request->getPost('status') ?? 'Pendente');
         $cashOut         = $this->request->getPost('cash_out') !== null && $this->request->getPost('cash_out') !== '' 
-                           ? (float)$this->request->getPost('cash_out') : null;
+                           ? (float)str_replace(',', '.', (string)$this->request->getPost('cash_out')) : null;
 
         if ($mercado === 'Handicap Asiático' || stripos($mercado, 'handicap') !== false) {
             $palpite = $this->formatHandicapPalpite($palpite, $timeCasa, $timeFora);
@@ -297,12 +303,8 @@ class ApostaController extends BaseController
                 ]);
             }
             $statusGatekeeper = 'ALERTA_RISCO_OVER';
-        } elseif ($statusGatekeeper === 'NO_BET') {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => '🚫 Simulação de aposta recusada pelo Gatekeeper! ' . $gatekeeperMsg
-            ]);
         }
+
 
         // Trava anti-duplicidade de requisições em paralelo (janela de 10 segundos)
         $dbCheck = \Config\Database::connect();
@@ -377,6 +379,7 @@ class ApostaController extends BaseController
             'tipo'                  => $tipo,
             'status'                => $status,
             'confirmada'            => $confirmarDebitar ? 1 : 0,
+            'destaque'              => !empty($eval['destaque']) ? 1 : 0,
             'criado_em'             => $nowBr
         ]);
 
@@ -420,6 +423,98 @@ class ApostaController extends BaseController
     }
 
     /**
+     * Verifica se o clube pertence ao grupo Tier 1 de Elite Mundial/Continental
+     * Prioriza validação pelo ID oficial da API-Sports / Banco de Dados.
+     */
+    private function isTier1EliteClub(?int $teamId = null, ?string $teamName = null): bool
+    {
+        $tier1Clubs = [
+            529  => "Barcelona",
+            541  => "Real Madrid",
+            530  => "Atlético Madrid",
+            50   => "Manchester City",
+            40   => "Liverpool",
+            42   => "Arsenal",
+            49   => "Chelsea",
+            157  => "Bayern Munich",
+            165  => "Borussia Dortmund",
+            168  => "Bayer Leverkusen",
+            85   => "Paris Saint Germain",
+            505  => "Inter",
+            489  => "AC Milan",
+            496  => "Juventus",
+            492  => "Napoli",
+            211  => "Benfica",
+            212  => "FC Porto",
+            228  => "Sporting CP",
+            194  => "Ajax",
+            197  => "PSV Eindhoven",
+            127  => "Flamengo",
+            121  => "Palmeiras",
+            1062 => "Atlético Mineiro",
+            451  => "Boca Juniors",
+            435  => "River Plate",
+            571  => "Red Bull Salzburg",
+            637  => "Sturm Graz",
+            781  => "Rapid Vienna",
+            173  => "RB Leipzig",
+            47   => "Tottenham",
+            33   => "Manchester United",
+            91   => "Monaco",
+            80   => "Lyon",
+            81   => "Marseille",
+            497  => "AS Roma",
+            487  => "Lazio",
+            209  => "Feyenoord",
+            247  => "Celtic",
+            257  => "Rangers",
+            645  => "Galatasaray",
+            611  => "Fenerbahçe",
+            549  => "Beşiktaş",
+            553  => "Olympiakos Piraeus",
+            569  => "Club Brugge KV",
+            554  => "Anderlecht",
+            565  => "BSC Young Boys",
+            400  => "FC Copenhagen",
+        ];
+
+        if ($teamId !== null && $teamId > 0) {
+            return isset($tier1Clubs[(int)$teamId]);
+        }
+
+        if (empty($teamName)) {
+            return false;
+        }
+
+        $raw = mb_strtolower(trim($teamName));
+        $norm = iconv('UTF-8', 'ASCII//TRANSLIT', $raw);
+        if ($norm === false) {
+            $norm = $raw;
+        }
+
+        $disqualifiedHomonyms = [
+            'guayaquil', 'sc', 'montevideo', 'sarandi', 'gijon', 'turku', 'limeira',
+            'kansas', 'san jose', 'khalsa', 'miami', 'bogota', 'escaldes', 'intercity'
+        ];
+        foreach ($disqualifiedHomonyms as $dh) {
+            if (strpos($norm, $dh) !== false && strpos($norm, 'manchester city') === false) {
+                return false;
+            }
+        }
+
+        foreach ($tier1Clubs as $id => $name) {
+            $cNorm = iconv('UTF-8', 'ASCII//TRANSLIT', mb_strtolower(trim($name)));
+            if ($norm === $cNorm || strpos($norm, " {$cNorm} ") !== false) {
+                return true;
+            }
+            if (strlen($cNorm) >= 6 && strpos($norm, $cNorm) !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Reavalia o Gatekeeper para uma aposta (+EV, Odd Justa, Poisson e Teto Dinâmico de Segurança)
      */
     private function evaluateGatekeeper(?int $fixtureId, string $timeCasa, string $timeFora, string $mercado, string $palpite, float $odd): array
@@ -429,49 +524,24 @@ class ApostaController extends BaseController
         $evPercentual = null;
         $statusGatekeeper = 'NAO_ANALISADO';
         $gatekeeperMsg = 'Simulação de aposta sem análise de estatísticas.';
+        $destaque = 0;
 
         $isOver = (stripos($palpite, 'over') !== false || stripos($palpite, 'mais') !== false);
         $isCartoes = (stripos($mercado, 'cartõ') !== false || stripos($mercado, 'card') !== false);
+        $isHandicap = (stripos($mercado, 'handicap') !== false || stripos($palpite, 'ah') !== false);
 
-        // AVISO DE RISCO GATEKEEPER (Estratégia Exclusiva Under / Anti-Over)
-        if ($isOver || ($isCartoes && $isOver)) {
+        // AVISO DE RISCO GATEKEEPER (Estratégia Exclusiva Under / Anti-Over para Cartões)
+        if ($isCartoes && ($isOver || stripos($palpite, 'mais') !== false)) {
             $statusGatekeeper = 'AVISO_RISCO_OVER';
             $gatekeeperMsg = "Alerta de Risco Gatekeeper (Estratégia Exclusiva Under): Simulações de apostas no mercado 'Over / Mais de' possuem elevado risco de perda e volatilidade estatística. Apenas apostas 'Under / Menos de' são recomendadas pelo modelo. Deseja prosseguir mesmo com o risco apontado?";
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
         }
 
-        if (!$isCartoes) {
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
-        }
-
-        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Trava de Segurança Linha Mínima de 1.15)
-        preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
-        $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
-
-        if ($lineCheck < 1.15) {
-            $statusGatekeeper = 'NO_BET';
-            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Simulações de apostas com linhas inferiores a 1.15 são bloqueadas pelo modelo por elevado risco.";
-            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+        if (!$isCartoes && !$isHandicap) {
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
         }
 
         $db = \Config\Database::connect();
-
-        // 1. Média Histórica Dinâmica de Odds Vencedoras (Under Cartões) e Teto Dinâmico de Segurança
-        $rowAvg = $db->query("
-            SELECT AVG(odd) as avg_odd, COUNT(*) as total_vitorias 
-            FROM apostas 
-            WHERE status = 'Ganha' 
-              AND (mercado LIKE '%cartõ%' OR mercado LIKE '%card%') 
-              AND (palpite LIKE '%Menos%' OR palpite LIKE '%under%')
-        ")->getRow();
-
-        $avgWinningOdd = ($rowAvg && $rowAvg->avg_odd && (int)$rowAvg->total_vitorias > 0) 
-            ? round((float)$rowAvg->avg_odd, 2) 
-            : 1.50;
-
-        // Teto dinâmico flexível: Média + 0.35 com piso mínimo de 2.00 (evita auto-afunilamento e bloqueia apenas distorções irreais)
-        $maxAllowedOdd = round(max(2.00, $avgWinningOdd + 0.35), 2);
-
         $fixture = null;
 
         if ($fixtureId) {
@@ -495,6 +565,200 @@ class ApostaController extends BaseController
                 $fixtureId = (int)$fixture->fixture_id;
             }
         }
+
+        if ($fixture) {
+            $hId = !empty($fixture->home_team_id) ? (int)$fixture->home_team_id : null;
+            $aId = !empty($fixture->away_team_id) ? (int)$fixture->away_team_id : null;
+            $hName = $fixture->home_team ?? $timeCasa;
+            $aName = $fixture->away_team ?? $timeFora;
+
+            $isAwayFav = (stripos($palpite, $aName) !== false || stripos($palpite, 'away') !== false || stripos($palpite, 'fora') !== false || stripos($palpite, 'visitante') !== false);
+            $candId = $isAwayFav ? $aId : $hId;
+            $candName = $isAwayFav ? $aName : $hName;
+            $oppId = $isAwayFav ? $hId : $aId;
+            $oppName = $isAwayFav ? $hName : $aName;
+
+            $isCandT1 = $this->isTier1EliteClub($candId, $candName);
+            $isOppT1 = $this->isTier1EliteClub($oppId, $oppName);
+
+            if ($isCandT1 && !$isOppT1) {
+                $oppKey = $isAwayFav ? 'home' : 'away';
+                if (!empty($fixture->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)/s', $fixture->ah_reasoning, $mU5)) {
+                    $u5Arr = json_decode($mU5[1], true);
+                    if (!empty($u5Arr[$oppKey])) {
+                        $oppPts = (int)($u5Arr[$oppKey]['pts'] ?? 0);
+                        $oppV = (int)($u5Arr[$oppKey]['v'] ?? 0);
+                        if ($oppPts <= 5 || $oppV === 0) {
+                            $destaque = 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        // =========================================================================
+        // RAMO 1: GATEKEEPER PARA HANDICAP ASIÁTICO (MATRIZ BIVARIADA DE POISSON)
+        // =========================================================================
+        if ($isHandicap) {
+            preg_match('/([+-]?\d+(?:\.\d+)?)/', $palpite, $matchesLine);
+            $line = !empty($matchesLine[1]) ? (float)$matchesLine[1] : 0.0;
+
+            $isAway = (stripos($palpite, $timeFora) !== false || stripos($palpite, 'away') !== false || stripos($palpite, 'fora') !== false || stripos($palpite, 'visitante') !== false);
+
+            $oddHome = ($fixture && !empty($fixture->odd_home)) ? (float)$fixture->odd_home : 0.0;
+            $oddAway = ($fixture && !empty($fixture->odd_away)) ? (float)$fixture->odd_away : 0.0;
+
+            $xgHome = ($fixture && !empty($fixture->xg_home)) ? (float)$fixture->xg_home : 0.0;
+            $xgAway = ($fixture && !empty($fixture->xg_away)) ? (float)$fixture->xg_away : 0.0;
+
+            if ($xgHome <= 0.1 || $xgAway <= 0.1) {
+                if ($fixture && !empty($fixture->ah_reasoning)) {
+                    if (preg_match('/\(Em Casa\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)/i', $fixture->ah_reasoning, $mH)) {
+                        $xgHome = (float)$mH[1];
+                    }
+                    if (preg_match('/\(Fora\):.*?=\s*xG\s*Adj\s*(\d+(?:\.\d+)?)/i', $fixture->ah_reasoning, $mA)) {
+                        $xgAway = (float)$mA[1];
+                    }
+                }
+            }
+            if ($xgHome <= 0.1) $xgHome = 1.30;
+            if ($xgAway <= 0.1) $xgAway = 1.10;
+
+            // 1. Trava de Mando Consagrado (Anti-Zebra em Caldeirões):
+            // Bloqueia handicap positivo a favor do visitante quando o mandante é favorito sólido de mercado
+            if ($isAway && $line > 0.0) {
+                if ($oddHome > 1.0 && $oddHome <= 2.00 && ($oddAway >= 3.80 || ($oddAway / $oddHome) >= 2.0)) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Mando Consagrado): Entrada de handicap positivo a favor da zebra visitante bloqueada contra mandante favorito consolidado em casa (Odd Mandante: {$oddHome}).";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                }
+            }
+
+            // 1.1 Trava de Time em Crise (Anti-Zebra em Crise Severa):
+            // Bloqueia qualquer linha a favor de equipe sem vitórias recentes (0V no U5J) em situação de zebra contra favorito
+            $u5j = null;
+            if ($fixture && !empty($fixture->ah_reasoning) && strpos($fixture->ah_reasoning, 'U5J_DATA:') !== false) {
+                $parts = explode('U5J_DATA:', $fixture->ah_reasoning);
+                $jsonStr = trim(explode('||', $parts[1])[0]);
+                $u5j = json_decode($jsonStr, true);
+            }
+            if ($u5j) {
+                $candL5 = $isAway ? ($u5j['away'] ?? null) : ($u5j['home'] ?? null);
+                if ($candL5 && isset($candL5['v']) && (int)$candL5['v'] === 0) {
+                    $candOdd = $isAway ? $oddAway : $oddHome;
+                    $oppOdd = $isAway ? $oddHome : $oddAway;
+                    if ($candOdd >= 2.20 || ($oppOdd > 1.0 && $oppOdd <= 2.10)) {
+                        $candName = $isAway ? $timeFora : $timeCasa;
+                        $statusGatekeeper = 'NO_BET';
+                        $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Time em Crise): Entrada de handicap a favor de equipe sem vitórias recentes nos últimos 5 jogos (0V para {$candName}) em situação de zebra contra favorito de mercado.";
+                        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                    }
+                }
+            }
+
+
+
+            if ($odd < 1.45) {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Odd muito deprimida (< 1.45) para Handicap Asiático. Sem margem de valor esperado (+EV).";
+                return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+            }
+
+            $pWin = 0.0;
+            $pHalfWin = 0.0;
+            $pPush = 0.0;
+            $pHalfLoss = 0.0;
+            $pLoss = 0.0;
+            $totalP = 0.0;
+            $matrix = [];
+
+            for ($x = 0; $x <= 9; $x++) {
+                $px = (pow($xgHome, $x) * exp(-$xgHome)) / $this->factorial($x);
+                for ($y = 0; $y <= 9; $y++) {
+                    $py = (pow($xgAway, $y) * exp(-$xgAway)) / $this->factorial($y);
+                    $p = $px * $py;
+                    $matrix[] = ['x' => $x, 'y' => $y, 'p' => $p];
+                    $totalP += $p;
+                }
+            }
+
+            foreach ($matrix as $cell) {
+                $p = ($totalP > 0) ? ($cell['p'] / $totalP) : $cell['p'];
+                $diff = $isAway ? ($cell['y'] - $cell['x']) : ($cell['x'] - $cell['y']);
+                $adj = $diff + $line;
+
+                if ($adj > 0.25) {
+                    $pWin += $p;
+                } elseif (abs($adj - 0.25) < 0.0001) {
+                    $pHalfWin += $p;
+                } elseif (abs($adj) < 0.0001) {
+                    $pPush += $p;
+                } elseif (abs($adj - (-0.25)) < 0.0001) {
+                    $pHalfLoss += $p;
+                } else {
+                    $pLoss += $p;
+                }
+            }
+
+            $expectedPayoff = ($pWin * $odd) + ($pHalfWin * (($odd + 1.0) / 2.0)) + ($pPush * 1.0) + ($pHalfLoss * 0.5);
+            $evPercentual = round(($expectedPayoff - 1.0) * 100.0, 2);
+
+            $num = 1.0 - ($pHalfWin / 2.0 + $pPush + 0.5 * $pHalfLoss);
+            $den = $pWin + ($pHalfWin / 2.0);
+
+            if ($den > 0 && $num > 0) {
+                $oddJusta = round($num / $den, 2);
+                $probPoisson = round(min(100.0, max(0.0, 100.0 / $oddJusta)), 2);
+            } else {
+                $oddJusta = 99.00;
+                $probPoisson = 1.00;
+            }
+
+            $minProbReq = 45.0;
+
+            if ($evPercentual >= 5.0 && $probPoisson >= max($minProbReq, 48.0)) {
+                $statusGatekeeper = 'APROVADO';
+                $gatekeeperMsg = "Gatekeeper AH Green Light (+EV): Odd Real ({$odd}) >= Odd Justa ({$oddJusta}) | EV: +{$evPercentual}% (Mínimo: +5.0%) | Prob. Efetiva: {$probPoisson}%.";
+            } elseif ($evPercentual >= 0.0 && $probPoisson >= $minProbReq) {
+                $statusGatekeeper = 'APROVADO';
+                $gatekeeperMsg = "Gatekeeper AH Aprovado (+EV Neutro/Positivo): Odd Real ({$odd}) | EV: +{$evPercentual}% | Prob. Efetiva: {$probPoisson}%.";
+            } else {
+                $statusGatekeeper = 'NO_BET';
+                $gatekeeperMsg = "Aviso Gatekeeper AH (NO_BET): Entrada sem valor esperado positivo ou probabilidade insuficiente (EV: {$evPercentual}% | Prob. Efetiva: {$probPoisson}% vs Mínimo: {$minProbReq}% | Odd Justa: {$oddJusta} vs Odd Atual: {$odd}).";
+            }
+
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+        }
+
+        // =========================================================================
+        // RAMO 2: GATEKEEPER PARA TOTAL DE CARTÕES (UNDER)
+        // =========================================================================
+
+        // TRAVA RIGOROSA DE SEGURANÇA POR LINHA MÍNIMA (Trava de Segurança Linha Mínima de 1.15)
+        preg_match('/(\d+\.\d+|\d+)/', $palpite, $matchesLineCheck);
+        $lineCheck = !empty($matchesLineCheck[1]) ? (float)$matchesLineCheck[1] : 5.5;
+
+        if ($lineCheck < 1.15) {
+            $statusGatekeeper = 'NO_BET';
+            $gatekeeperMsg = "Regra de Bloqueio Gatekeeper (Trava de Segurança Linha Mínima): Simulações de apostas com linhas inferiores a 1.15 são bloqueadas pelo modelo por elevado risco.";
+            return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+        }
+
+        // 1. Média Histórica Dinâmica de Odds Vencedoras (Under Cartões) e Teto Dinâmico de Segurança
+        $rowAvg = $db->query("
+            SELECT AVG(odd) as avg_odd, COUNT(*) as total_vitorias 
+            FROM apostas 
+            WHERE status = 'Ganha' 
+              AND (mercado LIKE '%cartõ%' OR mercado LIKE '%card%') 
+              AND (palpite LIKE '%Menos%' OR palpite LIKE '%under%')
+        ")->getRow();
+
+        $avgWinningOdd = ($rowAvg && $rowAvg->avg_odd && (int)$rowAvg->total_vitorias > 0) 
+            ? round((float)$rowAvg->avg_odd, 2) 
+            : 1.50;
+
+        // Teto dinâmico flexível: Média + 0.35 com piso mínimo de 2.00 (evita auto-afunilamento e bloqueia apenas distorções irreais)
+        $maxAllowedOdd = round(max(2.00, $avgWinningOdd + 0.35), 2);
 
         if ($fixture && !empty($fixture->prediction_text)) {
             preg_match('/xC(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)/i', $fixture->prediction_text, $matchesXc);
@@ -584,7 +848,7 @@ class ApostaController extends BaseController
             }
         }
 
-        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg');
+        return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
     }
 
     /**
@@ -640,12 +904,12 @@ class ApostaController extends BaseController
         $timeFora  = ($postTimeFora !== null && trim($postTimeFora) !== '') ? trim($postTimeFora) : $aposta->time_fora;
         $mercado   = ($postMercado  !== null && trim($postMercado) !== '')  ? trim($postMercado)  : $aposta->mercado;
         $palpite   = ($postPalpite  !== null && trim($postPalpite) !== '')  ? trim($postPalpite)  : $aposta->palpite;
-        $odd       = ($postOdd !== null && $postOdd !== '') ? (float)$postOdd : (float)$aposta->odd;
-        $valorAposta = ($postValor !== null && $postValor !== '') ? (float)$postValor : (float)$aposta->valor_aposta;
+        $odd       = ($postOdd !== null && $postOdd !== '') ? (float)str_replace(',', '.', (string)$postOdd) : (float)$aposta->odd;
+        $valorAposta = ($postValor !== null && $postValor !== '') ? (float)str_replace(',', '.', (string)$postValor) : (float)$aposta->valor_aposta;
         $status    = ($postStatus   !== null && trim($postStatus) !== '')   ? trim($postStatus)   : $aposta->status;
         $tipo      = ($postTipo     !== null && trim($postTipo) !== '')     ? trim($postTipo)     : $aposta->tipo;
 
-        $cashOut   = ($postCashOut !== null && trim((string)$postCashOut) !== '') ? (float)$postCashOut : $aposta->cash_out;
+        $cashOut   = ($postCashOut !== null && trim((string)$postCashOut) !== '') ? (float)str_replace(',', '.', (string)$postCashOut) : $aposta->cash_out;
 
         if ($mercado === 'Handicap Asiático' || stripos($mercado, 'handicap') !== false) {
             $palpite = $this->formatHandicapPalpite($palpite, $timeCasa, $timeFora);
@@ -689,12 +953,8 @@ class ApostaController extends BaseController
                 ]);
             }
             $eval['statusGatekeeper'] = 'ALERTA_RISCO_OVER';
-        } elseif ($eval['statusGatekeeper'] === 'NO_BET') {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => '🚫 Simulação de aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
-            ]);
         }
+
 
         $dataUpdate = [
             'fixture_id'            => $eval['fixtureId'],
@@ -841,12 +1101,8 @@ class ApostaController extends BaseController
                 ]);
             }
             $eval['statusGatekeeper'] = 'ALERTA_RISCO_OVER';
-        } elseif ($eval['statusGatekeeper'] === 'NO_BET') {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => '🚫 Resimulação de aposta recusada pelo Gatekeeper! ' . $eval['gatekeeperMsg']
-            ]);
         }
+
 
         // Trava anti-duplicidade de reapostas em paralelo (janela de 10 segundos)
         $dbCheck = \Config\Database::connect();
@@ -1632,7 +1888,7 @@ class ApostaController extends BaseController
         try {
             $client = \Config\Services::curlrequest(['http_errors' => false]);
             $apiUrl = env('VISION_API_URL') ?: 'https://api.groq.com/openai/v1/chat/completions';
-            $model  = env('TEXT_API_MODEL') ?: 'llama-3.3-70b-versatile';
+            $model  = env('TEXT_API_MODEL') ?: 'openai/gpt-oss-120b';
 
             $response = $client->post($apiUrl, [
                 'headers' => [
@@ -1797,7 +2053,7 @@ class ApostaController extends BaseController
         try {
             $client = \Config\Services::curlrequest(['http_errors' => false]);
             $apiUrl = env('VISION_API_URL') ?: 'https://api.groq.com/openai/v1/chat/completions';
-            $model  = env('TEXT_API_MODEL') ?: 'llama-3.3-70b-versatile';
+            $model  = env('TEXT_API_MODEL') ?: 'openai/gpt-oss-120b';
 
             $response = $client->post($apiUrl, [
                 'headers' => [
@@ -2284,9 +2540,11 @@ class ApostaController extends BaseController
         $apostas = [];
         if ($hasTokens) {
             $apostas = $this->apostaModel
-                ->where('usuario_id', $userId)
-                ->orderBy('data_hora_jogo', 'ASC')
-                ->orderBy('criado_em', 'ASC')
+                ->select('apostas.*, COALESCE(fixtures_trends.league_name, "Outras Ligas") as league_name, fixtures_trends.league_id, (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = apostas.id AND cc.tipo = "DEBITO_APOSTA") as tem_debito')
+                ->join('fixtures_trends', 'apostas.fixture_id = fixtures_trends.fixture_id', 'left')
+                ->where('apostas.usuario_id', $userId)
+                ->orderBy('apostas.data_hora_jogo', 'ASC')
+                ->orderBy('apostas.criado_em', 'ASC')
                 ->findAll();
 
             $tzUtc = new \DateTimeZone('UTC');
@@ -2332,6 +2590,63 @@ class ApostaController extends BaseController
         return view('header', $data)
              . view('apostas/analise_desempenho', $data)
              . view('footer');
+    }
+
+    /**
+     * Endpoint AJAX para auditar e checar odds de Handicap Asiático em tempo real via API Football.
+     */
+    public function checarOddsAh()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Você precisa estar logado para auditar odds em tempo real.'
+            ])->setStatusCode(401);
+        }
+
+        $fixtureId = $this->request->getPost('fixture_id');
+        $apostaId  = $this->request->getPost('aposta_id');
+
+        if (empty($fixtureId)) {
+            $jsonInput = $this->request->getJSON(true);
+            if (!empty($jsonInput['fixture_id'])) {
+                $fixtureId = $jsonInput['fixture_id'];
+                $apostaId  = $jsonInput['aposta_id'] ?? null;
+            }
+        }
+
+        if (empty($fixtureId)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Identificador da partida (fixture_id) não informado.'
+            ])->setStatusCode(400);
+        }
+
+        $fixtureId = (int)$fixtureId;
+        $scriptPath = '/datalake-root/scripts/checar_odds_ah_fixture.py';
+        if (!file_exists($scriptPath)) {
+            $scriptPath = '/root/datalake-air-flow-delta/scripts/checar_odds_ah_fixture.py';
+        }
+
+        $cmd = "python3 " . escapeshellarg($scriptPath) . " --fixture_id={$fixtureId}";
+        if (!empty($apostaId)) {
+            $apostaId = (int)$apostaId;
+            $cmd .= " --aposta_id={$apostaId}";
+        }
+        $cmd .= " 2>&1";
+
+        $output = shell_exec($cmd);
+        $result = json_decode($output, true);
+
+        if (!$result) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Erro ao processar auditoria de odds: ' . $output
+            ]);
+        }
+
+        return $this->response->setJSON($result);
     }
 }
 

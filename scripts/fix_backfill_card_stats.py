@@ -110,41 +110,14 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
     except Exception as e:
         print(f"⚠️ Erro no endpoint statistics para fixture {fixture_id}: {e}")
 
-    # 2. events endpoint
-    try:
-        url_ev = f"https://v3.football.api-sports.io/fixtures/events?fixture={fixture_id}"
-        res_ev = requests.get(url_ev, headers=headers, timeout=10)
-        if res_ev.status_code == 200:
-            api_success = True
-            ev_data = res_ev.json().get("response", [])
-            eyh, eya, erh, era = 0, 0, 0, 0
-            has_card_events = False
-            for ev in ev_data:
-                if ev.get("type") == "Card":
-                    has_card_events = True
-                    t_id = ev.get("team", {}).get("id")
-                    is_home = (t_id == home_team_id) if home_team_id else True
-                    detail = ev.get("detail", "")
-                    if "Yellow" in detail:
-                        if is_home: eyh += 1
-                        else: eya += 1
-                    elif "Red" in detail:
-                        if is_home: erh += 1
-                        else: era += 1
-            if has_card_events or yh is None:
-                yh = max(yh if yh is not None else 0, eyh)
-                ya = max(ya if ya is not None else 0, eya)
-                rh = max(rh if rh is not None else 0, erh)
-                ra = max(ra if ra is not None else 0, era)
-    except Exception as e:
-        print(f"⚠️ Erro no endpoint events para fixture {fixture_id}: {e}")
-
-    if not api_success and yh is None and ya is None:
+    # Se a API de estatísticas oficiais não retornou dados de cartões, NÃO faz fallback para /events.
+    # A aposta/partida deve aguardar a consolidação oficial em /fixtures/statistics.
+    if not api_success or yh is None or ya is None:
         return None
 
     return (
-        yh if yh is not None else 0,
-        ya if ya is not None else 0,
+        yh,
+        ya,
         rh if rh is not None else 0,
         ra if ra is not None else 0
     )

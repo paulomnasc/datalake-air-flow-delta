@@ -461,6 +461,191 @@ $transacoes = $extrato['transacoes'] ?? [];
   font-size: 1.5rem;
   cursor: pointer;
 }
+
+/* Link aposta no extrato */
+.link-aposta-extrato {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  padding: 0.15rem 0.55rem;
+  border-radius: 0.375rem;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  text-decoration: none;
+  font-size: 0.82rem;
+  transition: all 0.2s ease;
+  vertical-align: middle;
+  cursor: pointer;
+}
+.link-aposta-extrato:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+  transform: translateY(-1px);
+}
+.link-aposta-extrato i {
+  font-size: 0.75rem;
+}
+
+/* Modal detalhes da aposta styling */
+.cc-modal-card-lg {
+  max-width: 640px !important;
+  width: 95% !important;
+}
+
+.modal-aposta-id-badge {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid #38bdf8;
+  color: #38bdf8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.375rem;
+}
+
+.modal-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.modal-status-badge.status-ganha {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.5);
+}
+.modal-status-badge.status-meio-ganha {
+  background: rgba(52, 211, 153, 0.2);
+  color: #6ee7b7;
+  border: 1px solid rgba(52, 211, 153, 0.5);
+}
+.modal-status-badge.status-perdida {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+.modal-status-badge.status-meio-perdida {
+  background: rgba(248, 113, 113, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+}
+.modal-status-badge.status-pendente {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+}
+.modal-status-badge.status-anulada {
+  background: rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+}
+.modal-status-badge.status-cashout {
+  background: rgba(139, 92, 246, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(139, 92, 246, 0.5);
+}
+.modal-status-badge.status-cancelada {
+  background: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.5);
+}
+
+.modal-tipo-badge {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.3rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.modal-match-box {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.modal-match-teams {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.modal-score-badge {
+  background: #facc15;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 800;
+  font-size: 0.9rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.5rem;
+  display: inline-block;
+}
+
+.modal-market-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+
+.modal-odd-badge {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.5rem;
+  text-align: center;
+  min-width: 75px;
+}
+
+.modal-financial-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.modal-fin-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.6rem;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.modal-fin-card .fin-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.modal-fin-card .fin-val {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
 </style>
 
 <div class="extrato-container">
@@ -680,7 +865,25 @@ $transacoes = $extrato['transacoes'] ?? [];
                     <i class="fas <?= $tipoIcon ?>"></i> <?= esc($tipoLabel) ?>
                   </span>
                 </td>
-                <td><?= esc($t->descricao) ?></td>
+                <td>
+                  <?php
+                    $descTexto = esc($t->descricao);
+                    $apostaIdRef = !empty($t->aposta_id) ? (int)$t->aposta_id : null;
+                    if (!$apostaIdRef && preg_match('/#(\d+)/', $t->descricao, $mMatch)) {
+                      $apostaIdRef = (int)$mMatch[1];
+                    }
+
+                    if ($apostaIdRef) {
+                      $linkAposta = '<a href="javascript:void(0);" onclick="abrirModalAposta(' . $apostaIdRef . ')" class="link-aposta-extrato" title="Clique para ver os dados da aposta #' . $apostaIdRef . '"><i class="fas fa-ticket-alt"></i> #' . $apostaIdRef . '</a>';
+                      if (strpos($descTexto, '#' . $apostaIdRef) !== false) {
+                        $descTexto = preg_replace('/#' . $apostaIdRef . '\b/', $linkAposta, $descTexto, 1);
+                      } else {
+                        $descTexto = $linkAposta . ' ' . $descTexto;
+                      }
+                    }
+                  ?>
+                  <?= $descTexto ?>
+                </td>
                 <td class="<?= $isPos ? 'val-positivo' : 'val-negativo' ?>">
                   <?= $isPos ? '+' : '' ?>R$ <?= number_format($val, 2, ',', '.') ?>
                 </td>
@@ -715,7 +918,7 @@ $transacoes = $extrato['transacoes'] ?? [];
       </div>
       <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
         <button type="button" class="btn-clear" onclick="closeAddCreditModal()">Cancelar</button>
-        <button type="submit" class="btn-add-credit"><i class="fas fa-check"></i> Confirmar Crédito</button>
+        <button type="submit" class="btn-add-credit" id="btnSubmitAddCredit"><i class="fas fa-check"></i> Confirmar Crédito</button>
       </div>
     </form>
   </div>
@@ -743,9 +946,130 @@ $transacoes = $extrato['transacoes'] ?? [];
       </div>
       <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
         <button type="button" class="btn-clear" onclick="closeRedeemCreditModal()">Cancelar</button>
-        <button type="submit" class="btn-redeem-credit"><i class="fas fa-check"></i> Confirmar Resgate</button>
+        <button type="submit" class="btn-redeem-credit" id="btnSubmitRedeemCredit"><i class="fas fa-check"></i> Confirmar Resgate</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modal Detalhes da Aposta -->
+<div id="apostaDetalhesModal" class="cc-modal-overlay" onclick="handleApostaModalOverlayClick(event)">
+  <div class="cc-modal-card cc-modal-card-lg" style="max-height: 90vh; overflow-y: auto;">
+    <div class="cc-modal-header" style="border-bottom: 1px solid var(--cc-border); padding-bottom: 1rem; margin-bottom: 1rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span class="modal-aposta-id-badge" id="modalApostaIdBadge">#0000</span>
+        <h3 style="margin: 0; font-size: 1.2rem;"><i class="fas fa-receipt" style="color: #38bdf8;"></i> Detalhes da Aposta</h3>
+      </div>
+      <button class="cc-modal-close" onclick="fecharModalAposta()" title="Fechar">&times;</button>
+    </div>
+
+    <!-- Spinner de Carregamento -->
+    <div id="modalApostaLoading" style="text-align: center; padding: 2.5rem 1rem;">
+      <i class="fas fa-circle-notch fa-spin" style="font-size: 2.5rem; color: #38bdf8; margin-bottom: 1rem;"></i>
+      <p style="color: var(--cc-text-secondary); margin: 0; font-weight: 500;">Carregando dados da aposta...</p>
+    </div>
+
+    <!-- Mensagem de Erro -->
+    <div id="modalApostaError" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 0.5rem; padding: 1rem; color: #fca5a5; margin-bottom: 1rem;">
+      <i class="fas fa-exclamation-triangle me-2"></i> <span id="modalApostaErrorMsg"></span>
+    </div>
+
+    <!-- Conteúdo da Aposta -->
+    <div id="modalApostaContent" style="display: none;">
+      <!-- Topo: Status & Tipo & Horário de Registro -->
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px dashed rgba(255,255,255,0.1);">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span id="modalApostaStatusBadge" class="modal-status-badge">Pendente</span>
+          <span id="modalApostaTipoBadge" class="modal-tipo-badge">Simples</span>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--cc-text-secondary);" id="modalApostaDataCriacao">
+          <i class="far fa-clock me-1"></i> Registrada em: <span>-</span>
+        </div>
+      </div>
+
+      <!-- Card do Confronto -->
+      <div class="modal-match-box">
+        <div style="font-size: 0.8rem; color: #94a3b8; display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem;">
+          <span id="modalApostaLeagueFlag"></span>
+          <strong id="modalApostaLeagueCountry" style="color: #cbd5e1;"></strong>
+          <span id="modalApostaLeagueSep">•</span>
+          <span id="modalApostaLeagueName" style="color: #94a3b8;"></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <div class="modal-match-teams" id="modalApostaTimes">
+            Time Mandante <span style="color: #38bdf8;">vs</span> Time Visitante
+          </div>
+          <div id="modalApostaPlacarWrapper" style="display: none;">
+            <span class="modal-score-badge" id="modalApostaPlacar">⚽ 0 x 0</span>
+          </div>
+        </div>
+        <div style="font-size: 0.78rem; color: var(--cc-text-secondary); margin-top: 0.4rem;">
+          <i class="far fa-calendar-alt me-1"></i> Data do Jogo: <strong id="modalApostaDataJogo" style="color: #e2e8f0;">-</strong>
+        </div>
+      </div>
+
+      <!-- Mercado e Palpite -->
+      <div class="modal-market-box">
+        <div>
+          <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; font-weight: 600;">Mercado & Seleção</div>
+          <div style="font-size: 1rem; font-weight: 700; color: #f8fafc;" id="modalApostaMercado">-</div>
+          <div style="font-size: 0.92rem; font-weight: 600; color: #38bdf8;" id="modalApostaPalpite">-</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+          <a id="modalApostaCasaLink" href="https://br.betano.com/" target="_blank" rel="noopener noreferrer" 
+             style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 6px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.78rem; text-decoration: none; font-weight: 600;" 
+             title="Clique para abrir o site oficial da casa em nova aba">
+             <span style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">Casa:</span>
+             <strong id="modalApostaCasaNome" style="color: #f8fafc;">Betano</strong>
+             <i class="fas fa-external-link-alt" style="font-size: 0.68rem;"></i>
+          </a>
+          <div class="modal-odd-badge">
+            <span style="font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; display: block; font-weight: 600;">Odd</span>
+            <span style="font-size: 1.25rem; font-weight: 800; color: #facc15;" id="modalApostaOdd">1.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grid de Valores Financeiros -->
+      <div class="modal-financial-grid">
+        <div class="modal-fin-card">
+          <span class="fin-title">Valor Apostado</span>
+          <span class="fin-val text-white" id="modalApostaValor">R$ 0,00</span>
+        </div>
+        <div class="modal-fin-card">
+          <span class="fin-title">Retorno Potencial</span>
+          <span class="fin-val" style="color: #38bdf8;" id="modalApostaGanhos">R$ 0,00</span>
+        </div>
+        <div class="modal-fin-card" id="modalApostaRetornoCard">
+          <span class="fin-title" id="modalApostaRetornoTitle">Retorno Obtido</span>
+          <span class="fin-val" style="color: #34d399;" id="modalApostaRetorno">R$ 0,00</span>
+        </div>
+        <div class="modal-fin-card" id="modalApostaLucroCard">
+          <span class="fin-title">Lucro Líquido</span>
+          <span class="fin-val" id="modalApostaLucro">R$ 0,00</span>
+        </div>
+      </div>
+
+      <!-- Desfecho Oficial / Placar (se liquidado ou se houver resultado) -->
+      <div id="modalApostaResultadoBox" style="display: none; margin-top: 1rem; background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.15); border-radius: 0.5rem; padding: 0.75rem 1rem; font-size: 0.82rem; color: #e2e8f0; line-height: 1.45;">
+        <div style="display: flex; align-items: flex-start; gap: 0.5rem;">
+          <i class="fas fa-info-circle" style="color: #38bdf8; margin-top: 2px;"></i>
+          <div style="white-space: pre-line; word-break: break-word;" id="modalApostaResultadoTexto"></div>
+        </div>
+      </div>
+
+      <!-- Link para abrir card no trends -->
+      <div id="modalApostaTrendsLinkWrapper" style="display: none; margin-top: 1rem; text-align: right;">
+        <a id="modalApostaTrendsLink" href="#" target="_blank" class="btn-clear" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; padding: 0.4rem 0.85rem; border-radius: 0.4rem; color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); text-decoration: none;">
+          <i class="fas fa-external-link-alt"></i> Ver Jogo na Central de Tendências
+        </a>
+      </div>
+    </div>
+
+    <!-- Rodapé -->
+    <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--cc-border);">
+      <button type="button" class="btn-clear" onclick="fecharModalAposta()">Fechar</button>
+    </div>
   </div>
 </div>
 
@@ -973,10 +1297,20 @@ function closeAddCreditModal() {
   document.getElementById('addCreditModal').style.display = 'none';
 }
 
+let isSubmittingCredit = false;
 function submitAddCredit(e) {
   e.preventDefault();
+  if (isSubmittingCredit) return;
+
+  const btn = document.getElementById('btnSubmitAddCredit');
   const valor = document.getElementById('valor_credito').value;
   const descricao = document.getElementById('descricao_credito').value;
+
+  isSubmittingCredit = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+  }
 
   const formData = new FormData();
   formData.append('valor', valor);
@@ -993,11 +1327,21 @@ function submitAddCredit(e) {
       window.location.reload();
     } else {
       alert('❌ Erro ao adicionar crédito: ' + (data.message || 'Tente novamente.'));
+      isSubmittingCredit = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check"></i> Confirmar Crédito';
+      }
     }
   })
   .catch(err => {
     console.error(err);
     alert('Erro de conexão ao adicionar crédito.');
+    isSubmittingCredit = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check"></i> Confirmar Crédito';
+    }
   });
 }
 
@@ -1011,8 +1355,12 @@ function closeRedeemCreditModal() {
   document.getElementById('redeemCreditModal').style.display = 'none';
 }
 
+let isSubmittingRedeem = false;
 function submitRedeemCredit(e) {
   e.preventDefault();
+  if (isSubmittingRedeem) return;
+
+  const btn = document.getElementById('btnSubmitRedeemCredit');
   const valorInput = document.getElementById('valor_resgate');
   const valor = parseFloat(valorInput.value);
   const descricao = document.getElementById('descricao_resgate').value;
@@ -1025,6 +1373,12 @@ function submitRedeemCredit(e) {
   if (valor > saldoDisponivelAtual) {
     alert('⚠️ O valor do resgate (R$ ' + valor.toFixed(2) + ') excede o saldo disponível na conta corrente (R$ ' + saldoDisponivelAtual.toFixed(2) + ').');
     return;
+  }
+
+  isSubmittingRedeem = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
   }
 
   const formData = new FormData();
@@ -1042,11 +1396,21 @@ function submitRedeemCredit(e) {
       window.location.reload();
     } else {
       alert('❌ Erro ao realizar resgate: ' + (data.message || 'Tente novamente.'));
+      isSubmittingRedeem = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check"></i> Confirmar Resgate';
+      }
     }
   })
   .catch(err => {
     console.error(err);
     alert('Erro de conexão ao processar o resgate.');
+    isSubmittingRedeem = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check"></i> Confirmar Resgate';
+    }
   });
 }
 
@@ -1206,4 +1570,198 @@ function clearExtratoDateFilter() {
 document.addEventListener('DOMContentLoaded', function() {
   syncExtratoPresetSelect();
 });
+
+// Funções para exibição da Modal de Detalhes da Aposta
+function abrirModalAposta(apostaId) {
+  const modal = document.getElementById('apostaDetalhesModal');
+  const loading = document.getElementById('modalApostaLoading');
+  const content = document.getElementById('modalApostaContent');
+  const errorBox = document.getElementById('modalApostaError');
+  const badgeId = document.getElementById('modalApostaIdBadge');
+
+  if (!modal) return;
+
+  badgeId.textContent = '#' + apostaId;
+  loading.style.display = 'block';
+  content.style.display = 'none';
+  errorBox.style.display = 'none';
+  modal.style.display = 'flex';
+
+  fetch('<?= site_url('/conta-corrente/aposta-detalhes') ?>/' + apostaId)
+    .then(res => res.json())
+    .then(data => {
+      loading.style.display = 'none';
+      if (!data.success || !data.aposta) {
+        errorBox.style.display = 'block';
+        document.getElementById('modalApostaErrorMsg').textContent = data.message || 'Não foi possível carregar os dados desta aposta.';
+        return;
+      }
+
+      const ap = data.aposta;
+
+      // Status Badge
+      const statusBadge = document.getElementById('modalApostaStatusBadge');
+      statusBadge.textContent = ap.status;
+      statusBadge.className = 'modal-status-badge status-' + (ap.status ? ap.status.toLowerCase().replace(/\s+/g, '-') : 'pendente');
+
+      // Tipo
+      document.getElementById('modalApostaTipoBadge').textContent = ap.tipo || 'Simples';
+
+      // Data Criação
+      const dataCriacaoEl = document.querySelector('#modalApostaDataCriacao span');
+      if (dataCriacaoEl) dataCriacaoEl.textContent = ap.criado_em || '-';
+
+      // Liga & País
+      const flagEl = document.getElementById('modalApostaLeagueFlag');
+      const countryEl = document.getElementById('modalApostaLeagueCountry');
+      const sepEl = document.getElementById('modalApostaLeagueSep');
+      const leagueEl = document.getElementById('modalApostaLeagueName');
+
+      flagEl.textContent = ap.league_flag || '';
+      countryEl.textContent = ap.country || '';
+      leagueEl.textContent = ap.league_name || '';
+
+      if (!ap.country || !ap.league_name) {
+        sepEl.style.display = 'none';
+      } else {
+        sepEl.style.display = 'inline';
+      }
+
+      // Times
+      document.getElementById('modalApostaTimes').innerHTML = 
+        `${escapeHtmlExtrato(ap.time_casa)} <span style="color: #38bdf8; margin: 0 4px;">vs</span> ${escapeHtmlExtrato(ap.time_fora)}`;
+
+      // Placar
+      const placarWrapper = document.getElementById('modalApostaPlacarWrapper');
+      const placarEl = document.getElementById('modalApostaPlacar');
+      if (ap.placar) {
+        placarEl.textContent = '⚽ Placar: ' + ap.placar;
+        placarWrapper.style.display = 'block';
+      } else {
+        placarWrapper.style.display = 'none';
+      }
+
+      // Data do jogo
+      document.getElementById('modalApostaDataJogo').textContent = ap.data_hora_jogo || '-';
+
+      // Mercado e Palpite
+      document.getElementById('modalApostaMercado').textContent = ap.mercado || '-';
+      document.getElementById('modalApostaPalpite').textContent = ap.palpite || '-';
+      document.getElementById('modalApostaOdd').textContent = ap.odd || '1.00';
+
+      // Casa de Aposta
+      const casaNome = ap.casa_de_aposta || 'Betano';
+      const elCasaNome = document.getElementById('modalApostaCasaNome');
+      const elCasaLink = document.getElementById('modalApostaCasaLink');
+      if (elCasaNome) elCasaNome.textContent = casaNome;
+      if (elCasaLink) {
+        const urlsMap = {
+          'BETANO': 'https://br.betano.com/',
+          'BET365': 'https://www.bet365.com/',
+          'PINNACLE': 'https://www.pinnacle.com/',
+          '1XBET': 'https://1xbet.com/',
+          'BETFAIR': 'https://www.betfair.com/br',
+          'SPORTINGBET': 'https://www.sportingbet.com/pt-br',
+          'SUPERBET': 'https://superbet.com/pt-br/',
+          'KTO': 'https://www.kto.com/pt/',
+          'WILLIAM HILL': 'https://sports.williamhill.com/',
+          'BETSSON': 'https://www.betsson.com/',
+          'MARATHON': 'https://www.marathonbet.com/'
+        };
+        const cUpper = casaNome.toUpperCase();
+        let foundUrl = '';
+        for (const [k, u] of Object.entries(urlsMap)) {
+          if (cUpper.includes(k)) { foundUrl = u; break; }
+        }
+        if (!foundUrl) {
+          const clean = casaNome.toLowerCase().replace(/[^a-z0-9]/g, '');
+          foundUrl = clean ? 'https://www.' + clean + '.com' : 'https://br.betano.com/';
+        }
+        elCasaLink.href = foundUrl;
+      }
+
+      // Valores
+      document.getElementById('modalApostaValor').textContent = 'R$ ' + ap.valor_aposta;
+      document.getElementById('modalApostaGanhos').textContent = 'R$ ' + ap.ganhos_potenciais;
+
+      const retornoCard = document.getElementById('modalApostaRetornoCard');
+      const retornoEl = document.getElementById('modalApostaRetorno');
+      const retornoTitle = document.getElementById('modalApostaRetornoTitle');
+      const lucroCard = document.getElementById('modalApostaLucroCard');
+      const lucroEl = document.getElementById('modalApostaLucro');
+
+      if (ap.retorno_obtido !== null) {
+        retornoCard.style.display = 'flex';
+        retornoEl.textContent = 'R$ ' + ap.retorno_obtido;
+        if (ap.status === 'Cashout') {
+          retornoTitle.textContent = 'Valor do Cash Out';
+        } else {
+          retornoTitle.textContent = 'Retorno Obtido';
+        }
+
+        lucroCard.style.display = 'flex';
+        const isPos = ap.lucro_liquido_positivo;
+        lucroEl.textContent = (isPos ? '+' : '') + 'R$ ' + ap.lucro_liquido;
+        lucroEl.className = 'fin-val ' + (isPos ? 'val-positivo' : 'val-negativo');
+      } else {
+        retornoCard.style.display = 'none';
+        lucroCard.style.display = 'none';
+      }
+
+      // Resultado oficial detalhado limpo (sem Gatekeeper)
+      const resBox = document.getElementById('modalApostaResultadoBox');
+      const resTexto = document.getElementById('modalApostaResultadoTexto');
+      if (ap.resultado_detalhado && ap.resultado_detalhado.trim() !== '') {
+        resTexto.textContent = ap.resultado_detalhado;
+        resBox.style.display = 'block';
+      } else {
+        resBox.style.display = 'none';
+      }
+
+      // Link Central de Tendências
+      const trendsWrapper = document.getElementById('modalApostaTrendsLinkWrapper');
+      const trendsLink = document.getElementById('modalApostaTrendsLink');
+      if (ap.fixture_id) {
+        trendsLink.href = '<?= base_url("football-trends?fixture_id=") ?>' + ap.fixture_id + '#card-' + ap.fixture_id;
+        trendsWrapper.style.display = 'block';
+      } else {
+        trendsWrapper.style.display = 'none';
+      }
+
+      content.style.display = 'block';
+    })
+    .catch(err => {
+      loading.style.display = 'none';
+      errorBox.style.display = 'block';
+      document.getElementById('modalApostaErrorMsg').textContent = 'Erro ao conectar ao servidor. Tente novamente.';
+      console.error(err);
+    });
+}
+
+function fecharModalAposta() {
+  const modal = document.getElementById('apostaDetalhesModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function handleApostaModalOverlayClick(e) {
+  if (e.target.id === 'apostaDetalhesModal') {
+    fecharModalAposta();
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    fecharModalAposta();
+  }
+});
+
+function escapeHtmlExtrato(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 </script>

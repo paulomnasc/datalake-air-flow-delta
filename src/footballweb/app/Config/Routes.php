@@ -70,6 +70,7 @@ $routes->get('/apostas/relatorioEficiencia', 'ApostaController::relatorioEficien
 $routes->get('/apostas/analise-desempenho', 'ApostaController::analiseDesempenho', ['as' => 'apostas.analise_desempenho']);
 $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa', ['as' => 'apostas.analisar_perda_ia']);
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
+$routes->post('/apostas/checar-odds-ah', 'ApostaController::checarOddsAh', ['as' => 'apostas.checar_odds_ah']);
 
 // Rotas de Conta Corrente, Extrato e Gráfico de Evolução Financeira
 $routes->get('/apostas/extrato', 'ContaCorrenteController::extrato', ['as' => 'apostas.extrato']);
@@ -77,6 +78,7 @@ $routes->get('/conta-corrente/extrato', 'ContaCorrenteController::extrato', ['as
 $routes->post('/conta-corrente/adicionar-credito', 'ContaCorrenteController::adicionarCredito', ['as' => 'conta_corrente.adicionar_credito']);
 $routes->post('/conta-corrente/resgatar-credito', 'ContaCorrenteController::resgatarCredito', ['as' => 'conta_corrente.resgatar_credito']);
 $routes->get('/conta-corrente/grafico-dados', 'ContaCorrenteController::getGraficoDados', ['as' => 'conta_corrente.grafico_dados']);
+$routes->get('/conta-corrente/aposta-detalhes/(:num)', 'ContaCorrenteController::getApostaDetalhes/$1', ['as' => 'conta_corrente.aposta_detalhes']);
 
 // Rota Amigável de SEO para Páginas de Jogos Dinâmicas
 $routes->get('/jogos/(:segment)', 'FootballTrendsController::matchDetail/$1', ['as'=>'football.match']);
@@ -246,6 +248,7 @@ $routes->get('/subscription/status', 'SubscriptionController::checkStatus', ['as
 $routes->post('/subscription/confirmPayment', 'SubscriptionController::confirmPayment', ['as'=>'subscription.confirmPayment']); // Confirma pagamento
 $routes->get('/subscription/pix', 'SubscriptionController::pixPayment', ['as'=>'subscription.pix']); // Página PIX
 $routes->get('/subscription/buy-grok-credits', 'SubscriptionController::buyGrokCredits', ['as'=>'subscription.buyGrokCredits']); // Adquirir créditos Grok
+$routes->get('/subscription/buyGrokCredits', 'SubscriptionController::buyGrokCredits'); // Alias compatibilidade
 $routes->post('/subscription/confirmGrokPayment', 'SubscriptionController::confirmGrokPayment', ['as'=>'subscription.confirmGrokPayment']); // Confirmar Pix Grok
 $routes->post('/subscription/create-mp-pix', 'SubscriptionController::createMpPix', ['as'=>'subscription.createMpPix']); // Criar Pix Mercado Pago
 $routes->get('/subscription/check-mp-pix/(:segment)', 'SubscriptionController::checkMpPixStatus/$1', ['as'=>'subscription.checkMpPixStatus']); // Checar status Pix MP

@@ -202,14 +202,14 @@
       
       <select id="perfDatePresetSelect" class="form-select form-select-sm bg-dark text-info border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 160px;" onchange="setPerfDatePreset(this.value)" title="Atalhos de Período">
         <option value="custom">📅 Personalizado</option>
-        <option value="today" selected>⚡ Hoje</option>
+        <option value="today">⚡ Hoje</option>
         <option value="yesterday">⏪ Ontem</option>
         <option value="7days">🗓️ Últimos 7 dias</option>
         <option value="15days">🗓️ Últimos 15 dias</option>
         <option value="1month">📅 Último mês</option>
         <option value="trimestre">📊 Trimestre</option>
         <option value="semestre">📈 Semestre</option>
-        <option value="all">♾️ Todo o período</option>
+        <option value="all" selected>♾️ Todo o período</option>
       </select>
 
       <input type="date" id="perfStartDateInput" class="form-control form-control-sm bg-dark text-white border-secondary" style="width: 138px;" onchange="onPerfManualDateChange()" title="Data Inicial (De)">
@@ -224,8 +224,8 @@
       <div class="d-flex align-items-center gap-2">
         <span class="text-light fw-semibold d-flex align-items-center gap-1" style="font-size: 0.88rem;"><i class="bi bi-funnel-fill text-primary"></i> <?= lang('App.status') ?>:</span>
         <select id="perfStatusSelect" class="form-select form-select-sm bg-dark text-primary border-secondary fw-semibold" style="width: auto; cursor: pointer; min-width: 175px;" onchange="updatePerformanceDashboard()" title="<?= lang('App.total_bets') ?>">
-          <option value="all" selected>♾️ <?= lang('App.status_all_pending') ?></option>
-          <option value="concluidas">✅ <?= lang('App.status_concluded') ?></option>
+          <option value="all">♾️ <?= lang('App.status_all_pending') ?></option>
+          <option value="concluidas" selected>✅ <?= lang('App.status_concluded') ?></option>
           <option value="Pendente">⏳ <?= lang('App.status_only_pending') ?></option>
           <option value="Ganha">🟢 <?= lang('App.won') ?> / Meio Ganhas</option>
           <option value="Perdida">🔴 <?= lang('App.lost') ?> / Meio Perdidas</option>
@@ -240,8 +240,8 @@
           <i class="bi bi-shield-check text-success"></i> Confirmadas:
         </span>
         <div class="bet-slide-toggle" id="perfConfirmedSlideToggle">
-          <button type="button" class="slide-btn active" data-val="all" onclick="setPerfConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
-          <button type="button" class="slide-btn" data-val="1" onclick="setPerfConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
+          <button type="button" class="slide-btn" data-val="all" onclick="setPerfConfirmedFilter('all', this)" title="Exibir todas as apostas (confirmadas e não confirmadas)">Todas</button>
+          <button type="button" class="slide-btn active" data-val="1" onclick="setPerfConfirmedFilter('1', this)" title="Exibir apenas apostas confirmadas (com débito em conta)">Sim</button>
           <button type="button" class="slide-btn" data-val="0" onclick="setPerfConfirmedFilter('0', this)" title="Exibir apenas apostas não confirmadas">Não</button>
         </div>
       </div>
@@ -262,6 +262,7 @@
     <div class="kpi-card">
       <div class="kpi-label"><i class="bi bi-cash-coin text-info"></i> <?= lang('App.total_staked') ?></div>
       <div class="kpi-value text-info" id="kpiTotalApostado">R$ 0,00</div>
+      <div class="small fw-semibold mt-1" id="kpiPendenteInfo" style="display: none; color: #f59e0b; font-size: 0.76rem;"></div>
     </div>
     
     <div class="kpi-card">
@@ -272,6 +273,7 @@
     <div class="kpi-card">
       <div class="kpi-label"><i class="bi bi-piggy-bank-fill" style="color: #00e676;"></i> <?= lang('App.total_profit') ?></div>
       <div class="kpi-value text-success" id="kpiLucroLiquido">R$ 0,00</div>
+      <div class="small fw-semibold mt-1" id="kpiLucroHojeInfo" style="display: none; color: #f59e0b; font-size: 0.76rem;"></div>
     </div>
 
     <div class="kpi-card">
@@ -306,6 +308,93 @@
     </div>
   </div>
 
+  <!-- Modalities Comparison Chart Section (Cartões vs Handicap Asiático) -->
+  <div class="chart-card" id="modalitiesComparisonSection">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <div>
+        <h5 class="fw-bold mb-1 text-white d-flex align-items-center gap-2">
+          <i class="bi bi-intersect text-warning"></i> <?= lang('App.modalities_profit_comparison') ?? 'Comparativo de Lucratividade: Cartões vs Handicap Asiático' ?>
+        </h5>
+        <div class="small" style="color: #cbd5e1 !important;">
+          <i class="bi bi-info-circle text-info"></i> <?= lang('App.modalities_profit_subtitle') ?? 'Acompanhe a curva de evolução e lucratividade separada por modalidade no período' ?>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="badge bg-dark border border-success text-success px-3 py-1.5" style="font-size: 0.8rem;" id="badgeCardsSummary">
+          <i class="bi bi-square-fill me-1" style="color: #00e676;"></i> <?= lang('App.modality_cards') ?? 'Cartões (Under)' ?>
+        </span>
+        <span class="badge bg-dark border border-warning text-warning px-3 py-1.5" style="font-size: 0.8rem;" id="badgeAhSummary">
+          <i class="bi bi-square-fill me-1" style="color: #ff9100;"></i> <?= lang('App.modality_asian_handicap') ?? 'Handicap Asiático (AH)' ?>
+        </span>
+      </div>
+    </div>
+
+    <!-- Mini KPI Diagnosis Cards for Modalities -->
+    <div class="row g-3 mb-3">
+      <!-- Card Cartões -->
+      <div class="col-md-4 col-sm-6">
+        <div class="p-3 rounded-3 border h-100" style="background: rgba(0, 230, 118, 0.06); border-color: rgba(0, 230, 118, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-success d-flex align-items-center gap-1">
+              <i class="bi bi-shield-check"></i> <?= lang('App.modality_cards') ?? 'Cartões (Under)' ?>
+            </span>
+            <span class="badge bg-success text-dark fw-bold" id="kpiCardsBadge" style="font-size: 0.7rem;">Estável 🟢</span>
+          </div>
+          <div class="d-flex align-items-baseline gap-2">
+            <div class="fw-bold fs-5 text-white" id="kpiCardsLucro">R$ 0,00</div>
+            <span class="small fw-semibold" id="kpiCardsRoi">ROI: 0%</span>
+          </div>
+          <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiCardsDetails">
+            0 bets | Win Rate: 0,0%
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Handicap Asiático -->
+      <div class="col-md-4 col-sm-6">
+        <div class="p-3 rounded-3 border h-100" id="kpiAhCardBox" style="background: rgba(255, 145, 0, 0.06); border-color: rgba(255, 145, 0, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-warning d-flex align-items-center gap-1">
+              <i class="bi bi-sliders"></i> <?= lang('App.modality_asian_handicap') ?? 'Handicap Asiático (AH)' ?>
+            </span>
+            <span class="badge bg-warning text-dark fw-bold" id="kpiAhBadge" style="font-size: 0.7rem;">Volátil ⚡</span>
+          </div>
+          <div class="d-flex align-items-baseline gap-2">
+            <div class="fw-bold fs-5 text-white" id="kpiAhLucro">R$ 0,00</div>
+            <span class="small fw-semibold" id="kpiAhRoi">ROI: 0%</span>
+          </div>
+          <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiAhDetails">
+            0 bets | Win Rate: 0,0%
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Comparativo Diferencial -->
+      <div class="col-md-4 col-sm-12">
+        <div class="p-3 rounded-3 border h-100" style="background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-info d-flex align-items-center gap-1">
+              <i class="bi bi-arrow-left-right"></i> Balanço Diferencial (Impacto)
+            </span>
+            <span class="badge bg-dark border border-info text-info" id="kpiDeltaBadge" style="font-size: 0.7rem;">Diagnóstico</span>
+          </div>
+          <div class="d-flex align-items-baseline gap-2">
+            <div class="fw-bold fs-5 text-white" id="kpiDeltaLucro">R$ 0,00</div>
+            <span class="small text-info fw-semibold" id="kpiDeltaStatus">Vantagem Cartões</span>
+          </div>
+          <div class="small text-white-50 mt-1" style="color: #cbd5e1 !important;" id="kpiDeltaDetails">
+            Impacto líquido comparativo no período selecionado
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart Container -->
+    <div class="chart-container-box">
+      <canvas id="modalidadesProfitChart"></canvas>
+    </div>
+  </div>
+
   <!-- Mercado Profit Chart Section -->
   <div class="chart-card">
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -319,6 +408,123 @@
 
     <div class="chart-container-box" id="mercadoChartBox" style="height: 380px;">
       <canvas id="mercadoProfitChart"></canvas>
+    </div>
+  </div>
+
+  <!-- League Profitability & Banca Drain Analysis Section -->
+  <div class="chart-card" id="leagueProfitSection">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <div>
+        <h5 class="fw-bold mb-1 text-white d-flex align-items-center gap-2">
+          <i class="bi bi-trophy-fill text-warning"></i> <?= lang('App.net_profit_by_league') ?? 'Lucratividade por Liga de Futebol (Ranking Geral)' ?>
+        </h5>
+        <div class="small" style="color: #cbd5e1 !important;">
+          <i class="bi bi-shield-exclamation text-info"></i> <?= lang('App.league_profit_subtitle') ?? 'Identifique as ligas mais rentáveis e os ralos da sua banca para cortes estratégicos' ?>
+        </div>
+      </div>
+      
+      <!-- Controls Toolbar -->
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <!-- Segment Filter (All / Losses / Profits) -->
+        <div class="bet-slide-toggle" id="leagueSegmentToggle">
+          <button type="button" class="slide-btn active" data-seg="all" onclick="setLeagueSegmentFilter('all', this)" title="Exibir todas as ligas">Todas</button>
+          <button type="button" class="slide-btn" data-seg="loss_only" onclick="setLeagueSegmentFilter('loss_only', this)" title="Exibir apenas ligas com prejuízo acumulado (candidatas a corte)">Prejuízo 🔴</button>
+          <button type="button" class="slide-btn" data-seg="profit_only" onclick="setLeagueSegmentFilter('profit_only', this)" title="Exibir apenas ligas lucrativas">Lucrativas 🟢</button>
+        </div>
+
+        <!-- Sort Select -->
+        <select id="leagueSortSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer;" onchange="onLeagueSortChange(this.value)">
+          <option value="losses_first" selected>🚨 Maiores Prejuízos Primeiro (Cortes)</option>
+          <option value="profit_first">🏆 Mais Lucrativas Primeiro</option>
+          <option value="roi">📈 Pior ROI % Primeiro</option>
+          <option value="volume">🎫 Maior Volume de Apostas</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Mini KPI Diagnosis Cards for Leagues -->
+    <div class="row g-2 mb-3" id="leagueDiagnosticRow">
+      <div class="col-md-4 col-sm-6">
+        <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(255, 82, 82, 0.08); border-color: rgba(255, 82, 82, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-danger d-flex align-items-center gap-1">
+              <i class="bi bi-exclamation-octagon-fill"></i> <?= lang('App.league_drain_alert') ?? 'Maior Ralo da Banca' ?>
+            </span>
+            <span class="badge bg-danger text-white" id="badgeDrainAction" style="font-size: 0.65rem;">Corte Recomendado</span>
+          </div>
+          <div class="fw-bold text-white fs-6 text-truncate" id="kpiWorstLeagueName">-</div>
+          <div class="d-flex align-items-center gap-2 small">
+            <span class="text-danger fw-bold fs-6" id="kpiWorstLeagueProfit">R$ 0,00</span>
+            <span class="text-white-50" style="color: #cbd5e1 !important;" id="kpiWorstLeagueDetails">ROI: 0% | 0 apostas</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4 col-sm-6">
+        <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(0, 230, 118, 0.08); border-color: rgba(0, 230, 118, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-success d-flex align-items-center gap-1">
+              <i class="bi bi-star-fill"></i> <?= lang('App.league_best_alert') ?? 'Liga Mais Lucrativa' ?>
+            </span>
+            <span class="badge bg-success text-dark fw-bold" style="font-size: 0.65rem;">Top Performance</span>
+          </div>
+          <div class="fw-bold text-white fs-6 text-truncate" id="kpiBestLeagueName">-</div>
+          <div class="d-flex align-items-center gap-2 small">
+            <span class="text-success fw-bold fs-6" id="kpiBestLeagueProfit">+R$ 0,00</span>
+            <span class="text-white-50" style="color: #cbd5e1 !important;" id="kpiBestLeagueDetails">ROI: +0% | 0 apostas</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4 col-sm-12">
+        <div class="p-2 px-3 rounded-3 border h-100" style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.3) !important;">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-info d-flex align-items-center gap-1">
+              <i class="bi bi-pie-chart-fill"></i> Balanço de Ligas
+            </span>
+            <span class="badge bg-dark border border-secondary text-info" id="kpiLeagueCountBadge" style="font-size: 0.65rem;">0 Ligas</span>
+          </div>
+          <div class="fw-bold text-white fs-6" id="kpiLeagueBalanceSummary">0 Positivas / 0 Negativas</div>
+          <div class="text-white-50 small" style="color: #cbd5e1 !important;" id="kpiLeagueLossTotal">Prejuízo Total Drenado: R$ 0,00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart Container -->
+    <div class="chart-container-box" id="leagueChartBox" style="height: 400px;">
+      <canvas id="leagueProfitChart"></canvas>
+    </div>
+
+    <!-- Collapsible Table: Detalhamento de Ligas e Recomendações de Corte -->
+    <div class="mt-3 text-end">
+      <button class="btn btn-sm btn-outline-secondary text-light-50 rounded-pill px-3 py-1" type="button" data-bs-toggle="collapse" data-bs-target="#leagueTableCollapse" aria-expanded="false" aria-controls="leagueTableCollapse">
+        <i class="bi bi-list-columns-reverse me-1 text-warning"></i> Alternar Tabela de Auditoria por Liga
+      </button>
+    </div>
+
+    <div class="collapse mt-3" id="leagueTableCollapse">
+      <div class="table-responsive rounded-3 border border-secondary p-2 bg-dark">
+        <table class="table table-dark table-sm table-hover align-middle mb-0" style="font-size: 0.85rem;">
+          <thead>
+            <tr class="text-white-50 border-secondary">
+              <th>Liga</th>
+              <th class="text-center">Apostas</th>
+              <th class="text-center">V / D / A</th>
+              <th class="text-center">Win Rate</th>
+              <th>Apostado</th>
+              <th>Retorno</th>
+              <th>Lucro Líquido</th>
+              <th>ROI (%)</th>
+              <th class="text-center">Diagnóstico</th>
+            </tr>
+          </thead>
+          <tbody id="leagueTableBody">
+            <tr>
+              <td colspan="9" class="text-center text-muted py-3">Carregando dados das ligas...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -355,9 +561,37 @@
 const rawBets = <?= json_encode($apostas ?? []) ?>;
 
 let perfChart = null;
+let modalidadesChart = null;
 let mercadoChart = null;
+let leagueChart = null;
 
-let perfConfirmedFilter = 'all';
+let leagueSortMode = 'losses_first';
+let leagueSegmentFilter = 'all';
+
+function setLeagueSegmentFilter(val, btnEl) {
+  leagueSegmentFilter = val;
+  const container = document.getElementById('leagueSegmentToggle');
+  if (container) {
+    container.querySelectorAll('.slide-btn').forEach(btn => {
+      btn.classList.remove('active', 'active-no');
+    });
+  }
+  if (btnEl) {
+    if (val === 'loss_only') {
+      btnEl.classList.add('active-no');
+    } else {
+      btnEl.classList.add('active');
+    }
+  }
+  updatePerformanceDashboard();
+}
+
+function onLeagueSortChange(val) {
+  leagueSortMode = val;
+  updatePerformanceDashboard();
+}
+
+let perfConfirmedFilter = '1';
 
 function setPerfConfirmedFilter(val, btnEl) {
   perfConfirmedFilter = val;
@@ -592,10 +826,12 @@ function updatePerformanceDashboard() {
 
     if (perfConfirmedFilter === '1') {
       const isConfirmed = (bet.confirmada !== undefined && bet.confirmada !== null) ? String(bet.confirmada) === '1' : true;
-      if (!isConfirmed) return false;
+      const hasDebit = (bet.tem_debito !== undefined && parseInt(bet.tem_debito) > 0);
+      if (!isConfirmed && !hasDebit) return false;
     } else if (perfConfirmedFilter === '0') {
       const isConfirmed = (bet.confirmada !== undefined && bet.confirmada !== null) ? String(bet.confirmada) === '1' : true;
-      if (isConfirmed) return false;
+      const hasDebit = (bet.tem_debito !== undefined && parseInt(bet.tem_debito) > 0);
+      if (isConfirmed || hasDebit) return false;
     }
 
     const betDate = getBetDateBRT(bet);
@@ -611,6 +847,10 @@ function updatePerformanceDashboard() {
     return da.localeCompare(db);
   });
 
+  const now = new Date();
+  const todayStr = formatDateYYYYMMDD(now);
+  const isSingleDayToday = (startDate && endDate && startDate === endDate && startDate === todayStr);
+
   let totalApostado = 0;
   let totalApostadoLiquidado = 0;
   let totalRetorno = 0;
@@ -619,14 +859,78 @@ function updatePerformanceDashboard() {
   let decidedCount = 0;
   let settledCount = 0;
 
+  // Rastreamento segregado: períodos concluídos (consolidados) vs em andamento
+  let closedApostadoLiquidado = 0;
+  let closedRetorno = 0;
+  let closedLucroLiquido = 0;
+  let closedWinCount = 0;
+  let closedDecidedCount = 0;
+  let closedBetsCount = 0;
+
+  let openApostado = 0;
+  let openPendingBetsCount = 0;
+  let openTotalBetsCount = 0;
+  let openPartialLucro = 0;
+
   const buckets = {};
   const mercadoBuckets = {};
+  const leagueBuckets = {};
+  const modalityBuckets = {
+    cartoes: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 },
+    ah: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 },
+    outros: { apostado: 0, retorno: 0, lucro: 0, count: 0, ganhas: 0, perdidas: 0, anuladas: 0, decided: 0 }
+  };
+  const modalityTimeline = {};
 
   filteredBets.forEach(bet => {
     const status = bet.status || '';
     const valor = parseFloat(bet.valor_aposta) || 0;
     const netProfit = computeNetProfit(bet);
     const grossReturn = computeGrossReturn(bet);
+    const rawDate = getBetDateBRT(bet);
+    const isBetToday = (rawDate === todayStr);
+    const isBetPending = (status === 'Pendente');
+
+    // Agrupamento por Liga de Futebol
+    let leagueName = (bet.league_name || 'Outras Ligas').trim();
+    if (!leagueName) leagueName = 'Outras Ligas';
+
+    if (!leagueBuckets[leagueName]) {
+      leagueBuckets[leagueName] = {
+        apostado: 0,
+        retorno: 0,
+        lucro: 0,
+        count: 0,
+        ganhas: 0,
+        perdidas: 0,
+        anuladas: 0,
+        decided: 0
+      };
+    }
+    leagueBuckets[leagueName].apostado += valor;
+    leagueBuckets[leagueName].retorno += grossReturn;
+    leagueBuckets[leagueName].lucro += netProfit;
+    leagueBuckets[leagueName].count += 1;
+
+    if (status === 'Ganha') {
+      leagueBuckets[leagueName].ganhas += 1;
+      leagueBuckets[leagueName].decided += 1;
+    } else if (status === 'Meio Ganha') {
+      leagueBuckets[leagueName].ganhas += 0.75;
+      leagueBuckets[leagueName].decided += 1;
+    } else if (status === 'Perdida') {
+      leagueBuckets[leagueName].perdidas += 1;
+      leagueBuckets[leagueName].decided += 1;
+    } else if (status === 'Meio Perdida') {
+      leagueBuckets[leagueName].perdidas += 0.75;
+      leagueBuckets[leagueName].decided += 1;
+    } else if (status === 'Cashout') {
+      if (netProfit > 0) leagueBuckets[leagueName].ganhas += 1;
+      else if (netProfit < 0) leagueBuckets[leagueName].perdidas += 1;
+      leagueBuckets[leagueName].decided += 1;
+    } else if (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA') {
+      leagueBuckets[leagueName].anuladas += 1;
+    }
 
     totalApostado += valor;
     if (status !== 'Pendente') {
@@ -650,6 +954,39 @@ function updatePerformanceDashboard() {
     }
     totalRetorno += grossReturn;
     totalLucroLiquido += netProfit;
+
+    // Segregação para fechamento consolidado
+    if (isBetToday) {
+      openApostado += valor;
+      openTotalBetsCount++;
+      openPartialLucro += netProfit;
+      if (isBetPending) {
+        openPendingBetsCount++;
+      }
+    } else if (!isBetPending) {
+      closedApostadoLiquidado += valor;
+      closedRetorno += grossReturn;
+      closedLucroLiquido += netProfit;
+      closedBetsCount++;
+      if (status === 'Ganha') {
+        closedWinCount += 1.0;
+        closedDecidedCount += 1;
+      } else if (status === 'Meio Ganha') {
+        closedWinCount += 0.75;
+        closedDecidedCount += 1;
+      } else if (status === 'Meio Perdida') {
+        closedWinCount += 0.25;
+        closedDecidedCount += 1;
+      } else if (status === 'Perdida') {
+        closedDecidedCount += 1;
+      } else if (status === 'Cashout') {
+        if (netProfit > 0) closedWinCount += 1.0;
+        closedDecidedCount += 1;
+      }
+    } else {
+      openApostado += valor;
+      openPendingBetsCount++;
+    }
 
     let rawMercado = (bet.mercado || 'Outros').trim();
     if (!rawMercado) rawMercado = 'Outros';
@@ -730,7 +1067,6 @@ function updatePerformanceDashboard() {
     mercadoBuckets[finalMercadoKey].lucro += netProfit;
     mercadoBuckets[finalMercadoKey].count += 1;
 
-    const rawDate = getBetDateBRT(bet);
     let key = rawDate || 'Sem Data';
     if (rawDate) {
       if (groupMode === 'semana') {
@@ -741,47 +1077,187 @@ function updatePerformanceDashboard() {
     }
 
     if (!buckets[key]) {
-      buckets[key] = { apostado: 0, retorno: 0, lucro: 0, count: 0 };
+      buckets[key] = {
+        apostado: 0,
+        retorno: 0,
+        lucro: 0,
+        count: 0,
+        pendingCount: 0,
+        hasPending: false,
+        isToday: (rawDate === todayStr),
+        ganhas: 0,
+        decided: 0
+      };
     }
     buckets[key].apostado += valor;
     buckets[key].retorno += grossReturn;
     buckets[key].lucro += netProfit;
     buckets[key].count += 1;
+    if (status === 'Pendente') {
+      buckets[key].pendingCount += 1;
+      buckets[key].hasPending = true;
+    }
+
+    if (status === 'Ganha') {
+      buckets[key].ganhas += 1.0;
+      buckets[key].decided += 1;
+    } else if (status === 'Meio Ganha') {
+      buckets[key].ganhas += 0.75;
+      buckets[key].decided += 1;
+    } else if (status === 'Meio Perdida') {
+      buckets[key].ganhas += 0.25;
+      buckets[key].decided += 1;
+    } else if (status === 'Perdida') {
+      buckets[key].decided += 1;
+    } else if (status === 'Cashout') {
+      if (netProfit > 0) buckets[key].ganhas += 1.0;
+      buckets[key].decided += 1;
+    }
+
+    let modKey = 'outros';
+    if (isCardMarket) {
+      modKey = 'cartoes';
+    } else if (isHandicapMarket) {
+      modKey = 'ah';
+    }
+
+    modalityBuckets[modKey].apostado += valor;
+    modalityBuckets[modKey].retorno += grossReturn;
+    modalityBuckets[modKey].lucro += netProfit;
+    modalityBuckets[modKey].count += 1;
+
+    if (status === 'Ganha') {
+      modalityBuckets[modKey].ganhas += 1;
+      modalityBuckets[modKey].decided += 1;
+    } else if (status === 'Meio Ganha') {
+      modalityBuckets[modKey].ganhas += 0.75;
+      modalityBuckets[modKey].decided += 1;
+    } else if (status === 'Meio Perdida') {
+      modalityBuckets[modKey].perdidas += 0.75;
+      modalityBuckets[modKey].decided += 1;
+    } else if (status === 'Perdida') {
+      modalityBuckets[modKey].perdidas += 1;
+      modalityBuckets[modKey].decided += 1;
+    } else if (status === 'Cashout') {
+      if (netProfit > 0) modalityBuckets[modKey].ganhas += 1;
+      else if (netProfit < 0) modalityBuckets[modKey].perdidas += 1;
+      modalityBuckets[modKey].decided += 1;
+    } else if (status === 'ANULADA' || status === 'Anulada' || status === 'Cancelada' || status === 'CANCELADA') {
+      modalityBuckets[modKey].anuladas += 1;
+    }
+
+    if (!modalityTimeline[key]) {
+      modalityTimeline[key] = { cartoesLucro: 0, ahLucro: 0, outrosLucro: 0, cartoesCount: 0, ahCount: 0 };
+    }
+    if (modKey === 'cartoes') {
+      modalityTimeline[key].cartoesLucro += netProfit;
+      modalityTimeline[key].cartoesCount += 1;
+    } else if (modKey === 'ah') {
+      modalityTimeline[key].ahLucro += netProfit;
+      modalityTimeline[key].ahCount += 1;
+    } else {
+      modalityTimeline[key].outrosLucro += netProfit;
+    }
   });
 
   const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
 
-  totalLucroLiquido = totalRetorno - totalApostado;
-  const baseInvestida = totalApostado > 0 ? totalApostado : 0;
-  const roi = baseInvestida > 0 ? (totalLucroLiquido / baseInvestida) * 100 : 0;
-  const winRate = decidedCount > 0 ? (winCount / decidedCount) * 100 : 0;
+  // Se o usuário selecionou visualização geral ou multi-dias, os KPIs consolidam estritamente dias concluídos
+  const useClosedOnly = (!isSingleDayToday && closedBetsCount > 0);
+  const displayApostado = useClosedOnly ? closedApostadoLiquidado : (totalApostadoLiquidado > 0 ? totalApostadoLiquidado : totalApostado);
+  const displayRetorno = useClosedOnly ? closedRetorno : totalRetorno;
+  const displayLucro = useClosedOnly ? closedLucroLiquido : totalLucroLiquido;
+  const displayWinCount = useClosedOnly ? closedWinCount : winCount;
+  const displayDecidedCount = useClosedOnly ? closedDecidedCount : decidedCount;
+  const displayTotalApostas = useClosedOnly ? closedBetsCount : filteredBets.length;
 
-  document.getElementById('kpiTotalApostado').textContent = formatBrl(totalApostado);
-  document.getElementById('kpiTotalRetorno').textContent = formatBrl(totalRetorno);
+  const baseInvestida = displayApostado > 0 ? displayApostado : 1;
+  const roi = (displayLucro / baseInvestida) * 100;
+  const winRate = displayDecidedCount > 0 ? (displayWinCount / displayDecidedCount) * 100 : 0;
+
+  const elTotalApostado = document.getElementById('kpiTotalApostado');
+  if (elTotalApostado) {
+    elTotalApostado.textContent = formatBrl(displayApostado);
+  }
+  const elPendenteInfo = document.getElementById('kpiPendenteInfo');
+  if (elPendenteInfo) {
+    if (openApostado > 0) {
+      if (openPendingBetsCount > 0) {
+        elPendenteInfo.innerHTML = `<i class="bi bi-hourglass-split text-warning me-1"></i> + ${formatBrl(openApostado)} em andamento hoje (${openPendingBetsCount} jogos pendentes)`;
+      } else {
+        elPendenteInfo.innerHTML = `<i class="bi bi-hourglass-split text-warning me-1"></i> + ${formatBrl(openApostado)} em andamento hoje (aguardando fechamento noturno)`;
+      }
+      elPendenteInfo.style.display = 'block';
+    } else {
+      elPendenteInfo.style.display = 'none';
+    }
+  }
+  document.getElementById('kpiTotalRetorno').textContent = formatBrl(displayRetorno);
   
   const kpiLucroEl = document.getElementById('kpiLucroLiquido');
-  kpiLucroEl.textContent = formatBrl(totalLucroLiquido);
-  kpiLucroEl.className = 'kpi-value ' + (totalLucroLiquido >= 0 ? 'text-success' : 'text-danger');
+  kpiLucroEl.textContent = formatBrl(displayLucro);
+  kpiLucroEl.className = 'kpi-value ' + (displayLucro >= 0 ? 'text-success' : 'text-danger');
+
+  const elLucroHoje = document.getElementById('kpiLucroHojeInfo');
+  if (elLucroHoje) {
+    if (useClosedOnly && openTotalBetsCount > 0) {
+      elLucroHoje.innerHTML = `<i class="bi bi-hourglass-split me-1"></i>Hoje (em apuração): ${formatBrl(openPartialLucro)} parcial`;
+      elLucroHoje.style.display = 'block';
+    } else if (isSingleDayToday) {
+      elLucroHoje.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i>Dia em andamento (aguardando fechamento noturno)`;
+      elLucroHoje.style.display = 'block';
+    } else {
+      elLucroHoje.style.display = 'none';
+    }
+  }
 
   const kpiRoiEl = document.getElementById('kpiRoi');
   kpiRoiEl.textContent = formatPct(roi);
   kpiRoiEl.className = 'kpi-value ' + (roi >= 0 ? 'text-success' : 'text-danger');
 
   document.getElementById('kpiWinRate').textContent = winRate.toFixed(1).replace('.', ',') + '%';
-  document.getElementById('kpiTotalApostas').textContent = filteredBets.length;
+  document.getElementById('kpiTotalApostas').textContent = displayTotalApostas;
 
   const bucketKeys = Object.keys(buckets).sort();
   const labels = [];
   const cumulativeApostadoData = [];
   const cumulativeLucroData = [];
+  const cumulativeCartoesLucro = [];
+  const cumulativeAhLucro = [];
+  const cumulativeWinRateData = [];
 
   let runningApostado = 0;
   let runningLucro = 0;
+  let runningCartoesLucro = 0;
+  let runningAhLucro = 0;
+  let runningGanhas = 0;
+  let runningDecided = 0;
 
   bucketKeys.forEach(k => {
-    runningApostado += buckets[k].apostado;
-    runningLucro += buckets[k].lucro;
+    const b = buckets[k];
+    const isOpen = (k === todayStr || (groupMode === 'dia' && k >= todayStr) || b.hasPending);
+
+    runningApostado += b.apostado;
+    // O lucro acumulado fechado na curva gráfica só soma períodos concluídos
+    if (!isOpen || isSingleDayToday) {
+      runningLucro += b.lucro;
+    }
+
+    const modTime = modalityTimeline[k] || { cartoesLucro: 0, ahLucro: 0 };
+    if (!isOpen || isSingleDayToday) {
+      runningCartoesLucro += modTime.cartoesLucro;
+      runningAhLucro += modTime.ahLucro;
+    }
+    cumulativeCartoesLucro.push(runningCartoesLucro);
+    cumulativeAhLucro.push(runningAhLucro);
+
+    if (!isOpen || isSingleDayToday) {
+      runningGanhas += (b.ganhas || 0);
+      runningDecided += (b.decided || 0);
+    }
+    const curWinRate = runningDecided > 0 ? (runningGanhas / runningDecided) * 100 : 0;
+    cumulativeWinRateData.push(parseFloat(curWinRate.toFixed(1)));
 
     let label = k;
     if (groupMode === 'dia' && k.length === 10) {
@@ -796,6 +1272,103 @@ function updatePerformanceDashboard() {
     cumulativeApostadoData.push(runningApostado);
     cumulativeLucroData.push(runningLucro);
   });
+
+  // Atualização dos Mini KPIs de Diagnóstico por Modalidade
+  const cartoesLucro = modalityBuckets.cartoes.lucro;
+  const cartoesApostado = modalityBuckets.cartoes.apostado;
+  const cartoesRoi = cartoesApostado > 0 ? (cartoesLucro / cartoesApostado) * 100 : 0;
+  const cartoesWinRate = modalityBuckets.cartoes.decided > 0 ? (modalityBuckets.cartoes.ganhas / modalityBuckets.cartoes.decided) * 100 : 0;
+
+  const ahLucro = modalityBuckets.ah.lucro;
+  const ahApostado = modalityBuckets.ah.apostado;
+  const ahRoi = ahApostado > 0 ? (ahLucro / ahApostado) * 100 : 0;
+  const ahWinRate = modalityBuckets.ah.decided > 0 ? (modalityBuckets.ah.ganhas / modalityBuckets.ah.decided) * 100 : 0;
+
+  const deltaLucro = cartoesLucro - ahLucro;
+
+  const elCardsLucro = document.getElementById('kpiCardsLucro');
+  const elCardsRoi = document.getElementById('kpiCardsRoi');
+  const elCardsDetails = document.getElementById('kpiCardsDetails');
+  const elBadgeCards = document.getElementById('badgeCardsSummary');
+  if (elCardsLucro) {
+    elCardsLucro.textContent = formatBrl(cartoesLucro);
+    elCardsLucro.className = 'fw-bold fs-5 ' + (cartoesLucro >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elCardsRoi) {
+    elCardsRoi.textContent = 'ROI: ' + formatPct(cartoesRoi);
+    elCardsRoi.className = 'small fw-semibold ' + (cartoesRoi >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elCardsDetails) {
+    elCardsDetails.textContent = `${modalityBuckets.cartoes.count} bets | Win: ${cartoesWinRate.toFixed(1).replace('.', ',')}%`;
+  }
+  if (elBadgeCards) {
+    elBadgeCards.innerHTML = `<i class="bi bi-square-fill me-1" style="color: #00e676;"></i> Cartões: ${formatBrl(cartoesLucro)}`;
+  }
+
+  const elAhLucro = document.getElementById('kpiAhLucro');
+  const elAhRoi = document.getElementById('kpiAhRoi');
+  const elAhDetails = document.getElementById('kpiAhDetails');
+  const elAhBadge = document.getElementById('kpiAhBadge');
+  const elBadgeAh = document.getElementById('badgeAhSummary');
+  const elAhCardBox = document.getElementById('kpiAhCardBox');
+
+  if (elAhLucro) {
+    elAhLucro.textContent = formatBrl(ahLucro);
+    elAhLucro.className = 'fw-bold fs-5 ' + (ahLucro >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elAhRoi) {
+    elAhRoi.textContent = 'ROI: ' + formatPct(ahRoi);
+    elAhRoi.className = 'small fw-semibold ' + (ahRoi >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elAhDetails) {
+    elAhDetails.textContent = `${modalityBuckets.ah.count} bets | Win: ${ahWinRate.toFixed(1).replace('.', ',')}%`;
+  }
+  if (elAhBadge) {
+    if (ahLucro < 0) {
+      elAhBadge.textContent = 'Dreno de Lucro 🔴';
+      elAhBadge.className = 'badge bg-danger text-white fw-bold';
+    } else {
+      elAhBadge.textContent = 'Lucrativo 🟢';
+      elAhBadge.className = 'badge bg-success text-dark fw-bold';
+    }
+  }
+  if (elAhCardBox) {
+    if (ahLucro < 0) {
+      elAhCardBox.style.background = 'rgba(255, 82, 82, 0.08)';
+      elAhCardBox.style.borderColor = 'rgba(255, 82, 82, 0.3)';
+    } else {
+      elAhCardBox.style.background = 'rgba(255, 145, 0, 0.06)';
+      elAhCardBox.style.borderColor = 'rgba(255, 145, 0, 0.3)';
+    }
+  }
+  if (elBadgeAh) {
+    elBadgeAh.innerHTML = `<i class="bi bi-square-fill me-1" style="color: #ff9100;"></i> AH: ${formatBrl(ahLucro)}`;
+  }
+
+  const elDeltaLucro = document.getElementById('kpiDeltaLucro');
+  const elDeltaStatus = document.getElementById('kpiDeltaStatus');
+  const elDeltaDetails = document.getElementById('kpiDeltaDetails');
+  if (elDeltaLucro) {
+    elDeltaLucro.textContent = (deltaLucro >= 0 ? '+' : '') + formatBrl(deltaLucro);
+    elDeltaLucro.className = 'fw-bold fs-5 ' + (deltaLucro >= 0 ? 'text-success' : 'text-danger');
+  }
+  if (elDeltaStatus) {
+    if (deltaLucro > 0) {
+      elDeltaStatus.textContent = 'Vantagem Cartões 🛡️';
+      elDeltaStatus.className = 'small text-success fw-semibold';
+    } else if (deltaLucro < 0) {
+      elDeltaStatus.textContent = 'Vantagem AH ⚡';
+      elDeltaStatus.className = 'small text-warning fw-semibold';
+    } else {
+      elDeltaStatus.textContent = 'Equilíbrio ⚖️';
+      elDeltaStatus.className = 'small text-info fw-semibold';
+    }
+  }
+  if (elDeltaDetails) {
+    elDeltaDetails.textContent = deltaLucro > 0
+      ? `Cartões superou AH em ${formatBrl(Math.abs(deltaLucro))} no saldo real`
+      : (deltaLucro < 0 ? `AH superou Cartões em ${formatBrl(Math.abs(deltaLucro))} no saldo real` : 'Ambas modalidades com resultado idêntico');
+  }
 
   const mercadoKeys = Object.keys(mercadoBuckets).sort((a, b) => mercadoBuckets[b].lucro - mercadoBuckets[a].lucro);
 
@@ -827,12 +1400,154 @@ function updatePerformanceDashboard() {
     });
   });
 
-  renderChart(labels, cumulativeApostadoData, cumulativeLucroData);
+  // ==========================================
+  // DIAGNÓSTICO E RANKING POR LIGA DE FUTEBOL
+  // ==========================================
+  const allLeagueKeys = Object.keys(leagueBuckets);
+  let worstLeague = null;
+  let bestLeague = null;
+  let totalLossDrained = 0;
+  let countProfitLeagues = 0;
+  let countLossLeagues = 0;
+
+  allLeagueKeys.forEach(k => {
+    const l = leagueBuckets[k];
+    if (l.lucro < -0.01) {
+      countLossLeagues++;
+      totalLossDrained += Math.abs(l.lucro);
+      if (!worstLeague || l.lucro < worstLeague.lucro) {
+        worstLeague = { name: k, ...l };
+      }
+    } else if (l.lucro > 0.01) {
+      countProfitLeagues++;
+      if (!bestLeague || l.lucro > bestLeague.lucro) {
+        bestLeague = { name: k, ...l };
+      }
+    }
+  });
+
+  // Atualizar Mini KPIs de Diagnóstico no topo do card de Ligas
+  const worstNameEl = document.getElementById('kpiWorstLeagueName');
+  const worstProfitEl = document.getElementById('kpiWorstLeagueProfit');
+  const worstDetailsEl = document.getElementById('kpiWorstLeagueDetails');
+  const worstBadgeEl = document.getElementById('badgeDrainAction');
+
+  if (worstLeague) {
+    const worstRoi = worstLeague.apostado > 0 ? (worstLeague.lucro / worstLeague.apostado) * 100 : 0;
+    if (worstNameEl) worstNameEl.textContent = worstLeague.name;
+    if (worstProfitEl) worstProfitEl.textContent = formatBrl(worstLeague.lucro);
+    if (worstDetailsEl) worstDetailsEl.textContent = `ROI: ${formatPct(worstRoi)} | ${Math.round(worstLeague.perdidas)}D de ${worstLeague.count} bets`;
+    if (worstBadgeEl) {
+      worstBadgeEl.textContent = 'Corte Recomendado ✂️';
+      worstBadgeEl.className = 'badge bg-danger text-white';
+    }
+  } else {
+    if (worstNameEl) worstNameEl.textContent = 'Nenhuma Liga com Prejuízo 🎉';
+    if (worstProfitEl) worstProfitEl.textContent = 'R$ 0,00';
+    if (worstDetailsEl) worstDetailsEl.textContent = 'Banca 100% protegida no período';
+    if (worstBadgeEl) {
+      worstBadgeEl.textContent = 'Sem Dreno';
+      worstBadgeEl.className = 'badge bg-secondary text-white';
+    }
+  }
+
+  const bestNameEl = document.getElementById('kpiBestLeagueName');
+  const bestProfitEl = document.getElementById('kpiBestLeagueProfit');
+  const bestDetailsEl = document.getElementById('kpiBestLeagueDetails');
+
+  if (bestLeague) {
+    const bestRoi = bestLeague.apostado > 0 ? (bestLeague.lucro / bestLeague.apostado) * 100 : 0;
+    const bestWinRate = bestLeague.decided > 0 ? (bestLeague.ganhas / bestLeague.decided) * 100 : 0;
+    if (bestNameEl) bestNameEl.textContent = bestLeague.name;
+    if (bestProfitEl) bestProfitEl.textContent = formatBrl(bestLeague.lucro);
+    if (bestDetailsEl) bestDetailsEl.textContent = `ROI: ${formatPct(bestRoi)} | Win: ${bestWinRate.toFixed(1)}% (${bestLeague.count} bets)`;
+  } else {
+    if (bestNameEl) bestNameEl.textContent = 'Sem dados suficientes';
+    if (bestProfitEl) bestProfitEl.textContent = 'R$ 0,00';
+    if (bestDetailsEl) bestDetailsEl.textContent = 'Aguardando liquidação';
+  }
+
+  const countBadgeEl = document.getElementById('kpiLeagueCountBadge');
+  if (countBadgeEl) countBadgeEl.textContent = `${allLeagueKeys.length} Ligas`;
+
+  const balanceSummaryEl = document.getElementById('kpiLeagueBalanceSummary');
+  if (balanceSummaryEl) {
+    balanceSummaryEl.innerHTML = `<span class="text-success fw-bold">${countProfitLeagues} Lucrativas</span> / <span class="text-danger fw-bold">${countLossLeagues} Deficitárias</span>`;
+  }
+
+  const lossTotalEl = document.getElementById('kpiLeagueLossTotal');
+  if (lossTotalEl) {
+    lossTotalEl.textContent = `Prejuízo Drenado: ${formatBrl(totalLossDrained)}`;
+  }
+
+  // Filtragem e Ordenação das Ligas para o Gráfico
+  let activeLeagueKeys = [...allLeagueKeys];
+  if (leagueSegmentFilter === 'loss_only') {
+    activeLeagueKeys = activeLeagueKeys.filter(k => leagueBuckets[k].lucro < -0.01);
+  } else if (leagueSegmentFilter === 'profit_only') {
+    activeLeagueKeys = activeLeagueKeys.filter(k => leagueBuckets[k].lucro > 0.01);
+  }
+
+  activeLeagueKeys.sort((a, b) => {
+    const la = leagueBuckets[a];
+    const lb = leagueBuckets[b];
+    if (leagueSortMode === 'losses_first') {
+      return la.lucro - lb.lucro; // Menor lucro (maior prejuízo) primeiro
+    } else if (leagueSortMode === 'profit_first') {
+      return lb.lucro - la.lucro; // Maior lucro primeiro
+    } else if (leagueSortMode === 'roi') {
+      const roiA = la.apostado > 0 ? (la.lucro / la.apostado) * 100 : -9999;
+      const roiB = lb.apostado > 0 ? (lb.lucro / lb.apostado) * 100 : -9999;
+      return roiA - roiB; // Pior ROI primeiro
+    } else if (leagueSortMode === 'volume') {
+      return lb.count - la.count;
+    }
+    return la.lucro - lb.lucro;
+  });
+
+  const leagueLabels = [];
+  const leagueLucroData = [];
+  const leagueBgColors = [];
+  const leagueBorderColors = [];
+  const leagueMetaDetails = [];
+
+  activeLeagueKeys.forEach(key => {
+    const b = leagueBuckets[key];
+    leagueLabels.push(key);
+    leagueLucroData.push(b.lucro);
+    if (b.lucro >= 0) {
+      leagueBgColors.push('rgba(0, 230, 118, 0.75)');
+      leagueBorderColors.push('#00e676');
+    } else {
+      leagueBgColors.push('rgba(255, 82, 82, 0.75)');
+      leagueBorderColors.push('#ff5252');
+    }
+
+    const roi = b.apostado > 0 ? (b.lucro / b.apostado) * 100 : 0;
+    const winRate = b.decided > 0 ? (b.ganhas / b.decided) * 100 : 0;
+    leagueMetaDetails.push({
+      name: key,
+      apostado: b.apostado,
+      retorno: b.retorno,
+      lucro: b.lucro,
+      count: b.count,
+      ganhas: b.ganhas,
+      perdidas: b.perdidas,
+      anuladas: b.anuladas,
+      roi: roi,
+      winRate: winRate
+    });
+  });
+
+  renderChart(labels, cumulativeApostadoData, cumulativeLucroData, cumulativeWinRateData);
+  renderModalidadesChart(labels, cumulativeCartoesLucro, cumulativeAhLucro, modalityTimeline, bucketKeys);
   renderMercadoChart(mercadoLabels, mercadoLucroData, mercadoBgColors, mercadoBorderColors, mercadoMetaDetails);
+  renderLeagueProfitChart(leagueLabels, leagueLucroData, leagueBgColors, leagueBorderColors, leagueMetaDetails);
+  renderLeagueTableBreakdown(activeLeagueKeys, leagueBuckets);
   renderTableBreakdown(bucketKeys, buckets, groupMode);
 }
 
-function renderChart(labels, apostadoData, lucroData) {
+function renderChart(labels, apostadoData, lucroData, winRateData) {
   const canvas = document.getElementById('performanceChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -855,7 +1570,8 @@ function renderChart(labels, apostadoData, lucroData) {
           pointRadius: 4,
           pointBackgroundColor: '#00b0ff',
           tension: 0.3,
-          fill: true
+          fill: true,
+          yAxisID: 'y'
         },
         {
           label: 'Lucro Líquido Real Acumulado (R$)',
@@ -866,7 +1582,24 @@ function renderChart(labels, apostadoData, lucroData) {
           pointRadius: 5,
           pointBackgroundColor: '#00e676',
           tension: 0.3,
-          fill: true
+          fill: true,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Taxa de Acerto Acumulada (%)',
+          data: winRateData,
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245, 158, 11, 0.08)',
+          borderWidth: 2.5,
+          borderDash: [5, 4],
+          pointRadius: 4,
+          pointBackgroundColor: '#f59e0b',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 1.5,
+          pointHoverRadius: 6,
+          tension: 0.3,
+          fill: false,
+          yAxisID: 'y1'
         }
       ]
     },
@@ -892,9 +1625,131 @@ function renderChart(labels, apostadoData, lucroData) {
                 label += ': ';
               }
               if (context.parsed.y !== null) {
+                if (context.dataset.yAxisID === 'y1' || (context.dataset.label && context.dataset.label.includes('%'))) {
+                  label += context.parsed.y.toFixed(1).replace('.', ',') + '%';
+                } else {
+                  label += context.parsed.y.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                }
+              }
+              return label;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: '#94a3b8', font: { family: 'Inter' } }
+        },
+        y: {
+          type: 'linear',
+          display: true,
+          position: 'left',
+          grid: { color: 'rgba(255, 255, 255, 0.08)' },
+          ticks: {
+            color: '#94a3b8',
+            font: { family: 'Inter' },
+            callback: function(value) {
+              return 'R$ ' + value.toLocaleString('pt-BR');
+            }
+          }
+        },
+        y1: {
+          type: 'linear',
+          display: true,
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          min: 0,
+          max: 100,
+          ticks: {
+            color: '#f59e0b',
+            font: { family: 'Inter', weight: 'bold' },
+            callback: function(value) {
+              return value + '%';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderModalidadesChart(labels, cartoesData, ahData, modalityTimeline, rawKeys) {
+  const canvas = document.getElementById('modalidadesProfitChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  if (modalidadesChart) {
+    modalidadesChart.destroy();
+  }
+
+  modalidadesChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Cartões (Under) - Lucro Acumulado (R$)',
+          data: cartoesData,
+          borderColor: '#00e676',
+          backgroundColor: 'rgba(0, 230, 118, 0.12)',
+          borderWidth: 3,
+          pointRadius: 4,
+          pointBackgroundColor: '#00e676',
+          pointHoverRadius: 6,
+          tension: 0.3,
+          fill: true
+        },
+        {
+          label: 'Handicap Asiático (AH) - Lucro Acumulado (R$)',
+          data: ahData,
+          borderColor: '#ff9100',
+          backgroundColor: 'rgba(255, 145, 0, 0.10)',
+          borderWidth: 3,
+          pointRadius: 4,
+          pointBackgroundColor: '#ff9100',
+          pointHoverRadius: 6,
+          tension: 0.3,
+          fill: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#f0f6fc',
+            font: { family: 'Inter', size: 13, weight: 'bold' }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              let label = context.dataset.label || '';
+              if (label) label += ': ';
+              if (context.parsed.y !== null) {
                 label += context.parsed.y.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
               }
               return label;
+            },
+            afterBody: function(tooltipItems) {
+              if (!tooltipItems || tooltipItems.length === 0) return [];
+              const dataIdx = tooltipItems[0].dataIndex;
+              const dateKey = rawKeys ? rawKeys[dataIdx] : null;
+              const t = (modalityTimeline && dateKey) ? modalityTimeline[dateKey] : null;
+              if (!t) return [];
+              const lines = [];
+              lines.push('──────────────────────');
+              lines.push(`Resultado no Ponto (${tooltipItems[0].label}):`);
+              lines.push(`• Cartões: ${t.cartoesLucro >= 0 ? '+' : ''}${t.cartoesLucro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.cartoesCount} bets)`);
+              lines.push(`• Handicap Asiático: ${t.ahLucro >= 0 ? '+' : ''}${t.ahLucro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${t.ahCount} bets)`);
+              return lines;
             }
           }
         }
@@ -1013,6 +1868,167 @@ function renderMercadoChart(labels, data, bgColors, borderColors, metaDetails) {
   });
 }
 
+function renderLeagueProfitChart(labels, data, bgColors, borderColors, metaDetails) {
+  const canvas = document.getElementById('leagueProfitChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const containerBox = document.getElementById('leagueChartBox');
+  if (containerBox) {
+    const dynamicHeight = Math.max(340, labels.length * 38);
+    containerBox.style.height = `${dynamicHeight}px`;
+  }
+
+  if (leagueChart) {
+    leagueChart.destroy();
+  }
+
+  leagueChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Lucro Líquido Real (R$)',
+          data: data,
+          backgroundColor: bgColors,
+          borderColor: borderColors,
+          borderWidth: 1.5,
+          borderRadius: 6,
+          barThickness: labels.length > 10 ? 'flex' : 24,
+          maxBarThickness: 32
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          titleColor: '#f0f6fc',
+          bodyColor: '#cbd5e1',
+          borderColor: '#334155',
+          borderWidth: 1,
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            title: function(context) {
+              return 'Liga: ' + (context[0]?.label || '');
+            },
+            label: function(context) {
+              const idx = context.dataIndex;
+              const meta = metaDetails[idx];
+              if (!meta) return '';
+
+              const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+              const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
+
+              const lines = [
+                `Lucro Líquido: ${formatBrl(meta.lucro)}`,
+                `ROI: ${formatPct(meta.roi)}`,
+                `Taxa de Acerto (Win Rate): ${meta.winRate.toFixed(1)}%`,
+                `Total Simulado: ${formatBrl(meta.apostado)}`,
+                `Retorno Total: ${formatBrl(meta.retorno)}`,
+                `Desempenho: ${Math.round(meta.ganhas)}V / ${Math.round(meta.perdidas)}D / ${meta.anuladas}A (${meta.count} apostas)`
+              ];
+
+              if (meta.lucro < 0) {
+                lines.push('⚠️ Sugestão de Banca: Avaliar corte/pausa desta liga');
+              } else if (meta.roi > 25) {
+                lines.push('⭐ Destaque: Liga de altíssima rentabilidade');
+              }
+              return lines;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { 
+            color: function(context) {
+              if (context.tick && context.tick.value === 0) return 'rgba(255, 255, 255, 0.35)';
+              return 'rgba(255, 255, 255, 0.08)';
+            },
+            lineWidth: function(context) {
+              if (context.tick && context.tick.value === 0) return 2;
+              return 1;
+            }
+          },
+          ticks: {
+            color: '#94a3b8',
+            font: { family: 'Inter' },
+            callback: function(value) {
+              return 'R$ ' + value.toLocaleString('pt-BR');
+            }
+          }
+        },
+        y: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#f0f6fc',
+            font: { family: 'Inter', weight: '600', size: 12 }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderLeagueTableBreakdown(keys, buckets) {
+  const tbody = document.getElementById('leagueTableBody');
+  if (!tbody) return;
+
+  if (keys.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">Nenhuma liga encontrada para os filtros selecionados.</td></tr>';
+    return;
+  }
+
+  const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const formatPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
+
+  let html = '';
+  keys.forEach(k => {
+    const b = buckets[k];
+    const roi = b.apostado > 0 ? (b.lucro / b.apostado) * 100 : 0;
+    const winRate = b.decided > 0 ? (b.ganhas / b.decided) * 100 : 0;
+
+    const lucroClass = b.lucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+    const roiClass = roi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+
+    let badgeHtml = '';
+    if (b.lucro < 0) {
+      badgeHtml = '<span class="badge bg-danger text-white px-2 py-1"><i class="bi bi-scissors me-1"></i> Corte Sugerido</span>';
+    } else if (roi > 20) {
+      badgeHtml = '<span class="badge bg-success text-dark fw-bold px-2 py-1"><i class="bi bi-star-fill me-1"></i> Manter Ativa</span>';
+    } else if (b.lucro > 0) {
+      badgeHtml = '<span class="badge bg-info text-dark px-2 py-1"><i class="bi bi-check-circle me-1"></i> Rentável</span>';
+    } else {
+      badgeHtml = '<span class="badge bg-secondary text-white px-2 py-1">Neutro</span>';
+    }
+
+    html += `
+      <tr>
+        <td class="fw-semibold text-white">${k}</td>
+        <td class="text-center">${b.count}</td>
+        <td class="text-center small">${Math.round(b.ganhas)}V / ${Math.round(b.perdidas)}D / ${b.anuladas}A</td>
+        <td class="text-center">${winRate.toFixed(1)}%</td>
+        <td>${formatBrl(b.apostado)}</td>
+        <td>${formatBrl(b.retorno)}</td>
+        <td class="${lucroClass}">${formatBrl(b.lucro)}</td>
+        <td class="${roiClass}">${formatPct(roi)}</td>
+        <td class="text-center">${badgeHtml}</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
 function renderTableBreakdown(keys, buckets, groupMode) {
   const tbody = document.getElementById('tableBreakdownBody');
   const tfoot = document.getElementById('tableBreakdownFoot');
@@ -1024,6 +2040,8 @@ function renderTableBreakdown(keys, buckets, groupMode) {
     return;
   }
 
+  const now = new Date();
+  const todayStr = formatDateYYYYMMDD(now);
   const formatBrl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   let html = '';
@@ -1032,8 +2050,15 @@ function renderTableBreakdown(keys, buckets, groupMode) {
   let sumRetorno = 0;
   let sumLucro = 0;
 
+  const closedKeys = keys.filter(k => {
+    const b = buckets[k];
+    const isOpen = (k === todayStr || (groupMode === 'dia' && k >= todayStr) || b.hasPending);
+    return !isOpen;
+  });
+
   keys.forEach(k => {
     const b = buckets[k];
+    const isOpen = (k === todayStr || (groupMode === 'dia' && k >= todayStr) || b.hasPending);
     let label = k;
     if (groupMode === 'dia' && k.length === 10) {
       const parts = k.split('-');
@@ -1043,24 +2068,32 @@ function renderTableBreakdown(keys, buckets, groupMode) {
       label = `${parts[1]}/${parts[0]}`;
     }
 
-    const bLucro = b.retorno - b.apostado;
-
-    sumCount += b.count;
-    sumApostado += b.apostado;
-    sumRetorno += b.retorno;
-    sumLucro += bLucro;
-
+    const bLucro = b.lucro;
     const roi = b.apostado > 0 ? (bLucro / b.apostado) * 100 : 0;
     const lucroClass = bLucro >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
     const roiClass = roi >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
 
+    if (!isOpen) {
+      sumCount += b.count;
+      sumApostado += b.apostado;
+      sumRetorno += b.retorno;
+      sumLucro += bLucro;
+    }
+
+    const statusBadge = isOpen
+      ? `<span class="badge bg-warning text-dark ms-1" style="font-size:0.68rem;"><i class="bi bi-hourglass-split"></i> Em Andamento</span>`
+      : '';
+    const lucroBadge = isOpen
+      ? `<span class="badge bg-secondary text-warning ms-1" style="font-size:0.65rem;">Parcial</span>`
+      : '';
+
     html += `
-      <tr>
-        <td class="fw-semibold text-white">${label}</td>
-        <td class="text-center">${b.count}</td>
+      <tr class="${isOpen ? 'bg-opacity-10 bg-warning' : ''}">
+        <td class="fw-semibold text-white">${label} ${statusBadge}</td>
+        <td class="text-center">${b.count} ${isOpen && b.pendingCount > 0 ? `<small class="text-warning">(${b.pendingCount} pend.)</small>` : ''}</td>
         <td>${formatBrl(b.apostado)}</td>
         <td>${formatBrl(b.retorno)}</td>
-        <td class="${lucroClass}">${formatBrl(bLucro)}</td>
+        <td class="${lucroClass}">${formatBrl(bLucro)} ${lucroBadge}</td>
         <td class="${roiClass}">${(roi >= 0 ? '+' : '') + roi.toFixed(1).replace('.', ',')}%</td>
       </tr>
     `;
@@ -1069,7 +2102,7 @@ function renderTableBreakdown(keys, buckets, groupMode) {
   tbody.innerHTML = html;
 
   if (tfoot) {
-    const n = keys.length;
+    const n = closedKeys.length > 0 ? closedKeys.length : keys.length;
     const avgCount = sumCount / n;
     const avgApostado = sumApostado / n;
     const avgRetorno = sumRetorno / n;
@@ -1082,7 +2115,10 @@ function renderTableBreakdown(keys, buckets, groupMode) {
 
     tfoot.innerHTML = `
       <tr class="fw-bold border-top border-2 border-secondary" style="background-color: rgba(255, 255, 255, 0.05); font-size: 0.92rem;">
-        <td class="text-warning fw-bold"><i class="bi bi-calculator me-1"></i> Média Total</td>
+        <td class="text-warning fw-bold">
+          <i class="bi bi-calculator me-1"></i> Média Total Consolidada
+          ${closedKeys.length < keys.length ? `<div class="text-white-50 fw-normal" style="font-size:0.72rem;">(${closedKeys.length} dias fechados • dias em andamento excluídos da média)</div>` : ''}
+        </td>
         <td class="text-center text-white">${avgCountStr}</td>
         <td class="text-white">${formatBrl(avgApostado)}</td>
         <td class="text-white">${formatBrl(avgRetorno)}</td>
@@ -1094,6 +2130,6 @@ function renderTableBreakdown(keys, buckets, groupMode) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  setPerfDatePreset('today');
+  setPerfDatePreset('all');
 });
 </script>

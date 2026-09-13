@@ -128,25 +128,7 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                 LIMIT 1
             """, (fixture_id,))
             row = cursor.fetchone()
-            if row:
-                yh = row.get('yellow_cards_home', 0) or 0
-                ya = row.get('yellow_cards_away', 0) or 0
-                rh = row.get('red_cards_home', 0) or 0
-                ra = row.get('red_cards_away', 0) or 0
-                last_ev = row.get('last_event')
-                checked_at = row.get('cards_api_checked_at')
-                retry_cnt = row.get('cards_api_retry_count', 0) or 0
-
-                if checked_at is not None:
-                    if (yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != ''):
-                        return (yh, ya, rh, ra)
-
-                    if isinstance(checked_at, datetime):
-                        hours_since_check = (datetime.now() - checked_at).total_seconds() / 3600.0
-                        if hours_since_check < 6.0:
-                            print(f"⏳ [Cooldown API] Fixture #{fixture_id} consultada há {hours_since_check:.1f}h (tentativas: {retry_cnt}). Pulando chamada HTTP para economizar cota.")
-                            return None
-            
+            # 1. Consulta prioritária no cache dedicado de estatísticas (match_statistics_cache)
             cursor.execute("""
                 SELECT team_id, yellow_cards, red_cards 
                 FROM match_statistics_cache 
@@ -167,8 +149,27 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                         ya = r.get('yellow_cards', 0) or 0
                         ra = r.get('red_cards', 0) or 0
                         found = True
-                if found:
+                if found and (yh + ya + rh + ra > 0 or len(cache_rows) >= 2):
                     return (yh, ya, rh, ra)
+
+            if row:
+                yh = row.get('yellow_cards_home', 0) or 0
+                ya = row.get('yellow_cards_away', 0) or 0
+                rh = row.get('red_cards_home', 0) or 0
+                ra = row.get('red_cards_away', 0) or 0
+                last_ev = row.get('last_event')
+                checked_at = row.get('cards_api_checked_at')
+                retry_cnt = row.get('cards_api_retry_count', 0) or 0
+
+                if checked_at is not None:
+                    if (yh + ya + rh + ra) > 0 or (last_ev is not None and last_ev != ''):
+                        return (yh, ya, rh, ra)
+
+                    if isinstance(checked_at, datetime):
+                        hours_since_check = (datetime.now() - checked_at).total_seconds() / 3600.0
+                        if hours_since_check < 6.0:
+                            print(f"⏳ [Cooldown API] Fixture #{fixture_id} consultada há {hours_since_check:.1f}h (tentativas: {retry_cnt}). Pulando chamada HTTP para economizar cota.")
+                            return None
         except Exception as e_cache:
             print(f"⚠️ Erro ao consultar cache local para fixture #{fixture_id}: {e_cache}")
 
@@ -181,8 +182,8 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
         url_st = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}"
         res_st = requests.get(url_st, headers=headers, timeout=10)
         if res_st.status_code == 200:
-            api_success = True
-            st_data = res_st.json().get("response", [])
+            st_json = res_st.json()
+            st_data = st_json.get("response", [])
             for idx, team_st in enumerate(st_data):
                 t_id = team_st.get("team", {}).get("id")
                 is_home = (t_id == home_team_id) if home_team_id else (idx == 0)
@@ -195,43 +196,20 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                     elif s_type == "Red Cards" and s_val is not None:
                         if is_home: rh = int(s_val)
                         else: ra = int(s_val)
+            if yh is not None and ya is not None:
+                api_success = True
     except Exception as e:
         print(f"⚠️ Erro ao buscar estatísticas na API para fixture {fixture_id}: {e}")
 
-    try:
-        url_ev = f"https://v3.football.api-sports.io/fixtures/events?fixture={fixture_id}"
-        res_ev = requests.get(url_ev, headers=headers, timeout=10)
-        if res_ev.status_code == 200:
-            api_success = True
-            ev_data = res_ev.json().get("response", [])
-            eyh, eya, erh, era = 0, 0, 0, 0
-            has_card_events = False
-            for ev in ev_data:
-                if ev.get("type") == "Card":
-                    has_card_events = True
-                    t_id = ev.get("team", {}).get("id")
-                    is_home = (t_id == home_team_id) if home_team_id else True
-                    detail = ev.get("detail", "")
-                    if "Yellow" in detail:
-                        if is_home: eyh += 1
-                        else: eya += 1
-                    elif "Red" in detail:
-                        if is_home: erh += 1
-                        else: era += 1
-            if has_card_events or yh is None:
-                yh = max(yh if yh is not None else 0, eyh)
-                ya = max(ya if ya is not None else 0, eya)
-                rh = max(rh if rh is not None else 0, erh)
-                ra = max(ra if ra is not None else 0, era)
-    except Exception as e:
-        print(f"⚠️ Erro ao buscar eventos na API para fixture {fixture_id}: {e}")
-
-    if not api_success and yh is None and ya is None:
+    # Se a API de estatísticas oficiais não retornou dados de cartões, NÃO faz fallback para /events.
+    # A aposta de cartões deve continuar Pendente até a consolidação oficial em /fixtures/statistics.
+    if not api_success or yh is None or ya is None:
+        print(f"⏳ [Estatísticas API] Estatísticas oficiais ainda indisponíveis na API-Sports para fixture #{fixture_id}. Cartões permanecem pendentes.")
         return None
 
     res_tuple = (
-        yh if yh is not None else 0,
-        ya if ya is not None else 0,
+        yh,
+        ya,
         rh if rh is not None else 0,
         ra if ra is not None else 0
     )
@@ -302,10 +280,13 @@ def get_fixture_stats(fixture, cursor=None):
                     WHERE fixture_id = %s
                 """, (yellow_home, yellow_away, red_home, red_away, fid))
 
-    yellow_home = yellow_home or 0
-    yellow_away = yellow_away or 0
-    red_home = red_home or 0
-    red_away = red_away or 0
+    if yellow_home is not None and yellow_away is not None:
+        total_cards = (yellow_home or 0) + (yellow_away or 0) + (red_home or 0) + (red_away or 0)
+    else:
+        yellow_home = None
+        yellow_away = None
+        total_cards = None
+
     corners_home = fixture.get('corners_home') or 0
     corners_away = fixture.get('corners_away') or 0
 
@@ -319,7 +300,7 @@ def get_fixture_stats(fixture, cursor=None):
         'red_cards_away': red_away,
         'corners_home': corners_home,
         'corners_away': corners_away,
-        'total_cards': yellow_home + yellow_away + red_home + red_away,
+        'total_cards': total_cards,
         'total_goals': goals_home + goals_away,
         'total_corners': corners_home + corners_away
     }
@@ -407,6 +388,9 @@ def evaluate_bet(aposta, stats):
 
     # 1. MERCADO: CARTÕES (Total da partida ou por time individual)
     if 'cart' in mercado_norm or 'cart' in palpite_norm:
+        if stats.get('total_cards') is None or stats.get('yellow_cards_home') is None or stats.get('yellow_cards_away') is None:
+            return 'Pendente', "FT | Aguardando consolidação das estatísticas oficiais de cartões da API", 0.0
+
         match_thresh = re.search(r'(\d+(?:\.\d+)?)', palpite)
         threshold = float(match_thresh.group(1)) if match_thresh else 5.5
         
@@ -528,16 +512,21 @@ def process_pending_bets():
         time_casa = aposta['time_casa'].strip()
         time_fora = aposta['time_fora'].strip()
 
-        # Tentar buscar partida correspondente em fixtures_trends
-        cursor.execute("""
-            SELECT * FROM fixtures_trends
-            WHERE (home_team LIKE %s OR home_team LIKE %s)
-               OR (away_team LIKE %s OR away_team LIKE %s)
-            ORDER BY fixture_date DESC
-            LIMIT 1
-        """, (f"%{time_casa}%", f"%{time_fora}%", f"%{time_casa}%", f"%{time_fora}%"))
+        # Tentar buscar partida correspondente em fixtures_trends (prioriza fixture_id oficial)
+        fixture = None
+        if aposta.get('fixture_id'):
+            cursor.execute("SELECT * FROM fixtures_trends WHERE fixture_id = %s", (aposta['fixture_id'],))
+            fixture = cursor.fetchone()
 
-        fixture = cursor.fetchone()
+        if not fixture:
+            cursor.execute("""
+                SELECT * FROM fixtures_trends
+                WHERE ((home_team LIKE %s AND away_team LIKE %s)
+                   OR (home_team LIKE %s AND away_team LIKE %s))
+                ORDER BY fixture_date DESC
+                LIMIT 1
+            """, (f"%{time_casa}%", f"%{time_fora}%", f"%{time_fora}%", f"%{time_casa}%"))
+            fixture = cursor.fetchone()
 
         if not fixture:
             print(f"⏳ Fixture não encontrada no banco para {time_casa} vs {time_fora}. Aposta #{aposta_id} permanece Pendente.")
@@ -552,6 +541,10 @@ def process_pending_bets():
 
         # Avaliar Aposta
         novo_status, detalhe, valor_computado = evaluate_bet(aposta, stats)
+
+        if novo_status == 'Pendente':
+            print(f"⏳ Aposta ID #{aposta_id} [{time_casa} vs {time_fora}] permanece PENDENTE ({detalhe})")
+            continue
 
         # Atualizar aposta no banco de dados
         cursor.execute("""
@@ -655,6 +648,8 @@ def evaluate_palpite_status(home_team, away_team, goals_home, goals_away, yellow
 
     # 3. TOTAL DE CARTÕES
     if 'cart' in mercado_norm or 'cart' in linha_norm:
+        if yellow_home is None or yellow_away is None:
+            return 'PENDING', "Aguardando consolidação das estatísticas oficiais de cartões da API"
         match_thresh = re.search(r'(\d+(?:\.\d+)?)', linha)
         thresh = float(match_thresh.group(1)) if match_thresh else 4.5
         is_under = ('menos' in linha_norm or 'under' in linha_norm)
@@ -715,6 +710,9 @@ def process_palpites_gerados(cursor):
                 p['mercado'], p['linha_sugerida'], p['odd_momento']
             )
             
+            if status == 'PENDING':
+                continue
+
             cursor.execute("""
                 UPDATE palpites_gerados
                 SET home_team = %s,

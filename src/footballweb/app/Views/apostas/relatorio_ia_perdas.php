@@ -515,15 +515,28 @@
                     </div>
                     <div class="col-4">
                       <small class="text-muted d-block">Placar Real do Jogo</small>
-                      <strong class="text-warning font-monospace" style="font-size: 0.95rem;"><?= ($ap->ft_goals_home ?? $ap->goals_home ?? 0) ?> x <?= ($ap->ft_goals_away ?? $ap->goals_away ?? 0) ?></strong>
+                      <?php 
+                        $gHome = $ap->ft_goals_home ?? $ap->goals_home ?? null;
+                        $gAway = $ap->ft_goals_away ?? $ap->goals_away ?? null;
+                      ?>
+                      <?php if ($gHome !== null && $gAway !== null): ?>
+                        <strong class="text-warning font-monospace" style="font-size: 0.95rem;"><?= $gHome ?> x <?= $gAway ?></strong>
+                      <?php else: ?>
+                        <span class="badge bg-secondary font-monospace" style="font-size: 0.75rem;">⏳ Aguardando Súmula</span>
+                      <?php endif; ?>
                     </div>
                     <div class="col-4">
                       <small class="text-muted d-block">Gols Fora (Pró/Contra)</small>
                       <strong class="text-white"><?= number_format($ap->away_avg_goals_scored ?? 0, 1) ?> / <?= number_format($ap->away_avg_goals_conceded ?? 0, 1) ?></strong>
                     </div>
                   </div>
-                  <div class="text-muted" style="font-size: 0.75rem;">
-                    <strong>Expected Goals ($xG$ Real):</strong> <?= number_format($ap->xg_home ?? 0, 2) ?> (Casa) x <?= number_format($ap->xg_away ?? 0, 2) ?> (Fora)
+                  <div class="text-muted d-flex justify-content-between flex-wrap gap-1" style="font-size: 0.75rem;">
+                    <span><strong>Expected Goals ($xG$ Real):</strong> <?= number_format($ap->xg_home ?? 0, 2) ?> (Casa) x <?= number_format($ap->xg_away ?? 0, 2) ?> (Fora)</span>
+                    <?php if (!empty($ap->odd_justa) || !empty($ap->probabilidade_poisson) || !empty($ap->ev_percentual)): ?>
+                      <span class="text-info">
+                        <strong>Gatekeeper:</strong> Odd Justa: <?= number_format($ap->odd_justa ?? 0, 2) ?> | Poisson: <?= number_format($ap->probabilidade_poisson ?? 0, 1) ?>% | EV: <?= number_format($ap->ev_percentual ?? 0, 1) ?>%
+                      </span>
+                    <?php endif; ?>
                   </div>
 
                 <?php else: ?>

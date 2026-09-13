@@ -140,35 +140,11 @@ class FootballTrendsController extends BaseController
         $builder->orderBy('ft.fixture_date', 'ASC');
         $fixtures = $builder->get()->getResultObject();
 
-        // Se não houver partidas no banco para a data solicitada, dispara a ingestão (API ou Fallback) e recarrega
-        if (empty($fixtures)) {
-            $scriptPath = '/root/datalake-air-flow-delta/scripts/football_ingest_trends.py';
-            if (file_exists($scriptPath)) {
-                @exec("python3 {$scriptPath} " . escapeshellarg($targetDate));
-                $fixtures = $builder->get()->getResultObject();
-            }
-        }
-
         // Extrai ligas únicas para filtro em abas na View
         $leagues = [];
-        $needsGoalsUpdate = false;
         foreach ($fixtures as $fix) {
             if (!empty($fix->league_name) && !in_array($fix->league_name, $leagues)) {
                 $leagues[] = $fix->league_name;
-            }
-            $fixTimestamp = !empty($fix->fixture_date) ? strtotime($fix->fixture_date) : 0;
-            $statusUpper = strtoupper($fix->status ?? '');
-            $isFinalStatus = in_array($statusUpper, ['FT', 'AET', 'PEN', 'PST', 'CANCELLED', 'CANC']);
-            if (($fixTimestamp > 0 && $fixTimestamp <= time() && !$isFinalStatus) || ($statusUpper !== 'NS' && $fix->goals_home === null)) {
-                $needsGoalsUpdate = true;
-            }
-        }
-
-        // Se houver partidas iniciadas/encerradas sem placar no banco, dispara atualização em segundo plano
-        if ($needsGoalsUpdate) {
-            $scriptPath = '/root/datalake-air-flow-delta/scripts/football_ingest_trends.py';
-            if (file_exists($scriptPath)) {
-                @exec("python3 {$scriptPath} " . escapeshellarg($targetDate) . " > /dev/null 2>&1 &");
             }
         }
 
@@ -420,7 +396,7 @@ class FootballTrendsController extends BaseController
                 'http_errors' => false,
             ]);
             $apiUrl = env('VISION_API_URL') ?: 'https://api.groq.com/openai/v1/chat/completions';
-            $model = env('TEXT_API_MODEL') ?: 'llama-3.3-70b-versatile';
+            $model = env('TEXT_API_MODEL') ?: 'openai/gpt-oss-120b';
 
             $response = $client->post($apiUrl, [
                 'headers' => [
@@ -437,6 +413,7 @@ class FootballTrendsController extends BaseController
             $statusCode = $response->getStatusCode();
             if ($statusCode !== 200) {
                 $bodyText = $response->getBody();
+                log_message('error', "Erro na chamada Groq AI (HTTP {$statusCode}): {$bodyText}");
 
                 if ($statusCode === 429 || $statusCode === 402) {
                     $this->notifyAdminQuotaExceeded($statusCode, $bodyText);
@@ -632,14 +609,6 @@ class FootballTrendsController extends BaseController
         $sqlOffset = $this->getTimezoneSqlOffset($userTimezone);
         $today = date('Y-m-d');
         $targetDate = $this->request->getVar('date') ?: $today;
-
-        // Dispara uma sincronização dos placares da data via script Python
-        if ($targetDate === $today) {
-            $scriptPath = '/root/datalake-air-flow-delta/scripts/football_ingest_trends.py';
-            if (file_exists($scriptPath)) {
-                @exec("python3 {$scriptPath} --live > /dev/null 2>&1 &");
-            }
-        }
 
         $db = \Config\Database::connect();
         $builder = $db->table('fixtures_trends');

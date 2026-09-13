@@ -17,6 +17,17 @@ from datetime import datetime, timedelta
 import requests
 import time
 
+# Importar módulo global de ligas
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from leagues_config import ALLOWED_LEAGUES, ALLOWED_LEAGUE_IDS, ALLOWED_LEAGUE_NAMES, is_allowed_league
+except Exception:
+    ALLOWED_LEAGUE_IDS = set()
+    ALLOWED_LEAGUE_NAMES = []
+    def is_allowed_league(league_id, league_name: str = "", fixture_date=None) -> bool:
+        return True
+
+
 
 def get_live_env_vars():
     """
@@ -73,6 +84,7 @@ def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
         elif not data_j:
             data_j = '-'
         
+        casa = aposta.get('casa_de_aposta', 'Betano')
         palpite = aposta.get('palpite', '-')
         odd = aposta.get('odd', 0.0)
         odd_justa = aposta.get('odd_justa')
@@ -86,7 +98,7 @@ def send_created_bets_email(novas_apostas, recipient="paulomnasc@gmail.com"):
         <tr style="border-bottom: 1px solid #e0e0e0;">
             <td style="padding: 10px; font-size: 13px; font-weight: bold;">{tc} <span style="color: #888;">vs</span> {tv}<br><span style="color: #666; font-weight: normal; font-size: 11px;">{data_j}</span></td>
             <td style="padding: 10px; font-size: 13px; color: #856404; font-weight: bold; background-color: #fff3cd; text-align: center;">{palpite}</td>
-            <td style="padding: 10px; font-size: 13px; text-align: center;"><strong>{odd:.2f}</strong> <span style="font-size: 11px; color: #666;">(Justa: {odd_justa_str})</span></td>
+            <td style="padding: 10px; font-size: 13px; text-align: center;"><strong>{odd:.2f}</strong> <span style="font-size: 11px; color: #007bff; font-weight: bold; display: block;">{casa}</span><span style="font-size: 11px; color: #666;">(Justa: {odd_justa_str})</span></td>
             <td style="padding: 10px; font-size: 13px; color: #28a745; font-weight: bold; text-align: center;">{prob}% <br><span style="font-size: 11px; color: #17a2b8;">EV: +{ev}%</span></td>
             <td style="padding: 10px; font-size: 13px; text-align: center;">R$ {valor:.2f}</td>
             <td style="padding: 10px; font-size: 13px; color: #28a745; font-weight: bold; text-align: center;">R$ {ganhos:.2f}</td>
@@ -178,7 +190,8 @@ def get_db_connection():
                 database="footballweb",
                 charset="utf8mb4",
                 cursorclass=pymysql.cursors.DictCursor,
-                autocommit=True
+                autocommit=True,
+                connect_timeout=3
             )
             print(f"✅ [DAG Criar Apostas Cartões] Conectado ao MySQL ({host}:{port})")
             return conn
@@ -213,87 +226,8 @@ def get_all_user_ids(cursor):
         VALUES ('Paulo Nascimento', 'paulomnasc@gmail.com', '123456', 1, NOW())
     """)
     return [cursor.lastrowid]
+# Catálogo de ligas e validador is_allowed_league unificados globalmente em leagues_config.py
 
-ALLOWED_LEAGUE_IDS = {
-    71, 72, 73,   # Brasil Série A, Série B e Copa do Brasil
-    39,           # Inglaterra Premier League
-    140,          # Espanha La Liga
-    135,          # Itália Serie A
-    78,           # Alemanha Bundesliga
-    61,           # França Ligue 1
-    94,           # Portugal Liga Portugal (Primeira Liga)
-    88,           # Holanda Eredivisie
-    144,          # Bélgica Pro League
-    203,          # Turquia Süper Lig
-    179,          # Escócia Premiership
-    128,          # Argentina Liga Profesional
-    197,          # Grécia Super League 1
-    2, 3, 848,    # UEFA Champions League, Europa League, Conference League
-    13, 11        # CONMEBOL Libertadores, Copa Sudamericana
-}
-
-ALLOWED_LEAGUE_NAMES = [
-    'brasileirão', 'brasileirao', 'serie a', 'série a', 'serie b', 'série b', 'copa do brasil', 'copa brasil',
-    'premier league',
-    'la liga',
-    'bundesliga',
-    'ligue 1',
-    'primeira liga', 'liga portugal',
-    'eredivisie',
-    'pro league', 'jupiler pro league',
-    'super lig', 'süper lig',
-    'premiership',
-    'liga profesional',
-    'super league 1',
-    'champions league', 'europa league', 'conference league',
-    'libertadores', 'copa sudamericana', 'sudamericana'
-]
-
-def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
-    """
-    Filtra o escopo de atuação do script de criação de apostas estritamente para Ligas de Elite e Torneios Continentais de 1ª Divisão (e Série B do Brasil).
-    """
-    if not league_name and not league_id:
-        return False
-    
-    l_name_low = str(league_name or '').lower().strip()
-
-    # 1. Bloqueia partidas femininas
-    if any(w in l_name_low for w in ['women', 'feminino', 'femenina']):
-        return False
-
-    # 2. Bloqueia Divisões Secundárias Europeias e Inferiores (Championship, La Liga 2, Ligue 2, 2. Bundesliga, League One/Two, Copas Menores)
-    secondary_blocked = [
-        'championship', 'la liga 2', 'segunda división', 'segunda division',
-        '2. bundesliga', 'ligue 2', '2nd division', 'division 2',
-        'efl trophy', 'fl trophy', 'johnstone', 'bristol street', 'papa john',
-        'carabao cup', 'league cup', 'fa trophy',
-        'league one', 'league 1', 'league two', 'league 2', 'national league'
-    ]
-    if any(blocked in l_name_low for blocked in secondary_blocked):
-        return False
-
-    # 3. Bloqueia explicitamente todas as ligas e copas do Japão (J1, J2, J3, Emperor's Cup, etc.)
-    japan_blocked = ['japan', 'japão', 'japao', 'j1 league', 'j2 league', 'j3 league', 'j-league', 'j.league', 'emperor']
-    if any(blocked in l_name_low for blocked in japan_blocked):
-        return False
-
-    # 4. Validação por ID Numérico Oficial
-    if league_id is not None:
-        try:
-            lid = int(league_id)
-            if lid in ALLOWED_LEAGUE_IDS:
-                return True
-            else:
-                return False
-        except (ValueError, TypeError):
-            pass
-
-    # 5. Validação por Nome da Liga (Fallback)
-    if any(allowed in l_name_low for allowed in ALLOWED_LEAGUE_NAMES):
-        return True
-
-    return False
 
 def calculate_poisson_under_cdf(xc: float, line: float) -> float:
     """
@@ -319,7 +253,7 @@ def extract_all_cards_suggestions(prediction_text: str):
     pred_low = prediction_text.lower()
 
     # 1. Trava de Abstenção / NO_BET expressa
-    if any(term in pred_low for term in ['no_bet', 'no bet', 'sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'indisponível', 'indisponivel', 'xc: 0.0', 'xc: 0.00']):
+    if any(term in pred_low for term in ['no_bet', 'no bet', 'sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'indisponível', 'indisponivel']):
         return []
 
     # 2. Extrai expectativa matemática de cartões (xC / Expectativa)
@@ -329,35 +263,28 @@ def extract_all_cards_suggestions(prediction_text: str):
     if exp_cards is None or exp_cards <= 0:
         return []
 
-    # 3. Busca opções explícitas em prediction_text ("1ª Opção: Over 3.5 | 2ª Opção: Over 4.5", etc.)
-    raw_options = re.findall(r'(?:1ª|2ª|3ª)?\s*Opção:\s*(Over|Under)\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
+    # 3. Busca opções explícitas em prediction_text ("1ª Opção: Under 4.5 | 2ª Opção: Under 5.5", etc.)
+    raw_options = re.findall(r'(?:1ª|2ª|3ª)?\s*Opção:\s*(Under)\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
 
     candidates = []
     if raw_options:
         for op_type, line_str in raw_options:
-            is_over = (op_type.lower() == 'over')
             line_val = float(line_str)
-            if (is_over, line_val) not in candidates:
-                candidates.append((is_over, line_val))
+            if (False, line_val) not in candidates:
+                candidates.append((False, line_val))
 
-    if not candidates:
-        if 'estratégia over' in pred_low or 'over' in pred_low:
-            match_over = re.search(r'Over\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE) or re.search(r'mais\s+de\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
-            if match_over:
-                candidates.append((True, float(match_over.group(1))))
-        else:
-            match_under = re.search(r'Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE) or re.search(r'menos\s+de\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
-            if match_under:
-                candidates.append((False, float(match_under.group(1))))
+    match_under = re.search(r'Under\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE) or re.search(r'menos\s+de\s*(\d+(?:\.\d+)?)', prediction_text, re.IGNORECASE)
+    if match_under:
+        cand_u = (False, float(match_under.group(1)))
+        if cand_u not in candidates:
+            candidates.append(cand_u)
 
-    # Adiciona sempre as linhas padrão comercializadas na Betano para garantir avaliação completa
+    # Linhas padrão de Under comercializadas na Betano para avaliação
     standard_lines = [
-        (False, 5.5),
+        (False, 3.5),
         (False, 4.5),
-        (False, 6.5),
-        (True, 3.5),
-        (True, 4.5),
-        (True, 5.5)
+        (False, 5.5),
+        (False, 6.5)
     ]
     for std in standard_lines:
         if std not in candidates:
@@ -365,44 +292,27 @@ def extract_all_cards_suggestions(prediction_text: str):
 
     suggestions = []
     for is_over, line_val in candidates:
-        prob_under = calculate_poisson_under_cdf(exp_cards, line_val)
-
         if is_over:
-            prob_poisson = round(100.0 - prob_under, 2)
-            odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
-            # Regra do Gatekeeper para Over calibrada por linha
-            if line_val <= 2.5:
-                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 2.60) else 'NO_BET'
-            elif line_val <= 3.5:
-                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 3.60) else 'NO_BET'
-            elif line_val <= 4.5:
-                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 4.60) else 'NO_BET'
-            elif line_val <= 5.5:
-                status_gk = 'APROVADO' if (prob_poisson >= 60.0 and exp_cards >= 5.60) else 'NO_BET'
-            else:
-                status_gk = 'NO_BET'
-            palpite_str = f"Mais de {line_val} Cartões"
+            continue
+
+        prob_poisson = calculate_poisson_under_cdf(exp_cards, line_val)
+        odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
+
+        if line_val < 3.5:
+            status_gk = 'NO_BET'
+        elif line_val <= 3.5:
+            status_gk = 'APROVADO' if (exp_cards <= 2.60 and prob_poisson >= 70.0) else 'NO_BET'
+        elif line_val <= 4.5:
+            status_gk = 'APROVADO' if (exp_cards <= 3.40 and prob_poisson >= 65.0) else 'NO_BET'
+        elif line_val <= 5.5:
+            status_gk = 'APROVADO' if (exp_cards <= 4.80 and prob_poisson >= 60.0) else 'NO_BET'
+        elif line_val <= 6.5:
+            status_gk = 'APROVADO' if (exp_cards <= 6.20 and prob_poisson >= 60.0) else 'NO_BET'
         else:
-            prob_poisson = prob_under
-            odd_justa = round(100.0 / prob_poisson, 2) if prob_poisson > 0 else 99.00
+            # Linhas irrealistas no pré-jogo da Betano (ex: Under 7.5, Under 8.5)
+            status_gk = 'NO_BET'
 
-            if line_val < 4.5:
-                status_gk = 'NO_BET'
-            elif line_val <= 4.5:
-                if exp_cards <= 3.30 and prob_poisson >= 75.0:
-                    status_gk = 'APROVADO'
-                else:
-                    status_gk = 'NO_BET'
-            elif line_val <= 6.5:
-                if exp_cards <= 6.50 and prob_poisson >= 60.0:
-                    status_gk = 'APROVADO'
-                else:
-                    status_gk = 'NO_BET'
-            else:
-                # Linhas irrealistas no pré-jogo da Betano (ex: Under 7.5, Under 8.5)
-                status_gk = 'NO_BET'
-            palpite_str = f"Menos de {line_val} Cartões"
-
+        palpite_str = f"Menos de {line_val} Cartões"
         suggestions.append((line_val, palpite_str, status_gk, odd_justa, prob_poisson, None, exp_cards))
 
     return suggestions
@@ -415,76 +325,19 @@ def extract_cards_under_suggestion(prediction_text: str):
     if suggestions:
         return suggestions[0]
     return None, None, 'NO_BET', None, None, None, None
-
-_betano_cards_odds_cache = {}
-_betano_cards_api_disabled = False
-
-def fetch_betano_real_card_odds(fixture_id: int, palpite_str: str, line_val: float):
-    """
-    Busca na API-Sports a odd REAL do mercado de cartões oferecida exclusivamente pela Betano (Bookmaker ID 32).
-    Retorna tupla: (odd_float, 'BETANO') se encontrada, ou (None, None) se o mercado não estiver à venda na Betano.
-    Possui Circuit-Breaker para interrupção imediata quando a cota diária estoura.
-    """
-    global _betano_cards_api_disabled
-    if not fixture_id or _betano_cards_api_disabled:
-        return None, None
-
-    cache_key = f"{fixture_id}_{palpite_str}_{line_val}"
-    if cache_key in _betano_cards_odds_cache:
-        return _betano_cards_odds_cache[cache_key]
-
-    api_key = os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
-    headers = {
-        'x-apisports-key': api_key,
-        'User-Agent': 'Mozilla/5.0'
-    }
-
-    is_under = 'menos' in (palpite_str or '').lower() or 'under' in (palpite_str or '').lower()
-    target_type = 'under' if is_under else 'over'
-
-    # Otimizado: 1 única chamada HTTP por partida direcionada à Betano (bookmaker=32)
-    url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
-    try:
-        resp = requests.get(url, headers=headers, timeout=10).json()
-        errs = resp.get('errors')
-        if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
-            print(f"⚠️ [API-Sports Betano Cards] Limite de requisições ou cota diária atingido: {errs}. Ativando Circuit-Breaker para evitar novas chamadas HTTP nesta execução.")
-            _betano_cards_api_disabled = True
-            _betano_cards_odds_cache[cache_key] = (None, None)
-            return None, None
-
-        items = resp.get('response', [])
-        for item in items:
-            for bm in item.get('bookmakers', []):
-                bm_name = str(bm.get('name', '')).strip().upper()
-                bm_id = bm.get('id')
-                if 'BETANO' not in bm_name and bm_id != 32:
-                    continue
-
-                for bet in bm.get('bets', []):
-                    b_id = bet.get('id')
-                    b_name = str(bet.get('name', '')).lower()
-
-                    # Apenas mercado de Total de Cartões do Jogo (Bet ID 80 - Cards Over/Under)
-                    # Ignorar cartões individuais por time (ID 82/83) e handicap asiático de cartões (ID 81)
-                    if b_id == 80 or ('card' in b_name and ('over' in b_name or 'under' in b_name or 'total' in b_name) and not any(t in b_name for t in ['home', 'away', 'team', 'handicap', 'asian'])):
-                        for val in bet.get('values', []):
-                            v_str = str(val.get('value', '')).strip().lower()
-                            try:
-                                v_odd = float(val.get('odd', 0))
-                            except (ValueError, TypeError):
-                                continue
-
-                            if target_type in v_str and str(line_val) in v_str:
-                                if v_odd > 1.0:
-                                    res = (v_odd, 'BETANO')
-                                    _betano_cards_odds_cache[cache_key] = res
-                                    return res
-    except Exception as e:
-        print(f"⚠️ [API Betano Cards] Erro ao buscar odd para fixture #{fixture_id}: {e}")
-
-    _betano_cards_odds_cache[cache_key] = (None, None)
-    return None, None
+from cards_engine import (
+    calculate_poisson_under_cdf,
+    calculate_poisson_under_lines,
+    calculate_expected_cards,
+    fetch_betano_real_card_odds,
+    evaluate_best_card_under_line,
+    sync_fixture_and_bet_cards,
+    enrich_missing_referees_batch,
+    format_gatekeeper_result,
+    is_knockout_round_advanced,
+    calculate_u5j_card_friction,
+    get_team_u5j_efficiency_cards
+)
 
 def criar_apostas_cartoes_diario(target_date_str=None):
     """
@@ -508,6 +361,21 @@ def criar_apostas_cartoes_diario(target_date_str=None):
     user_ids = get_all_user_ids(cursor)
     print(f"👥 Usuários identificados: {user_ids}")
 
+    # Sincronização sistêmica de remarcações: reconcilia datas de apostas pendentes com fixtures_trends
+    try:
+        cursor.execute("""
+            UPDATE apostas a
+            INNER JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
+            SET a.data_hora_jogo = ft.fixture_date
+            WHERE a.status = 'Pendente'
+              AND a.data_hora_jogo != ft.fixture_date
+        """)
+        reconciled_cnt = cursor.rowcount
+        if reconciled_cnt > 0:
+            print(f"🔄 [Sincronização Sistêmica] Reconciliada a data de {reconciled_cnt} aposta(s) pendente(s) com fixtures_trends.")
+    except Exception as e_reconcile:
+        print(f"Aviso ao reconciliar datas de apostas pendentes: {e_reconcile}")
+
     # 1. Buscar partidas em aberto
     if is_all_open:
         cursor.execute("""
@@ -521,6 +389,7 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         cursor.execute(f"""
             SELECT * FROM fixtures_trends
             WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN ({placeholders})
+              AND fixture_date >= DATE_ADD(NOW(), INTERVAL 5 MINUTE)
               AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """, tuple(target_dates))
@@ -534,6 +403,11 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
     print(f"📋 Encontradas {len(fixtures)} partidas selecionadas.")
 
+    # Enriquecimento Dinâmico de Árbitros (< 48h) via API-Sports (Regra de Ouro nº 3, item 4)
+    referees_enriched = enrich_missing_referees_batch(cursor, conn, fixtures)
+    if referees_enriched:
+        print(f"🪄 [Enriquecimento Dinâmico] {len(referees_enriched)} partida(s) com escala de arbitragem atualizada.")
+
     apostas_criadas = 0
     apostas_atualizadas = 0
     apostas_canceladas = 0
@@ -543,6 +417,8 @@ def criar_apostas_cartoes_diario(target_date_str=None):
 
     for fix in fixtures:
         fixture_id = fix['fixture_id']
+        if fixture_id in referees_enriched:
+            fix['referee_name'] = referees_enriched[fixture_id]
         home_team = fix['home_team'].strip()
         away_team = fix['away_team'].strip()
         fixture_date = fix['fixture_date']
@@ -607,137 +483,93 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             continue
 
         prediction_text = (fix.get('prediction_text') or '').strip()
+        league_round = (fix.get('league_round') or '').strip()
+        is_knockout = is_knockout_round_advanced(league_round, league_name)
 
-        suggestions = extract_all_cards_suggestions(prediction_text)
+        # Cálculo de Atrito Disciplinar U5J e Mata-Mata Oitavas+
+        h_tid = fix.get('home_team_id')
+        a_tid = fix.get('away_team_id')
+        _, h_eff = get_team_u5j_efficiency_cards(cursor, h_tid, home_team)
+        _, a_eff = get_team_u5j_efficiency_cards(cursor, a_tid, away_team)
+        friction_mult, friction_desc = calculate_u5j_card_friction(h_eff, a_eff)
+        knockout_mult = 1.18 if is_knockout else 1.00
 
-        if not suggestions:
-            print(f"🛡️ [Gatekeeper NO_BET / Abstenção] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Predição sem amostragem estatística suficiente.")
-            cancelar_apostas_pendentes_existentes("Predição sem amostragem suficiente")
+        # Extrair expectativa de cartões xC do texto e calibrar com multiplicadores
+        match_xc = re.search(r'Expectativa:\s*(\d+(?:\.\d+)?)\s*cartões', prediction_text, re.IGNORECASE)
+        if match_xc:
+            base_xc = float(match_xc.group(1))
+            exp_cards = round(base_xc * friction_mult * knockout_mult, 2)
+        else:
+            exp_cards = round(4.20 * friction_mult * knockout_mult, 2)
+
+        # Consulta estatísticas do árbitro para acionamento da Trava de Piso
+        ref_cards_avg = None
+        if referee_name:
+            cursor.execute("SELECT average_yellow_cards, average_red_cards FROM referee_stats WHERE name = %s", (referee_name,))
+            r_row = cursor.fetchone()
+            if r_row:
+                ref_cards_avg = float(r_row.get('average_yellow_cards') or 0.0) + float(r_row.get('average_red_cards') or 0.0)
+
+        u5j_info = {
+            'h_eff': h_eff,
+            'a_eff': a_eff,
+            'friction_mult': friction_mult,
+            'desc': friction_desc
+        }
+
+        selected_cand, valid_cands, pred_text, over_cards_prob = evaluate_best_card_under_line(
+            exp_cards=exp_cards,
+            fixture_id=fixture_id,
+            allow_api=True,
+            referee_cards_avg=ref_cards_avg,
+            u5j_friction_info=u5j_info,
+            is_knockout=is_knockout,
+            home_team=home_team,
+            away_team=away_team
+        )
+
+        if not selected_cand:
+            print(f"🛡️ [Gatekeeper NO_BET / Cartões] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> {pred_text}")
+            cancelar_apostas_pendentes_existentes(pred_text)
+            cursor.execute("""
+                UPDATE fixtures_trends SET
+                    prediction_text = %s,
+                    over_cards_probability = %s,
+                    updated_at = NOW()
+                WHERE fixture_id = %s
+            """, (pred_text, over_cards_prob, fixture_id))
             apostas_abstencao += 1
             continue
 
-        selected_suggestion = None
-        for s_line_val, s_palpite_str, s_status_gk, s_odd_justa, s_prob_poisson, s_ev, s_exp_cards in suggestions:
-            if s_status_gk == 'NO_BET' or not s_palpite_str:
-                continue
+        # Sincronização atômica Card <-> Aposta com proteção rigorosa para apostas confirmadas (com débito)
+        c_cnt, u_cnt = sync_fixture_and_bet_cards(
+            cursor=cursor,
+            fixture_id=fixture_id,
+            home_team=home_team,
+            away_team=away_team,
+            fixture_date=fixture_date,
+            selected_cand=selected_cand,
+            user_ids=user_ids,
+            prediction_text=pred_text,
+            over_cards_prob=over_cards_prob
+        )
+        apostas_criadas += c_cnt
+        apostas_atualizadas += u_cnt
 
-            real_odd_betano, odd_source = fetch_betano_real_card_odds(fixture_id, s_palpite_str, s_line_val)
-
-            # Fallback para odd de mercado calculada se a API da Betano estiver indisponível ou sem mercado de cartões no momento
-            if not real_odd_betano or real_odd_betano <= 1.0:
-                if s_odd_justa and s_odd_justa >= 1.40:
-                    real_odd_betano = round(max(1.55, s_odd_justa * 1.08), 2)
-                    odd_source = 'MODEL_FALLBACK'
-                else:
-                    print(f"ℹ️ [Linha Indisponível Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Mercado '{s_palpite_str}' indisponível na Betano. Testando próxima sugestão...")
-                    continue
-
-            min_odd_required = 1.65 if abs(float(s_line_val) - 5.5) < 0.01 else 1.50
-            if real_odd_betano < min_odd_required:
-                print(f"ℹ️ [Odd Baixa < {min_odd_required:.2f}] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Odd Betano ({real_odd_betano:.2f}) para '{s_palpite_str}' é inferior ao mínimo ({min_odd_required:.2f}). Testando próxima opção...")
-                continue
-
-            # Trava de Valor Esperado (+EV): rejeita apostas onde a Odd Betano é inferior à Odd Justa (EV < 0.0%)
-            ev_calc = round(((float(s_prob_poisson) / 100.0) * float(real_odd_betano) - 1.0) * 100.0, 2)
-            if ev_calc < 0.0:
-                print(f"🛡️ [Gatekeeper NO_BET / EV Negativo] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Odd Betano ({real_odd_betano:.2f}) < Odd Justa ({s_odd_justa:.2f}) para '{s_palpite_str}' [EV: {ev_calc:.2f}%]. Entrada descartada por falta de valor de mercado (+EV).")
-                continue
-
-            # Opção válida encontrada na Betano, aprovada pelo Gatekeeper e com +EV positivo!
-            selected_suggestion = (s_line_val, s_palpite_str, s_status_gk, s_odd_justa, s_prob_poisson, real_odd_betano, s_exp_cards, ev_calc)
-            break
-
-        if not selected_suggestion:
-            print(f"🛡️ [Gatekeeper NO_BET / Sem Odd Betano ou EV Negativo] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Nenhuma linha recomendada possui +EV positivo na Betano com odd adequada.")
-            cancelar_apostas_pendentes_existentes("Linha indisponível, sem +EV ou reprovada na Betano")
-            apostas_abstencao += 1
-            continue
-
-        line_val, palpite_str, status_gk, odd_justa, prob_poisson, odd_val, exp_cards, ev_perc = selected_suggestion
-
-        # Calcula EV percentual final ((Prob * Odd) - 1) * 100
-        if prob_poisson and prob_poisson > 0:
-            ev_perc = round(((prob_poisson / 100.0) * odd_val - 1.0) * 100.0, 2)
-
-        valor_aposta = 10.00
-        ganhos_potenciais = round(valor_aposta * odd_val, 2)
-
-        # Inserir ou Atualizar aposta para cada usuário cadastrado
-        for uid in user_ids:
-            cursor.execute("""
-                SELECT a.id, a.status, a.odd, a.palpite, a.confirmada,
-                       (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
-                FROM apostas a 
-                WHERE a.fixture_id = %s AND a.usuario_id = %s AND a.mercado = 'Total de Cartões'
-            """, (fixture_id, uid))
-            ja_existe = cursor.fetchone()
-
-            if ja_existe:
-                tem_deb = (int(ja_existe.get('tem_debito') or 0) > 0)
-
-                # Regra: Não reprocessar/alterar aposta confirmada (que consta débito efetivado na conta corrente)
-                if tem_deb:
-                    apostas_duplicadas += 1
-                    print(f"🔒 [Aposta Confirmada User #{uid}] ID #{ja_existe['id']} com débito efetivado na conta corrente mantida intacta.")
-                    continue
-
-                if ja_existe['status'] in ('Pendente', 'Cancelada'):
-                    odd_antiga = float(ja_existe.get('odd') or 0.0)
-                    cursor.execute("""
-                        UPDATE apostas SET
-                            palpite = %s,
-                            odd = %s,
-                            odd_justa = %s,
-                            probabilidade_poisson = %s,
-                            ev_percentual = %s,
-                            ganhos_potenciais = %s,
-                            status_gatekeeper = 'APROVADO',
-                            status = 'Pendente',
-                            resultado_detalhado = NULL,
-                            updated_at = NOW()
-                        WHERE id = %s
-                    """, (
-                        palpite_str, odd_val, odd_justa, prob_poisson, ev_perc,
-                        ganhos_potenciais, ja_existe['id']
-                    ))
-                    apostas_atualizadas += 1
-                    print(f"🔄 [Aposta Cartões Atualizada User #{uid}] ID #{ja_existe['id']} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ Odd {odd_val:.2f} (Anterior: {odd_antiga:.2f}, EV: {ev_perc}%)")
-                else:
-                    apostas_duplicadas += 1
-                continue
-
-            cursor.execute("""
-                INSERT INTO apostas (
-                    usuario_id, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
-                    odd_justa, probabilidade_poisson, ev_percentual, status_gatekeeper,
-                    valor_aposta, ganhos_potenciais, status, confirmada, data_hora_jogo, criado_em, updated_at
-                ) VALUES (
-                    %s, %s, %s, %s, 'Total de Cartões', %s, %s,
-                    %s, %s, %s, 'APROVADO',
-                    %s, %s, 'Pendente', 0, %s, NOW(), NOW()
-                )
-            """, (
-                uid, fixture_id, home_team, away_team, palpite_str, odd_val,
-                odd_justa, prob_poisson, ev_perc,
-                valor_aposta, ganhos_potenciais, fixture_date
-            ))
-
-            apostas_criadas += 1
-            novas_apostas_detalhes.append({
-                'usuario_id': uid,
-                'fixture_id': fixture_id,
-                'time_casa': home_team,
-                'time_fora': away_team,
-                'palpite': palpite_str,
-                'odd': odd_val,
-                'odd_justa': odd_justa,
-                'probabilidade_poisson': prob_poisson,
-                'ev_percentual': ev_perc,
-                'valor_aposta': valor_aposta,
-                'ganhos_potenciais': ganhos_potenciais,
-                'data_hora_jogo': fixture_date
-            })
-            print(f"🟢 [Aposta Cartões Criada User #{uid}] ID #{cursor.lastrowid} | {home_team} vs {away_team} | Palpite: '{palpite_str}' @ Odd {odd_val:.2f} (Prob: {prob_poisson}%, EV: {ev_perc}%)")
+        novas_apostas_detalhes.append({
+            'usuario_id': user_ids[0] if user_ids else 558,
+            'fixture_id': fixture_id,
+            'time_casa': home_team,
+            'time_fora': away_team,
+            'palpite': selected_cand['palpite_str'],
+            'casa_de_aposta': selected_cand.get('bookmaker', 'Betano'),
+            'odd': selected_cand['real_odd'],
+            'odd_justa': selected_cand['odd_justa'],
+            'probabilidade_poisson': selected_cand['prob'],
+            'ev_percentual': selected_cand['ev_calc'],
+            'valor_aposta': 10.00,
+            'ganhos_potenciais': round(10.00 * selected_cand['real_odd'], 2),
+        })
 
     print("\n=======================================================")
     print(f"✅ PROCESSAMENTO DE CRIAÇÃO DE APOSTAS CARTÕES UNDER CONCLUÍDO!")

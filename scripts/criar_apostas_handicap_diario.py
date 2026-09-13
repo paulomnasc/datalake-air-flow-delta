@@ -13,10 +13,22 @@ import os
 import re
 import requests
 import pymysql
+import math
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
+
+# Importar módulo global de ligas
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from leagues_config import ALLOWED_LEAGUES, ALLOWED_LEAGUE_IDS, ALLOWED_LEAGUE_NAMES, is_allowed_league
+except Exception:
+    ALLOWED_LEAGUE_IDS = set()
+    ALLOWED_LEAGUE_NAMES = []
+    def is_allowed_league(league_id, league_name: str = "", fixture_date=None) -> bool:
+        return True
+
 
 def get_live_env_vars():
     env_paths = [
@@ -53,6 +65,7 @@ def get_db_connection():
                 database="footballweb",
                 charset="utf8mb4",
                 cursorclass=pymysql.cursors.DictCursor,
+                connect_timeout=3,
                 autocommit=True
             )
             print(f"✅ [DAG Criar Apostas AH] Conectado ao MySQL ({host}:{port})")
@@ -83,106 +96,35 @@ def get_all_user_ids(cursor):
         return [first_user['id']]
     return [558]
 
-_betano_ah_odds_cache = {}
-_betano_ah_api_disabled = False
+from asian_handicap_engine import (
+    calculate_bivariate_poisson_matrix,
+    evaluate_ah_line_poisson,
+    fetch_all_betano_ah_lines,
+    build_fallback_lines_from_odds,
+    evaluate_and_select_best_ah_candidate,
+    calculate_unified_handicap_recommendation,
+    sync_fixture_and_bet_handicap,
+    compose_compound_ah_reasoning,
+    determine_bet_side
+)
 
 def fetch_betano_real_ah_odds(fixture_id: int, palpite_str: str, home_team: str, away_team: str):
     """
-    Busca na API-Sports a odd REAL do mercado de Handicap Asiático oferecida exclusivamente pela Betano (Bookmaker ID 32).
-    Retorna tupla: (odd_float, 'BETANO') se encontrada, ou (None, None) se a linha não estiver à venda na Betano.
-    Possui Circuit-Breaker para interrupção imediata quando a cota diária de requisições estourar.
+    Função de compatibilidade: busca uma linha específica entre as disponíveis na Betano.
     """
-    global _betano_ah_api_disabled
-    if not fixture_id or _betano_ah_api_disabled:
+    lines = fetch_all_betano_ah_lines(fixture_id, home_team, away_team)
+    if not lines:
         return None, None
 
-    cache_key = f"{fixture_id}_{palpite_str}"
-    if cache_key in _betano_ah_odds_cache:
-        return _betano_ah_odds_cache[cache_key]
+    is_away = away_team.lower() in (palpite_str or '').lower()
+    m = re.search(r'([+-]?\d+(?:\.\d+)?)', palpite_str or '')
+    target_line = float(m.group(1)) if m else None
 
-    env = get_live_env_vars()
-    api_key = env.get('FOOTBALL_API_KEY') or os.environ.get('FOOTBALL_API_KEY') or "0327019c6fab54df2ea46009b5f0844b"
-    headers = {
-        'x-apisports-key': api_key,
-        'User-Agent': 'Mozilla/5.0'
-    }
+    for item in lines:
+        if item['is_away'] == is_away:
+            if target_line is not None and abs(item['line'] - target_line) < 0.01:
+                return item['odd'], 'BETANO'
 
-    is_away = away_team.lower() in (palpite_str or '').lower() or 'visitante' in (palpite_str or '').lower() or 'fora' in (palpite_str or '').lower()
-    target_side = 'Away' if is_away else 'Home'
-
-    sign = '+' if '+' in (palpite_str or '') else ('-' if '-' in (palpite_str or '') else '')
-    m = re.search(r'(\d+(?:\.\d+)?)', palpite_str or '')
-    line_val = m.group(1) if m else ''
-
-    # Na API-Sports (Bookmaker ID 32 Betano), as linhas de Handicap Asiático (Bet #4) para o time visitante (Away)
-    # possuem os sinais invertidos (+ vira -, - vira +) na rotulagem da string da API devido à perspectiva do mandante (Home).
-    expected_signs = []
-    if is_away and sign:
-        inv_sign = '-' if sign == '+' else '+'
-        expected_signs = [inv_sign, sign]
-    elif sign:
-        expected_signs = [sign]
-    else:
-        expected_signs = ['']
-
-    url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}&bookmaker=32"
-    try:
-        resp = requests.get(url, headers=headers, timeout=10).json()
-        errs = resp.get('errors')
-        if errs and isinstance(errs, dict) and ('rateLimit' in errs or 'requests' in errs):
-            print(f"⚠️ [API-Sports Betano AH] Limite de requisições ou cota diária atingido: {errs}. Ativando Circuit-Breaker nesta execução.")
-            _betano_ah_api_disabled = True
-            _betano_ah_odds_cache[cache_key] = (None, None)
-            return None, None
-
-        items = resp.get('response', [])
-        for item in items:
-            for bm in item.get('bookmakers', []):
-                bm_name = str(bm.get('name', '')).strip().upper()
-                bm_id = bm.get('id')
-                if 'BETANO' not in bm_name and bm_id != 32:
-                    continue
-
-                for bet in bm.get('bets', []):
-                    b_id = bet.get('id')
-                    b_name = str(bet.get('name', '')).lower()
-
-                    # Bet ID 4 = Asian Handicap, Bet ID 1 = Match Winner (1X2)
-                    if b_id == 4 or 'asian handicap' in b_name:
-                        values = bet.get('values', [])
-                        for s in expected_signs:
-                            search_target = f"{s}{line_val}" if s else line_val
-                            for val in values:
-                                v_str = str(val.get('value', '')).strip()
-                                v_odd_raw = val.get('odd')
-                                try:
-                                    v_odd = float(v_odd_raw)
-                                except (ValueError, TypeError):
-                                    continue
-
-                                if v_odd > 1.0 and target_side.lower() in v_str.lower() and search_target in v_str:
-                                    res = (v_odd, 'BETANO')
-                                    _betano_ah_odds_cache[cache_key] = res
-                                    return res
-
-                    # Se a linha for 0.0 ou Empate Anula, também checa Bet ID 16 (Draw No Bet)
-                    elif ('0.0' in line_val or 'empate anula' in (palpite_str or '').lower()) and (b_id == 16 or 'draw no bet' in b_name):
-                        for val in bet.get('values', []):
-                            v_str = str(val.get('value', '')).strip()
-                            try:
-                                v_odd = float(val.get('odd', 0))
-                            except (ValueError, TypeError):
-                                continue
-
-                            if v_odd > 1.0 and target_side.lower() in v_str.lower():
-                                res = (v_odd, 'BETANO')
-                                _betano_ah_odds_cache[cache_key] = res
-                                return res
-
-    except Exception as e:
-        print(f"⚠️ [API Betano AH] Erro ao buscar odd para fixture #{fixture_id}: {e}")
-
-    _betano_ah_odds_cache[cache_key] = (None, None)
     return None, None
 
 def send_handicap_bets_email(novas_apostas, apostas_canceladas, recipient="paulomnasc@gmail.com"):
@@ -365,6 +307,15 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
     """, (fixture_id,))
     apostas_pendentes = cursor.fetchall()
     
+    # Se a abstenção for decorrente de indisponibilidade de odds da API ou cota esgotada,
+    # NUNCA cancela apostas pendentes já criadas anteriormente com +EV
+    is_api_odds_missing = any(k.lower() in (motivo or '').lower() for k in [
+        'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker'
+    ]) and 'odds 1x2 ausentes' not in (motivo or '').lower()
+    if is_api_odds_missing:
+        print(f"🔒 [Apostas Preservadas / Indisponibilidade de Odds API] Partida #{fixture_id} possui aposta(s) pendente(s). Cancelamento abortado pois a ausência de odds da Betano via API é temporária/cota.")
+        return []
+
     canceladas_detalhes = []
     for aposta in apostas_pendentes:
         aposta_id = aposta['id']
@@ -377,13 +328,34 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
             print(f"🔒 [Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Cancelamento automático ignorado.")
             continue
         
+        # Obter cotações 1X2 para descrição natural e clara
+        cursor.execute("SELECT odd_home, odd_draw, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+        f_row = cursor.fetchone() or {}
+        oh = float(f_row.get('odd_home') or 0.0)
+        od = float(f_row.get('odd_draw') or 0.0)
+        oa = float(f_row.get('odd_away') or 0.0)
+        if oh > 0 and od > 0 and oa > 0:
+            human_desc = (
+                f"A inteligência artificial analisou a partida ({aposta['time_casa']} vs {aposta['time_fora']}) "
+                f"e as cotações de mercado 1X2 (Casa: {oh:.2f}, Empate: {od:.2f}, Fora: {oa:.2f}), "
+                f"porém a gestão de risco ativou o bloqueio preventivo (Abstenção da IA) no Handicap Asiático "
+                f"por ausência de margem de segurança matemática."
+            )
+        else:
+            human_desc = (
+                f"A inteligência artificial analisou a partida ({aposta['time_casa']} vs {aposta['time_fora']}), "
+                f"porém a gestão de risco ativou o bloqueio preventivo (Abstenção da IA) no Handicap Asiático "
+                f"por ausência de margem de segurança matemática."
+            )
+
         cursor.execute("""
             UPDATE apostas 
             SET status = 'Cancelada', 
+                status_gatekeeper = 'NO_BET',
                 resultado_detalhado = %s, 
                 updated_at = NOW() 
             WHERE id = %s
-        """, (f"🚫 APOSTA CANCELADA POR ABSTENÇÃO DA IA: {str(motivo)[:200]}", aposta_id))
+        """, (human_desc, aposta_id))
         
         estornado = False
         saldo_posterior = None
@@ -457,87 +429,8 @@ def determine_bet_side(home_team: str, away_team: str, ah_suggestion: str) -> bo
     if 'visitante' in ah_low or 'fora' in ah_low:
         return True
     return False
+# Catálogo de ligas e validador is_allowed_league unificados globalmente em leagues_config.py
 
-ALLOWED_LEAGUE_IDS = {
-    71, 72, 73,   # Brasil Série A, Série B e Copa do Brasil
-    39,           # Inglaterra Premier League
-    140,          # Espanha La Liga
-    135,          # Itália Serie A
-    78,           # Alemanha Bundesliga
-    61,           # França Ligue 1
-    94,           # Portugal Liga Portugal (Primeira Liga)
-    88,           # Holanda Eredivisie
-    144,          # Bélgica Pro League
-    203,          # Turquia Süper Lig
-    179,          # Escócia Premiership
-    128,          # Argentina Liga Profesional
-    197,          # Grécia Super League 1
-    2, 3, 848,    # UEFA Champions League, Europa League, Conference League
-    13, 11        # CONMEBOL Libertadores, Copa Sudamericana
-}
-
-ALLOWED_LEAGUE_NAMES = [
-    'brasileirão', 'brasileirao', 'serie a', 'série a', 'serie b', 'série b', 'copa do brasil', 'copa brasil',
-    'premier league',
-    'la liga',
-    'bundesliga',
-    'ligue 1',
-    'primeira liga', 'liga portugal',
-    'eredivisie',
-    'pro league', 'jupiler pro league',
-    'super lig', 'süper lig',
-    'premiership',
-    'liga profesional',
-    'super league 1',
-    'champions league', 'europa league', 'conference league',
-    'libertadores', 'copa sudamericana', 'sudamericana'
-]
-
-def is_allowed_league(league_id, league_name: str, fixture_date=None) -> bool:
-    """
-    Filtra o escopo de atuação do script de criação de apostas estritamente para Ligas de Elite e Torneios Continentais de 1ª Divisão (e Série B do Brasil).
-    """
-    if not league_name and not league_id:
-        return False
-    
-    l_name_low = str(league_name or '').lower().strip()
-
-    # 1. Bloqueia partidas femininas
-    if any(w in l_name_low for w in ['women', 'feminino', 'femenina']):
-        return False
-
-    # 2. Bloqueia Divisões Secundárias Europeias e Inferiores (Championship, La Liga 2, Ligue 2, 2. Bundesliga, League One/Two, Copas Menores)
-    secondary_blocked = [
-        'championship', 'la liga 2', 'segunda división', 'segunda division',
-        '2. bundesliga', 'ligue 2', '2nd division', 'division 2',
-        'efl trophy', 'fl trophy', 'johnstone', 'bristol street', 'papa john',
-        'carabao cup', 'league cup', 'fa trophy',
-        'league one', 'league 1', 'league two', 'league 2', 'national league'
-    ]
-    if any(blocked in l_name_low for blocked in secondary_blocked):
-        return False
-
-    # 3. Bloqueia explicitamente todas as ligas e copas do Japão (J1, J2, J3, Emperor's Cup, etc.)
-    japan_blocked = ['japan', 'japão', 'japao', 'j1 league', 'j2 league', 'j3 league', 'j-league', 'j.league', 'emperor']
-    if any(blocked in l_name_low for blocked in japan_blocked):
-        return False
-
-    # 4. Validação por ID Numérico Oficial
-    if league_id is not None:
-        try:
-            lid = int(league_id)
-            if lid in ALLOWED_LEAGUE_IDS:
-                return True
-            else:
-                return False
-        except (ValueError, TypeError):
-            pass
-
-    # 5. Validação por Nome da Liga (Fallback)
-    if any(allowed in l_name_low for allowed in ALLOWED_LEAGUE_NAMES):
-        return True
-
-    return False
 
 def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
     """
@@ -570,6 +463,21 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
     user_ids = get_all_user_ids(cursor)
     print(f"👥 Usuários identificados: {user_ids}")
 
+    # Sincronização sistêmica de remarcações: reconcilia datas de apostas pendentes com fixtures_trends
+    try:
+        cursor.execute("""
+            UPDATE apostas a
+            INNER JOIN fixtures_trends ft ON a.fixture_id = ft.fixture_id
+            SET a.data_hora_jogo = ft.fixture_date
+            WHERE a.status = 'Pendente'
+              AND a.data_hora_jogo != ft.fixture_date
+        """)
+        reconciled_cnt = cursor.rowcount
+        if reconciled_cnt > 0:
+            print(f"🔄 [Sincronização Sistêmica] Reconciliada a data de {reconciled_cnt} aposta(s) pendente(s) com fixtures_trends.")
+    except Exception as e_reconcile:
+        print(f"Aviso ao reconciliar datas de apostas pendentes: {e_reconcile}")
+
     if is_prematch_window:
         cursor.execute("""
             SELECT * FROM fixtures_trends
@@ -583,6 +491,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
         cursor.execute(f"""
             SELECT * FROM fixtures_trends
             WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN ({placeholders})
+              AND fixture_date >= DATE_ADD(NOW(), INTERVAL 5 MINUTE)
               AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """, tuple(target_dates))
@@ -620,192 +529,118 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 apostas_canceladas += len(canc_list)
             continue
 
-        ah_suggestion = (fix.get('ah_suggestion') or '').strip()
+        # Chamada unificada do Asian Handicap Engine (Single Source of Truth)
+        status_gk, selected_palpite, conf_val, detalhe_calculo, best_cand, approved_cands = calculate_unified_handicap_recommendation(
+            fix, allow_api_fetch=True, cursor=cursor
+        )
 
-        if not ah_suggestion:
-            print(f"⚠️ Sem ah_suggestion prévia para {home_team} vs {away_team} (ID #{fixture_id}). Ignorando...")
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, "Sem palpite prévio de IA")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
-            continue
-
-        ah_norm = ah_suggestion.lower()
-
-        # 1. Filtrar abstenções, bloqueios de risco e 'Sem Entrada'
-        if any(term in ah_norm for term in ['sem entrada', 'abstenção', 'abstencao', 'bloqueada', 'no_bet', 'indisponível', 'indisponivel']):
-            print(f"🛡️ [Abstenção] Partida {home_team} vs {away_team} -> Sugestão: '{ah_suggestion}'.")
+        if status_gk == 'NO_BET' or not best_cand:
+            print(f"🛡️ [Gatekeeper AH NO_BET / Abstenção] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> {detalhe_calculo}")
             apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Abstenção da IA no Card: {ah_suggestion}")
+            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, detalhe_calculo)
             if canc_list:
                 apostas_canceladas_detalhes.extend(canc_list)
                 apostas_canceladas += len(canc_list)
-            continue
+            # Atualiza fixtures_trends para abstenção se não houver aposta confirmada ou pendente preservada por falha de API
+            is_api_missing = any(k.lower() in (detalhe_calculo or '').lower() for k in [
+                'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker'
+            ]) and 'odds 1x2 ausentes' not in (detalhe_calculo or '').lower()
+            cursor.execute("""
+                SELECT id, palpite, confirmada FROM apostas 
+                WHERE fixture_id = %s 
+                  AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
+                  AND status = 'Pendente'
+                LIMIT 1
+            """, (fixture_id,))
+            has_pending_bet = cursor.fetchone()
+            if has_pending_bet:
+                if int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing:
+                    print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta ativa ({has_pending_bet.get('palpite')}). fixtures_trends mantido.")
+                    continue
 
-        # 2. Validação Rígida de Formato do Handicap Asiático:
-        has_handicap_spec = bool(re.search(r'[+-]?\d+\.?\d*', ah_suggestion)) or '0.0' in ah_suggestion
-        if not has_handicap_spec or ah_norm.startswith('vitória') or ah_norm.startswith('vitoria'):
-            print(f"🛡️ [Formato Inválido AH] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' não possui linha de handicap válida.")
-            apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Formato de linha inválido: {ah_suggestion}")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
-            continue
+            cursor.execute("SELECT ah_reasoning, home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
+            cur_f = cursor.fetchone()
+            existing_r = cur_f.get("ah_reasoning") if cur_f else None
+            h_tid = cur_f.get("home_team_id") if cur_f else None
+            a_tid = cur_f.get("away_team_id") if cur_f else None
 
-        is_away = determine_bet_side(home_team, away_team, ah_suggestion)
+            compound_reasoning = compose_compound_ah_reasoning(
+                cursor=cursor,
+                fixture_id=fixture_id,
+                main_calc=detalhe_calculo,
+                suggestion='Sem Entrada (Abstenção)',
+                home_team=home_team,
+                away_team=away_team,
+                home_team_id=h_tid,
+                away_team_id=a_tid,
+                existing_reasoning=existing_r
+            )
 
-        # Validação de Segurança: Time favorito no mercado 1X2 não comercializa linhas com handicap positivo (+) na Betano
-        raw_home_odd = float(fix.get('odd_home') or 2.0)
-        raw_away_odd = float(fix.get('odd_away') or 2.0)
-        is_target_fav = (raw_away_odd < raw_home_odd) if is_away else (raw_home_odd < raw_away_odd)
-        has_positive_sign = '+' in ah_suggestion
-
-        if is_target_fav and has_positive_sign:
-            target_team_name = away_team if is_away else home_team
-            print(f"🛡️ [Handicap Invertido Betano] Partida {home_team} vs {away_team} -> Linha '{ah_suggestion}' atribui vantagem positiva ao favorito ({target_team_name}), indisponível na Betano.")
-            apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Linha '{ah_suggestion}' atribui handicap positivo ao favorito (indisponível na Betano)")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
-            continue
-
-        ah_norm_after = ah_suggestion.lower()
-        if '0.0' in ah_norm_after or 'empate anula' in ah_norm_after:
-            print(f"🛡️ [Trava 0.0 AH / Empate Anula] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' é linha 0.0 de alto risco (EV-).")
-            apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Trava 0.0 AH / Empate Anula de alto risco")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
-            continue
-
-        allowed_lines = ['+0.25', '-0.25', '-0.5', '+0.5', '-1.0']
-        if not any(al in ah_norm_after for al in allowed_lines):
-            print(f"🛡️ [Linha Fora das Top Estratégias] Partida {home_team} vs {away_team} -> Sugestão '{ah_suggestion}' fora das linhas permitidas.")
-            apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Linha fora das estratégias fracionadas permitidas: {ah_suggestion}")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
-            continue
-
-        # 3. Consulta Obrigatória de Disponibilidade da Odd na Betano (Bookmaker ID 32)
-        real_odd_betano, odd_source = fetch_betano_real_ah_odds(fixture_id, ah_suggestion, home_team, away_team)
-
-        # Fallback para odd do banco se API da Betano estiver com cota estourada ou indisponível
-        if not real_odd_betano or real_odd_betano <= 1.0:
-            raw_odd = fix.get('odd_away') if is_away else fix.get('odd_home')
-            if raw_odd and float(raw_odd) > 1.0:
-                raw_float = float(raw_odd)
-                if '+0.25' in ah_suggestion:
-                    # Linha +0.25 para underdog: odd estimada com base na cotação seca (ex: 3.10 -> ~1.84)
-                    real_odd_betano = round(max(1.55, min(2.05, 1.0 + (raw_float - 1.0) * 0.40)), 2)
-                elif '+0.5' in ah_suggestion:
-                    # Linha +0.5 (Dupla Chance): odd estimada com base na cotação seca (ex: 3.10 -> ~1.59)
-                    real_odd_betano = round(max(1.50, min(1.85, 1.0 + (raw_float - 1.0) * 0.28)), 2)
-                else:
-                    real_odd_betano = raw_float
-                odd_source = 'TRENDS_FALLBACK'
+            from asian_handicap_engine import get_cached_betano_1x2
+            b1x2 = get_cached_betano_1x2(fixture_id)
+            if b1x2 and b1x2.get('casa') and b1x2.get('empate') and b1x2.get('visitante'):
+                bm_label = b1x2.get('bookmaker', 'Betano').capitalize()
+                cursor.execute("""
+                    UPDATE fixtures_trends SET
+                        ah_suggestion = 'Sem Entrada (Abstenção)',
+                        ah_confidence = 50.00,
+                        ah_reasoning = %s,
+                        odd_home = %s,
+                        casa_odd_home = %s,
+                        odd_draw = %s,
+                        casa_odd_draw = %s,
+                        odd_away = %s,
+                        casa_odd_away = %s,
+                        updated_at = NOW()
+                    WHERE fixture_id = %s
+                """, (compound_reasoning, b1x2['casa'], bm_label, b1x2['empate'], bm_label, b1x2['visitante'], bm_label, fixture_id))
             else:
-                print(f"ℹ️ [Linha Indisponível Betano] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Linha '{ah_suggestion}' indisponível na Betano.")
-                apostas_abstenção += 1
-                canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Linha '{ah_suggestion}' indisponível na Betano")
-                if canc_list:
-                    apostas_canceladas_detalhes.extend(canc_list)
-                    apostas_canceladas += len(canc_list)
-                continue
-
-        odd_val = real_odd_betano
-
-        # 4. Trava de Odd Mínima Segura (>= 1.50)
-        min_odd_threshold = 1.50
-        if odd_val < min_odd_threshold:
-            print(f"🛡️ [Odd Baixa Betano] Partida {home_team} vs {away_team} ({league_name}) -> Odd Betano {odd_val:.2f} inferior a {min_odd_threshold:.2f}.")
-            apostas_abstenção += 1
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, f"Odd Betano ({odd_val:.2f}) abaixo do limiar seguro ({min_odd_threshold:.2f})")
-            if canc_list:
-                apostas_canceladas_detalhes.extend(canc_list)
-                apostas_canceladas += len(canc_list)
+                cursor.execute("""
+                    UPDATE fixtures_trends SET
+                        ah_suggestion = 'Sem Entrada (Abstenção)',
+                        ah_confidence = 50.00,
+                        ah_reasoning = %s,
+                        updated_at = NOW()
+                    WHERE fixture_id = %s
+                """, (compound_reasoning, fixture_id))
             continue
 
+        eval_res = best_cand['eval']
+        odd_val = best_cand['odd']
+        odd_justa = eval_res['odd_justa']
+        prob_poisson = eval_res['prob_eff']
+        ev_perc = eval_res['ev_percent']
         valor_aposta = 10.00
         ganhos_potenciais = round(valor_aposta * odd_val, 2)
 
-        for uid in user_ids:
-            cursor.execute("""
-                SELECT a.id, a.confirmada,
-                       (SELECT COUNT(*) FROM conta_corrente cc WHERE cc.aposta_id = a.id AND cc.tipo = 'DEBITO_APOSTA') AS tem_debito
-                FROM apostas a 
-                WHERE a.fixture_id = %s AND a.usuario_id = %s AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
-            """, (fixture_id, uid))
-            ja_existe = cursor.fetchone()
+        # Sincronização atômica Card <-> Aposta com proteção para apostas confirmadas
+        sync_fixture_and_bet_handicap(
+            cursor=cursor,
+            fixture_id=fixture_id,
+            home_team=home_team,
+            away_team=away_team,
+            fixture_date=fixture_date,
+            selected_palpite=selected_palpite,
+            odd_val=odd_val,
+            odd_justa=odd_justa,
+            prob_poisson=prob_poisson,
+            ev_perc=ev_perc,
+            detalhe_calculo=detalhe_calculo,
+            user_ids=user_ids,
+            confirmada_val=confirmada_val,
+            destaque_val=int(best_cand.get('destaque', 0))
+        )
 
-            if ja_existe:
-                is_conf = (int(ja_existe.get('confirmada') or 0) == 1) or (int(ja_existe.get('tem_debito') or 0) > 0)
-                if is_conf:
-                    print(f"🔒 [Aposta Confirmada Mantida User #{uid}] ID #{ja_existe['id']} com confirmação do usuário mantida intacta.")
-                    apostas_duplicadas += 1
-                    continue
-
-                cursor.execute("""
-                    UPDATE apostas SET
-                        palpite = %s,
-                        odd = %s,
-                        ganhos_potenciais = %s,
-                        resultado_detalhado = %s,
-                        status = 'Pendente',
-                        updated_at = NOW()
-                    WHERE id = %s
-                """, (ah_suggestion, odd_val, ganhos_potenciais, (fix.get('ah_reasoning') or '')[:250], ja_existe['id']))
-                apostas_duplicadas += 1
-                continue
-
-            cursor.execute("""
-                INSERT INTO apostas (
-                    usuario_id, fixture_id, time_casa, time_fora, mercado, palpite, odd, 
-                    valor_aposta, ganhos_potenciais, status_gatekeeper, status, confirmada, data_hora_jogo, criado_em, updated_at
-                ) VALUES (
-                    %s, %s, %s, %s, 'Handicap Asiático', %s, %s,
-                    %s, %s, 'APROVADO', 'Pendente', %s, %s, NOW(), NOW()
-                )
-            """, (
-                uid, fixture_id, home_team, away_team, ah_suggestion, odd_val,
-                valor_aposta, ganhos_potenciais, confirmada_val, fixture_date
-            ))
-
-            aposta_id = cursor.lastrowid
-            apostas_criadas += 1
-
-            if confirmada_val == 1:
-                cursor.execute("SELECT saldo_conta_corrente FROM usuario WHERE id = %s", (uid,))
-                u_row = cursor.fetchone()
-                s_ant = float(u_row['saldo_conta_corrente'] or 0.0) if u_row else 0.0
-                s_post = round(s_ant - valor_aposta, 2)
-                desc_deb = f"Débito Aposta #{aposta_id} ({home_team} x {away_team} - {ah_suggestion})"
-                cursor.execute("""
-                    INSERT INTO conta_corrente (
-                        usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em
-                    ) VALUES (
-                        %s, %s, 'DEBITO_APOSTA', %s, %s, %s, %s, NOW()
-                    )
-                """, (uid, aposta_id, desc_deb, valor_aposta, s_ant, s_post))
-                cursor.execute("UPDATE usuario SET saldo_conta_corrente = %s WHERE id = %s", (s_post, uid))
-
-            print(f"🟢 [Aposta Criada User #{uid}] ID #{aposta_id} | {home_team} vs {away_team} | Palpite: '{ah_suggestion}' @ Odd Betano {odd_val:.2f} | Confirmada={confirmada_val}")
-
-            novas_apostas_detalhes.append({
-                'id': aposta_id,
-                'usuario_id': uid,
-                'time_casa': home_team,
-                'time_fora': away_team,
-                'palpite': ah_suggestion,
-                'odd': odd_val,
-                'valor_aposta': valor_aposta,
-                'ganhos_potenciais': ganhos_potenciais,
-                'data_hora_jogo': fixture_date
-            })
+        novas_apostas_detalhes.append({
+            'usuario_id': user_ids[0] if user_ids else 558,
+            'time_casa': home_team,
+            'time_fora': away_team,
+            'palpite': selected_palpite,
+            'odd': odd_val,
+            'valor_aposta': valor_aposta,
+            'ganhos_potenciais': ganhos_potenciais,
+            'data_hora_jogo': fixture_date
+        })
 
     print("\n=======================================================")
     print(f"✅ PROCESSAMENTO DE APOSTAS AH BETANO CONCLUÍDO!")

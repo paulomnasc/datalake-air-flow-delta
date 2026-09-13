@@ -172,8 +172,8 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
         url_st = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}"
         res_st = requests.get(url_st, headers=headers, timeout=10)
         if res_st.status_code == 200:
-            api_success = True
-            st_data = res_st.json().get("response", [])
+            st_json = res_st.json()
+            st_data = st_json.get("response", [])
             for idx, team_st in enumerate(st_data):
                 t_id = team_st.get("team", {}).get("id")
                 is_home = (t_id == home_team_id) if home_team_id else (idx == 0)
@@ -186,43 +186,20 @@ def fetch_real_fixture_cards_api(fixture_id, home_team_id=None, cursor=None):
                     elif s_type == "Red Cards" and s_val is not None:
                         if is_home: rh = int(s_val)
                         else: ra = int(s_val)
+            if yh is not None and ya is not None:
+                api_success = True
     except Exception as e:
         print(f"⚠️ Erro ao buscar estatísticas na API para fixture {fixture_id}: {e}")
 
-    try:
-        url_ev = f"https://v3.football.api-sports.io/fixtures/events?fixture={fixture_id}"
-        res_ev = requests.get(url_ev, headers=headers, timeout=10)
-        if res_ev.status_code == 200:
-            api_success = True
-            ev_data = res_ev.json().get("response", [])
-            eyh, eya, erh, era = 0, 0, 0, 0
-            has_card_events = False
-            for ev in ev_data:
-                if ev.get("type") == "Card":
-                    has_card_events = True
-                    t_id = ev.get("team", {}).get("id")
-                    is_home = (t_id == home_team_id) if home_team_id else True
-                    detail = ev.get("detail", "")
-                    if "Yellow" in detail:
-                        if is_home: eyh += 1
-                        else: eya += 1
-                    elif "Red" in detail:
-                        if is_home: erh += 1
-                        else: era += 1
-            if has_card_events or yh is None:
-                yh = max(yh if yh is not None else 0, eyh)
-                ya = max(ya if ya is not None else 0, eya)
-                rh = max(rh if rh is not None else 0, erh)
-                ra = max(ra if ra is not None else 0, era)
-    except Exception as e:
-        print(f"⚠️ Erro ao buscar eventos na API para fixture {fixture_id}: {e}")
-
-    if not api_success and yh is None and ya is None:
+    # Se a API de estatísticas oficiais não retornou dados de cartões, NÃO faz fallback para /events.
+    # A aposta de cartões deve continuar Pendente até a consolidação oficial em /fixtures/statistics.
+    if not api_success or yh is None or ya is None:
+        print(f"⏳ [Estatísticas API] Estatísticas oficiais ainda indisponíveis na API-Sports para fixture #{fixture_id}. Cartões permanecem pendentes.")
         return None
 
     res_tuple = (
-        yh if yh is not None else 0,
-        ya if ya is not None else 0,
+        yh,
+        ya,
         rh if rh is not None else 0,
         ra if ra is not None else 0
     )
@@ -280,9 +257,11 @@ def ensure_fixture_card_stats(cursor, fixture):
                     updated_at = NOW()
                 WHERE fixture_id = %s
             """, (yellow_home, yellow_away, red_home, red_away, fixture_id))
-    else:
-        red_home = red_home or 0
-        red_away = red_away or 0
+    if yellow_home is None or yellow_away is None:
+        return None
+
+    red_home = red_home or 0
+    red_away = red_away or 0
 
     total_cards = yellow_home + yellow_away + red_home + red_away
 
@@ -306,6 +285,9 @@ def evaluate_cards_under_bet(aposta, total_cards, yellow_home, yellow_away, red_
     time_fora = (aposta.get('time_fora') or '').strip()
     valor_aposta = float(aposta.get('valor_aposta', 10.0) or 10.0)
     odd = float(aposta.get('odd', 1.80) or 1.80)
+
+    if total_cards is None or yellow_home is None or yellow_away is None:
+        return 'Pendente', 0.0, "FT | Aguardando consolidação das estatísticas oficiais de cartões da API"
 
     # Extrai o limite numérico do palpite (ex: 5.5 a partir de "Menos de 5.5 Cartões" ou "Under 5.5")
     match_line = re.search(r'(\d+(?:\.\d+)?)', palpite)
@@ -429,6 +411,10 @@ def processar_apostas_cartoes_encerradas():
                 continue
 
         stats = ensure_fixture_card_stats(cursor, fixture)
+        if not stats or stats.get('total_cards') is None:
+            print(f"⏳ Estatísticas oficiais de cartões ainda indisponíveis para #{fixture_id} [{time_casa} vs {time_fora}]. Aposta #{aposta_id} permanece Pendente.")
+            continue
+
         total_cards = stats['total_cards']
         yh = stats['yellow_cards_home']
         ya = stats['yellow_cards_away']
@@ -436,6 +422,10 @@ def processar_apostas_cartoes_encerradas():
         ra = stats['red_cards_away']
 
         novo_status, valor_computado, detalhe = evaluate_cards_under_bet(aposta, total_cards, yh, ya, rh, ra)
+
+        if novo_status == 'Pendente':
+            print(f"⏳ Aposta ID #{aposta_id} [{time_casa} vs {time_fora}] permanece PENDENTE ({detalhe})")
+            continue
 
         # Atualiza aposta no banco de dados
         cursor.execute("""

@@ -100,7 +100,7 @@ if (!function_exists('renderU5JTimelineTable')) {
                     $tData = $tInfo['data'];
                     $matches = $tData['matches'] ?? [];
                     $formText = $tData['text'] ?? '0V-0E-0D';
-                    $cleanFormText = trim(preg_replace('/\s*\(\d+\s*pts\)$/i', '', $formText));
+                    $cleanFormText = trim(preg_replace('/\s*\(.*?\)$/i', '', $formText));
                     $totalMatches = count($matches);
 
                     // Ordem cronológica: se vieram com datas válidas, garante ordenação antiga -> recente
@@ -168,9 +168,31 @@ if (!function_exists('renderU5JTimelineTable')) {
                                         <span style="font-weight: 700; color: <?= $tInfo['color'] ?>;">
                                              <?= $tInfo['icon'] ?> <?= htmlspecialchars($tInfo['name']) ?>
                                         </span>
-                                        <span class="badge" style="background: rgba(251, 191, 36, 0.2); border: 1px solid #fbbf24; color: #fbbf24; font-weight: 700; font-size: 0.65rem; padding: 2px 6px;">
-                                            <?= htmlspecialchars($cleanFormText) ?> (<?= intval($tData['pts'] ?? 0) ?> pts<?= $ptsEff !== null ? " | " . number_format($ptsEff, 1) . " Eficiência" : "" ?>)
-                                        </span>
+                                        <?php 
+                                            $trendLbl = $tData['trend_label'] ?? '';
+                                            $trendBg = 'rgba(251, 191, 36, 0.2)';
+                                            $trendBorder = '#fbbf24';
+                                            $trendColor = '#fbbf24';
+                                            if (strpos($trendLbl, 'Ascensão') !== false || ($tData['trend'] ?? '') === 'CURVA_ASCENDENTE') {
+                                                $trendBg = 'rgba(16, 185, 129, 0.2)';
+                                                $trendBorder = '#10b981';
+                                                $trendColor = '#34d399';
+                                            } elseif (strpos($trendLbl, 'Declínio') !== false || ($tData['trend'] ?? '') === 'CURVA_DESCENDENTE') {
+                                                $trendBg = 'rgba(239, 68, 68, 0.2)';
+                                                $trendBorder = '#ef4444';
+                                                $trendColor = '#f87171';
+                                            }
+                                        ?>
+                                        <div style="display: flex; gap: 4px; align-items: center;">
+                                            <?php if (!empty($trendLbl)): ?>
+                                                <span class="badge" style="background: <?= $trendBg ?>; border: 1px solid <?= $trendBorder ?>; color: <?= $trendColor ?>; font-weight: 700; font-size: 0.65rem; padding: 2px 6px;" title="<?= htmlspecialchars($tData['trend_desc'] ?? '') ?>">
+                                                    <?= htmlspecialchars($trendLbl) ?>
+                                                </span>
+                                            <?php endif; ?>
+                                            <span class="badge" style="background: rgba(251, 191, 36, 0.2); border: 1px solid #fbbf24; color: #fbbf24; font-weight: 700; font-size: 0.65rem; padding: 2px 6px;">
+                                                <?= htmlspecialchars($cleanFormText) ?> (<?= intval($tData['pts'] ?? 0) ?> pts<?= $ptsEff !== null ? " | " . number_format($ptsEff, 1) . " Eficiência" : "" ?>)
+                                            </span>
+                                        </div>
                                     </div>
                                 </th>
                             </tr>

@@ -995,6 +995,18 @@ if (!function_exists('getBookmakerUrl')) {
         </div>
       </div>
 
+      <!-- Slide Button: Jogos Futuros (Início > Relógio Atual) [Todos / Sim / Não] -->
+      <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;" title="Filtrar apostas por horário de início da partida (Sim = Início posterior ao relógio atual)">
+        <span class="text-light fw-semibold d-flex align-items-center gap-1">
+          <i class="bi bi-clock-history text-info"></i> Jogos Futuros:
+        </span>
+        <div class="bet-slide-toggle" id="futureGamesSlideToggle">
+          <button type="button" class="slide-btn active" data-val="all" onclick="setFutureGamesFilter('all', this)" title="Exibir todas as apostas">Todos</button>
+          <button type="button" class="slide-btn" data-val="1" onclick="setFutureGamesFilter('1', this)" title="Exibir apenas apostas com início posterior à data/hora atual do relógio do sistema">Sim</button>
+          <button type="button" class="slide-btn" data-val="0" onclick="setFutureGamesFilter('0', this)" title="Exibir apenas apostas com jogos já iniciados ou encerrados">Não</button>
+        </div>
+      </div>
+
       <!-- Filtro por Mercado de Simulações de Apostas -->
       <div class="d-flex align-items-center gap-2 bg-dark px-3 py-1.5 rounded-3 border border-secondary" style="font-size: 0.85rem;">
         <span class="text-light fw-semibold d-flex align-items-center gap-1"><i class="bi bi-shop text-primary"></i> <?= lang('App.market') ?>:</span>
@@ -1120,6 +1132,20 @@ if (!function_exists('getBookmakerUrl')) {
           $displayMatchTime = !empty($aposta->data_hora_jogo) ? formatBrtDate($aposta->data_hora_jogo, 'd/m \à\s H:i') : 'Hoje';
           $displayCreatedTime = !empty($aposta->criado_em) ? formatBrtDate($aposta->criado_em, 'd/m/Y \à\s H:i') : null;
 
+          $gameEpoch = 0;
+          if (!empty($aposta->data_hora_jogo)) {
+            if ($aposta->data_hora_jogo instanceof \DateTimeInterface) {
+              $gameEpoch = $aposta->data_hora_jogo->getTimestamp();
+            } else {
+              try {
+                $dtUtc = new \DateTime($aposta->data_hora_jogo, new \DateTimeZone('UTC'));
+                $gameEpoch = $dtUtc->getTimestamp();
+              } catch (\Exception $e) {
+                $gameEpoch = (int)strtotime($aposta->data_hora_jogo . ' UTC');
+              }
+            }
+          }
+
           $temDebitoCc = !empty($aposta->tem_debito) && (int)$aposta->tem_debito > 0;
           $isConfirmada = $temDebitoCc && (isset($aposta->confirmada) ? (int)$aposta->confirmada : 1) === 1 && $aposta->status !== 'Não Confirmada';
 
@@ -1145,7 +1171,7 @@ if (!function_exists('getBookmakerUrl')) {
           $leagueCountry = $aposta->league_country ?? '';
           $leagueFlag    = $aposta->league_flag ?? '';
         ?>
-        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
+        <div class="bet-card-item <?= !empty($aposta->destaque) ? 'bet-card-destaque' : '' ?>" id="aposta-card-<?= $aposta->id ?>" data-status="<?= htmlspecialchars($aposta->status) ?>" data-mercado="<?= htmlspecialchars($aposta->mercado) ?>" data-palpite="<?= htmlspecialchars($aposta->palpite) ?>" data-confirmada="<?= $isConfirmada ? '1' : '0' ?>" data-destaque="<?= !empty($aposta->destaque) ? '1' : '0' ?>" data-card-market="<?= $isCardMarket ? '1' : '0' ?>" data-cards-direction="<?= $cardsDirection ?>" data-country="<?= htmlspecialchars($leagueCountry) ?>" data-date="<?= $itemDate ?>" data-created-date="<?= $itemCreatedDate ?>" data-game-epoch="<?= $gameEpoch ?>" data-valor="<?= (float)($aposta->valor_aposta ?? 0) ?>" data-odd="<?= (float)($aposta->odd ?? 0) ?>" data-ganho="<?= (float)($aposta->ganhos_potenciais ?? 0) ?>" data-cashout="<?= (float)($aposta->cash_out ?? 0) ?>" data-search="<?= strtolower(htmlspecialchars($aposta->time_casa . ' ' . $aposta->time_fora . ' ' . $aposta->mercado . ' ' . $aposta->palpite . ' ' . ($aposta->league_name ?? '') . ' ' . $leagueCountry)) ?>">
           
           <div class="bet-card-header">
             <div class="d-flex flex-column align-items-start gap-1">
@@ -2495,6 +2521,7 @@ if (!function_exists('getBookmakerUrl')) {
   let currentConfirmedFilter = 'all'; // 'all', '1', '0'
   let currentCardsMarketFilter = 'all'; // 'all', 'over', 'under'
   let currentWithoutCancelledFilter = '1'; // '1' (Sem canceladas / Oculta canceladas por padrão)
+  let currentFutureGamesFilter = 'all'; // 'all', '1', '0'
 
   function setConfirmedFilter(val, btnEl) {
     currentConfirmedFilter = val;
@@ -2544,6 +2571,22 @@ if (!function_exists('getBookmakerUrl')) {
     applyBetFilters();
   }
 
+  function setFutureGamesFilter(val, btnEl) {
+    currentFutureGamesFilter = val;
+    const container = document.getElementById('futureGamesSlideToggle');
+    if (container) {
+      container.querySelectorAll('.slide-btn').forEach(b => {
+        b.classList.remove('active', 'active-no');
+      });
+      if (val === '0') {
+        btnEl.classList.add('active-no');
+      } else {
+        btnEl.classList.add('active');
+      }
+    }
+    applyBetFilters();
+  }
+
   function applyBetFilters() {
     const status = currentStatusFilter;
     const selectedMarket = document.getElementById('betMarketFilterSelect')?.value || 'all';
@@ -2554,6 +2597,8 @@ if (!function_exists('getBookmakerUrl')) {
     const confirmVal = currentConfirmedFilter;
     const cardsMarketVal = currentCardsMarketFilter;
     const withoutCancelledVal = currentWithoutCancelledFilter;
+    const futureGamesVal = currentFutureGamesFilter;
+    const nowEpoch = Math.floor(Date.now() / 1000);
 
     const cards = document.querySelectorAll('.bet-card-item');
     let visibleCount = 0;
@@ -2579,6 +2624,7 @@ if (!function_exists('getBookmakerUrl')) {
       const cardConfirmada = card.getAttribute('data-confirmada') || '0';
       const cardIsCardMarket = card.getAttribute('data-card-market') || '0';
       const cardCardsDirection = card.getAttribute('data-cards-direction') || 'none';
+      const cardGameEpoch = parseInt(card.getAttribute('data-game-epoch') || '0', 10);
 
       const itemDate = cardDate || cardCreated;
 
@@ -2624,7 +2670,14 @@ if (!function_exists('getBookmakerUrl')) {
         withoutCancelledMatch = !cardStatusUpper.includes('CANCELAD');
       }
 
-      if (searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch) {
+      let futureGamesMatch = true;
+      if (futureGamesVal === '1') {
+        futureGamesMatch = (cardGameEpoch > nowEpoch);
+      } else if (futureGamesVal === '0') {
+        futureGamesMatch = (cardGameEpoch > 0 && cardGameEpoch <= nowEpoch);
+      }
+
+      if (searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch) {
         counts.all++;
         if (counts.hasOwnProperty(cardStatus)) {
           counts[cardStatus]++;
@@ -2633,7 +2686,7 @@ if (!function_exists('getBookmakerUrl')) {
 
       const statusMatch = (status === 'all' || cardStatus === status);
 
-      if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch) {
+      if (statusMatch && searchMatch && dateMatch && marketMatch && confirmedMatch && cardsMarketMatch && withoutCancelledMatch && futureGamesMatch) {
         card.style.display = 'flex';
         visibleCount++;
       } else {
@@ -2823,6 +2876,9 @@ if (!function_exists('getBookmakerUrl')) {
 
     const withoutCancBtnSim = document.querySelector('#withoutCancelledSlideToggle .slide-btn[data-val="1"]');
     if (withoutCancBtnSim) setWithoutCancelledFilter('1', withoutCancBtnSim);
+
+    const futureGamesBtnAll = document.querySelector('#futureGamesSlideToggle .slide-btn[data-val="all"]');
+    if (futureGamesBtnAll) setFutureGamesFilter('all', futureGamesBtnAll);
 
     clearDateFilter();
   }
@@ -3136,16 +3192,22 @@ if (!function_exists('getBookmakerUrl')) {
     const alertEl = document.getElementById('confirmBetAlert');
     const btnExec = document.getElementById('btnExecuteConfirmBet');
     
+    if (btnExec) btnExec.disabled = false;
+    
     if (proj < 0) {
+      if (projBalEl) {
+        projBalEl.className = 'fw-bold text-danger';
+      }
       if (alertEl) {
         alertEl.style.display = 'block';
-        alertEl.className = 'alert alert-danger py-2 px-3 small rounded-3 mt-3 m-0';
-        alertEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Saldo Insuficiente!</strong> Adicione saldo à sua conta corrente antes de confirmar esta aposta.';
+        alertEl.className = 'alert alert-warning py-2 px-3 small rounded-3 mt-3 m-0';
+        alertEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Aviso:</strong> O saldo da sua conta corrente ficará negativo (R$ ' + proj.toFixed(2).replace('.', ',') + ') após esta confirmação.';
       }
-      if (btnExec) btnExec.disabled = true;
     } else {
+      if (projBalEl) {
+        projBalEl.className = 'fw-bold text-white';
+      }
       if (alertEl) alertEl.style.display = 'none';
-      if (btnExec) btnExec.disabled = false;
     }
     
     const modalEl = document.getElementById('confirmBetModal');

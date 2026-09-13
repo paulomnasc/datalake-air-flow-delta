@@ -15,6 +15,7 @@ class LeagueHelper
         74   => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
         75   => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
         76   => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
+        642  => ['country' => 'Brasil', 'flag' => '🇧🇷', 'popular' => true],
         // Portugal
         94   => ['country' => 'Portugal', 'flag' => '🇵🇹', 'popular' => true],
         95   => ['country' => 'Portugal', 'flag' => '🇵🇹', 'popular' => false],
@@ -94,6 +95,16 @@ class LeagueHelper
         10   => ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => true],
         11   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => true],
         13   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => true],
+        15   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+        16   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+        17   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+        18   => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+        531  => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => true],
+        541  => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => true],
+        667  => ['country' => 'INTERNACIONAL', 'flag' => '🌍', 'popular' => false],
+        772  => ['country' => 'INTERNACIONAL', 'flag' => '🌎', 'popular' => false],
+        848  => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
+        1028 => ['country' => 'INTERNACIONAL', 'flag' => '🏆', 'popular' => false],
     ];
 
     /**

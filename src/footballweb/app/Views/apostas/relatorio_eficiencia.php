@@ -149,19 +149,8 @@
             <div class="stat-card-glass">
                 <div class="stat-card-title"><?= lang('App.total_games') ?></div>
                 <div class="stat-value mt-1" style="color: #38bdf8;"><?= number_format($totalAnalisados, 0, ',', '.') ?></div>
-                <div class="stat-card-sub mt-2">
-                    <i class="bi bi-check-all me-1"></i> Encerrados (FT)
-                </div>
-            </div>
-        </div>
-
-        <!-- Entradas Recomendadas -->
-        <div class="col-12 col-sm-6 col-xl-2">
-            <div class="stat-card-glass">
-                <div class="stat-card-title">Recomendadas</div>
-                <div class="stat-value mt-1" style="color: #f59e0b;"><?= number_format($entradasRecomendadas, 0, ',', '.') ?></div>
                 <div class="stat-card-sub mt-2" style="color: #fbbf24;">
-                    Taxa Seleção: <strong><?= $selectionRate ?>%</strong>
+                    <i class="bi bi-bullseye me-1"></i> <?= $entradasRecomendadas ?> Recomendadas (<?= $selectionRate ?>%)
                 </div>
             </div>
         </div>
@@ -172,18 +161,47 @@
                 <div class="stat-card-title"><?= lang('App.win_rate') ?></div>
                 <div class="stat-value mt-1" style="color: #4ade80;"><?= $winRate ?>%</div>
                 <div class="stat-card-sub mt-2" style="color: #4ade80;">
-                    <i class="bi bi-check-circle-fill me-1"></i> <?= $greenCount ?> <?= lang('App.won') ?>
+                    <i class="bi bi-check-circle-fill me-1"></i> <?= $greenCount ?> <?= lang('App.won') ?> / <?= $voidCount ?> Void
                 </div>
             </div>
         </div>
 
-        <!-- Taxa de Perda (Red) -->
+        <!-- Taxa Real de Perda (Red) com Meta Regra 7 -->
         <div class="col-12 col-sm-6 col-xl-2">
             <div class="stat-card-glass" style="border-color: #991b1b !important;">
-                <div class="stat-card-title"><?= lang('App.lost') ?> (%)</div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="stat-card-title"><?= lang('App.lost') ?> (Reds)</div>
+                    <?php if ($regra7Status === 'DENTRO_META'): ?>
+                        <span class="badge bg-success text-white" style="font-size: 0.65rem;" title="Dentro da meta da Regra 7 do AGENTS.md (10% a 20% de Reds)">
+                            <i class="bi bi-shield-check"></i> Regra 7 OK
+                        </span>
+                    <?php elseif ($regra7Status === 'EXCELENTE'): ?>
+                        <span class="badge bg-primary text-white" style="font-size: 0.65rem;" title="Desempenho excelente abaixo de 10% de Reds">
+                            <i class="bi bi-stars"></i> Regra 7 Top
+                        </span>
+                    <?php else: ?>
+                        <span class="badge bg-danger text-white" style="font-size: 0.65rem;" title="Alerta: Red Rate acima de 20% das apostas decididas">
+                            <i class="bi bi-exclamation-triangle-fill"></i> Alerta Regra 7
+                        </span>
+                    <?php endif; ?>
+                </div>
                 <div class="stat-value mt-1" style="color: #f87171;"><?= $redRate ?>%</div>
-                <div class="stat-card-sub mt-2" style="color: #f87171;">
-                    <i class="bi bi-x-circle-fill me-1"></i> <?= $redCount ?> <?= lang('App.lost') ?>
+                <div class="stat-card-sub mt-2" style="color: #fca5a5;">
+                    <i class="bi bi-x-circle-fill me-1"></i> <?= $redCount ?> Reds (<?= $redRateTotal ?>% do total)
+                </div>
+            </div>
+        </div>
+
+        <!-- Cobertura Real vs. Projetada Poisson -->
+        <div class="col-12 col-sm-6 col-xl-2">
+            <div class="stat-card-glass" style="border-color: #0284c7 !important;">
+                <div class="stat-card-title">Cobertura Real vs Proj.</div>
+                <div class="stat-value mt-1" style="color: #38bdf8;"><?= $coberturaReal ?>%</div>
+                <div class="stat-card-sub mt-2" style="color: #93c5fd;" title="Cobertura real entregue (Greens + Voids) vs Projetada por Poisson">
+                    Proj: <strong><?= $coberturaProjetada ?>%</strong>
+                    <span class="ms-1 badge <?= $gapCobertura >= 0 ? 'bg-success' : 'bg-warning text-dark' ?>" style="font-size: 0.65rem;">
+                        <?= ($gapCobertura >= 0 ? '+' : '') . $gapCobertura ?> pp
+                    </span>
                 </div>
             </div>
         </div>
@@ -193,8 +211,8 @@
             <div class="stat-card-glass">
                 <div class="stat-card-title">Abstenção (No-Bet)</div>
                 <div class="stat-value mt-1" style="color: #cbd5e1;"><?= $abstentionRate ?>%</div>
-                <div class="stat-card-sub mt-2">
-                    <i class="bi bi-slash-circle me-1"></i> <?= $noBetCount ?> Sem Entrada
+                <div class="stat-card-sub mt-2" style="color: #94a3b8;">
+                    <i class="bi bi-slash-circle me-1"></i> <?= $noBetCount ?> Sem Entrada (Risco)
                 </div>
             </div>
         </div>
@@ -211,6 +229,47 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Widget Comparativo de Segmentação de Risco -->
+    <div class="row g-3 mb-4">
+        <?php if (!empty($segmentacao)): ?>
+            <?php foreach ($segmentacao as $k => $seg): ?>
+                <div class="col-12 col-md-4">
+                    <div class="stat-card-glass h-100" style="border-top: 3px solid <?= $seg['color'] ?> !important;">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="fw-bold d-flex align-items-center gap-2" style="color: <?= $seg['color'] ?>;">
+                                <i class="bi <?= $seg['icon'] ?> fs-5"></i>
+                                <span><?= esc($seg['label']) ?></span>
+                            </div>
+                            <span class="badge bg-dark border border-secondary text-white-50 small">
+                                <?= $seg['total'] ?> entradas
+                            </span>
+                        </div>
+                        <div class="row g-2 text-center my-1">
+                            <div class="col-4">
+                                <div class="small text-white-50">Win Rate</div>
+                                <div class="fw-bold fs-5 text-success"><?= $seg['winRate'] ?>%</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="small text-white-50">Red Rate</div>
+                                <div class="fw-bold fs-5 text-danger"><?= $seg['redRate'] ?>%</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="small text-white-50">Cobertura</div>
+                                <div class="fw-bold fs-5 text-info"><?= $seg['cobertura'] ?>%</div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center pt-2 mt-2 border-top border-secondary border-opacity-25 small text-white-50">
+                            <span>🟩 <?= $seg['green'] ?>G / 🟥 <?= $seg['red'] ?>R / 🟦 <?= $seg['void'] ?>V</span>
+                            <span class="fw-bold" style="color: <?= $seg['lucro'] >= 0 ? '#34d399' : '#f87171' ?>;">
+                                ROI: <?= ($seg['roi'] >= 0 ? '+' : '') . $seg['roi'] ?>% (<?= ($seg['lucro'] >= 0 ? '+' : '') . $seg['lucro'] ?> u)
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
     </div>
 
     <!-- Filtros de Pesquisa -->
@@ -257,10 +316,13 @@
                 <label class="form-label text-white-50 small font-weight-bold">Mercado / Palpite</label>
                 <select name="market" class="form-select bg-dark text-white border-secondary">
                     <option value="">Todos os Mercados</option>
-                    <option value="OVER" <?= ($marketFilter === 'OVER') ? 'selected' : '' ?>>🟨/⚽ Over (Mais de)</option>
-                    <option value="UNDER" <?= ($marketFilter === 'UNDER') ? 'selected' : '' ?>>🟨/⚽ Under (Menos de)</option>
-                    <option value="AH_MINUS" <?= ($marketFilter === 'AH_MINUS' || $marketFilter === '-AH') ? 'selected' : '' ?>>📉 -AH (Handicap Negativo)</option>
-                    <option value="AH_PLUS" <?= ($marketFilter === 'AH_PLUS' || $marketFilter === '+AH') ? 'selected' : '' ?>>📈 +AH (Handicap Positivo)</option>
+                    <option value="AH_DEFENSIVE" <?= ($marketFilter === 'AH_DEFENSIVE') ? 'selected' : '' ?>>🛡️ Linhas Defensivas (+AH / 0.0)</option>
+                    <option value="AH_AGGRESSIVE" <?= ($marketFilter === 'AH_AGGRESSIVE' || $marketFilter === 'AH_MINUS' || $marketFilter === '-AH') ? 'selected' : '' ?>>⚔️ Linhas Agressivas (-AH)</option>
+                    <option value="AH_MINUS_025" <?= ($marketFilter === 'AH_MINUS_025') ? 'selected' : '' ?>>🎯 Linha -0.25 AH (Favorito Fase)</option>
+                    <option value="AH_DNB" <?= ($marketFilter === 'AH_DNB') ? 'selected' : '' ?>>⚖️ Linha 0.0 AH (DNB / Empate Anula)</option>
+                    <option value="AH_PLUS" <?= ($marketFilter === 'AH_PLUS' || $marketFilter === '+AH') ? 'selected' : '' ?>>📈 Linha +AH (Vantagem Azarão)</option>
+                    <option value="UNDER" <?= ($marketFilter === 'UNDER') ? 'selected' : '' ?>>🟨 Under Cartões (Menos de)</option>
+                    <option value="OVER" <?= ($marketFilter === 'OVER') ? 'selected' : '' ?>>🟨 Over Cartões (Mais de)</option>
                 </select>
             </div>
 
@@ -381,7 +443,14 @@
                                                 <i class="bi bi-shield-check"></i> 🛡️ Proteção de Empate
                                             </span>
                                         <?php endif; ?>
-                                        <div class="fw-bold text-warning"><?= esc($p->linha_sugerida) ?></div>
+                                        <div class="fw-bold text-warning d-flex align-items-center flex-wrap gap-1">
+                                            <span><?= esc($p->linha_sugerida) ?></span>
+                                            <?php if (!empty($p->prob_projetada) && $p->prob_projetada > 0): ?>
+                                                <span class="badge bg-dark text-info border border-info px-1 py-0 small" style="font-size: 0.7rem;" title="Cobertura efetiva estimada por Poisson no pré-jogo">
+                                                    <i class="bi bi-bullseye"></i> <?= $p->prob_projetada ?>% Cobertura
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
                                         <div class="small text-white-50"><?= esc($p->mercado) ?></div>
                                     <?php endif; ?>
                                 </td>
@@ -441,52 +510,33 @@
 </div>
 
 <script>
-    const rawPalpitesData = <?= json_encode(array_map(function($p) {
-        $totCards = ((int)($p->yellow_cards_home ?? 0) + (int)($p->yellow_cards_away ?? 0) + (int)($p->red_cards_home ?? 0) + (int)($p->red_cards_away ?? 0));
-        $totCorners = ((int)($p->corners_home ?? 0) + (int)($p->corners_away ?? 0));
-        return [
-            'data' => date('d/m/Y', strtotime($p->fixture_date)),
-            'hora' => date('H:i', strtotime($p->fixture_date)),
-            'mandante' => $p->home_team,
-            'visitante' => $p->away_team,
-            'liga' => $p->league_name,
-            'mercado' => $p->mercado,
-            'sugestao' => $p->linha_sugerida,
-            'placar' => ($p->goals_home ?? 0) . ' x ' . ($p->goals_away ?? 0),
-            'cartoes' => $totCards,
-            'escanteios' => $totCorners,
-            'odd' => !empty($p->odd_momento) ? number_format($p->odd_momento, 2, '.', '') : '',
-            'status' => strtoupper($p->resultado_status)
-        ];
-    }, $palpites)) ?>;
-
     function exportDatagridToCsv() {
-        if (!rawPalpitesData || rawPalpitesData.length === 0) {
+        const table = document.getElementById('datagridEficiencia');
+        if (!table) {
             alert('Nenhum registro para exportar.');
             return;
         }
 
-        const headers = ['Data', 'Hora', 'Mandante', 'Visitante', 'Liga', 'Mercado', 'Sugestao', 'Placar_FT', 'Cartoes', 'Escanteios', 'Odd', 'Status'];
-        const rows = [headers];
+        const rows = [];
+        const trs = table.querySelectorAll('tr');
+        if (trs.length <= 1) {
+            alert('Nenhum registro para exportar.');
+            return;
+        }
 
-        rawPalpitesData.forEach(item => {
-            rows.push([
-                `"${item.data}"`,
-                `"${item.hora}"`,
-                `"${item.mandante.replace(/"/g, '""')}"`,
-                `"${item.visitante.replace(/"/g, '""')}"`,
-                `"${item.liga.replace(/"/g, '""')}"`,
-                `"${item.mercado.replace(/"/g, '""')}"`,
-                `"${item.sugestao.replace(/"/g, '""')}"`,
-                `"${item.placar}"`,
-                item.cartoes,
-                item.escanteios,
-                item.odd,
-                `"${item.status}"`
-            ]);
+        trs.forEach(tr => {
+            const row = [];
+            const cols = tr.querySelectorAll('th, td');
+            cols.forEach(col => {
+                let text = col.innerText.replace(/\r?\n|\r/g, ' ').replace(/\s+/g, ' ').trim();
+                row.push(`"${text.replace(/"/g, '""')}"`);
+            });
+            if (row.length > 0) {
+                rows.push(row.join(';'));
+            }
         });
 
-        const csvContent = '\uFEFF' + rows.map(e => e.join(';')).join('\n');
+        const csvContent = '\uFEFF' + rows.join('\r\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');

@@ -32,13 +32,15 @@ try:
         calculate_bivariate_poisson_matrix as ah_calculate_bivariate_poisson_matrix,
         evaluate_ah_line_poisson as ah_evaluate_line_poisson,
         evaluate_and_select_best_ah_candidate as ah_evaluate_and_select_best_candidate,
-        build_fallback_lines_from_odds as ah_build_fallback_lines
+        build_fallback_lines_from_odds as ah_build_fallback_lines,
+        compute_team_u5j_efficiency
     )
 except Exception:
     ah_calculate_bivariate_poisson_matrix = None
     ah_evaluate_line_poisson = None
     ah_evaluate_and_select_best_candidate = None
     ah_build_fallback_lines = None
+    compute_team_u5j_efficiency = None
 
 try:
     from cards_engine import (
@@ -1365,7 +1367,7 @@ def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
         trend = "CURVA_ESTAGNADA"
         trend_factor = 0.88  # -12% por platô mediano / excesso de empates
         trend_desc = f"Tendência de Estagnação / Platô Mediano ({num_e} empates nos últimos jogos / baixa imposição de vitória)"
-    elif delta_trend <= -0.70 or (avg_recent <= 0.5 and avg_recent < avg_baseline):
+    elif delta_trend <= -0.70 or (avg_recent <= 0.5 and avg_baseline >= 1.33):
         trend = "CURVA_DESCENDENTE"
         trend_factor = 0.80  # -20% por queda de rendimento recente
         trend_desc = f"Curva Descendente em queda (Queda de rendimento recente: {avg_recent:.1f} pts recentes vs {avg_baseline:.1f} pts de base)"

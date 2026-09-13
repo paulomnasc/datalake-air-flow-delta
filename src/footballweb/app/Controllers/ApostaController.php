@@ -168,7 +168,7 @@ class ApostaController extends BaseController
                 FROM apostas a
                 LEFT JOIN fixtures_trends f ON (a.fixture_id IS NOT NULL AND a.fixture_id = f.fixture_id)
                 WHERE a.usuario_id = ?
-                ORDER BY a.destaque DESC, CASE WHEN a.data_hora_jogo IS NOT NULL AND a.data_hora_jogo > '2000-01-01' THEN a.data_hora_jogo ELSE a.criado_em END ASC, a.criado_em ASC, a.id ASC
+                ORDER BY CASE WHEN a.data_hora_jogo IS NOT NULL AND a.data_hora_jogo > '2000-01-01' THEN a.data_hora_jogo ELSE a.criado_em END ASC, a.criado_em ASC, a.id ASC
             ", [$userId])->getResultObject();
 
             $tzUtc = new \DateTimeZone('UTC');
@@ -347,16 +347,7 @@ class ApostaController extends BaseController
                             ? filter_var($this->request->getPost('confirmar_debitar'), FILTER_VALIDATE_BOOLEAN) 
                             : true;
 
-        $saldoAtual = $this->contaCorrenteModel->getSaldo($userId);
-        $saldoInsuficienteAviso = '';
-
-        if ($confirmarDebitar && $saldoAtual < $valorAposta) {
-            $confirmarDebitar = false;
-            if ($status === 'Pendente') {
-                $status = 'Não Confirmada';
-            }
-            $saldoInsuficienteAviso = " ⚠️ Saldo em conta corrente insuficiente (R$ " . number_format($saldoAtual, 2, ',', '.') . ") - gravada como Não Confirmada.";
-        } elseif (!$confirmarDebitar && $status === 'Pendente') {
+        if (!$confirmarDebitar && $status === 'Pendente') {
             $status = 'Não Confirmada';
         }
 
@@ -407,7 +398,7 @@ class ApostaController extends BaseController
 
             return $this->response->setJSON([
                 'success'           => true,
-                'message'           => 'Simulação de aposta registrada! ' . $gatekeeperMsg . $saldoInsuficienteAviso,
+                'message'           => 'Simulação de aposta registrada! ' . $gatekeeperMsg,
                 'id'                => $newId,
                 'status_gatekeeper' => $statusGatekeeper,
                 'odd_justa'         => $oddJusta,
@@ -1283,17 +1274,6 @@ class ApostaController extends BaseController
         }
 
         $valorAposta = (float)$aposta->valor_aposta;
-        $saldoAtual  = $this->contaCorrenteModel->getSaldo($userId);
-
-        if ($saldoAtual < $valorAposta) {
-            return $this->response->setJSON([
-                'success'      => false,
-                'insufficient' => true,
-                'saldo_atual'  => $saldoAtual,
-                'valor_aposta' => $valorAposta,
-                'message'      => "Saldo insuficiente na conta corrente para confirmar esta aposta! Saldo atual: R$ " . number_format($saldoAtual, 2, ',', '.') . " | Valor necessário: R$ " . number_format($valorAposta, 2, ',', '.')
-            ]);
-        }
 
         $desc = "Débito Aposta #{$apostaId} ({$aposta->time_casa} x {$aposta->time_fora} - {$aposta->palpite})";
         $resDebito = $this->contaCorrenteModel->debitarAposta($userId, $apostaId, $valorAposta, $desc);
@@ -2147,6 +2127,7 @@ class ApostaController extends BaseController
      */
     public function relatorioEficiencia()
     {
+        ini_set('memory_limit', '512M');
         $access = $this->checkAccess();
         $db = \Config\Database::connect();
 
@@ -2163,7 +2144,7 @@ class ApostaController extends BaseController
                 $endDate = null;
             } else {
                 $endDate = date('Y-m-d');
-                $startDate = date('Y-m-d', strtotime('-60 days'));
+                $startDate = date('Y-m-d', strtotime('-7 days'));
             }
         } elseif (empty($startDate)) {
             $startDate = $endDate;
@@ -2196,6 +2177,9 @@ class ApostaController extends BaseController
                 f.red_cards_away,
                 f.corners_home,
                 f.corners_away,
+                f.ah_suggestion,
+                f.ah_confidence,
+                f.over_cards_probability,
                 f.status as game_status
             ')
             ->join('fixtures_trends f', 'p.fixture_id = f.fixture_id')
@@ -2218,9 +2202,20 @@ class ApostaController extends BaseController
                 $builder->where("(LOWER(p.mercado) LIKE '%over%' OR LOWER(p.linha_sugerida) LIKE '%mais%' OR LOWER(p.linha_sugerida) LIKE '%over%')");
             } elseif ($mFilterUpper === 'UNDER') {
                 $builder->where("(LOWER(p.mercado) LIKE '%under%' OR LOWER(p.linha_sugerida) LIKE '%menos%' OR LOWER(p.linha_sugerida) LIKE '%under%')");
-            } elseif ($mFilterUpper === 'AH_MINUS' || $mFilterUpper === '-AH') {
+            } elseif ($mFilterUpper === 'AH_DEFENSIVE') {
+                // Linhas Defensivas (+AH e 0.0 DNB)
+                $builder->where("((LOWER(p.mercado) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%ah%') AND (p.linha_sugerida LIKE '%+%' OR p.linha_sugerida LIKE '%0.0%' OR p.linha_sugerida LIKE '% 0 %' OR p.linha_sugerida LIKE '% 0 AH%' OR p.linha_sugerida REGEXP '\\\+[0-9]|0(\\\\.0)? AH| 0.0'))");
+            } elseif ($mFilterUpper === 'AH_AGGRESSIVE' || $mFilterUpper === 'AH_MINUS' || $mFilterUpper === '-AH') {
+                // Linhas Agressivas (-AH: -0.25, -0.5, -0.75, -1.0)
                 $builder->where("((LOWER(p.mercado) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%ah%') AND (p.linha_sugerida LIKE '%-%' OR p.linha_sugerida REGEXP '-[0-9]'))");
+            } elseif ($mFilterUpper === 'AH_MINUS_025') {
+                // Linha isolada -0.25 AH
+                $builder->where("((LOWER(p.mercado) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%ah%') AND (p.linha_sugerida LIKE '%-0.25%' OR p.linha_sugerida LIKE '%-0,25%'))");
+            } elseif ($mFilterUpper === 'AH_DNB') {
+                // Linha isolada 0.0 AH (DNB)
+                $builder->where("((LOWER(p.mercado) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%ah%') AND (p.linha_sugerida LIKE '%0.0%' OR p.linha_sugerida LIKE '% 0 %' OR p.linha_sugerida LIKE '% 0 AH%' OR p.linha_sugerida REGEXP ' 0(\\\\.0)? AH'))");
             } elseif ($mFilterUpper === 'AH_PLUS' || $mFilterUpper === '+AH') {
+                // Linhas exclusivamente positivas (+AH)
                 $builder->where("((LOWER(p.mercado) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%handicap%' OR LOWER(p.linha_sugerida) LIKE '%ah%') AND (p.linha_sugerida LIKE '%+%' OR p.linha_sugerida REGEXP '\\\+[0-9]'))");
             } else {
                 $escaped = $db->escapeLikeString($marketFilter);
@@ -2233,7 +2228,7 @@ class ApostaController extends BaseController
         }
 
         $builder->orderBy('f.fixture_date', 'DESC');
-        $palpites = $builder->get()->getResultObject();
+        $palpites = $builder->get(1000)->getResultObject();
 
         // Buscar lista de Ligas disponíveis para o filtro
         $ligas = $db->table('fixtures_trends')
@@ -2254,28 +2249,133 @@ class ApostaController extends BaseController
         $unidadesApostadas = 0.0;
         $lucroPrejuizoUnidades = 0.0;
 
+        $somaProbProjetada = 0.0;
+        $countProbValida = 0;
+
+        // Estrutura de Segmentação de Risco
+        $segmentacao = [
+            'defensivo' => [
+                'label'      => 'Handicap Defensivo (+AH / 0.0)',
+                'icon'       => 'bi-shield-check',
+                'color'      => '#38bdf8',
+                'badge'      => 'bg-info text-dark',
+                'total'      => 0,
+                'green'      => 0,
+                'red'        => 0,
+                'void'       => 0,
+                'unidades'   => 0.0,
+                'lucro'      => 0.0,
+                'winRate'    => 0.0,
+                'redRate'    => 0.0,
+                'cobertura'  => 0.0,
+                'roi'        => 0.0
+            ],
+            'agressivo' => [
+                'label'      => 'Handicap Agressivo (-AH)',
+                'icon'       => 'bi-lightning-charge-fill',
+                'color'      => '#f59e0b',
+                'badge'      => 'bg-warning text-dark',
+                'total'      => 0,
+                'green'      => 0,
+                'red'        => 0,
+                'void'       => 0,
+                'unidades'   => 0.0,
+                'lucro'      => 0.0,
+                'winRate'    => 0.0,
+                'redRate'    => 0.0,
+                'cobertura'  => 0.0,
+                'roi'        => 0.0
+            ],
+            'cartoes'   => [
+                'label'      => 'Total de Cartões (Over/Under)',
+                'icon'       => 'bi-card-text',
+                'color'      => '#a855f7',
+                'badge'      => 'bg-secondary text-white',
+                'total'      => 0,
+                'green'      => 0,
+                'red'        => 0,
+                'void'       => 0,
+                'unidades'   => 0.0,
+                'lucro'      => 0.0,
+                'winRate'    => 0.0,
+                'redRate'    => 0.0,
+                'cobertura'  => 0.0,
+                'roi'        => 0.0
+            ]
+        ];
+
         foreach ($palpites as $item) {
             $st = strtoupper($item->resultado_status);
             $odd = (float)($item->odd_momento ?? 1.85);
             if ($odd <= 1.0) $odd = 1.85;
+
+            // Atribuição da probabilidade projetada por Poisson
+            $probProj = null;
+            if (stripos($item->mercado, 'handicap') !== false || stripos($item->linha_sugerida, 'ah') !== false) {
+                $probProj = !empty($item->ah_confidence) ? (float)$item->ah_confidence : null;
+            } elseif (stripos($item->mercado, 'cart') !== false || stripos($item->linha_sugerida, 'cart') !== false) {
+                $ov = !empty($item->over_cards_probability) ? (float)$item->over_cards_probability : 50.0;
+                $probProj = (stripos($item->linha_sugerida, 'mais') !== false || stripos($item->linha_sugerida, 'over') !== false) ? $ov : (100.0 - $ov);
+            }
+            $item->prob_projetada = $probProj ? round($probProj, 1) : null;
+
+            // Classificação para segmentação de risco
+            $segKey = null;
+            if (stripos($item->mercado, 'cart') !== false || stripos($item->linha_sugerida, 'cart') !== false) {
+                $segKey = 'cartoes';
+            } elseif (stripos($item->mercado, 'handicap') !== false || stripos($item->linha_sugerida, 'ah') !== false) {
+                if (stripos($item->linha_sugerida, '-') !== false || preg_match('/-[0-9]/', $item->linha_sugerida)) {
+                    $segKey = 'agressivo';
+                } else {
+                    $segKey = 'defensivo';
+                }
+            }
 
             switch ($st) {
                 case 'GREEN':
                     $greenCount++;
                     $unidadesApostadas += 1.0;
                     $lucroPrejuizoUnidades += ($odd - 1.0);
+                    if ($segKey) {
+                        $segmentacao[$segKey]['total']++;
+                        $segmentacao[$segKey]['green']++;
+                        $segmentacao[$segKey]['unidades'] += 1.0;
+                        $segmentacao[$segKey]['lucro'] += ($odd - 1.0);
+                    }
+                    if ($item->prob_projetada !== null && $item->prob_projetada > 0) {
+                        $somaProbProjetada += $item->prob_projetada;
+                        $countProbValida++;
+                    }
                     break;
 
                 case 'RED':
                     $redCount++;
                     $unidadesApostadas += 1.0;
                     $lucroPrejuizoUnidades -= 1.0;
+                    if ($segKey) {
+                        $segmentacao[$segKey]['total']++;
+                        $segmentacao[$segKey]['red']++;
+                        $segmentacao[$segKey]['unidades'] += 1.0;
+                        $segmentacao[$segKey]['lucro'] -= 1.0;
+                    }
+                    if ($item->prob_projetada !== null && $item->prob_projetada > 0) {
+                        $somaProbProjetada += $item->prob_projetada;
+                        $countProbValida++;
+                    }
                     break;
 
                 case 'VOID':
                     $voidCount++;
                     $unidadesApostadas += 1.0;
-                    // Reembolso 0 lucro
+                    if ($segKey) {
+                        $segmentacao[$segKey]['total']++;
+                        $segmentacao[$segKey]['void']++;
+                        $segmentacao[$segKey]['unidades'] += 1.0;
+                    }
+                    if ($item->prob_projetada !== null && $item->prob_projetada > 0) {
+                        $somaProbProjetada += $item->prob_projetada;
+                        $countProbValida++;
+                    }
                     break;
 
                 case 'NO_BET':
@@ -2293,10 +2393,37 @@ class ApostaController extends BaseController
 
         $winRate = $resolvidasWinRed > 0 ? round(($greenCount / $resolvidasWinRed) * 100, 2) : 0.0;
         $redRate = $resolvidasWinRed > 0 ? round(($redCount / $resolvidasWinRed) * 100, 2) : 0.0;
+        $redRateTotal = $entradasRecomendadas > 0 ? round(($redCount / $entradasRecomendadas) * 100, 2) : 0.0;
         $voidRate = $totalAnalisados > 0 ? round(($voidCount / $totalAnalisados) * 100, 2) : 0.0;
         $abstentionRate = $totalAnalisados > 0 ? round(($noBetCount / $totalAnalisados) * 100, 2) : 0.0;
         $selectionRate = $totalAnalisados > 0 ? round(($entradasRecomendadas / $totalAnalisados) * 100, 2) : 0.0;
         $roiPercent = $unidadesApostadas > 0 ? round(($lucroPrejuizoUnidades / $unidadesApostadas) * 100, 2) : 0.0;
+
+        // Cobertura Real (Greens + Voids sobre Recomendadas)
+        $coberturaReal = $entradasRecomendadas > 0 ? round((($greenCount + $voidCount) / $entradasRecomendadas) * 100, 2) : 0.0;
+        // Cobertura Projetada Poisson (Média das Probabilidades Pré-Jogo)
+        $coberturaProjetada = $countProbValida > 0 ? round($somaProbProjetada / $countProbValida, 2) : 0.0;
+        // Gap de Cobertura (Real - Projetada)
+        $gapCobertura = round($coberturaReal - $coberturaProjetada, 2);
+
+        // Status de Validação da Regra 7 (.agents/AGENTS.md)
+        // Meta: Red Rate entre 10% e 20%
+        $regra7Status = 'DENTRO_META';
+        if ($redRateTotal > 20.0) {
+            $regra7Status = 'ALERTA_RISCO';
+        } elseif ($redRateTotal < 10.0 && $entradasRecomendadas >= 5) {
+            $regra7Status = 'EXCELENTE';
+        }
+
+        // Finalizar cálculos da segmentação
+        foreach ($segmentacao as $k => &$seg) {
+            $dec = $seg['green'] + $seg['red'];
+            $seg['winRate'] = $dec > 0 ? round(($seg['green'] / $dec) * 100, 1) : 0.0;
+            $seg['redRate'] = $dec > 0 ? round(($seg['red'] / $dec) * 100, 1) : 0.0;
+            $seg['cobertura'] = $seg['total'] > 0 ? round((($seg['green'] + $seg['void']) / $seg['total']) * 100, 1) : 0.0;
+            $seg['roi'] = $seg['unidades'] > 0 ? round(($seg['lucro'] / $seg['unidades']) * 100, 1) : 0.0;
+        }
+        unset($seg);
 
         $data = [
             'title'                 => 'Relatório de Eficiência de Palpites',
@@ -2317,9 +2444,15 @@ class ApostaController extends BaseController
             'noBetCount'            => $noBetCount,
             'winRate'               => $winRate,
             'redRate'               => $redRate,
+            'redRateTotal'          => $redRateTotal,
             'voidRate'              => $voidRate,
             'abstentionRate'        => $abstentionRate,
             'selectionRate'         => $selectionRate,
+            'coberturaReal'         => $coberturaReal,
+            'coberturaProjetada'    => $coberturaProjetada,
+            'gapCobertura'          => $gapCobertura,
+            'regra7Status'          => $regra7Status,
+            'segmentacao'           => $segmentacao,
             'lucroPrejuizoUnidades' => round($lucroPrejuizoUnidades, 2),
             'roiPercent'            => $roiPercent
         ];
@@ -2574,6 +2707,23 @@ class ApostaController extends BaseController
                 } else {
                     $ap->data_hora_jogo_brt = date('Y-m-d H:i:s');
                     $ap->data_brt_dia = date('Y-m-d');
+                }
+
+                // Resolve país e formata nome de exibição: (País ou Internacional) + Nome da Liga
+                $leagueInfo = \App\Helpers\LeagueHelper::resolveCountryAndFlag($ap->league_id ?? null, $ap->league_name ?? null);
+                $country = ($leagueInfo['country'] === 'INTERNACIONAL') ? 'Internacional' : $leagueInfo['country'];
+                $ap->league_country = $country;
+                $ap->league_flag    = $leagueInfo['flag'];
+
+                $rawLeague = trim($ap->league_name ?? 'Outras Ligas');
+                if (!empty($country) && $country !== 'Outro') {
+                    if (stripos($rawLeague, "({$country})") === false) {
+                        $ap->display_league_name = "({$country}) {$rawLeague}";
+                    } else {
+                        $ap->display_league_name = $rawLeague;
+                    }
+                } else {
+                    $ap->display_league_name = $rawLeague;
                 }
             }
             unset($ap);

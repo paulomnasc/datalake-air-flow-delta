@@ -432,6 +432,12 @@
           <button type="button" class="slide-btn" data-seg="profit_only" onclick="setLeagueSegmentFilter('profit_only', this)" title="Exibir apenas ligas lucrativas">Lucrativas 🟢</button>
         </div>
 
+        <!-- Outliers Filter Toggle -->
+        <div class="bet-slide-toggle" id="leagueOutliersToggle">
+          <button type="button" class="slide-btn active" data-outlier="filter" onclick="setLeagueOutliersFilter('filter', this)" title="Eliminar ligas com volume muito abaixo da média (outliers estatísticos)">Sem Outliers 🛡️</button>
+          <button type="button" class="slide-btn" data-outlier="all" onclick="setLeagueOutliersFilter('all', this)" title="Exibir todas as ligas inclusive de baixo volume">Todas</button>
+        </div>
+
         <!-- Sort Select -->
         <select id="leagueSortSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-semibold" style="width: auto; cursor: pointer;" onchange="onLeagueSortChange(this.value)">
           <option value="losses_first" selected>🚨 Maiores Prejuízos Primeiro (Cortes)</option>
@@ -486,6 +492,7 @@
           </div>
           <div class="fw-bold text-white fs-6" id="kpiLeagueBalanceSummary">0 Positivas / 0 Negativas</div>
           <div class="text-white-50 small" style="color: #cbd5e1 !important;" id="kpiLeagueLossTotal">Prejuízo Total Drenado: R$ 0,00</div>
+          <div class="small mt-1" id="kpiLeagueOutliersInfo" style="display: none; color: #94a3b8; font-size: 0.74rem;"></div>
         </div>
       </div>
     </div>
@@ -567,6 +574,35 @@ let leagueChart = null;
 
 let leagueSortMode = 'losses_first';
 let leagueSegmentFilter = 'all';
+let leagueOutliersFilter = 'filter';
+
+function setLeagueOutliersFilter(val, btnEl) {
+  leagueOutliersFilter = val;
+  const container = document.getElementById('leagueOutliersToggle');
+  if (container) {
+    container.querySelectorAll('.slide-btn').forEach(btn => btn.classList.remove('active'));
+  }
+  if (btnEl) btnEl.classList.add('active');
+  updatePerformanceDashboard();
+}
+
+function getLeagueDisplayName(bet) {
+  if (bet.display_league_name && bet.display_league_name.trim()) {
+    return bet.display_league_name.trim();
+  }
+  const rawLeague = (bet.league_name || 'Outras Ligas').trim();
+  let country = (bet.league_country || '').trim();
+  if (!country || country === 'Outro') {
+    return rawLeague;
+  }
+  if (country.toUpperCase() === 'INTERNACIONAL') {
+    country = 'Internacional';
+  }
+  if (!rawLeague.toLowerCase().startsWith(`(${country.toLowerCase()})`)) {
+    return `(${country}) ${rawLeague}`;
+  }
+  return rawLeague;
+}
 
 function setLeagueSegmentFilter(val, btnEl) {
   leagueSegmentFilter = val;
@@ -891,9 +927,8 @@ function updatePerformanceDashboard() {
     const isBetToday = (rawDate === todayStr);
     const isBetPending = (status === 'Pendente');
 
-    // Agrupamento por Liga de Futebol
-    let leagueName = (bet.league_name || 'Outras Ligas').trim();
-    if (!leagueName) leagueName = 'Outras Ligas';
+    // Agrupamento por Liga de Futebol: (país ou internacional) + nome liga
+    let leagueName = getLeagueDisplayName(bet);
 
     if (!leagueBuckets[leagueName]) {
       leagueBuckets[leagueName] = {
@@ -904,7 +939,9 @@ function updatePerformanceDashboard() {
         ganhas: 0,
         perdidas: 0,
         anuladas: 0,
-        decided: 0
+        decided: 0,
+        flag: bet.league_flag || '',
+        country: bet.league_country || ''
       };
     }
     leagueBuckets[leagueName].apostado += valor;
@@ -1404,13 +1441,29 @@ function updatePerformanceDashboard() {
   // DIAGNÓSTICO E RANKING POR LIGA DE FUTEBOL
   // ==========================================
   const allLeagueKeys = Object.keys(leagueBuckets);
+  const totalBetsAllLeagues = allLeagueKeys.reduce((acc, k) => acc + (leagueBuckets[k].count || 0), 0);
+  const avgBetsPerLeague = allLeagueKeys.length > 0 ? (totalBetsAllLeagues / allLeagueKeys.length) : 0;
+
+  // Cálculo dinâmico do piso de relevância estatística (corte de outliers de baixo volume)
+  let minGamesThreshold = 1;
+  if (totalBetsAllLeagues >= 10 && allLeagueKeys.length > 2) {
+    minGamesThreshold = Math.max(2, Math.ceil(avgBetsPerLeague * 0.33));
+  }
+
+  let eligibleLeagueKeys = [...allLeagueKeys];
+  let outlierLeaguesCount = 0;
+  if (leagueOutliersFilter === 'filter') {
+    eligibleLeagueKeys = allLeagueKeys.filter(k => leagueBuckets[k].count >= minGamesThreshold);
+    outlierLeaguesCount = allLeagueKeys.length - eligibleLeagueKeys.length;
+  }
+
   let worstLeague = null;
   let bestLeague = null;
   let totalLossDrained = 0;
   let countProfitLeagues = 0;
   let countLossLeagues = 0;
 
-  allLeagueKeys.forEach(k => {
+  eligibleLeagueKeys.forEach(k => {
     const l = leagueBuckets[k];
     if (l.lucro < -0.01) {
       countLossLeagues++;
@@ -1468,7 +1521,7 @@ function updatePerformanceDashboard() {
   }
 
   const countBadgeEl = document.getElementById('kpiLeagueCountBadge');
-  if (countBadgeEl) countBadgeEl.textContent = `${allLeagueKeys.length} Ligas`;
+  if (countBadgeEl) countBadgeEl.textContent = `${eligibleLeagueKeys.length} Ligas`;
 
   const balanceSummaryEl = document.getElementById('kpiLeagueBalanceSummary');
   if (balanceSummaryEl) {
@@ -1480,8 +1533,18 @@ function updatePerformanceDashboard() {
     lossTotalEl.textContent = `Prejuízo Drenado: ${formatBrl(totalLossDrained)}`;
   }
 
+  const outliersInfoEl = document.getElementById('kpiLeagueOutliersInfo');
+  if (outliersInfoEl) {
+    if (leagueOutliersFilter === 'filter' && outlierLeaguesCount > 0) {
+      outliersInfoEl.style.display = 'block';
+      outliersInfoEl.innerHTML = `<i class="bi bi-funnel-fill text-warning"></i> <strong>${outlierLeaguesCount} outliers</strong> (< ${minGamesThreshold} bets) eliminados (Média: ${avgBetsPerLeague.toFixed(1)})`;
+    } else {
+      outliersInfoEl.style.display = 'none';
+    }
+  }
+
   // Filtragem e Ordenação das Ligas para o Gráfico
-  let activeLeagueKeys = [...allLeagueKeys];
+  let activeLeagueKeys = [...eligibleLeagueKeys];
   if (leagueSegmentFilter === 'loss_only') {
     activeLeagueKeys = activeLeagueKeys.filter(k => leagueBuckets[k].lucro < -0.01);
   } else if (leagueSegmentFilter === 'profit_only') {
@@ -1543,7 +1606,7 @@ function updatePerformanceDashboard() {
   renderModalidadesChart(labels, cumulativeCartoesLucro, cumulativeAhLucro, modalityTimeline, bucketKeys);
   renderMercadoChart(mercadoLabels, mercadoLucroData, mercadoBgColors, mercadoBorderColors, mercadoMetaDetails);
   renderLeagueProfitChart(leagueLabels, leagueLucroData, leagueBgColors, leagueBorderColors, leagueMetaDetails);
-  renderLeagueTableBreakdown(activeLeagueKeys, leagueBuckets);
+  renderLeagueTableBreakdown(activeLeagueKeys, leagueBuckets, outlierLeaguesCount, minGamesThreshold);
   renderTableBreakdown(bucketKeys, buckets, groupMode);
 }
 
@@ -1979,7 +2042,7 @@ function renderLeagueProfitChart(labels, data, bgColors, borderColors, metaDetai
   });
 }
 
-function renderLeagueTableBreakdown(keys, buckets) {
+function renderLeagueTableBreakdown(keys, buckets, outlierCount = 0, minThreshold = 1) {
   const tbody = document.getElementById('leagueTableBody');
   if (!tbody) return;
 
@@ -2011,9 +2074,10 @@ function renderLeagueTableBreakdown(keys, buckets) {
       badgeHtml = '<span class="badge bg-secondary text-white px-2 py-1">Neutro</span>';
     }
 
+    const flagHtml = b.flag ? `<span class="me-1" style="font-size: 1.05rem;">${b.flag}</span> ` : '';
     html += `
       <tr>
-        <td class="fw-semibold text-white">${k}</td>
+        <td class="fw-semibold text-white d-flex align-items-center">${flagHtml}${k}</td>
         <td class="text-center">${b.count}</td>
         <td class="text-center small">${Math.round(b.ganhas)}V / ${Math.round(b.perdidas)}D / ${b.anuladas}A</td>
         <td class="text-center">${winRate.toFixed(1)}%</td>
@@ -2025,6 +2089,16 @@ function renderLeagueTableBreakdown(keys, buckets) {
       </tr>
     `;
   });
+
+  if (outlierCount > 0 && leagueOutliersFilter === 'filter') {
+    html += `
+      <tr>
+        <td colspan="9" class="text-center text-muted small py-2.5" style="background: rgba(255,255,255,0.02); font-size: 0.8rem;">
+          <i class="bi bi-shield-check text-info me-1"></i> <strong>${outlierCount} ligas com menos de ${minThreshold} apostas</strong> foram excluídas do ranking principal por baixa relevância estatística. Alterne para o botão <em>"Todas"</em> no menu superior para visualizá-las.
+        </td>
+      </tr>
+    `;
+  }
 
   tbody.innerHTML = html;
 }

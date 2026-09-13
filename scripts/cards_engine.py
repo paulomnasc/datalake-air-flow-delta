@@ -134,8 +134,11 @@ def calculate_u5j_card_friction(h_eff: float, a_eff: float) -> tuple:
       nas disputas e cometendo mais faltas táticas -> mais faltosos -> maior risco de cartões.
     - Times em alta fase (pts >= 7.0) têm maior controle do jogo e fluidez -> menos faltosos.
     
-    Retorna: (friction_mult: float, friction_desc: str)
+    Retorna: (friction_mult: float|None, friction_desc: str)
     """
+    if h_eff is None or a_eff is None:
+        return None, "Estatísticas U5J ausentes ou incompletas (Aposta não gerada por segurança)"
+
     h_is_crit = (h_eff <= 0.0)
     a_is_crit = (a_eff <= 0.0)
     h_is_low = (h_eff <= 3.0)
@@ -169,14 +172,19 @@ def calculate_u5j_card_friction(h_eff: float, a_eff: float) -> tuple:
 def get_team_u5j_efficiency_cards(cursor, team_id, team_name):
     """
     Busca U5J da equipe e calcula pontuação de eficiência ponderada (Regra 1: Cache-First MySQL).
+    Proibição de fallbacks artificiais: em caso de erro ou dados ausentes, imprime o erro e retorna (None, None).
     """
     try:
         from asian_handicap_engine import get_team_u5j_from_db, compute_team_u5j_efficiency
         u5j_data = get_team_u5j_from_db(cursor, team_id, team_name)
+        if not u5j_data or not u5j_data.get("matches"):
+            print(f"⚠️ [U5J Cartões Ausente] Histórico recente incompleto para '{team_name}' (#{team_id}).")
+            return None, None
         eff = compute_team_u5j_efficiency(u5j_data)
         return u5j_data, eff
-    except Exception:
-        return {}, 0.0
+    except Exception as e:
+        print(f"❌ [Erro U5J Cartões] Falha ao calcular eficiência U5J para '{team_name}' (#{team_id}): {e}")
+        return None, None
 
 
 def calculate_expected_cards(

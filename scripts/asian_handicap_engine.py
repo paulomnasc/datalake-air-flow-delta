@@ -532,11 +532,19 @@ def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: flo
                     'source': 'POISSON_SYNTHETIC'
                 })
         else:
-            # Super-Favoritos Tier 1 operam em linhas conservadoras de handicap negativo (-0.75 e -1.0 AH)
-            # e na linha de segurança máxima 0.0 AH (Empate Anula) em caso de massacre com U5J próximo
-            for l_neg, factor_neg in [(0.0, 0.45), (-0.75, 1.25), (-1.0, 1.45)]:
+            # Super-Favoritos Tier 1:
+            # - Mandantes (Home): operam em linhas de handicap negativo (-0.75 e -1.0 AH) e 0.0 AH
+            # - Visitantes (Away): restritos a linhas defensivas/conservadoras (0.0 AH e -0.25 AH) por proteção de mando de campo (Opção B)
+            if is_away:
+                neg_tuples = [(0.0, 0.45), (-0.25, 0.58)]
+            else:
+                neg_tuples = [(0.0, 0.45), (-0.75, 1.25), (-1.0, 1.45)]
+
+            for l_neg, factor_neg in neg_tuples:
                 if l_neg == 0.0:
                     calc_odd_neg = round(max(1.10, min(1.40, 1.0 + (ref_odd - 1.0) * factor_neg)), 2)
+                elif l_neg == -0.25:
+                    calc_odd_neg = round(max(1.30, min(1.75, 1.0 + (ref_odd - 1.0) * factor_neg + 0.15)), 2)
                 else:
                     calc_odd_neg = round(max(1.42, min(2.10, 1.0 + (ref_odd - 1.0) * factor_neg + 0.35)), 2)
                 lines.append({
@@ -544,7 +552,7 @@ def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: flo
                     'target_team': t_team,
                     'is_away': is_away,
                     'line': l_neg,
-                    'palpite_str': f"{t_team} 0.0 AH" if l_neg == 0.0 else (f"{t_team} -1.0 AH" if l_neg == -1.0 else f"{t_team} {l_neg:.2f} AH"),
+                    'palpite_str': f"{t_team} 0.0 AH" if l_neg == 0.0 else (f"{t_team} -1.0 AH" if l_neg == -1.0 else f"{t_team} {l_neg:+.2f} AH"),
                     'odd': calc_odd_neg,
                     'raw_value': f"{t_team} {l_neg:.2f}",
                     'source': 'POISSON_SYNTHETIC'
@@ -572,7 +580,8 @@ def evaluate_and_select_best_ah_candidate(
     """
     Aplica o crivo rigoroso do Gatekeeper do Handicap Asiático em todas as linhas candidatas:
     - Janela estrita de linhas permitidas: {0.0, 0.5, 0.75, 1.0, 1.25, 1.5} (anti-empate / colchão defensivo)
-    - Exceção de Super-Favoritos Tier 1 (odd <= 1.22, ratio >= 8.0x): permite linhas negativas moderadas {-0.75, -1.0}
+    - Exceção de Super-Favoritos Tier 1 (odd <= 1.22, ratio >= 8.0x): permite linhas negativas moderadas {-0.75, -1.0} EXCLUSIVAMENTE para Mandantes (Home).
+    - Trava de Mando de Campo (Opção B): Para Visitantes (Away), o teto de agressividade é -0.25 AH (com proteção de empate). Linhas < -0.25 AH (-0.5, -0.75, -1.0) são estritamente proibidas fora de casa.
     - Proibição Absoluta: Nenhuma linha mais agressiva que -1.0 AH (-1.25, -1.5, -1.75, -2.0) é tolerada.
     - Trava de Mando Consagrado: Se mandante for favorito sólido (H <= 2.00 e A >= 3.80),
       bloqueia terminantemente entradas em +AH na zebra visitante, EXCETO quando o visitante estiver
@@ -603,6 +612,15 @@ def evaluate_and_select_best_ah_candidate(
 
         # Trava de Segurança Máxima Anti-Goleada:
         if c_line < -1.0:
+            continue
+
+        # =========================================================================
+        # REGRA MANDATÓRIA DE MANDO DE CAMPO (OPÇÃO B - PROTEÇÃO FORA DE CASA):
+        # Linhas esticadas que não toleram empate (c_line < -0.25, como -0.5, -0.75, -1.0)
+        # são autorizadas EXCLUSIVAMENTE para Mandantes (Home).
+        # Para Visitantes (Away), o teto de agressividade é -0.25 AH (com tolerância/meio-reembolso no empate).
+        # =========================================================================
+        if c_is_away and c_line < -0.25:
             continue
 
         cand_odd = raw_a_odd if c_is_away else raw_h_odd
@@ -1248,7 +1266,10 @@ def calculate_unified_handicap_recommendation(
         else:
             context_extra = ""
             if (odd_h <= 1.55) or (odd_a <= 1.55):
-                context_extra = f" Favorito {fav_team}{t1_str} com odd nominal esmagada: linha DNB (0.0 AH) sem odd mínima (+EV) e linhas positivas bloqueadas por coerência de mercado."
+                if not fav_is_home:
+                    context_extra = f" Favorito visitante {fav_team}{t1_str}: linhas esticadas (<= -0.50 AH) vetadas por proteção de mando de campo (teto para visitante é -0.25 AH com tolerância a empate) e linha DNB sem cotação mínima."
+                else:
+                    context_extra = f" Favorito mandante {fav_team}{t1_str} com odd nominal esmagada: linha DNB (0.0 AH) sem odd mínima (+EV) e linhas positivas bloqueadas por coerência de mercado."
             reason = (
                 f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} ->{context_extra} "
                 f"Nenhuma linha da Betano atingiu os limiares de rentabilidade (+EV >= 5.0%, Prob. Efetiva >= 48.0% ajustada por momento). "
@@ -1412,6 +1433,7 @@ def get_team_u5j_from_db(cursor, team_id, team_name):
     num_d = sum(1 for m in matches if m.get("result") == "D")
     pts = (num_v * 3) + num_e
 
+    tier1_cnt = 0
     for m in matches:
         opp_name = m.get("opponent", "")
         opp_id = m.get("opponent_id")

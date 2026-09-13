@@ -492,6 +492,12 @@ def criar_apostas_cartoes_diario(target_date_str=None):
         _, h_eff = get_team_u5j_efficiency_cards(cursor, h_tid, home_team)
         _, a_eff = get_team_u5j_efficiency_cards(cursor, a_tid, away_team)
         friction_mult, friction_desc = calculate_u5j_card_friction(h_eff, a_eff)
+        if friction_mult is None:
+            print(f"🛡️ [Gatekeeper NO_BET / U5J Ausente] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> {friction_desc}. Entrada ignorada por segurança.")
+            cancelar_apostas_pendentes_existentes("Dados U5J insuficientes")
+            apostas_abstencao += 1
+            continue
+
         knockout_mult = 1.18 if is_knockout else 1.00
 
         # Extrair expectativa de cartões xC do texto e calibrar com multiplicadores

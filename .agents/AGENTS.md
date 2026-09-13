@@ -79,4 +79,20 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
     - **Gestão de Risco**: O Gatekeeper foi prudente ao selecionar a linha de cobertura `-0.25 AH` (meio-reembolso no empate) em vez do ML seco (-0.5).
   - **Diretriz Operacional**: A aposta foi matematicamente e conceitualmente impecável no pré-jogo. A vitória do Boyacá Chicó foi estritamente uma **zebra clássica (azarão venceu)**. É expressamente proibido criar regras restritivas ou alterar os pesos do Gatekeeper para tentar filtrar esse tipo de partida.
 
+---
+
+## 8. Inicialização Prévia Obrigatória de Variáveis Numéricas Locais
+- Toda e qualquer variável numérica local dentro de uma função ou método (especialmente contadores, acumuladores, somatórios ou ponderadores como `tier1_cnt`, `total_points`, etc.) **DEVE OBRIGATORIAMENTE ser declarada e inicializada explicitamente (ex: `0` ou `0.0`) antes do início de qualquer loop (`for`, `while`) ou condicional**.
+- É expressamente proibido declarar ou inicializar variáveis contadoras apenas dentro do corpo de laços ou dentro de ramificações condicionais, evitando falhas de escopo em tempo de execução como `UnboundLocalError`.
+
+---
+
+## 9. Proibição Absoluta de Fallbacks Artificiais em Variáveis Estatísticas
+- **Nunca atribuir valores fictícios ou arbitrários como fallback:** Quando dados estatísticos indispensáveis para a precificação de um modelo não forem encontrados no banco de dados (ex: histórico U5J, média de cartões do árbitro, médias móveis do time), **É ESTRITAMENTE PROIBIDO** atribuir valores mágicos ou artificiais (como `0.0`, `5.0` ou médias inventadas) apenas para permitir a continuidade do fluxo.
+- **Diretriz Operacional**:
+  - Em caso de ausência ou inconsistência de métricas estatísticas essenciais, o sistema deve:
+    1. Imprimir explicitamente o erro no console/log identificando o time, ID e o dado ausente.
+    2. Interromper o cálculo da partida (`NO_BET`) e **NÃO gerar a aposta**, garantindo a integridade matemática do portfólio.
+
+
 

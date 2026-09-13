@@ -63,3 +63,20 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   - É expressamente proibido implementar soluções pontuais, gambiarras com *hardcoding* de IDs de times específicos, ou regras ad-hoc que resolvam apenas a partida mencionada pelo usuário.
   - Toda partida ou exemplo apontado pelo usuário deve ser tratado como um **caso de teste representativo** de uma falha de arquitetura mais ampla; a solução deve obrigatoriamente consertar a causa raiz em nível de pipeline para que todos os jogos presentes e futuros sejam processados corretamente.
 
+---
+
+## 7. Distinção Obrigatória: Falha Algorítmica vs. Zebra Clássica (Variância Esportiva e Prevenção de Overfitting)
+- **Proibição de Alterar Código por Causa de Zebras Esportivas:**
+  - O futebol possui variância inerente nos 90 minutos. Em modelos de Valor Esperado Positivo (+EV), apostas com 80% a 90% de cobertura projetada **perderão entre 10% e 20% das vezes** devido a imponderáveis de campo (gols fortuitos, bolas paradas, falhas individuais pontuais, eficácia atípica de finalizações do azarão).
+  - Tentar criar filtros ad-hoc ou endurecer travas no Gatekeeper para "evitar" uma perda pontual onde todos os fundamentos pré-jogo eram sólidos é um erro clássico e destrutivo de **overfitting** (ajuste excessivo). Isso destrói o volume de apostas e a lucratividade matemática da esteira no longo prazo.
+
+- **Estudo de Caso Emblemático de Zebra (NÃO ALTERAR CÓDIGO):**
+  - **Partida**: *Boyacá Chicó 2 x 1 Independiente Medellín* (12/09/2026 - Primera A Colombiana).
+  - **Entrada Selecionada**: `Independiente Medellín -0.25 AH` @ 1.52 (EV +39.6%).
+  - **Fundamentos Pré-Jogo Perfeitos**:
+    - **Odds 1X2 Globais**: Chicó @ 4.35 vs Medellín @ 1.93 (mercado precificava probabilidade do azarão abaixo de 22%).
+    - **Forma Recente (U5J)**: Medellín com 4V-0E-1D (11.0 pts de eficiência), vindo de vitórias contundentes fora de casa, contra 1V-2E-2D (4.0 pts de eficiência) do Chicó.
+    - **Gestão de Risco**: O Gatekeeper foi prudente ao selecionar a linha de cobertura `-0.25 AH` (meio-reembolso no empate) em vez do ML seco (-0.5).
+  - **Diretriz Operacional**: A aposta foi matematicamente e conceitualmente impecável no pré-jogo. A vitória do Boyacá Chicó foi estritamente uma **zebra clássica (azarão venceu)**. É expressamente proibido criar regras restritivas ou alterar os pesos do Gatekeeper para tentar filtrar esse tipo de partida.
+
+

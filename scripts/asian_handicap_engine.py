@@ -2138,11 +2138,26 @@ def sync_fixture_and_bet_handicap(
         print(f"🔗 [Sincronismo Card AH] fixtures_trends #{fixture_id} sincronizado com '{selected_palpite}'.")
 
 
+def registrar_notificacao_usuario(cursor, usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link):
+    """
+    Insere notificação na tabela notificacoes_usuario para exibição em tempo real (Sino + Toast Pop-up).
+    """
+    try:
+        cursor.execute("""
+            INSERT INTO notificacoes_usuario (
+                usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link, lida, criado_em
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, 0, NOW())
+        """, (usuario_id, aposta_id, fixture_id, tipo, titulo, mensagem, link))
+        print(f"🔔 [Notificação Registrada User #{usuario_id}] {titulo}")
+    except Exception as e:
+        print(f"⚠️ [Notificação] Falha ao registrar notificação para user #{usuario_id}: {e}")
+
 def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção da IA / Gestão de Risco"):
     """
     Busca apostas pendentes no mercado de Handicap Asiático para o fixture_id.
     Altera o status para 'Cancelada' e, se a aposta tiver débito em conta corrente (DEBITO_APOSTA),
     efetua o estorno financeiro (ESTORNO_APOSTA) atualizando o saldo do usuário.
+    Gera notificação em tempo real (notificacoes_usuario) com link direto para ação de Cash Out na Betano.
     Retorna lista de dicionários com detalhes das apostas canceladas/estornadas.
     """
     cursor.execute("""
@@ -2153,7 +2168,6 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         WHERE a.fixture_id = %s 
           AND (a.mercado = 'Handicap Asiático' OR a.mercado LIKE '%%Handicap%%')
           AND a.status = 'Pendente'
-          AND (a.confirmada IS NULL OR a.confirmada = 0)
     """, (fixture_id,))
     apostas_pendentes = cursor.fetchall()
 
@@ -2162,12 +2176,6 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
         aposta_id = aposta['id']
         usuario_id = aposta['usuario_id']
         valor = float(aposta['valor_aposta'] or 0.0)
-
-        # Checagem de segurança: Aposta confirmada pelo usuário jamais é cancelada automaticamente pela DAG
-        is_confirmada = (int(aposta.get('confirmada') or 0) == 1) or (int(aposta.get('tem_debito') or 0) > 0)
-        if is_confirmada:
-            print(f"🔒 [Aposta Confirmada Mantida] ID #{aposta_id} | {aposta['time_casa']} vs {aposta['time_fora']} é aposta confirmada pelo usuário. Cancelamento automático ignorado.")
-            continue
 
         # Obter cotações 1X2 para descrição natural e clara
         cursor.execute("SELECT odd_home, odd_draw, odd_away FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))
@@ -2241,6 +2249,25 @@ def cancelar_e_estornar_aposta_handicap(cursor, fixture_id, motivo="Abstenção 
 
                 estornado = True
                 print(f"💰 [Estorno Efetivado] Aposta #{aposta_id} User #{usuario_id} | R$ {valor:.2f} estornado (Novo Saldo: R$ {saldo_posterior:.2f})")
+
+        # Disparo da Notificação em Tempo Real para o Usuário (Ação na Betano)
+        titulo_notif = f"⚠️ Aposta Cancelada (Abstenção): {aposta['time_casa']} vs {aposta['time_fora']}"
+        msg_notif = (
+            f"A IA ativou Abstenção no Handicap Asiático para {aposta.get('palpite', 'Handicap')} "
+            f"({aposta['time_casa']} vs {aposta['time_fora']}). "
+            f"Caso já tenha realizado o bilhete na Betano, efetue o Cash Out imediatamente para proteger o capital."
+        )
+        link_notif = f"/apostas?filtro_status=Cancelada&destaque_id={aposta_id}#aposta-card-{aposta_id}"
+        registrar_notificacao_usuario(
+            cursor=cursor,
+            usuario_id=usuario_id,
+            aposta_id=aposta_id,
+            fixture_id=fixture_id,
+            tipo="APOSTA_CANCELADA",
+            titulo=titulo_notif,
+            mensagem=msg_notif,
+            link=link_notif
+        )
 
         detail = dict(aposta)
         detail['motivo'] = motivo

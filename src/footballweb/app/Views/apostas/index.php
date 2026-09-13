@@ -3382,6 +3382,36 @@ if (!function_exists('getBookmakerUrl')) {
     const fixId = urlParams.get('fixture_id');
     const mercadoParam = urlParams.get('mercado');
     const palpiteParam = urlParams.get('palpite');
+    const destaqueId = urlParams.get('destaque_id');
+    const filtroStatus = urlParams.get('filtro_status');
+
+    // Se vier com destaque_id ou filtro_status=Cancelada (redirecionado de notificação de Abstenção/Cash Out)
+    if (destaqueId || filtroStatus === 'Cancelada') {
+      currentWithoutCancelledFilter = '0';
+      const toggleCanceladas = document.getElementById('withoutCancelledSlideToggle');
+      if (toggleCanceladas) {
+        const btnNao = toggleCanceladas.querySelector('[data-val="0"]');
+        if (btnNao) {
+          toggleCanceladas.querySelectorAll('.slide-btn').forEach(b => b.classList.remove('active', 'active-no'));
+          btnNao.classList.add('active');
+        }
+      }
+      if (typeof applyBetFilters === 'function') {
+        applyBetFilters();
+      }
+
+      if (destaqueId) {
+        setTimeout(function() {
+          const cardItem = document.getElementById('aposta-card-' + destaqueId);
+          if (cardItem) {
+            cardItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            cardItem.classList.add('pulse-highlight');
+            cardItem.style.boxShadow = '0 0 28px rgba(239, 68, 68, 0.95)';
+            cardItem.style.border = '2px solid #ef4444';
+          }
+        }, 400);
+      }
+    }
 
     // Limpa a URL no histórico do navegador após ler os parâmetros para evitar reaberturas acidentais após reloads manuais
     if (window.history && window.history.replaceState && (fixId || isNewBet)) {

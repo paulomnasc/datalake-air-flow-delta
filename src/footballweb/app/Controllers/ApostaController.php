@@ -2798,6 +2798,87 @@ class ApostaController extends BaseController
 
         return $this->response->setJSON($result);
     }
+
+    /**
+     * Retorna a lista de notificações não lidas e recentes do usuário logado.
+     */
+    public function getNotificacoesNaoLidas()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON([
+                'success' => false,
+                'total_nao_lidas' => 0,
+                'notificacoes' => []
+            ]);
+        }
+
+        $userId = $access['user_id'];
+        $db = \Config\Database::connect();
+
+        // Contar total de não lidas
+        $totalNaoLidas = $db->table('notificacoes_usuario')
+            ->where('usuario_id', $userId)
+            ->where('lida', 0)
+            ->countAllResults();
+
+        // Buscar as últimas 15 notificações (não lidas primeiro, depois por data mais recente)
+        $notificacoes = $db->table('notificacoes_usuario')
+            ->where('usuario_id', $userId)
+            ->orderBy('lida', 'ASC')
+            ->orderBy('criado_em', 'DESC')
+            ->limit(15)
+            ->get()
+            ->getResultArray();
+
+        return $this->response->setJSON([
+            'success' => true,
+            'total_nao_lidas' => (int)$totalNaoLidas,
+            'notificacoes' => $notificacoes
+        ]);
+    }
+
+    /**
+     * Marca uma notificação individual como lida.
+     */
+    public function marcarNotificacaoLida($id = null)
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Não autenticado'])->setStatusCode(401);
+        }
+
+        $userId = $access['user_id'];
+        $id = (int)$id;
+
+        $db = \Config\Database::connect();
+        $db->table('notificacoes_usuario')
+            ->where('id', $id)
+            ->where('usuario_id', $userId)
+            ->update(['lida' => 1]);
+
+        return $this->response->setJSON(['success' => true]);
+    }
+
+    /**
+     * Marca todas as notificações do usuário como lidas.
+     */
+    public function marcarTodasNotificacoesLidas()
+    {
+        $access = $this->checkAccess();
+        if (!$access['authenticated'] || !$access['user_id']) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Não autenticado'])->setStatusCode(401);
+        }
+
+        $userId = $access['user_id'];
+        $db = \Config\Database::connect();
+        $db->table('notificacoes_usuario')
+            ->where('usuario_id', $userId)
+            ->where('lida', 0)
+            ->update(['lida' => 1]);
+
+        return $this->response->setJSON(['success' => true]);
+    }
 }
 
 

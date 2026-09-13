@@ -72,6 +72,11 @@ $routes->post('/apostas/analisar-perda-ia', 'ApostaController::analisarPerdaIa',
 $routes->post('/apostas/analisar-perdas-consolidado-ia', 'ApostaController::analisarPerdasConsolidadoIa', ['as' => 'apostas.analisar_perdas_consolidado_ia']);
 $routes->post('/apostas/checar-odds-ah', 'ApostaController::checarOddsAh', ['as' => 'apostas.checar_odds_ah']);
 
+// Rotas de Notificações do Usuário (Sino e Alertas de Cash Out)
+$routes->get('/notificacoes/nao-lidas', 'ApostaController::getNotificacoesNaoLidas', ['as' => 'notificacoes.nao_lidas']);
+$routes->post('/notificacoes/marcar-lida/(:num)', 'ApostaController::marcarNotificacaoLida/$1', ['as' => 'notificacoes.marcar_lida']);
+$routes->post('/notificacoes/marcar-todas-lidas', 'ApostaController::marcarTodasNotificacoesLidas', ['as' => 'notificacoes.marcar_todas_lidas']);
+
 // Rotas de Conta Corrente, Extrato e Gráfico de Evolução Financeira
 $routes->get('/apostas/extrato', 'ContaCorrenteController::extrato', ['as' => 'apostas.extrato']);
 $routes->get('/conta-corrente/extrato', 'ContaCorrenteController::extrato', ['as' => 'conta_corrente.extrato']);

@@ -495,91 +495,11 @@ def fetch_all_betano_ah_lines(fixture_id: int, home_team: str, away_team: str):
 
 def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: float, odd_away: float, ah_suggestion: str = None, home_team_id: int = None, away_team_id: int = None):
     """
-    Gera linhas simuladas estruturadas quando a API da Betano estiver momentaneamente
-    fora do ar ou sem cotações de AH abertas, permitindo avaliação consistente de Poisson.
-    Restrito exclusivamente à janela defensiva anti-empate: {0.0, 0.5, 1.0, 1.25, 1.5}.
+    Regra 12 (AGENTS.md): Proibição absoluta de geração de dados sintéticos e odds fictícias.
+    Retorna lista vazia ([]). É terminantemente proibido inventar ou interpolar linhas/odds sintéticas
+    (POISSON_SYNTHETIC) a partir do 1X2. Toda aposta deve obrigatoriamente possuir cotações reais de bookmakers.
     """
-    lines = []
-    oh = float(odd_home or 2.0)
-    oa = float(odd_away or 2.0)
-
-    # Linha base sugerida se existir e pertencer à janela
-    if ah_suggestion and not any(term in ah_suggestion.lower() for term in ['sem entrada', 'abstenção', 'no_bet', 'indisponível']):
-        is_away_p = determine_bet_side(home_team, away_team, ah_suggestion)
-        m_p = re.search(r'([+-]?\d+(?:\.\d+)?)', ah_suggestion)
-        l_p = float(m_p.group(1)) if m_p else 0.0
-        if l_p in {-1.5, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5}:
-            raw_ref = oa if is_away_p else oh
-            target_t = away_team if is_away_p else home_team
-            if l_p < 0.0:
-                est_odd = round(max(1.35, min(2.25, 1.0 + (raw_ref - 1.0) * 1.30 + abs(l_p) * 0.35)), 2)
-            elif l_p == 0.0:
-                est_odd = round(max(1.30, min(2.10, 1.0 + (raw_ref - 1.0) * 0.65)), 2)
-            elif l_p <= 0.5:
-                est_odd = round(max(1.22, min(1.85, 1.0 + (raw_ref - 1.0) * 0.38)), 2)
-            elif l_p <= 1.0:
-                est_odd = round(max(1.15, min(1.60, 1.0 + (raw_ref - 1.0) * 0.24)), 2)
-            else:
-                est_odd = round(max(1.15, min(1.50, 1.0 + (raw_ref - 1.0) * 0.18)), 2)
-
-            palpite_formatado = f"{target_t} {l_p:+.2f} AH" if l_p not in (0.0, -1.0, 1.0) else (f"{target_t} -1.0 AH" if l_p == -1.0 else (f"{target_t} +1.0 AH" if l_p == 1.0 else f"{target_t} 0.0 AH"))
-            lines.append({
-                'team': 'Away' if is_away_p else 'Home',
-                'target_team': target_t,
-                'is_away': is_away_p,
-                'line': l_p,
-                'palpite_str': palpite_formatado,
-                'odd': est_odd,
-                'raw_value': f"{target_t} {l_p:+.2f}",
-                'source': 'TRENDS_FALLBACK'
-            })
-
-    # Adicionar linhas padrão da janela defensiva anti-empate para Mandante e Visitante
-    for (is_away, t_team, ref_odd, t_id) in [(False, home_team, oh, home_team_id), (True, away_team, oa, away_team_id)]:
-        ratio_cur = (oa / oh) if not is_away else (oh / oa)
-        is_this_super_fav = is_tier_1_elite_club(team_id=t_id, team_name=t_team) and (ref_odd <= 1.55 or (ref_odd <= 1.65 and ratio_cur >= 3.0))
-
-        if not is_this_super_fav:
-            for (l_val, factor) in [(-0.25, 0.56), (0.0, 0.65), (0.5, 0.35), (1.0, 0.22), (1.25, 0.18), (1.5, 0.15)]:
-                calc_odd = round(max(1.30, min(2.35, 1.0 + (ref_odd - 1.0) * factor)), 2)
-                lines.append({
-                    'team': 'Away' if is_away else 'Home',
-                    'target_team': t_team,
-                    'is_away': is_away,
-                    'line': l_val,
-                    'palpite_str': f"{t_team} 0.0 AH" if l_val == 0.0 else f"{t_team} {l_val:+.2f} AH",
-                    'odd': calc_odd,
-                    'raw_value': f"{t_team} {l_val:+.2f}",
-                    'source': 'POISSON_SYNTHETIC'
-                })
-        else:
-            # Super-Favoritos Tier 1:
-            # - Mandantes (Home): operam em linhas de handicap negativo (-0.75 e -1.0 AH) e 0.0 AH
-            # - Visitantes (Away): restritos a linhas defensivas/conservadoras (0.0 AH e -0.25 AH) por proteção de mando de campo (Opção B)
-            if is_away:
-                neg_tuples = [(0.0, 0.45), (-0.25, 0.58)]
-            else:
-                neg_tuples = [(0.0, 0.45), (-0.75, 1.25), (-1.0, 1.45)]
-
-            for l_neg, factor_neg in neg_tuples:
-                if l_neg == 0.0:
-                    calc_odd_neg = round(max(1.10, min(1.40, 1.0 + (ref_odd - 1.0) * factor_neg)), 2)
-                elif l_neg == -0.25:
-                    calc_odd_neg = round(max(1.30, min(1.75, 1.0 + (ref_odd - 1.0) * factor_neg + 0.15)), 2)
-                else:
-                    calc_odd_neg = round(max(1.42, min(2.10, 1.0 + (ref_odd - 1.0) * factor_neg + 0.35)), 2)
-                lines.append({
-                    'team': 'Away' if is_away else 'Home',
-                    'target_team': t_team,
-                    'is_away': is_away,
-                    'line': l_neg,
-                    'palpite_str': f"{t_team} 0.0 AH" if l_neg == 0.0 else (f"{t_team} -1.0 AH" if l_neg == -1.0 else f"{t_team} {l_neg:+.2f} AH"),
-                    'odd': calc_odd_neg,
-                    'raw_value': f"{t_team} {l_neg:.2f}",
-                    'source': 'POISSON_SYNTHETIC'
-                })
-
-    return lines
+    return []
 
 
 def evaluate_and_select_best_ah_candidate(
@@ -1241,20 +1161,13 @@ def calculate_unified_handicap_recommendation(
         else:
             betano_lines = []
 
-    # Se a API da Betano estiver sem cota ou indisponível, mantém os dados do banco e gera as linhas a partir das odds do banco:
+    # Regra 12 (AGENTS.md): Ausência de linhas reais das casas de apostas (API-Football / The Odds API) -> Abstenção Mandatória
     if not betano_lines:
-        betano_lines = build_fallback_lines_from_odds(
-            home_team=home_team,
-            away_team=away_team,
-            odd_home=odd_h,
-            odd_away=odd_a,
-            ah_suggestion=fixture_dict.get('ah_suggestion'),
-            home_team_id=fixture_dict.get('home_team_id'),
-            away_team_id=fixture_dict.get('away_team_id')
+        reason_no_odds = (
+            f"🛡️ [Gatekeeper AH NO_BET / Ausência de Linhas Reais] Cotações oficiais de Handicap Asiático indisponíveis "
+            f"na API-Football e na The Odds API para {home_team} vs {away_team}. "
+            f"Abstenção mandatória (Regra 12: Proibição de dados sintéticos)."
         )
-
-    if not betano_lines:
-        reason_no_odds = f"🛡️ [Gatekeeper AH NO_BET / Sem Linhas Disponíveis] Linhas de Handicap Asiático indisponíveis para {home_team} vs {away_team}. Abstenção mandatória."
         clean_gk = format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason_no_odds)
         compound_r = compose_compound_ah_reasoning(cursor, fixture_id, clean_gk, 'Sem Entrada (Abstenção)', home_team, away_team, fixture_dict.get('home_team_id'), fixture_dict.get('away_team_id'), reasoning)
         return 'NO_BET', 'Sem Entrada (Abstenção)', 50.0, compound_r, None, []
@@ -1411,7 +1324,22 @@ def calculate_unified_handicap_recommendation(
     opp_pts = opp_l5_data.get('pts', 0) if isinstance(opp_l5_data, dict) else 0
     opp_v = opp_l5_data.get('v', 0) if isinstance(opp_l5_data, dict) else 0
 
-    is_destaque = 1 if (is_cand_tier1 and not is_opp_tier1 and (opp_pts <= 5 or opp_v == 0)) else 0
+    cand_l5_data = a_l5 if cand_team_name == away_team else h_l5
+    cand_pts = cand_l5_data.get('pts', 0) if isinstance(cand_l5_data, dict) else 0
+    odd_cand = fixture_dict.get('odd_away') if cand_team_name == away_team else fixture_dict.get('odd_home')
+    try:
+        odd_cand = float(odd_cand) if odd_cand is not None else 99.0
+    except (ValueError, TypeError):
+        odd_cand = 99.0
+
+    is_crisis_opp = (opp_pts <= 5 or opp_v == 0)
+    is_destaque = 0
+    if is_cand_tier1:
+        if not is_opp_tier1 and is_crisis_opp:
+            is_destaque = 1
+        elif is_opp_tier1 and is_crisis_opp and (cand_pts >= 8 or odd_cand <= 1.60 or cand_pts >= opp_pts + 4):
+            is_destaque = 1
+
     best_cand['destaque'] = is_destaque
 
     return 'APROVADO', selected_palpite, conf, compound_r, best_cand, approved

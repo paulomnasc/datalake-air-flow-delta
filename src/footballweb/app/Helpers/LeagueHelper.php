@@ -206,10 +206,192 @@ class LeagueHelper
 
         return ['country' => 'Outro', 'flag' => '🌐', 'popular' => false];
     }
+
+    /**
+     * Verifica se o clube pertence ao grupo Tier 1 de Elite Mundial/Continental.
+     * Base canônica sincronizada com scripts/leagues_config.py e ApostaController.
+     */
+    public static function isTier1EliteClub(?int $teamId = null, ?string $teamName = null): bool
+    {
+        static $tier1Clubs = [
+            // Espanha
+            529  => "Barcelona",
+            541  => "Real Madrid",
+            530  => "Atlético Madrid",
+            // Inglaterra
+            50   => "Manchester City",
+            40   => "Liverpool",
+            42   => "Arsenal",
+            49   => "Chelsea",
+            47   => "Tottenham",
+            33   => "Manchester United",
+            // Alemanha
+            157  => "Bayern Munich",
+            165  => "Borussia Dortmund",
+            168  => "Bayer Leverkusen",
+            173  => "RB Leipzig",
+            // França
+            85   => "Paris Saint Germain",
+            91   => "Monaco",
+            80   => "Lyon",
+            81   => "Marseille",
+            // Itália
+            505  => "Inter",
+            489  => "AC Milan",
+            496  => "Juventus",
+            492  => "Napoli",
+            497  => "AS Roma",
+            487  => "Lazio",
+            // Portugal
+            211  => "Benfica",
+            212  => "FC Porto",
+            228  => "Sporting CP",
+            // Holanda
+            194  => "Ajax",
+            197  => "PSV Eindhoven",
+            209  => "Feyenoord",
+            // Escócia
+            247  => "Celtic",
+            257  => "Rangers",
+            // Turquia
+            645  => "Galatasaray",
+            611  => "Fenerbahçe",
+            549  => "Beşiktaş",
+            // Grécia & Bélgica & Suíça & Dinamarca
+            553  => "Olympiakos Piraeus",
+            569  => "Club Brugge KV",
+            554  => "Anderlecht",
+            565  => "BSC Young Boys",
+            400  => "FC Copenhagen",
+            // Áustria
+            571  => "Red Bull Salzburg",
+            637  => "Sturm Graz",
+            781  => "Rapid Vienna",
+            // Tchéquia
+            560  => "Slavia Praha",
+            628  => "Sparta Praha",
+            567  => "Plzen",
+            // Romênia & Polônia & Suécia
+            559  => "FCSB",
+            2246 => "CFR 1907 Cluj",
+            339  => "Legia Warszawa",
+            347  => "Lech Poznan",
+            375  => "Malmo FF",
+            // Noruega & Finlândia
+            327  => "Bodo/Glimt",
+            329  => "Molde",
+            331  => "Rosenborg",
+            649  => "HJK Helsinki",
+            // Arábia Saudita
+            2932 => "Al-Hilal Saudi FC",
+            2939 => "Al-Nassr",
+            2938 => "Al-Ittihad FC",
+            2929 => "Al-Ahli Jeddah",
+            // Brasil (G-12)
+            127  => "Flamengo",
+            121  => "Palmeiras",
+            1062 => "Atlético Mineiro",
+            126  => "Sao Paulo",
+            131  => "Corinthians",
+            130  => "Gremio",
+            119  => "Internacional",
+            124  => "Fluminense",
+            120  => "Botafogo",
+            135  => "Cruzeiro",
+            133  => "Vasco DA Gama",
+            128  => "Santos",
+            // Argentina
+            451  => "Boca Juniors",
+            435  => "River Plate",
+            436  => "Racing Club",
+            453  => "Independiente",
+            460  => "San Lorenzo",
+            450  => "Estudiantes L.P.",
+            438  => "Velez Sarsfield",
+            // Uruguai
+            2348 => "Penarol",
+            2356 => "Club Nacional",
+            // Colômbia
+            1137 => "Atletico Nacional",
+            1125 => "Millonarios",
+            1139 => "Santa Fe",
+            1135 => "Junior",
+            1138 => "America de Cali",
+            // Chile
+            2315 => "Colo Colo",
+            2323 => "Universidad de Chile",
+            2994 => "U. Catolica",
+            // Equador
+            1158 => "LDU de Quito",
+            1153 => "Independiente del Valle",
+            1152 => "Barcelona SC",
+            1148 => "Emelec",
+            // Peru
+            2540 => "Universitario",
+            2553 => "Alianza Lima",
+            2546 => "Sporting Cristal",
+            // Paraguai
+            1182 => "Olimpia",
+            1176 => "Cerro Porteno",
+            1179 => "Libertad Asuncion",
+            // México
+            2287 => "Club America",
+            2279 => "Tigres UANL",
+            2282 => "Monterrey",
+            2278 => "Guadalajara Chivas",
+            2295 => "Cruz Azul",
+            2286 => "U.N.A.M. - Pumas",
+            2281 => "Toluca",
+            2292 => "CF Pachuca"
+        ];
+
+        // 1. Validação por ID oficial (100% determinística)
+        if ($teamId !== null && $teamId > 0) {
+            return isset($tier1Clubs[(int)$teamId]);
+        }
+
+        // 2. Fallback secundário por nome se o ID não for informado
+        if (empty($teamName)) {
+            return false;
+        }
+
+        $raw = mb_strtolower(trim($teamName));
+        $norm = iconv('UTF-8', 'ASCII//TRANSLIT', $raw);
+        if ($norm === false) {
+            $norm = $raw;
+        }
+
+        $disqualifiedHomonyms = [
+            'guayaquil', 'sc', 'montevideo', 'sarandi', 'gijon', 'turku', 'limeira',
+            'kansas', 'san jose', 'khalsa', 'miami', 'bogota', 'escaldes', 'intercity'
+        ];
+        foreach ($disqualifiedHomonyms as $dh) {
+            if (strpos($norm, $dh) !== false && strpos($norm, 'manchester city') === false) {
+                return false;
+            }
+        }
+
+        foreach ($tier1Clubs as $id => $name) {
+            $cNorm = iconv('UTF-8', 'ASCII//TRANSLIT', mb_strtolower(trim($name)));
+            if ($norm === $cNorm || strpos($norm, " {$cNorm} ") !== false) {
+                return true;
+            }
+            if (strlen($cNorm) >= 6 && strpos($norm, $cNorm) !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 if (!function_exists('resolveLeagueCountryAndFlag')) {
     function resolveLeagueCountryAndFlag($leagueId, $leagueName, $leagueMap = null) {
         return \App\Helpers\LeagueHelper::resolveCountryAndFlag((int)$leagueId, (string)$leagueName);
+    }
+}
+
+if (!function_exists('isTier1EliteClub')) {
+    function isTier1EliteClub($teamId = null, $teamName = null) {
+        return \App\Helpers\LeagueHelper::isTier1EliteClub($teamId !== null ? (int)$teamId : null, $teamName);
     }
 }

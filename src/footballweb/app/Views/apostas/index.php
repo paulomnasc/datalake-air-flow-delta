@@ -1221,6 +1221,7 @@ if (!function_exists('getBookmakerUrl')) {
                 <?php endif; ?>
                 <?php if (!empty($aposta->fixture_id)): ?>
                   <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
+                     target="_blank" rel="noopener noreferrer"
                      class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 text-decoration-none px-2 py-1" 
                      style="font-size: 0.75rem; transition: all 0.2s ease;" 
                      title="<?= lang('App.origin_card') ?>">
@@ -1501,12 +1502,14 @@ if (!function_exists('getBookmakerUrl')) {
             <div class="actions-secondary">
               <?php if (!empty($aposta->fixture_id)): ?>
                 <a href="<?= base_url('football-trends?fixture_id=' . $aposta->fixture_id) ?>#card-<?= $aposta->fixture_id ?>" 
+                   target="_blank" rel="noopener noreferrer"
                    class="btn-icon-link text-warning fw-semibold text-decoration-none" 
                    title="<?= lang('App.origin_card') ?>">
                   <i class="bi bi-box-arrow-up-right me-1"></i> <?= lang('App.origin_card') ?>
                 </a>
               <?php else: ?>
                 <a href="<?= base_url('football-trends?search=' . urlencode($aposta->time_casa)) ?>" 
+                   target="_blank" rel="noopener noreferrer"
                    class="btn-icon-link text-muted text-decoration-none" 
                    title="<?= lang('App.origin_card') ?>">
                   <i class="bi bi-search me-1"></i> <?= lang('App.origin_card') ?>

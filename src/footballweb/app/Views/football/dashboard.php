@@ -268,6 +268,96 @@ if (!function_exists('renderU5JTimelineTable')) {
     }
 }
 
+if (!function_exists('getTier1DominanceInfo')) {
+    /**
+     * Avalia se uma partida possui equipe Tier 1 Dominante no U5J ou status Tier 1
+     */
+    function getTier1DominanceInfo($fix, $u5j_data = null, $destaqueFixtureIds = []) {
+        $homeId = !empty($fix->home_team_id) ? (int)$fix->home_team_id : null;
+        $awayId = !empty($fix->away_team_id) ? (int)$fix->away_team_id : null;
+        $homeName = $fix->home_team ?? '';
+        $awayName = $fix->away_team ?? '';
+
+        $isHomeT1 = false;
+        $isAwayT1 = false;
+        if (class_exists('\\App\\Helpers\\LeagueHelper')) {
+            $isHomeT1 = \App\Helpers\LeagueHelper::isTier1EliteClub($homeId, $homeName);
+            $isAwayT1 = \App\Helpers\LeagueHelper::isTier1EliteClub($awayId, $awayName);
+        } elseif (function_exists('isTier1EliteClub')) {
+            $isHomeT1 = isTier1EliteClub($homeId, $homeName);
+            $isAwayT1 = isTier1EliteClub($awayId, $awayName);
+        }
+
+        $isHomeDominant = false;
+        $isAwayDominant = false;
+
+        $awayPts = isset($u5j_data['away']['pts']) ? (int)$u5j_data['away']['pts'] : null;
+        $awayV   = isset($u5j_data['away']['v']) ? (int)$u5j_data['away']['v'] : null;
+        $homePts = isset($u5j_data['home']['pts']) ? (int)$u5j_data['home']['pts'] : null;
+        $homeV   = isset($u5j_data['home']['v']) ? (int)$u5j_data['home']['v'] : null;
+
+        $oddHome = !empty($fix->odd_home) ? (float)$fix->odd_home : null;
+        $oddAway = !empty($fix->odd_away) ? (float)$fix->odd_away : null;
+
+        // 1. Mandante Tier 1 Dominante:
+        // Caso A: Mandante Tier 1 contra Não-Tier 1 em crise (<= 5 pts ou 0V)
+        // Caso B: Clássico Tier 1 onde Visitante está em crise (<= 5 pts ou 0V) e Mandante tem forma sólida (>= 8 pts, saldo ou super-favorito)
+        if ($isHomeT1) {
+            $isCrisisAway = ($awayPts !== null && $awayPts <= 5) || ($awayV !== null && $awayV === 0);
+            if (!$isAwayT1 && $isCrisisAway) {
+                $isHomeDominant = true;
+            } elseif ($isAwayT1 && $isCrisisAway && (($homePts !== null && $homePts >= 8) || ($oddHome !== null && $oddHome <= 1.60) || ($homePts !== null && $awayPts !== null && $homePts >= $awayPts + 4))) {
+                $isHomeDominant = true;
+            }
+        }
+
+        // 2. Visitante Tier 1 Dominante:
+        // Caso A: Visitante Tier 1 contra Não-Tier 1 em crise (<= 5 pts ou 0V)
+        // Caso B: Clássico Tier 1 onde Mandante está em crise (<= 5 pts ou 0V) e Visitante tem forma sólida (>= 8 pts, saldo ou super-favorito)
+        if ($isAwayT1) {
+            $isCrisisHome = ($homePts !== null && $homePts <= 5) || ($homeV !== null && $homeV === 0);
+            if (!$isHomeT1 && $isCrisisHome) {
+                $isAwayDominant = true;
+            } elseif ($isHomeT1 && $isCrisisHome && (($awayPts !== null && $awayPts >= 8) || ($oddAway !== null && $oddAway <= 1.60) || ($awayPts !== null && $homePts !== null && $awayPts >= $homePts + 4))) {
+                $isAwayDominant = true;
+            }
+        }
+
+        // Fallback para menções explícitas de reasoning produzidas pela esteira
+        $rawReason = $fix->ah_reasoning ?? '';
+        if (stripos($rawReason, 'Super-Favorito Tier 1 Dominante:') !== false || stripos($rawReason, 'Tier 1 Dominante: ' . $homeName) !== false) {
+            $isHomeDominant = true;
+        }
+        if (stripos($rawReason, 'Super-Favorito Tier 1 Dominante Visitante:') !== false || stripos($rawReason, 'Tier 1 Dominante Visitante: ' . $awayName) !== false) {
+            $isAwayDominant = true;
+        }
+
+        // Fallback para partidas marcadas com destaque no banco de dados
+        if (!empty($destaqueFixtureIds) && in_array((int)$fix->fixture_id, $destaqueFixtureIds)) {
+            if ($isHomeT1 && !$isAwayT1) {
+                $isHomeDominant = true;
+            } elseif ($isAwayT1 && !$isHomeT1) {
+                $isAwayDominant = true;
+            } else {
+                $isHomeDominant = true;
+            }
+        }
+
+        $dominantTeam = $isHomeDominant ? $homeName : ($isAwayDominant ? $awayName : '');
+        $isClassicT1  = ($isHomeT1 && $isAwayT1 && !$isHomeDominant && !$isAwayDominant);
+
+        return [
+            'is_dominant'   => ($isHomeDominant || $isAwayDominant),
+            'is_classic_t1' => $isClassicT1,
+            'is_home'       => $isHomeDominant,
+            'is_away'       => $isAwayDominant,
+            'is_home_t1'    => $isHomeT1,
+            'is_away_t1'    => $isAwayT1,
+            'dominant_team' => $dominantTeam
+        ];
+    }
+}
+
 if (!function_exists('renderStructuredMotivation')) {
     function renderStructuredMotivation($rawMotivation, $rawReasoning = '', $fix = null) {
         if (empty($rawMotivation) && empty($rawReasoning) && !$fix) return '';
@@ -1428,6 +1518,15 @@ if (!function_exists('getBetDecisionTree')) {
         transform: translateY(-4px);
         box-shadow: 0 10px 25px rgba(0,0,0,0.5), 0 0 15px rgba(244, 124, 32, 0.1);
         border-color: rgba(244, 124, 32, 0.2);
+    }
+
+    .bet-card.bet-card-destaque {
+        border-color: rgba(250, 204, 21, 0.45) !important;
+        box-shadow: 0 0 16px rgba(250, 204, 21, 0.12) !important;
+    }
+    .bet-card.bet-card-destaque:hover {
+        border-color: rgba(250, 204, 21, 0.75) !important;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5), 0 0 20px rgba(250, 204, 21, 0.25) !important;
     }
 
     @keyframes cardGlowPulse {
@@ -2937,8 +3036,15 @@ if (!function_exists('getBetDecisionTree')) {
                                  $procClass = 'proc-pending';
                                  $procTooltip = 'Partida adiada ou cancelada.';
                              }
+
+                             // Avaliação de Destaque Sistêmico: Equipe Tier 1 Dominante
+                             $u5j_data_pre = null;
+                             if (!empty($fix->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)/s', $fix->ah_reasoning, $mU5Pre)) {
+                                 $u5j_data_pre = json_decode($mU5Pre[1], true);
+                             }
+                             $t1Info = getTier1DominanceInfo($fix, $u5j_data_pre, $destaqueFixtureIds ?? []);
                              ?>
-                             <div class="bet-card" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($displayLeague, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . $displayLeague . ' ' . ($fix->referee_name ?? '') . ' ' . ($fix->prediction_text ?? '') . ' ' . ($fix->ah_suggestion ?? ''), ENT_QUOTES) ?>" style="position: relative;">
+                             <div class="bet-card <?= $t1Info['is_dominant'] ? 'bet-card-destaque' : '' ?>" id="card-<?= $fix->fixture_id ?>" data-fixture-id="<?= $fix->fixture_id ?>" data-league="<?= htmlspecialchars($displayLeague, ENT_QUOTES) ?>" data-prob="<?= $prob ?>" data-is-safe="<?= (($class === 'safe' || $class === 'high') && strpos($fix->prediction_text ?? '', 'NO_BET') === false) ? '1' : '0' ?>" data-is-surebet="<?= !empty($fix->is_surebet) ? '1' : '0' ?>" data-has-aposta="<?= $hasAposta ? '1' : '0' ?>" data-is-destaque="<?= $t1Info['is_dominant'] ? '1' : '0' ?>" data-is-live="<?= $isLiveMatch ? '1' : '0' ?>" data-is-finished="<?= $isFinishedCard ? '1' : '0' ?>" data-is-postponed="<?= $isPostponedCard ? '1' : '0' ?>" data-has-resenha="<?= (!empty($fix->futbol24_tip) || !empty($fix->futbol24_analysis)) ? '1' : '0' ?>" data-home-team="<?= htmlspecialchars($fix->home_team ?? '', ENT_QUOTES) ?>" data-away-team="<?= htmlspecialchars($fix->away_team ?? '', ENT_QUOTES) ?>" data-teams="<?= htmlspecialchars($cName . ' ' . ($fix->home_team ?? '') . ' ' . ($fix->away_team ?? '') . ' ' . $displayLeague . ' ' . ($fix->referee_name ?? '') . ' ' . ($fix->prediction_text ?? '') . ' ' . ($fix->ah_suggestion ?? ''), ENT_QUOTES) ?>" style="position: relative;">
                                 <div class="<?= $isCardLocked ? 'bet-card-locked' : '' ?>" style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
                                     <div>
                                     <!-- Header -->
@@ -2965,6 +3071,25 @@ if (!function_exists('getBetDecisionTree')) {
                                             <span class="proc-status-badge <?= $procClass ?>" title="<?= htmlspecialchars($procTooltip, ENT_QUOTES) ?>">
                                                 <?= htmlspecialchars($procText) ?>
                                             </span>
+                                            <?php if ($t1Info['is_dominant']): ?>
+                                                <span class="badge border px-2 py-0.5 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
+                                                      style="font-size: 0.74rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px; box-shadow: 0 0 10px rgba(250, 204, 21, 0.25) !important;" 
+                                                      title="Destaque: Equipe <?= htmlspecialchars($t1Info['dominant_team']) ?> (Tier 1 de Elite) contra adversário com baixo desempenho recente no U5J">
+                                                    <span style="font-size: 0.85rem; line-height: 1;">⭐</span> Tier 1 Dominante
+                                                </span>
+                                            <?php elseif (!empty($t1Info['is_classic_t1'])): ?>
+                                                <span class="badge border px-2 py-0.5 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
+                                                      style="font-size: 0.74rem; background: rgba(56, 189, 248, 0.18) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.55) !important; letter-spacing: 0.3px;" 
+                                                      title="Clássico entre Gigantes Tier 1 de Elite">
+                                                    <span style="font-size: 0.85rem; line-height: 1;">👑</span> Clássico Tier 1
+                                                </span>
+                                            <?php elseif (!empty($t1Info['is_home_t1']) || !empty($t1Info['is_away_t1'])): ?>
+                                                <span class="badge border px-2 py-0.5 fw-bold d-inline-flex align-items-center gap-1 shadow-sm" 
+                                                      style="font-size: 0.72rem; background: rgba(148, 163, 184, 0.14) !important; color: #cbd5e1 !important; border-color: rgba(148, 163, 184, 0.35) !important; letter-spacing: 0.2px;" 
+                                                      title="Partida envolvendo clube Tier 1 de Elite Mundial">
+                                                    <i class="bi bi-shield-shaded text-warning me-0.5"></i> Tier 1
+                                                </span>
+                                            <?php endif; ?>
                                         </div>
                                         <div class="bet-time-container">
                                             <span class="bet-time-badge">
@@ -2998,11 +3123,21 @@ if (!function_exists('getBetDecisionTree')) {
                                                  <div style="flex: 1; text-align: right; overflow: hidden; display: flex; align-items: center; justify-content: flex-end; gap: 5px;">
                                                      <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.85rem; flex-shrink: 0;" title="<?= lang('App.home_team_tooltip') ?>"></i>
                                                      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;"><?= htmlspecialchars($fix->home_team) ?></span>
+                                                     <?php if ($t1Info['is_home']): ?>
+                                                         <span title="Equipe Tier 1 Dominante" style="font-size: 0.75rem; flex-shrink: 0;">⭐</span>
+                                                     <?php elseif (!empty($t1Info['is_home_t1'])): ?>
+                                                         <span title="Clube Tier 1 de Elite" style="font-size: 0.72rem; flex-shrink: 0; color: #38bdf8;">🛡️</span>
+                                                     <?php endif; ?>
                                                  </div>
                                                  <div style="background: #232d42; padding: 3px 10px; border-radius: 6px; font-size: 1.15rem; font-weight: 800; letter-spacing: 2px; flex-shrink: 0; min-width: 55px;">
                                                      <span data-betano-score-home="<?= $fix->fixture_id ?>"><?= $fix->goals_home ?? 0 ?></span> - <span data-betano-score-away="<?= $fix->fixture_id ?>"><?= $fix->goals_away ?? 0 ?></span>
                                                  </div>
                                                  <div style="flex: 1; text-align: left; overflow: hidden; display: flex; align-items: center; justify-content: flex-start; gap: 5px;">
+                                                     <?php if ($t1Info['is_away']): ?>
+                                                         <span title="Equipe Tier 1 Dominante" style="font-size: 0.75rem; flex-shrink: 0;">⭐</span>
+                                                     <?php elseif (!empty($t1Info['is_away_t1'])): ?>
+                                                         <span title="Clube Tier 1 de Elite" style="font-size: 0.72rem; flex-shrink: 0; color: #38bdf8;">🛡️</span>
+                                                     <?php endif; ?>
                                                      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;"><?= htmlspecialchars($fix->away_team) ?></span>
                                                  </div>
                                              </div>
@@ -3033,23 +3168,23 @@ if (!function_exists('getBetDecisionTree')) {
                                                      <span style="font-size: 0.85rem;">👟</span>
                                                      <span data-betano-shots="<?= $fix->fixture_id ?>"><?= ($fix->shots_home ?? 0) ?>-<?= ($fix->shots_away ?? 0) ?></span>
                                                  </div>
-                                                 <div style="display: flex; align-items: center; gap: 4px;" title="<?= lang('App.expected_goals') ?>">
-                                                     <span style="color: #94a3b8; font-size: 0.75rem; font-weight: 700;">xG</span>
-                                                     <span data-betano-xg="<?= $fix->fixture_id ?>"><?= number_format($fix->xg_home ?? 0.00, 2) ?>-<?= number_format($fix->xg_away ?? 0.00, 2) ?></span>
-                                                 </div>
-                                             </div>
+                                                  <div style="display: flex; align-items: center; gap: 4px;" title="<?= lang('App.expected_goals') ?>">
+                                                      <span style="color: #94a3b8; font-size: 0.75rem; font-weight: 700;">xG</span>
+                                                      <span data-betano-xg="<?= $fix->fixture_id ?>"><?= number_format($fix->xg_home ?? 0.00, 2) ?>-<?= number_format($fix->xg_away ?? 0.00, 2) ?></span>
+                                                  </div>
+                                              </div>
 
-                                             <!-- Ticker de Último Evento Dropdown Pill -->
-                                             <div style="margin-top: 6px; background: #232c3f; border-radius: 16px; padding: 4px 12px; font-size: 0.75rem; color: #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 6px; <?= empty($fix->last_event) ? 'display: none;' : '' ?>" data-betano-lastevent-container="<?= $fix->fixture_id ?>">
-                                                 <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                                     <span style="background: #eab308; width: 9px; height: 12px; display: inline-block; border-radius: 1px; flex-shrink: 0;"></span>
-                                                     <span data-betano-lastevent="<?= $fix->fixture_id ?>" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                                         <?= htmlspecialchars($fix->last_event ?? '') ?>
-                                                     </span>
-                                                 </div>
-                                                 <span style="font-size: 0.65rem; color: #94a3b8;">▼</span>
-                                             </div>
-                                         </div>
+                                              <!-- Ticker de Último Evento Dropdown Pill -->
+                                              <div style="margin-top: 6px; background: #232c3f; border-radius: 16px; padding: 4px 12px; font-size: 0.75rem; color: #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 6px; <?= empty($fix->last_event) ? 'display: none;' : '' ?>" data-betano-lastevent-container="<?= $fix->fixture_id ?>">
+                                                  <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                      <span style="background: #eab308; width: 9px; height: 12px; display: inline-block; border-radius: 1px; flex-shrink: 0;"></span>
+                                                      <span data-betano-lastevent="<?= $fix->fixture_id ?>" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                          <?= htmlspecialchars($fix->last_event ?? '') ?>
+                                                      </span>
+                                                  </div>
+                                                  <span style="font-size: 0.65rem; color: #94a3b8;">▼</span>
+                                              </div>
+                                          </div>
 
                                         <div class="bet-team-row-wrapper" style="margin-bottom: 12px;">
                                             <div class="bet-team-row" style="margin-bottom: 2px;">
@@ -3058,7 +3193,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?php else: ?>
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
-                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?> <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.8rem; margin-left: 4px;" title="<?= lang('App.home_team_tooltip') ?>"></i><?php if (!empty($fix->home_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->home_rank, $fix->home_ppg ?? 0) ?>">#<?= $fix->home_rank ?></span><?php endif; ?></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->home_team) ?> <i class="bi bi-house-door-fill" style="color: #38bdf8; font-size: 0.8rem; margin-left: 4px;" title="<?= lang('App.home_team_tooltip') ?>"></i><?php if (!empty($fix->home_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->home_rank, $fix->home_ppg ?? 0) ?>">#<?= $fix->home_rank ?></span><?php endif; ?><?php if ($t1Info['is_home']): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px;" title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J"><span style="font-size: 0.75rem; line-height: 1;">⭐</span> Tier 1 Dominante</span><?php elseif (!empty($t1Info['is_home_t1'])): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important; letter-spacing: 0.3px;" title="Clube Tier 1 de Elite Mundial/Continental"><i class="bi bi-shield-shaded me-0.5" style="font-size: 0.72rem;"></i> Tier 1</span><?php endif; ?></span>
                                                 <div class="bet-card-badge-container" data-cards-container-home="<?= $fix->fixture_id ?>">
                                                     <?php if (isset($fix->yellow_cards_home) && $fix->yellow_cards_home !== null && $fix->yellow_cards_home > 0): ?>
                                                         <span class="bet-card-badge-item yellow" title="<?= lang('App.yellow_cards') ?>"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_home ?></span>
@@ -3102,7 +3237,7 @@ if (!function_exists('getBetDecisionTree')) {
                                                 <?php else: ?>
                                                     <span class="bet-team-dot"></span>
                                                 <?php endif; ?>
-                                                <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?><?php if (!empty($fix->away_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->away_rank, $fix->away_ppg ?? 0) ?>">#<?= $fix->away_rank ?></span><?php endif; ?></span>
+                                                <span class="bet-team-name"><?= htmlspecialchars($fix->away_team) ?><?php if (!empty($fix->away_rank)): ?><span class="badge" style="font-size: 0.68rem; background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; margin-left: 6px;" title="<?= sprintf(lang('App.table_rank_tooltip'), $fix->away_rank, $fix->away_ppg ?? 0) ?>">#<?= $fix->away_rank ?></span><?php endif; ?><?php if ($t1Info['is_away']): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%) !important; color: #facc15 !important; border-color: rgba(250, 204, 21, 0.7) !important; letter-spacing: 0.3px;" title="Destaque: Equipe Tier 1 de Elite contra adversário com baixo desempenho recente no U5J"><span style="font-size: 0.75rem; line-height: 1;">⭐</span> Tier 1 Dominante</span><?php elseif (!empty($t1Info['is_away_t1'])): ?><span class="badge border px-1.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 ms-1 shadow-sm" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-color: rgba(56, 189, 248, 0.45) !important; letter-spacing: 0.3px;" title="Clube Tier 1 de Elite Mundial/Continental"><i class="bi bi-shield-shaded me-0.5" style="font-size: 0.72rem;"></i> Tier 1</span><?php endif; ?></span>
                                                 <div class="bet-card-badge-container" data-cards-container-away="<?= $fix->fixture_id ?>">
                                                     <?php if (isset($fix->yellow_cards_away) && $fix->yellow_cards_away !== null && $fix->yellow_cards_away > 0): ?>
                                                         <span class="bet-card-badge-item yellow" title="<?= lang('App.yellow_cards') ?>"><i class="bi bi-file-square-fill"></i> <?= $fix->yellow_cards_away ?></span>
@@ -4501,9 +4636,10 @@ if (!function_exists('getBetDecisionTree')) {
             const isFinished = card.getAttribute('data-is-finished') === '1';
             const isPostponed = card.getAttribute('data-is-postponed') === '1';
             const hasResenha = card.getAttribute('data-has-resenha') === '1';
+            const isDestaque = card.getAttribute('data-is-destaque') === '1';
             
             const matchLeague = (currentLeagueFilter === 'all' || cardLeague === currentLeagueFilter);
-            const matchTab = (currentTabFilter === 'competicoes' || cardProb >= 70.0);
+            const matchTab = (currentTabFilter === 'competicoes' || cardProb >= 70.0 || isDestaque);
             const matchText = (searchNormalized === '' || cardTeamsNormalized.includes(searchNormalized));
             const matchSafe = (!currentOnlySafeFilter || isSafe);
             const matchSurebet = (!currentOnlySurebetFilter || isSurebet);

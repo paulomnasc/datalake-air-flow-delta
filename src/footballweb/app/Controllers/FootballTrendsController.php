@@ -151,9 +151,10 @@ class FootballTrendsController extends BaseController
         $seo = new \App\Libraries\SeoHelper();
         $seo->setFootballTrendsDefaults($targetDate, count($fixtures), $leagues);
 
-        // Consulta apostas cadastradas para identificar partidas com palpite/aposta
-        $userBetFixtureIds = [];
-        $allBetFixtureIds  = [];
+        // Consulta apostas cadastradas para identificar partidas com palpite/aposta e destaques (Tier 1 Dominante)
+        $userBetFixtureIds  = [];
+        $allBetFixtureIds   = [];
+        $destaqueFixtureIds = [];
         if ($db->tableExists('apostas')) {
             $userId = $_SESSION['id_usuario_logado'] ?? session()->get('id_usuario_logado') ?? null;
             if (!empty($userId)) {
@@ -167,32 +168,38 @@ class FootballTrendsController extends BaseController
             }
 
             $allBets = $db->table('apostas')
-                ->select('fixture_id')
+                ->select('fixture_id, destaque')
                 ->where('fixture_id IS NOT NULL')
                 ->get()
                 ->getResultArray();
             $allBetFixtureIds = array_map('intval', array_column($allBets, 'fixture_id'));
+            foreach ($allBets as $b) {
+                if (!empty($b['destaque'])) {
+                    $destaqueFixtureIds[] = (int)$b['fixture_id'];
+                }
+            }
         }
 
         // Prepara dados para a view
         $data = [
-            'targetDate'        => $targetDate,
-            'startDate'         => $startDate,
-            'endDate'           => $endDate,
-            'userTimezone'      => $userTimezone,
-            'search'            => $search,
-            'showFinished'      => $showFinished,
-            'showPostponed'     => $showPostponed,
-            'onlySafe'          => $onlySafe,
-            'onlySurebet'       => $onlySurebet,
-            'onlyLive'          => $onlyLive,
-            'onlyResenha'       => $onlyResenha,
-            'userBetFixtureIds' => $userBetFixtureIds,
-            'allBetFixtureIds'  => $allBetFixtureIds,
-            'fixtures'          => $fixtures,
-            'leagues'           => $leagues,
-            'title'             => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
-            'metaTags'          => $seo->generateMetaTags()
+            'targetDate'         => $targetDate,
+            'startDate'          => $startDate,
+            'endDate'            => $endDate,
+            'userTimezone'       => $userTimezone,
+            'search'             => $search,
+            'showFinished'       => $showFinished,
+            'showPostponed'      => $showPostponed,
+            'onlySafe'           => $onlySafe,
+            'onlySurebet'        => $onlySurebet,
+            'onlyLive'           => $onlyLive,
+            'onlyResenha'        => $onlyResenha,
+            'userBetFixtureIds'  => $userBetFixtureIds,
+            'allBetFixtureIds'   => $allBetFixtureIds,
+            'destaqueFixtureIds' => $destaqueFixtureIds,
+            'fixtures'           => $fixtures,
+            'leagues'            => $leagues,
+            'title'              => 'Tendências de Futebol Hoje & Estatísticas de Cartões | CristalBet',
+            'metaTags'           => $seo->generateMetaTags()
         ];
 
 
@@ -587,14 +594,17 @@ class FootballTrendsController extends BaseController
         $seo->setMatchData($homeTeam, $awayTeam, $refereeName, $fixtureDate, $canonicalUrl);
 
         $data = [
-            'targetDate'   => date('Y-m-d', strtotime($fixtureDate)),
-            'userTimezone' => $userTimezone,
-            'search'       => "{$homeTeam} {$awayTeam}",
-            'showFinished' => true,
-            'fixtures'     => $fixture ? [$fixture] : [],
-            'leagues'      => $fixture ? [$fixture->league_name] : [],
-            'title'        => "Estatísticas {$homeTeam} x {$awayTeam} | CristalBet",
-            'metaTags'     => $seo->generateMetaTags()
+            'targetDate'         => date('Y-m-d', strtotime($fixtureDate)),
+            'userTimezone'       => $userTimezone,
+            'search'             => "{$homeTeam} {$awayTeam}",
+            'showFinished'       => true,
+            'userBetFixtureIds'  => [],
+            'allBetFixtureIds'   => [],
+            'destaqueFixtureIds' => [],
+            'fixtures'           => $fixture ? [$fixture] : [],
+            'leagues'            => $fixture ? [$fixture->league_name] : [],
+            'title'              => "Estatísticas {$homeTeam} x {$awayTeam} | CristalBet",
+            'metaTags'           => $seo->generateMetaTags()
         ];
 
         return $this->loadView('football/dashboard', $data);

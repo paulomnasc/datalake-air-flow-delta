@@ -113,3 +113,14 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   4. **Aguardar a Autorização Explícita do Usuário:** Somente aplicar a edição após o usuário ler a justificativa e responder expressamente autorizando a alteração.
 - **Sincronização Obrigatória com `ApostaController.php`:**
   - Se você alterar uma regra matemática no `asian_handicap_engine.py` ou `cards_engine.py` (por exemplo, um novo piso de odd ou threshold de probabilidade), as apostas automáticas do Airflow seguirão o Python, mas apostas criadas manualmente pela web usarão o `ApostaController.php`. Portanto, se a regra de validação do Gatekeeper mudar no Python, o método PHP correspondente (`evaluateGatekeeper` em `src/footballweb/app/Controllers/ApostaController.php`) **DEVE OBRIGATORIAMENTE ser alinhado** para manter consistência e integridade total entre a esteira autônoma e as apostas manuais.
+
+---
+
+## 12. Proibição Absoluta de Geração de Dados Sintéticos e Odds Fictícias
+- **Apenas Dados Reais de Mercado e de Campo:** É terminantemente proibido gerar, simular, interpolar ou inventar linhas de apostas, cotações/odds sintéticas (ex: tags ou métodos como `POISSON_SYNTHETIC`, `build_fallback_lines_from_odds` que inventem odds sem lastro em bookmaker real) ou quaisquer métricas estatísticas simuladas nos processamentos de qualquer algoritmo ou motor do sistema (`asian_handicap_engine.py`, `football_ingest_trends.py`, `cards_engine.py`, etc.).
+- **Diretriz Operacional e Abstenção Mandatória:**
+  - A esteira de ingestão de tendências e os motores preditivos **não mais gerarão palpites de handicap se não houver linhas reais das casas de apostas**, ou seja, se não houver retorno de cotações reais da **API-Football** nem da **The Odds API** (fallback de contingência quando a cota estiver esgotada).
+  - Se as cotações reais das casas de apostas oficiais não estiverem disponíveis ou ativas no momento da execução, o sistema **NUNCA DEVE inventar, interpolar ou deduzir odds sintéticas a partir do 1X2**.
+  - Em vez de sintetizar linhas e odds inexistentes, o sistema deve registrar a ausência de liquidez de mercado e decretar **`NO_BET` (Abstenção Mandatória por Ausência de Cotações Reais de Casas de Apostas na API-Football / The Odds API)**.
+  - Toda aposta simulada, sugerida ou registrada na plataforma deve obrigatoriamente possuir 100% de correspondência com cotações reais, líquidas e comprovadas nas bookmakers oficiais.
+

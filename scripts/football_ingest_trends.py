@@ -2144,28 +2144,10 @@ def calculate_asian_handicap_suggestion(
             poisson_matrix_ah[k] /= tot_p_ah
 
     # Validação do Gatekeeper Poisson de Handicap Asiático via asian_handicap_engine (Single Source of Truth)
-    is_hard_block = any(term in suggestion.lower() for term in ['amostragem insuficiente', 'histórico incompleto', 'odds ausentes'])
-    if not is_hard_block and ah_evaluate_and_select_best_candidate and ah_build_fallback_lines:
-        fb_lines = ah_build_fallback_lines(home_team, away_team, odd_home, odd_away, suggestion, home_team_id=home_team_id, away_team_id=away_team_id)
-        best_cand, approved_cands = ah_evaluate_and_select_best_candidate(
-            poisson_matrix_ah, fb_lines, home_team, away_team, odd_home, odd_away,
-            home_team_id=home_team_id, away_team_id=away_team_id,
-            home_last5=home_last5, away_last5=away_last5
-        )
-        if best_cand:
-            suggestion = best_cand['palpite_str']
-            ev_res = best_cand['eval']
-            confidence = round(min(88.0, 55.0 + ev_res['ev_percent'] * 0.5), 1)
-            calc_memory += f" | 🎯 Gatekeeper Poisson AH: {suggestion} | Odd Justa {ev_res['odd_justa']:.2f} (Prob: {ev_res['prob_eff']:.1f}%) [Odd: {best_cand['odd']:.2f} | EV: {ev_res['ev_percent']:+.1f}%]"
-        else:
-            suggestion = "Sem Entrada (Abstenção)"
-            confidence = 50.00
-            fav_team = home_team if (odd_home and odd_away and float(odd_home) < float(odd_away)) else away_team
-            dnb_fb = next((l for l in fb_lines if l.get('line') == 0.0 and fav_team in l.get('palpite_str', '')), None)
-            if dnb_fb and float(dnb_fb.get('odd') or 0.0) < 1.50:
-                main_reason = f"🛡️ [Gatekeeper AH NO_BET / Odd Abaixo do Piso] A linha defensiva DNB ({fav_team} 0.0 AH) está cotada a apenas @ {float(dnb_fb.get('odd')):.2f}, abaixo do piso mínimo aceito (@ 1.50). Abstenção mandatória para proteção da banca."
-            else:
-                main_reason = f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Nenhuma linha atendeu aos critérios mínimos de +EV >= 5.0% e Prob. Efetiva >= 48.0%. Abstenção mandatória."
+    # Regra 12 (AGENTS.md): Não mais gerar palpites de handicap se não houver linhas reais das casas de apostas (API-Football / The Odds API)
+    suggestion = "Sem Entrada (Abstenção)"
+    confidence = 50.00
+    main_reason = "🛡️ [Gatekeeper AH NO_BET / Ausência de Linhas Reais] Cotações de Handicap Asiático aguardando abertura de mercado nas casas de apostas oficiais (API-Football / The Odds API). Abstenção mandatória (Regra 12: Proibição de dados sintéticos)."
 
     banca_h = 45.0
     banca_d = 30.0

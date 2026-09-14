@@ -414,95 +414,12 @@ class ApostaController extends BaseController
     }
 
     /**
-     * Verifica se o clube pertence ao grupo Tier 1 de Elite Mundial/Continental
-     * Prioriza validação pelo ID oficial da API-Sports / Banco de Dados.
+     * Verifica se o clube pertence ao grupo Tier 1 de Elite Mundial/Continental.
+     * Delega para o Helper central canônico (App\Helpers\LeagueHelper::isTier1EliteClub).
      */
     private function isTier1EliteClub(?int $teamId = null, ?string $teamName = null): bool
     {
-        $tier1Clubs = [
-            529  => "Barcelona",
-            541  => "Real Madrid",
-            530  => "Atlético Madrid",
-            50   => "Manchester City",
-            40   => "Liverpool",
-            42   => "Arsenal",
-            49   => "Chelsea",
-            157  => "Bayern Munich",
-            165  => "Borussia Dortmund",
-            168  => "Bayer Leverkusen",
-            85   => "Paris Saint Germain",
-            505  => "Inter",
-            489  => "AC Milan",
-            496  => "Juventus",
-            492  => "Napoli",
-            211  => "Benfica",
-            212  => "FC Porto",
-            228  => "Sporting CP",
-            194  => "Ajax",
-            197  => "PSV Eindhoven",
-            127  => "Flamengo",
-            121  => "Palmeiras",
-            1062 => "Atlético Mineiro",
-            451  => "Boca Juniors",
-            435  => "River Plate",
-            571  => "Red Bull Salzburg",
-            637  => "Sturm Graz",
-            781  => "Rapid Vienna",
-            173  => "RB Leipzig",
-            47   => "Tottenham",
-            33   => "Manchester United",
-            91   => "Monaco",
-            80   => "Lyon",
-            81   => "Marseille",
-            497  => "AS Roma",
-            487  => "Lazio",
-            209  => "Feyenoord",
-            247  => "Celtic",
-            257  => "Rangers",
-            645  => "Galatasaray",
-            611  => "Fenerbahçe",
-            549  => "Beşiktaş",
-            553  => "Olympiakos Piraeus",
-            569  => "Club Brugge KV",
-            554  => "Anderlecht",
-            565  => "BSC Young Boys",
-            400  => "FC Copenhagen",
-        ];
-
-        if ($teamId !== null && $teamId > 0) {
-            return isset($tier1Clubs[(int)$teamId]);
-        }
-
-        if (empty($teamName)) {
-            return false;
-        }
-
-        $raw = mb_strtolower(trim($teamName));
-        $norm = iconv('UTF-8', 'ASCII//TRANSLIT', $raw);
-        if ($norm === false) {
-            $norm = $raw;
-        }
-
-        $disqualifiedHomonyms = [
-            'guayaquil', 'sc', 'montevideo', 'sarandi', 'gijon', 'turku', 'limeira',
-            'kansas', 'san jose', 'khalsa', 'miami', 'bogota', 'escaldes', 'intercity'
-        ];
-        foreach ($disqualifiedHomonyms as $dh) {
-            if (strpos($norm, $dh) !== false && strpos($norm, 'manchester city') === false) {
-                return false;
-            }
-        }
-
-        foreach ($tier1Clubs as $id => $name) {
-            $cNorm = iconv('UTF-8', 'ASCII//TRANSLIT', mb_strtolower(trim($name)));
-            if ($norm === $cNorm || strpos($norm, " {$cNorm} ") !== false) {
-                return true;
-            }
-            if (strlen($cNorm) >= 6 && strpos($norm, $cNorm) !== false) {
-                return true;
-            }
-        }
-        return false;
+        return \App\Helpers\LeagueHelper::isTier1EliteClub($teamId, $teamName);
     }
 
     /**
@@ -572,17 +489,28 @@ class ApostaController extends BaseController
             $isCandT1 = $this->isTier1EliteClub($candId, $candName);
             $isOppT1 = $this->isTier1EliteClub($oppId, $oppName);
 
-            if ($isCandT1 && !$isOppT1) {
+            if ($isCandT1) {
                 $oppKey = $isAwayFav ? 'home' : 'away';
+                $candKey = $isAwayFav ? 'away' : 'home';
                 if (!empty($fixture->ah_reasoning) && preg_match('/U5J_DATA:\s*(\{.*?\})\s*(?:\|\||$)/s', $fixture->ah_reasoning, $mU5)) {
                     $u5Arr = json_decode($mU5[1], true);
                     if (!empty($u5Arr[$oppKey])) {
                         $oppPts = (int)($u5Arr[$oppKey]['pts'] ?? 0);
                         $oppV = (int)($u5Arr[$oppKey]['v'] ?? 0);
-                        if ($oppPts <= 5 || $oppV === 0) {
+                        $candPts = (int)($u5Arr[$candKey]['pts'] ?? 0);
+                        $oddCand = $isAwayFav ? (float)($fixture->odd_away ?? 99) : (float)($fixture->odd_home ?? 99);
+                        $isCrisisOpp = ($oppPts <= 5 || $oppV === 0);
+
+                        if (!$isOppT1 && $isCrisisOpp) {
+                            $destaque = 1;
+                        } elseif ($isOppT1 && $isCrisisOpp && ($candPts >= 8 || $oddCand <= 1.60 || $candPts >= $oppPts + 4)) {
                             $destaque = 1;
                         }
                     }
+                }
+
+                if (stripos($fixture->ah_reasoning ?? '', 'Tier 1 Dominante') !== false) {
+                    $destaque = 1;
                 }
             }
         }

@@ -622,6 +622,20 @@ def evaluate_and_select_best_ah_candidate(
     prob_eff = 0.0
     score = 0.0
 
+    # 0. Trava Sistêmica Mandatória de Duelo de Crises (Ambas as Equipes em Má Fase):
+    # Se ambas as equipes apresentarem aproveitamento precário no U5J (eficiência <= 3.0 pts ou <= 1 vitória recente cada),
+    # o confronto é marcado por desorganização tática e extrema aleatoriedade.
+    # A estratégia de Handicap Asiático é vetada pelo Gatekeeper (abstenção mandatória / NO_BET).
+    h_eff_val = compute_team_u5j_efficiency(home_last5)
+    a_eff_val = compute_team_u5j_efficiency(away_last5)
+    h_v_cnt = home_last5.get('v', 0) if isinstance(home_last5, dict) else 0
+    a_v_cnt = away_last5.get('v', 0) if isinstance(away_last5, dict) else 0
+    h_pts_cnt = home_last5.get('pts', 0) if isinstance(home_last5, dict) else 0
+    a_pts_cnt = away_last5.get('pts', 0) if isinstance(away_last5, dict) else 0
+
+    if (h_eff_val <= 3.0 and a_eff_val <= 3.0) or (h_v_cnt <= 1 and a_v_cnt <= 1 and h_pts_cnt <= 4 and a_pts_cnt <= 4):
+        return None, []
+
     # 1. Trava de Mando Consagrado (Anti-Zebra em Caldeirões):
     # Mandante favorito consolidado de mercado (H <= 2.00) vs Visitante zebra (A >= 3.80 ou ratio A/H >= 2.0)
     is_strong_home_fav = (raw_h_odd <= 2.00 and (raw_a_odd >= 3.80 or (raw_h_odd > 0 and raw_a_odd / raw_h_odd >= 2.0)))
@@ -732,6 +746,21 @@ def evaluate_and_select_best_ah_candidate(
         if cand_l5 and isinstance(cand_l5, dict) and (cand_d >= 4 or cand_v == 0 or cand_pts_eff <= 0.0):
             if c_line <= 0.0:
                 continue
+
+        # 2.1 TRAVA DE AZARÃO EM DECLÍNIO / HISTÓRICO FRÁGIL (+AH):
+        # Linhas positivas (+0.5 AH, +1.0 AH) só podem apoiar zebras com competitividade comprovada.
+        # É TERMINANTEMENTE PROIBIDO apoiar equipe em linha positiva (> 0.0 AH) se:
+        # 1) Estiver em CURVA_DESCENDENTE no U5J; ou
+        # 2) Tiver apenas 1 ou nenhuma vitória recente (cand_v <= 1 com cand_pts <= 4); ou
+        # 3) Tiver eficiência ponderada precária (cand_pts_eff <= 3.0 pts).
+        if c_line > 0.0:
+            if cand_trend == "CURVA_DESCENDENTE":
+                continue
+            if cand_l5 and isinstance(cand_l5, dict):
+                if cand_v <= 1 and cand_pts <= 4:
+                    continue
+                if cand_pts_eff <= 3.0:
+                    continue
 
         # Identificação de Exceção por Distorção de Mercado (Visitante com Melhor Performance):
         is_away_momentum_surge = (
@@ -1264,7 +1293,18 @@ def calculate_unified_handicap_recommendation(
         dog_pts = dog_l5.get('pts', 0) if (dog_l5 and isinstance(dog_l5, dict)) else 0
         fav_in_form = (fav_pts >= 12 or fav_eff >= 9.0) and ((fav_eff - dog_eff) >= 3.0 or (fav_pts - dog_pts) >= 4)
 
-        if fav_in_form:
+        is_crisis_clash = (
+            (fav_eff <= 3.0 and dog_eff <= 3.0) or
+            (h_l5 and a_l5 and isinstance(h_l5, dict) and isinstance(a_l5, dict) and h_l5.get('v', 0) <= 1 and a_l5.get('v', 0) <= 1 and fav_pts <= 4 and dog_pts <= 4)
+        )
+
+        if is_crisis_clash:
+            reason = (
+                f"🛡️ [Gatekeeper AH NO_BET / Duelo de Crises] Partida {home_team} vs {away_team} -> "
+                f"Ambas as equipes em momento técnico desfavorável no U5J ({home_team} {fav_eff if fav_is_home else dog_eff:.1f} pts vs {away_team} {dog_eff if fav_is_home else fav_eff:.1f} pts). "
+                f"Confronto de alta imprevisibilidade e desorganização tática. Abstenção mandatória."
+            )
+        elif fav_in_form:
             reason = (
                 f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} -> "
                 f"As odds 1x2 da casa apontam {fav_team}{t1_str} como favorito, respaldado por sua superioridade no U5J "

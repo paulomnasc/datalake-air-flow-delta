@@ -394,7 +394,7 @@ if (!function_exists('getBookmakerUrl')) {
   .bets-grid.list-view .bet-card-item {
     display: flex;
     flex-direction: row;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     padding: 16px 24px;
     border-radius: 12px;
@@ -428,13 +428,21 @@ if (!function_exists('getBookmakerUrl')) {
   }
   .bets-grid.list-view .market-info {
     margin-bottom: 0;
-    flex: 1;
-    min-width: 180px;
+    flex: 1 1 340px;
+    min-width: 320px;
   }
   .bets-grid.list-view .values-grid {
     margin-bottom: 0;
     grid-template-columns: auto auto;
     gap: 16px;
+    flex-shrink: 0;
+  }
+  .bets-grid.list-view .alert-volatilidade-box,
+  .bets-grid.list-view .asian-handicap-widget-box,
+  .bets-grid.list-view .bet-card-detail-box,
+  .bets-grid.list-view .bet-card-meta-row,
+  .bets-grid.list-view .bet-card-gk-row {
+    width: 100%;
   }
   .bets-grid.list-view .bet-card-footer {
     background: transparent;
@@ -499,6 +507,7 @@ if (!function_exists('getBookmakerUrl')) {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
   }
 
   .market-name {
@@ -1297,7 +1306,7 @@ if (!function_exists('getBookmakerUrl')) {
                 <div class="market-name"><?= htmlspecialchars($aposta->mercado) ?></div>
                 <div class="palpite-name"><?= $isAbstencaoBloqueada ? '⚪ Sem Entrada (Abstenção)' : htmlspecialchars($aposta->palpite) ?></div>
               </div>
-              <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+              <div class="d-flex align-items-center gap-2 flex-nowrap justify-content-end flex-shrink-0">
                 <?php 
                   $bmName = !empty($aposta->casa_de_aposta) ? $aposta->casa_de_aposta : 'Betano';
                   $bmUrl  = getBookmakerUrl($bmName);
@@ -1409,13 +1418,13 @@ if (!function_exists('getBookmakerUrl')) {
                 </div>
               </div>
             <?php elseif (!empty($detalhadoExibir)): ?>
-              <div style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px;">
+              <div class="bet-card-detail-box" style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 0.78rem; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px; width: 100%;">
                 <i class="bi bi-info-circle-fill text-info flex-shrink-0" style="margin-top: 2px;"></i>
                 <span class="detalhado-text-content" style="white-space: pre-line; word-break: break-word;"><?= htmlspecialchars($detalhadoExibir) ?></span>
               </div>
             <?php endif; ?>
 
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="bet-card-meta-row d-flex justify-content-between align-items-center flex-wrap gap-2 w-100">
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="status-tag status-<?= str_replace(' ', '-', $aposta->status) ?>"><?= htmlspecialchars($displayStatusLabel) ?></span>
                 <span class="proc-status-badge <?= $betProcClass ?>" title="<?= htmlspecialchars($betProcTooltip, ENT_QUOTES) ?>"><?= htmlspecialchars($betProcText) ?></span>
@@ -1433,7 +1442,7 @@ if (!function_exists('getBookmakerUrl')) {
             </div>
 
             <?php if (!empty($aposta->status_gatekeeper) && $aposta->status_gatekeeper !== 'NAO_ANALISADO'): ?>
-              <div class="mt-2 d-flex align-items-center gap-2 flex-wrap" style="font-size: 0.78rem;">
+              <div class="bet-card-gk-row mt-2 d-flex align-items-center gap-2 flex-wrap w-100" style="font-size: 0.78rem;">
                 <?php if ($aposta->status_gatekeeper === 'APROVADO'): ?>
                   <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1">
                     <i class="bi bi-shield-check me-1"></i> Gatekeeper: <?= lang('App.ev_approved') ?>

@@ -94,5 +94,15 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
     1. Imprimir explicitamente o erro no console/log identificando o time, ID e o dado ausente.
     2. Interromper o cálculo da partida (`NO_BET`) e **NÃO gerar a aposta**, garantindo a integridade matemática do portfólio.
 
+---
+
+## 10. Proibição Absoluta de Comandos Git (`git commit` e `git push`)
+- O assistente/agente **NUNCA DEVE** executar de forma autônoma comandos de versionamento como `git commit`, `git push`, `git merge`, `git rebase` ou equivalentes.
+- **Diretriz Operacional**:
+  - Todas as operações de controle de versão (criação de commits, push para branches remotas, tags ou merges) são de **responsabilidade e controle exclusivo do usuário desenvolvedor**.
+  - O assistente só tem permissão para executar comandos `git commit` ou `git push` se o usuário solicitar de forma textual, direta e explícita nessa instrução específica (ex: *"faça o commit e push disso agora"*).
+
+
+
 
 

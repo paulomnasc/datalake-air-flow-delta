@@ -476,7 +476,7 @@ def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: flo
     """
     Gera linhas simuladas estruturadas quando a API da Betano estiver momentaneamente
     fora do ar ou sem cotações de AH abertas, permitindo avaliação consistente de Poisson.
-    Restrito exclusivamente à janela defensiva anti-empate: {0.0, 0.5, 0.75, 1.0, 1.25, 1.5}.
+    Restrito exclusivamente à janela defensiva anti-empate: {0.0, 0.5, 1.0, 1.25, 1.5}.
     """
     lines = []
     oh = float(odd_home or 2.0)
@@ -519,7 +519,7 @@ def build_fallback_lines_from_odds(home_team: str, away_team: str, odd_home: flo
         is_this_super_fav = is_tier_1_elite_club(team_id=t_id, team_name=t_team) and (ref_odd <= 1.55 or (ref_odd <= 1.65 and ratio_cur >= 3.0))
 
         if not is_this_super_fav:
-            for (l_val, factor) in [(-0.25, 0.56), (0.0, 0.65), (0.5, 0.35), (0.75, 0.28), (1.0, 0.22), (1.25, 0.18), (1.5, 0.15)]:
+            for (l_val, factor) in [(-0.25, 0.56), (0.0, 0.65), (0.5, 0.35), (1.0, 0.22), (1.25, 0.18), (1.5, 0.15)]:
                 calc_odd = round(max(1.30, min(2.35, 1.0 + (ref_odd - 1.0) * factor)), 2)
                 lines.append({
                     'team': 'Away' if is_away else 'Home',
@@ -569,7 +569,7 @@ def evaluate_and_select_best_ah_candidate(
     odd_home: float,
     odd_away: float,
     min_ev: float = 5.0,
-    min_prob: float = 48.0,
+    min_prob: float = 58.0,
     home_team_id: int = None,
     away_team_id: int = None,
     home_last5: dict = None,
@@ -579,27 +579,48 @@ def evaluate_and_select_best_ah_candidate(
 ):
     """
     Aplica o crivo rigoroso do Gatekeeper do Handicap Asiático em todas as linhas candidatas:
-    - Janela estrita de linhas permitidas: {0.0, 0.5, 0.75, 1.0, 1.25, 1.5} (anti-empate / colchão defensivo)
+    - Janela estrita de linhas permitidas: {0.0, 0.5, 1.0, 1.25, 1.5} (anti-empate / colchão defensivo; +0.75 AH excluído para evitar meio-reds)
     - Exceção de Super-Favoritos Tier 1 (odd <= 1.22, ratio >= 8.0x): permite linhas negativas moderadas {-0.75, -1.0} EXCLUSIVAMENTE para Mandantes (Home).
     - Trava de Mando de Campo (Opção B): Para Visitantes (Away), o teto de agressividade é -0.25 AH (com proteção de empate). Linhas < -0.25 AH (-0.5, -0.75, -1.0) são estritamente proibidas fora de casa.
     - Proibição Absoluta: Nenhuma linha mais agressiva que -1.0 AH (-1.25, -1.5, -1.75, -2.0) é tolerada.
+    - Teto de cotação para -0.25 AH: máximo @ 1.85 (odds > 1.85 indicam favoritismo frágil da banca).
     - Trava de Mando Consagrado: Se mandante for favorito sólido (H <= 2.00 e A >= 3.80),
       bloqueia terminantemente entradas em +AH na zebra visitante, EXCETO quando o visitante estiver
-      invicto no U5J (0D), em Curva Ascendente e com xG superior (Distorção de Mercado), onde prevalece o +0.75 AH.
+      invicto no U5J (0D), em Curva Ascendente e com xG superior (Distorção de Mercado), onde prevalece o +1.0 AH / +0.5 AH.
     - Trava de Time em Crise: Bloqueia apostas a favor de equipes sem vitórias recentes (0V no U5J)
-      em situação de zebra contra favoritos de mercado
-    - Faixa de odd segura: 1.50 a 2.35 (1.40 a 2.25 para super-favoritos negativos)
-    - Trava de coerência: favorito 1X2 não recebe handicap positivo > 0.0
-    - Gatekeeper: EV% >= min_ev (5.0%) e Probabilidade Efetiva >= min_prob (48.0% / 52.0% para negativos)
+      em situação de zebra contra favoritos de mercado.
+    - Faixa de odd segura: 1.50 a 2.10 (1.40 a 1.95 para super-favoritos negativos).
+    - Trava de coerência: favorito 1X2 não recebe handicap positivo > 0.0.
+    - Gatekeeper: EV% >= min_ev (5.0%) e Probabilidade Efetiva >= min_prob (58.0% / 55.0% para -0.25 AH).
     - Score de Valor = EV% * (Prob / 100.0)
     """
-    standard_allowed_lines = {0.0, 0.5, 0.75, 1.0, 1.25, 1.5}
+    standard_allowed_lines = {0.0, 0.5, 1.0, 1.25, 1.5}
     moderate_negative_lines = {-0.5, -0.75, -1.0}
     approved = []
     raw_h_odd = float(odd_home or 0.0)
     raw_a_odd = float(odd_away or 0.0)
     if raw_h_odd <= 1.0 or raw_a_odd <= 1.0:
         return None, []
+
+    # Inicialização explícita de variáveis numéricas locais (Regra 8)
+    cand_pts = 0
+    opp_pts = 0
+    cand_v = 0
+    opp_v = 0
+    cand_d = 0
+    opp_d = 0
+    cand_pts_eff = 0.0
+    opp_pts_eff = 0.0
+    cand_odd = 0.0
+    opp_odd = 0.0
+    cand_ratio = 0.0
+    opp_ratio = 1.0
+    u5j_diff = 0.0
+    required_ev = 5.0
+    required_prob = 58.0
+    ev = 0.0
+    prob_eff = 0.0
+    score = 0.0
 
     # 1. Trava de Mando Consagrado (Anti-Zebra em Caldeirões):
     # Mandante favorito consolidado de mercado (H <= 2.00) vs Visitante zebra (A >= 3.80 ou ratio A/H >= 2.0)
@@ -723,8 +744,8 @@ def evaluate_and_select_best_ah_candidate(
         # Filtro Trava de Mando Consagrado: Bloqueia qualquer linha a favor de zebra fraca em caldeirão
         if is_strong_home_fav and c_is_away:
             # Se o visitante for a equipe com MELHOR PERFORMANCE (Soberania U5J),
-            # permite linhas de proteção (+0.5 AH, +0.75 AH, +1.0 AH) para punir a distorção da banca!
-            if (cand_is_better_performance or is_away_momentum_surge) and c_line in (0.5, 0.75, 1.0):
+            # permite linhas de proteção (+0.5 AH, +1.0 AH) para punir a distorção da banca!
+            if (cand_is_better_performance or is_away_momentum_surge) and c_line in (0.5, 1.0):
                 pass
             else:
                 continue
@@ -783,16 +804,16 @@ def evaluate_and_select_best_ah_candidate(
             if is_tight_match and (opp_d <= 1 or opp_pts_eff > cand_pts_eff) and cand_d > opp_d and c_line == 0.0:
                 continue
 
-        # 4.1 Trava de Piso de Odd para Handicap Positivo de Visitante (+0.75 AH e +0.5 AH):
+        # 4.1 Trava de Piso de Odd para Handicap Positivo de Visitante (+0.5 AH e +1.0 AH):
         # Linhas defensivas de visitante pagando cotação deprimida embutem assimetria de risco inaceitável:
         # Se o mandante vencer por 2+ gols, o apostador amarga Red integral sem ter recebido prêmio adequado.
         # Bloqueia terminantemente:
-        # - Visitante +0.75 AH com odd < 1.75
         # - Visitante +0.5 AH com odd < 1.65
+        # - Visitante +1.0 AH com odd < 1.50
         if c_is_away:
-            if c_line == 0.75 and c_odd < 1.75:
-                continue
             if c_line == 0.50 and c_odd < 1.65:
+                continue
+            if c_line == 1.0 and c_odd < 1.50:
                 continue
 
         # Identificação de Super-Favoritos Tier 1 com odd esmagadora (<= 1.22) e ratio >= 8.0x
@@ -846,17 +867,21 @@ def evaluate_and_select_best_ah_candidate(
             # Linhas de handicap negativo (-0.5, -0.75, -1.0) são restritas a Super-Favoritos ou Tier 1 com Assimetria Dominante
             if not is_eligible_negative:
                 continue
-            if c_odd < 1.50 or c_odd > 2.25:
+            if c_odd < 1.50 or c_odd > 1.95:
                 continue
-            required_prob = 52.0 if is_super_fav_crushed else 60.0
+            required_prob = 55.0 if is_super_fav_crushed else 62.0
             required_ev = min_ev if is_super_fav_crushed else 15.0
         elif c_line == -0.25:
             # Linha conservadora de -0.25 AH: permitida para Favoritos em Grande Fase ou Super-Favoritos
             if not (is_fav_in_form or is_eligible_negative):
                 continue
-            if c_odd < 1.50 or c_odd > 2.25:
+            # Teto de odd estrito para -0.25 AH: máximo 1.85 (odds > 1.85 indicam favoritismo frágil da casa e geram reds)
+            if c_odd < 1.50 or c_odd > 1.85:
                 continue
-            required_prob = 48.0
+            # Proibir terminantemente -0.25 AH se a equipe favorita estiver em curva descendente
+            if cand_trend == "CURVA_DESCENDENTE":
+                continue
+            required_prob = 55.0
             required_ev = min_ev
         elif c_line in standard_allowed_lines:
             # Super-favoritos com odd esmagada não operam na linha 0.0 AH, exceto na regra mandatória de massacre Tier 1 com U5J próximo
@@ -868,7 +893,7 @@ def evaluate_and_select_best_ah_candidate(
                 required_prob = 55.0
                 required_ev = -35.0  # Prioridade de proteção no DNB de massacre do Tier 1
             else:
-                if c_odd < 1.50 or c_odd > 2.35:
+                if c_odd < 1.50 or c_odd > 2.10:
                     continue
                 required_prob = min_prob
             # Inversão de Handicap: favorito 1X2 não recebe handicap positivo > 0.0
@@ -878,8 +903,8 @@ def evaluate_and_select_best_ah_candidate(
             # só é aceitável se a equipe for comprovadamente zebra nas odds 1X2 (cand_odd > opp_odd + 0.20)
             if c_line >= 0.5 and c_odd >= 2.05 and not is_cand_underdog:
                 continue
-            # Trava de Proteção Tier 1: Clube Tier 1 Elite não recebe vantagem excessiva (>= 0.75 AH) contra não-Tier 1
-            if is_tier1 and not is_opp_tier1 and c_line >= 0.75 and cand_odd <= 2.50:
+            # Trava de Proteção Tier 1: Clube Tier 1 Elite não recebe vantagem excessiva (>= 1.0 AH) contra não-Tier 1
+            if is_tier1 and not is_opp_tier1 and c_line >= 1.0 and cand_odd <= 2.50:
                 continue
         else:
             continue
@@ -921,10 +946,10 @@ def evaluate_and_select_best_ah_candidate(
     if tier1_massacre_picks:
         return tier1_massacre_picks[0], approved
 
-    # Em situações de Distorção de Banca / Soberania da Performance, prevalece a linha de maior proteção (+0.75 AH ou +0.5 AH)
-    surge_cushion = [c for c in approved if c.get('is_momentum_surge') and c['line'] in (0.75, 0.5)]
+    # Em situações de Distorção de Banca / Soberania da Performance, prevalece a linha de maior proteção (+1.0 AH ou +0.5 AH)
+    surge_cushion = [c for c in approved if c.get('is_momentum_surge') and c['line'] in (1.0, 0.5)]
     if surge_cushion:
-        surge_cushion.sort(key=lambda x: (x['line'] == 0.75, x['score']), reverse=True)
+        surge_cushion.sort(key=lambda x: (x['line'] == 1.0, x['score']), reverse=True)
         approved = surge_cushion + [c for c in approved if c not in surge_cushion]
         return approved[0], approved
 
@@ -1205,6 +1230,7 @@ def calculate_unified_handicap_recommendation(
 
     best_cand, approved = evaluate_and_select_best_ah_candidate(
         poisson_matrix, betano_lines, home_team, away_team, odd_h, odd_a,
+        min_ev=5.0, min_prob=58.0,
         home_team_id=h_tid, away_team_id=a_tid,
         home_last5=h_l5, away_last5=a_l5,
         xg_home=xg_h, xg_away=xg_a
@@ -1272,7 +1298,7 @@ def calculate_unified_handicap_recommendation(
                     context_extra = f" Favorito mandante {fav_team}{t1_str} com odd nominal esmagada: linha DNB (0.0 AH) sem odd mínima (+EV) e linhas positivas bloqueadas por coerência de mercado."
             reason = (
                 f"🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} ->{context_extra} "
-                f"Nenhuma linha da Betano atingiu os limiares de rentabilidade (+EV >= 5.0%, Prob. Efetiva >= 48.0% ajustada por momento). "
+                f"Nenhuma linha da Betano atingiu os limiares de rentabilidade (+EV >= 5.0%, Prob. Efetiva >= 58.0% ajustada por momento e teto de odd 1.85 no favorito). "
                 f"Eficiência U5J: {home_team} ({fav_eff if fav_is_home else dog_eff:.1f} pts) vs {away_team} ({dog_eff if fav_is_home else fav_eff:.1f} pts). "
                 f"Matriz Poisson: xG {home_team} {xg_h:.2f} x {xg_a:.2f} {away_team}. Abstenção mandatória."
             )
@@ -1647,7 +1673,7 @@ def generate_high_level_ah_narrative(
             f"STATUS GK: NO_BET\n"
             f"SUGGESTION: Sem Entrada (Abstenção)\n"
             f"REASON: 🛡️ [Gatekeeper AH NO_BET / Sem EV+] Partida {home_team} vs {away_team} -> "
-            f"Nenhuma linha da Betano atingiu os limiares de rentabilidade (+EV >= 5.0%, Prob. Efetiva >= 48.0% ajustada por momento). "
+            f"Nenhuma linha da Betano atingiu os limiares de rentabilidade (+EV >= 5.0%, Prob. Efetiva >= 58.0% ajustada por momento e teto de odd 1.85 no favorito). "
             f"Eficiência U5J: {home_team} ({h_eff:.1f} pts) vs {away_team} ({a_eff:.1f} pts). Abstenção mandatória."
         )
 

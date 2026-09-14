@@ -102,7 +102,14 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   - Todas as operações de controle de versão (criação de commits, push para branches remotas, tags ou merges) são de **responsabilidade e controle exclusivo do usuário desenvolvedor**.
   - O assistente só tem permissão para executar comandos `git commit` ou `git push` se o usuário solicitar de forma textual, direta e explícita nessa instrução específica (ex: *"faça o commit e push disso agora"*).
 
+---
 
-
-
-
+## 11. Proteção Reforçada dos Motores de Apostas (`cards_engine.py` e `asian_handicap_engine.py`) e Sincronização Obrigatória com PHP
+- **Núcleo Crítico Intocável sem Autorização Justificada:** Os arquivos `scripts/cards_engine.py` e `scripts/asian_handicap_engine.py` são os motores centrais matemáticos e estatísticos (Poisson, Gatekeeper, EV e liquidez) de todo o sistema.
+- **Fluxo Obrigatório Pré-Edição:** O assistente/agente está terminantemente proibido de alterar qualquer linha desses dois arquivos sem antes:
+  1. **Apresentar Justificativa Matemática e de Negócio:** Explicar detalhadamente o motivo da alteração, a anomalia ou necessidade identificada e a comprovação matemática de que não se trata de *overfitting* ou reação a uma zebra pontual (respeitando rigorosamente as Regras 6 e 7).
+  2. **Mapear Impacto Sistêmico:** Demonstrar o impacto nos pipelines consumidores (`criar_apostas_handicap_diario.py`, `criar_apostas_cartoes_diario.py`, `football_ingest_trends.py` e `ApostaController.php`).
+  3. **Apresentar o Diff Completo Proposto.**
+  4. **Aguardar a Autorização Explícita do Usuário:** Somente aplicar a edição após o usuário ler a justificativa e responder expressamente autorizando a alteração.
+- **Sincronização Obrigatória com `ApostaController.php`:**
+  - Se você alterar uma regra matemática no `asian_handicap_engine.py` ou `cards_engine.py` (por exemplo, um novo piso de odd ou threshold de probabilidade), as apostas automáticas do Airflow seguirão o Python, mas apostas criadas manualmente pela web usarão o `ApostaController.php`. Portanto, se a regra de validação do Gatekeeper mudar no Python, o método PHP correspondente (`evaluateGatekeeper` em `src/footballweb/app/Controllers/ApostaController.php`) **DEVE OBRIGATORIAMENTE ser alinhado** para manter consistência e integridade total entre a esteira autônoma e as apostas manuais.

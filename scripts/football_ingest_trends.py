@@ -1352,12 +1352,32 @@ def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
     num_e = sum(1 for p in pts_raw if p == 1)
     num_d = sum(1 for p in pts_raw if p == 0)
 
+    # Definição e inicialização de variáveis de declínio (Regra 8)
+    has_two_recent_stumbles = False
+    is_j0_tier1_loss = False
+    is_j1_tier1_loss = False
+    is_tier1_mitigated = False
+    is_real_decline = False
+
+    has_two_recent_stumbles = (pts_raw[0] <= 1 and pts_raw[1] <= 1)
+    is_j0_tier1_loss = (pts_raw[0] == 0 and bool(sorted_matches[0].get('is_tier_1'))) if len(sorted_matches) > 0 else False
+    is_j1_tier1_loss = (pts_raw[1] == 0 and bool(sorted_matches[1].get('is_tier_1'))) if len(sorted_matches) > 1 else False
+    is_tier1_mitigated = (is_j0_tier1_loss and pts_raw[1] >= 1) or (is_j1_tier1_loss and pts_raw[0] >= 1)
+
+    # Declínio real exige tropeço nos 2 últimos jogos (sem vitória), sem atenuação Tier 1, e máximo 2 vitórias no U5J
+    is_real_decline = (
+        has_two_recent_stumbles and
+        not is_tier1_mitigated and
+        (delta_trend <= -0.50 or avg_recent <= 0.5) and
+        num_v <= 2
+    )
+
     # Detecção de Curva de Rendimento
     if (delta_trend >= 0.70 or (avg_recent >= 2.5 and avg_recent > avg_baseline)) and pts_raw[0] == 3:
         trend = "CURVA_ASCENDENTE"
         trend_factor = 1.20  # +20% de aceleração de momentum
         trend_desc = f"Curva Ascendente em alta (Momentum positivo: {pts_raw[0]} e {pts_raw[1]} pts recentes vs {avg_baseline:.1f} pts de base)"
-    elif num_d <= 1 and (num_v >= 2 or (pts_raw[0] == 3 or pts_raw[1] == 3)):
+    elif num_d <= 1 and (num_v >= 3 or (num_v >= 2 and (pts_raw[0] == 3 or pts_raw[1] == 3))):
         # Regra Estrutural: Equipes quase invictas (<= 1 derrota nos últimos 5 jogos) com vitória recente
         trend = "CURVA_ESTAVEL"
         trend_factor = 1.05 if num_d == 0 else 1.00  # Bônus para invencibilidade plena (0D)
@@ -1367,10 +1387,11 @@ def analyze_trend_and_momentum(team_name: str, last5_dict: dict) -> dict:
         trend = "CURVA_ESTAGNADA"
         trend_factor = 0.88  # -12% por platô mediano / excesso de empates
         trend_desc = f"Tendência de Estagnação / Platô Mediano ({num_e} empates nos últimos jogos / baixa imposição de vitória)"
-    elif delta_trend <= -0.70 or (avg_recent <= 0.5 and avg_baseline >= 1.33):
+    elif is_real_decline:
         trend = "CURVA_DESCENDENTE"
         trend_factor = 0.80  # -20% por queda de rendimento recente
-        trend_desc = f"Curva Descendente em queda (Queda de rendimento recente: {avg_recent:.1f} pts recentes vs {avg_baseline:.1f} pts de base)"
+        trend_label = "📉 Declínio"
+        trend_desc = f"Curva Descendente em queda (Tropeço recente nos 2 últimos jogos: {pts_raw[0]} e {pts_raw[1]} pts vs {avg_baseline:.1f} pts de base)"
     else:
         trend = "CURVA_ESTAVEL"
         trend_factor = 1.00

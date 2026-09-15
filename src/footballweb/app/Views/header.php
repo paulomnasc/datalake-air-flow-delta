@@ -704,6 +704,12 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
                         <span><?= lang('App.tips_efficiency') ?></span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="<?= base_url('apostas/relatorio-abstencoes') ?>" class="nav-link px-3 px-lg-3 font-weight-bold text-danger d-flex align-items-center gap-1" title="Auditoria de Abstenções (NO_BET)">
+                        <i class="bi bi-shield-slash" style="font-size: 18px;"></i>
+                        <span>Abstenções (NO_BET)</span>
+                    </a>
+                </li>
             </ul>
 
             <div id="itens-menu-outros" class="navbar-nav ms-auto p-4 p-lg-0 align-items-center">

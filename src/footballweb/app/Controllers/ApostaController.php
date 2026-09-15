@@ -2807,6 +2807,447 @@ class ApostaController extends BaseController
 
         return $this->response->setJSON(['success' => true]);
     }
+
+    /**
+     * Relatório Analítico de Abstenções (NO_BET)
+     * Consolida dados do Gatekeeper para Handicap Asiático e Cartões Under
+     */
+    public function relatorioAbstencoes()
+    {
+        ini_set('memory_limit', '512M');
+        $access = $this->checkAccess();
+        $db = \Config\Database::connect();
+
+        $modalidade = strtolower(trim((string)($this->request->getVar('modalidade') ?? 'todos')));
+        if (!in_array($modalidade, ['todos', 'ah', 'cartao'])) {
+            $modalidade = 'todos';
+        }
+
+        $periodo = strtolower(trim((string)($this->request->getVar('periodo') ?? '14d')));
+        $startDate = $this->request->getVar('start_date');
+        $endDate   = $this->request->getVar('end_date');
+        $ligaFilter = $this->request->getVar('liga');
+
+        if ($periodo === '7d') {
+            $startDate = date('Y-m-d', strtotime('-7 days'));
+            $endDate   = date('Y-m-d');
+        } elseif ($periodo === '30d') {
+            $startDate = date('Y-m-d', strtotime('-30 days'));
+            $endDate   = date('Y-m-d');
+        } elseif ($periodo === 'custom' && !empty($startDate) && !empty($endDate)) {
+            // Mantém datas enviadas
+        } else {
+            // Default 14d
+            $periodo   = '14d';
+            $startDate = date('Y-m-d', strtotime('-14 days'));
+            $endDate   = date('Y-m-d');
+        }
+
+        if (!empty($startDate) && !empty($endDate) && $startDate > $endDate) {
+            $temp = $startDate;
+            $startDate = $endDate;
+            $endDate = $temp;
+        }
+
+        // Busca lista de Ligas disponíveis para o filtro
+        $ligas = $db->table('fixtures_trends')
+            ->select('DISTINCT(league_name) as league_name')
+            ->where('fixture_date >=', $startDate . ' 00:00:00')
+            ->where('fixture_date <=', $endDate . ' 23:59:59')
+            ->where('league_name IS NOT NULL')
+            ->orderBy('league_name', 'ASC')
+            ->get()->getResultObject();
+
+        // Consulta partidas no período
+        $builder = $db->table('fixtures_trends')
+            ->select('fixture_id, fixture_date, league_name, home_team, away_team, ah_suggestion, ah_confidence, ah_reasoning, prediction_text, over_cards_probability, status')
+            ->where('fixture_date >=', $startDate . ' 00:00:00')
+            ->where('fixture_date <=', $endDate . ' 23:59:59');
+
+        if (!empty($ligaFilter)) {
+            $builder->where('league_name', $ligaFilter);
+        }
+
+        $builder->orderBy('fixture_date', 'DESC');
+        $fixtures = $builder->get()->getResultObject();
+
+        // Inicialização prévia de variáveis numéricas conforme Regra 8 do repositório
+        $totalJogosAnalisados = 0;
+        $totalAprovados = 0;
+        $totalAbstencoes = 0;
+        
+        $totalAhAvaliados = 0;
+        $totalAhAprovados = 0;
+        $totalAhAbstencoes = 0;
+
+        $totalCardsAvaliados = 0;
+        $totalCardsAprovados = 0;
+        $totalCardsAbstencoes = 0;
+
+        $motivosCount = [];
+        $timelineData = [];
+        $partidasLista = [];
+
+        foreach ($fixtures as $f) {
+            $fDateStr = !empty($f->fixture_date) ? substr($f->fixture_date, 0, 10) : date('Y-m-d');
+            if (!isset($timelineData[$fDateStr])) {
+                $timelineData[$fDateStr] = [
+                    'data'      => $fDateStr,
+                    'total'     => 0,
+                    'nobet'     => 0,
+                    'aprovado'  => 0,
+                ];
+            }
+
+            // 1. Processamento de Handicap Asiático
+            if ($modalidade === 'todos' || $modalidade === 'ah') {
+                $sug = trim((string)($f->ah_suggestion ?? ''));
+                $reason = trim((string)($f->ah_reasoning ?? ''));
+                $fullAh = $reason . ' ' . $sug;
+                $isAhEvaluated = (!empty($sug) || !empty($reason));
+
+                if ($isAhEvaluated) {
+                    $totalAhAvaliados++;
+                    $totalJogosAnalisados++;
+                    $timelineData[$fDateStr]['total']++;
+
+                    $isAhNoBet = (
+                        stripos($sug, 'absten') !== false ||
+                        stripos($sug, 'sem entrada') !== false ||
+                        stripos($sug, 'no_bet') !== false ||
+                        stripos($sug, 'bloquead') !== false ||
+                        stripos($reason, 'NO_BET') !== false
+                    );
+
+                    if ($isAhNoBet) {
+                        $totalAhAbstencoes++;
+                        $totalAbstencoes++;
+                        $timelineData[$fDateStr]['nobet']++;
+
+                        // Identificar motivo
+                        $cat = 'Gestão de Risco Preventiva da IA';
+                        $regra = 'Travas de prudência por equilíbrio excessivo ou volatilidade projetada';
+                        $badgeColor = '#64748b';
+
+                        if (preg_match('/\[Gatekeeper AH NO_BET\s*\/\s*([^\]]+)\]/i', $reason, $m)) {
+                            $tag = trim($m[1]);
+                            if (stripos($tag, 'Linhas Reais') !== false) {
+                                $cat = 'Ausência de Linhas Reais nas Casas';
+                                $regra = 'Regra 12: Proibição de odds sintéticas; sem linhas oficiais na Betano/The Odds API';
+                                $badgeColor = '#ef4444';
+                            } elseif (stripos($tag, 'Amostragem') !== false) {
+                                $cat = 'Amostragem Recente Insuficiente (U5J < 5)';
+                                $regra = 'Regra 9: Proibição de fallbacks artificiais sem 5 jogos consolidados para modelar xG';
+                                $badgeColor = '#f59e0b';
+                            } elseif (stripos($tag, 'Sem EV') !== false) {
+                                $cat = 'Sem EV+ Mínimo (+EV < 5.0% ou Prob. Insuficiente)';
+                                $regra = 'Poisson e odds de mercado não atingiram o limiar mínimo de +EV >= 5.0%';
+                                $badgeColor = '#3b82f6';
+                            } elseif (stripos($tag, 'Piso') !== false) {
+                                $cat = 'Odd de Mercado Abaixo do Piso (< 1.50)';
+                                $regra = 'Cotação líquida inferior ao piso mínimo operacional de segurança';
+                                $badgeColor = '#ec4899';
+                            } elseif (stripos($tag, 'Odds 1X2') !== false) {
+                                $cat = 'Cotações 1X2 Ausentes de Mercado';
+                                $regra = 'Partida sem cotações 1X2 de abertura precificadas pelas bookmakers';
+                                $badgeColor = '#8b5cf6';
+                            } elseif (stripos($tag, 'Crises') !== false) {
+                                $cat = 'Duelo de Crises Severas';
+                                $regra = 'Ambas as equipes em jejum/crise severa com alta imprevisibilidade técnica';
+                                $badgeColor = '#d97706';
+                            } elseif (stripos($tag, 'Rendimento') !== false) {
+                                $cat = 'Queda Recente de Rendimento e Eficiência';
+                                $regra = 'Deterioração drástica na conversão ofensiva/defensiva recente dos times';
+                                $badgeColor = '#a855f7';
+                            } else {
+                                $cat = 'AH: ' . $tag;
+                            }
+                        } elseif (stripos($fullAh, 'Ausência de Linhas Reais') !== false || stripos($fullAh, 'Cotações oficiais de Handicap Asiático indisponíveis') !== false || stripos($fullAh, 'Odds de mercado indisponíveis') !== false) {
+                            $cat = 'Ausência de Linhas Reais nas Casas';
+                            $regra = 'Regra 12: Proibição de odds sintéticas; sem linhas oficiais na Betano/The Odds API';
+                            $badgeColor = '#ef4444';
+                        } elseif (stripos($fullAh, 'Amostragem Insuficiente') !== false || stripos($fullAh, 'Histórico recente incompleto') !== false || stripos($fullAh, 'Histórico U5J insuficiente') !== false) {
+                            $cat = 'Amostragem Recente Insuficiente (U5J < 5)';
+                            $regra = 'Regra 9: Proibição de fallbacks artificiais sem 5 jogos consolidados para modelar xG';
+                            $badgeColor = '#f59e0b';
+                        } elseif (stripos($fullAh, 'odd nominal esmagada') !== false || stripos($fullAh, 'odd nominal deprimida') !== false || stripos($fullAh, 'linhas agressivas') !== false) {
+                            $cat = 'Odd Esmagada / Linha Agressiva Bloqueada';
+                            $regra = 'Superfavorito com odd esmagada (@ 1.20-1.40); linhas esticadas bloqueadas para evitar perdas no empate';
+                            $badgeColor = '#ea580c';
+                        } elseif (stripos($fullAh, 'Sem EV+') !== false || stripos($fullAh, '+EV >=') !== false || stripos($fullAh, 'Falta de valor') !== false) {
+                            $cat = 'Sem EV+ Mínimo (+EV < 5.0% ou Prob. Insuficiente)';
+                            $regra = 'Poisson e odds de mercado não atingiram o limiar mínimo de +EV >= 5.0%';
+                            $badgeColor = '#3b82f6';
+                        } elseif (stripos($fullAh, 'Odds 1X2 Ausentes') !== false || stripos($fullAh, 'cotações 1X2 de mercado no banco') !== false) {
+                            $cat = 'Cotações 1X2 Ausentes de Mercado';
+                            $regra = 'Partida sem cotações 1X2 de abertura precificadas pelas bookmakers';
+                            $badgeColor = '#8b5cf6';
+                        } elseif (stripos($fullAh, 'Odd Abaixo do Piso') !== false || stripos($fullAh, 'abaixo do piso') !== false) {
+                            $cat = 'Odd de Mercado Abaixo do Piso (< 1.50)';
+                            $regra = 'Cotação líquida inferior ao piso mínimo operacional de segurança';
+                            $badgeColor = '#ec4899';
+                        } elseif (stripos($fullAh, 'Alerta de Copa') !== false || stripos($fullAh, 'ALERTA DE COPA') !== false) {
+                            $cat = 'Alerta de Copa (Risco de Rodízio)';
+                            $regra = 'Partida de copa eliminatória com elevado risco de time alternativo/misto';
+                            $badgeColor = '#e11d48';
+                        } elseif (stripos($fullAh, 'Divergência Crítica') !== false) {
+                            $cat = 'Divergência Crítica (Mercado vs xG)';
+                            $regra = 'Divergência severa entre a precificação da casa de apostas e as métricas de campo';
+                            $badgeColor = '#0284c7';
+                        }
+
+                        $chaveMotivo = 'AH: ' . $cat;
+                        if (!isset($motivosCount[$chaveMotivo])) {
+                            $motivosCount[$chaveMotivo] = [
+                                'nome'        => $cat,
+                                'modalidade'  => 'Handicap Asiático',
+                                'modalidade_key' => 'ah',
+                                'count'       => 0,
+                                'regra_ouro'  => $regra,
+                                'color'       => $badgeColor,
+                            ];
+                        }
+                        $motivosCount[$chaveMotivo]['count']++;
+
+                        if (count($partidasLista) < 600) {
+                            $partidasLista[] = (object)[
+                                'fixture_id'   => $f->fixture_id,
+                                'data'         => $f->fixture_date,
+                                'liga'         => $f->league_name ?? 'Não informada',
+                                'times'        => ($f->home_team ?? 'Time Casa') . ' x ' . ($f->away_team ?? 'Time Fora'),
+                                'home_team'    => $f->home_team ?? 'Time Casa',
+                                'away_team'    => $f->away_team ?? 'Time Fora',
+                                'modalidade'   => 'Handicap Asiático',
+                                'modalidade_key' => 'ah',
+                                'motivo_nome'  => $cat,
+                                'motivo_texto' => $reason ?: $sug,
+                                'badge_color'  => $badgeColor,
+                                'status'       => $f->status ?? 'NS'
+                            ];
+                        }
+                    } else {
+                        $totalAhAprovados++;
+                        $totalAprovados++;
+                        $timelineData[$fDateStr]['aprovado']++;
+                    }
+                }
+            }
+
+            // 2. Processamento de Cartões Under
+            if ($modalidade === 'todos' || $modalidade === 'cartao') {
+                $ptext = trim((string)($f->prediction_text ?? ''));
+                $isCardEvaluated = !empty($ptext);
+
+                if ($isCardEvaluated) {
+                    $totalCardsAvaliados++;
+                    if ($modalidade === 'cartao') {
+                        $totalJogosAnalisados++;
+                        $timelineData[$fDateStr]['total']++;
+                    }
+
+                    $isCardNoBet = (
+                        stripos($ptext, 'no_bet') !== false ||
+                        stripos($ptext, 'sem entrada') !== false ||
+                        stripos($ptext, 'absten') !== false ||
+                        stripos($ptext, 'bloquead') !== false
+                    );
+
+                    if ($isCardNoBet) {
+                        $totalCardsAbstencoes++;
+                        if ($modalidade === 'cartao') {
+                            $totalAbstencoes++;
+                            $timelineData[$fDateStr]['nobet']++;
+                        }
+
+                        $cat = 'Outro Bloqueio Preventivo de Cartões';
+                        $regra = 'Travas de segurança preventiva do Gatekeeper Disciplinar';
+                        $badgeColor = '#64748b';
+
+                        if (stripos($ptext, 'zerados ou indisponíveis') !== false) {
+                            $cat = 'Dados de Cartões Zerados ou Indisponíveis';
+                            $regra = 'Regra 9: Proibição de fallbacks artificiais; ausência de histórico consolidado no cache';
+                            $badgeColor = '#ef4444';
+                        } elseif (stripos($ptext, 'Início de campeonato') !== false || stripos($ptext, '< 5 jogos com dados') !== false) {
+                            $cat = 'Início de Temporada / Amostragem < 5 Jogos';
+                            $regra = 'Regra 9: Menos de 5 partidas registradas na base para calcular médias móveis confiáveis';
+                            $badgeColor = '#f59e0b';
+                        } elseif (stripos($ptext, 'Trava de Árbitro') !== false || stripos($ptext, 'Rigor do árbitro') !== false) {
+                            $cat = 'Trava de Rigor do Árbitro';
+                            $regra = 'Árbitro escalado com histórico rigoroso (> 4.80 c/j), incompatível com Under';
+                            $badgeColor = '#dc2626';
+                        } elseif (stripos($ptext, 'Atrito Disciplinar') !== false) {
+                            $cat = 'Risco de Atrito Disciplinar U5J';
+                            $regra = 'Ambas as equipes em momento adverso (U5J <= 3 pts), com elevada propensão a faltas';
+                            $badgeColor = '#ea580c';
+                        } elseif (stripos($ptext, 'Média de cartões por time') !== false || stripos($ptext, 'inferior) com amostragem') !== false) {
+                            $cat = 'Média Disciplinar Anômala (<= 1.0 c/j)';
+                            $regra = 'Histórico disciplinar estatisticamente suspeito ou distorcido';
+                            $badgeColor = '#8b5cf6';
+                        } elseif (stripos($ptext, 'Mata-Mata') !== false || stripos($ptext, 'eliminatór') !== false) {
+                            $cat = 'Mata-Mata / Confronto Eliminatório';
+                            $regra = 'Partida eliminatória com alta carga emocional e risco disciplinar elevado';
+                            $badgeColor = '#e11d48';
+                        } elseif (stripos($ptext, 'Sem Margem') !== false) {
+                            $cat = 'Sem Margem Estatística para Under';
+                            $regra = 'Expectativa de cartões superior às linhas Under disponíveis no mercado';
+                            $badgeColor = '#0284c7';
+                        } elseif (stripos($ptext, 'Sem Árbitro') !== false || stripos($ptext, 'Árbitro não definido') !== false) {
+                            $cat = 'Árbitro Não Definido a < 48h';
+                            $regra = 'Confronto próximo sem confirmação da escala oficial de arbitragem';
+                            $badgeColor = '#64748b';
+                        }
+
+                        $chaveMotivo = 'Cartões: ' . $cat;
+                        if (!isset($motivosCount[$chaveMotivo])) {
+                            $motivosCount[$chaveMotivo] = [
+                                'nome'        => $cat,
+                                'modalidade'  => 'Cartões Under',
+                                'modalidade_key' => 'cartao',
+                                'count'       => 0,
+                                'regra_ouro'  => $regra,
+                                'color'       => $badgeColor,
+                            ];
+                        }
+                        $motivosCount[$chaveMotivo]['count']++;
+
+                        if (count($partidasLista) < 600) {
+                            $partidasLista[] = (object)[
+                                'fixture_id'   => $f->fixture_id,
+                                'data'         => $f->fixture_date,
+                                'liga'         => $f->league_name ?? 'Não informada',
+                                'times'        => ($f->home_team ?? 'Time Casa') . ' x ' . ($f->away_team ?? 'Time Fora'),
+                                'home_team'    => $f->home_team ?? 'Time Casa',
+                                'away_team'    => $f->away_team ?? 'Time Fora',
+                                'modalidade'   => 'Cartões Under',
+                                'modalidade_key' => 'cartao',
+                                'motivo_nome'  => $cat,
+                                'motivo_texto' => $ptext,
+                                'badge_color'  => $badgeColor,
+                                'status'       => $f->status ?? 'NS'
+                            ];
+                        }
+                    } else {
+                        $totalCardsAprovados++;
+                        if ($modalidade === 'cartao') {
+                            $totalAprovados++;
+                            $timelineData[$fDateStr]['aprovado']++;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Ordenar motivos por contagem decrescente
+        uasort($motivosCount, function($a, $b) {
+            return $b['count'] <=> $a['count'];
+        });
+
+        // Calcular percentuais na tabela agregada
+        $denominadorNb = ($totalAbstencoes > 0) ? $totalAbstencoes : 1;
+        $denominadorTotal = ($totalJogosAnalisados > 0) ? $totalJogosAnalisados : 1;
+        $motivosTabela = [];
+
+        foreach ($motivosCount as $k => $item) {
+            $pctNb = round(($item['count'] / $denominadorNb) * 100, 2);
+            $pctTot = round(($item['count'] / $denominadorTotal) * 100, 2);
+            $motivosTabela[] = (object)[
+                'nome'        => $item['nome'],
+                'modalidade'  => $item['modalidade'],
+                'modalidade_key' => $item['modalidade_key'],
+                'count'       => $item['count'],
+                'pct_nb'      => $pctNb,
+                'pct_total'   => $pctTot,
+                'regra_ouro'  => $item['regra_ouro'],
+                'color'       => $item['color']
+            ];
+        }
+
+        // Taxas Globais
+        $taxaAbstencaoGlobal = ($totalJogosAnalisados > 0) ? round(($totalAbstencoes / $totalJogosAnalisados) * 100, 2) : 0.0;
+        $taxaAprovacaoGlobal = ($totalJogosAnalisados > 0) ? round(($totalAprovados / $totalJogosAnalisados) * 100, 2) : 0.0;
+
+        $taxaAhAbstencao = ($totalAhAvaliados > 0) ? round(($totalAhAbstencoes / $totalAhAvaliados) * 100, 2) : 0.0;
+        $taxaCardsAbstencao = ($totalCardsAvaliados > 0) ? round(($totalCardsAbstencoes / $totalCardsAvaliados) * 100, 2) : 0.0;
+
+        $principalGargalo = !empty($motivosTabela) ? $motivosTabela[0] : null;
+
+        // Montar dados para os gráficos Chart.js
+        $chartLabels = [];
+        $chartCounts = [];
+        $chartColors = [];
+        $chartPcts   = [];
+
+        foreach (array_slice($motivosTabela, 0, 8) as $m) {
+            $chartLabels[] = (strlen($m->nome) > 28) ? substr($m->nome, 0, 25) . '...' : $m->nome;
+            $chartCounts[] = $m->count;
+            $chartColors[] = $m->color;
+            $chartPcts[]   = $m->pct_nb;
+        }
+
+        // Se houver mais de 8 motivos, agrupa o restante em "Outros"
+        if (count($motivosTabela) > 8) {
+            $somaOutros = 0;
+            $somaOutrosPct = 0.0;
+            foreach (array_slice($motivosTabela, 8) as $m) {
+                $somaOutros += $m->count;
+                $somaOutrosPct += $m->pct_nb;
+            }
+            if ($somaOutros > 0) {
+                $chartLabels[] = 'Demais Motivos Combinados';
+                $chartCounts[] = $somaOutros;
+                $chartColors[] = '#94a3b8';
+                $chartPcts[]   = round($somaOutrosPct, 2);
+            }
+        }
+
+        // Ordenar timeline por data cronológica crescente
+        ksort($timelineData);
+        $timelineDates = [];
+        $timelineNb    = [];
+        $timelineAp    = [];
+
+        foreach ($timelineData as $tDate => $tVals) {
+            $timelineDates[] = date('d/m', strtotime($tDate));
+            $timelineNb[]    = $tVals['nobet'];
+            $timelineAp[]    = $tVals['aprovado'];
+        }
+
+        $data = [
+            'modalidade'           => $modalidade,
+            'periodo'              => $periodo,
+            'startDate'            => $startDate,
+            'endDate'              => $endDate,
+            'ligaFilter'           => $ligaFilter,
+            'ligas'                => $ligas,
+            'totalJogosAnalisados' => $totalJogosAnalisados,
+            'totalAbstencoes'      => $totalAbstencoes,
+            'totalAprovados'       => $totalAprovados,
+            'taxaAbstencaoGlobal'  => $taxaAbstencaoGlobal,
+            'taxaAprovacaoGlobal'  => $taxaAprovacaoGlobal,
+            'totalAhAvaliados'     => $totalAhAvaliados,
+            'totalAhAbstencoes'    => $totalAhAbstencoes,
+            'totalAhAprovados'     => $totalAhAprovados,
+            'taxaAhAbstencao'      => $taxaAhAbstencao,
+            'totalCardsAvaliados'  => $totalCardsAvaliados,
+            'totalCardsAbstencoes' => $totalCardsAbstencoes,
+            'totalCardsAprovados'  => $totalCardsAprovados,
+            'taxaCardsAbstencao'   => $taxaCardsAbstencao,
+            'principalGargalo'     => $principalGargalo,
+            'motivosTabela'        => $motivosTabela,
+            'partidasLista'        => $partidasLista,
+            'chartLabelsJson'      => json_encode($chartLabels),
+            'chartCountsJson'      => json_encode($chartCounts),
+            'chartColorsJson'      => json_encode($chartColors),
+            'chartPctsJson'        => json_encode($chartPcts),
+            'timelineDatesJson'    => json_encode($timelineDates),
+            'timelineNbJson'       => json_encode($timelineNb),
+            'timelineApJson'       => json_encode($timelineAp),
+        ];
+
+        return view('header', $data)
+             . view('apostas/relatorio_abstencoes', $data)
+             . view('footer');
+    }
 }
 
 

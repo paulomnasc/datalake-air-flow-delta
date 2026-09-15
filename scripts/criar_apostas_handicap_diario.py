@@ -573,16 +573,19 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
                 'sem odd betano', 'indisponível ou fechado na betano', 'limite de requisições', 'circuit-breaker'
             ]) and 'odds 1x2 ausentes' not in (detalhe_calculo or '').lower()
             cursor.execute("""
-                SELECT id, palpite, confirmada FROM apostas 
+                SELECT id, palpite, confirmada, status FROM apostas 
                 WHERE fixture_id = %s 
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                  AND status = 'Pendente'
+                  AND status != 'Não Confirmada'
+                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC
                 LIMIT 1
             """, (fixture_id,))
             has_pending_bet = cursor.fetchone()
             if has_pending_bet:
-                if int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing:
-                    print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta ativa ({has_pending_bet.get('palpite')}). fixtures_trends mantido.")
+                is_settled_blindado = has_pending_bet.get('status') not in ('Pendente', 'Não Confirmada')
+                if is_settled_blindado or int(has_pending_bet.get('confirmada') or 0) == 1 or is_api_missing:
+                    status_lbl = "blindada" if is_settled_blindado else "ativa"
+                    print(f"🔒 [Card AH Preservado] Partida #{fixture_id} possui aposta {status_lbl} ({has_pending_bet.get('palpite')}). fixtures_trends mantido.")
                     continue
 
             cursor.execute("SELECT ah_reasoning, home_team_id, away_team_id FROM fixtures_trends WHERE fixture_id = %s", (fixture_id,))

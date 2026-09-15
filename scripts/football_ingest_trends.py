@@ -3396,15 +3396,17 @@ def main():
             except Exception:
                 pass
 
-            # Prioridade Absoluta: Se já existe aposta ativa aprovada pelo Gatekeeper para o jogo, preserva para evitar divergência Card vs Aposta
+            # Prioridade Absoluta: Se já existe aposta aprovada para o jogo:
+            # - Se status <> ('Pendente', 'Não Confirmada'): Apenas o card estará blindado com o palpite da aposta
+            # - Se status == 'Pendente': Preserva o card alinhado à aposta ativa
             cursor.execute("""
-                SELECT palpite, probabilidade_poisson, resultado_detalhado 
+                SELECT palpite, probabilidade_poisson, resultado_detalhado, status 
                 FROM apostas 
                 WHERE fixture_id = %s 
-                  AND status = 'Pendente' 
+                  AND status != 'Não Confirmada'
                   AND status_gatekeeper = 'APROVADO' 
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                ORDER BY confirmada DESC, id DESC LIMIT 1
+                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC LIMIT 1
             """, (fix_id,))
             existing_ah_aposta = cursor.fetchone()
 
@@ -3568,8 +3570,11 @@ def main():
                 if valid_under:
                     cursor.execute("""
                         SELECT palpite FROM apostas 
-                        WHERE fixture_id = %s AND status = 'Pendente' AND status_gatekeeper = 'APROVADO' AND mercado = 'Total de Cartões'
-                        ORDER BY confirmada DESC, id DESC LIMIT 1
+                        WHERE fixture_id = %s 
+                          AND status != 'Não Confirmada' 
+                          AND status_gatekeeper = 'APROVADO' 
+                          AND mercado = 'Total de Cartões'
+                        ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC LIMIT 1
                     """, (fix_id,))
                     existing_card = cursor.fetchone()
                     if existing_card and existing_card.get('palpite'):
@@ -4196,7 +4201,7 @@ def update_oddspedia_odds(conn):
                     }
 
         cursor = conn.cursor()
-        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
+        cursor.execute("SELECT fixture_id, home_team, away_team, home_team_id, away_team_id, league_id, status FROM fixtures_trends WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY")
         db_fixtures = cursor.fetchall()
 
         # Ingestão de prévias e palpites editoriais do Futbol24
@@ -4349,6 +4354,11 @@ def update_oddspedia_odds(conn):
         updated_count = 0
         for fix in db_fixtures:
             fix_id = fix['fixture_id']
+            fix_status = str(fix.get('status') or '').upper()
+            # Imutabilidade de Partidas Finalizadas (FT) - Regras 1 e 3 de Ouro:
+            # Não triangula odds nem recalcula palpites para jogos encerrados
+            if fix_status in ('FT', 'AET', 'PEN', 'CANC', 'PST', 'FINISHED', 'MATCH FINISHED'):
+                continue
             
             # Coleta cotações de cada uma das fontes independentes
             api_bms = (api_sports_odds.get(fix_id) or {}) if api_sports_odds else {}
@@ -4390,15 +4400,17 @@ def update_oddspedia_odds(conn):
                     away_team_id=fix.get('away_team_id')
                 )
 
-                # Prioridade Absoluta: Se já existe aposta ativa aprovada pelo Gatekeeper para o jogo, preserva para evitar divergência Card vs Aposta
+                # Prioridade Absoluta: Se já existe aposta aprovada para o jogo:
+                # - Se status <> ('Pendente', 'Não Confirmada'): Apenas o card estará blindado com o palpite da aposta
+                # - Se status == 'Pendente': Preserva o card alinhado à aposta ativa
                 cursor.execute("""
-                    SELECT palpite, probabilidade_poisson, resultado_detalhado 
+                    SELECT palpite, probabilidade_poisson, resultado_detalhado, status 
                     FROM apostas 
                     WHERE fixture_id = %s 
-                      AND status = 'Pendente' 
+                      AND status != 'Não Confirmada'
                       AND status_gatekeeper = 'APROVADO' 
                       AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                    ORDER BY confirmada DESC, id DESC LIMIT 1
+                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC LIMIT 1
                 """, (fix_id,))
                 existing_ah_aposta = cursor.fetchone()
 
@@ -4556,7 +4568,7 @@ def enrich_fixtures_standings(conn):
     print("\n--- INICIANDO ENRIQUECIMENTO DE CLASSIFICAÇÃO (STANDINGS) DOS TIMES ---")
     cursor = conn.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
-        SELECT fixture_id, fixture_date, league_id, home_team, away_team, home_team_id, away_team_id
+        SELECT fixture_id, fixture_date, league_id, home_team, away_team, home_team_id, away_team_id, status
         FROM fixtures_trends
         WHERE DATE(fixture_date) >= CURDATE() - INTERVAL 1 DAY
           AND (home_rank IS NULL OR away_rank IS NULL)
@@ -4625,7 +4637,9 @@ def enrich_fixtures_standings(conn):
         cursor.execute("SELECT odd_home, odd_draw, odd_away, xg_home, xg_away FROM fixtures_trends WHERE fixture_id = %s", (fix_id,))
         fix_row = cursor.fetchone()
         
-        if fix_row and fix_row.get('odd_home') and float(fix_row['odd_home']) > 1.0:
+        fix_status = str(fix.get('status') or '').upper()
+        # Imutabilidade de Partidas Finalizadas (FT): não recalcula palpite AH para partidas encerradas
+        if fix_status not in ('FT', 'AET', 'PEN', 'CANC', 'PST', 'FINISHED', 'MATCH FINISHED') and fix_row and fix_row.get('odd_home') and float(fix_row['odd_home']) > 1.0:
             h_l5 = fetch_team_last5_form(cursor, fix['home_team'], fix.get('home_team_id'), fix.get('league_id'))
             a_l5 = fetch_team_last5_form(cursor, fix['away_team'], fix.get('away_team_id'), fix.get('league_id'))
             h_losses = h_l5.get('d', 0) if h_l5.get('v', 0) == 0 else 0
@@ -4646,15 +4660,17 @@ def enrich_fixtures_standings(conn):
                 away_team_id=fix.get('away_team_id')
             )
             
-            # Prioridade Absoluta: Se já existe aposta ativa aprovada pelo Gatekeeper para o jogo, preserva
+            # Prioridade Absoluta: Se já existe aposta aprovada para o jogo:
+            # - Se status <> ('Pendente', 'Não Confirmada'): Apenas o card estará blindado com o palpite da aposta
+            # - Se status == 'Pendente': Preserva o card alinhado à aposta ativa
             cursor.execute("""
-                SELECT palpite, probabilidade_poisson, resultado_detalhado 
+                SELECT palpite, probabilidade_poisson, resultado_detalhado, status 
                 FROM apostas 
                 WHERE fixture_id = %s 
-                  AND status = 'Pendente' 
+                  AND status != 'Não Confirmada'
                   AND status_gatekeeper = 'APROVADO' 
                   AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                ORDER BY confirmada DESC, id DESC LIMIT 1
+                ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC LIMIT 1
             """, (fix_id,))
             existing_ah_aposta = cursor.fetchone()
             if existing_ah_aposta and existing_ah_aposta.get('palpite'):
@@ -4715,6 +4731,7 @@ def recalculate_inconsistent_odds_predictions(conn):
             WHERE odd_home > 1.0 AND odd_draw > 1.0 AND odd_away > 1.0
               AND (ah_reasoning LIKE '%Odds Indisponíveis%' OR ah_reasoning LIKE '%Odds de mercado indisponíveis%')
               AND DATE(fixture_date) >= CURDATE() - INTERVAL 7 DAY
+              AND status NOT IN ('FT', 'AET', 'PEN', 'CANC', 'PST', 'FINISHED', 'MATCH FINISHED')
         """)
         inconsistent_fixtures = cursor.fetchall()
         if inconsistent_fixtures:
@@ -4742,15 +4759,17 @@ def recalculate_inconsistent_odds_predictions(conn):
                     away_team_id=fix.get('away_team_id')
                 )
 
-                # Prioridade Absoluta: Se já existe aposta ativa aprovada pelo Gatekeeper para o jogo, preserva
+                # Prioridade Absoluta: Se já existe aposta aprovada para o jogo:
+                # - Se status <> ('Pendente', 'Não Confirmada'): Apenas o card estará blindado com o palpite da aposta
+                # - Se status == 'Pendente': Preserva o card alinhado à aposta ativa
                 cursor.execute("""
-                    SELECT palpite, probabilidade_poisson, resultado_detalhado 
+                    SELECT palpite, probabilidade_poisson, resultado_detalhado, status 
                     FROM apostas 
                     WHERE fixture_id = %s 
-                      AND status = 'Pendente' 
+                      AND status != 'Não Confirmada'
                       AND status_gatekeeper = 'APROVADO' 
                       AND (mercado = 'Handicap Asiático' OR mercado LIKE '%%Handicap%%')
-                    ORDER BY confirmada DESC, id DESC LIMIT 1
+                    ORDER BY (status NOT IN ('Pendente', 'Não Confirmada')) DESC, confirmada DESC, id DESC LIMIT 1
                 """, (fix_id,))
                 existing_ah_aposta = cursor.fetchone()
                 if existing_ah_aposta and existing_ah_aposta.get('palpite'):

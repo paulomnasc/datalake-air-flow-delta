@@ -1119,6 +1119,10 @@ if (!function_exists('getBookmakerUrl')) {
         <i class="bi bi-graph-up-arrow text-info"></i> <?= lang('App.perf_analysis_title') ?>
       </a>
 
+      <a href="<?= base_url('apostas/relatorio-abstencoes') ?>" target="_blank" class="btn btn-outline-danger rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-2" style="border-width: 2px; text-decoration: none;" title="Abrir Auditoria de Abstenções (NO_BET)">
+        <i class="bi bi-shield-slash text-danger"></i> Abstenções (NO_BET)
+      </a>
+
       <button class="btn-new-bet" data-bs-toggle="modal" data-bs-target="#newBetModal">
         <i class="bi bi-plus-lg"></i> <?= lang('App.new_bet') ?>
       </button>

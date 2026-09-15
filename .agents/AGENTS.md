@@ -124,3 +124,8 @@ Qualquer alteração de código deve respeitar a esteira de 3 estados de process
   - Em vez de sintetizar linhas e odds inexistentes, o sistema deve registrar a ausência de liquidez de mercado e decretar **`NO_BET` (Abstenção Mandatória por Ausência de Cotações Reais de Casas de Apostas na API-Football / The Odds API)**.
   - Toda aposta simulada, sugerida ou registrada na plataforma deve obrigatoriamente possuir 100% de correspondência com cotações reais, líquidas e comprovadas nas bookmakers oficiais.
 
+---
+
+## 13. Comunicação em Linguagem Natural Clara (Proibição de Fórmulas e Expressões Matemáticas Brutas)
+- **Foco em Clareza e Negócio:** Toda explicação, análise de partidas, diagnóstico de anomalias ou relatório apresentado ao usuário deve ser expresso em **linguagem natural clara, direta e objetiva**.
+- **Proibição de Fórmulas Matemáticas Brutas:** É expressamente proibido responder com fórmulas matemáticas em LaTeX, blocos de equações ou sequências aritméticas brutas (como cadeias de multiplicações de decimais ou notações acadêmicas). O assistente deve sempre traduzir o raciocínio em termos práticos de futebol, explicando o conceito por trás dos números (ex: "o efeito acumulado de vários redutores derrubou excessivamente a expectativa de gols do time mandante").

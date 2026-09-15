@@ -633,6 +633,25 @@ class ApostaController extends BaseController
                 $probPoisson = 1.00;
             }
 
+            // Trava de Sanidade de Mercado em PHP: se a probabilidade da plataforma divergir excessivamente do mercado 1X2
+            if ($oddHome > 1.0 && $oddAway > 1.0) {
+                $candOdd = $isAway ? $oddAway : $oddHome;
+                $oppOdd = $isAway ? $oddHome : $oddAway;
+                $mktProb = (1.0 / $candOdd) / ((1.0 / $candOdd) + (1.0 / $oppOdd)) * 100.0;
+                $pureWinProb = 0.0;
+                foreach ($matrix as $c) {
+                    $diffG = $isAway ? ($c['y'] - $c['x']) : ($c['x'] - $c['y']);
+                    if ($diffG > 0) {
+                        $pureWinProb += (($totalP > 0) ? ($c['p'] / $totalP) : $c['p']) * 100.0;
+                    }
+                }
+                if (($pureWinProb - $mktProb) > 25.0) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Aviso Gatekeeper AH (NO_BET): Divergência excessiva entre probabilidade calculada e cotações reais de mercado.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
+                }
+            }
+
             $minProbReq = 45.0;
 
             if ($evPercentual >= 5.0 && $probPoisson >= max($minProbReq, 48.0)) {

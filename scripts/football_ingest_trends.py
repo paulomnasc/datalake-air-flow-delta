@@ -1676,8 +1676,24 @@ def calculate_asian_handicap_suggestion(
         elif is_market_home_fav and not is_tier_1_elite_club(team_id=home_team_id, team_name=home_team):
             cup_home_factor = 0.92
 
-    lambda_home = lambda_home_base * home_mando_factor * home_last5_factor * home_cs_factor * home_streak_factor * market_home_boost * cup_home_factor
-    lambda_away = lambda_away_base * away_mando_factor * away_last5_factor * away_cs_factor * away_streak_factor * market_away_boost * cup_away_factor
+    # Ajuste complementar suave e amortecido de forma recente (base sólida da API-Football protegida contra efeito bola de neve)
+    form_adj_h = max(0.65, min(1.35, float(home_last5_factor * home_cs_factor * home_streak_factor)))
+    form_adj_a = max(0.65, min(1.35, float(away_last5_factor * away_cs_factor * away_streak_factor)))
+
+    lambda_home = lambda_home_base * home_mando_factor * form_adj_h * market_home_boost * cup_home_factor
+    lambda_away = lambda_away_base * away_mando_factor * form_adj_a * market_away_boost * cup_away_factor
+
+    # Trava de Coerência de Mercado para Confrontos Equilibrados nas Odds Oficiais 1X2:
+    if odd_home and odd_away:
+        oh_val = float(odd_home)
+        oa_val = float(odd_away)
+        is_tight_market = abs(oh_val - oa_val) <= 0.35 or (2.20 <= oh_val <= 2.90 and 2.20 <= oa_val <= 2.90)
+        if is_tight_market and lambda_home > 0 and lambda_away > 0:
+            max_ratio = 1.55
+            if (lambda_away / lambda_home) > max_ratio:
+                lambda_away = round(lambda_home * max_ratio, 2)
+            elif (lambda_home / lambda_away) > max_ratio:
+                lambda_home = round(lambda_away * max_ratio, 2)
 
     # 5.2 Calibração Suave de Consenso de Mercado 1X2 (Critério Secundário):
     # A performance real recente (pontos U5J + momentum) é SOBERANA sobre as odds da banca.

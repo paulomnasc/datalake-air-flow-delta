@@ -562,6 +562,11 @@ def evaluate_and_select_best_ah_candidate(
     ev = 0.0
     prob_eff = 0.0
     score = 0.0
+    inv_cand = 0.5
+    inv_opp = 0.5
+    market_cand_win_prob = 50.0
+    p_pure_win = 50.0
+    max_divergence = 18.0
 
     # 0. Trava Sistêmica Mandatória de Duelo de Crises (Ambas as Equipes em Má Fase):
     # Se ambas as equipes apresentarem aproveitamento precário no U5J (eficiência <= 3.0 pts ou <= 1 vitória recente cada),
@@ -884,20 +889,26 @@ def evaluate_and_select_best_ah_candidate(
         ev = res['ev_percent']
         prob_eff = res['prob_eff']
 
-        # 4. Ancoragem Bayesiana (Filtro de Sanidade Poisson vs Mercado 1X2):
+        # 4. Ancoragem Bayesiana (Filtro Universal de Sanidade Poisson vs Mercado 1X2):
         # A casa de apostas precifica o 1X2 com altíssima eficiência de mercado.
-        # Se a probabilidade pura de vitória estimada por Poisson para o azarão divergir
-        # mais de 12 pontos percentuais da probabilidade implícita justa do mercado 1X2,
-        # rejeita a entrada por distorção de Poisson (xG inflado por desnível de ligas).
-        # Em cenários de Distorção de Banca / Momentum Surge comprovada, expande tolerância para até 22.0 pp.
-        if is_cand_underdog:
-            inv_cand = 1.0 / cand_odd if cand_odd > 0 else 0.5
-            inv_opp = 1.0 / opp_odd if opp_odd > 0 else 0.5
+        # Se a probabilidade pura de vitória estimada por Poisson divergir mais de 18 pontos percentuais
+        # da probabilidade implícita justa do mercado 1X2, rejeita a entrada por distorção de Poisson.
+        # Em cenários de Distorção de Banca / Momentum Surge comprovada, a tolerância máxima é de 25.0 pp.
+        if cand_odd > 0 and opp_odd > 0:
+            inv_cand = 1.0 / cand_odd
+            inv_opp = 1.0 / opp_odd
             market_cand_win_prob = (inv_cand / (inv_cand + inv_opp)) * 100.0
             p_pure_win = sum(p for (x, y), p in poisson_matrix.items() if (y > x if c_is_away else x > y)) * 100.0
-            max_divergence = 25.0 if (cand_is_better_performance or is_away_momentum_surge) else 12.0
+            max_divergence = 25.0 if (cand_is_better_performance or is_away_momentum_surge) else 18.0
             if (p_pure_win - market_cand_win_prob) > max_divergence:
                 continue
+
+        # Teto de Sanidade para Probabilidade Efetiva em Linhas Comerciais (Odd >= 1.70 não pode registrar ilusão > 82%)
+        if c_odd >= 1.70 and prob_eff > 82.0:
+            prob_eff = 82.0
+            res['prob_eff'] = 82.0
+            ev = round((prob_eff / 100.0 * c_odd - 1.0) * 100.0, 2)
+            res['ev_percent'] = ev
 
         if ev >= required_ev and prob_eff >= required_prob:
             score = (100.0 + prob_eff) if is_tier1_massacre_close_u5j else (ev * (prob_eff / 100.0))

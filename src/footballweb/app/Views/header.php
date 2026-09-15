@@ -781,7 +781,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
     <div id="toast-notificacao-popup" class="toast-popup-container" style="display: none;" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="toast-popup-card shadow-lg">
             <div class="toast-popup-header">
-                <span class="badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                <span id="toast-notif-badge" class="badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim" style="font-size: 0.75rem; letter-spacing: 0.5px;">
                     <i class="bi bi-exclamation-triangle-fill"></i> ALERTA BETANO (ABSTENÇÃO IA)
                 </span>
                 <button type="button" class="btn-close btn-close-white ms-auto" id="btn-fechar-toast" aria-label="Close" style="font-size: 0.75rem;"></button>
@@ -952,6 +952,7 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
 
         function exibirToastPopup(notif) {
             const toastEl = document.getElementById('toast-notificacao-popup');
+            const badgeEl = document.getElementById('toast-notif-badge');
             const tituloEl = document.getElementById('toast-notif-titulo');
             const msgEl = document.getElementById('toast-notif-mensagem');
             const linkEl = document.getElementById('toast-notif-link');
@@ -960,7 +961,29 @@ if (isset($_SESSION['usuario_logado']) && $_SESSION['usuario_logado'] == 1) {
             tituloEl.textContent = notif.titulo;
             msgEl.textContent = notif.mensagem;
 
-            const linkHref = notif.link ? (notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link)) : '<?= base_url('apostas?filtro_status=Cancelada') ?>';
+            const isAprovada = (notif.tipo === 'APOSTA_CARTAO_APROVADA' || notif.tipo === 'APOSTA_CRIADA');
+            if (badgeEl) {
+                if (isAprovada) {
+                    badgeEl.className = 'badge bg-success d-flex align-items-center gap-1 pulse-badge-anim';
+                    badgeEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 🎯 OPORTUNIDADE +EV (CARTÕES)';
+                } else {
+                    badgeEl.className = 'badge bg-danger d-flex align-items-center gap-1 pulse-badge-anim';
+                    badgeEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ALERTA BETANO (ABSTENÇÃO IA)';
+                }
+            }
+
+            if (linkEl) {
+                if (isAprovada) {
+                    linkEl.className = 'btn btn-sm btn-success fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
+                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Simulação Aprovada';
+                } else {
+                    linkEl.className = 'btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1 w-100 justify-content-center shadow';
+                    linkEl.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> Ver Aposta & Fazer Cash Out';
+                }
+            }
+
+            const defaultLink = isAprovada ? '<?= base_url('apostas') ?>' : '<?= base_url('apostas?filtro_status=Cancelada') ?>';
+            const linkHref = notif.link ? (notif.link.startsWith('http') ? notif.link : '<?= base_url() ?>' + (notif.link.startsWith('/') ? notif.link.substring(1) : notif.link)) : defaultLink;
             linkEl.href = linkHref;
 
             linkEl.onclick = function() {

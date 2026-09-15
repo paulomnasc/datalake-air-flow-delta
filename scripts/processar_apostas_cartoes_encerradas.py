@@ -89,7 +89,7 @@ def creditar_retorno_aposta(cursor, usuario_id, aposta_id, valor, status, descri
 
         cursor.execute("""
             INSERT INTO conta_corrente (usuario_id, aposta_id, tipo, descricao, valor, saldo_anterior, saldo_posterior, criado_em)
-            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, CONVERT_TZ(NOW(), '+00:00', '-03:00'))
+            VALUES (%s, %s, 'CREDITO_RETORNO_APOSTA', %s, %s, %s, %s, NOW())
         """, (usuario_id, aposta_id, descricao, valor, saldo_anterior, saldo_posterior))
 
         cursor.execute("""

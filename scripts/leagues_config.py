@@ -121,7 +121,15 @@ def is_allowed_league(league_id, league_name: str = "", fixture_date=None) -> bo
     if any(w in l_name_low for w in ['u17', 'u19', 'u20', 'u21', 'u23', 'sub-17', 'sub-20', 'sub-23']):
         return False
 
-    # 3. Bloqueia divisões secundárias genéricas (exceto Série B do Brasil - ID 72)
+    # 3. Validação primária por ID Numérico Oficial (O(1))
+    if league_id is not None:
+        try:
+            lid = int(league_id)
+            return lid in ALLOWED_LEAGUE_IDS
+        except (ValueError, TypeError):
+            pass
+
+    # 4. Bloqueia divisões secundárias genéricas (Fallback para validação apenas textual)
     if any(tier in l_name_low for tier in ['2. liga', '2. bundesliga', 'segunda division', 'segunda división', 'serie c', 'serie d', 'championship', 'league one', 'league two']):
         try:
             lid = int(league_id) if league_id is not None else None
@@ -129,17 +137,6 @@ def is_allowed_league(league_id, league_name: str = "", fixture_date=None) -> bo
                 return False
         except (ValueError, TypeError):
             return False
-
-    # 4. Validação primária por ID Numérico Oficial (O(1))
-    if league_id is not None:
-        try:
-            lid = int(league_id)
-            if lid in ALLOWED_LEAGUE_IDS:
-                return True
-            else:
-                return False
-        except (ValueError, TypeError):
-            pass
 
     # 5. Validação por Nome da Liga (Fallback caso league_id venha nulo)
     if any(allowed in l_name_low for allowed in ALLOWED_LEAGUE_NAMES):

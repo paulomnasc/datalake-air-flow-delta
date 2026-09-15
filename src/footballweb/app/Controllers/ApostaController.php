@@ -726,9 +726,19 @@ class ApostaController extends BaseController
                 }
 
                 // 2. MATRIZ DINÂMICA DE RISCO (Odd vs Probabilidade Mínima Poisson + Margem EV)
-                $isUnknownRef = false;
-                if (!empty($fixture->referee_name) && (stripos($fixture->referee_name, 'Não Informado') !== false || stripos($fixture->referee_name, 'Desconhecido') !== false)) {
-                    $isUnknownRef = true;
+                $refName = !empty($fixture->referee_name) ? trim($fixture->referee_name) : '';
+                $isUnknownRef = empty($refName) 
+                    || stripos($refName, 'Não Informado') !== false 
+                    || stripos($refName, 'Desconhecido') !== false 
+                    || stripos($refName, 'unassigned') !== false 
+                    || stripos($refName, 'tbd') !== false
+                    || stripos($refName, 'sem arbitro') !== false;
+
+                // Bloqueia linha agressiva Under 3.5 se árbitro oficial estiver pendente
+                if ($isUnknownRef && $line <= 3.5) {
+                    $statusGatekeeper = 'NO_BET';
+                    $gatekeeperMsg = "Regra de Bloqueio Gatekeeper: Linha agressiva de Under 3.5 bloqueada por segurança enquanto a escala oficial de arbitragem estiver pendente.";
+                    return compact('fixtureId', 'oddJusta', 'probPoisson', 'evPercentual', 'statusGatekeeper', 'gatekeeperMsg', 'destaque');
                 }
 
                 // Definição dos limiares da Matriz Dinâmica
@@ -746,10 +756,10 @@ class ApostaController extends BaseController
                     $faixaRisco     = "Agressiva (Odd > 1.75)";
                 }
 
-                // Ajuste de trava se Árbitro não estiver cadastrado na API-Football (+5% prob exigida)
+                // Ajuste de trava se Árbitro não estiver cadastrado na API-Football (+5% prob exigida e +5% EV exigido)
                 if ($isUnknownRef) {
                     $minProbExigida += 5.0;
-                    $minEvExigido   += 3.0;
+                    $minEvExigido   += 5.0;
                 }
 
                 // 3. Verificação de Duplicidade / Exposição por Evento

@@ -508,8 +508,8 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
     if is_prematch_window:
         cursor.execute("""
             SELECT * FROM fixtures_trends
-            WHERE fixture_date >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
-              AND fixture_date <= DATE_ADD(NOW(), INTERVAL 45 MINUTE)
+            WHERE fixture_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)
+              AND fixture_date <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 45 MINUTE)
               AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """)
@@ -518,7 +518,7 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
         cursor.execute(f"""
             SELECT * FROM fixtures_trends
             WHERE DATE(CONVERT_TZ(fixture_date, '+00:00', '-03:00')) IN ({placeholders})
-              AND fixture_date >= DATE_ADD(NOW(), INTERVAL 5 MINUTE)
+              AND fixture_date >= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
               AND status NOT IN ('FT', '1H', '2H', 'HT', 'AET', 'PEN', 'PST', 'CANCELLED', 'POSTPONED', 'IN_PLAY', 'FINISHED')
             ORDER BY fixture_date ASC
         """, tuple(target_dates))
@@ -549,8 +549,8 @@ def criar_apostas_handicap_diario(target_date_str=None, confirmada=0):
         league_name = fix.get('league_name') or ''
 
         if not is_allowed_league(league_id, league_name, fixture_date):
-            print(f"🌍 [Fora do Escopo / Bloqueio Meio de Semana] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
-            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, "Liga/Copa fora do escopo (Bloqueio Meio de Semana / EFL Trophy)")
+            print(f"🌍 [Fora do Escopo Global de Ligas] Partida {home_team} vs {away_team} ({league_name} ID #{league_id}) ignorada.")
+            canc_list = cancelar_e_estornar_aposta_handicap(cursor, fixture_id, "Liga/Copa fora do escopo global monitorado")
             if canc_list:
                 apostas_canceladas_detalhes.extend(canc_list)
                 apostas_canceladas += len(canc_list)

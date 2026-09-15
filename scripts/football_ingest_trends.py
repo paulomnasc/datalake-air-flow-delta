@@ -3496,9 +3496,30 @@ def main():
             # Obter multiplicador regional por liga (LATAM x1.18, Europa x0.82) e fator de sobredispersão (phi)
             league_mult, phi_league = get_league_card_multiplier(league_name, league_id)
 
-            rigor = ref_data["rigor_level"]
-            yellows = float(ref_data["average_yellow_cards"])
-            ref_fouls = float(ref_data.get("average_fouls", 24.0))
+            ref_low = (referee_name or '').lower().strip()
+            is_ref_confirmed = bool(
+                referee_name and not any(un in ref_low for un in [
+                    'árbitro não informado', 'arbitro nao informado', 'não informado', 
+                    'nao informado', 'unassigned', 'n/a', 'tbd', 'sem arbitro'
+                ])
+            )
+
+            if is_ref_confirmed:
+                rigor = ref_data["rigor_level"]
+                yellows = float(ref_data["average_yellow_cards"])
+                ref_fouls = float(ref_data.get("average_fouls", 24.0))
+            else:
+                # Perfil Disciplinar Institucional da Competição (Regra de Ouro nº 9)
+                if league_mult <= 0.85:
+                    yellows = 3.60
+                    ref_fouls = 22.00
+                elif league_mult >= 1.15:
+                    yellows = 4.60
+                    ref_fouls = 26.00
+                else:
+                    yellows = 3.90
+                    ref_fouls = 24.00
+                rigor = "Moderado (Base Competição)"
             
             # Amostragem histórica de partidas com dados estatísticos de cartões
             home_sample = max(count_team_historical_card_matches(cursor, home_team, home_team_id), home_c_stats.get("matches_count", 0))
@@ -3574,9 +3595,13 @@ def main():
                 ]
                 valid_under = []
                 for label, prob, odd, l_val in under_candidates:
-                    if prob >= 60.0:
-                        # Veto da Trava de Piso do Árbitro: se a média de cartões do árbitro estiver a menos de 0.30 cartão da linha
-                        if ref_total_cards and ref_total_cards >= (l_val - 0.30):
+                    min_prob_cand = 65.0 if not is_ref_confirmed else 60.0
+                    if prob >= min_prob_cand:
+                        # Veto da Trava de Piso do Árbitro: se a média de cartões do árbitro estiver a menos de 0.30 cartão da linha (apenas com árbitro confirmado)
+                        if is_ref_confirmed and ref_total_cards and ref_total_cards >= (l_val - 0.30):
+                            continue
+                        # Trava de Segurança para Árbitro Pendente: bloqueia linha agressiva Under 3.5 por prudência
+                        if not is_ref_confirmed and l_val <= 3.5:
                             continue
                         # Trava de Atrito Disciplinar U5J e Mata-Mata Oitavas+: bloqueia Under 3.5 e Under 4.5
                         if (is_knockout or is_severe_u5j_risk) and l_val <= 4.5:
@@ -3606,14 +3631,18 @@ def main():
                     extra_note = f" [{friction_desc}]" if friction_desc and friction_mult != 1.0 else ""
                     if is_knockout:
                         extra_note += " [Mata-Mata Oitavas+]"
+                    if not is_ref_confirmed:
+                        extra_note += " [Escala Pendente / Base Competição]"
                     prediction_text = f"🛡️ Estratégia Under (Expectativa: {exp_cards} cartões{extra_note}). Sugestões de valor: 1ª Opção: {top_u['label']} ({top_u['prob']}% | Odd Justa: {top_u['odd']}) | 2ª Opção: {sec_u['label']} ({sec_u['prob']}% | Odd Justa: {sec_u['odd']})."
                 else:
-                    if is_knockout and ref_total_cards and ref_total_cards >= 3.80:
+                    if is_knockout and is_ref_confirmed and ref_total_cards and ref_total_cards >= 3.80:
                         reason = f"🛡️ [Gatekeeper Cartões NO_BET / Mata-Mata Oitavas+] Confronto eliminatório com alta tensão e árbitro rigoroso ({ref_total_cards:.2f} cartões/jogo). Linhas Under 3.5 e 4.5 bloqueadas por risco disciplinar. Abstenção mandatória."
                     elif is_severe_u5j_risk:
                         reason = f"🛡️ [Gatekeeper Cartões NO_BET / Atrito Disciplinar U5J] {home_team} ({h_eff:.1f} pts) vs {away_team} ({a_eff:.1f} pts) -> Ambas as equipes em momento adverso (U5J <= 3 pts), com elevada propensão a faltas táticas e de atrito. Linhas baixas de Under bloqueadas. Abstenção mandatória."
-                    elif ref_total_cards and ref_total_cards >= 4.20:
+                    elif is_ref_confirmed and ref_total_cards and ref_total_cards >= 4.20:
                         reason = f"🛡️ [Gatekeeper Cartões NO_BET / Trava de Árbitro] Rigor do árbitro {referee_name} ({ref_total_cards:.2f} cartões/jogo) incompatível com margem de segurança para Under. Entrada bloqueada."
+                    elif not is_ref_confirmed:
+                        reason = f"🛡️ [Gatekeeper Cartões NO_BET / Margem com Árbitro Pendente] Partida com escala oficial pendente (Base da Competição: {exp_cards} xC). Limiar reforçado de segurança (Prob >= 65.0%) não atendido. Abstenção mandatória."
                     else:
                         reason = f"🛡️ [Gatekeeper Cartões NO_BET / Sem Margem] Partida sem margem estatística para Under (Expectativa: {exp_cards} cartões). Nenhuma linha atendeu ao limiar mínimo de 60.0% do Gatekeeper. Abstenção mandatória."
                     prediction_text = cards_format_gatekeeper_result('NO_BET', 'Sem Entrada (Abstenção)', reason) if cards_format_gatekeeper_result else reason

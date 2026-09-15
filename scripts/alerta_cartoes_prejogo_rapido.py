@@ -29,7 +29,8 @@ from cards_engine import (
     enrich_missing_referees_batch,
     calculate_u5j_card_friction,
     get_team_u5j_efficiency_cards,
-    is_knockout_round_advanced
+    is_knockout_round_advanced,
+    compute_fixture_expected_cards
 )
 from leagues_config import is_allowed_league
 from football_ingest_trends import get_league_card_multiplier
@@ -177,56 +178,14 @@ def executar_monitoramento_rapido():
             print(f"🔒 [Aposta Confirmada Mantida] {home_team} vs {away_team} já possui bilhete confirmado.")
             continue
 
-        # Identificação de árbitro oficial
-        referee_name = (fix.get('referee_name') or '').strip()
-        ref_low = referee_name.lower()
-        is_ref_confirmed = bool(
-            referee_name and not any(un in ref_low for un in [
-                'árbitro não informado', 'arbitro nao informado', 'não informado', 
-                'nao informado', 'unassigned', 'n/a', 'tbd', 'sem arbitro'
-            ])
-        )
-
-        prediction_text = (fix.get('prediction_text') or '').strip()
-        league_round = (fix.get('league_round') or '').strip()
-        is_knockout = is_knockout_round_advanced(league_round, league_name)
-
-        # Eficiência U5J e Atrito Disciplinar
-        h_tid = fix.get('home_team_id')
-        a_tid = fix.get('away_team_id')
-        _, h_eff = get_team_u5j_efficiency_cards(cursor, h_tid, home_team)
-        _, a_eff = get_team_u5j_efficiency_cards(cursor, a_tid, away_team)
-        friction_mult, friction_desc = calculate_u5j_card_friction(h_eff, a_eff)
-        if friction_mult is None:
+        # Cálculo Estrutural e Sistêmico de Cartões (Cards Engine - Single Source of Truth)
+        calc_res = compute_fixture_expected_cards(cursor, fix)
+        if not calc_res or calc_res[0] is None:
             continue
 
-        knockout_mult = 1.18 if is_knockout else 1.00
-
-        # Expectativa base ajustada
-        match_xc = re.search(r'Expectativa:\s*(\d+(?:\.\d+)?)\s*cartões', prediction_text, re.IGNORECASE)
-        if match_xc:
-            base_xc = float(match_xc.group(1))
-            exp_cards = round(base_xc * friction_mult * knockout_mult, 2)
-        else:
-            exp_cards = round(4.20 * friction_mult * knockout_mult, 2)
-
-        # Perfil disciplinar: árbitro confirmado ou média institucional da liga
-        ref_cards_avg = None
-        if is_ref_confirmed:
-            cursor.execute("SELECT average_yellow_cards, average_red_cards FROM referee_stats WHERE name = %s", (referee_name,))
-            r_row = cursor.fetchone()
-            if r_row:
-                ref_cards_avg = float(r_row.get('average_yellow_cards') or 0.0) + float(r_row.get('average_red_cards') or 0.0)
-        else:
-            l_mult, _ = get_league_card_multiplier(league_name, league_id)
-            ref_cards_avg = 3.80 if l_mult <= 0.85 else (4.90 if l_mult >= 1.15 else 4.10)
-
-        u5j_info = {
-            'h_eff': h_eff,
-            'a_eff': a_eff,
-            'friction_mult': friction_mult,
-            'desc': friction_desc
-        }
+        exp_cards, u5j_info, ref_cards_avg, is_ref_confirmed, team_cards_combined = calc_res
+        league_round = (fix.get('league_round') or '').strip()
+        is_knockout = is_knockout_round_advanced(league_round, league_name)
 
         # Avaliação de mercado e Gatekeeper com Odds em Tempo Real da Betano
         selected_cand, valid_cands, pred_text, over_cards_prob = evaluate_best_card_under_line(

@@ -210,6 +210,229 @@ def calculate_expected_cards(
     return exp_cards
 
 
+def get_league_card_multiplier(league_name="", league_id=None) -> tuple:
+    """
+    Retorna o multiplicador de expectativa de cartões (lambda_league) e o fator de sobredispersão (phi)
+    baseado na região geográfica e histórico disciplinar da liga.
+    - América do Sul e América Central (LATAM): lambda_league = 1.18x, phi = 1.28
+    - Europa (todas as ligas europeias): lambda_league = 0.82x, phi = 1.10
+    - Outras ligas / Default: lambda_league = 1.00x, phi = 1.15
+    """
+    # 1. Validação por ID Numérico Oficial da Liga
+    if league_id is not None:
+        try:
+            lid = int(league_id)
+            # Ligas Europeias Oficiais
+            if lid in {135, 39, 140, 78, 61, 94, 88, 144, 203, 179, 197, 2, 3, 848}:
+                return 0.82, 1.10
+            # Ligas Sul-Americanas Oficiais: Brasil Série A (71), Série B (72), Copa do Brasil (73), Argentina (128), Libertadores (13), Sul-Americana (11)
+            if lid in {71, 72, 73, 128, 13, 11}:
+                return 1.18, 1.28
+        except (ValueError, TypeError):
+            pass
+
+    if not league_name:
+        return 1.00, 1.15
+
+    leg_lower = str(league_name).lower().strip()
+
+    # 2. Ligas Europeias (Europa)
+    europe_keywords = [
+        "premier league", "championship", "la liga", "segunda división", "segunda division",
+        "serie a (italy)", "serie a italia", "bundesliga", "ligue 1", "ligue 2",
+        "liga portugal", "eredivisie", "champions league", "europa league", "conference league",
+        "scotland", "belgium", "pro league", "super lig", "turkey", "greece", "super league", "england", "spain", "italy", "germany", "france"
+    ]
+    if leg_lower == "serie a" or any(kw in leg_lower for kw in europe_keywords):
+        if not any(br in leg_lower for br in ["brasil", "brazil", "brasileir"]):
+            return 0.82, 1.10
+
+    # 3. Ligas Sul-Americanas e Centro-Americanas (LATAM)
+    latam_keywords = [
+        "brazil", "brasil", "brasileirão", "brasileirao", "série a", "série b", "serie b", "série c", "serie c",
+        "chile", "primera división", "primera division", "argentina", "liga profesional", "copa de la liga",
+        "colombia", "primera a", "uruguay", "peru", "ecuador", "liga mx", "mexico", "méxico",
+        "costa rica", "honduras", "copa libertadores", "copa sudamericana", "bolivia", "paraguay", "venezuela", "guatemala"
+    ]
+    for kw in latam_keywords:
+        if kw in leg_lower:
+            return 1.18, 1.28
+
+    return 1.00, 1.15
+
+
+def get_team_cards_moving_average(cursor, team_id, team_name, venue_type='home'):
+    """
+    Busca média real de cartões do time no banco de dados (Regra 1: Cache-First MySQL).
+    Tabela: team_moving_averages.
+    Proibição de fallbacks artificiais (Regra 9): se não encontrar, retorna None.
+    """
+    if not cursor:
+        return None
+
+    v_type = 'home' if str(venue_type).lower() == 'home' else 'away'
+
+    if team_id:
+        cursor.execute("""
+            SELECT avg_cards, matches_count FROM team_moving_averages
+            WHERE team_id = %s AND venue_type = %s
+        """, (team_id, v_type))
+        row = cursor.fetchone()
+        if row and row.get('avg_cards') is not None and float(row['avg_cards']) > 0.0:
+            return float(row['avg_cards'])
+
+    if team_name:
+        cursor.execute("""
+            SELECT avg_cards, matches_count FROM team_moving_averages
+            WHERE LOWER(TRIM(team_name)) = LOWER(TRIM(%s)) AND venue_type = %s
+        """, (team_name, v_type))
+        row = cursor.fetchone()
+        if row and row.get('avg_cards') is not None and float(row['avg_cards']) > 0.0:
+            return float(row['avg_cards'])
+
+        # Se não encontrou por mando específico, tenta a média geral do time
+        cursor.execute("""
+            SELECT AVG(avg_cards) as avg_cards FROM team_moving_averages
+            WHERE (LOWER(TRIM(team_name)) = LOWER(TRIM(%s)) OR team_id = %s)
+              AND avg_cards > 0
+        """, (team_name, team_id or 0))
+        row = cursor.fetchone()
+        if row and row.get('avg_cards') is not None and float(row['avg_cards']) > 0.0:
+            return round(float(row['avg_cards']), 2)
+
+    return None
+
+
+def compute_fixture_expected_cards(cursor, fix: dict) -> tuple:
+    """
+    Calcula a expectativa final ponderada de cartões (xC) da partida ancorada estritamente
+    nos dados estatísticos reais do banco de dados (Regra 1, Regra 6 e Regra 9).
+    
+    Retorna: (exp_cards, u5j_info, ref_cards_avg, is_ref_confirmed, team_cards_combined)
+    ou (None, None, None, False, None) em caso de dados insuficientes.
+    """
+    # Inicialização prévia de variáveis numéricas locais (Regra 8)
+    exp_cards = 0.0
+    home_cards_avg = 0.0
+    away_cards_avg = 0.0
+    team_cards_combined = 0.0
+    ref_cards_avg = 0.0
+    yellows = 0.0
+    reds = 0.0
+    ref_fouls = 24.0
+    league_mult = 1.0
+    phi_league = 1.15
+    knockout_mult = 1.0
+    friction_mult = 1.0
+
+    home_team = str(fix.get('home_team') or '').strip()
+    away_team = str(fix.get('away_team') or '').strip()
+    home_team_id = fix.get('home_team_id')
+    away_team_id = fix.get('away_team_id')
+    league_name = str(fix.get('league_name') or '').strip()
+    league_id = fix.get('league_id')
+    league_round = str(fix.get('league_round') or '').strip()
+    fixture_id = fix.get('fixture_id')
+
+    # 1. Obter médias reais das equipes em team_moving_averages (Regra 1 e Regra 9)
+    h_cards = get_team_cards_moving_average(cursor, home_team_id, home_team, 'home')
+    a_cards = get_team_cards_moving_average(cursor, away_team_id, away_team, 'away')
+
+    if h_cards is None or a_cards is None or h_cards <= 0.0 or a_cards <= 0.0:
+        missing = []
+        if h_cards is None or h_cards <= 0.0:
+            missing.append(f"mandante '{home_team}' (#{home_team_id})")
+        if a_cards is None or a_cards <= 0.0:
+            missing.append(f"visitante '{away_team}' (#{away_team_id})")
+        print(f"⚠️ [Cards Engine NO_BET / Dados Ausentes] Médias móveis de cartões não encontradas para: {', '.join(missing)} no fixture #{fixture_id}.")
+        return None, None, None, False, None
+
+    home_cards_avg = float(h_cards)
+    away_cards_avg = float(a_cards)
+    team_cards_combined = round(home_cards_avg + away_cards_avg, 2)
+
+    # 2. Multiplicador regional e sobredispersão da liga
+    league_mult, phi_league = get_league_card_multiplier(league_name, league_id)
+
+    # 3. Análise disciplinar do Árbitro
+    referee_name = str(fix.get('referee_name') or '').strip()
+    ref_low = referee_name.lower()
+    is_ref_confirmed = bool(
+        referee_name and not any(un in ref_low for un in [
+            'árbitro não informado', 'arbitro nao informado', 'não informado',
+            'nao informado', 'unassigned', 'n/a', 'tbd', 'sem arbitro'
+        ])
+    )
+
+    if is_ref_confirmed:
+        cursor.execute("SELECT average_yellow_cards, average_red_cards, average_fouls FROM referee_stats WHERE name = %s", (referee_name,))
+        r_row = cursor.fetchone()
+        if r_row:
+            yellows = float(r_row.get('average_yellow_cards') or 0.0)
+            reds = float(r_row.get('average_red_cards') or 0.0)
+            ref_cards_avg = round(yellows + reds, 2)
+            ref_fouls = float(r_row.get('average_fouls') or 24.0)
+        else:
+            # Árbitro confirmado nominalmente mas sem amostragem: baseline da liga
+            if league_mult <= 0.85:
+                yellows = 3.60
+                ref_fouls = 22.0
+                ref_cards_avg = 3.80
+            elif league_mult >= 1.15:
+                yellows = 4.60
+                ref_fouls = 26.0
+                ref_cards_avg = 4.90
+            else:
+                yellows = 3.90
+                ref_fouls = 24.0
+                ref_cards_avg = 4.10
+    else:
+        # Escala Oficial Pendente: Perfil Disciplinar Institucional da Competição
+        if league_mult <= 0.85:
+            yellows = 3.60
+            ref_fouls = 22.0
+            ref_cards_avg = 3.80
+        elif league_mult >= 1.15:
+            yellows = 4.60
+            ref_fouls = 26.0
+            ref_cards_avg = 4.90
+        else:
+            yellows = 3.90
+            ref_fouls = 24.0
+            ref_cards_avg = 4.10
+
+    # 4. Cálculo de Atrito Disciplinar U5J
+    _, h_eff = get_team_u5j_efficiency_cards(cursor, home_team_id, home_team)
+    _, a_eff = get_team_u5j_efficiency_cards(cursor, away_team_id, away_team)
+    friction_mult, friction_desc = calculate_u5j_card_friction(h_eff, a_eff)
+    if friction_mult is None:
+        print(f"⚠️ [Cards Engine NO_BET / U5J Ausente] Partida {home_team} vs {away_team} (#{fixture_id}) sem U5J suficiente.")
+        return None, None, None, is_ref_confirmed, team_cards_combined
+
+    # 5. Mata-Mata Oitavas+
+    is_knockout = is_knockout_round_advanced(league_round, league_name)
+    knockout_mult = 1.18 if is_knockout else 1.00
+
+    # 6. Cálculo Ponderado Central (35% Times + 50% Árbitro + 15% Faltas)
+    exp_cards = calculate_expected_cards(
+        team_cards_combined=team_cards_combined,
+        yellows=yellows,
+        ref_fouls=ref_fouls,
+        league_mult=league_mult,
+        u5j_friction_mult=friction_mult,
+        knockout_mult=knockout_mult
+    )
+
+    u5j_info = {
+        'h_eff': h_eff,
+        'a_eff': a_eff,
+        'friction_mult': friction_mult,
+        'desc': friction_desc
+    }
+
+    return exp_cards, u5j_info, ref_cards_avg, is_ref_confirmed, team_cards_combined
+
+
 # Lista ordenada de prioridade de casas de apostas para mercado de cartões
 PREFERRED_BOOKMAKERS_PRIORITY = [
     (32, 'BETANO', 'Betano'),

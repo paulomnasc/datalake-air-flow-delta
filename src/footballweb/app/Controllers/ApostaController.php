@@ -705,7 +705,7 @@ class ApostaController extends BaseController
         $maxAllowedOdd = round(max(2.00, $avgWinningOdd + 0.35), 2);
 
         if ($fixture && !empty($fixture->prediction_text)) {
-            preg_match('/xC(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)/i', $fixture->prediction_text, $matchesXc);
+            preg_match('/(?:xC|Expectativa)(?::|\s+elevado)?\s*\(?(\d+\.\d+|\d+)/i', $fixture->prediction_text, $matchesXc);
             $xc = !empty($matchesXc[1]) ? (float)$matchesXc[1] : null;
 
             if ($xc !== null && $xc > 0) {

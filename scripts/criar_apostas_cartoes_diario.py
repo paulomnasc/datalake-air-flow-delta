@@ -329,6 +329,7 @@ from cards_engine import (
     calculate_poisson_under_cdf,
     calculate_poisson_under_lines,
     calculate_expected_cards,
+    compute_fixture_expected_cards,
     fetch_betano_real_card_odds,
     evaluate_best_card_under_line,
     sync_fixture_and_bet_cards,
@@ -473,73 +474,17 @@ def criar_apostas_cartoes_diario(target_date_str=None):
             continue
 
 
-        # Verificação de Escala Oficial de Arbitragem
-        referee_name = (fix.get('referee_name') or '').strip()
-        ref_low = referee_name.lower()
-        is_ref_confirmed = bool(
-            referee_name and not any(un in ref_low for un in [
-                'árbitro não informado', 'arbitro nao informado', 'não informado', 
-                'nao informado', 'unassigned', 'n/a', 'tbd', 'sem arbitro'
-            ])
-        )
-
-        prediction_text = (fix.get('prediction_text') or '').strip()
-        league_round = (fix.get('league_round') or '').strip()
-        is_knockout = is_knockout_round_advanced(league_round, league_name)
-
-        # Cálculo de Atrito Disciplinar U5J e Mata-Mata Oitavas+
-        h_tid = fix.get('home_team_id')
-        a_tid = fix.get('away_team_id')
-        _, h_eff = get_team_u5j_efficiency_cards(cursor, h_tid, home_team)
-        _, a_eff = get_team_u5j_efficiency_cards(cursor, a_tid, away_team)
-        friction_mult, friction_desc = calculate_u5j_card_friction(h_eff, a_eff)
-        if friction_mult is None:
-            print(f"🛡️ [Gatekeeper NO_BET / U5J Ausente] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> {friction_desc}. Entrada ignorada por segurança.")
-            cancelar_apostas_pendentes_existentes("Dados U5J insuficientes")
+        # Cálculo Estrutural e Sistêmico de Cartões (Cards Engine - Single Source of Truth)
+        calc_res = compute_fixture_expected_cards(cursor, fix)
+        if not calc_res or calc_res[0] is None:
+            print(f"🛡️ [Gatekeeper NO_BET / Dados Insuficientes] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Médias estatísticas de cartões ausentes ou incompletas no banco. Entrada ignorada por segurança (Regra nº 9).")
+            cancelar_apostas_pendentes_existentes("Dados estatísticos insuficientes de cartões (Regra nº 9)")
             apostas_abstencao += 1
             continue
 
-        knockout_mult = 1.18 if is_knockout else 1.00
-
-        # Extrair expectativa de cartões xC do texto e calibrar com multiplicadores
-        match_xc = re.search(r'Expectativa:\s*(\d+(?:\.\d+)?)\s*cartões', prediction_text, re.IGNORECASE)
-        if match_xc:
-            base_xc = float(match_xc.group(1))
-            exp_cards = round(base_xc * friction_mult * knockout_mult, 2)
-        else:
-            exp_cards = round(4.20 * friction_mult * knockout_mult, 2)
-
-        # Consulta estatísticas do árbitro confirmado ou Perfil Disciplinar da Competição
-        ref_cards_avg = None
-        if is_ref_confirmed:
-            cursor.execute("SELECT average_yellow_cards, average_red_cards FROM referee_stats WHERE name = %s", (referee_name,))
-            r_row = cursor.fetchone()
-            if r_row:
-                ref_cards_avg = float(r_row.get('average_yellow_cards') or 0.0) + float(r_row.get('average_red_cards') or 0.0)
-        else:
-            # Perfil Disciplinar Institucional da Competição (sem dados fictícios / Regra de Ouro nº 9)
-            # Ligas Europeias (rigor brando/menor atrito): baseline 3.80
-            # Ligas Sul-Americanas (alto atrito/rigor elevado): baseline 4.90
-            # Demais Ligas: baseline 4.10
-            try:
-                from football_ingest_trends import get_league_card_multiplier
-                l_mult, _ = get_league_card_multiplier(league_name, league_id)
-            except Exception:
-                l_mult = 1.0
-            if l_mult <= 0.85:
-                ref_cards_avg = 3.80
-            elif l_mult >= 1.15:
-                ref_cards_avg = 4.90
-            else:
-                ref_cards_avg = 4.10
-            print(f"ℹ️ [Escala Pendente] Partida {home_team} vs {away_team} (ID #{fixture_id}) -> Árbitro oficial não publicado pela federação. Aplicando Perfil Disciplinar da Competição ({ref_cards_avg:.2f} cartões/jogo) com margem reforçada.")
-
-        u5j_info = {
-            'h_eff': h_eff,
-            'a_eff': a_eff,
-            'friction_mult': friction_mult,
-            'desc': friction_desc
-        }
+        exp_cards, u5j_info, ref_cards_avg, is_ref_confirmed, team_cards_combined = calc_res
+        league_round = (fix.get('league_round') or '').strip()
+        is_knockout = is_knockout_round_advanced(league_round, league_name)
 
         selected_cand, valid_cands, pred_text, over_cards_prob = evaluate_best_card_under_line(
             exp_cards=exp_cards,
